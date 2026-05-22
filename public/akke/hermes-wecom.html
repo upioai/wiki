@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Akke · Hermes Agent 接入企业微信（WECOM_BOT_ID / WECOM_SECRET 获取详解）</title>
+<style>
+  :root {
+    --bg: #0b0d12;
+    --bg-elevated: #141821;
+    --bg-code: #1a1f2b;
+    --border: #242a38;
+    --text: #e4e7ed;
+    --text-dim: #9ba3b4;
+    --text-muted: #6b7384;
+    --accent: #8b5cf6;
+    --accent-soft: rgba(139, 92, 246, 0.15);
+    --success: #34d399;
+    --warning: #fbbf24;
+    --danger: #f87171;
+    --info: #60a5fa;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    font-size: 16px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 880px; margin: 0 auto; padding: 48px 24px 120px; }
+  .breadcrumb { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
+  .breadcrumb a { color: var(--text-dim); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--accent); }
+  .breadcrumb span { margin: 0 8px; color: var(--border); }
+
+  header.hero { padding: 32px 0 48px; border-bottom: 1px solid var(--border); margin-bottom: 48px; }
+  .tag { display: inline-block; padding: 4px 12px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 13px; font-weight: 500; margin-bottom: 16px; }
+  h1 { font-size: 38px; font-weight: 700; margin: 0 0 16px; letter-spacing: -0.02em; line-height: 1.2; }
+  .subtitle { font-size: 18px; color: var(--text-dim); margin: 0 0 24px; }
+  .meta { display: flex; gap: 24px; flex-wrap: wrap; font-size: 14px; color: var(--text-muted); }
+  .meta span::before { content: ""; display: inline-block; width: 4px; height: 4px; background: var(--text-muted); border-radius: 50%; margin-right: 8px; vertical-align: middle; }
+
+  h2 { font-size: 26px; font-weight: 700; margin: 56px 0 16px; letter-spacing: -0.01em; padding-top: 16px; }
+  h2 .num { display: inline-block; width: 32px; height: 32px; line-height: 32px; text-align: center; background: var(--accent); color: #fff; border-radius: 8px; font-size: 16px; margin-right: 12px; vertical-align: middle; }
+  h3 { font-size: 18px; font-weight: 600; margin: 28px 0 10px; }
+  p { margin: 12px 0; color: var(--text-dim); }
+  p strong, li strong { color: var(--text); }
+
+  ol, ul { padding-left: 24px; color: var(--text-dim); }
+  ol li, ul li { margin: 8px 0; }
+
+  code { background: var(--bg-code); padding: 2px 6px; border-radius: 4px; font-size: 0.92em; color: var(--info); font-family: "SF Mono", "Monaco", Consolas, monospace; word-break: break-word; }
+  pre { background: var(--bg-code); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; overflow-x: auto; margin: 16px 0; }
+  pre code { background: transparent; padding: 0; color: var(--text); font-size: 13.5px; line-height: 1.6; }
+
+  .alert { padding: 16px 20px; border-radius: 10px; margin: 20px 0; display: flex; gap: 14px; align-items: flex-start; }
+  .alert .icon { flex: 0 0 24px; font-size: 22px; line-height: 1; padding-top: 2px; }
+  .alert.warn { background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.25); color: #fde68a; }
+  .alert.info { background: rgba(96,165,250,0.08); border: 1px solid rgba(96,165,250,0.25); color: #bfdbfe; }
+  .alert.danger { background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.25); color: #fecaca; }
+  .alert.success { background: rgba(52,211,153,0.08); border: 1px solid rgba(52,211,153,0.25); color: #bbf7d0; }
+  .alert strong { color: inherit; }
+
+  .step { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; padding: 24px 28px; margin: 16px 0; position: relative; }
+  .step .step-num { position: absolute; top: -14px; left: 24px; background: var(--accent); color: #fff; font-weight: 700; padding: 4px 12px; border-radius: 6px; font-size: 13px; }
+  .step h3 { margin-top: 8px; }
+
+  .toc { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; margin: 32px 0; }
+  .toc-title { font-size: 14px; color: var(--text-muted); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .toc a { color: var(--text); text-decoration: none; display: block; padding: 6px 0; border-bottom: 1px solid var(--border); transition: color 0.2s; }
+  .toc a:hover { color: var(--accent); }
+  .toc a:last-child { border-bottom: none; }
+
+  .paths { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 20px 0 8px; }
+  @media (max-width: 720px) { .paths { grid-template-columns: 1fr; } }
+  .path-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; padding: 20px; border-top: 3px solid var(--accent); }
+  .path-card:nth-child(2) { border-top-color: var(--info); }
+  .path-card:nth-child(3) { border-top-color: var(--warning); }
+  .path-card .label { font-size: 11px; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px; }
+  .path-card h4 { margin: 0 0 8px; font-size: 17px; color: var(--text); }
+  .path-card p { margin: 0; font-size: 13.5px; color: var(--text-dim); line-height: 1.6; }
+  .path-card .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; margin-top: 10px; }
+  .path-card .badge.fast { background: rgba(52,211,153,0.15); color: #bbf7d0; }
+  .path-card .badge.normal { background: rgba(96,165,250,0.15); color: #bfdbfe; }
+  .path-card .badge.fallback { background: rgba(251,191,36,0.15); color: #fde68a; }
+
+  table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+  th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border); font-size: 14px; vertical-align: top; }
+  th { color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; font-size: 12px; }
+  td { color: var(--text-dim); }
+  td strong { color: var(--text); }
+  td code { font-size: 12.5px; }
+
+  .cheat { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; padding: 24px 28px; margin: 24px 0; }
+  .cheat h3 { margin: 0 0 12px; font-size: 14px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .cheat pre { margin: 8px 0; }
+
+  details { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px; padding: 12px 20px; margin: 12px 0; }
+  details summary { cursor: pointer; font-weight: 600; padding: 4px 0; color: var(--text); list-style: none; }
+  details summary::-webkit-details-marker { display: none; }
+  details summary::before { content: "▶ "; color: var(--text-muted); margin-right: 4px; }
+  details[open] summary::before { content: "▼ "; }
+  details[open] summary { margin-bottom: 12px; }
+
+  hr { border: none; border-top: 1px solid var(--border); margin: 48px 0; }
+
+  .footer { margin-top: 80px; padding-top: 32px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 14px; }
+  .footer a { color: var(--text-dim); text-decoration: none; }
+  .footer a:hover { color: var(--accent); }
+  .footer ul { padding-left: 20px; }
+
+  @media (max-width: 640px) {
+    h1 { font-size: 28px; }
+    h2 { font-size: 21px; }
+    .container { padding: 32px 18px 80px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <nav class="breadcrumb">
+    <a href="/">upio.ai</a><span>/</span><a href="/akke/">Akke</a><span>/</span><span style="color: var(--text-dim);">Hermes × 企业微信</span>
+  </nav>
+
+  <header class="hero">
+    <span class="tag">外部集成 · Onboarding</span>
+    <h1>Hermes Agent 接入企业微信<br>—— 获取 Bot ID 与 Secret 详解</h1>
+    <p class="subtitle">
+      Hermes 走「AI Bot 长连接 / WebSocket」模式接企微，本机无需公网入口。整个流程的瓶颈只有一个：从企微管理台拿到两个值
+      <code>WECOM_BOT_ID</code> + <code>WECOM_SECRET</code>。本页讲清楚三条获取路径、踩坑与最终落地命令。
+    </p>
+    <div class="meta">
+      <span>目标读者：要给自己 Hermes / OpenClaw / LangBot 接企微的人</span>
+      <span>耗时：5–30 分钟（视权限而定）</span>
+      <span>最后更新 2026-05-23</span>
+    </div>
+  </header>
+
+  <div class="toc">
+    <div class="toc-title">本页目录</div>
+    <a href="#prereq">先决条件：你能不能创建 AI 机器人</a>
+    <a href="#paths">三条获取路径：扫码 / 客户端 / 管理后台</a>
+    <a href="#path-a">路径 A · Hermes 扫码自动创建（推荐）</a>
+    <a href="#path-b">路径 B · 企微客户端手动创建</a>
+    <a href="#path-c">路径 C · 管理后台 web 创建（备用）</a>
+    <a href="#apply">拿到凭据之后：写入 <code>.env</code> + 重启 + 验证</a>
+    <a href="#pitfalls">常见坑</a>
+    <a href="#refs">参考资料</a>
+  </div>
+
+  <h2 id="prereq"><span class="num">1</span>先决条件</h2>
+
+  <p>在动手之前，先确认这三件事，否则会卡在中途没退路：</p>
+
+  <ul>
+    <li><strong>企微管理员权限</strong> —— 普通员工账号通常进不去"创建应用 / 创建机器人"入口。如果是这种情况，让 IT/admin 替你建，把两个值发给你即可。</li>
+    <li><strong>企业开通了"智能机器人"特性</strong> —— 部分企业版本默认不开。如果客户端"工作台"里完全找不到「智能机器人」入口，需要管理员先在 web 管理后台开启。</li>
+    <li><strong>Hermes 已经在本机跑起来</strong> —— 默认安装在 <code>~/.hermes/hermes-agent/</code>，gateway 由 launchd 拉起。本文假设你已经按 Hermes 文档完成基础安装；如果还没，先跑 <code>setup-hermes.sh</code>。</li>
+  </ul>
+
+  <div class="alert info">
+    <span class="icon">ℹ️</span>
+    <div>Hermes 这条接入方式叫 <strong>「AI Bot 长连接 / WebSocket」</strong>。和它对应的 <strong>「自建应用 + Callback」</strong> 是另一条路（CorpID + AgentID + CorpSecret + Token + EncodingAESKey 五件套 + 公网 HTTPS 入口），本页<u>不涉及</u>那条。</div>
+  </div>
+
+  <h2 id="paths"><span class="num">2</span>三条获取路径</h2>
+
+  <p>同样目的有三个入口，按推荐度排序：</p>
+
+  <div class="paths">
+    <div class="path-card">
+      <div class="label">A · 推荐</div>
+      <h4>Hermes 扫码</h4>
+      <p>本机跑 <code>hermes gateway setup</code> → 选 WeCom → 终端出二维码 → 手机企微扫一下 → 自动建好并写入 <code>.env</code>。</p>
+      <span class="badge fast">5 秒</span>
+    </div>
+    <div class="path-card">
+      <div class="label">B · 标准</div>
+      <h4>企微客户端</h4>
+      <p>打开企微 app/Mac 客户端 → 工作台 → 智能机器人 → 创建机器人 → API 模式 → 长连接 → 复制 Bot ID / Secret。</p>
+      <span class="badge normal">3 分钟</span>
+    </div>
+    <div class="path-card">
+      <div class="label">C · 备用</div>
+      <h4>管理后台</h4>
+      <p>web 后台登录 → 应用管理 → 智能机器人 → 创建。客户端找不到入口时走这里。</p>
+      <span class="badge fallback">5–15 分钟</span>
+    </div>
+  </div>
+
+  <h2 id="path-a"><span class="num">3</span>路径 A · Hermes 扫码自动创建</h2>
+
+  <p>Hermes 的 <code>gateway setup</code> 向导内置了"在终端渲染二维码、手机扫码授权后自动建 bot 并取凭据"的逻辑。这条路最快也最不容易出错，因为完全不用手输 Bot ID / Secret。</p>
+
+  <div class="step">
+    <span class="step-num">A.1</span>
+    <h3>在终端打开 Hermes 配置向导</h3>
+    <pre><code>cd /Users/gloom/.hermes/hermes-agent
+./venv/bin/python -m hermes_cli.main gateway setup</code></pre>
+    <p>菜单出现后用方向键选 <strong>WeCom</strong>，回车。</p>
+  </div>
+
+  <div class="step">
+    <span class="step-num">A.2</span>
+    <h3>用手机企微扫终端的二维码</h3>
+    <p>终端会以 ASCII / 半 block 字符渲染一张二维码。打开手机企业微信 → 右上角"+"号 → <strong>扫一扫</strong> → 扫向终端。屏幕模糊或字号过小时可以缩小终端窗口让二维码更紧凑。</p>
+  </div>
+
+  <div class="step">
+    <span class="step-num">A.3</span>
+    <h3>在手机上完成授权对话框</h3>
+    <p>企微 app 会弹出"是否允许 [你的企业] 创建 AI 机器人"。点确认。Hermes 会自动在企微侧创建 bot 应用并把 Bot ID / Secret 写进 <code>~/.hermes/.env</code>。</p>
+  </div>
+
+  <div class="step">
+    <span class="step-num">A.4</span>
+    <h3>向导后续问的"访问策略"</h3>
+    <p>扫码成功后向导继续追问几个问题：</p>
+    <ul>
+      <li><strong>DM 谁能私聊机器人</strong> —— 默认 <code>open</code>（任何人）；想限制选 <code>allowlist</code> 然后填 user_id 列表。</li>
+      <li><strong>群里是否响应</strong> —— 默认 <code>open</code>，想限制选 <code>allowlist</code> 然后填群 ID。</li>
+      <li><strong>Home channel</strong> —— 给 cron / 系统通知用，选一个群或 DM 当默认输出。</li>
+    </ul>
+    <p>不确定就全选 <code>open</code>，后面随时改 <code>.env</code> 调整。</p>
+  </div>
+
+  <div class="alert success">
+    <span class="icon">✅</span>
+    <div>跑完这条路径 <code>.env</code> 已经有真值了，可以直接跳到 <a href="#apply" style="color:inherit;text-decoration:underline;">第 6 节"拿到凭据之后"</a>。</div>
+  </div>
+
+  <h2 id="path-b"><span class="num">4</span>路径 B · 企微客户端手动创建</h2>
+
+  <p>这是 <strong>2026 年的真实流程</strong>。Hermes 文档里那条"管理后台 → 应用管理 → 创建应用 → AI Bot"是老路子，今天打开会找不到对应入口；现在主入口在客户端。</p>
+
+  <div class="step">
+    <span class="step-num">B.1</span>
+    <h3>打开「工作台」找「智能机器人」</h3>
+    <p>手机或 Mac 客户端的企业微信，底部进 <strong>工作台</strong> tab，往下找 <strong>「智能机器人」</strong>。如果没看到——往下翻"我的应用"末尾通常有个"添加应用"或"探索更多"，里面会有"智能机器人"分类。</p>
+    <div class="alert warn">
+      <span class="icon">⚠️</span>
+      <div>完全找不到 = 企业还没开启智能机器人特性。让管理员在 web 管理后台 → "我的企业" → "权限管理"或"AI 套件"里开启，或者直接走<a href="#path-c" style="color:inherit;text-decoration:underline;">路径 C</a>。</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <span class="step-num">B.2</span>
+    <h3>点「创建机器人」</h3>
+    <p>填基本信息：名字、头像、一句话简介。这些都是<u>员工侧</u>看到的展示信息，不影响接入。</p>
+  </div>
+
+  <div class="step">
+    <span class="step-num">B.3</span>
+    <h3>关键节点：选「API 模式」</h3>
+    <p>页面会问你机器人怎么响应消息。常见三类：</p>
+    <table>
+      <thead><tr><th>选项</th><th>用于</th><th>Hermes 是否能用</th></tr></thead>
+      <tbody>
+        <tr><td><strong>对话模式</strong></td><td>纯腾讯托管的预置话术 bot</td><td><span style="color:var(--danger);">不行</span> —— 没有 Bot ID/Secret</td></tr>
+        <tr><td><strong>API 模式</strong></td><td>消息中转到第三方系统处理</td><td><span style="color:var(--success);">就是这个</span></td></tr>
+        <tr><td><strong>知识库模式</strong></td><td>挂腾讯文档当 RAG</td><td><span style="color:var(--danger);">不行</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="step">
+    <span class="step-num">B.4</span>
+    <h3>API 模式里选「使用长连接」</h3>
+    <p>API 模式内部又分两种握手方式：</p>
+    <table>
+      <thead><tr><th>方式</th><th>需要的东西</th><th>对应 Hermes</th></tr></thead>
+      <tbody>
+        <tr><td><strong>长连接</strong></td><td>无需公网，本机持久 WebSocket 出去拉消息</td><td><span style="color:var(--success);">✅ 这条</span></td></tr>
+        <tr><td><strong>短连接 / 回调</strong></td><td>需要公网 HTTPS 域名 + 证书 + Token + EncodingAESKey</td><td>另一个 adapter <code>wecom_callback</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="step">
+    <span class="step-num">B.5</span>
+    <h3>页面直接显示 Bot ID + Secret</h3>
+    <p>选完长连接，页面会立刻渲染出两个字段：</p>
+    <ul>
+      <li><strong>Bot ID</strong> —— 一串 16–32 位字符，可复制；通常自动生成无需修改。</li>
+      <li><strong>Secret</strong> —— 点旁边的"随机生成"按钮，会得到一串密钥；点一次生成一次，<u>关闭页面后看不到完整值</u>，丢了只能重新生成（这会让旧的失效）。</li>
+    </ul>
+    <div class="alert danger">
+      <span class="icon">🔐</span>
+      <div><strong>Secret 立刻贴去 Hermes 或你的密码管理器</strong>。不要拍照、不要发微信群、不要写在便签纸上。任何人拿到 Bot ID + Secret 都能伪装你这个机器人发任意消息。</div>
+    </div>
+  </div>
+
+  <h2 id="path-c"><span class="num">5</span>路径 C · 管理后台 web 创建（备用）</h2>
+
+  <p>客户端入口被隐藏 / 你只有 PC 端没装企微 app / 大企业有专门的应用管理流程，走这里：</p>
+
+  <div class="step">
+    <span class="step-num">C.1</span>
+    <h3>登录企微管理后台</h3>
+    <p>浏览器打开 <a href="https://work.weixin.qq.com/wework_admin/frame" target="_blank" style="color:var(--info);">work.weixin.qq.com/wework_admin/frame</a>，<strong>必须用管理员账号</strong>登录（个人微信扫码也行，前提是你的微信号被注册过该企业的管理员）。</p>
+  </div>
+
+  <div class="step">
+    <span class="step-num">C.2</span>
+    <h3>进「应用管理」找「智能机器人」分类</h3>
+    <p>顶栏选 <strong>应用管理</strong> → 左侧导航里找 <strong>「智能机器人」</strong> 或 <strong>「AI 机器人」</strong> 子项。点 <strong>创建机器人</strong> / <strong>新建机器人</strong>。</p>
+  </div>
+
+  <div class="step">
+    <span class="step-num">C.3</span>
+    <h3>后续步骤同路径 B</h3>
+    <p>web 后台的表单跟客户端 B.3 / B.4 / B.5 完全对齐 —— 选 API 模式 → 长连接 → 复制 Bot ID + Secret。</p>
+  </div>
+
+  <h2 id="apply"><span class="num">6</span>拿到凭据之后</h2>
+
+  <p>把两个值写入 <code>~/.hermes/.env</code>。<u>如果走的路径 A 扫码，这一步 Hermes 已经替你做了</u>，直接跳到验证。</p>
+
+  <div class="step">
+    <span class="step-num">6.1</span>
+    <h3>编辑 <code>.env</code></h3>
+    <pre><code># ~/.hermes/.env 末尾或 TELEGRAM 段后追加：
+
+WECOM_BOT_ID=你的 Bot ID
+WECOM_SECRET=你的 Secret
+
+# 可选：访问控制
+# WECOM_DM_POLICY=allowlist                  # open | allowlist | disabled | pairing
+# WECOM_ALLOWED_USERS=alice,bob,charlie      # 仅 allowlist 模式生效
+# WECOM_HOME_CHANNEL=                        # cron 通知默认输出的 chat_id</code></pre>
+    <div class="alert warn">
+      <span class="icon">⚠️</span>
+      <div>不要用 <code>__FILL_ME_IN__</code> 之类占位字符串！Hermes 的 <code>gateway/config.py:1669</code> 检查 <code>if WECOM_BOT_ID and WECOM_SECRET</code> ——任何非空字符串都会被当真值，导致 wecom 适配器尝试用垃圾凭据握手并刷错误日志。要么填真值，要么注释掉整行。</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <span class="step-num">6.2</span>
+    <h3>重启 gateway</h3>
+    <pre><code># macOS / launchd 已加载的场景：
+launchctl kickstart -k gui/$(id -u)/ai.hermes.gateway
+
+# 或如果还没加载：
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.hermes.gateway.plist</code></pre>
+    <p>等 10–20 秒，gateway 完成 WebSocket 握手。</p>
+  </div>
+
+  <div class="step">
+    <span class="step-num">6.3</span>
+    <h3>验证 wecom 已 connected</h3>
+    <pre><code>cat ~/.hermes/gateway_state.json | python3 -m json.tool</code></pre>
+    <p>看 <code>platforms.wecom.state</code> 字段：</p>
+    <ul>
+      <li><code>connected</code> —— 成功 ✅</li>
+      <li><code>disconnected</code> 或 <code>error</code> —— 看 <code>~/.hermes/logs/gateway.error.log</code> 尾部</li>
+    </ul>
+  </div>
+
+  <div class="step">
+    <span class="step-num">6.4</span>
+    <h3>真消息回路测试</h3>
+    <p>用手机企微给机器人发条 <strong>「ping」</strong>。期待：</p>
+    <ul>
+      <li>Hermes 回复一条消息（具体内容取决于你配置的 agent / 模型）。</li>
+      <li><code>~/.hermes/channel_directory.json</code> 里 <code>wecom</code> 数组出现一条新 entry（你的 user_id）。</li>
+    </ul>
+    <p>跑通这步 = 端到端打通，下班。</p>
+  </div>
+
+  <h2 id="pitfalls"><span class="num">7</span>常见坑</h2>
+
+  <details>
+    <summary>看不到「智能机器人」入口</summary>
+    <p>企业没开通这个特性。让管理员在 web 后台 → "我的企业" → "权限管理"或专门的"AI 套件"页里启用。或者升级套餐 —— 部分免费版企微限制 AI Bot 数量。</p>
+  </details>
+
+  <details>
+    <summary>Secret 关掉页面后看不到完整值</summary>
+    <p>设计如此。Secret 是单次显示的敏感凭据。丢了只能重新点"随机生成"得到新值（旧值失效）。<strong>建议建好就贴 1Password / Bitwarden / Lark 私人多维表</strong>。</p>
+  </details>
+
+  <details>
+    <summary>Bot ID 和 CorpID 搞不清</summary>
+    <ul>
+      <li><strong>Bot ID</strong> = 这一个 AI 机器人的唯一标识，16–32 位</li>
+      <li><strong>CorpID</strong> = 整个企业的标识，<u>只在 callback 模式才用</u>，Hermes AI Bot 长连接不需要</li>
+      <li><strong>AgentID</strong> = "自建应用"的标识，<u>也是 callback 路径专用</u></li>
+    </ul>
+    <p>本页只用 Bot ID + Secret 这一对，其它三个出现说明你看错教程了。</p>
+  </details>
+
+  <details>
+    <summary>填错凭据 gateway 会循环重试导致日志炸</summary>
+    <p>是的。WebSocket 握手失败时 Hermes 走指数退避（<code>RECONNECT_BACKOFF = [2, 5, 10, 30, 60]</code>）但不会自动停。如果你确认凭据有问题，<strong>把 <code>.env</code> 的两行注释掉再 <code>launchctl kickstart -k</code></strong>，让 wecom adapter 不启动比刷错误日志好。</p>
+  </details>
+
+  <details>
+    <summary>路径 A 扫码没出二维码 / 二维码扫不出</summary>
+    <ul>
+      <li>终端窗口太小 → 二维码字符渲染重叠。把窗口横向拉宽。</li>
+      <li>终端字体不是等宽 → 二维码变形。换 SF Mono / Monaco / Menlo。</li>
+      <li>iTerm2 / Tabby / Warp 显示正常但 macOS Terminal.app 渲染异常 → 换终端。</li>
+      <li>如果一直失败，向导通常会自动 fallback 到手输模式，按提示粘贴 Bot ID / Secret 即可（路径 B 拿）。</li>
+    </ul>
+  </details>
+
+  <details>
+    <summary>跨企业切换：之前给企业 A 建的 bot 想拆给企业 B 用</summary>
+    <p>不行。Bot ID + Secret 绑死到创建时的企业。换企业必须在企业 B 里重新走一遍创建流程，拿新的一对凭据。</p>
+  </details>
+
+  <div class="cheat">
+    <h3>排错速查命令</h3>
+    <pre><code># 看 gateway 当前是否运行
+ps -ef | grep hermes_cli | grep -v grep
+
+# 看每个平台的连接状态
+cat ~/.hermes/gateway_state.json | python3 -m json.tool
+
+# 看启动错误（最后 80 行）
+tail -80 ~/.hermes/logs/gateway.error.log
+
+# 看 wecom adapter 实时心跳
+tail -f ~/.hermes/logs/gateway.log | grep -i wecom
+
+# 强制重启（kill + launchd 自动拉起）
+launchctl kickstart -k gui/$(id -u)/ai.hermes.gateway
+
+# 完全卸载平台（保留 .env，只是 unload launchd）
+launchctl bootout gui/$(id -u)/ai.hermes.gateway</code></pre>
+  </div>
+
+  <h2 id="refs"><span class="num">8</span>参考资料</h2>
+
+  <ul>
+    <li><a href="https://github.com/NousResearch/hermes-agent" target="_blank" style="color:var(--info);">NousResearch / hermes-agent</a> —— upstream 仓库</li>
+    <li>Hermes 文档 · <code>website/docs/user-guide/messaging/wecom.md</code>（仓库内）</li>
+    <li>Hermes 适配器源码 · <code>gateway/platforms/wecom.py</code></li>
+    <li><a href="https://zhuanlan.zhihu.com/p/2017689844298577098" target="_blank" style="color:var(--info);">企业微信接入 OpenClaw 官方指引</a>（知乎，含创建截图）</li>
+    <li><a href="https://www.53ai.com/news/Openclaw/2026030985417.html" target="_blank" style="color:var(--info);">企业微信正式接入 OpenClaw 手把手教程</a></li>
+    <li><a href="https://qclaw.qq.com/docs/207527629435641856.html" target="_blank" style="color:var(--info);">QClaw 官方·获取 Bot ID 和 Secret</a></li>
+    <li><a href="https://docs.langbot.app/zh/usage/platforms/wecom/wecombot" target="_blank" style="color:var(--info);">LangBot · 部署企业微信智能机器人</a>（另一个消费者）</li>
+    <li><a href="https://work.weixin.qq.com/wework_admin/frame" target="_blank" style="color:var(--info);">企业微信管理后台</a></li>
+  </ul>
+
+  <div class="footer">
+    <p>本页针对 Akke 内部用 Hermes 自建工作流的同学。任何坑 / 错位请 PR 修正；外部读者可直接参考用于任何 Hermes 消费者（OpenClaw / LangBot / 自研 bot）。</p>
+    <p><a href="/akke/">← 返回 Akke 知识库首页</a></p>
+  </div>
+
+</div>
+</body>
+</html>
