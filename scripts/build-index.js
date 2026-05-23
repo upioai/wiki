@@ -4,86 +4,68 @@ const path = require('path');
 const publicDir = path.join(__dirname, '..', 'public');
 
 const PROJECTS = [
-  { name: 'Vivi', tagline: 'Telegram Mini App · AI 角色 RP 对话', href: '/vivi/' },
-  { name: 'Softie', tagline: 'AI 陪伴聊天 · 美国市场（含 Web + Android）', href: '/softie/' },
-  { name: 'Akke', tagline: '抖音全屋定制智能获客', href: '/akke/' },
+  {
+    name: 'Vivi',
+    tagline: 'Telegram Mini App · AI 角色 RP 对话',
+    href: '/vivi/',
+  },
+  {
+    name: 'Softie',
+    tagline: 'AI 陪伴聊天 · 美国市场（Web + Android）',
+    href: '/softie/',
+  },
+  {
+    name: 'Akke',
+    tagline: '抖音全屋定制智能获客',
+    href: '/akke/',
+  },
 ];
 
-function getHtmlFiles(dir, base = '') {
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
-  let files = [];
-  for (const entry of entries) {
-    const rel = path.join(base, entry.name);
-    if (entry.isDirectory()) {
-      files = files.concat(getHtmlFiles(path.join(dir, entry.name), rel));
-    } else if (entry.name.endsWith('.html') && entry.name !== 'index.html') {
-      const stat = fs.statSync(path.join(dir, entry.name));
-      const content = fs.readFileSync(path.join(dir, entry.name), 'utf-8');
-      const titleMatch = content.match(/<title>(.*?)<\/title>/i);
-      const h1Match = content.match(/<h1[^>]*>(.*?)<\/h1>/i);
-      const title = titleMatch ? titleMatch[1] : h1Match ? h1Match[1].replace(/<[^>]*>/g, '') : entry.name.replace('.html', '');
-      files.push({
-        path: rel,
-        title,
-        modified: stat.mtime,
-        folder: base || 'root',
-      });
-    }
-  }
-  return files;
+const GUIDES = [
+  {
+    file: 'anthropic-founder-handbook-zh.html',
+    title: 'Anthropic 创始人手册（中译）',
+    desc: 'Karpathy 翻译整理的 Anthropic 工作手册中文版。AI native 创业心法。',
+  },
+  {
+    file: 'claude-code-windows-guide.html',
+    title: 'Claude Code · Windows 上手攻略',
+    desc: 'Windows 用户从 0 到能跑 Claude Code 的完整路径，含常见坑。',
+  },
+  {
+    file: 'mac-windows-arm64-mirror-guide.html',
+    title: 'Mac 装 Windows on ARM 镜像指南',
+    desc: 'M 系列 Mac 通过 Parallels / UTM 装 Windows 11 ARM 的完整流程。',
+  },
+  {
+    file: 'vpn-quick-start.html',
+    title: 'VPN 快速上手',
+    desc: '团队自建 VPN 节点配置，从客户端安装到分流规则。',
+  },
+];
+
+const missing = GUIDES.filter(g => !fs.existsSync(path.join(publicDir, g.file)));
+if (missing.length) {
+  console.warn(`[build-index] WARN: ${missing.length} curated guide(s) missing: ${missing.map(m => m.file).join(', ')}`);
 }
 
-const files = getHtmlFiles(publicDir);
-files.sort((a, b) => b.modified - a.modified);
-
-const groups = {};
-for (const f of files) {
-  if (!groups[f.folder]) groups[f.folder] = [];
-  groups[f.folder].push(f);
-}
-
-const FOLDER_LABELS = {
-  root: '通用指南',
-  softie: 'Softie 项目',
-  akke: 'Akke 项目',
-  vivi: 'Vivi 项目',
-};
-
-const folderSections = Object.entries(groups)
-  .map(([folder, items]) => {
-    const folderName = FOLDER_LABELS[folder] || folder.replace(/\//g, ' / ');
-    const links = items
-      .map(f => {
-        const date = f.modified.toISOString().split('T')[0];
-        const href = '/' + f.path.replace(/\.html$/, '');
-        return `          <li><a href="${href}">${f.title}</a><span class="date">${date}</span></li>`;
-      })
-      .join('\n');
-    return `      <section class="docs-section">
-        <h2>${folderName}</h2>
-        <ul class="doc-list">
-${links}
-        </ul>
-      </section>`;
+const guideCards = GUIDES.filter(g => fs.existsSync(path.join(publicDir, g.file)))
+  .map(g => {
+    const href = '/' + g.file.replace(/\.html$/, '');
+    return `        <a class="guide-card" href="${href}">
+          <h3>${g.title}</h3>
+          <p>${g.desc}</p>
+        </a>`;
   })
   .join('\n');
 
 const projectCards = PROJECTS.map(p => {
-  if (p.href) {
-    return `        <a class="project-card project-card--live" href="${p.href}">
+  return `        <a class="project-card" href="${p.href}">
           <span class="badge badge--live">进入</span>
           <h3>${p.name}</h3>
           <p>${p.tagline}</p>
         </a>`;
-  }
-  return `        <article class="project-card">
-          <span class="badge">敬请期待</span>
-          <h3>${p.name}</h3>
-          <p>${p.tagline}</p>
-        </article>`;
 }).join('\n');
-
-const totalCount = files.length;
 
 const html = `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -95,7 +77,9 @@ const html = `<!DOCTYPE html>
     :root {
       --bg: #0b0d12;
       --bg-elevated: #141821;
+      --bg-deep: #1a1f2b;
       --border: #242a38;
+      --border-strong: #2f3646;
       --text: #e4e7ed;
       --text-dim: #9ba3b4;
       --text-muted: #6b7384;
@@ -122,12 +106,12 @@ const html = `<!DOCTYPE html>
       padding: 64px 24px 120px;
     }
     header.hero {
-      padding: 32px 0 56px;
+      padding: 32px 0 48px;
       border-bottom: 1px solid var(--border);
       margin-bottom: 56px;
     }
     .hero h1 {
-      margin: 0 0 12px;
+      margin: 0 0 14px;
       font-size: 44px;
       font-weight: 700;
       letter-spacing: -0.02em;
@@ -143,44 +127,51 @@ const html = `<!DOCTYPE html>
       letter-spacing: 0.02em;
     }
     h2 {
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 600;
       color: var(--text-muted);
-      letter-spacing: 0.12em;
+      letter-spacing: 0.14em;
       text-transform: uppercase;
       margin: 0 0 20px;
     }
+    section { margin-bottom: 56px; }
     .projects {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
-      margin-bottom: 64px;
+      gap: 14px;
     }
-    .project-card {
+    .guides {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+    }
+    .project-card,
+    .guide-card {
       position: relative;
       display: block;
       background: var(--bg-elevated);
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 24px 22px 22px;
-      transition: border-color 0.2s ease, transform 0.15s ease;
+      padding: 22px 22px 20px;
+      transition: border-color 0.2s ease, transform 0.15s ease, background 0.2s ease;
       text-decoration: none;
       color: inherit;
     }
-    .project-card:hover {
-      border-color: #2f3647;
-    }
-    .project-card--live:hover {
+    .project-card:hover,
+    .guide-card:hover {
       border-color: var(--accent);
       transform: translateY(-1px);
     }
-    .project-card h3 {
+    .project-card h3,
+    .guide-card h3 {
       margin: 0 0 8px;
       font-size: 18px;
       font-weight: 600;
       color: var(--text);
+      letter-spacing: -0.005em;
     }
-    .project-card p {
+    .project-card p,
+    .guide-card p {
       margin: 0;
       font-size: 13.5px;
       color: var(--text-dim);
@@ -202,50 +193,8 @@ const html = `<!DOCTYPE html>
       background: var(--accent-soft);
       color: var(--accent);
     }
-    .docs-section {
-      margin-bottom: 36px;
-    }
-    .doc-list {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-      border-top: 1px solid var(--border);
-    }
-    .doc-list li {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 14px 4px;
-      border-bottom: 1px solid var(--border);
-      gap: 16px;
-    }
-    .doc-list a {
-      color: var(--text);
-      text-decoration: none;
-      font-size: 15px;
-      flex: 1;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      transition: color 0.15s ease;
-    }
-    .doc-list a:hover {
-      color: var(--accent);
-    }
-    .date {
-      color: var(--text-muted);
-      font-size: 12.5px;
-      font-variant-numeric: tabular-nums;
-      white-space: nowrap;
-    }
-    .empty {
-      color: var(--text-muted);
-      text-align: center;
-      padding: 4rem 0;
-    }
     footer {
-      margin-top: 80px;
+      margin-top: 32px;
       padding-top: 24px;
       border-top: 1px solid var(--border);
       color: var(--text-muted);
@@ -255,7 +204,8 @@ const html = `<!DOCTYPE html>
     @media (max-width: 720px) {
       .container { padding: 40px 20px 80px; }
       .hero h1 { font-size: 34px; }
-      .projects { grid-template-columns: 1fr; }
+      .projects,
+      .guides { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -267,18 +217,23 @@ const html = `<!DOCTYPE html>
     </header>
 
     <section>
-      <h2>项目团队</h2>
+      <h2>项目知识库</h2>
       <div class="projects">
 ${projectCards}
       </div>
     </section>
 
-${totalCount > 0 ? folderSections : '    <p class="empty">暂无文档。把 HTML 文件放到 public/ 目录即可。</p>'}
+    <section>
+      <h2>通用指南</h2>
+      <div class="guides">
+${guideCards}
+      </div>
+    </section>
 
-    <footer>${totalCount} documents · upio.ai</footer>
+    <footer>upio.ai · 各项目的踩坑/案例/SOP 请进入对应子站</footer>
   </div>
 </body>
 </html>`;
 
 fs.writeFileSync(path.join(publicDir, 'index.html'), html);
-console.log(`Built index with ${totalCount} documents`);
+console.log(`Built index: ${PROJECTS.length} projects, ${GUIDES.length - missing.length} guides`);
