@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Akke · Claude Code 怎么"指挥"云电脑发抖音私信</title>
+<style>
+  :root {
+    --bg: #0b0d12;
+    --bg-elevated: #141821;
+    --bg-deep: #1a1f2b;
+    --border: #242a38;
+    --border-strong: #2f3646;
+    --text: #e4e7ed;
+    --text-dim: #9ba3b4;
+    --text-muted: #6b7384;
+    --accent: #8b5cf6;
+    --accent-soft: rgba(139, 92, 246, 0.15);
+    --accent-2: #60a5fa;
+    --accent-2-soft: rgba(96, 165, 250, 0.12);
+    --accent-3: #34d399;
+    --accent-3-soft: rgba(52, 211, 153, 0.12);
+    --warning: #fbbf24;
+    --warning-soft: rgba(251, 191, 36, 0.12);
+    --danger: #f87171;
+    --danger-soft: rgba(248, 113, 113, 0.12);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; padding: 0;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 16px; line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 1080px; margin: 0 auto; padding: 56px 24px 120px; }
+
+  .breadcrumb { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
+  .breadcrumb a { color: var(--text-dim); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--accent); }
+  .breadcrumb span { margin: 0 8px; color: var(--border-strong); }
+
+  header.hero { padding: 16px 0 48px; border-bottom: 1px solid var(--border); margin-bottom: 48px; }
+  .tag { display: inline-block; padding: 4px 12px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 13px; font-weight: 500; margin-bottom: 16px; }
+  h1 {
+    font-size: 44px; font-weight: 700; margin: 0 0 16px;
+    letter-spacing: -0.02em; line-height: 1.2;
+    background: linear-gradient(135deg, #e4e7ed 25%, var(--accent) 80%, var(--accent-2) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .subtitle { font-size: 18px; color: var(--text-dim); margin: 0 0 24px; max-width: 760px; line-height: 1.55; }
+  .hero-meta { display: flex; gap: 24px; flex-wrap: wrap; font-size: 14px; color: var(--text-muted); }
+  .hero-meta strong { color: var(--text-dim); font-weight: 500; }
+
+  h2 { font-size: 13px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.12em; text-transform: uppercase; margin: 56px 0 16px; }
+  h3 { font-size: 22px; font-weight: 650; margin: 0 0 12px; letter-spacing: -0.01em; }
+  p { color: var(--text-dim); }
+  code { background: var(--bg-deep); padding: 1px 6px; border-radius: 4px; font-size: 0.88em; color: #c4b5fd; font-family: "SF Mono", Menlo, Consolas, monospace; }
+  a { color: var(--accent-2); }
+
+  /* Quick facts */
+  .facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 8px; }
+  .fact { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; padding: 18px 18px 16px; }
+  .fact .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+  .fact .val { font-size: 16px; color: var(--text); font-weight: 600; }
+  .fact .sub { font-size: 12.5px; color: var(--text-muted); margin-top: 4px; line-height: 1.5; }
+  @media (max-width: 860px) { .facts { grid-template-columns: repeat(2, 1fr); } }
+
+  /* Diagram card */
+  .diagram { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 16px; padding: 24px 24px 20px; margin: 8px 0 0; }
+  .diagram svg { width: 100%; height: auto; display: block; }
+  .diagram .caption { font-size: 13px; color: var(--text-muted); margin-top: 14px; text-align: center; }
+
+  /* Cast (role cards) */
+  .cast { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  @media (max-width: 720px) { .cast { grid-template-columns: 1fr; } }
+  .role {
+    background: var(--bg-elevated); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px 20px;
+    border-left: 3px solid var(--accent);
+  }
+  .role:nth-child(8n+2) { border-left-color: var(--accent-2); }
+  .role:nth-child(8n+3) { border-left-color: var(--accent-3); }
+  .role:nth-child(8n+4) { border-left-color: var(--warning); }
+  .role:nth-child(8n+5) { border-left-color: var(--accent); }
+  .role:nth-child(8n+6) { border-left-color: var(--accent-2); }
+  .role:nth-child(8n+7) { border-left-color: var(--accent-3); }
+  .role:nth-child(8n) { border-left-color: var(--warning); }
+  .role .role-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+  .role .nickname { font-size: 16px; font-weight: 650; color: var(--text); }
+  .role .realname { font-size: 12px; color: var(--text-muted); font-family: "SF Mono", Menlo, Consolas, monospace; }
+  .role p { margin: 0; font-size: 14px; color: var(--text-dim); line-height: 1.65; }
+
+  /* Hops table */
+  .hops { width: 100%; border-collapse: collapse; margin: 8px 0 0; font-size: 14px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .hops th, .hops td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border); color: var(--text-dim); vertical-align: top; }
+  .hops th { color: var(--text-muted); font-weight: 600; font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase; background: var(--bg-deep); }
+  .hops tr:last-child td { border-bottom: none; }
+  .hops .hop-num { color: var(--accent); font-weight: 700; font-family: "SF Mono", Menlo, Consolas, monospace; }
+  .hops .pull { color: var(--accent-3); font-weight: 600; }
+  .hops .push { color: var(--accent-2); font-weight: 600; }
+  .hops .local { color: var(--warning); font-weight: 600; }
+  .hops .tech { color: var(--text-muted); font-size: 12px; font-family: "SF Mono", Menlo, Consolas, monospace; margin-top: 2px; }
+
+  /* Q&A */
+  .qa { display: grid; gap: 12px; }
+  .qa-item { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; }
+  .qa-item .q { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+  .qa-item .q::before { content: "Q  "; color: var(--accent); font-family: "SF Mono", monospace; font-weight: 700; }
+  .qa-item .a { font-size: 14px; color: var(--text-dim); line-height: 1.7; }
+  .qa-item .a::before { content: "A  "; color: var(--accent-3); font-family: "SF Mono", monospace; font-weight: 700; }
+
+  /* Callout */
+  .callout { border-radius: 10px; padding: 14px 18px; margin: 12px 0; font-size: 14px; line-height: 1.7; }
+  .callout.info { background: var(--accent-2-soft); border-left: 3px solid var(--accent-2); color: var(--text-dim); }
+  .callout.info strong { color: var(--accent-2); }
+  .callout.warn { background: var(--warning-soft); border-left: 3px solid var(--warning); color: var(--text-dim); }
+  .callout.warn strong { color: var(--warning); }
+
+  footer { margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--border); font-size: 13px; color: var(--text-muted); text-align: center; }
+  footer a { color: var(--accent-2); text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="container">
+  <nav class="breadcrumb">
+    <a href="/">upio.ai</a><span>/</span><a href="/akke/">Akke</a><span>/</span><span style="color: var(--text-dim);">Claude Code 控制云电脑</span>
+  </nav>
+
+  <header class="hero">
+    <span class="tag">SYSTEM DESIGN · 2026-05-26</span>
+    <h1>Claude Code 怎么"指挥"云电脑发抖音私信</h1>
+    <p class="subtitle">整套系统其实没有"指挥"。云电脑藏在很深的网络里、外面找不到，所以反过来——它自己每分钟来公告板取活儿。理解这一点，整张图就通了。</p>
+    <div class="hero-meta">
+      <span><strong>触发节奏</strong> · 每 5 分钟</span>
+      <span><strong>单账号节奏</strong> · ≥ 45 分钟一条</span>
+      <span><strong>单账号日上限</strong> · 18 条</span>
+      <span><strong>横向扩展</strong> · 1 台云电脑 = 1 个抖音号</span>
+    </div>
+  </header>
+
+  <!-- ────────────────────────────────────────── -->
+  <h2>一句话画面</h2>
+  <p style="font-size: 17px; line-height: 1.8;">把它当成一家 <strong style="color: var(--text);">"远程帮你发抖音私信的代发公司"</strong>。
+  公司里有 8 个角色：闹钟、派单员、共享公告板、N 间远程办公室，每间办公室里坐着小助理、动手的人、还有一双 AI 视力，桌上摆着一台开着抖音电脑版的电脑。
+  全公司没有任何一根电话线直接打进远程办公室——所有信息都通过<strong style="color: var(--accent);">公告板</strong>中转。这是整套系统能在 NAT、IP 漂移、风控之下稳定运转的根因。</p>
+
+  <!-- ────────────────────────────────────────── -->
+  <h2>全景图 — 一张图看清整个公司</h2>
+  <div class="diagram">
+    <svg viewBox="0 0 1040 660" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Claude Code 控制云电脑全景流程图">
+      <defs>
+        <marker id="arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#8b5cf6"/>
+        </marker>
+        <marker id="arrB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#34d399"/>
+        </marker>
+        <marker id="arrC" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#60a5fa"/>
+        </marker>
+        <marker id="arrGrey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#6b7384"/>
+        </marker>
+        <linearGradient id="boardGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#1a1f2b"/>
+          <stop offset="100%" stop-color="#141821"/>
+        </linearGradient>
+        <linearGradient id="officeGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#1e1530" stop-opacity="0.6"/>
+          <stop offset="100%" stop-color="#141821" stop-opacity="0.6"/>
+        </linearGradient>
+        <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="3" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+
+      <!-- ── Row 1: 闹钟 + 派单员 ── -->
+      <g>
+        <!-- 闹钟 -->
+        <rect x="40" y="40" width="160" height="80" rx="14" fill="#141821" stroke="#fbbf24" stroke-opacity="0.55" stroke-width="1.5"/>
+        <text x="120" y="70" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="600" letter-spacing="2">① 闹钟</text>
+        <text x="120" y="92" text-anchor="middle" fill="#e4e7ed" font-size="14" font-weight="600">每 5 分钟响一次</text>
+        <text x="120" y="110" text-anchor="middle" fill="#9ba3b4" font-size="11.5">叫派单员起床</text>
+
+        <line x1="200" y1="80" x2="240" y2="80" stroke="#6b7384" stroke-width="1.5" marker-end="url(#arrGrey)"/>
+
+        <!-- 派单员 -->
+        <rect x="240" y="20" width="320" height="120" rx="14" fill="#141821" stroke="#8b5cf6" stroke-opacity="0.55" stroke-width="1.5"/>
+        <text x="400" y="44" text-anchor="middle" fill="#8b5cf6" font-size="11" font-weight="600" letter-spacing="2">② 派单员（云端）</text>
+        <text x="400" y="66" text-anchor="middle" fill="#e4e7ed" font-size="14" font-weight="600">翻每个抖音号的小本本</text>
+        <text x="258" y="88" fill="#9ba3b4" font-size="12">• 上次发消息 &lt; 45 分钟 → 跳过</text>
+        <text x="258" y="106" fill="#9ba3b4" font-size="12">• 今天已发 ≥ 18 条 → 跳过</text>
+        <text x="258" y="124" fill="#9ba3b4" font-size="12">• 都通过 → 从候选池挑一人，写一张派单</text>
+
+        <line x1="400" y1="140" x2="400" y2="180" stroke="#8b5cf6" stroke-width="2" marker-end="url(#arrA)"/>
+        <text x="412" y="166" fill="#8b5cf6" font-size="12" font-weight="500">贴派单</text>
+      </g>
+
+      <!-- ── Row 2: 共享公告板 ── -->
+      <g>
+        <rect x="120" y="180" width="800" height="160" rx="16" fill="url(#boardGrad)" stroke="#8b5cf6" stroke-opacity="0.45" stroke-width="2" filter="url(#glow)"/>
+        <text x="520" y="210" text-anchor="middle" fill="#8b5cf6" font-size="12" font-weight="700" letter-spacing="3">③ 共享公告板 — 公司中央的一面墙</text>
+
+        <!-- 三张便签 -->
+        <g>
+          <rect x="160" y="226" width="220" height="40" rx="6" fill="#1f2433" stroke="#34d399" stroke-opacity="0.4"/>
+          <text x="172" y="244" fill="#e4e7ed" font-size="12" font-weight="600">[小张号]</text>
+          <text x="232" y="244" fill="#cbd5e1" font-size="12">联系王女士</text>
+          <text x="172" y="258" fill="#6b7384" font-size="10.5">"看到您主页很喜欢，请问做装修吗"</text>
+          <text x="350" y="258" fill="#34d399" font-size="10.5" font-weight="600">待办</text>
+        </g>
+        <g>
+          <rect x="160" y="272" width="220" height="40" rx="6" fill="#1f2433" stroke="#6b7384" stroke-opacity="0.4"/>
+          <text x="172" y="290" fill="#e4e7ed" font-size="12" font-weight="600">[小李号]</text>
+          <text x="232" y="290" fill="#cbd5e1" font-size="12">联系陈先生</text>
+          <text x="172" y="304" fill="#6b7384" font-size="10.5">"看您家在装修，方便聊几句吗"</text>
+          <text x="345" y="304" fill="#6b7384" font-size="10.5" font-weight="600">已发</text>
+        </g>
+
+        <!-- 规则面板 -->
+        <g>
+          <text x="420" y="246" fill="#9ba3b4" font-size="12">规则：</text>
+          <text x="420" y="266" fill="#cbd5e1" font-size="11.5">• 谁都能看，谁都能贴</text>
+          <text x="420" y="284" fill="#cbd5e1" font-size="11.5">• 一张便签只能被一个人撕下来</text>
+          <text x="420" y="302" fill="#cbd5e1" font-size="11.5">• 撕下来 15 分钟没回 → 自动贴回去</text>
+          <text x="420" y="320" fill="#fbbf24" font-size="11.5">这意味着：同一个人不会被两台云电脑同时发</text>
+        </g>
+
+        <!-- 实体名标注 -->
+        <text x="900" y="332" text-anchor="end" fill="#6b7384" font-size="10.5" font-style="italic">真名：Supabase dispatch_queue 表</text>
+      </g>
+
+      <!-- ── Row 3: 多间远程办公室 ── -->
+      <g>
+        <!-- Office 1（展开版） -->
+        <rect x="40" y="380" width="500" height="240" rx="16" fill="url(#officeGrad)" stroke="#60a5fa" stroke-opacity="0.55" stroke-width="1.8"/>
+        <text x="290" y="406" text-anchor="middle" fill="#60a5fa" font-size="11" font-weight="700" letter-spacing="2">④ 远程办公室 #1（云电脑，绑定"小张号"）</text>
+
+        <!-- 小助理 -->
+        <rect x="60" y="424" width="150" height="68" rx="10" fill="#141821" stroke="#60a5fa" stroke-opacity="0.45"/>
+        <text x="135" y="448" text-anchor="middle" fill="#e4e7ed" font-size="13" font-weight="600">小助理</text>
+        <text x="135" y="466" text-anchor="middle" fill="#9ba3b4" font-size="11">每 60s 去公告板</text>
+        <text x="135" y="481" text-anchor="middle" fill="#9ba3b4" font-size="11">撕指给本办公室的便签</text>
+
+        <!-- 动手的人 -->
+        <rect x="225" y="424" width="180" height="68" rx="10" fill="#141821" stroke="#8b5cf6" stroke-opacity="0.5"/>
+        <text x="315" y="448" text-anchor="middle" fill="#e4e7ed" font-size="13" font-weight="600">动手的人</text>
+        <text x="315" y="466" text-anchor="middle" fill="#9ba3b4" font-size="11">鼠标 + 键盘模拟真人</text>
+        <text x="315" y="481" text-anchor="middle" fill="#9ba3b4" font-size="11">9 步搜索→匹配→粘贴→发</text>
+
+        <!-- AI 视力 -->
+        <rect x="420" y="424" width="100" height="68" rx="10" fill="#141821" stroke="#fbbf24" stroke-opacity="0.5"/>
+        <text x="470" y="448" text-anchor="middle" fill="#e4e7ed" font-size="13" font-weight="600">AI 视力</text>
+        <text x="470" y="466" text-anchor="middle" fill="#9ba3b4" font-size="11">看一眼对方主页</text>
+        <text x="470" y="481" text-anchor="middle" fill="#9ba3b4" font-size="11">≥ 95% 才放行</text>
+
+        <!-- 抖音 PC -->
+        <rect x="60" y="510" width="345" height="88" rx="10" fill="#1a1f2b" stroke="#34d399" stroke-opacity="0.5"/>
+        <text x="232" y="535" text-anchor="middle" fill="#34d399" font-size="11" font-weight="600" letter-spacing="2">⑦ 桌上的抖音电脑版（普通客户端）</text>
+        <text x="232" y="558" text-anchor="middle" fill="#e4e7ed" font-size="12.5">动手的人按完键盘 → 抖音客户端把消息</text>
+        <text x="232" y="576" text-anchor="middle" fill="#cbd5e1" font-size="12.5">通过抖音自己的网络发往对方</text>
+        <text x="232" y="592" text-anchor="middle" fill="#6b7384" font-size="10.5">（这一步是抖音内部，我们看不见也管不到）</text>
+
+        <!-- 抖音服务器 -->
+        <rect x="420" y="510" width="100" height="88" rx="10" fill="#141821" stroke="#34d399" stroke-opacity="0.4" stroke-dasharray="4,3"/>
+        <text x="470" y="540" text-anchor="middle" fill="#34d399" font-size="11" font-weight="600">⑧ 抖音</text>
+        <text x="470" y="558" text-anchor="middle" fill="#9ba3b4" font-size="11">服务器</text>
+        <text x="470" y="582" text-anchor="middle" fill="#6b7384" font-size="10">推送给对方</text>
+
+        <!-- 箭头：小助理 → 动手的人 -->
+        <line x1="210" y1="458" x2="225" y2="458" stroke="#60a5fa" stroke-width="1.5" marker-end="url(#arrC)"/>
+        <!-- 箭头：动手的人 ↔ AI 视力 -->
+        <line x1="405" y1="448" x2="420" y2="448" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrGrey)"/>
+        <line x1="420" y1="468" x2="405" y2="468" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="3,3" marker-end="url(#arrGrey)"/>
+        <!-- 箭头：动手的人 → 抖音 PC -->
+        <line x1="315" y1="492" x2="232" y2="510" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrB)"/>
+        <!-- 抖音 PC → 抖音 -->
+        <line x1="405" y1="554" x2="420" y2="554" stroke="#6b7384" stroke-width="1.4" marker-end="url(#arrGrey)"/>
+
+        <!-- 标注：本机 IPC -->
+        <text x="232" y="505" text-anchor="middle" fill="#6b7384" font-size="10" font-style="italic">本机系统层（不走网络）</text>
+      </g>
+
+      <!-- Office 2 / 3（折叠） -->
+      <g>
+        <rect x="560" y="380" width="180" height="240" rx="16" fill="url(#officeGrad)" stroke="#60a5fa" stroke-opacity="0.3" stroke-width="1.5" stroke-dasharray="6,4"/>
+        <text x="650" y="406" text-anchor="middle" fill="#60a5fa" font-size="11" font-weight="600" letter-spacing="2" opacity="0.7">远程办公室 #2</text>
+        <text x="650" y="490" text-anchor="middle" fill="#6b7384" font-size="12">绑定"小李号"</text>
+        <text x="650" y="510" text-anchor="middle" fill="#6b7384" font-size="11">结构同 #1</text>
+
+        <rect x="760" y="380" width="180" height="240" rx="16" fill="url(#officeGrad)" stroke="#60a5fa" stroke-opacity="0.2" stroke-width="1.5" stroke-dasharray="6,4"/>
+        <text x="850" y="406" text-anchor="middle" fill="#60a5fa" font-size="11" font-weight="600" letter-spacing="2" opacity="0.5">远程办公室 #N</text>
+        <text x="850" y="490" text-anchor="middle" fill="#6b7384" font-size="11" opacity="0.7">每台 = 一个号</text>
+        <text x="850" y="510" text-anchor="middle" fill="#6b7384" font-size="11" opacity="0.7">独立 IP</text>
+      </g>
+
+      <!-- ── 关键箭头：办公室 → 公告板（pull） ── -->
+      <path d="M 135 424 Q 135 360 290 340" fill="none" stroke="#34d399" stroke-width="2.2" marker-end="url(#arrB)"/>
+      <text x="100" y="372" fill="#34d399" font-size="11.5" font-weight="600">每 60s 撕一张</text>
+
+      <!-- 办公室 → 公告板（回执） -->
+      <path d="M 315 424 Q 315 380 720 340" fill="none" stroke="#34d399" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrB)"/>
+      <text x="540" y="378" fill="#34d399" font-size="11" font-style="italic">干完贴回执</text>
+
+      <!-- 其他办公室也连公告板（虚线） -->
+      <path d="M 650 380 Q 650 360 580 340" fill="none" stroke="#34d399" stroke-width="1.2" stroke-opacity="0.5" stroke-dasharray="3,3" marker-end="url(#arrB)"/>
+      <path d="M 850 380 Q 850 360 760 340" fill="none" stroke="#34d399" stroke-width="1.2" stroke-opacity="0.3" stroke-dasharray="3,3" marker-end="url(#arrB)"/>
+    </svg>
+    <div class="caption">绿色 = 云电脑主动来取 / 回写 · 紫色 = 派单员往公告板贴 · 公司里没有任何一根线从外面直接打进云电脑</div>
+  </div>
+
+  <!-- ────────────────────────────────────────── -->
+  <h2>8 个角色 — 谁是谁的"真名"</h2>
+  <div class="cast">
+    <div class="role">
+      <div class="role-head"><span class="nickname">① 闹钟</span><span class="realname">Vercel Cron · */5 * * * *</span></div>
+      <p>没有任何业务判断，唯一职责是"每 5 分钟敲一下派单员"。Vercel 平台内部触发，不消耗任何对外网络。</p>
+    </div>
+    <div class="role">
+      <div class="role-head"><span class="nickname">② 派单员</span><span class="realname">/api/cron/cloud-pc-dispatch · runDispatch()</span></div>
+      <p>跑在 Vercel 的一段代码。看每个抖音号"上次发是几点"、"今天发了多少条"，节奏不到就跳过。最后把通过的人挑出来，往公告板贴一张便签。</p>
+    </div>
+    <div class="role">
+      <div class="role-head"><span class="nickname">③ 共享公告板</span><span class="realname">Supabase Postgres · dispatch_queue 表</span></div>
+      <p>整套系统的<strong style="color: var(--accent);">交汇点</strong>。一张表，存所有派单。云端写入 + 云电脑读取走的是同一张表的两面，谁都不需要"找到"对方。"撕单子 15 分钟不回自动还回"这个机制由数据库里一个 RPC 函数保证。</p>
+    </div>
+    <div class="role">
+      <div class="role-head"><span class="nickname">④ 小助理</span><span class="realname">wuying_poll_agent.py · 常驻 60s 循环</span></div>
+      <p>跑在每台云电脑里的 Python 进程，开机自启。一直待在办公室里，每分钟去公告板看一眼。它<strong>只认识带本办公室 ID 的便签</strong>（一张抖音号 = 一台云电脑 = 一个 account_id）。</p>
+    </div>
+    <div class="role">
+      <div class="role-head"><span class="nickname">⑤ 动手的人</span><span class="realname">douyin_dm.py · pyautogui + pyperclip</span></div>
+      <p>真正模拟真人发消息的脚本。9 步固定动作：点搜索框 → 粘抖音号 → 等结果 → 点"用户" tab → 双因子匹配 → 点进主页 → 找私信按钮（双击兜底） → 粘贴消息 → 回车。每步之间留 1~3 秒像真人。</p>
+    </div>
+    <div class="role">
+      <div class="role-head"><span class="nickname">⑥ AI 视力</span><span class="realname">Claude Vision · screenshot → API</span></div>
+      <p>进入对方主页后强制停一下，把屏幕截图发给 Claude，让 AI 看："这个昵称和我手上工作单写的，是同一个人吗？"相似度 ≥ 95% 才继续。<strong>抖音搜索结果同名号一抓一大把，这是最后一道防认错人的关卡。</strong></p>
+    </div>
+    <div class="role">
+      <div class="role-head"><span class="nickname">⑦ 桌上的抖音电脑版</span><span class="realname">抖音 PC v7.8.0 客户端</span></div>
+      <p>就是普通用户装的抖音电脑版，登录着"小张号"。在它眼里没有自动化——它收到的是一连串"用户按了鼠标 / 用户敲了键盘"的系统事件，和真人操作完全一样。</p>
+    </div>
+    <div class="role">
+      <div class="role-head"><span class="nickname">⑧ 抖音服务器</span><span class="realname">抖音 IM API（黑盒）</span></div>
+      <p>客户端按 ⌨️ 把消息送过来，抖音服务器收下，推给对方账号。这一步完全是抖音内部，我们看不见、不可控——也正因此，没有办法绕过客户端用 API 发，必须有一台真电脑装真客户端。</p>
+    </div>
+  </div>
+
+  <!-- ────────────────────────────────────────── -->
+  <h2>信息通道详解 — 每一跳到底是谁找谁</h2>
+  <p>把每一跳的"谁主动 / 用什么方式 / 带什么东西"列出来：</p>
+  <table class="hops">
+    <thead>
+      <tr>
+        <th style="width: 6%;">跳</th>
+        <th style="width: 28%;">从谁到谁</th>
+        <th style="width: 14%;">方向</th>
+        <th style="width: 24%;">用什么方式</th>
+        <th style="width: 28%;">带什么</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="hop-num">1</td>
+        <td>闹钟 → 派单员<div class="tech">Vercel Cron → Vercel Function</div></td>
+        <td><span class="push">推</span> 平台内部</td>
+        <td>云端内部触发<div class="tech">HTTPS + Bearer CRON_SECRET</div></td>
+        <td>只是个"叫醒"信号<div class="tech">无业务 payload</div></td>
+      </tr>
+      <tr>
+        <td class="hop-num">2</td>
+        <td>派单员 → 公告板<div class="tech">Vercel Function → Supabase</div></td>
+        <td><span class="push">推</span> 写入</td>
+        <td>数据库写入<div class="tech">HTTPS · PostgREST</div></td>
+        <td>插入一行 pending 便签<div class="tech">(account_id, target, content)</div></td>
+      </tr>
+      <tr style="background: rgba(52, 211, 153, 0.05);">
+        <td class="hop-num">3</td>
+        <td><strong style="color: var(--text);">云电脑 → 公告板</strong><div class="tech">poll_agent → claim_dispatch RPC</div></td>
+        <td><span class="pull">拉</span> 主动取</td>
+        <td>云电脑主动来抢锁<div class="tech">HTTPS · supabase-py RPC</div></td>
+        <td>"撕下来" ≤ 3 张属于本办公室的便签<div class="tech">原子操作 + 15min 死锁回收</div></td>
+      </tr>
+      <tr style="background: rgba(251, 191, 36, 0.05);">
+        <td class="hop-num">4</td>
+        <td>小助理 → 动手的人<div class="tech">poll_agent → douyin_dm.py</div></td>
+        <td><span class="local">本机</span></td>
+        <td>子进程 + CSV 文件<div class="tech">subprocess.run</div></td>
+        <td>一份 contacts.csv<div class="tech">(_dispatch_id, sec_uid, content)</div></td>
+      </tr>
+      <tr style="background: rgba(251, 191, 36, 0.05);">
+        <td class="hop-num">5</td>
+        <td><strong style="color: var(--text);">动手的人 → 抖音客户端</strong><div class="tech">douyin_dm.py → 抖音 PC</div></td>
+        <td><span class="local">本机</span> 不走网络</td>
+        <td>OS 层模拟键鼠<div class="tech">SendInput · 剪贴板</div></td>
+        <td>9 步动作序列<div class="tech">点击坐标 + Ctrl+V + Enter</div></td>
+      </tr>
+      <tr>
+        <td class="hop-num">6</td>
+        <td>动手的人 ⇄ AI 视力<div class="tech">screenshot → Anthropic API</div></td>
+        <td>双向</td>
+        <td>调用 Claude<div class="tech">HTTPS · Vision API</div></td>
+        <td>主页截图 + 期望昵称<div class="tech">返回 0~1 匹配分</div></td>
+      </tr>
+      <tr>
+        <td class="hop-num">7</td>
+        <td>云电脑 → 公告板<div class="tech">poll_agent → complete_dispatch RPC</div></td>
+        <td><span class="pull">拉</span> 回写</td>
+        <td>数据库 RPC<div class="tech">HTTPS · supabase-py</div></td>
+        <td>"这张便签干完了 / 失败了"<div class="tech">+ mark_lead_contacted 永久去重</div></td>
+      </tr>
+      <tr>
+        <td class="hop-num">8</td>
+        <td>抖音客户端 → 抖音服务器</td>
+        <td><span class="push">推</span></td>
+        <td>抖音自家协议<div class="tech">HTTPS · 我们看不见</div></td>
+        <td>消息内容<div class="tech">由抖音 IM 路由</div></td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="callout info">
+    <strong>看这张表的关键：</strong>跳 3 和跳 7 都是<strong style="color: var(--accent-3);">「云电脑主动来」</strong>。Vercel 那边永远不知道哪台云电脑在线、IP 是什么、有没有重启。它只管往公告板贴。云电脑那边就算重启 5 次、IP 换了 8 次，也照样能继续工作——因为锁回收和便签都还在公告板上。
+  </div>
+
+  <!-- ────────────────────────────────────────── -->
+  <h2>应急通道 — 公告板卡住时手动补一条</h2>
+  <p>平常这家公司是全自动的。但有时候我（Claude Code，在 Mac 上）需要亲自跳进去看看——比如新版部署后第一条 DM 现场验证、或者公告板卡住了想手动塞一条。这条小后门是这样的：</p>
+  <div class="diagram">
+    <svg viewBox="0 0 1040 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="应急通道">
+      <defs>
+        <marker id="arrE" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#f87171"/>
+        </marker>
+      </defs>
+
+      <!-- Mac 上的 Claude -->
+      <rect x="40" y="80" width="200" height="100" rx="14" fill="#141821" stroke="#8b5cf6" stroke-opacity="0.6" stroke-width="1.5"/>
+      <text x="140" y="110" text-anchor="middle" fill="#8b5cf6" font-size="11" font-weight="600" letter-spacing="2">我（Mac 上的 Claude）</text>
+      <text x="140" y="135" text-anchor="middle" fill="#e4e7ed" font-size="13" font-weight="600">写一句"把这条发给 X"</text>
+      <text x="140" y="155" text-anchor="middle" fill="#9ba3b4" font-size="11.5">带一个共享暗号</text>
+
+      <!-- Cloudflare 中转 -->
+      <rect x="320" y="80" width="240" height="100" rx="14" fill="#141821" stroke="#fbbf24" stroke-opacity="0.6" stroke-width="1.5"/>
+      <text x="440" y="110" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="600" letter-spacing="2">Cloudflare 中转站</text>
+      <text x="440" y="135" text-anchor="middle" fill="#e4e7ed" font-size="13" font-weight="600">给云电脑一个临时门牌</text>
+      <text x="440" y="155" text-anchor="middle" fill="#9ba3b4" font-size="11.5">trycloudflare.com 临时网址</text>
+
+      <!-- 云电脑里的接线员 -->
+      <rect x="640" y="80" width="220" height="100" rx="14" fill="#141821" stroke="#60a5fa" stroke-opacity="0.6" stroke-width="1.5"/>
+      <text x="750" y="110" text-anchor="middle" fill="#60a5fa" font-size="11" font-weight="600" letter-spacing="2">云电脑里的接线员</text>
+      <text x="750" y="135" text-anchor="middle" fill="#e4e7ed" font-size="13" font-weight="600">cloud_pc_server :8765</text>
+      <text x="750" y="155" text-anchor="middle" fill="#9ba3b4" font-size="11.5">一直挂着等指令</text>
+
+      <!-- 动手的人 -->
+      <rect x="900" y="100" width="100" height="60" rx="10" fill="#1a1f2b" stroke="#34d399" stroke-opacity="0.55"/>
+      <text x="950" y="125" text-anchor="middle" fill="#e4e7ed" font-size="12" font-weight="600">动手的人</text>
+      <text x="950" y="145" text-anchor="middle" fill="#9ba3b4" font-size="10.5">同主链路</text>
+
+      <!-- 箭头 -->
+      <line x1="240" y1="130" x2="320" y2="130" stroke="#f87171" stroke-width="2" marker-end="url(#arrE)"/>
+      <line x1="560" y1="130" x2="640" y2="130" stroke="#f87171" stroke-width="2" marker-end="url(#arrE)"/>
+      <line x1="860" y1="130" x2="900" y2="130" stroke="#6b7384" stroke-width="1.5" marker-end="url(#arrGrey)"/>
+
+      <text x="280" y="118" text-anchor="middle" fill="#f87171" font-size="11">HTTPS + X-Secret</text>
+      <text x="600" y="118" text-anchor="middle" fill="#f87171" font-size="11">QUIC 反向隧道</text>
+
+      <text x="520" y="38" text-anchor="middle" fill="#9ba3b4" font-size="13" font-weight="600">为什么要中转站？</text>
+      <text x="520" y="58" text-anchor="middle" fill="#6b7384" font-size="12">云电脑藏在 NAT 后面，外面找不到它 → 让云电脑"从里面伸一根线挂在中转站门口"</text>
+
+      <text x="950" y="190" text-anchor="middle" fill="#6b7384" font-size="10.5" font-style="italic">最后一公里同主链路</text>
+    </svg>
+    <div class="caption">红色 = 推送方向 · 这条路是反过来的：云电脑主动"伸线"建反向隧道，外部请求顺着隧道倒灌回来</div>
+  </div>
+  <div class="callout warn">
+    <strong>这条通道的边界：</strong>临时网址每次云电脑重启都换；只在联调 / 队列卡住时人工用。生产 DM 还是走公告板那条主链路——后门没有节奏闸、也不写公告板，绕过去 = 同一个人有可能被两台云电脑同时发，请谨慎。
+  </div>
+
+  <!-- ────────────────────────────────────────── -->
+  <h2>为什么这么设计 — 几个"看上去多此一举"的解释</h2>
+  <div class="qa">
+    <div class="qa-item">
+      <div class="q">为什么派单员不直接告诉云电脑"该干活了"？非要走公告板？</div>
+      <div class="a">云电脑藏在很深的网络里（在阿里 IDC 的 NAT 后面），外面根本找不到它。要么云电脑出公网门牌号（贵 + 风控会盯）、要么反过来"让云电脑自己来取"。我们选了第二种。代价是有 60 秒延迟，收益是云电脑可以随便重启 / 漂移 / 加台数，外部完全无感。</div>
+    </div>
+    <div class="qa-item">
+      <div class="q">为什么一张便签只能撕一次，还要 15 分钟自动贴回去？</div>
+      <div class="a">同一个抖音用户不能被两个号同时联系——对方一眼就能看出"为什么两个无关账号都来骚扰我"，立刻举报。15 分钟自动贴回是兜底：万一一台云电脑撕了便签后突然断电 / 重启，便签会自己回到公告板，让另一台继续。两种情况都用数据库的"原子操作"保证不会出错。</div>
+    </div>
+    <div class="qa-item">
+      <div class="q">为什么派单员要看"上次几点发的"再决定派不派？</div>
+      <div class="a">真人不可能每 3 分钟连发 20 条私信。节奏太密 = 抖音风控当场判定机器人，账号封禁。45 分钟 + 随机抖动模仿真人节奏；每天 18 条上限对应"运营白班 8 小时手动发"的速率。这两个数字不是拍脑袋——是 5/21 PoC 实测下来的安全区。</div>
+    </div>
+    <div class="qa-item">
+      <div class="q">动手的人为什么不直接调抖音 API，非要点鼠标？</div>
+      <div class="a">抖音不开放发私信的 API（开放过的早就被滥用了）。能用的"通道"只有真人客户端。所以让一台云电脑装真客户端、登真号、由脚本模拟键鼠"像真人一样"操作。这也是为什么必须用云电脑——本地 Mac 装抖音电脑版也行，但风控会看 IP，多账号同 IP = 必封。云电脑给每个号配独立 IP。</div>
+    </div>
+    <div class="qa-item">
+      <div class="q">为什么进对方主页后还要让 AI 视力再看一眼？</div>
+      <div class="a">抖音搜索结果按抖音号搜，看似精确，但同昵称号一抓一大把——搜"王女士"出来 25 个。第一道我们用"昵称 + 抖音号"两个字段一起对，但偶尔 UI 上抖音号渲染慢、被截断、识别错位。截图给 Claude 看一眼"屏幕上这个人和工作单写的是同一个吗"是最后一道保险，相似度 &lt; 95% 整单立即跳过，不发。</div>
+    </div>
+    <div class="qa-item">
+      <div class="q">为什么把"小助理"和"动手的人"拆成两个进程？</div>
+      <div class="a">这两件事关注点完全不同。小助理是个稳定的轮询循环，需要长时间稳定运行 + 跟数据库通信。动手的人是高风险的 UI 操作脚本，可能因为抖音弹窗 / 网络抖动 / 元素加载慢而卡死。拆开之后，动手的人卡死或崩溃，小助理可以单独干掉它、重新调起；小助理本身也能被外部脚本（比如运营手动跑 dispatch-leads.ts）复用。</div>
+    </div>
+  </div>
+
+  <h2>相关文档</h2>
+  <p>
+    <a href="/akke/cloud-pc-onboarding">15 · CLOUD PC 上手指南</a> — 从零到第一条 DM 的 30 分钟流程 ·
+    <a href="/akke/dm-delivery">07 · DM 投递与引导加微</a> — 整条 DM 链路的产品视角 ·
+    <a href="/akke/anti-risk-control">03 · 双链路防风控</a> — 节奏闸 / 视力校验在防风控体系里的位置 ·
+    <a href="/akke/architecture">02 · 系统架构详解</a> — Akke 三段式架构全景
+  </p>
+
+  <footer>
+    Akke 知识库 · 最后更新 2026-05-26 · <a href="/akke/">← 返回 Akke 目录</a>
+  </footer>
+</div>
+</body>
+</html>
