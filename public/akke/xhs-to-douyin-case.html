@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Akke · 小红书 → 抖音 流水线 · 0→1 复盘</title>
+<style>
+  :root {
+    --bg: #0b0d12;
+    --bg-elevated: #141821;
+    --bg-code: #1a1f2b;
+    --border: #242a38;
+    --text: #e4e7ed;
+    --text-dim: #9ba3b4;
+    --text-muted: #6b7384;
+    --accent: #8b5cf6;
+    --accent-soft: rgba(139, 92, 246, 0.15);
+    --success: #34d399;
+    --warning: #fbbf24;
+    --danger: #f87171;
+    --info: #60a5fa;
+    --customer: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    font-size: 16px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 880px; margin: 0 auto; padding: 48px 24px 120px; }
+  .breadcrumb { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
+  .breadcrumb a { color: var(--text-dim); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--accent); }
+  .breadcrumb span { margin: 0 8px; color: var(--border); }
+
+  /* ── Hero ── */
+  header.hero { padding: 28px 0 40px; border-bottom: 1px solid var(--border); margin-bottom: 40px; }
+  .tag { display: inline-block; padding: 4px 12px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 13px; font-weight: 500; margin-bottom: 18px; }
+  h1 { font-size: 42px; font-weight: 700; margin: 0 0 18px; letter-spacing: -0.02em; line-height: 1.15; }
+  .hero-tagline { font-size: 18px; color: var(--text-dim); margin: 0 0 14px; line-height: 1.7; }
+  .hero-tagline em { color: var(--text); font-style: normal; font-weight: 600; }
+  .hero-turn { font-size: 18px; color: var(--text); margin: 0 0 26px; line-height: 1.7; padding-left: 16px; border-left: 3px solid var(--accent); }
+  .hero-turn strong { color: var(--accent); }
+
+  .chips { display: flex; gap: 10px; flex-wrap: wrap; }
+  .chip { display: inline-flex; flex-direction: column; padding: 10px 16px; border-radius: 10px; background: var(--bg-elevated); border: 1px solid var(--border); }
+  .chip .chip-k { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+  .chip .chip-v { font-size: 17px; font-weight: 700; color: var(--text); margin-top: 2px; }
+  .chip.accent .chip-v { color: var(--accent); }
+  .chip.success .chip-v { color: var(--success); }
+
+  /* ── Workflow strip ── */
+  .strip { display: flex; gap: 6px; margin: 36px 0; overflow-x: auto; padding-bottom: 6px; }
+  .strip-step { flex: 1 0 auto; min-width: 92px; text-align: center; padding: 12px 6px; border-radius: 10px; background: var(--bg-elevated); border: 1px solid var(--border); position: relative; }
+  .strip-step .si { font-size: 11px; color: var(--text-muted); }
+  .strip-step .sl { font-size: 13.5px; color: var(--text-dim); margin-top: 4px; font-weight: 500; }
+  .strip-step.done { border-color: rgba(139,92,246,0.4); background: var(--accent-soft); }
+  .strip-step.done .sl { color: var(--text); }
+  .strip-step.done .si { color: var(--accent); }
+  .strip-step.now { border-color: var(--customer); background: rgba(251,191,36,0.1); }
+  .strip-step.now .sl { color: var(--customer); font-weight: 700; }
+  .strip-step.now .si { color: var(--customer); }
+
+  /* ── Sections ── */
+  section { margin: 64px 0; }
+  .part-kicker { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); font-weight: 600; margin-bottom: 6px; }
+  h2 { font-size: 30px; font-weight: 700; margin: 0 0 10px; letter-spacing: -0.01em; line-height: 1.25; }
+  .lede { font-size: 17px; color: var(--text-dim); margin: 0 0 24px; line-height: 1.75; }
+  .lede strong { color: var(--text); }
+  h3 { font-size: 19px; font-weight: 600; margin: 32px 0 12px; }
+  p { margin: 12px 0; color: var(--text-dim); }
+  p strong, li strong { color: var(--text); }
+  ol, ul { padding-left: 24px; color: var(--text-dim); }
+  ol li, ul li { margin: 9px 0; }
+  a { color: var(--accent); }
+
+  code { background: var(--bg-code); padding: 2px 6px; border-radius: 4px; font-size: 0.9em; color: var(--info); font-family: "SF Mono", "Monaco", Consolas, monospace; }
+  pre { background: var(--bg-code); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; overflow-x: auto; margin: 16px 0; }
+  pre code { background: transparent; padding: 0; color: var(--text); font-size: 13.5px; line-height: 1.7; }
+
+  .alert { padding: 16px 20px; border-radius: 10px; margin: 20px 0; display: flex; gap: 14px; align-items: flex-start; }
+  .alert .icon { flex: 0 0 24px; font-size: 22px; line-height: 1; padding-top: 2px; }
+  .alert.warn { background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.25); color: #fde68a; }
+  .alert.info { background: rgba(96,165,250,0.08); border: 1px solid rgba(96,165,250,0.25); color: #bfdbfe; }
+  .alert.danger { background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.25); color: #fecaca; }
+  .alert.success { background: rgba(52,211,153,0.08); border: 1px solid rgba(52,211,153,0.25); color: #bbf7d0; }
+  .alert strong { color: inherit; }
+
+  table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14.5px; }
+  th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-muted); font-weight: 600; text-transform: uppercase; font-size: 12px; letter-spacing: 0.05em; background: var(--bg-elevated); }
+  td { color: var(--text-dim); }
+  td:first-child { color: var(--text); font-weight: 500; }
+
+  /* ── Case (Part 1) video card ── */
+  .case-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 14px; padding: 26px 30px; margin: 24px 0; }
+  .case-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  .case-title { font-size: 19px; font-weight: 600; color: var(--text); }
+  .case-acct { font-size: 14px; color: var(--accent); }
+  .case-cap { color: var(--text-dim); margin: 10px 0 18px; font-size: 15px; }
+  .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 18px 0; }
+  .kpi { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px; text-align: center; }
+  .kpi .kv { font-size: 22px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+  .kpi .kk { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+  .ph { color: var(--customer); background: rgba(251,191,36,0.12); border: 1px dashed rgba(251,191,36,0.5); border-radius: 6px; padding: 1px 8px; font-size: 14px; font-weight: 600; }
+  .case-link { display: inline-block; margin-top: 8px; font-size: 14px; }
+
+  /* ── v0/v1 compare ── */
+  .compare td.bad { color: var(--danger); }
+  .compare td.good { color: var(--success); }
+
+  /* ── Bottleneck / lesson / roadmap cards ── */
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 20px 0; }
+  .bn { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; border-left: 3px solid var(--danger); }
+  .bn .bn-t { font-weight: 600; color: var(--text); font-size: 15.5px; }
+  .bn .bn-d { color: var(--text-dim); font-size: 14px; margin-top: 6px; }
+  .bn .bn-n { display: inline-block; margin-top: 10px; font-size: 12.5px; color: var(--customer); background: rgba(251,191,36,0.1); padding: 2px 9px; border-radius: 999px; }
+
+  .road { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; margin: 14px 0; display: flex; gap: 16px; align-items: flex-start; }
+  .road .pri { flex: 0 0 auto; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .road .pri.p1 { background: rgba(139,92,246,0.18); color: var(--accent); }
+  .road .pri.p2 { background: rgba(96,165,250,0.15); color: var(--info); }
+  .road .pri.p3 { background: rgba(107,115,132,0.15); color: var(--text-muted); }
+  .road .road-body .rt { font-weight: 600; color: var(--text); font-size: 16px; }
+  .road .road-body .rd { color: var(--text-dim); font-size: 14.5px; margin-top: 4px; }
+  .road .road-body .rw { color: var(--text-muted); font-size: 13px; margin-top: 8px; font-style: italic; }
+
+  .lesson { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px 20px 64px; margin: 14px 0; position: relative; }
+  .lesson .ln { position: absolute; left: 20px; top: 20px; width: 30px; height: 30px; line-height: 30px; text-align: center; background: var(--accent); color: #fff; border-radius: 8px; font-weight: 700; font-size: 15px; }
+  .lesson .lt { color: var(--text); font-weight: 700; font-size: 16px; }
+  .lesson .ld { color: var(--text-dim); font-size: 14.5px; margin-top: 4px; }
+
+  /* ── Snapshot ── */
+  .snap { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .snap .snap-box { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; padding: 18px 22px; }
+  .snap .snap-box h4 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+  .snap .snap-box .row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 14px; border-bottom: 1px solid var(--border); }
+  .snap .snap-box .row:last-child { border-bottom: none; }
+  .snap .snap-box .row .k { color: var(--text-muted); }
+  .snap .snap-box .row .v { color: var(--text); font-weight: 500; }
+
+  /* ── Screenshots ── */
+  .shot { margin: 26px 0; background: #f4f5f3; border: 1px solid var(--border); border-radius: 14px; padding: 10px; }
+  .shot img { width: 100%; display: block; border-radius: 8px; box-shadow: 0 2px 14px rgba(0,0,0,0.25); }
+  .shot figcaption { color: var(--text-muted); font-size: 13px; margin-top: 12px; text-align: center; padding-bottom: 4px; }
+  .shot.portrait { max-width: 340px; margin-left: auto; margin-right: auto; }
+  .shot-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; margin: 24px 0; }
+  @media (max-width: 640px) { .shot-row { grid-template-columns: 1fr; } }
+
+  /* ── Rendered caption ── */
+  .cap { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; margin: 22px 0; }
+  .cap-title { padding: 18px 22px; font-size: 18px; font-weight: 700; color: var(--text); line-height: 1.45; background: rgba(139,92,246,0.08); border-bottom: 1px solid var(--border); }
+  .cap-body { padding: 6px 22px 10px; }
+  .cap-seg { display: flex; gap: 16px; padding: 13px 0; border-bottom: 1px dashed var(--border); }
+  .cap-seg:last-child { border-bottom: none; }
+  .cap-seg .seg-tag { flex: 0 0 52px; font-size: 11px; font-weight: 700; color: var(--accent); letter-spacing: 0.03em; padding-top: 3px; }
+  .cap-seg .seg-text { color: var(--text-dim); white-space: pre-line; font-size: 15px; line-height: 1.7; }
+  .cap-seg .seg-text .ok { color: var(--success); font-weight: 500; }
+  .cap-seg .seg-text .cta { color: var(--customer); font-weight: 600; }
+  .cap-tags { padding: 14px 22px; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 8px; background: var(--bg); }
+  .cap-tag { font-size: 13px; color: var(--info); background: rgba(96,165,250,0.1); padding: 3px 11px; border-radius: 999px; }
+
+  /* ── Rendered comment thread ── */
+  .thread { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 14px; padding: 8px 22px; margin: 22px 0; }
+  .cmt { display: flex; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--border); }
+  .cmt:last-child { border-bottom: none; }
+  .cmt.reply { margin-left: 40px; }
+  .cmt .ava { flex: 0 0 34px; width: 34px; height: 34px; border-radius: 50%; background: var(--bg-code); display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--text-muted); font-weight: 600; }
+  .cmt.author .ava { background: var(--accent); color: #fff; }
+  .cmt .cbody { flex: 1; min-width: 0; }
+  .cmt .who { font-size: 13.5px; font-weight: 600; color: var(--text-dim); display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .cmt.author .who { color: var(--accent); }
+  .cmt .abadge { font-size: 10.5px; background: var(--accent-soft); color: var(--accent); padding: 1px 6px; border-radius: 4px; font-weight: 700; }
+  .cmt .first { font-size: 10.5px; background: rgba(248,113,113,0.14); color: var(--danger); padding: 1px 6px; border-radius: 4px; font-weight: 700; }
+  .cmt .to { color: var(--text-muted); font-weight: 400; }
+  .cmt .region { font-size: 12px; color: var(--text-muted); font-weight: 400; }
+  .cmt .ctxt { color: var(--text); margin-top: 4px; font-size: 14.5px; line-height: 1.6; }
+  .cmt.win { background: rgba(52,211,153,0.07); border: 1px solid rgba(52,211,153,0.28); border-radius: 10px; padding: 12px 14px; margin: 10px 0 10px 40px; }
+  .cmt.win .winlabel { display: inline-block; font-size: 11px; font-weight: 700; color: var(--success); background: rgba(52,211,153,0.14); padding: 2px 8px; border-radius: 5px; margin-top: 8px; }
+
+  /* ── Copy design (标题/正文 方法论) ── */
+  h4 { font-size: 18px; font-weight: 600; margin: 30px 0 10px; color: var(--text); }
+  .formula { background: var(--bg-code); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 8px; padding: 13px 18px; font-size: 15.5px; color: var(--text); margin: 16px 0; }
+  .formula .op { color: var(--accent); font-weight: 700; margin: 0 7px; }
+  .formula .opt { color: var(--text-muted); font-size: 13px; }
+  .example { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin: 16px 0; }
+  .example .ex-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
+  .example .ex-text { font-size: 18px; line-height: 1.7; color: var(--text); font-weight: 600; }
+  .hl-num { color: var(--info); border-bottom: 2px solid rgba(96,165,250,0.55); }
+  .hl-proof { color: var(--customer); border-bottom: 2px solid rgba(251,191,36,0.55); }
+  .hl-susp { color: var(--success); border-bottom: 2px solid rgba(52,211,153,0.55); }
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 14px; font-size: 12.5px; color: var(--text-muted); }
+  .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+  .legend .l-num::before { background: var(--info); }
+  .legend .l-proof::before { background: var(--customer); }
+  .legend .l-susp::before { background: var(--success); }
+  .why { list-style: none; padding: 0; margin: 14px 0; }
+  .why li { padding: 8px 0 8px 28px; position: relative; color: var(--text-dim); }
+  .why li::before { content: "✦"; position: absolute; left: 0; top: 9px; color: var(--accent); font-size: 13px; }
+  .why li strong { color: var(--text); }
+
+  footer { margin-top: 80px; padding-top: 32px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 13px; text-align: center; }
+
+  @media (max-width: 640px) {
+    h1 { font-size: 32px; }
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+    .grid2, .snap { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <nav class="breadcrumb">
+    <a href="/">upio</a><span>/</span><a href="/akke/">Akke</a><span>/</span>小红书 → 抖音 流水线 · 0→1 复盘
+  </nav>
+
+  <!-- ───────────────────────── Hero ───────────────────────── -->
+  <header class="hero">
+    <span class="tag">团队内部 · 内容生产链路 · 0→1 复盘</span>
+    <h1>小红书 → 抖音 一键流水线</h1>
+    <p class="hero-tagline">
+      抖音不让你原样搬运,但没人拦你<em>重新创作</em>。<br>
+      这条链路把小红书上<em>已经被验证过的爆款</em>,30 秒变成自己抖音号能发的视频——<em>去水印、改指纹、重写文案</em>,一个 PM 只剩两件事:贴链接、点上传。
+    </p>
+    <p class="hero-turn">
+      第一条已经发出去了。<strong>但 1 条是 demo,批量化才是生意。</strong>下面是它怎么从 0 搭起来、第一条长什么样、卡在哪、接下来打哪。
+    </p>
+    <div class="chips">
+      <div class="chip success"><span class="chip-k">第一条产出</span><span class="chip-v">已上线</span></div>
+      <div class="chip accent"><span class="chip-k">单条链路耗时</span><span class="chip-v">30–45 秒</span></div>
+      <div class="chip"><span class="chip-k">版本</span><span class="chip-v">v1</span></div>
+      <div class="chip"><span class="chip-k">PM 人工步骤</span><span class="chip-v">2 步</span></div>
+    </div>
+  </header>
+
+  <!-- ───────────────────────── Workflow strip ───────────────────────── -->
+  <div class="strip">
+    <div class="strip-step done"><div class="si">01</div><div class="sl">解析链接</div></div>
+    <div class="strip-step done"><div class="si">02</div><div class="sl">ffmpeg 二改</div></div>
+    <div class="strip-step done"><div class="si">03</div><div class="sl">LLM 重写文案</div></div>
+    <div class="strip-step done"><div class="si">04</div><div class="sl">交付 PM</div></div>
+    <div class="strip-step done"><div class="si">05</div><div class="sl">人工上传抖音</div></div>
+    <div class="strip-step now"><div class="si">06</div><div class="sl">批量化 ←现在</div></div>
+  </div>
+
+  <!-- ───────────────────────── Part 1 ───────────────────────── -->
+  <section id="part-1">
+    <div class="part-kicker">Part 01 · 第一个产出</div>
+    <h2>第一条真正发到客户号上的视频</h2>
+    <p class="lede">
+      流水线第一次在<strong>真实客户账号</strong>上端到端跑通,产出并发布的就是下面这条。它证明的不是"技术能跑"——实验室里早跑通了——而是<strong>整条链路真的能把一条小红书笔记,变成客户抖音号上一条能发、不被判搬运的视频</strong>。
+    </p>
+
+    <div class="case-card">
+      <div class="case-head">
+        <div class="case-title">卧室改造最后一块拼图,选了一个弧形床尾柜</div>
+        <div class="case-acct">@小米·全屋定制</div>
+      </div>
+      <div class="case-cap">客户全屋定制账号 · 卧室改造场景 · 发布于 5-17 · 作者 IP 云南</div>
+
+      <figure class="shot portrait">
+        <img src="xhs-case-assets/douyin-cover.png" alt="抖音成片画面">
+        <figcaption>抖音成片 · @小米·全屋定制 · 卧室弧形床尾柜</figcaption>
+      </figure>
+
+      <div class="kpi-row">
+        <div class="kpi"><div class="kv">5555</div><div class="kk">播放</div></div>
+        <div class="kpi"><div class="kv">51</div><div class="kk">点赞</div></div>
+        <div class="kpi"><div class="kv">42</div><div class="kk">收藏</div></div>
+        <div class="kpi"><div class="kv">6</div><div class="kk">评论</div></div>
+      </div>
+
+      <a class="case-link" href="https://v.douyin.com/dSmXUdOY0Ao/" target="_blank" rel="noreferrer">↗ 抖音原视频</a>
+    </div>
+
+    <h3>这条的成片文案 · 抖音爆款结构</h3>
+    <p>同一条小红书笔记,流水线重写成下面这版抖音文案 —— 钩子标题 + 痛点共情 + ✅ 三点干货 + 升华 + 评论区 CTA + 分层标签,每一段都对着抖音算法的偏好写。</p>
+
+    <div class="cap">
+      <div class="cap-title">卧室改造最后一块拼图,选了一个弧形床尾柜 🥹</div>
+      <div class="cap-body">
+        <div class="cap-seg"><div class="seg-tag">痛点</div><div class="seg-text">说实话当时有点犹豫——
+方的好做、好搭、便宜
+弧形要单独开模,造价高一点
+但看到效果的那一刻,值了。</div></div>
+        <div class="cap-seg"><div class="seg-tag">体验</div><div class="seg-text">直线条的空间里突然出现一个弧形
+柔掉了整个卧室的棱角感
+躺在床上看过去,特别舒服 👀</div></div>
+        <div class="cap-seg"><div class="seg-tag">干货</div><div class="seg-text">弧形不只是好看——
+<span class="ok">✅ 床尾过道不会磕腿</span>
+<span class="ok">✅ 视觉上让空间显大</span>
+<span class="ok">✅ 收纳功能一点没少</span></div></div>
+        <div class="cap-seg"><div class="seg-tag">升华</div><div class="seg-text">现在这个柜子是来家里朋友问得最多的一个单品 🔥
+卧室想要有设计感,不一定要堆预算
+有时候一个弧,就够了。</div></div>
+        <div class="cap-seg"><div class="seg-tag">CTA</div><div class="seg-text"><span class="cta">你家床尾是怎么处理的?评论区聊聊 👇</span></div></div>
+      </div>
+      <div class="cap-tags">
+        <span class="cap-tag">#弧形家具</span>
+        <span class="cap-tag">#床尾柜</span>
+        <span class="cap-tag">#卧室改造</span>
+        <span class="cap-tag">#全屋定制</span>
+        <span class="cap-tag">#现代简约风</span>
+      </div>
+    </div>
+
+    <h3>评论区:从围观到留资</h3>
+    <p>CTA 真的把人喊进了评论区。下面是这条视频底下的完整对话,客户账号(<span style="color:var(--accent)">@小米·全屋定制</span>)逐条接住,最后一句直接把围观者引向"发户型图给我看看"。</p>
+
+    <div class="thread">
+      <div class="cmt">
+        <div class="ava">邓</div>
+        <div class="cbody">
+          <div class="who">邓小小 <span class="first">首评</span> <span class="region">江西</span></div>
+          <div class="ctxt">是不是这个博主的家,给了我灵感,我照着这个也做了个 🤭🤭🤭 <span style="color:var(--text-muted)">(附自家户型图)</span></div>
+        </div>
+      </div>
+      <div class="cmt reply">
+        <div class="ava">农</div>
+        <div class="cbody">
+          <div class="who">农民家小店 <span class="to">▸ 邓小小</span> <span class="region">山东</span></div>
+          <div class="ctxt">我也要抄作业 那个圆弧花了多少钱呢 🤏</div>
+        </div>
+      </div>
+      <div class="cmt reply">
+        <div class="ava">邓</div>
+        <div class="cbody">
+          <div class="who">邓小小 <span class="to">▸ 农民家小店</span> <span class="region">江西</span></div>
+          <div class="ctxt">我这圆弧没另外花钱,是后期装修公司找木工给我加上去的。</div>
+        </div>
+      </div>
+      <div class="cmt reply">
+        <div class="ava">农</div>
+        <div class="cbody">
+          <div class="who">农民家小店 <span class="to">▸ 邓小小</span> <span class="region">山东</span></div>
+          <div class="ctxt">奥奥 那挺好</div>
+        </div>
+      </div>
+      <div class="cmt author reply">
+        <div class="ava">小</div>
+        <div class="cbody">
+          <div class="who">小米·全屋定制 <span class="abadge">作者</span> <span class="region">云南</span></div>
+          <div class="ctxt">哇,你家这个弧度做的真不错,期待装完完整的效果哦～</div>
+        </div>
+      </div>
+      <div class="cmt author win">
+        <div class="ava">小</div>
+        <div class="cbody">
+          <div class="who">小米·全屋定制 <span class="abadge">作者</span> <span class="to">▸ 农民家小店</span> <span class="region">云南</span></div>
+          <div class="ctxt">对的,后期木工加就可以,想抄过去做也可以<strong style="color:var(--success)">发户型图给我,帮你看看适合做大弧还是小弧</strong> 😊</div>
+          <span class="winlabel">↑ 留资动作 · 从围观变咨询</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="alert success">
+      <span class="icon">💬</span>
+      <div>
+        <strong>比 51 个赞更重要的,是评论区转成了对话,而且转得很深。</strong>陌生人问"怎么做的""花了多少钱",客户账号不仅逐条接住,还顺势把围观接成咨询——<strong>"发户型图给我,帮你看看适合做大弧还是小弧"。一句话,从"看客"变"留资"。</strong>这正是 Akke「评论区获客」的入口:有稳定出片,评论区才有源源不断的高意向线索可捞。视频流水线是上游供给,Akke 是下游收割,两端是一条链。
+      </div>
+    </div>
+
+    <div class="alert info">
+      <span class="icon">🧪</span>
+      <div>
+        <strong>这条之前,链路先在实测样例上验过:</strong> 一条「140 平装出 200 平既视感」的小红书奶油风笔记(作者 @嫣老师),流水线 39 秒跑出 720×960 / 62.2 秒 / 6.7MB 的二改视频 + 一段 345 字、4 段干货 + 评论区 CTA 的抖音文案。技术先在样例上跑通,再上客户号——这是 0→1 的两步。
+      </div>
+    </div>
+
+    <p><strong>第一条要证明的三件事,都成立了:</strong>视频能去掉小红书水印 + 改掉指纹不被判搬运;文案能从小红书味改成抖音算法偏好的爆款结构;PM 全程只动两下(贴链接、上传)。剩下的问题不在"能不能",而在"能不能规模化"——见 Part 3。</p>
+  </section>
+
+  <!-- ───────────────────────── Part 2 ───────────────────────── -->
+  <section id="part-2">
+    <div class="part-kicker">Part 02 · 0→1 搭建</div>
+    <h2>从「搬运被限流」到一条 30 秒的流水线</h2>
+    <p class="lede">
+      起点是一个很朴素的痛:<strong>小红书上有大量被验证过的爆款,直接搬到抖音会被限流。</strong>抖音对原视频 + 原音频做 hash 指纹检测,对带小红书 logo 的画面做平台水印识别,文案风格还跟抖音算法对不上。0→1 做的事,就是把"绕过相似度检测 + 改成抖音文风"这套原本要人工折腾半天的活,压成一条 30 秒的自动链路。
+    </p>
+
+    <h3>四步链路</h3>
+    <pre><code>① 解析小红书链接,拿到原视频
+② ffmpeg 二改:delogo 去水印 + 水平翻转 + 音视频同步加速 1.02×
+③ LLM 重写文案:抖音爆款 prompt(钩子标题 + 干货正文 + 互动 CTA + 分层标签)
+④ 交付 PM:下载链接 + 一键复制文案,附原笔记对照供人工校对</code></pre>
+
+    <h3>工具长这样</h3>
+    <p>PM 看到的就一个页面:上面贴链接、点按钮,下面出二改视频 + 抖音文案 + 原笔记对照。</p>
+
+    <figure class="shot">
+      <img src="xhs-case-assets/pipe-01-landing.png" alt="流水线输入界面">
+      <figcaption>输入端 —— 贴一条小红书链接,点「生成抖音版本」(token 已隐藏)</figcaption>
+    </figure>
+
+    <figure class="shot">
+      <img src="xhs-case-assets/pipe-02-result.png" alt="流水线产出界面">
+      <figcaption>产出端 —— 二改视频可直接预览下载,右侧是重写好的抖音标题 / 标签 / 345 字正文,底部摆原小红书笔记供人工校对</figcaption>
+    </figure>
+
+    <h3>文案怎么设计的:标题 + 正文(真正的 know-how)</h3>
+    <p>视频二改解决"能不能发",<strong>文案才决定"火不火"</strong>。抖音是算法分发,标题和正文不是写给人读的散文,是喂给算法的信号。流水线里这套「抖音爆款 prompt」把下面这些规则固化成 LLM 的硬约束,每条都能讲清楚好在哪。</p>
+
+    <h4>① 标题:一句话里塞进 3 种钩子</h4>
+    <div class="formula">数字反差 <span class="op">×</span> 社会证明 <span class="op">×</span> 悬念 <span class="opt">—— 至少命中 2 种(LLM 硬约束)</span></div>
+    <div class="example">
+      <div class="ex-label">实测标题</div>
+      <div class="ex-text"><span class="hl-num">140 平装出 200 平</span>既视感?这套极简奶油风,<span class="hl-proof">朋友来了都懵了</span></div>
+      <div class="legend"><span class="l-num">数字反差(140 → 200)</span><span class="l-proof">社会证明(朋友都懵了)</span><span class="l-susp">悬念(到底怎么做到的?)</span></div>
+    </div>
+    <ul class="why">
+      <li><strong>抖音前 3 秒决定划走还是看完。</strong>标题必须在一句话里制造信息差,没钩子就没完播。</li>
+      <li><strong>数字给确定感。</strong>"200 平既视感"比"显大"更有冲击 —— 可量化就可信。</li>
+      <li><strong>社会证明借从众心理。</strong>"别人都懵了"暗示"这条值得看"。</li>
+      <li><strong>悬念给完播动机。</strong>读者想知道"到底怎么做到的",自然看到最后。</li>
+    </ul>
+
+    <h4>② 正文:钩子 → 干货 → 升华 → 评论区 CTA</h4>
+    <div class="formula">痛点钩子 <span class="op">→</span> ✅ 三点干货(材料/做法) <span class="op">→</span> 升华金句 <span class="op">→</span> 评论区 CTA <span class="opt">—— 正文 ≥ 200 字,不达标自动重试 2 次</span></div>
+    <p>上面 @小米 那条正文就是这个结构的实例:<strong>痛点</strong>(方 vs 弧的犹豫)→ <strong>体验</strong>(柔掉棱角)→ <strong>干货</strong>(✅ 不磕腿 / 显大 / 收纳)→ <strong>升华</strong>(一个弧就够了)→ <strong>CTA</strong>(你家床尾怎么处理?)。</p>
+    <ul class="why">
+      <li><strong>长文案喂算法关键词。</strong>≥ 200 字 = 更多语义锚点,完播 + 评论双拉,而不是 38 字一扫而过。</li>
+      <li><strong>具体材料/做法建立专业可信。</strong>讲"无主灯 / 一门到顶 / 弧形开模",不是空夸"质感超赞"。</li>
+      <li><strong>✅ 清单化降低阅读门槛。</strong>3 秒 get 三个价值点,适配抖音的快节奏。</li>
+      <li><strong>结尾 CTA 把流量灌进评论区</strong> —— 这正是 Akke 获客的入口(呼应 Part 1 那条"发户型图给我"的留资动作)。</li>
+    </ul>
+
+    <div class="alert info">
+      <span class="icon">⚖️</span>
+      <div><strong>对照 v0:</strong>老版本只会写"质感超赞,喜欢的赶紧收藏"这类 38 字套话 —— 没钩子、没干货、没 CTA。同一条视频,v1 这套结构化文案的完播率和评论率,是 v0 的数量级之上。</div>
+    </div>
+
+    <h3>v0 → v1:朴素版踩的坑,正是 0→1 的内容</h3>
+    <p>第一版(v0)很天真,差点废掉链路。v1 才把它变得能用:</p>
+    <table class="compare">
+      <tr><th>维度</th><th>v0(朴素版)</th><th>v1(现在)</th></tr>
+      <tr><td>去平台水印</td><td class="bad">不处理 · 小红书 logo 还在,直接被识别</td><td class="good">delogo 抹掉右下 logo + 右上"发自小红书"角标</td></tr>
+      <tr><td>改画面指纹</td><td class="bad">无</td><td class="good">水平翻转(hflip),改 hash 指纹</td></tr>
+      <tr><td>改音频指纹</td><td class="bad">只对音频加速 → 60 秒视频音画异步 1.2 秒,一听就出戏</td><td class="good">setpts/atempo 音视频同步加速 1.02%,人耳人眼几乎无感</td></tr>
+      <tr><td>文案</td><td class="bad">"质感超赞,喜欢的赶紧收藏" 38 字套话</td><td class="good">钩子标题(数字反差/社会证明)+ 3–5 段干货 + CTA + 大/中/长尾分层标签,≥200 字硬校验、不达标自动重试 2 次</td></tr>
+    </table>
+    <p>v0 → v1 的完播率 + 评论率不是百分比的差距,是<strong>数量级的差距</strong>。0→1 真正花时间的不是"让它跑",是"让它跑出去不被限流、文案还能打"。</p>
+
+    <h3>几个关键决策(踩过才知道)</h3>
+    <div class="alert warn">
+      <span class="icon">⚠️</span>
+      <div><strong>翻转是双刃剑。</strong>画面里有大段中文 / 品牌 logo / 屏幕截图时,水平翻转会让文字反向阅读。所以 delogo 只抹小红书<em>平台固定水印</em>,不碰创作者自己加的字幕——这类笔记必须人工校对或跳过。</div>
+    </div>
+    <div class="alert info">
+      <span class="icon">🛠️</span>
+      <div><strong>故意不做"抖音直发"。</strong>调抖音发布 API 风控风险高,留一道人工上传当最后审核反而更稳。这不是没做完,是主动画的边界。</div>
+    </div>
+
+    <h3>技术栈(刻意做轻)</h3>
+    <table>
+      <tr><th>组件</th><th>选型</th></tr>
+      <tr><td>视频二改</td><td>ffmpeg(delogo / hflip / setpts+atempo 同步变速)</td></tr>
+      <tr><td>文案重写</td><td>LLM + 抖音爆款 prompt(结构强制 + ≥200 字校验 + 重试)</td></tr>
+      <tr><td>部署</td><td>Fly.io · San Jose(美西)· 1GB volume(够装几百条)· 空闲自动休眠省成本</td></tr>
+      <tr><td>访问控制</td><td>token 门禁(<code>xhs-pipe-…</code>),团队内部用</td></tr>
+      <tr><td>使用指南</td><td><a href="/akke/xhs-to-douyin">upio.ai/akke/xhs-to-douyin</a> · 工具入口 <code>xhs-pipe.fly.dev</code></td></tr>
+    </table>
+  </section>
+
+  <!-- ───────────────────────── Part 3 ───────────────────────── -->
+  <section id="part-3">
+    <div class="part-kicker">Part 03 · 批量化的问题</div>
+    <h2>1 条能跑,N 条会卡在哪</h2>
+    <p class="lede">
+      第一条证明了链路成立,但<strong>"成立"和"成规模"是两件事</strong>。现在每多发一条,人工成本几乎线性增长,而且发得越多,平台风控的暴露面越大。规模化的瓶颈分两类:<strong>吞吐(人手不够快)</strong>和<strong>安全(发太多会被反噬)</strong>。
+    </p>
+
+    <h3>① 吞吐:链路自动了,但两头还是手工</h3>
+    <div class="grid2">
+      <div class="bn">
+        <div class="bn-t">入口:一条一条粘</div>
+        <div class="bn-d">没有批量录入,PM 要一条链接一条链接地贴、等、下载。发 20 条 = 20 次人工往返。</div>
+        <div class="bn-n">N 条 = N 次手动</div>
+      </div>
+      <div class="bn">
+        <div class="bn-t">出口:一条一条传</div>
+        <div class="bn-d">没有抖音直发(也是故意的),每条都要人工搬到手机抖音 App 上传、粘文案、发布。</div>
+        <div class="bn-n">单条上传 ≈ 1–2 分钟</div>
+      </div>
+      <div class="bn">
+        <div class="bn-t">QA:每条都要人盯</div>
+        <div class="bn-d">翻转可能让画面文字反读、LLM 偶尔事实漂移(把"奶油风"写成"奶咖风")——规模化时这道人工校对省不掉。</div>
+        <div class="bn-n">每条 +1 次 quick scan</div>
+      </div>
+      <div class="bn">
+        <div class="bn-t">原料有保质期</div>
+        <div class="bn-d">小红书短链发布 7–14 天后可能 404,选题要持续供给新鲜链接,不能囤。</div>
+        <div class="bn-n">TTL 7–14 天</div>
+      </div>
+    </div>
+
+    <h3>② 安全:发得越多,风控暴露面越大</h3>
+    <div class="grid2">
+      <div class="bn">
+        <div class="bn-t">BGM 指纹还没解</div>
+        <div class="bn-d">v1 没换 BGM,原视频若用了小红书热门 BGM,到抖音仍可能被音轨指纹识别——量一大,命中概率上升。</div>
+        <div class="bn-n">v2 待补的最大缺口</div>
+      </div>
+      <div class="bn">
+        <div class="bn-t">单号日发量被压着</div>
+        <div class="bn-d">观察期单号一天 ≤ 3 条二改内容,没限流才敢加量。账号数成了产能天花板。</div>
+        <div class="bn-n">≤ 3 条 / 号 / 天</div>
+      </div>
+      <div class="bn">
+        <div class="bn-t">不能跨号复用</div>
+        <div class="bn-d">同一条二改视频投到多个抖音号,跨号 hash 检测一样敏感——不能靠"一条投十号"放大产量。</div>
+        <div class="bn-n">1 视频 = 1 号</div>
+      </div>
+      <div class="bn">
+        <div class="bn-t">客户号要审</div>
+        <div class="bn-d">账号是客户资产,没经确认不能在客户号上批量上线,流程上多一道闸。</div>
+        <div class="bn-n">需 Owner sign-off</div>
+      </div>
+    </div>
+
+    <div class="alert danger">
+      <span class="icon">🧮</span>
+      <div>
+        <strong>一句话算账:</strong>当前产能 ≈(账号数 × 3 条/天)且每条都压着「人工录入 + 人工上传 + 人工 QA」三道手工。要放大产量,要么堆人(线性、不划算),要么把这三道手工自动化掉——后者就是 Part 4。
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── Part 4 ───────────────────────── -->
+  <section id="part-4">
+    <div class="part-kicker">Part 04 · 下一步</div>
+    <h2>把卡点逐个拆掉:v2 路线图</h2>
+    <p class="lede">
+      下一步的排序逻辑很直接:<strong>先补会被限流的安全缺口,再砍掉吃人力的手工环节。</strong>能放大产量的,优先级最高;工程量大、收益不确定的,往后排。
+    </p>
+
+    <div class="road">
+      <span class="pri p1">P1</span>
+      <div class="road-body">
+        <div class="rt">BGM 替换</div>
+        <div class="rd">准备 10–30 首抖音商用 BGM 素材库,自动随机替换原音轨,关掉目前最大的指纹缺口。</div>
+        <div class="rw">为什么先做:这是规模化时最可能被反噬的点,堵住它才敢放量。</div>
+      </div>
+    </div>
+    <div class="road">
+      <span class="pri p1">P1</span>
+      <div class="road-body">
+        <div class="rt">批量录入</div>
+        <div class="rd">Lark Base 表 + n8n 编排,PM 一次粘 20 条链接自动跑批,结果落"草稿池"。</div>
+        <div class="rw">为什么先做:直接砍掉吞吐瓶颈的入口,人力从线性变常数。</div>
+      </div>
+    </div>
+    <div class="road">
+      <span class="pri p2">P2</span>
+      <div class="road-body">
+        <div class="rt">客户品牌水印</div>
+        <div class="rd">右下角加客户品牌 logo(每个客户传一次素材,复用 v1 delogo 抹完的位置)。</div>
+        <div class="rw">为什么:从"能发"升级到"能为客户做品牌沉淀",提客单价。</div>
+      </div>
+    </div>
+    <div class="road">
+      <span class="pri p3">P3</span>
+      <div class="road-body">
+        <div class="rt">图文笔记支持</div>
+        <div class="rd">抽图 + Wan2.2 I2V 生视频 + TTS 配音,把图文笔记也纳入选题池。</div>
+        <div class="rw">为什么往后排:工程量大一档,先看视频笔记的供给够不够用。</div>
+      </div>
+    </div>
+    <div class="road">
+      <span class="pri p3">不做</span>
+      <div class="road-body">
+        <div class="rt">抖音直发 API</div>
+        <div class="rd">暂不做。账号风控风险高,保留人工最后一道审核更稳——这是边界,不是 backlog。</div>
+        <div class="rw">出口的"自动化"靠批量录入 + 草稿池缩短,而不是直发。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── Snapshot ───────────────────────── -->
+  <section id="snapshot">
+    <div class="part-kicker">Snapshot</div>
+    <h2>系统快照</h2>
+    <div class="snap">
+      <div class="snap-box">
+        <h4>链路</h4>
+        <div class="row"><span class="k">步骤数</span><span class="v">4 步(解析 / 二改 / 文案 / 交付)</span></div>
+        <div class="row"><span class="k">单条耗时</span><span class="v">39s 热启动 · 72s 冷启动</span></div>
+        <div class="row"><span class="k">PM 人工</span><span class="v">2 步(贴链接 · 上传)</span></div>
+        <div class="row"><span class="k">版本</span><span class="v">v1(去水印 + 爆款文案)</span></div>
+      </div>
+      <div class="snap-box">
+        <h4>产出规格</h4>
+        <div class="row"><span class="k">视频</span><span class="v">720×960 · ~62s · ~6.7MB</span></div>
+        <div class="row"><span class="k">二改</span><span class="v">delogo + hflip + 1.02× 同步变速</span></div>
+        <div class="row"><span class="k">文案</span><span class="v">≥200 字 · 10 个分层标签</span></div>
+        <div class="row"><span class="k">第一条</span><span class="v">@小米·全屋定制 · 5555 播放</span></div>
+      </div>
+      <div class="snap-box">
+        <h4>部署</h4>
+        <div class="row"><span class="k">平台</span><span class="v">Fly.io · San Jose</span></div>
+        <div class="row"><span class="k">存储</span><span class="v">1GB volume(几百条)</span></div>
+        <div class="row"><span class="k">成本控制</span><span class="v">空闲自动休眠</span></div>
+        <div class="row"><span class="k">访问</span><span class="v">token 门禁 · 内部用</span></div>
+      </div>
+      <div class="snap-box">
+        <h4>规模化约束</h4>
+        <div class="row"><span class="k">单号日发</span><span class="v">≤ 3 条(观察期)</span></div>
+        <div class="row"><span class="k">跨号复用</span><span class="v">禁止(hash 检测)</span></div>
+        <div class="row"><span class="k">原料 TTL</span><span class="v">7–14 天</span></div>
+        <div class="row"><span class="k">客户号</span><span class="v">需 Owner sign-off</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── 复盘 ───────────────────────── -->
+  <section id="lessons">
+    <div class="part-kicker">复盘</div>
+    <h2>四条可以带走的判断</h2>
+    <div class="lesson">
+      <div class="ln">1</div>
+      <div class="lt">别从 0 创作,从"已被验证的爆款"二次创作。</div>
+      <div class="ld">小红书帮我们筛过一遍内容,流水线做的是"搬运合规化",而不是赌新选题——风险和成本都低一个量级。</div>
+    </div>
+    <div class="lesson">
+      <div class="ln">2</div>
+      <div class="lt">规避相似度检测,要同时打画面 + 音频 + 文案三个面。</div>
+      <div class="ld">v0 只动音频就翻车(还音画异步)。delogo + hflip + 同步变速 + 文风重写四件一起做,才真正降下被判搬运的概率。</div>
+    </div>
+    <div class="lesson">
+      <div class="ln">3</div>
+      <div class="lt">第一条的价值是"证伪风险",不是"证明能跑"。</div>
+      <div class="ld">技术跑通早不稀奇;第一条上客户号,验的是"去水印够不够干净、文案够不够抖音味、PM 真的只用两步"——这才是 0→1 的分水岭。</div>
+    </div>
+    <div class="lesson">
+      <div class="ln">4</div>
+      <div class="lt">demo 到生意,差的不是功能,是吞吐和安全。</div>
+      <div class="ld">能发一条不等于能发一千条。下一程的胜负手是 BGM 指纹(安全)+ 批量录入(吞吐),不是再加花哨的二改特效。</div>
+    </div>
+  </section>
+
+  <footer>
+    Akke · 内部复盘 · 小红书 → 抖音 流水线 v1 · 第一条产出 @小米·全屋定制 卧室弧形床尾柜(5-17)
+  </footer>
+
+</div>
+</body>
+</html>
