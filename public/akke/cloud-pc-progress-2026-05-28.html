@@ -83,7 +83,7 @@ body {
   transition: width .12s linear;
 }
 
-.container { max-width: 1080px; margin: 0 auto; padding: 32px 24px 120px; }
+.container { max-width: 1080px; margin: 0 auto; padding: 56px 24px 120px; }
 .breadcrumb { font-size: 12.5px; color: var(--text-muted); margin-bottom: 20px; font-family: var(--font-mono); }
 .breadcrumb a { color: var(--text-dim); text-decoration: none; }
 .breadcrumb a:hover { color: var(--accent); }
@@ -422,8 +422,9 @@ strong { color: var(--text); font-weight: 600; }
   color: var(--text); line-height: 1.2;
 }
 .dial-card .dial-design {
-  font-family: var(--font-mono); font-size: 10.5px;
-  color: var(--text-muted); margin-top: 2px;
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--text-dim); margin-top: 3px;
+  line-height: 1.45;
 }
 .dial-card.green .dial-fill { stroke: var(--accent-3); }
 .dial-card.green .dial-val  { color: var(--accent-3); }
@@ -1437,18 +1438,27 @@ footer {
 
 <script>
 (function() {
-  // Scroll-spy for sticky TOC
+  // Scroll-spy for sticky TOC — debounced + intersection-stable
   const tocLinks = document.querySelectorAll('.toc-links a');
   const sections = document.querySelectorAll('.section-head[id]');
   if (sections.length && 'IntersectionObserver' in window) {
+    let visibleIds = new Set();
+    let updateTimer = null;
+    const sectionOrder = [...sections].map(s => s.id);
+    const flush = () => {
+      // Among visible sections pick the one earliest in document order
+      const active = sectionOrder.find(id => visibleIds.has(id));
+      if (active) tocLinks.forEach(l => l.classList.toggle('active', l.dataset.section === active));
+    };
     const obs = new IntersectionObserver((entries) => {
       entries.forEach(e => {
-        if (e.isIntersecting) {
-          const id = e.target.id;
-          tocLinks.forEach(l => l.classList.toggle('active', l.dataset.section === id));
-        }
+        if (e.isIntersecting) visibleIds.add(e.target.id);
+        else                  visibleIds.delete(e.target.id);
       });
-    }, { rootMargin: '-30% 0px -60% 0px' });
+      // Debounce 120ms — prevents flicker during fast scroll across multiple sections
+      if (updateTimer) clearTimeout(updateTimer);
+      updateTimer = setTimeout(flush, 120);
+    }, { rootMargin: '-15% 0px -70% 0px' });
     sections.forEach(s => obs.observe(s));
   }
 
