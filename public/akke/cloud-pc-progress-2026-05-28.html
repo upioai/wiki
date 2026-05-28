@@ -221,7 +221,7 @@
   <header class="hero">
     <span class="tag">SUBPROJECT SYNC · 2026-05-28</span>
     <h1>云电脑子项目进展同步</h1>
-    <p class="subtitle">把抖音 PC 客户端跑在阿里无影 EDS 云电脑上、由 Akke 调度系统给它派单——这条新通路从 PoC 通过到批量化上路的完整进展。本页面用于项目方与甲方对齐当前阶段与下一步。</p>
+    <p class="subtitle">把抖音 PC 客户端跑在阿里无影 EDS 云电脑上、由 Akke 调度系统给它派单——这条新通路从 PoC 通过到批量化上路的完整进展。本页面作为项目内部周例会的项目分析回顾标准样板。</p>
     <div class="hero-meta">
       <span><strong>通道</strong> · 云电脑 + 抖音 PC 客户端</span>
       <span><strong>架构</strong> · Supabase 公告板 / pull-based</span>
@@ -296,7 +296,7 @@
     </div>
 
     <div class="callout warn">
-      <strong>口径说明　</strong>上述 2 条属于 <strong>PoC 双账号内部自测</strong>——目的是验证「云电脑 + 抖音 PC + 自动化脚本」这条新通路的基础可行性，而非「对真实潜客发出的第一条生产 DM」。后者需要 Wuying 端的轮询脚本正式抢到调度公告板上的第一条任务后才算开始（详见 §03 / §04）。我们对甲方坦诚区分这两条线，避免任何对进度的误判。</p>
+      <strong>口径说明　</strong>上述 2 条属于 <strong>PoC 双账号内部自测</strong>——目的是验证「云电脑 + 抖音 PC + 自动化脚本」这条新通路的基础可行性，而非「对真实潜客发出的第一条生产 DM」。后者需要 Wuying 端的轮询脚本正式抢到调度公告板上的第一条任务后才算开始（详见 §03 / §04）。周例会口径必须严格区分这两条线，避免对进度的误判。</p>
     </div>
 
     <p>这次 PoC 通过的最大意义，是推翻了 5 月 13 日团队基于推断给出的「云电脑通路不可行」结论——其中「阿里 IDC 出口 IP 必触发抖音风控」「Electron 套壳的抖音 PC 拿不到组件树」「抖音 PC 没有 DM 功能」三个核心假设被实测一一证伪：新号扫码无验证码、私信按钮可通过 UI Automation 定位并响应点击、DM 功能完整。整个 PoC 跑通后，技术路径正式从「云电脑被否决」翻转为「云电脑是值得规模化的新通路」。</p>
@@ -451,9 +451,79 @@
   </div>
 
   <section>
-    <p>「PoC 单台跑通」≠「N 台并发跑稳」。下面是从 PoC + 5/27 基础设施验证期间观察到的关键指标，以及向批量化扩展过程中已经踩到、有缓解措施在跑的 bad case 全集。<strong>每个 bad case 都附状态标签</strong>，让甲方一眼分辨哪些是已修、哪些在监控、哪些还要做。</p>
+    <p>「PoC 单台跑通」≠「N 台并发跑稳」。下面先看本周追踪的<strong>主数据</strong>（部署台数）日变化，再看辅助统计指标，最后是按重要性分组的 bad case 全集。<strong>每个 bad case 都附状态徽章</strong>，便于周例会快速判定哪些已修、哪些在监控、哪些还压在路上。</p>
 
-    <h3>关键统计指标</h3>
+    <h3>主数据 · 部署台数日变化（本周）</h3>
+    <p style="font-size: 14px; color: var(--text-muted); margin: 0 0 12px;">
+      <strong>定义</strong>：本周追踪的"主数据"= 已激活并绑定 <code>channel_pref='cloud_pc'</code> 且 poller 在线可被 dispatch_queue claim 的云电脑实例数。后续随着新人 onboarding 上线，这条曲线是判断"规模化"是否真的落地的最直接指标。
+    </p>
+
+    <table class="stat-table">
+      <thead>
+        <tr>
+          <th style="width: 13%;">日期</th>
+          <th style="width: 10%;">部署台数</th>
+          <th style="width: 9%;">周变化</th>
+          <th>当日关键事件</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="metric">05-22 周四</td>
+          <td class="num">1</td>
+          <td class="note">—</td>
+          <td class="note">PoC 第二天，8h=95 灵豆教训 → "按需唤醒"纪律入档</td>
+        </tr>
+        <tr>
+          <td class="metric">05-23 周五</td>
+          <td class="num">1</td>
+          <td class="note">＝</td>
+          <td class="note">生产化方案设计：从临时 tunnel 直连改为公告板 pull-based</td>
+        </tr>
+        <tr>
+          <td class="metric">05-24 周六</td>
+          <td class="num">1</td>
+          <td class="note">＝</td>
+          <td class="note">周末，无变更</td>
+        </tr>
+        <tr>
+          <td class="metric">05-25 周日</td>
+          <td class="num">1</td>
+          <td class="note">＝</td>
+          <td class="note">公告板架构上线（dispatch_queue 表 + claim_dispatch RPC）</td>
+        </tr>
+        <tr>
+          <td class="metric">05-26 周一</td>
+          <td class="num">1</td>
+          <td class="note">＝</td>
+          <td class="note">节奏控制层落地 + PR #34 修 schema 缺字段 + 激活「零星」账号 cloud_pc</td>
+        </tr>
+        <tr>
+          <td class="metric">05-27 周二</td>
+          <td class="num">1</td>
+          <td class="note">＝</td>
+          <td class="note">基础设施 7 跳 verify 全绿（唯独末段 Wuying poller 未抢锁）</td>
+        </tr>
+        <tr>
+          <td class="metric">05-28 周三</td>
+          <td class="num">1</td>
+          <td class="note">＝</td>
+          <td class="note">同事 onboarding runbook 完工 + OCR 切 OpenRouter 与主线 LLM 路由对齐</td>
+        </tr>
+        <tr style="background: var(--accent-soft);">
+          <td class="metric" style="color: var(--accent);">下周预期</td>
+          <td class="num">2</td>
+          <td class="note" style="color: var(--accent-3);">＋1</td>
+          <td class="note">P0 完成（首条对外 lead 跑通）后启动第 2 位运营试点 onboarding</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout warn">
+      <strong>本周观察　</strong>部署台数本周持平 1 台——这是设计内的：本周核心目标是把"PoC 单台"升级到"生产可调度单台"（架构 + 节奏 + 监控全套落地），而非急于横向扩台数。<strong>真正的规模化拐点在下周</strong>：P0 完成后，第 2 位试点 onboarding 把这条曲线推到 2，并验证 runbook 是否真的可复制。
+    </div>
+
+    <h3>辅助指标快照</h3>
     <table class="stat-table">
       <thead>
         <tr>
@@ -515,54 +585,70 @@
       </tbody>
     </table>
 
-    <h3>Bad Case 全集（按状态分组）</h3>
+    <h3>Bad Case 全集（按重要性分组）</h3>
     <p style="font-size: 14px; color: var(--text-muted); margin: 0 0 16px;">
-      状态徽章说明：
+      重要性维度 = 影响范围 × 破坏度 × 发生频率。状态徽章：
       <span class="badge done">已修</span>= 代码或配置层面已修复；
       <span class="badge mitigated">已缓解</span>= 有 SOP / 工具兜底；
       <span class="badge watching">监控中</span>= 有告警阈值，已发生时人工介入；
-      <span class="badge todo">待修</span>= P0/P1 还在路上。
+      <span class="badge todo">待修</span>= P0 / P1 还在路上。
     </p>
 
-    <div class="pain-group">
-      <h4>A. 调度公告板侧</h4>
+    <!-- ─── 关键 / Critical ─── -->
+    <div class="pain-group" style="border-left: 3px solid var(--danger);">
+      <h4 style="color: var(--danger);">关键（Critical · 阻塞首发或可造成重大损失）</h4>
+
+      <div class="pain">
+        <div class="title">掉线监控缺失 <span class="badge todo">待修</span></div>
+        <div class="body">
+          <span class="label">现象</span>云电脑掉线 / 同事忘开 → poller 死，但 cron 照常派单，pending 静坐超 30 min 无人接，整个通路"看上去在跑实际死了"。<br>
+          <span class="label">影响</span>P0 阻塞——首发上线后没人能第一时间发现 poller 死掉。<br>
+          <span class="label">进展</span>暂无自动告警，靠日常人工巡检。<br>
+          <span class="label">下一步</span>新增 Lark 告警规则 <code>pending ≥ 5 AND oldest claimed_by IS NULL 超 30 min</code> → 推 PM（§04 P0）。
+        </div>
+      </div>
 
       <div class="pain">
         <div class="title">死账号锁池 <span class="badge mitigated">已缓解</span></div>
         <div class="body">
-          <span class="label">现象</span>云电脑长期不上线，cron 仍照常给该账号 claim leads，高意向池被反复锁住其他同事拿不到。<br>
-          <span class="label">缓解</span>请假 ≥ 1 天必须告诉 PM，PM 把 <code>channel_pref</code> 改回 <code>manual</code>，释放现有 claim（runbook §5 完整 SQL）。<br>
-          <span class="label">下一步</span>把这个动作做成一键 CLI / dashboard 按钮，见 §04 P1。
+          <span class="label">现象</span>云电脑长期不上线，cron 仍照常给该账号 claim leads，高意向池被反复锁住其他同事拿不到，整池子被一个死账号瘫掉。<br>
+          <span class="label">影响</span>多人协作时严重——一个忘开的云电脑能让其他人当天无 lead 可发。<br>
+          <span class="label">进展</span>SOP 已落地：请假 ≥ 1 天必须告诉 PM，PM 把 <code>channel_pref</code> 改回 <code>manual</code> 并释放现有 claim（runbook §5 完整 SQL）。<br>
+          <span class="label">下一步</span>把这个动作做成一键 CLI / dashboard 按钮，去掉人工 SQL 步骤（§04 P1）。
         </div>
       </div>
 
       <div class="pain">
         <div class="title">派单重复多发 <span class="badge mitigated">已缓解</span></div>
         <div class="body">
-          <span class="label">现象</span>同一用户的派单可能被 claim TTL 过期后重新派单，<code>dispatch_queue</code> 缺去重守卫，曾出现单用户堆 5 条 pending。<br>
-          <span class="label">缓解</span>发现堆积立即 abort 多余行；强制完成第一次 send 后调 <code>mark_lead_contacted</code> 永久去重。<br>
-          <span class="label">下一步</span>INSERT 前加 <code>NOT EXISTS</code> 子句做底层防护，见 §04 P1。
+          <span class="label">现象</span>同一用户的派单可能被 claim TTL 过期后重新派单，<code>dispatch_queue</code> 缺底层去重守卫，曾观察到单用户堆 5 条 pending——一旦 poller 启动会向同一个人连发 5 条 DM，秒触风控。<br>
+          <span class="label">影响</span>客户体验灾难 + 账号风控触发，重要性 critical。<br>
+          <span class="label">进展</span>已发生时立即 abort 多余行；完成第一次 send 后调 <code>mark_lead_contacted</code> 永久去重避免后续堆积。<br>
+          <span class="label">下一步</span>INSERT 前加 <code>NOT EXISTS</code> 子句做底层防护（§04 P1）。
         </div>
       </div>
-    </div>
-
-    <div class="pain-group">
-      <h4>B. 云电脑 / Windows 操作端</h4>
 
       <div class="pain">
         <div class="title">灵豆耗费陷阱 <span class="badge mitigated">已缓解</span></div>
         <div class="body">
-          <span class="label">现象</span>wuying Mac 客户端保持运行时云电脑不休眠，按 4 灵豆/小时全速扣。PoC 8h 实测烧掉 95 灵豆 vs 估算 28。<br>
-          <span class="label">缓解</span>下班必须 Cmd+Q 完全关 Mac 客户端，10 分钟后云电脑自动休眠停扣。已写进新人 onboarding 硬纪律。<br>
-          <span class="label">下一步</span>日报加「当天灵豆消耗」维度（§04 P0）。
+          <span class="label">现象</span>wuying Mac 客户端保持运行时云电脑不休眠，按 4 灵豆/小时全速扣。PoC 8h 实测烧掉 95 灵豆 vs 估算 28，差 3 倍。<br>
+          <span class="label">影响</span>成本预算直接被打爆；批量化后多台并发若失控将拖垮整个套餐预算。<br>
+          <span class="label">进展</span>SOP 已硬纪律：下班必须 Cmd+Q 完全关 Mac 客户端，10 分钟后云电脑自动休眠停扣。已写进新人 onboarding。<br>
+          <span class="label">下一步</span>日报加「当天灵豆消耗」维度，PM 每周二复盘超预期立即告警（§04 P0）。
         </div>
       </div>
+    </div>
+
+    <!-- ─── 重要 / Important ─── -->
+    <div class="pain-group" style="border-left: 3px solid var(--warning);">
+      <h4 style="color: var(--warning);">重要（Important · 影响批量化稳定，需主动监控）</h4>
 
       <div class="pain">
         <div class="title">Cookie 过期 + IDC IP 风控 <span class="badge watching">监控中</span></div>
         <div class="body">
-          <span class="label">现象</span>抖音 Cookie 15–30 天失效，重新扫码偶尔撞上阿里 IDC IP 风控验证码（概率较低）。<br>
-          <span class="label">缓解</span>定期每 3 周主动扫码刷新；如遇验证码人工处理。<br>
+          <span class="label">现象</span>抖音 Cookie 15–30 天失效，重新扫码偶尔撞上阿里 IDC IP 风控验证码（概率较低但发生过）。<br>
+          <span class="label">影响</span>账号失活时间窗口若超 7 天，影响该账号的产出。<br>
+          <span class="label">进展</span>定期每 3 周主动扫码刷新；如遇验证码及时人工处理。<br>
           <span class="label">下一步</span>在 <code>/health</code> 接口返回当前登录态变化 → Lark 告警 PM（§04 P1）。
         </div>
       </div>
@@ -570,28 +656,52 @@
       <div class="pain">
         <div class="title">自启失败 + 双开抢锁 <span class="badge mitigated">已缓解</span></div>
         <div class="body">
-          <span class="label">现象</span>开机自启偶尔失败导致 dispatch 无人消费；手动启动时与已自启的进程双开互相抢锁。<br>
-          <span class="label">缓解</span>唤醒后先看 dispatch_queue claimed_by 是否非空确认 agent 在跑；手动启动前先 <code>taskkill /F /IM python.exe</code> 杀残留。<br>
+          <span class="label">现象</span>开机自启偶尔失败导致 dispatch 无人消费；手动启动时与已自启的进程双开互相抢锁出现部分消费。<br>
+          <span class="label">影响</span>当天该台云电脑的产出可能归零。<br>
+          <span class="label">进展</span>唤醒后先看 dispatch_queue claimed_by 是否非空确认 agent 在跑；手动启动前先 <code>taskkill /F /IM python.exe</code> 杀残留。<br>
           <span class="label">下一步</span>把"开机 60s 后心跳一次到公告板"做进 agent，超时即告警（§04 P1）。
         </div>
       </div>
 
       <div class="pain">
-        <div class="title">分辨率校准 <span class="badge done">已修</span></div>
+        <div class="title">多通道并发 race（ADB / WDA / 云电脑） <span class="badge mitigated">已缓解</span></div>
         <div class="body">
-          <span class="label">现象</span>坐标硬编码 1456×819，云电脑分辨率改动后点击全部错位。<br>
-          <span class="label">缓解</span>已提供 <code>calibrate.py</code> 一键重采样，新人 onboarding 默认跑一遍。
+          <span class="label">现象</span>现有 5 位 ADB+WDA 运营线 + 新增 1–2 位云电脑试点，两条链路并跑时同一 lead 可能被双 claim。<br>
+          <span class="label">影响</span>理论上可能导致接收方收到重复 DM，但目前未发生。<br>
+          <span class="label">进展</span>按账号绑定表物理隔离——同一 account 只绑一条通道；云电脑账号用独立 <code>account.id</code>。<br>
+          <span class="label">下一步</span>RPC 层加"已被另一通道 claim"软逻辑检测（§04 P1）。
+        </div>
+      </div>
+
+      <div class="pain">
+        <div class="title">风控验证码突袭 <span class="badge watching">监控中</span></div>
+        <div class="body">
+          <span class="label">现象</span>高频或陌生 IP 触发抖音验证码弹窗，焦点被对话框抢走，自动化脚本卡住。<br>
+          <span class="label">影响</span>当条 DM 失败 + 后续脚本死，需人工介入。<br>
+          <span class="label">进展</span>pyautogui FAILSAFE 鼠标甩左上角紧急停 → 人工处理 → PM 调降 <code>daily_limit</code>；cron 派单 45–90 min jitter 抖散，不轰炸同账号。
+        </div>
+      </div>
+
+      <div class="pain">
+        <div class="title">OCR 主页校验置信度门槛 <span class="badge watching">监控中</span></div>
+        <div class="body">
+          <span class="label">现象</span>OCR conf ≥ 0.95 防错发，但阈值过严会漏发（false negative 把好 lead 错杀），过松会误发（false positive 给错人）。<br>
+          <span class="label">影响</span>FN 损失获客效率；FP 损失客户信任。<br>
+          <span class="label">进展</span>当前 0.95 是 PoC 实测均衡点。<br>
+          <span class="label">下一步</span>采样 100 条被拦截截图人工复查 FP / FN 比例 → 调阈值或 prompt（§04 P1）。
         </div>
       </div>
     </div>
 
-    <div class="pain-group">
-      <h4>C. 抖音 PC 操控 + 风控</h4>
+    <!-- ─── 一般 / Minor ─── -->
+    <div class="pain-group" style="border-left: 3px solid var(--accent-3);">
+      <h4 style="color: var(--accent-3);">一般（Minor · 已彻底修复或有可靠 workaround）</h4>
 
       <div class="pain">
         <div class="title">Electron 多窗口歧义 / 点击被吞 / 中文乱码 <span class="badge done">已修</span></div>
         <div class="body">
-          <span class="label">三个原生坑</span>同一进程派生多窗口 → 改用 <code>Desktop.windows(visible_only=True)</code> 选面积最大；click_input 被 React 吞 → 改 pyautogui doubleClick；type_keys 不支持中文 → 改剪贴板 Ctrl+V 粘贴。三个全部已修，沉淀在 worker/scripts/wuying-dm/。
+          <span class="label">三个原生坑</span>同一进程派生多窗口 → 改用 <code>Desktop.windows(visible_only=True)</code> 选面积最大；click_input 被 React 吞 → 改 pyautogui doubleClick；type_keys 不支持中文 → 改剪贴板 Ctrl+V 粘贴。<br>
+          <span class="label">进展</span>三个全部已修，沉淀在 <code>worker/scripts/wuying-dm/</code>。
         </div>
       </div>
 
@@ -599,28 +709,7 @@
         <div class="title">搜索结果同名撞车 <span class="badge done">已修</span></div>
         <div class="body">
           <span class="label">现象</span>抖音搜索同名昵称会撞 25+ 个改名号，单因子匹配容易发错人。<br>
-          <span class="label">缓解</span>双因子精度守卫：必须同时匹配「抖音号 AND 昵称片段」，缺一不放行。
-        </div>
-      </div>
-
-      <div class="pain">
-        <div class="title">风控验证码突袭 <span class="badge watching">监控中</span></div>
-        <div class="body">
-          <span class="label">现象</span>高频或陌生 IP 触发验证码弹窗，焦点被对话框抢走，自动化脚本卡住。<br>
-          <span class="label">缓解</span>pyautogui FAILSAFE 鼠标甩左上角紧急停 → 人工处理 → PM 调降 <code>daily_limit</code>；cron 派单 45–90 min jitter 抖散，不轰炸同账号。
-        </div>
-      </div>
-    </div>
-
-    <div class="pain-group">
-      <h4>D. OCR &amp; 投递验证</h4>
-
-      <div class="pain">
-        <div class="title">主页校验置信度门槛 <span class="badge watching">监控中</span></div>
-        <div class="body">
-          <span class="label">现象</span>OCR conf ≥ 0.95 防错发，但阈值过严会漏发（false negative），过松会误发（false positive）。<br>
-          <span class="label">缓解</span>当前 0.95 是 PoC 实测均衡点。<br>
-          <span class="label">下一步</span>采样 100 条被拦截截图人工复查 FP/FN 比例 → 调阈值或 prompt（§04 P1）。
+          <span class="label">进展</span>双因子精度守卫：必须同时匹配「抖音号 AND 昵称片段」，缺一不放行。
         </div>
       </div>
 
@@ -628,29 +717,15 @@
         <div class="title">DM 真投递验证 <span class="badge done">已修</span></div>
         <div class="body">
           <span class="label">现象</span>HTTP 200 不能作为投递证据（Web 通道有过 status_code 7911 silent drop）。<br>
-          <span class="label">缓解</span>云电脑通道改用 UI 文本回显「· 刚刚」作强证据，比 API 状态码可靠。
-        </div>
-      </div>
-    </div>
-
-    <div class="pain-group">
-      <h4>E. 人员与 SOP</h4>
-
-      <div class="pain">
-        <div class="title">多通道并发 race（ADB / WDA / 云电脑） <span class="badge mitigated">已缓解</span></div>
-        <div class="body">
-          <span class="label">现象</span>现有 5 位 ADB+WDA 运营线 + 新增 1–2 位云电脑试点，两条链路并跑时同一 lead 可能被双 claim。<br>
-          <span class="label">缓解</span>按账号绑定表物理隔离——同一 account 只绑一条通道；云电脑账号用独立 <code>account.id</code>。<br>
-          <span class="label">下一步</span>RPC 层加双 claim 检测，软逻辑兜底（§04 P1）。
+          <span class="label">进展</span>云电脑通道改用 UI 文本回显「· 刚刚」作强证据，比 API 状态码可靠。
         </div>
       </div>
 
       <div class="pain">
-        <div class="title">掉线监控缺失 <span class="badge todo">待修</span></div>
+        <div class="title">分辨率校准 <span class="badge done">已修</span></div>
         <div class="body">
-          <span class="label">现象</span>云电脑掉线 / 同事忘开 → poller 死，但 cron 照常派单，pending 静坐超 30 min 无人接。<br>
-          <span class="label">缓解</span>暂无自动告警，靠日常人工巡检。<br>
-          <span class="label">下一步</span>新增 Lark 告警规则 <code>pending ≥ 5 AND oldest claimed_by IS NULL 超 30 min</code> → 推 PM（§04 P0）。
+          <span class="label">现象</span>坐标硬编码 1456×819，云电脑分辨率改动后点击全部错位。<br>
+          <span class="label">进展</span>已提供 <code>calibrate.py</code> 一键重采样，新人 onboarding 默认跑一遍。
         </div>
       </div>
     </div>
@@ -668,11 +743,11 @@
   </div>
 
   <section>
-    <p>按优先级分三档 — P0（这周内必须，解锁生产首发）/ P1（2–4 周内，让批量化稳）/ P2（长期或可选）。每条列出现状 + 完成后解锁什么，方便甲方判断哪些应该优先支持资源。</p>
+    <p>按优先级分三档 — P0（这周内必须，解锁生产首发）/ P1（2–4 周内，让批量化稳）/ P2（长期或可选）。每条列出现状 + 完成后解锁什么，方便周例会评估资源投入与排期。</p>
 
     <div class="priority-block p0">
       <h4>P0 · 这周内（解锁首条对外真实 lead）</h4>
-      <p class="lead">7 跳基础设施已绿，只差最后一跳的 Wuying 端 poller 起来——这一档完成，云电脑通道才算"对外上线"。</p>
+      <p class="lead">7 跳基础设施已绿，只差最后一跳的 Wuying 端 poller 起来——这一档完成，云电脑通道才算正式投入运营。</p>
       <ul>
         <li><strong>唤醒云电脑 + 确保 poller 首次抢锁　</strong>按 runbook §1–3 唤醒云电脑，bootstrap.bat 自启 / 否则手动启动；60 秒内应看到 dispatch_queue 中 pending 行转 claimed。<em>解锁：现有 2 条 pending 被消化。</em></li>
         <li><strong>首条对外真实 lead DM cross-check　</strong>等 cron 下一轮派单 → dispatch_queue 转 sent → 接收方手机截图。<em>解锁：端到端链路证明可对外用。</em></li>
@@ -710,7 +785,7 @@
 
     <h3>关键决策节点</h3>
     <div class="decision-list">
-      <div class="ditem"><strong>本周内　</strong>P0 全部 4 条完成 → 云电脑通道正式宣布"对外上线"。</div>
+      <div class="ditem"><strong>本周内　</strong>P0 全部 4 条完成 → 云电脑通道正式投入运营。</div>
       <div class="ditem"><strong>6/15 – 6/18　</strong>灵豆消耗复盘，决定黄金套餐是否维持或升铂金。</div>
       <div class="ditem"><strong>P1 完成条件　</strong>≥ 1 位新人 onboarding 走通 + dispatch_queue 日均成功率 ≥ 95% + lead 堆积 &lt; 5 条。</div>
       <div class="ditem"><strong>"对外真实运营"启动标志　</strong>首条来自非 PoC 账号的对外 lead DM 被记录且接收方有回复——这一里程碑达成才算云电脑通道真正进入运营态。</div>
