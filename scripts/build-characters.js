@@ -102,7 +102,41 @@ function metaHead(opts) {
 <meta name="twitter:image" content="${esc(image)}">`;
 }
 
-function characterPage(c) {
+function relatedCharacters(c, allChars, n) {
+  // Deterministic "more like this" strip — rotates through the catalog from
+  // the current character's position so every page cross-links to others
+  // (internal links spread crawl equity and keep visitors browsing).
+  const others = allChars.filter(x => x.slug !== c.slug);
+  const start = allChars.findIndex(x => x.slug === c.slug);
+  const out = [];
+  for (let i = 0; i < others.length && out.length < n; i++) {
+    out.push(others[(start + i) % others.length]);
+  }
+  return out;
+}
+
+function buildFaq(c) {
+  // SFW Q&A that doubles as visible content + FAQPage structured data. Google
+  // requires the structured data to match what's on the page, so the same
+  // array drives both the JSON-LD and the rendered section.
+  const who = c.name;
+  return [
+    {
+      q: `Is ${who} free to chat with?`,
+      a: `Yes. You can start chatting with ${who} for free inside Telegram — no install, no sign-up. New users also get free gems to unlock voice replies and gifts.`,
+    },
+    {
+      q: `What is ${who}?`,
+      a: `${who} is an AI companion on Vivi Dreams${c.tagline ? ` — ${clip(c.tagline, 120)}` : ''}. You chat in real time across story scenarios, and ${who} remembers you and grows closer over time.`,
+    },
+    {
+      q: `How do I chat with ${who} on Telegram?`,
+      a: `Open the Vivi Dreams Mini App on Telegram and tap ${who}, or use the button on this page. It runs right inside Telegram — there's nothing to download.`,
+    },
+  ];
+}
+
+function characterPage(c, allChars) {
   const url = `${SITE}/vivi/characters/${c.slug}`;
   const title = `${c.name} — AI Companion Chat on Telegram · Vivi`;
   const desc = clip(c.tagline || `Chat with ${c.name}, an AI companion on Vivi Dreams.`, 155);
@@ -115,18 +149,42 @@ function characterPage(c) {
     .map(s => `      <div class="story"><h3>${esc(s.title)}</h3><p>${esc(clip(s.description || '', 240))}</p></div>`)
     .join('\n');
 
-  // schema.org structured data — a profile page about a fictional character.
-  const jsonld = {
-    '@context': 'https://schema.org',
-    '@type': 'ProfilePage',
-    mainEntity: {
-      '@type': 'Person',
-      name: c.name,
-      description: desc,
-      image: c.avatar,
-      url,
+  const faq = buildFaq(c);
+  const faqHtml = faq
+    .map(f => `      <div class="story"><h3>${esc(f.q)}</h3><p>${esc(f.a)}</p></div>`)
+    .join('\n');
+
+  const related = relatedCharacters(c, allChars, 6);
+  const relatedHtml = related.map(r => `      <a class="card" href="/vivi/characters/${esc(r.slug)}">
+        <img src="${esc(r.avatar)}" alt="${esc(r.name)}" loading="lazy" width="200" height="200">
+        <div class="body"><h3>${esc(r.name)}</h3><p>${esc(clip(r.tagline || '', 70))}</p></div>
+      </a>`).join('\n');
+
+  // Unique long-form intro — gives the page enough original content to rank,
+  // weaving in the character's traits naturally.
+  const looks = Object.values(appearance).filter(Boolean).map(v => clip(v, 50));
+  const introBits = [];
+  if (c.tagline) introBits.push(clip(c.tagline, 160));
+  if (looks.length) introBits.push(`${c.name} has ${looks.slice(0, 3).join(', ')}.`);
+  const intro = introBits.join(' ');
+
+  // schema.org: ProfilePage about the character + an FAQPage for rich results.
+  const jsonld = [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'ProfilePage',
+      mainEntity: { '@type': 'Person', name: c.name, description: desc, image: c.avatar, url },
     },
-  };
+    {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: faq.map(f => ({
+        '@type': 'Question',
+        name: f.q,
+        acceptedAnswer: { '@type': 'Answer', text: f.a },
+      })),
+    },
+  ];
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -152,11 +210,15 @@ ${metaHead({ title, desc, url, image: c.avatar })}
         <a class="cta" href="${esc(dl)}" rel="nofollow">💬 Chat with ${esc(c.name)} on Telegram</a>
       </div>
     </div>
+    <p style="color:var(--text-dim);max-width:760px;margin-top:20px">Chat with <strong>${esc(c.name)}</strong>, an AI companion on Vivi Dreams. ${esc(intro)} Talk in real time, build a relationship that deepens across story scenarios, and unlock voice replies and gifts — all inside Telegram.</p>
 ${factHtml ? `    <h2>Appearance</h2>\n    <div class="facts">\n${factHtml}\n    </div>` : ''}
 ${storyHtml ? `    <h2>Storylines</h2>\n${storyHtml}` : ''}
+    <h2>FAQ</h2>
+${faqHtml}
     <h2>Meet ${esc(c.name)} on Vivi Dreams</h2>
     <p style="color:var(--text-dim);max-width:760px">Vivi Dreams is a Telegram Mini App where you chat with AI companions who remember you and grow with you across story scenarios. Open ${esc(c.name)} in one tap — no install, runs right inside Telegram.</p>
     <p style="margin-top:20px"><a class="cta" href="${esc(dl)}" rel="nofollow">💬 Start chatting — it's free</a></p>
+${relatedHtml ? `    <h2>More companions</h2>\n    <div class="grid">\n${relatedHtml}\n    </div>` : ''}
     <footer>
       <a href="/vivi/characters">← All characters</a> · <a href="/vivi/">Vivi knowledge base</a> · Powered by Vivi Dreams on Telegram
     </footer>
@@ -246,7 +308,7 @@ function main() {
   let n = 0;
   for (const c of chars) {
     if (!c.slug || !c.avatar) continue;
-    fs.writeFileSync(path.join(OUT_DIR, `${c.slug}.html`), characterPage(c));
+    fs.writeFileSync(path.join(OUT_DIR, `${c.slug}.html`), characterPage(c, chars));
     n++;
   }
   fs.writeFileSync(path.join(OUT_DIR, 'index.html'), indexPage(chars));
