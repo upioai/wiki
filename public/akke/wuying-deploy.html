@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Akke · 云电脑自动发私信 部署指南（运营版）</title>
+<style>
+  :root {
+    --bg: #0b0d12;
+    --bg-elevated: #141821;
+    --bg-deep: #1a1f2b;
+    --border: #242a38;
+    --border-strong: #2f3646;
+    --text: #e4e7ed;
+    --text-dim: #9ba3b4;
+    --text-muted: #6b7384;
+    --accent: #8b5cf6;
+    --accent-soft: rgba(139, 92, 246, 0.15);
+    --accent-2: #60a5fa;
+    --accent-2-soft: rgba(96, 165, 250, 0.12);
+    --accent-3: #34d399;
+    --accent-3-soft: rgba(52, 211, 153, 0.12);
+    --warning: #fbbf24;
+    --warning-soft: rgba(251, 191, 36, 0.12);
+    --danger: #f87171;
+    --danger-soft: rgba(248, 113, 113, 0.12);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; padding: 0;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 16px; line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 1040px; margin: 0 auto; padding: 56px 24px 120px; }
+
+  .breadcrumb { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
+  .breadcrumb a { color: var(--text-dim); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--accent); }
+  .breadcrumb span { margin: 0 8px; color: var(--border-strong); }
+
+  header.hero { padding: 16px 0 48px; border-bottom: 1px solid var(--border); margin-bottom: 48px; }
+  .tag { display: inline-block; padding: 4px 12px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 13px; font-weight: 500; margin-bottom: 16px; }
+  h1 {
+    font-size: 42px; font-weight: 700; margin: 0 0 16px;
+    letter-spacing: -0.02em; line-height: 1.2;
+    background: linear-gradient(135deg, #e4e7ed 25%, var(--accent) 80%, var(--accent-2) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .subtitle { font-size: 18px; color: var(--text-dim); margin: 0 0 24px; max-width: 760px; line-height: 1.55; }
+  .hero-meta { display: flex; gap: 24px; flex-wrap: wrap; font-size: 14px; color: var(--text-muted); }
+  .hero-meta strong { color: var(--text-dim); font-weight: 500; }
+
+  h2 { font-size: 13px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.12em; text-transform: uppercase; margin: 56px 0 16px; }
+  h3 { font-size: 22px; font-weight: 650; margin: 0 0 12px; letter-spacing: -0.01em; }
+  p { color: var(--text-dim); }
+  code { background: var(--bg-deep); padding: 1px 6px; border-radius: 4px; font-size: 0.88em; color: #c4b5fd; font-family: "SF Mono", Menlo, Consolas, monospace; word-break: break-all; }
+  pre { background: var(--bg-deep); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; overflow-x: auto; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 13px; line-height: 1.6; color: var(--text); white-space: pre-wrap; word-break: break-all; }
+  pre code { background: none; padding: 0; color: inherit; font-size: inherit; }
+  a { color: var(--accent-2); }
+  kbd { display: inline-block; background: var(--bg-deep); border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 5px; padding: 1px 7px; font: 12px/1.5 "SF Mono", Menlo, monospace; color: var(--text); }
+
+  /* TOC */
+  .toc { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 14px; padding: 20px 24px; margin-bottom: 16px; }
+  .toc .toc-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 12px; }
+  .toc ol { list-style: none; counter-reset: toc; margin: 0; padding: 0; }
+  .toc li { counter-increment: toc; margin: 7px 0; padding-left: 30px; position: relative; }
+  .toc li::before { content: counter(toc); position: absolute; left: 0; top: 1px; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .toc a { color: var(--text-dim); text-decoration: none; }
+  .toc a:hover { color: var(--accent); }
+
+  /* Step blocks */
+  .step { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 14px; padding: 22px 26px 20px; margin-bottom: 18px; position: relative; }
+  .step .step-num { position: absolute; left: -14px; top: 22px; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 600; font-size: 13px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4); }
+  .step h4 { margin: 0 0 10px; font-size: 18px; color: var(--text); padding-left: 4px; }
+  .step p { margin: 0 0 10px; font-size: 14.5px; color: var(--text-dim); line-height: 1.7; }
+  .step ul, .step ol { margin: 8px 0 12px; padding-left: 22px; color: var(--text-dim); font-size: 14.5px; line-height: 1.75; }
+  .step li { margin: 4px 0; }
+  .step li strong, .step p strong { color: var(--text); font-weight: 600; }
+
+  /* Callouts */
+  .callout { border-radius: 10px; padding: 12px 16px; margin: 12px 0; font-size: 14px; line-height: 1.65; color: var(--text-dim); }
+  .callout.warn { background: var(--warning-soft); border-left: 3px solid var(--warning); }
+  .callout.warn strong { color: var(--warning); }
+  .callout.ok { background: var(--accent-3-soft); border-left: 3px solid var(--accent-3); }
+  .callout.ok strong { color: var(--accent-3); }
+  .callout.danger { background: var(--danger-soft); border-left: 3px solid var(--danger); }
+  .callout.danger strong { color: var(--danger); }
+  .callout.info { background: var(--accent-2-soft); border-left: 3px solid var(--accent-2); }
+  .callout.info strong { color: var(--accent-2); }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 8px; font-size: 14px; }
+  th, td { padding: 11px 14px; text-align: left; border-bottom: 1px solid var(--border); color: var(--text-dim); vertical-align: top; }
+  th { color: var(--text-muted); font-weight: 600; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; background: var(--bg-elevated); }
+  td strong { color: var(--text); }
+
+  /* Plan cards */
+  .plan { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 14px; padding: 20px 24px; margin: 14px 0 24px; }
+  .plan.best { border-color: rgba(139,92,246,0.5); box-shadow: 0 0 0 1px rgba(139,92,246,0.18); }
+  .plan-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+  .plan-head .name { font-size: 18px; font-weight: 700; color: var(--text); }
+  .badge { font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 999px; background: var(--accent); color: #fff; }
+  .badge.alt { background: rgba(155,163,180,0.12); color: var(--text-muted); }
+  .plan .who { color: var(--text-dim); font-size: 14px; margin: 0; }
+
+  .pill { display:inline-block; font-size:11px; padding:2px 9px; border-radius:999px; background: var(--bg-deep); border:1px solid var(--border); color: var(--text-dim); }
+  .pill.ok { color: var(--accent-3); border-color: rgba(52,211,153,0.3); }
+  .pill.warn { color: var(--warning); border-color: rgba(251,191,36,0.3); }
+
+  footer { margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 12.5px; text-align: center; }
+  footer a { color: var(--text-dim); text-decoration: none; }
+  footer a:hover { color: var(--accent); }
+
+  @media (max-width: 720px) {
+    .container { padding: 40px 18px 80px; }
+    h1 { font-size: 32px; }
+    .step { padding: 20px 18px; }
+    .step .step-num { left: 10px; top: -14px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <nav class="breadcrumb">
+    <a href="/">upio.ai</a><span>/</span><a href="/akke/">Akke</a><span>/</span><span style="color: var(--text-dim);">云电脑部署指南</span>
+  </nav>
+
+  <header class="hero">
+    <span class="tag">运营 · 部署指南 · 约 30 分钟</span>
+    <h1>云电脑自动发私信<br>部署指南（运营版）</h1>
+    <p class="subtitle">
+      把一台云电脑（阿里无影）配成"自动给潜客发抖音私信"的机器。系统自动派单 → 云电脑自动搜人、核对身份、打字、发送、记录。你部署好之后，<strong>只要让它开着</strong>就行。跟着做就行，<strong>不需要懂代码</strong>。
+    </p>
+    <div class="hero-meta">
+      <span><strong>更新</strong> · 2026-05-30</span>
+      <span><strong>环境</strong> · 阿里无影 EDS（统一配置）</span>
+      <span><strong>受众</strong> · 运营同事</span>
+      <span><strong>耗时</strong> · 一台机器只需部署一次</span>
+    </div>
+  </header>
+
+  <div class="callout ok">
+    <strong>一句话：</strong>我们所有云电脑都是阿里云<strong>同款配置</strong>，所以钥匙和程序都由技术统一配好（烧进镜像/脚本包）。你基本只需要：<strong>登录抖音 + 填上你的账号编号 + 启动</strong>。
+  </div>
+
+  <h2>目录</h2>
+  <div class="toc">
+    <div class="toc-title">Contents</div>
+    <ol>
+      <li><a href="#prep">开始前：找 PM 要 2 样东西</a></li>
+      <li><a href="#choose">选一个部署方案（共 3 种）</a></li>
+      <li><a href="#plan-a">方案 A · 黄金镜像克隆（推荐）</a></li>
+      <li><a href="#plan-b">方案 B · 一键脚本包</a></li>
+      <li><a href="#plan-c">方案 C · 手动分步（排查用）</a></li>
+      <li><a href="#calib">发送异常怎么办</a></li>
+      <li><a href="#daily">日常使用</a></li>
+      <li><a href="#trouble">出问题了？排查表</a></li>
+      <li><a href="#safety">安全红线</a></li>
+      <li><a href="#for-tech">给技术 / PM：准备镜像和脚本包</a></li>
+    </ol>
+  </div>
+
+  <h2 id="prep">① 开始前 · 找 PM 要 2 样东西</h2>
+  <p>因为所有云电脑配置统一，钥匙和程序都已由技术配好，你只需准备这 2 样：</p>
+  <table>
+    <thead><tr><th>#</th><th>要什么</th><th>长什么样</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><strong>你的账号编号</strong>（AKKE_ACCOUNT_ID）</td><td>一串像 <code>81cc9678-9b53-413b-…</code> 的字符，PM 给你</td></tr>
+      <tr><td>2</td><td><strong>部署素材</strong></td><td>方案 A 给镜像名 / 方案 B 给脚本压缩包 / 方案 C 给程序文件夹</td></tr>
+    </tbody>
+  </table>
+  <div class="callout info"><strong>好消息：</strong>三把"钥匙"（数据库 + AI 接口密钥）已由技术烧进镜像/脚本包，<strong>你不用碰，本页也不会出现真钥匙</strong>。你只填账号编号。</div>
+
+  <h2 id="choose">② 选一个部署方案</h2>
+  <p>三种方案做的是同一件事，区别只是"谁先把活干了"。<strong>绝大多数人用方案 A。</strong></p>
+  <table>
+    <thead><tr><th>方案</th><th>你要做的事</th><th>难度</th><th>适合谁</th></tr></thead>
+    <tbody>
+      <tr><td><strong>A. 黄金镜像克隆</strong> ⭐</td><td>导入镜像 → 登录抖音 → 填账号编号 → 启动</td><td><span class="pill ok">最低</span></td><td>所有人首选</td></tr>
+      <tr><td><strong>B. 一键脚本包</strong></td><td>解压 → 双击一个 bat → 登录抖音</td><td><span class="pill ok">低</span></td><td>不想折腾镜像 / 镜像出问题时</td></tr>
+      <tr><td><strong>C. 手动分步</strong></td><td>跟着图文一步步装</td><td><span class="pill warn">中</span></td><td>出问题排查 / 技术同事</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="plan-a">③ 方案 A · 黄金镜像克隆</h2>
+  <div class="plan best">
+    <div class="plan-head"><span class="name">🥇 从"黄金镜像"开机，开机即就绪</span><span class="badge">推荐</span></div>
+    <p class="who">技术已在一台机器上把 Python、程序、依赖、坐标、钥匙全配好，存成"黄金镜像"。你的云电脑直接用它开机，省掉所有安装步骤。</p>
+  </div>
+
+  <div class="step"><div class="step-num">1</div>
+    <h4>记下镜像分享码</h4>
+    <p>我们的黄金镜像分享码：</p>
+    <pre><code>74869247</code></pre>
+    <p>下面在你电脑上的 <strong>无影客户端</strong> 里用它导入。</p>
+  </div>
+  <div class="step"><div class="step-num">2</div>
+    <h4>用"变更镜像"把分享码导进你的云电脑</h4>
+    <ol>
+      <li>打开无影客户端，找到你那台云电脑卡片，点 <strong>「管理」</strong></li>
+      <li>顶部切到 <strong>「镜像」</strong> 页签</li>
+      <li>点右下角 <strong>「变更镜像」</strong> → 选 <strong>「通过分享码导入」</strong> → 粘贴 <code>74869247</code> → 确定</li>
+      <li>导入后按提示<strong>变更/重启</strong>，云电脑会变成镜像里的样子</li>
+    </ol>
+    <p>变更完成后，云电脑里 Python、程序、依赖、钥匙、坐标<strong>全都已经配好了</strong>。</p>
+    <div class="callout warn"><strong>注意：变更镜像会重置这台云电脑的系统盘</strong>（C 盘原有东西会被镜像覆盖）。这台之前装过别的重要东西就先备份；新机/空机直接做没问题。</div>
+    <div class="callout info">不确定怎么操作？把这个码发给 PM，请他帮你导一次，之后就归你用。</div>
+  </div>
+  <div class="step"><div class="step-num">2</div>
+    <h4>登录你的抖音 PC</h4>
+    <p>打开桌面上的<strong>抖音 PC 客户端</strong> → 用<strong>你负责的那个抖音号</strong>扫码登录 → 窗口<strong>最大化</strong>（占满全屏）→ 确认右上角是你的头像。</p>
+  </div>
+  <div class="step"><div class="step-num">3</div>
+    <h4>把账号编号改成你自己的（最关键，别跳过）</h4>
+    <p>桌面左下角搜索 <code>powershell</code> 打开蓝色窗口，粘贴这两行（逐行回车）：</p>
+    <pre><code>cd C:\akke-wuying
+notepad .env</code></pre>
+    <p>记事本里找到 <code>AKKE_ACCOUNT_ID=</code> 这行，把等号后面改成 <strong>PM 给你的编号</strong>，<kbd>Ctrl</kbd>+<kbd>S</kbd> 保存关闭。其它行<strong>不用动</strong>（钥匙镜像里已配好）。</p>
+    <div class="callout danger"><strong>这一步必须做！</strong>镜像里默认是别人的账号编号。不改成你自己的，发出去的私信会算到别人头上、并和别人抢同一批客户。改完务必核对这行是你的编号。</div>
+  </div>
+  <div class="step"><div class="step-num">4</div>
+    <h4>启动</h4>
+    <p>回到刚才那个蓝色 PowerShell 窗口（没有就桌面左下角搜 <code>powershell</code> 再开），粘贴这两行、逐行回车：</p>
+    <pre><code>cd C:\akke-wuying
+py wuying_poll_agent.py</code></pre>
+    <p>看到这样一行 = 启动成功 ✅：</p>
+    <pre><code>=== wuying_poll_agent  account=xxxxxxxx…  every 60s  claim=3 ===</code></pre>
+    <p><strong>这个窗口一直开着别关、别按 Ctrl+C。</strong></p>
+    <div class="callout warn">如果发送时鼠标点歪、消息没发出 → 见下方 <a href="#calib">⑥ 发送异常</a>，或直接发群找技术。</div>
+  </div>
+
+  <h2 id="plan-b">④ 方案 B · 一键脚本包</h2>
+  <div class="plan">
+    <div class="plan-head"><span class="name">🥈 解压 + 双击一个 bat</span><span class="badge alt">备选</span></div>
+    <p class="who">不想折腾镜像、或镜像出问题时用这个。技术把钥匙和程序打进一个压缩包（<code>akke-wuying.zip</code>），你解压双击即可。</p>
+  </div>
+  <div class="step"><div class="step-num">1</div>
+    <h4>解压到固定位置</h4>
+    <p>把 PM 给的 <code>akke-wuying.zip</code> 解压，里面有个 <code>akke-wuying</code> 文件夹，<strong>整个放到 C 盘根目录</strong>，最终路径是 <code>C:\akke-wuying</code>（里面应能看到 <code>bootstrap.bat</code>、<code>start.bat</code>、<code>请先看我.txt</code> 等）。</p>
+  </div>
+  <div class="step"><div class="step-num">2</div>
+    <h4>双击 bootstrap.bat 装环境</h4>
+    <p>双击 <code>bootstrap.bat</code>，按提示输入<strong>你的账号编号</strong>回车。它会自动装依赖、写配置、设开机自启。等它跑完（约 2 分钟）。</p>
+    <div class="callout info">双击没反应或一闪而过？改用 PowerShell：<code>cd C:\akke-wuying</code> 回车，再 <code>.\bootstrap.bat 你的账号编号</code> 回车，能看到报错信息。</div>
+  </div>
+  <div class="step"><div class="step-num">3</div>
+    <h4>登录抖音 + 启动</h4>
+    <p>打开抖音 PC、扫码登录、最大化（同方案 A 第 2 步）→ 在 PowerShell 里 <code>cd C:\akke-wuying</code> 回车、<code>py wuying_poll_agent.py</code> 回车，看到 <code>wuying_poll_agent account=…</code> = 成功，窗口保持开着。</p>
+  </div>
+
+  <h2 id="plan-c">⑤ 方案 C · 手动分步</h2>
+  <div class="plan">
+    <div class="plan-head"><span class="name">🛠️ 从零一步步装</span><span class="badge alt">排查用</span></div>
+    <p class="who">前两个方案出问题时，用这个定位是哪步坏了。技术同事也可直接走这个。</p>
+  </div>
+  <div class="step"><div class="step-num">1</div>
+    <h4>确认装了 Python</h4>
+    <p>开 PowerShell，输入 <code>py --version</code> 回车。看到 <code>Python 3.11.x</code> = OK。报"找不到"就去 python.org 装，安装时<strong>勾选 Add Python to PATH</strong>。</p>
+  </div>
+  <div class="step"><div class="step-num">2</div>
+    <h4>放程序 + 装依赖</h4>
+    <p>把程序文件夹放到 <code>C:\akke-wuying</code>，然后：</p>
+    <pre><code>cd C:\akke-wuying
+py -m pip install pyautogui pyperclip pillow supabase python-dotenv pygetwindow</code></pre>
+    <p>看到一堆 <code>Successfully installed</code> = 成功。</p>
+  </div>
+  <div class="step"><div class="step-num">3</div>
+    <h4>填配置（.env）</h4>
+    <p><code>notepad .env</code> 回车（提示新建点"是"），贴进下面整段，把每个 <code>填这里</code> 换成 PM 给你的值：</p>
+    <pre><code>SUPABASE_URL=填这里
+SUPABASE_SERVICE_ROLE_KEY=填这里
+OPENROUTER_API_KEY=填这里
+ANTHROPIC_API_KEY=填这里
+AKKE_ACCOUNT_ID=填这里
+AKKE_POLL_INTERVAL=60
+AKKE_CLAIM_LIMIT=3</code></pre>
+    <p><code>OPENROUTER_API_KEY</code> 和 <code>ANTHROPIC_API_KEY</code> 两行<strong>填同一把</strong> PM 给的 <code>sk-or-</code> 开头钥匙。<kbd>Ctrl</kbd>+<kbd>S</kbd> 保存。</p>
+  </div>
+  <div class="step"><div class="step-num">4</div>
+    <h4>登录抖音 + 启动</h4>
+    <p>抖音 PC 登录最大化 → <code>py wuying_poll_agent.py</code> 回车 → 看到 <code>wuying_poll_agent account=…</code> = 成功，窗口保持开着。</p>
+  </div>
+
+  <h2 id="calib">⑥ 发送异常怎么办</h2>
+  <div class="callout ok"><strong>同款阿里云配置 + 镜像里已内置校准好的坐标，正常情况你什么都不用做。</strong>下面只在"发送点歪 / 消息没发出"时看。</div>
+  <div class="step"><div class="step-num">1</div>
+    <h4>先排除最常见的两个原因</h4>
+    <ul>
+      <li><strong>抖音不在前台或没最大化</strong> → 把抖音点到最前面、最大化，再观察下一条</li>
+      <li><strong>抖音被登出</strong> → 重新扫码登录</li>
+    </ul>
+  </div>
+  <div class="step"><div class="step-num">2</div>
+    <h4>还是点歪 → 发群找技术校准</h4>
+    <p>这说明你这台屏幕和镜像的坐标有差异，需要重新校准一次坐标（技术操作）。<strong>把现象 + 一张抖音私信界面的截图发群</strong>，技术会远程帮你校准，几分钟搞定。</p>
+    <div class="callout info">技术侧：在该机跑 <code>py douyin_dm_grounded.py --calibrate</code> 自动量坐标（需镜像已更新到带校准的版本；旧镜像可手动改 .env 的 <code>AKKE_C_INPUT</code>/<code>AKKE_C_SEND</code>）。</div>
+  </div>
+
+  <h2 id="daily">⑦ 日常使用</h2>
+  <table>
+    <thead><tr><th>场景</th><th>怎么做</th></tr></thead>
+    <tbody>
+      <tr><td><strong>正常工作</strong></td><td>让抖音 + 那个黑窗口一直开着，它每 60 秒检查一次、有单就发</td></tr>
+      <tr><td><strong>下班 / 不用了（省钱）</strong></td><td>关掉云电脑客户端，约 10 分钟后自动休眠停止扣费</td></tr>
+      <tr><td><strong>重新开工</strong></td><td>开云电脑 → 打开并登录抖音 → PowerShell 里 <code>cd C:\akke-wuying</code> + <code>py wuying_poll_agent.py</code></td></tr>
+      <tr><td><strong>怎么知道它在干活</strong></td><td>有单时你会看到抖音自动搜人、打字、发送；黑窗口打印 <code>✅ 已确认发出</code></td></tr>
+    </tbody>
+  </table>
+  <div class="callout ok">第一次发出后，<strong>肉眼确认一下</strong>：那条消息真的进了对方聊天框。确认 OK 之后就可以放心让它自动跑了。</div>
+
+  <h2 id="trouble">⑧ 出问题了？对照排查表</h2>
+  <table>
+    <thead><tr><th>现象</th><th>原因 / 怎么办</th></tr></thead>
+    <tbody>
+      <tr><td>启动报 <code>env missing</code></td><td>配置没填全 → <code>notepad .env</code> 检查每行都有值，尤其 <code>AKKE_ACCOUNT_ID</code></td></tr>
+      <tr><td>发送点歪 / 消息没发出</td><td>先确认抖音在前台+最大化；还不行见 <a href="#calib">⑥ 发送异常</a>，发群找技术校准</td></tr>
+      <tr><td>抖音被登出 / 要重新扫码</td><td>正常（登录约 15–30 天过期），重新扫码登录即可</td></tr>
+      <tr><td>截图截到别的窗口</td><td>把抖音点到最前面 + 最大化，再重试</td></tr>
+      <tr><td>提示发送频繁 / 受限</td><td>账号触发抖音限频 → <strong>停一停</strong>、告诉 PM，别硬发</td></tr>
+      <tr><td>其它看不懂的报错</td><td><strong>截图整个黑窗口发群</strong>，别自己改文件</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="safety">⑨ 安全红线</h2>
+  <div class="callout danger">
+    <strong>三把钥匙绝不外发</strong>：不截图、不发群、不告诉无关的人。<br>
+    <strong>.env 文件不外传</strong>：里面等于你账号的"密码"。
+  </div>
+  <ul>
+    <li><strong>控量</strong>：抖音禁止自动化批量私信，发太猛会被限流甚至封号。按系统派的节奏来，<strong>别手动加量</strong>。</li>
+    <li><strong>只发系统派的单</strong>：不要拿它去群发陌生人。</li>
+  </ul>
+
+  <hr style="border:none;border-top:1px solid var(--border);margin:64px 0 8px;">
+
+  <h2 id="for-tech">⑩ 给技术 / PM · 如何准备镜像和脚本包</h2>
+  <div class="callout info"><strong>这一节运营不用看。</strong>它写给负责"配第一台、做镜像、打脚本包"的技术或 PM —— 把上面三个方案的素材一次性备齐。</div>
+
+  <h3 style="font-size:18px;margin:28px 0 6px;">A) 先在一台机器上把"黄金母机"配通</h3>
+  <p>三个方案都从这一步派生。在一台干净的阿里无影上：</p>
+  <div class="step"><div class="step-num">1</div>
+    <h4>装运行环境</h4>
+    <pre><code>REM 装 Python 3.11（python.org，勾选 Add to PATH）后：
+cd C:\akke-wuying
+py -m pip install pyautogui pyperclip pillow supabase python-dotenv pygetwindow</code></pre>
+  </div>
+  <div class="step"><div class="step-num">2</div>
+    <h4>放程序 + 配 .env（含公用钥匙）</h4>
+    <p>把 <code>worker/scripts/wuying-dm/</code> 整个放到 <code>C:\akke-wuying</code>，<code>notepad .env</code> 填好三把<strong>公用</strong>钥匙（<code>SUPABASE_URL</code> / <code>SUPABASE_SERVICE_ROLE_KEY</code> / <code>OPENROUTER_API_KEY</code>，最后一把同时填给 <code>ANTHROPIC_API_KEY</code>）。<code>AKKE_ACCOUNT_ID</code> 这行留空或占位 —— 让每个运营各自填自己的。</p>
+    <div class="callout warn"><strong>钥匙烧进镜像 = 多人共用同一套钥匙。</strong>这是为省事做的取舍：钥匙会存在于每台克隆机上。若要更高安全等级，改成"镜像不含钥匙、PM 给每人单独下发"，对应方案 C 的 .env 填写法。</div>
+  </div>
+  <div class="step"><div class="step-num">3</div>
+    <h4>校准坐标（写进 .env 默认值）</h4>
+    <p>打开任意私信窗口 → <code>py douyin_dm_grounded.py --calibrate</code> → 确认标注图红圈/绿圈无误。校准会把 <code>AKKE_C_INPUT</code> / <code>AKKE_C_SEND</code> 写进 .env。因配置统一，这组坐标所有克隆机通用。</p>
+  </div>
+  <div class="step"><div class="step-num">4</div>
+    <h4>设开机自启 + 冒烟</h4>
+    <p>双击 <code>bootstrap.bat &lt;一个测试账号编号&gt;</code> 让它写好启动文件夹快捷方式；登录抖音后 <code>start.bat</code> 跑通一条，确认全链路 OK。这台就是"黄金母机"。</p>
+  </div>
+
+  <h3 style="font-size:18px;margin:36px 0 6px;">B) 方案 A 素材 · 制作自定义镜像 + 拿分享码</h3>
+  <div class="callout info">以下按 <strong>无影 PC 客户端</strong> 实际界面写（管理 → 镜像 页签，右下角有「恢复成初始镜像 / 变更镜像 / 新建镜像」三个按钮）。小程序入口类似。</div>
+  <div class="step"><div class="step-num">1</div>
+    <h4>从母机新建镜像</h4>
+    <ol>
+      <li>无影客户端找到母机卡片 → 点 <strong>「管理」</strong> → 切到 <strong>「镜像」</strong> 页签</li>
+      <li>点右下角 <strong>「新建镜像」</strong></li>
+      <li>填镜像名称（如 <code>akke-wuying-golden</code>）和描述，按提示选磁盘/确认</li>
+      <li>⚠️ 若出现 <strong>"协助清理个人数据"</strong> 之类开关：因为我们要把钥匙留在镜像里，<strong>建议关闭</strong>（开启可能抹掉 .env 钥匙）</li>
+      <li>确认创建（通常需要先关机），等镜像状态变可用</li>
+    </ol>
+    <div class="callout info">客户端没找到"生成分享码"入口？官方分享码也可能在小程序的「伙伴推广 → 镜像推广」里。两个客户端都翻翻，实在找不到联系阿里客服或发群。</div>
+  </div>
+  <div class="step"><div class="step-num">2</div>
+    <h4>拿到分享码并分发</h4>
+    <p>镜像建好后<strong>复制它的分享码</strong>，发给运营（走私聊，<strong>别发公开群</strong>——凭它能复制出含钥匙的机器）。运营按本页方案 A：管理 → 镜像 → <strong>「变更镜像」→「通过分享码导入」</strong>。</p>
+    <div class="callout danger"><strong>镜像含钥匙 + 分享码 = 任何拿到码的人都能复制出一台带你公司钥匙的机器。</strong>当前分享码 <code>74869247</code> 已写在本页（公网可见），等于把那套公用钥匙的门槛降低了。要收紧时：<strong>重做镜像换新码 + 轮换 Supabase/OpenRouter 钥匙</strong>，并更新本页。</div>
+  </div>
+  <div class="callout warn"><strong>关于抖音登录态：</strong>镜像要不要带母机的抖音登录态不稳定。<strong>最稳妥：镜像只含程序+钥匙+坐标，抖音让每个运营自己扫码登录自己的号</strong>（方案 A 第 3 步）——否则所有人会共用同一个抖音账号，那是错的。</div>
+
+  <h3 style="font-size:18px;margin:36px 0 6px;">C) 方案 B 素材 · 打一键脚本包</h3>
+  <div class="step"><div class="step-num">1</div>
+    <h4>打包</h4>
+    <p>基础脚本包已经打好（不含钥匙）：<code>akke-wuying.zip</code>，内含 <code>douyin_dm_grounded.py</code> / <code>wuying_poll_agent.py</code> / <code>bootstrap.bat</code> / <code>start.bat</code> / <code>.env.example</code> / <code>contacts_example.csv</code> / <code>请先看我.txt</code>。</p>
+    <p><strong>分发前</strong>：把 <code>.env.example</code> 改名为 <code>.env</code>，填好 3 把公用钥匙（<code>AKKE_ACCOUNT_ID</code> 留空），重新压包。这样运营双击 <code>bootstrap.bat</code> 填编号即可，不用碰钥匙。</p>
+  </div>
+  <div class="step"><div class="step-num">2</div>
+    <h4>分发</h4>
+    <p>把 zip 发给运营（走内部渠道，<strong>别发公开群</strong> —— 含钥匙）。运营侧解压到 <code>C:\akke-wuying</code> → 双击 <code>bootstrap.bat</code> 填编号（本页方案 B）。</p>
+    <div class="callout danger"><strong>zip 含钥匙，等同密钥文件。</strong>只走私聊/内部网盘，发完提醒对方别二次转发。</div>
+  </div>
+
+  <h3 style="font-size:18px;margin:36px 0 6px;">D) 维护要点</h3>
+  <table>
+    <thead><tr><th>什么时候</th><th>做什么</th></tr></thead>
+    <tbody>
+      <tr><td>程序更新（改了 <code>douyin_dm_grounded.py</code> 等）</td><td>更新母机文件 → 重做镜像 / 重打 zip；或用剪贴板投递命令热更已部署机器</td></tr>
+      <tr><td>钥匙轮换</td><td>更新母机 .env → 重做镜像/zip；已部署机器逐台改 .env（这就是"烧公用钥匙"的代价）</td></tr>
+      <tr><td>抖音改版导致坐标失效</td><td>母机重跑 <code>--calibrate</code>，新坐标随镜像/zip 下发；运营侧也可各自 <a href="#calib">自助校准</a></td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:13px;color:var(--text-muted);margin-top:16px;">源码与设计：<code>worker/scripts/wuying-dm/</code>（Akke repo）。链路原理见 <a href="/akke/cloud-pc-control">通道总览</a>。</p>
+
+  <footer>
+    有任何一步卡住 —— <strong>截图发群找技术，宁可问，不要猜。</strong><br>
+    相关：<a href="/akke/cloud-pc-onboarding">云电脑上手指南</a> · <a href="/akke/cloud-pc-control">通道总览</a> · <a href="/akke/">Akke 知识库首页</a>
+  </footer>
+
+</div>
+</body>
+</html>
