@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Akke 采集尖峰 & "未发"口径核查 · 2026-05-31</title>
+<style>
+  :root{--bg:#0f1115;--card:#171a21;--card2:#1d212b;--line:#2a2f3a;--ink:#e8eaed;--sub:#9aa3b2;
+    --accent:#5b8cff;--good:#3fb950;--warn:#d29922;--bad:#f85149;--hl:#1f6feb22;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.7 -apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif;}
+  .wrap{max-width:920px;margin:0 auto;padding:32px 20px 80px;}
+  h1{font-size:26px;margin:0 0 6px;letter-spacing:.3px}
+  h2{font-size:20px;margin:38px 0 12px;padding-top:18px;border-top:1px solid var(--line)}
+  h3{font-size:16px;margin:22px 0 8px;color:var(--accent)}
+  .meta{color:var(--sub);font-size:13px;margin-bottom:18px}
+  .lead{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:10px;padding:16px 18px;margin:18px 0}
+  .lead b{color:#fff}
+  p{margin:10px 0}.sub{color:var(--sub)}
+  code{background:#0b0d11;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:13px;font-family:"SF Mono",Menlo,Consolas,monospace;color:#c9d1d9}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14px}
+  th,td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--line)}
+  th:first-child,td:first-child{text-align:left}
+  thead th{color:var(--sub);font-weight:600;border-bottom:2px solid var(--line)}
+  tr.peak td{background:var(--hl);font-weight:700;color:#fff}
+  .pill{display:inline-block;padding:1px 8px;border-radius:20px;font-size:12px;font-weight:600}
+  .p-acc{background:#5b8cff22;color:var(--accent)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:14px 0}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+  .kpi .n{font-size:26px;font-weight:700;color:#fff;line-height:1.2}
+  .kpi .l{font-size:12px;color:var(--sub);margin-top:4px}.kpi .d{font-size:12px;margin-top:6px}
+  .up{color:var(--bad)}.flat{color:var(--sub)}
+  .callout{border-radius:10px;padding:14px 16px;margin:14px 0;border:1px solid var(--line)}
+  .c-find{background:#1f6feb18;border-left:4px solid var(--accent)}
+  .c-warn{background:#d2992218;border-left:4px solid var(--warn)}
+  .c-ok{background:#3fb95014;border-left:4px solid var(--good)}
+  .c-bad{background:#f8514916;border-left:4px solid var(--bad)}
+  ol,ul{margin:10px 0;padding-left:22px}li{margin:6px 0}
+  .pipe{display:flex;flex-wrap:wrap;align-items:stretch;gap:0;margin:16px 0;font-size:13px}
+  .node{flex:1;min-width:110px;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:10px;text-align:center}
+  .node .t{font-weight:700;color:#fff;font-size:13px}.node .s{color:var(--sub);font-size:11px;margin-top:3px}
+  .arrow{display:flex;align-items:center;color:var(--sub);padding:0 4px;font-size:18px}
+  .node.hit{border-color:var(--bad);box-shadow:0 0 0 1px var(--bad) inset}
+  .node.obs{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+  .tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:6px;margin-top:6px}
+  .tag.bad{background:#f8514922;color:var(--bad)}.tag.acc{background:#5b8cff22;color:var(--accent)}
+  .foot{margin-top:50px;color:var(--sub);font-size:12px;border-top:1px solid var(--line);padding-top:16px}
+  .qbox{counter-reset:q;margin:14px 0}
+  .qitem{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin:10px 0;position:relative;padding-left:50px}
+  .qitem::before{counter-increment:q;content:"Q"counter(q);position:absolute;left:14px;top:12px;font-weight:700;color:var(--accent)}
+  .qitem .a{color:var(--sub);font-size:13px;margin-top:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>采集数据为什么突然涨 & 早报"未发"数准不准</h1>
+  <div class="meta">Akke 内部数据核查 · 2026-05-31（数据为当日约中午的快照）· 数据来源：service-role 直查生产库（跨全部 org，与早报 <code>scrape-digest-daily</code> 同口径）</div>
+
+  <div class="lead">
+    <b>一句话结论：</b>5/30 的视频/评论/高意向相比前一天涨了约 <b>3–4.5 倍</b>，是真实的，但<b>不是有那么多新客户</b>——而是 #65「评论覆盖度修复」把回看窗口从 24h 拉到 7 天后，<b>一次性把过去几天漏抓的旧评论补了进来</b>（5/30 入库评论里 63% 是 3 天前发布的，5/31 更高达 77%）。数字没有重复计算膨胀，可信。<b>而且这波补漏还没排完，5/31 的量比 5/30 还高</b>。早报"未发 backlog"我也复算并核了真伪：5/30 有 <b>高 103 / 中高 276 人</b>未发，其中<b>真正已联系过的只有各 4 人（约 2%）</b>——也就是说 backlog <b>几乎没虚高，是实打实没人碰的高意向需求</b>，而且正随补漏快速堆积。
+  </div>
+
+  <!-- ============ 这是什么问题 ============ -->
+  <h2>这是个什么类型的问题，在 Akke 哪个环节</h2>
+  <p>这不是"采集坏了"或"数据错了"，而是两件事叠在一起的 <span class="pill p-acc">数据可观测性 / 指标口径问题</span>：</p>
+  <ul>
+    <li><b>采集行为变更</b>（#65 扩窗）→ "每天采集量"这个指标的<b>含义</b>临时变了（含大量补漏的历史数据），但报表照旧按"昨日新增"展示，于是看起来异常。</li>
+    <li><b>报表口径不完整</b>→ 早报的"未触达 backlog"只按评论状态推断，没扣掉"这个人其实早联系过"，会偏大。</li>
+  </ul>
+  <p class="sub">它落在整条链路的<b>「观测 / 报表层」</b>——横跨在"分析产出"和"运营触达决策"之间，本身不产生业务数据，只汇总它们给人看。所以问题不在采集或分析的正确性，而在<b>怎么把它们的产出讲清楚</b>。</p>
+
+  <div class="pipe">
+    <div class="node"><div class="t">采集源</div><div class="s">source_accounts</div></div>
+    <div class="arrow">→</div>
+    <div class="node hit"><div class="t">采集 Worker</div><div class="s">videos · comments</div><span class="tag bad">#65 改这里</span></div>
+    <div class="arrow">→</div>
+    <div class="node"><div class="t">分析 LLM</div><div class="s">intent_label/score</div></div>
+    <div class="arrow">→</div>
+    <div class="node"><div class="t">运营触达</div><div class="s">ADB/WDA · conversations</div></div>
+  </div>
+  <div class="pipe" style="margin-top:-6px">
+    <div class="node obs" style="flex:0 0 100%"><div class="t">📊 观测 / 报表层 · 每日 07:30 采集快照（scrape-digest-daily）</div><div class="s">汇总上面 2~3 环节的产出 → 推 Lark · 本次两个疑问都出在这一层的「展示口径」</div><span class="tag acc">问题在这里被看到</span></div>
+  </div>
+
+  <!-- ============ 今天的问题 ============ -->
+  <h2>今天你问的 4 个问题</h2>
+  <div class="qbox">
+    <div class="qitem">昨天视频数和高/中/低意向评论为什么比前天高不少？<div class="a">→ #65 扩窗后的补漏，相比前一天约 3–4.5 倍，且仍在进行，见「为什么涨」。</div></div>
+    <div class="qitem">这些数据是否正确？<div class="a">→ 正确，无重复计算膨胀；口径是"按入库时间统计采集量"，见「数据准不准」。</div></div>
+    <div class="qitem">无关评论现在怎么处理？<div class="a">→ 两层过滤（规则预筛 + LLM 打"无关"标签），5/30 有 82% 评论是无关，已被挡在 leads 之外，见「无关评论」。</div></div>
+    <div class="qitem">早报说的"昨天没发的高/中意向各多少"准吗？<div class="a">→ 准（5/30 高 103 / 中高 276 人），且只有约 2% 是已联系过的——基本没虚高，见「未发 backlog」。</div></div>
+  </div>
+
+  <!-- ============ 为什么涨 ============ -->
+  <h2>1 · 为什么 5/30 突然涨</h2>
+  <div class="grid">
+    <div class="kpi"><div class="n">1368</div><div class="l">5/30 新视频</div><div class="d up">▲ 4.5×（5/29 是 305）</div></div>
+    <div class="kpi"><div class="n">5505</div><div class="l">5/30 新评论</div><div class="d up">▲ 3.8×（5/29 是 1465）</div></div>
+    <div class="kpi"><div class="n">135</div><div class="l">5/30 高意向评论</div><div class="d up">▲ 2.9×（5/29 是 46）</div></div>
+    <div class="kpi"><div class="n">3488</div><div class="l">其中 3–7 天前的旧评论</div><div class="d up">占当日 63%</div></div>
+  </div>
+
+  <h3>每日采集量对比</h3>
+  <table>
+    <thead><tr><th>日期</th><th>新视频</th><th>新评论</th><th>高意向</th><th>中意向</th><th>低意向</th><th>无关</th><th>未分析</th></tr></thead>
+    <tbody>
+      <tr><td>5/27</td><td>90</td><td>415</td><td>45</td><td>170</td><td>184</td><td>11</td><td>5</td></tr>
+      <tr><td>5/28</td><td>148</td><td>798</td><td>30</td><td>85</td><td>94</td><td>564</td><td>25</td></tr>
+      <tr><td>5/29</td><td>305</td><td>1465</td><td>46</td><td>102</td><td>145</td><td>1168</td><td>4</td></tr>
+      <tr class="peak"><td>5/30</td><td>1368</td><td>5505</td><td>135</td><td>434</td><td>426</td><td>4495</td><td>15</td></tr>
+      <tr><td>5/31<span class="sub">(到中午)</span></td><td>3831</td><td>5830</td><td>148</td><td>424</td><td>412</td><td>4846</td><td>0</td></tr>
+    </tbody>
+  </table>
+  <p class="sub">注：5/27 的"无关"只有 11、占比极低，与后几天（数千）明显不符，疑似当天评论尚未被分析环节充分打标（intent_label 还没刷上），把 5/27 当基线要打个问号；做倍数对比时用 5/29 当"前一天"最稳。</p>
+
+  <h3>关键证据：入库评论"有多旧"</h3>
+  <p class="sub">按"评论入库时刻 − 评论发布时刻"分桶。日常 60–80% 是当天发的；5/30 起一大半是 3 天前的——这正是"回看 7 天补漏"的指纹。</p>
+  <table>
+    <thead><tr><th>日期</th><th>当天(&lt;24h)</th><th>1–2 天</th><th>3–7 天</th><th>无发布时刻</th><th>3 天以上占比</th></tr></thead>
+    <tbody>
+      <tr><td>5/29</td><td>936</td><td>128</td><td>401</td><td>0</td><td>27%</td></tr>
+      <tr class="peak"><td>5/30</td><td>1558</td><td>459</td><td>3488</td><td>0</td><td>63%</td></tr>
+      <tr><td>5/31<span class="sub">(到中午)</span></td><td>1034</td><td>310</td><td>4472</td><td>14</td><td>77%</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout c-warn">
+    <b>修正一个我自己先前的误判：补漏不是"一次性、正在排空"，而是<u>还在进行、甚至在加速</u>。</b>5/31 到中午就已经有 5830 条评论、3831 个视频（都超过 5/30 全天），其中 3–7 天前的旧评论占到 77%。说明 #65 的"近 7d 视频持续复扫 / 回看 7 天"还在源源不断地把历史评论灌进来。预计要等历史窗口被吃透后才会回落到新稳态（叠加每视频抓评上限 20→50 带来的持续抬升）。具体几天能排完，需要再观察。
+  </div>
+
+  <div class="callout c-find">
+    <b>时间线提醒：</b>#65 是 <code>5/30 21:37</code> 部署的，只覆盖 5/30 最后约 2.4 小时。一次全量刷新（每个活跃源回看 7 天 × 每视频最多 50 条）短时间灌进数千条旧评论是合理的；5/30 大涨可能还叠加了 5/29 那次数据修复（127 个孤儿源 + 1072 视频回填进主 org，让更多源活了过来）。两推手难以百分百拆分。
+  </div>
+
+  <!-- ============ 数据准不准 ============ -->
+  <h2>2 · 这些数据正确吗</h2>
+  <div class="callout c-ok">
+    <b>正确，且没有重复计算膨胀。</b>评论入库虽是 INSERT，但有两道去重：同批内存去重 + 入库前查 DB 已有的 <code>(内容, 作者)</code> 再跳过。所以"反复复扫同一批视频"<b>不会</b>把同一条评论重复插进去，涨上来的不是水分。
+  </div>
+  <ul>
+    <li>"新视频"按 <code>videos.scraped_at</code>、"新评论"按 <code>comments.created_at</code>（<b>入库时刻</b>，代码注释明确写"受 cron 调度影响"）落在昨日 BJT 0–24h。所以它衡量的是"<b>昨天采集进来多少</b>"——补漏的旧评论也算昨天采集量，是对的。</li>
+    <li>意向分桶按 <code>intent_label</code>：高 ≥80 / 中 60–79 / 低 30–59 / 无关 &lt;30。</li>
+    <li>全程<b>不按 org 过滤</b>，是全公司所有采集源的合计。</li>
+  </ul>
+  <p class="sub">所以"数字对不对"的答案是：作为<b>采集量</b>它准确无误；只是别读成"昨天新冒出这么多买家"。</p>
+
+  <!-- ============ 无关评论 ============ -->
+  <h2>3 · 无关评论现在怎么处理</h2>
+  <ol>
+    <li><b>规则预筛</b>（便宜）：同行报价号、纯 emoji、@AI 这类明显噪音，直接跳过，不送 LLM。</li>
+    <li><b>LLM 打标</b>：剩下的由分析环节打 <code>intent_label</code>，判为<b>「无关」的留库存档（供审计），但不进 leads、不进 backlog、不生成话术</b>。</li>
+  </ol>
+  <div class="callout c-find">
+    实际占比很大：5/30 的 5505 条评论里，<b>无关 4495 条 = 82%</b>，低意向 426 条。真正进入"值得触达"漏斗的高+中意向只有 <b>569 条（10.3%）</b>。说明过滤层在正常工作——绝大多数噪音被挡在了运营视野之外。
+  </div>
+
+  <!-- ============ 未发 backlog ============ -->
+  <h2>4 · 早报"昨天没发的高/中意向"准吗</h2>
+  <p>早报口径：昨日入库、已打分、状态还停在 <code>analyzed/queued</code>、按 <code>douyin_user_id</code> 去重。我用<b>完全相同</b>的逻辑复算（约中午快照，可能略低于 07:30 卡片值，因为期间运营又联系了一些人）：</p>
+  <table>
+    <thead><tr><th>日期</th><th>高意向"未发"(人)</th><th>中高"未发"(人)</th></tr></thead>
+    <tbody>
+      <tr class="peak"><td>5/30</td><td>103</td><td>276</td></tr>
+      <tr><td>5/31<span class="sub">(到中午)</span></td><td>138</td><td>338</td></tr>
+    </tbody>
+  </table>
+  <p>原始口径下，5/30 有 <b>103 个高意向 + 276 个中高意向用户"还没发"</b>。注意这是"昨日入库且还没发"，不是历史全部积压。随着补漏带进大量旧的高意向评论，这个待发池也跟着被撑大了。</p>
+
+  <h3>"未发"里有多少其实已经联系过</h3>
+  <table>
+    <thead><tr><th>分档(5/30)</th><th>未发(人)</th><th>已联系(权威·status=contacted)</th><th>虚高比例</th></tr></thead>
+    <tbody>
+      <tr><td>高意向 ≥80</td><td>103</td><td>4</td><td>约 4%</td></tr>
+      <tr><td>中高 70–79</td><td>276</td><td>4</td><td>约 1.4%</td></tr>
+      <tr class="peak"><td>合计</td><td>379</td><td>8</td><td>约 2%</td></tr>
+    </tbody>
+  </table>
+  <div class="callout c-ok">
+    <b>结论：backlog 基本没虚高。</b>用权威信号（该用户名下有评论被标成 <code>contacted</code>，即 mark-contacted 真写回过）核查，379 个"未发"用户里只有 <b>8 个（2%）</b>其实已经联系过。换句话说，这 103/276 <b>几乎全是真没人碰过的高意向需求</b>。作为佐证：5/30 全部高+中意向评论按状态分是「待发 389 / 已联系 53 / 已跳过 52」——只有约 12% 的高价值需求被实际行动了。
+  </div>
+  <div class="callout c-warn">
+    <b>顺带纠正一个会骗人的口径：</b>如果用"该用户是否有<u>会话记录(conversations)</u>"来判定"已联系"，会得到 103/103 全命中的荒谬结果——因为<b>会话在触达之前就被建成空壳了</b>（每个被分析的用户一个），所以"有会话"≠"已联系"，不能拿来做去重判断。真正可信的只有 <code>status=contacted</code>。<br>
+    另一块仍查不到的残差：若运营手机发了 DM 却<b>完全没跑 <code>mark-contacted</code></b>，库里零痕迹，无法识别——这部分只会让"真没碰过"更少，不会更多。</div>
+
+  <!-- ============ 结论建议 ============ -->
+  <h2>结论 & 建议</h2>
+  <ol>
+    <li><b>5/30 的涨是预期内的补漏</b>，数据可信，不用担心采集出错；但补漏<b>仍在进行</b>，未来几天采集量会持续偏高，之后回落到比 5/29 略高的新稳态。</li>
+    <li><b>真正要警惕的是堆积：</b>backlog 基本没虚高，意味着补漏带进来的 100+ 高意向 / 270+ 中高意向是<u>真需求且没人碰</u>，且每天还在加。当前只有约 12% 被实际行动——这是<b>运营触达产能</b>的问题，不是数据问题。建议按"近 6h 优先 + 高意向优先"消化，别让高意向冷掉。</li>
+    <li><b>报表口径建议改两处</b>（都在观测层，不动采集/分析）：
+      <ul>
+        <li>采集快照<b>同时标出"当天新增 vs 历史补漏"</b>（按 comment_time 拆），扩窗/补数时一眼看出是不是水分。</li>
+        <li>"未触达 backlog"判定<b>只认 <code>status=contacted</code>，不要用"有会话"</b>（会话是空壳，会把数字算成 0 待发）。</li>
+      </ul>
+    </li>
+    <li><b>运营动作</b>：发完 DM 立刻 <code>mark-contacted</code> 是去重闭环的命门，漏标会同时污染 backlog 和去重黑名单。</li>
+  </ol>
+
+  <div class="foot">
+    数据：service-role 直查生产库（库内 23,365 条评论已确认连通）· 复算脚本 <code>scripts/_verify-spike-real.ts</code>（只读，<code>_</code> 前缀，gitignored）· 口径对齐 <code>src/app/api/cron/scrape-digest-daily/route.ts</code> · 相关改动 #65（commit <code>3f67206</code>，2026-05-30 21:37 部署）<br>
+    生成于 2026-05-31（中午快照）· 本页为内部数据解释，非对外案例页。
+  </div>
+
+</div>
+</body>
+</html>
