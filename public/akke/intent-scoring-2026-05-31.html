@@ -149,15 +149,16 @@
         <tr><td>③ 每日自动清理</td><td>定时任务每天删 <code>无关</code> 且 >24h 的（留 24h 安全窗防改判）</td><td>⚠️ <b>配了但失败</b>（删除时 SSL 报错、无重试 → 一条没删），修复中</td></tr>
       </tbody>
     </table>
-    <div class="note"><b>每日清理：5/31 已修复并重跑</b>
+    <div class="note"><b>每日清理：5/31 已查清根因 + 重写脚本（实测秒删 3,504）</b>
       <ul style="margin:6px 0;padding-left:20px">
-        <li><b>之前为什么没生效</b>：脚本每天 09:00 在跑，但删除时撞 SSL 协议错（连接被掐）<b>且没重试 → 一断就崩、一条没删</b>，待清扫天天涨（5/29 2,879 → 5/31 5,050）。</li>
-        <li><b>怎么修的</b>：删除/读取加重试（SSL 抖动重试 4 次）+ 改 id 游标分页（被引用的行不再卡住进度）。</li>
-        <li><b>修复后重跑结果</b>：待清的 5,235 条里已删掉 <b>~1,131</b>（无关总 14,083 → 13,242，仍在跑）；但还有 <b>~4,000 条删不掉</b>——它们<b>被对话/派发记录引用</b>（删评论会连带删掉对话，故保留），这部分是<b>永久残留</b>。</li>
-        <li><b>结论</b>：无关>24h <b>不会归零</b>——会稳定在"FK 引用残留 + 持续新老化进来"的水平。每日清理现在能正常删掉"可删的那部分"，防止无限膨胀。</li>
+        <li><b>之前为什么没生效</b>：脚本每天 09:00 在跑，但删除撞 SSL 协议错且<b>没重试 → 一断就崩、一条没删</b>，待清天天涨（5/29 2,879 → 5/31 5,050）。中间一版加了重试但<b>逐条撞 FK 确认</b>，73 分钟才删 ~1,100，徒劳。</li>
+        <li><b>真正卡点</b>：很大比例无关评论被 <code>conversations</code>（对话）表引用——这些评论关联了触达/对话记录，删评论会破坏对话（FK 挡住），<b>本就不该删</b>。</li>
+        <li><b>正确解法（已重写脚本）</b>：先把"被对话引用的 comment_id"整集拉下来，内存里 diff 出"可删的"，再 bulk 删——不逐条撞 FK，<b>几秒删完</b>。</li>
+        <li><b>5/31 实测最终结果</b>：无关>24h 共 <b>5,107</b> = <span style="color:var(--green)"><b>可删 3,504（已秒删）</b></span> + <b>对话锁 1,603（关联对话，保留）</b>。清后剩 1,603。</li>
+        <li><b>结论</b>：无关>24h <b>不会归零</b>——稳定在"对话锁残留（~1,600）+ 持续新老化进来"。每天清掉可删的那批，防止无限膨胀。</li>
       </ul>
     </div>
-    <p>历史累积层面，全库 23,560 条评论里 <b>无关占 59.8%（14,083 条）</b>——即便清过一大批，噪音占比依然是绝对大头。<b>这正说明价值集中在那 7.6% 高意向上</b>，筛得准比抓得多更重要。</p>
+    <p>清理后全库 19,413 条评论里 <b>无关仍占 50.9%（9,878 条）</b>——即便清过一大批，噪音依然是绝对大头。<b>这正说明价值集中在那 9.3% 高意向上</b>，筛得准比抓得多更重要。</p>
   </section>
 
   <!-- 05 -->
@@ -185,20 +186,20 @@
   <!-- 06 -->
   <section class="sec" id="s6">
     <div class="sec-h"><span class="sec-n">SECTION 06</span><span class="sec-t">当前效果数据 · 下一步</span></div>
-    <p><b>全库 23,560 条评论的档位分布</b>（已分析）：</p>
+    <p><b>全库 19,413 条评论的档位分布</b>（已分析，2026-05-31 清掉 3,504 条无关后）：</p>
     <div class="bar">
-      <div style="flex:1795;background:var(--red)">高 1795 · 7.6%</div>
-      <div style="flex:2708;background:var(--amber)">中 2708 · 11.5%</div>
-      <div style="flex:4538;background:#0891b2">低 19.3%</div>
-      <div style="flex:14083;background:var(--gray)">无关 14083 · 59.8%</div>
+      <div style="flex:1804;background:var(--red)">高 1804 · 9.3%</div>
+      <div style="flex:2731;background:var(--amber)">中 2731 · 14.1%</div>
+      <div style="flex:4564;background:#0891b2">低 23.5%</div>
+      <div style="flex:9878;background:var(--gray)">无关 9878 · 50.9%</div>
     </div>
     <table>
       <thead><tr><th>档位</th><th class="n">数量</th><th class="n">占比</th><th>用途</th></tr></thead>
       <tbody>
-        <tr><td><span class="pill pHi">高意向</span></td><td class="n">1,795</td><td class="n">7.6%</td><td>主力私信池</td></tr>
-        <tr><td><span class="pill pMid">中意向</span></td><td class="n">2,708</td><td class="n">11.5%</td><td>高意向枯竭时补（score≥75）</td></tr>
-        <tr><td><span class="pill pLo">低意向</span></td><td class="n">4,538</td><td class="n">19.3%</td><td>一般不碰</td></tr>
-        <tr><td><span class="pill pNo">无关</span></td><td class="n">14,083</td><td class="n">59.8%</td><td>清理（每日任务修复中 + 手动补清）</td></tr>
+        <tr><td><span class="pill pHi">高意向</span></td><td class="n">1,804</td><td class="n">9.3%</td><td>主力私信池</td></tr>
+        <tr><td><span class="pill pMid">中意向</span></td><td class="n">2,731</td><td class="n">14.1%</td><td>高意向枯竭时补（score≥75）</td></tr>
+        <tr><td><span class="pill pLo">低意向</span></td><td class="n">4,564</td><td class="n">23.5%</td><td>一般不碰</td></tr>
+        <tr><td><span class="pill pNo">无关</span></td><td class="n">9,878</td><td class="n">50.9%</td><td>清理（已删可删的；剩 1,603 对话锁删不得）</td></tr>
       </tbody>
     </table>
     <div class="note">⚠️ <b>诚实标注</b>：上面分布是<b>实测硬数据</b>；但 SECTION 05 里"每次改动的效果"多为<b>设计意图/抽样观察</b>，缺每次改动严格的 before/after 量化对比。要硬数字需对同一批评论跑新旧配方做 A/B 回测（Langfuse Datasets 已有 harness）。</div>
