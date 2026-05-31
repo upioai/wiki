@@ -87,7 +87,15 @@
       <li><b>① 代码是本地未提交 WIP，从没部署</b>（主因）：放宽窗口的真正实现 <code>force_full_window</code> 写好了却没 commit、没 deploy，在工作区躺了约 2 天。线上跑的还是老版本，收到"按 7d 抓"的指令因部署版本无此参数直接忽略 → 改了等于没改。<code>git status</code> 一眼能看到。</li>
       <li><b>② 配置值没验证</b>：开关 <code>SCRAPE_RECENT_COMMENT_HOURS</code> 设过，但只看得到指纹看不到值，可能还是 24。</li>
       <li><b>③ "部署成功"只看命令返回</b>，没用真实数据验证效果。</li>
-    </ul></div></div>
+    </ul>
+    <div class="callout c-find" style="margin:10px 0"><b>人话版：</b>就像你写好一份文件存在自己电脑上、却没上传到公司共享盘——同事打开共享盘看到的还是旧版。代码改在"本地电脑"，但没"上传到线上服务器"，所以线上跑的一直是旧逻辑，等于白改。</div>
+    <p style="margin:8px 0"><b>为什么当时没"上传"(commit)？</b><span class="sub">改完代码在本地测着是对的，就当成"搞定了"，跳过了 <code>git commit</code>（存档）→ <code>push/部署</code>（上传上线）→ <code>验证</code>（线上真生效）这几步。本质是把"我电脑上能跑"误当成"线上在跑"——这是本轮最该改的习惯。</span></p>
+    <p style="margin:8px 0"><b>你以后怎么确认到底有没有"上传"？</b> 不用懂代码，记住要三样东西，缺一就是没真上线：
+      <br>① <b>PR 链接</b>（改动的存档+评审记录，没 PR = 还在本地）
+      <br>② <b>部署版本号/时间</b>（如 worker <code>v215</code>、Vercel 部署时间，证明上线了）
+      <br>③ <b>一条验证数据</b>（如"抓一条视频看评论时间跨度到没到 7 天"，证明真生效）
+      <br><span class="sub">下次谁说"改好了/部署成功"，你就回一句"给我这三样"——三样齐了才算真完成。</span></p>
+    </div></div>
   <div class="step"><div class="k">解决路径</div><div class="v"><ol>
       <li>把未提交的 <code>force_full_window</code> 收尾合并（PR #65）→ CI 部署到 worker <code>v214/215</code></li>
       <li><code>fly secrets set SCRAPE_RECENT_COMMENT_HOURS=168</code> 重启到 <code>v215</code>（168 小时 = 7 天）</li>
@@ -139,10 +147,12 @@
   <p class="sub">大白话：一个号的爆款视频会<b>持续</b>来新评论。想法是——把每个好号"数据最好的 top10 视频"单独纳入持续复扫，而不只抓主页最新那几条。</p>
 
   <div class="step"><div class="k">问题现状</div><div class="v">原始想法是按<b>转赞评（转发/点赞/评论数）</b>给每个号挑 top10 爆款视频，纳入抓取轮转。</div></div>
-  <div class="step"><div class="k">为什么出现</div><div class="v"><b>原版做不了，必须换信号</b>：
+  <div class="step"><div class="k">为什么出现</div><div class="v"><b>原版的"按转赞评排序"现在没沿用——但澄清：是"没抓"，不是"抓不到"。</b>
     <ul>
-      <li>转赞评这类<b>互动数据原本来自蝉妈妈</b>（第三方号源分析工具）——<b>蝉妈妈已封号</b>，这条数据源断了。</li>
-      <li>我们<b>自己的 <code>videos</code> 表没有任何互动列</b>（只有 url / 标题 / 发布时间，无点赞/转发/评论计数）→ 无法按真实转赞评排序。</li>
+      <li>转赞评这类互动数据，<b>之前是从蝉妈妈（第三方分析工具）现成拿</b>——蝉妈妈已封号，这条<b>现成聚合源</b>断了。</li>
+      <li>自有 <code>videos</code> 表确实<b>没存</b>点赞/转发/评论计数（只有 url/标题/发布时间）→ 当前无法按真实转赞评排序。</li>
+      <li><b>但能自己抓</b>（修正先前"做不了"的说法）：抖音自己的接口（<code>aweme detail</code>，与我们抓评论同一套 f2 签名）就返回 digg/comment/share/collect 数；Playwright 视频页 DOM 也有。要自抓只需 ① 加调用/解析 stats 字段 ② <code>videos</code> 表加列存。<b>不依赖蝉妈妈。</b></li>
+      <li><b>那为什么没去自抓？</b> 因为<b>转赞评对获客不是最优信号</b>——点赞高 ≠ 评论区有装修需求的人。我们手上已有更对路的信号（实际抓到的评论数/高意向数），所以直接用它排序，没为转赞评额外加抓取成本。</li>
     </ul></div></div>
   <div class="step"><div class="k">解决路径</div><div class="v">改用<b>自有信号</b>给视频排序——不是点赞数，而是<b>"这条视频我们实际抓到多少评论 / 多少高意向线索"</b>（比转赞评更贴近获客目的：点赞高 ≠ 评论区有装修需求的人）。
     <ul>
@@ -150,11 +160,11 @@
       <li>对这 491 条做了<b>一次性</b>视频级复抓（7d 全窗口）</li>
     </ul></div></div>
   <div class="step"><div class="k">效果</div><div class="v">
-    <div class="callout c-ok" style="margin:6px 0">491 条历史高产视频<b>一次性复抓完成</b>，最强的单条历史产 40+ 高意向线索。</div>
-    <span class="pill p-warn">注意</span> 目前<b>没有"每天自动复扫这批爆款"的常驻 cron</b>。持续覆盖是<b>间接</b>的——这些视频多属 tier1 好号，被每小时 scrape-hot + 每 2h rescan 捎带覆盖。我们当时评估"专门的爆款 cron 会和 rescan-recent-videos 大量重叠"，所以改用"把好号升 tier1"替代，没单独建。</div></div>
+    <div class="callout c-ok" style="margin:6px 0">491 条历史高产视频<b>一次性复抓完成（已验证做了）</b>：复抓后这批视频<b>新增 1009 条评论、23 个高意向线索</b>，已折进 5/30 的线索 surge。最强的单条历史产 40+ 高意向。</div>
+    <span class="pill p-ok">已建常驻 cron</span> 在你拍板后，<b>已把"每日复扫历史爆款"做成显式 cron</b>（<code>/api/cron/hot-video-rotation</code>，PR #67，每日 04:45）：每天重算"每号 top10 已产 lead 且近 14d 仍活跃的视频 → 全局 top200"复扫。与 rescan 互补（rescan 管新视频&lt;7d、本 cron 管老视频但仍活跃的常青爆款），dedup 防重复。<span class="sub">待 merge + 部署后生效。</span></div></div>
   <div class="step"><div class="k">下一步</div><div class="v"><ul>
-      <li><b>待拍</b>：要不要建显式的"每日复扫历史爆款"cron（按自有线索产出排序、踢掉近期无评论的僵尸视频）——还是维持现在"靠 tier1 高频间接覆盖"</li>
-      <li>若未来恢复转赞评数据源（换号源分析平台 / 运营本机抓抖音 web），可把排序信号从"自有评论密度"升级为"真实互动 + 评论密度"双信号</li>
+      <li><b>已做</b>：显式"每日复扫历史爆款"cron 已建（PR #67），待 merge + 部署；部署后观察它每日实际复抓多少条、捞回多少新线索</li>
+      <li>若要"真转赞评"信号：自抓 <code>aweme detail</code> stats + 给 <code>videos</code> 表加互动列，把排序从"评论密度"升级为"互动 + 评论密度"双信号（评估：转赞评对获客增益有限，优先级低）</li>
     </ul></div></div>
 
   <!-- ===================== 效果实测 · 线索维度 ===================== -->
