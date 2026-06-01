@@ -99,20 +99,7 @@
       <li><b>① 代码是本地未提交 WIP，从没部署</b>（主因）：放宽窗口的真正实现 <code>force_full_window</code> 写好了却没 commit、没 deploy，在工作区躺了约 2 天。线上跑的还是老版本，收到"按 7d 抓"的指令因部署版本无此参数直接忽略 → 改了等于没改。<code>git status</code> 一眼能看到。</li>
       <li><b>② 配置值没验证</b>：开关 <code>SCRAPE_RECENT_COMMENT_HOURS</code> 设过，但只看得到指纹看不到值，可能还是 24。</li>
       <li><b>③ "部署成功"只看命令返回</b>，没用真实数据验证效果。</li>
-    </ul>
-    <div class="callout c-find" style="margin:10px 0"><b>人话版：</b>就像你写好一份文件存在自己电脑上、却没上传到公司共享盘——同事打开共享盘看到的还是旧版。代码改在"本地电脑"，但没"上传到线上服务器"，所以线上跑的一直是旧逻辑，等于白改。</div>
-    <p style="margin:8px 0"><b>为什么当时没"上传"(commit)？</b><span class="sub">改完代码在本地测着是对的，就当成"搞定了"，跳过了 <code>git commit</code>（存档）→ <code>push/部署</code>（上传上线）→ <code>验证</code>（线上真生效）这几步。本质是把"我电脑上能跑"误当成"线上在跑"——这是本轮最该改的习惯。</span></p>
-    <p style="margin:8px 0"><b>你以后怎么确认到底有没有"上传"？</b> 不用懂代码，记住要三样东西，缺一就是没真上线：
-      <br>① <b>PR 链接</b>（改动的存档+评审记录，没 PR = 还在本地）
-      <br>② <b>部署版本号/时间</b>（如 worker <code>v215</code>、Vercel 部署时间，证明上线了）
-      <br>③ <b>一条验证数据</b>（如"抓一条视频看评论时间跨度到没到 7 天"，证明真生效）
-      <br><span class="sub">下次谁说"改好了/部署成功"，你就回一句"给我这三样"——三样齐了才算真完成。</span></p>
-    <div class="callout c-warn" style="margin:10px 0"><b>避坑补充 ·「commit 了」既可能查不到、更可能没上线</b>（本轮复核 24h→7d 时实测，记下来全员避坑）：
-      <br>① <b>commit ≠ 上线</b>：本地 <code>git commit</code> 只是存档；要真生效必须<b>合进 main（PR 过审）→ 自动部署 → 真实数据验证</b>三步齐，缺一步线上跑的还是旧逻辑。
-      <br>② <b>squash 合并会改 commit hash</b>：个人那条提交（如本轮 fanny 的 <code>force_full_window</code>）走 PR squash 后会被压成一条新 commit，<b>原 hash 在 main 历史里搜不到</b>——但改动确实在 main 里。所以「<code>git log</code> 搜不到我的提交」≠「没合进去」，要核的是 <b>origin/main 里的代码 / PR 是否 merged</b>，别只盯单个 hash。
-      <br>③ <b>线上版本对一下</b>：查 worker <code>/health</code> 的 GIT_SHA、Vercel 部署版本，确认线上跑的就是合进去那版，再拿一条真实数据收尾——这次"看到 168h/7天评论"就是那条数据。
-    </div>
-    </div></div>
+    </ul></div></div>
   <div class="step"><div class="k">解决路径</div><div class="v"><ol>
       <li>把未提交的 <code>force_full_window</code> 收尾合并（PR #65）→ CI 部署到 worker <code>v214/215</code></li>
       <li><code>fly secrets set SCRAPE_RECENT_COMMENT_HOURS=168</code> 重启到 <code>v215</code>（168 小时 = 7 天）</li>
@@ -126,6 +113,17 @@
       <div class="kpi"><div class="n">91%</div><div class="l">新评论 &gt;24h 占比</div><div class="d up">证明窗口已放宽</div></div>
       <div class="kpi"><div class="n">5505</div><div class="l">5/30 新评论</div><div class="d up">▲ 3.8×（含补漏）</div></div>
     </div></div></div>
+  <div class="step"><div class="k">怎么避免再犯</div><div class="v">这类「说部署了、其实没生效」的失误，一套口径就够——分清状态、收尾验数、让它可观测：
+    <p style="margin:10px 0 6px"><b>① 分清四个状态，只有最后一个算数</b>：<code>写了代码</code> → <code>commit 了</code> → <code>部署了</code> → <b><code>线上真生效了</code></b>。这次就是把前面某个当成了最后一个。<span class="sub">人话比喻：文件存自己电脑 ≠ 上传到了公司共享盘，同事打开看到的还是旧版。</span></p>
+    <p style="margin:6px 0"><b>② 说"改好了"前，要齐三样（缺一就是没真上线）</b>：
+      <br>· <b>PR 链接</b>（改动存档+评审，没 PR = 还在本地）
+      <br>· <b>部署版本号/时间</b>（如 worker <code>v215</code>、Vercel 部署时间）
+      <br>· <b>一条真实数据</b>（如"抓一条视频看评论跨度到没到 7 天 / 168h"）——<b>这条最决定性</b>；配置类尤其要回读"生效值"，不能只看命令返回成功。
+      <br><span class="sub">下次谁说"部署成功"，回一句"给我这三样"。</span></p>
+    <div class="callout c-warn" style="margin:8px 0"><b>两个容易踩的细节：</b>
+      <br>· <b>squash 合并会改 commit hash</b>：个人提交走 PR squash 后被压成新 commit，<b>原 hash 在 main 搜不到、但改动在 main 里</b>。所以「<code>git log</code> 搜不到我的提交」≠「没合进去」，要核 <b>origin/main 的代码 / PR 是否 merged</b>，别只盯单个 hash。
+      <br>· <b>让它可观测、别靠人偶然查</b>：这次潜伏约 2 天，是因为没处能一眼看出"线上跑哪版、参数几"。治本＝"线上版本/关键参数"一眼可查 + 一个站着的产出指标（如 p50 评论/视频），没生效当天就暴露，而不是攒几天等诊断。</div>
+  </div></div>
   <div class="step"><div class="k">下一步</div><div class="v"><ul>
       <li>核实 <code>rescan-recent-videos</code> 这条专用复扫 cron 是否被 <code>RESCAN_RECENT_VIDEOS_ENABLED</code> 开关 gate 成休眠（目前 7d 是靠主抓取的 refresh 路在跑，专用 cron 状态待确认）</li>
       <li>观察 3–5 天：7d 窗口实际多产了多少高/中意向线索</li>
