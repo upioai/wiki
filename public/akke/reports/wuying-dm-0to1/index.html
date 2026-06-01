@@ -148,10 +148,10 @@
   <!-- 3. 批量统计 + badcase -->
   <h2 class="sec"><span class="n">3</span>批量执行统计 · Bad Case · 优化进展</h2>
   <div class="stat-row">
-    <div class="stat"><div class="v good">8</div><div class="l">今日成功发出</div></div>
-    <div class="stat"><div class="v acc">1</div><div class="l">撞大号安全跳过</div></div>
-    <div class="stat"><div class="v">2</div><div class="l">批次 · 60s/条（测试）</div></div>
-    <div class="stat"><div class="v warn">9</div><div class="l">定位并修复的坑</div></div>
+    <div class="stat"><div class="v good">22</div><div class="l">今日云电脑发出</div></div>
+    <div class="stat"><div class="v acc">5</div><div class="l">安全拦截 / 失败回池</div></div>
+    <div class="stat"><div class="v">4</div><div class="l">垃圾名永久剔除</div></div>
+    <div class="stat"><div class="v warn">11</div><div class="l">定位并修复的坑</div></div>
   </div>
   <div class="card" style="padding-top:8px">
     <table>
@@ -162,7 +162,10 @@
         <tr><td class="prob">回车不搜索</td><td>IME 组字态 Enter 被吃去上屏候选</td><td>英文模式下 committed 中文 + Enter 即搜</td><td class="tag"><span class="badge b-fixed">已修</span></td></tr>
         <tr><td class="prob">发送键定位飘到左侧</td><td>send_arrow 模板误匹配会话列表的红色未读点</td><td>限定<b>右侧 40% 区域</b>搜模板；发送↑只打字前定位一次复用</td><td class="tag"><span class="badge b-fixed">已修</span></td></tr>
         <tr><td class="prob">导航点空 / 点错</td><td>Qwen-VL grounding 在本机定位飘（搜索框 y=25 之类）</td><td>搜索框/用户tab/第一条/关闭× 全改<b>实测固定坐标</b></td><td class="tag"><span class="badge b-fixed">已修</span></td></tr>
-        <tr><td class="prob">幽灵发送（报已发实未发）</td><td>打字后红↑激活态致 re-match 飘 → 点空；_is_sent VL 假阳性</td><td>发送复用打字前坐标（已修飘）；VL 二次校验<b>待加强</b></td><td class="tag"><span class="badge b-part">部分</span></td></tr>
+        <tr><td class="prob">幽灵发送（打字后定位飘）</td><td>打字后红↑激活态致 re-match 飘 → 点空</td><td>发送复用打字前定位的坐标，不 re-match</td><td class="tag"><span class="badge b-fixed">已修</span></td></tr>
+        <tr><td class="prob">VL 校验误杀真发送</td><td>_has_text/_is_sent 的 VL 裁剪判断在本机假阴性：文字明明进了框却判"没进"→ 直接跳过没发</td><td>去掉 VL 发送门；可靠性靠「OCR 身份门 + 输入框锚定 1.0 匹配的发送↑」，实发量以人工核对私信列表为准</td><td class="tag"><span class="badge b-fixed">已修</span></td></tr>
+        <tr><td class="prob">发送键右区内仍误匹配</td><td>个别用户私信未在正常位置打开 → send_arrow 在右 40% 区内误匹配到 (1683–1745,345) 的红色元素 → 点空没发</td><td>限右侧 40% 已挡掉左侧；待收窄到右下输入区(y&gt;500) + 点私信后确认面板已开</td><td class="tag"><span class="badge b-part">部分</span></td></tr>
+        <tr><td class="prob">垃圾默认名循环占位</td><td>用户\d+ / 0.0 / "拒绝私信" / AI 机器人号 高优先级但不可发，释放回池后被反复 claim</td><td>discard-blocked-claims 永久剔除（consume+contacted），不再回池；今日剔 4 个</td><td class="tag"><span class="badge b-safe">已剔除</span></td></tr>
         <tr><td class="prob">私信按钮固定坐标撞偏</td><td>个别主页 关注/私信 排布不同，固定坐标失准</td><td>dm_button 模板优先 + 固定坐标兜底 + OCR 身份门</td><td class="tag"><span class="badge b-part">部分</span></td></tr>
         <tr><td class="prob">搜索撞同名大号</td><td>搜"东方"命中"东方甄选"，非目标用户</td><td><b>OCR 身份门拦截</b>，昵称不符不发（宁漏不错）</td><td class="tag"><span class="badge b-safe">安全兜住</span></td></tr>
         <tr><td class="prob">大文件传不进无影</td><td>无影剪贴板同步对大文本截断（只过几百字符）</td><td>脚本/CSV 一律走 <code>paste.rs</code> HTTP 投递 + 字节校验</td><td class="tag"><span class="badge b-fixed">已修</span></td></tr>
@@ -175,15 +178,17 @@
   <h2 class="sec"><span class="n">4</span>下一步优化清单</h2>
   <ul class="todo">
     <li><span class="pri P0">P0</span><div class="body"><b>锁定无影分辨率（关自适应）</b><br><span>消除会话间坐标漂移这个最大不稳定源——锁死后固定坐标 + 模板长期有效，免每次重校。</span></div><span class="est">~0.5 天</span></li>
-    <li><span class="pri P0">P0</span><div class="body"><b>发送二次校验，根除幽灵发送</b><br><span>_is_sent 的 VL 裁剪判断偶有假阳性。改为查聊天区是否新增消息气泡 / 消息计数 +1，发不出绝不记 sent。</span></div><span class="est">~1 天</span></li>
+    <li><span class="pri P0">P0</span><div class="body"><b>可靠的程序化发送校验</b><br><span>VL 校验门已去掉（它在本机假阴性、误杀真发送）；当前靠人工核对私信列表。下一步：发完查聊天区是否新增"自己发的消息气泡"来判定，免人工逐条确认。</span></div><span class="est">~1 天</span></li>
     <li><span class="pri P1">P1</span><div class="body"><b>发送间隔定为 1 分钟/条</b><br><span>提速优先，按运营决策跑 1 分钟一条。⚠️ 需盯抖音陌生人限频 <b style="color:var(--bad)">7911</b> 信号：一旦命中该号停发约 24h，按实际触发率再动态回调间隔。</span></div><span class="est">已生效 · 持续盯</span></li>
     <li><span class="pri P1">P1</span><div class="body"><b>私信按钮改模板优先</b><br><span>降 dm_button 模板阈值 / 重采，减少对固定坐标的依赖，覆盖不同主页排布。</span></div><span class="est">~0.5 天</span></li>
+    <li><span class="pri P1">P1</span><div class="body"><b>发送键误匹配收口</b><br><span>个别用户私信未正常打开时 send_arrow 飘到 (1683–1745,345)。把搜索区收窄到右下输入区(y&gt;500)，并在点私信后先确认聊天面板已开再找发送↑。</span></div><span class="est">~0.5–1 天</span></li>
+    <li><span class="pri P2">P2</span><div class="body"><b>export 自动过滤垃圾默认名</b><br><span>用户\d+ / 0.0 / 纯符号 / 含"拒绝私信" / AI 机器人号 在 export 阶段直接 skip，免每批人工剔 + discard。</span></div><span class="est">~0.5 天</span></li>
     <li><span class="pri P1">P1</span><div class="body"><b>搜索撞大号 → sec_uid 精确定位</b><br><span>昵称搜索会撞同名大号（东方→东方甄选）。探索用 sec_uid / 分享链直达主页，绕开模糊搜索。</span></div><span class="est">~1–2 天</span></li>
     <li><span class="pri P2">P2</span><div class="body"><b>对接 dispatch_queue 架构</b><br><span>从"跑完批量回写"改为 per-dispatch 即时去重（claim_dispatch / complete_dispatch），慢发时 claim 不会中途过期。</span></div><span class="est">~2–3 天</span></li>
     <li><span class="pri P2">P2</span><div class="body"><b>坐标随分辨率自适应 / 自动校准</b><br><span>把固定坐标常量做成开跑前自动探测，彻底免人工重校。</span></div><span class="est">~1–2 天</span></li>
     <li><span class="pri P2">P2</span><div class="body"><b>统计回流到日报</b><br><span>云电脑通道发送量 / 跳过率 / badcase 计数并入个人日报，量化通道健康度。</span></div><span class="est">~0.5 天</span></li>
   </ul>
-  <div style="margin-top:6px;color:var(--mut);font-size:12.5px;text-align:right">合计约 <b style="color:var(--txt)">6.5–9.5 人/天</b>（不含联调观察）</div>
+  <div style="margin-top:6px;color:var(--mut);font-size:12.5px;text-align:right">合计约 <b style="color:var(--txt)">7.5–11 人/天</b>（不含联调观察）</div>
 
   <div class="foot">
     无影云电脑 DM 自动化 · 0→1 进展 · 数据截至 2026-06-01 ·
