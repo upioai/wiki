@@ -179,16 +179,6 @@
   .wechat-callout .wc-label { font-size: 11px; color: var(--success); letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; margin-bottom: 6px; }
   .wechat-callout .wc-msg { font-size: 16px; color: var(--text); font-weight: 600; line-height: 1.5; background: var(--bg-deep); border-radius: 8px; padding: 12px 14px; border: 1px solid var(--border); }
   .wechat-callout .wc-sub { font-size: 12.5px; color: var(--text-muted); margin-top: 8px; line-height: 1.5; }
-  .gw-input { width: 100%; box-sizing: border-box; margin: 2px 0 0; padding: 7px 9px;
-    background: var(--bg); border: 1px solid var(--border-strong); border-radius: 6px;
-    color: var(--success); font-size: 14.5px; font-weight: 600; font-family: inherit; outline: none; }
-  .gw-input::placeholder { color: var(--text-muted); font-weight: 400; }
-  .gw-input:focus { border-color: var(--accent); background: var(--bg-deep); }
-  .gw-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
-  .gw-btn { background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent);
-    border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
-  .gw-btn:hover { background: var(--accent); color: #fff; }
-  .gw-hint { font-size: 12px; color: var(--text-muted); }
 
   .status-card { background: linear-gradient(135deg, rgba(52,211,153,0.08), rgba(96,165,250,0.06)); border: 1px solid rgba(52,211,153,0.30); border-radius: 14px; padding: 22px 26px; display: flex; gap: 18px; align-items: center; }
   .status-pulse { width: 12px; height: 12px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 6px rgba(52,211,153,0.18); flex-shrink: 0; animation: pulse 2s ease-in-out infinite; }
@@ -648,24 +638,20 @@
       <div class="wc-sub">销售加 18867873092 时发此条 · 带"260平自建房"帮客户秒回忆是哪条抖音对话 · 呼应 #3 里承诺的"户型方案"</div>
       <div class="delivery-row" style="margin-top:14px;">
         <div class="dr-item">
-          <div class="dr-label">销售发起加微</div>
-          <input class="gw-input" id="gw-add" placeholder="点击填写 · 如 6.2 14:00" autocomplete="off">
-          <div class="dr-sub">销售点"添加"的时间</div>
+          <div class="dr-label">加微成功时间</div>
+          <div class="dr-val" id="gw-add" style="color:var(--text-muted);">待加微</div>
+          <div class="dr-sub">来自销售的「加微成功」截图时间戳</div>
         </div>
         <div class="dr-item">
-          <div class="dr-label">客户通过</div>
-          <input class="gw-input" id="gw-pass" placeholder="点击填写 · 如 6.2 14:30" autocomplete="off">
-          <div class="dr-sub">客户同意好友的时间</div>
+          <div class="dr-label">客户是否通过</div>
+          <div class="dr-val" id="gw-pass" style="color:var(--text-muted);">待加微</div>
+          <div class="dr-sub">截图显示"你已添加了…"即通过</div>
         </div>
         <div class="dr-item">
-          <div class="dr-label">加微话术</div>
-          <input class="gw-input" id="gw-msg" placeholder="默认见上方验证消息" autocomplete="off">
-          <div class="dr-sub">如销售实发与上方不同，填实际话术</div>
+          <div class="dr-label">实际加微话术</div>
+          <div class="dr-val" id="gw-msg">见上方验证消息</div>
+          <div class="dr-sub">销售实际发的打招呼消息</div>
         </div>
-      </div>
-      <div class="gw-actions">
-        <button type="button" class="gw-btn" id="gw-copy">📋 复制填好的链接</button>
-        <span class="gw-hint" id="gw-saved">填写后自动存在本机 · 进度条第 8 步会同步</span>
       </div>
     </div>
   </section>
@@ -850,56 +836,14 @@
 </div>
 
 <!--
-  ====== 销售加微时间「回填」说明 ======
-  销售直接在页面三个输入框里打字即可：
-    - 输入后自动存到本机浏览器（localStorage），刷新不丢
-    - 第 8 步进度条「销售加微」节点会用"发起加微"时间自动更新
-    - 点「复制填好的链接」可生成 ?add=&pass=&msg= 的链接，发回 PM 或换设备打开都能带出已填值
-  无后端，纯前端；要让所有人都看到同一份数据，用"复制链接"分享带参数的那条。
+  ====== 销售加微数据更新方式（纯静态页，由 Claude 维护）======
+  流程：销售把「加微成功」微信截图发给 PM → PM 转发给 Claude →
+        Claude 从截图读出 加微成功时间 + 实际打招呼话术，改下列 4 处文本后 commit/push：
+          #gw-add  加微成功时间（截图时间戳）
+          #gw-pass 客户是否通过（截图有"你已添加了…"=「已通过 ✓」）
+          #gw-msg  实际加微话术（截图里销售发的打招呼气泡）
+          #js-gw   第 8 步进度条节点时间（= gw-add 时间）；并把第 8 步 class 由 now 改 done
+  无输入框、无脚本，避免运营/销售误操作。
 -->
-<script>
-  (function () {
-    var KEY = 'akke-gw-denghuo-lanshan';
-    var addEl = document.getElementById('gw-add');
-    var passEl = document.getElementById('gw-pass');
-    var msgEl = document.getElementById('gw-msg');
-    var stepEl = document.getElementById('js-gw');
-    var hintEl = document.getElementById('gw-saved');
-
-    var p = new URLSearchParams(location.search);
-    var saved = {};
-    try { saved = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) {}
-    if (addEl) addEl.value = p.get('add') || saved.add || '';
-    if (passEl) passEl.value = p.get('pass') || saved.pass || '';
-    if (msgEl) msgEl.value = p.get('msg') || saved.msg || '';
-
-    function sync() {
-      var add = addEl ? addEl.value.trim() : '';
-      if (stepEl) stepEl.textContent = add || '待加微';
-      try {
-        localStorage.setItem(KEY, JSON.stringify({
-          add: add,
-          pass: passEl ? passEl.value.trim() : '',
-          msg: msgEl ? msgEl.value.trim() : ''
-        }));
-      } catch (e) {}
-    }
-    [addEl, passEl, msgEl].forEach(function (el) { if (el) el.addEventListener('input', sync); });
-    sync();
-
-    var copyBtn = document.getElementById('gw-copy');
-    if (copyBtn) copyBtn.addEventListener('click', function () {
-      var q = new URLSearchParams();
-      if (addEl && addEl.value.trim()) q.set('add', addEl.value.trim());
-      if (passEl && passEl.value.trim()) q.set('pass', passEl.value.trim());
-      if (msgEl && msgEl.value.trim()) q.set('msg', msgEl.value.trim());
-      var url = location.origin + location.pathname + (q.toString() ? '?' + q.toString() : '');
-      function done() { if (hintEl) { hintEl.textContent = '✓ 链接已复制，可粘贴发出'; hintEl.style.color = 'var(--success)'; } }
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(url).then(done, function () { window.prompt('复制这条链接：', url); });
-      } else { window.prompt('复制这条链接：', url); }
-    });
-  })();
-</script>
 </body>
 </html>
