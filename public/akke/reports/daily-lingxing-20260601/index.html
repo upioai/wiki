@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>个人日报 · 2026-06-01 · 零星</title>
+<style>
+  :root {
+    --bg:#f5f7fb; --paper:#fff; --ink:#1f2937; --muted:#5f6b7a; --faint:#9aa4b2;
+    --line:#e2e7ef; --blue:#2563eb; --blue-soft:#eaf1ff; --purple:#6d4cb9; --purple-soft:#efeaff;
+    --green:#12816f; --orange:#ad6200; --shadow:0 10px 28px rgba(31,41,55,.08);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;color:var(--ink);background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;line-height:1.6;font-size:14px}
+  .wrap{width:min(1080px,calc(100% - 40px));margin:0 auto;padding:32px 0 80px}
+  .header{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:24px}
+  .title{font-size:26px;font-weight:700;margin:0;letter-spacing:-.3px}
+  .subtitle{color:var(--muted);margin-top:6px;font-size:13px}
+  .meta-tags{display:flex;flex-wrap:wrap;gap:8px}
+  .tag{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:var(--paper);border:1px solid var(--line);color:var(--muted);font-size:12px}
+  .tag .dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+  .tag.warn .dot{background:var(--orange)}
+
+  .kpi-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:24px}
+  .kpi{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:18px;position:relative;overflow:hidden}
+  .kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--blue)}
+  .kpi.dm::before{background:var(--blue)} .kpi.rev::before{background:var(--purple)}
+  .kpi.reply::before{background:var(--green)} .kpi.wechat::before{background:var(--orange)}
+  .kpi-label{font-size:12px;color:var(--muted);margin-bottom:8px}
+  .kpi-value{font-size:30px;font-weight:700;letter-spacing:-.5px;line-height:1}
+  .kpi-unit{font-size:13px;font-weight:500;color:var(--muted);margin-left:4px}
+  .kpi-sub{margin-top:8px;font-size:12px;color:var(--faint)}
+  .kpi-sub b{color:var(--ink);font-weight:600}
+
+  .section{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:22px 24px;margin-bottom:18px;box-shadow:var(--shadow)}
+  .section-title{font-size:17px;font-weight:700;margin:0 0 4px}
+  .section-hint{color:var(--muted);font-size:12px;margin-bottom:18px}
+
+  .segment{padding:18px 0;border-top:1px solid var(--line)}
+  .segment:first-of-type{border-top:0;padding-top:6px}
+  .segment-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  .segment-title{font-size:15px;font-weight:700}
+  .segment-hint{color:var(--muted);font-size:12px;margin-top:2px}
+  .legend{display:flex;gap:14px;align-items:center;font-size:12px;color:var(--muted)}
+  .legend .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+  .legend .sw.dm{background:var(--blue)} .legend .sw.rev{background:var(--purple)}
+
+  .trend-block{margin:8px 0 16px;padding:14px 16px 10px;background:#fbfcfe;border:1px solid var(--line);border-radius:10px}
+  .trend-title{font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:600}
+  .trend-summary{display:flex;gap:18px;font-size:12px;color:var(--muted);margin-bottom:6px}
+  .trend-summary b{color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums}
+  .trend-summary .n{color:var(--faint);font-size:11px;margin-left:2px}
+  .trend-summary .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+  .trend-summary .sw.dm{background:var(--blue)} .trend-summary .sw.rev{background:var(--purple)}
+  .trend-svg{display:block;max-width:100%;height:auto}
+  .trend-empty{color:var(--faint);font-size:12px;padding:18px 0;text-align:center}
+
+  .channel-tabs{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .channel-card{border:1px solid var(--line);border-radius:12px;padding:16px 18px 12px;background:#fbfcfe}
+  .channel-card.dm{border-top:3px solid var(--blue)}
+  .channel-card.rev{border-top:3px solid var(--purple)}
+  .channel-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px;gap:8px}
+  .channel-name{font-weight:700;font-size:14px}
+  .pill{font-size:11px;padding:2px 7px;border-radius:4px;margin-left:6px;vertical-align:2px}
+  .pill.blue{background:var(--blue-soft);color:var(--blue)} .pill.purple{background:var(--purple-soft);color:var(--purple)}
+
+  .mean-band{display:flex;align-items:center;gap:12px;padding:8px 12px;background:#fff;border:1px dashed var(--line);border-radius:8px;margin-bottom:12px}
+  .mean-band .lbl{color:var(--muted);font-size:12px}
+  .mean-band .val{font-size:20px;font-weight:700;letter-spacing:-.3px}
+  .mean-band .median{margin-left:auto;color:var(--faint);font-size:11.5px}
+  .mean-band .median b{color:var(--ink);font-weight:600}
+
+  .bucket-row{display:grid;grid-template-columns:62px 1fr 70px;align-items:center;gap:10px;padding:5px 0}
+  .bucket-row + .bucket-row{border-top:1px solid #f0f3f8}
+  .bucket-label{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .bucket-track{height:16px;background:#f1f4f9;border-radius:5px;overflow:hidden}
+  .bucket-fill{height:100%;border-radius:5px;display:flex;align-items:center;padding-left:6px;color:#fff;font-size:10.5px;font-weight:600}
+  .bucket-fill.dm{background:var(--blue)} .bucket-fill.rev{background:var(--purple)}
+  .bucket-count{text-align:right;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
+  .bucket-pct{color:var(--faint);font-size:11px;font-weight:500;margin-left:4px}
+
+  .footnote{color:var(--faint);font-size:12px;margin-top:8px;padding:12px 14px;background:#fafbfd;border-radius:8px;border-left:3px solid var(--line)}
+  .footnote b{color:var(--muted);font-weight:600}
+  .footnote code{background:#f1f4f9;padding:1px 5px;border-radius:3px;font-size:11.5px}
+
+  @media (max-width:720px){.kpi-row{grid-template-columns:repeat(2,1fr)}.channel-tabs{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header">
+    <div>
+      <h1 class="title">个人日报 · 零星</h1>
+      <div class="subtitle">2026-06-01（BJT 00:00–23:59）· 生成于 2026-06-01T10:10:21.788Z</div>
+    </div>
+    <div class="meta-tags"><span class="tag warn"><span class="dot"></span>messaging archived</span><span class="tag"><span class="dot"></span>engagement active</span><span class="tag"><span class="dot"></span>messaging active</span></div>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi dm">
+      <div class="kpi-label">📨 DM 私信发送</div>
+      <div class="kpi-value">16<span class="kpi-unit">条</span></div>
+      <div class="kpi-sub">含 <b>4</b> 条文本含微信号</div>
+    </div>
+    <div class="kpi rev">
+      <div class="kpi-label">💬 跨视频反向评论</div>
+      <div class="kpi-value">25<span class="kpi-unit">条</span></div>
+      <div class="kpi-sub">调用 <b>33</b> · 成功率 <b>75.8%</b></div>
+    </div>
+    <div class="kpi reply">
+      <div class="kpi-label">↩️ 用户回复人数</div>
+      <div class="kpi-value">0<span class="kpi-unit">人</span></div>
+      <div class="kpi-sub">DB 反查口径（偏保守）</div>
+    </div>
+    <div class="kpi wechat">
+      <div class="kpi-label">➕ 加微信</div>
+      <div class="kpi-value">0<span class="kpi-unit">人</span></div>
+      <div class="kpi-sub">人工每日确认口径</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">采集 → 发送 时效性分布</h2>
+    <div class="section-hint">三段拆解：用户在抖音评论 → 我方系统采集 → 我方真发出。桶 = 0–3h / 3–6h / 6–12h / 12–24h / 24–72h / &gt;72h</div>
+
+    
+  <div class="segment">
+    <div class="segment-head">
+      <div>
+        <div class="segment-title">① 用户评论 → 系统采集（拉评时效）</div>
+        <div class="segment-hint"><code>comments.comment_time</code> → <code>comments.created_at</code>；衡量 worker 抓取多久能扫到一条新评论</div>
+      </div>
+      <div class="legend">
+        <span><span class="sw dm"></span>DM</span>
+        <span><span class="sw rev"></span>反评</span>
+      </div>
+    </div>
+    <div class="trend-block">
+      <div class="trend-title">本周（6/1–6/7）每日均值走势 · 虚线 = 报告日 2026-06-01</div>
+      <div class="trend-summary">
+    <span><span class="sw dm"></span>DM 当日 <b>8.5h</b><span class="n"> (n=16)</span></span>
+    <span><span class="sw rev"></span>反评 当日 <b>4.2h</b><span class="n"> (n=25)</span></span>
+  </div>
+    <svg class="trend-svg" viewBox="0 0 1000 130" preserveAspectRatio="xMidYMid meet" width="100%">
+      <line x1="42" y1="102.0" x2="986.0" y2="102.0" stroke="#eef1f5" stroke-width="1"/><text x="36" y="105.0" text-anchor="end" font-size="10" fill="#9aa4b2">—</text><line x1="42" y1="58.0" x2="986.0" y2="58.0" stroke="#eef1f5" stroke-width="1"/><text x="36" y="61.0" text-anchor="end" font-size="10" fill="#9aa4b2">4.9h</text><line x1="42" y1="14.0" x2="986.0" y2="14.0" stroke="#eef1f5" stroke-width="1"/><text x="36" y="17.0" text-anchor="end" font-size="10" fill="#9aa4b2">9.8h</text>
+      <line x1="42.0" y1="14" x2="42.0" y2="102.0" stroke="#cbd2dc" stroke-width="1" stroke-dasharray="3 2"/>
+      <path d="M 42.0 25.5" stroke="#2563eb" stroke-width="1.8" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+      <path d="M 42.0 64.5" stroke="#6d4cb9" stroke-width="1.8" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+      <circle cx="42.0" cy="25.5" r="4.5" fill="#2563eb" stroke="#fff" stroke-width="2"><title>周一 6/1 · 报告日 · 8.5h · n=16</title></circle>
+      <circle cx="42.0" cy="64.5" r="4.5" fill="#6d4cb9" stroke="#fff" stroke-width="2"><title>周一 6/1 · 报告日 · 4.2h · n=25</title></circle>
+      <text x="42.0" y="114" text-anchor="middle" font-size="10" fill="#9aa4b2">周一</text><text x="42.0" y="126" text-anchor="middle" font-size="10" fill="#9aa4b2">6/1</text><text x="199.3" y="114" text-anchor="middle" font-size="10" fill="#cbd2dc">周二</text><text x="199.3" y="126" text-anchor="middle" font-size="10" fill="#cbd2dc">6/2</text><text x="356.7" y="114" text-anchor="middle" font-size="10" fill="#cbd2dc">周三</text><text x="356.7" y="126" text-anchor="middle" font-size="10" fill="#cbd2dc">6/3</text><text x="514.0" y="114" text-anchor="middle" font-size="10" fill="#cbd2dc">周四</text><text x="514.0" y="126" text-anchor="middle" font-size="10" fill="#cbd2dc">6/4</text><text x="671.3" y="114" text-anchor="middle" font-size="10" fill="#cbd2dc">周五</text><text x="671.3" y="126" text-anchor="middle" font-size="10" fill="#cbd2dc">6/5</text><text x="828.7" y="114" text-anchor="middle" font-size="10" fill="#cbd2dc">周六</text><text x="828.7" y="126" text-anchor="middle" font-size="10" fill="#cbd2dc">6/6</text><text x="986.0" y="114" text-anchor="middle" font-size="10" fill="#cbd2dc">周日</text><text x="986.0" y="126" text-anchor="middle" font-size="10" fill="#cbd2dc">6/7</text>
+    </svg>
+    </div>
+    <div class="channel-tabs">
+      <div class="channel-card dm">
+        <div class="channel-head">
+          <div class="channel-name">DM 私信<span class="pill blue">16 条</span></div>
+        </div>
+        <div class="mean-band">
+          <span class="lbl">均值</span><span class="val">8.5h</span>
+          <span class="median">中位数 <b>4.8h</b> · 最快 <b>24min</b> · 最慢 <b>28h</b></span>
+        </div>
+        
+      <div class="bucket-row">
+        <div class="bucket-label">0–3h</div>
+        <div class="bucket-track"><div class="bucket-fill dm" style="width:57.1%;">4</div></div>
+        <div class="bucket-count">4<span class="bucket-pct">25.0%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">3–6h</div>
+        <div class="bucket-track"><div class="bucket-fill dm" style="width:100.0%;">7</div></div>
+        <div class="bucket-count">7<span class="bucket-pct">43.8%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">6–12h</div>
+        <div class="bucket-track"><div class="bucket-fill dm" style="width:0.0%;"></div></div>
+        <div class="bucket-count">0<span class="bucket-pct">0.0%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">12–24h</div>
+        <div class="bucket-track"><div class="bucket-fill dm" style="width:28.6%;">2</div></div>
+        <div class="bucket-count">2<span class="bucket-pct">12.5%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">24–72h</div>
+        <div class="bucket-track"><div class="bucket-fill dm" style="width:42.9%;">3</div></div>
+        <div class="bucket-count">3<span class="bucket-pct">18.8%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">>72h</div>
+        <div class="bucket-track"><div class="bucket-fill dm" style="width:0.0%;"></div></div>
+        <div class="bucket-count">0<span class="bucket-pct">0.0%</span></div>
+      </div>
+      </div>
+      <div class="channel-card rev">
+        <div class="channel-head">
+          <div class="channel-name">跨视频反向评论<span class="pill purple">25 条</span></div>
+        </div>
+        <div class="mean-band">
+          <span class="lbl">均值</span><span class="val">4.2h</span>
+          <span class="median">中位数 <b>56min</b> · 最快 <b>2min</b> · 最慢 <b>17h</b></span>
+        </div>
+        
+      <div class="bucket-row">
+        <div class="bucket-label">0–3h</div>
+        <div class="bucket-track"><div class="bucket-fill rev" style="width:100.0%;">18</div></div>
+        <div class="bucket-count">18<span class="bucket-pct">72.0%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">3–6h</div>
+        <div class="bucket-track"><div class="bucket-fill rev" style="width:11.1%;"></div></div>
+        <div class="bucket-count">2<span class="bucket-pct">8.0%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">6–12h</div>
+        <div class="bucket-track"><div class="bucket-fill rev" style="width:0.0%;"></div></div>
+        <div class="bucket-count">0<span class="bucket-pct">0.0%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">12–24h</div>
+        <div class="bucket-track"><div class="bucket-fill rev" style="width:27.8%;">5</div></div>
+        <div class="bucket-count">5<span class="bucket-pct">20.0%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">24–72h</div>
+        <div class="bucket-track"><div class="bucket-fill rev" style="width:0.0%;"></div></div>
+        <div class="bucket-count">0<span class="bucket-pct">0.0%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">>72h</div>
+        <div class="bucket-track"><div class="bucket-fill rev" style="width:0.0%;"></div></div>
+        <div class="bucket-count">0<span class="bucket-pct">0.0%</span></div>
+      </div>
+      </div>
+    </div>
+  </div>
+    
+  <div class="segment">
+    <div class="segment-head">
+      <div>
+        <div class="segment-title">② 系统采集 → 我方发送（运营响应时效）</div>
+        <div class="segment-hint"><code>comments.created_at</code> → <code>messages.sent_at</code> / <code>reverse_comment_queue.sent_at</code>；衡量评论入库后运营多久跟进</div>
+      </div>
+      <div class="legend">
+        <span><span class="sw dm"></span>DM</span>
+        <span><span class="sw rev"></span>反评</span>
+      </div>
+    </div>
+    <div class="trend-block">
+      <div class="trend-title">本周（6/1–6/7）每日均值走势 · 虚线 = 报告日 2026-06-01</div>
+      <div class="trend-summary">
+    <span><span class="sw dm"></span>DM 当日 <b>2.6h</b><span class="n"> (n=16)</span></span>
+    <span><span class="sw rev"></span>反评 当日 <b>13h</b><span class="n"> (n=25)</span></span>
+  </div>
+    <svg class="trend-svg" viewBox="0 0 1000 130" preserveAspectRatio="xMidYMid meet" width="100%">
+      <line x1="42" y1="102.0" x2="986.0" y2="102.0" stroke="#eef1f5" stroke-width="1"/><text x="36" y="105.0" text-anchor="end" font-size="10" fill="#9aa4b2">—</text><line x1="42" y1="58.0" x2="986.0" y2="58.0" stroke="#eef1f5" stroke-width="1"/><text x="36" y="61.0" text-anchor="end" font-size="10" fill="#9aa4b2">7.3h</text><line x1="42" y1="14.0" x2="986.0" y2="14.0" stroke="#eef1f5" stroke-width="1"/><text x="36" y="17.0" text-anchor="end" font-size="10" fill="#9aa4b2">15h</text>
+      <line x1="42.0" y1="14" x2="42.0" y2="102.0" stroke="#cbd2dc" stroke-width="1" stroke-dasharray="3 2"/>
+      <path d="M 42.0 86.5" stroke="#2563eb" stroke-width="1.8" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+      <path d="M 42.0 25.5" stroke="#6d4cb9" stroke-width="1.8" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+      <circle cx="42.0" cy="86.5" r="4.5" fill="#2563eb" stroke="#fff" stroke-width="2"><title>周一 6/1 · 报告日 · 2.6h · n=16</title></circle>
+      <circle cx="42.0" cy="25.5" r="4.5" fill="#6d4cb9" stroke="#fff" stroke-width="2"><title>周一 6/1 · 报告日 · 13h · n=25</title></circle>
+      <text x="42.0" y="114" text-anchor="middle" font-size="10" fill="#9aa4b2">周一</text><text x="42.0" y="126" text-anchor="middle" font-size="10" fill="#9aa4b2">6/1</text><text x="199.3" y="114" text-anchor="middle" font-size="10" fill="#cbd2dc">周二</text><text x="199.3" y="126" text-anchor="middle" font-size="10" fill="#cbd2dc">6/2</text><text x="356.7" y="114" text-anchor="middle" font-size="10" fill="#cbd2dc">周三</text><text x="356.7" y="126" text-anchor="middle" font-size="10" fill="#cbd2dc">6/3</text><text x="514.0" y="114" text-anchor="middle" font-size="10" fill="#cbd2dc">周四</text><text x="514.0" y="126" text-anchor="middle" font-size="10" fill="#cbd2dc">6/4</text><text x="671.3" y="114" text-anchor="middle" font-size="10" fill="#cbd2dc">周五</text><text x="671.3" y="126" text-anchor="middle" font-size="10" fill="#cbd2dc">6/5</text><text x="828.7" y="114" text-anchor="middle" font-size="10" fill="#cbd2dc">周六</text><text x="828.7" y="126" text-anchor="middle" font-size="10" fill="#cbd2dc">6/6</text><text x="986.0" y="114" text-anchor="middle" font-size="10" fill="#cbd2dc">周日</text><text x="986.0" y="126" text-anchor="middle" font-size="10" fill="#cbd2dc">6/7</text>
+    </svg>
+    </div>
+    <div class="channel-tabs">
+      <div class="channel-card dm">
+        <div class="channel-head">
+          <div class="channel-name">DM 私信<span class="pill blue">16 条</span></div>
+        </div>
+        <div class="mean-band">
+          <span class="lbl">均值</span><span class="val">2.6h</span>
+          <span class="median">中位数 <b>1.3h</b> · 最快 <b>29min</b> · 最慢 <b>12h</b></span>
+        </div>
+        
+      <div class="bucket-row">
+        <div class="bucket-label">0–3h</div>
+        <div class="bucket-track"><div class="bucket-fill dm" style="width:100.0%;">13</div></div>
+        <div class="bucket-count">13<span class="bucket-pct">81.3%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">3–6h</div>
+        <div class="bucket-track"><div class="bucket-fill dm" style="width:7.7%;"></div></div>
+        <div class="bucket-count">1<span class="bucket-pct">6.3%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">6–12h</div>
+        <div class="bucket-track"><div class="bucket-fill dm" style="width:15.4%;">2</div></div>
+        <div class="bucket-count">2<span class="bucket-pct">12.5%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">12–24h</div>
+        <div class="bucket-track"><div class="bucket-fill dm" style="width:0.0%;"></div></div>
+        <div class="bucket-count">0<span class="bucket-pct">0.0%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">24–72h</div>
+        <div class="bucket-track"><div class="bucket-fill dm" style="width:0.0%;"></div></div>
+        <div class="bucket-count">0<span class="bucket-pct">0.0%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">>72h</div>
+        <div class="bucket-track"><div class="bucket-fill dm" style="width:0.0%;"></div></div>
+        <div class="bucket-count">0<span class="bucket-pct">0.0%</span></div>
+      </div>
+      </div>
+      <div class="channel-card rev">
+        <div class="channel-head">
+          <div class="channel-name">跨视频反向评论<span class="pill purple">25 条</span></div>
+        </div>
+        <div class="mean-band">
+          <span class="lbl">均值</span><span class="val">13h</span>
+          <span class="median">中位数 <b>8.2h</b> · 最快 <b>3.9h</b> · 最慢 <b>41h</b></span>
+        </div>
+        
+      <div class="bucket-row">
+        <div class="bucket-label">0–3h</div>
+        <div class="bucket-track"><div class="bucket-fill rev" style="width:0.0%;"></div></div>
+        <div class="bucket-count">0<span class="bucket-pct">0.0%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">3–6h</div>
+        <div class="bucket-track"><div class="bucket-fill rev" style="width:100.0%;">10</div></div>
+        <div class="bucket-count">10<span class="bucket-pct">40.0%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">6–12h</div>
+        <div class="bucket-track"><div class="bucket-fill rev" style="width:50.0%;">5</div></div>
+        <div class="bucket-count">5<span class="bucket-pct">20.0%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">12–24h</div>
+        <div class="bucket-track"><div class="bucket-fill rev" style="width:70.0%;">7</div></div>
+        <div class="bucket-count">7<span class="bucket-pct">28.0%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">24–72h</div>
+        <div class="bucket-track"><div class="bucket-fill rev" style="width:30.0%;">3</div></div>
+        <div class="bucket-count">3<span class="bucket-pct">12.0%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">>72h</div>
+        <div class="bucket-track"><div class="bucket-fill rev" style="width:0.0%;"></div></div>
+        <div class="bucket-count">0<span class="bucket-pct">0.0%</span></div>
+      </div>
+      </div>
+    </div>
+  </div>
+    
+  <div class="segment">
+    <div class="segment-head">
+      <div>
+        <div class="segment-title">③ 用户评论 → 我方发送（端到端体验）</div>
+        <div class="segment-hint"><code>comments.comment_time</code> → 真发出时刻；用户实际等了多久才收到我们的回应</div>
+      </div>
+      <div class="legend">
+        <span><span class="sw dm"></span>DM</span>
+        <span><span class="sw rev"></span>反评</span>
+      </div>
+    </div>
+    <div class="trend-block">
+      <div class="trend-title">本周（6/1–6/7）每日均值走势 · 虚线 = 报告日 2026-06-01</div>
+      <div class="trend-summary">
+    <span><span class="sw dm"></span>DM 当日 <b>11h</b><span class="n"> (n=16)</span></span>
+    <span><span class="sw rev"></span>反评 当日 <b>17h</b><span class="n"> (n=25)</span></span>
+  </div>
+    <svg class="trend-svg" viewBox="0 0 1000 130" preserveAspectRatio="xMidYMid meet" width="100%">
+      <line x1="42" y1="102.0" x2="986.0" y2="102.0" stroke="#eef1f5" stroke-width="1"/><text x="36" y="105.0" text-anchor="end" font-size="10" fill="#9aa4b2">—</text><line x1="42" y1="58.0" x2="986.0" y2="58.0" stroke="#eef1f5" stroke-width="1"/><text x="36" y="61.0" text-anchor="end" font-size="10" fill="#9aa4b2">9.7h</text><line x1="42" y1="14.0" x2="986.0" y2="14.0" stroke="#eef1f5" stroke-width="1"/><text x="36" y="17.0" text-anchor="end" font-size="10" fill="#9aa4b2">19h</text>
+      <line x1="42.0" y1="14" x2="42.0" y2="102.0" stroke="#cbd2dc" stroke-width="1" stroke-dasharray="3 2"/>
+      <path d="M 42.0 51.7" stroke="#2563eb" stroke-width="1.8" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+      <path d="M 42.0 25.5" stroke="#6d4cb9" stroke-width="1.8" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+      <circle cx="42.0" cy="51.7" r="4.5" fill="#2563eb" stroke="#fff" stroke-width="2"><title>周一 6/1 · 报告日 · 11h · n=16</title></circle>
+      <circle cx="42.0" cy="25.5" r="4.5" fill="#6d4cb9" stroke="#fff" stroke-width="2"><title>周一 6/1 · 报告日 · 17h · n=25</title></circle>
+      <text x="42.0" y="114" text-anchor="middle" font-size="10" fill="#9aa4b2">周一</text><text x="42.0" y="126" text-anchor="middle" font-size="10" fill="#9aa4b2">6/1</text><text x="199.3" y="114" text-anchor="middle" font-size="10" fill="#cbd2dc">周二</text><text x="199.3" y="126" text-anchor="middle" font-size="10" fill="#cbd2dc">6/2</text><text x="356.7" y="114" text-anchor="middle" font-size="10" fill="#cbd2dc">周三</text><text x="356.7" y="126" text-anchor="middle" font-size="10" fill="#cbd2dc">6/3</text><text x="514.0" y="114" text-anchor="middle" font-size="10" fill="#cbd2dc">周四</text><text x="514.0" y="126" text-anchor="middle" font-size="10" fill="#cbd2dc">6/4</text><text x="671.3" y="114" text-anchor="middle" font-size="10" fill="#cbd2dc">周五</text><text x="671.3" y="126" text-anchor="middle" font-size="10" fill="#cbd2dc">6/5</text><text x="828.7" y="114" text-anchor="middle" font-size="10" fill="#cbd2dc">周六</text><text x="828.7" y="126" text-anchor="middle" font-size="10" fill="#cbd2dc">6/6</text><text x="986.0" y="114" text-anchor="middle" font-size="10" fill="#cbd2dc">周日</text><text x="986.0" y="126" text-anchor="middle" font-size="10" fill="#cbd2dc">6/7</text>
+    </svg>
+    </div>
+    <div class="channel-tabs">
+      <div class="channel-card dm">
+        <div class="channel-head">
+          <div class="channel-name">DM 私信<span class="pill blue">16 条</span></div>
+        </div>
+        <div class="mean-band">
+          <span class="lbl">均值</span><span class="val">11h</span>
+          <span class="median">中位数 <b>5.8h</b> · 最快 <b>1.5h</b> · 最慢 <b>28h</b></span>
+        </div>
+        
+      <div class="bucket-row">
+        <div class="bucket-label">0–3h</div>
+        <div class="bucket-track"><div class="bucket-fill dm" style="width:50.0%;">3</div></div>
+        <div class="bucket-count">3<span class="bucket-pct">18.8%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">3–6h</div>
+        <div class="bucket-track"><div class="bucket-fill dm" style="width:100.0%;">6</div></div>
+        <div class="bucket-count">6<span class="bucket-pct">37.5%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">6–12h</div>
+        <div class="bucket-track"><div class="bucket-fill dm" style="width:33.3%;">2</div></div>
+        <div class="bucket-count">2<span class="bucket-pct">12.5%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">12–24h</div>
+        <div class="bucket-track"><div class="bucket-fill dm" style="width:16.7%;">1</div></div>
+        <div class="bucket-count">1<span class="bucket-pct">6.3%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">24–72h</div>
+        <div class="bucket-track"><div class="bucket-fill dm" style="width:66.7%;">4</div></div>
+        <div class="bucket-count">4<span class="bucket-pct">25.0%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">>72h</div>
+        <div class="bucket-track"><div class="bucket-fill dm" style="width:0.0%;"></div></div>
+        <div class="bucket-count">0<span class="bucket-pct">0.0%</span></div>
+      </div>
+      </div>
+      <div class="channel-card rev">
+        <div class="channel-head">
+          <div class="channel-name">跨视频反向评论<span class="pill purple">25 条</span></div>
+        </div>
+        <div class="mean-band">
+          <span class="lbl">均值</span><span class="val">17h</span>
+          <span class="median">中位数 <b>17h</b> · 最快 <b>4.5h</b> · 最慢 <b>42h</b></span>
+        </div>
+        
+      <div class="bucket-row">
+        <div class="bucket-label">0–3h</div>
+        <div class="bucket-track"><div class="bucket-fill rev" style="width:0.0%;"></div></div>
+        <div class="bucket-count">0<span class="bucket-pct">0.0%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">3–6h</div>
+        <div class="bucket-track"><div class="bucket-fill rev" style="width:15.4%;">2</div></div>
+        <div class="bucket-count">2<span class="bucket-pct">8.0%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">6–12h</div>
+        <div class="bucket-track"><div class="bucket-fill rev" style="width:53.8%;">7</div></div>
+        <div class="bucket-count">7<span class="bucket-pct">28.0%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">12–24h</div>
+        <div class="bucket-track"><div class="bucket-fill rev" style="width:100.0%;">13</div></div>
+        <div class="bucket-count">13<span class="bucket-pct">52.0%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">24–72h</div>
+        <div class="bucket-track"><div class="bucket-fill rev" style="width:23.1%;">3</div></div>
+        <div class="bucket-count">3<span class="bucket-pct">12.0%</span></div>
+      </div>
+      <div class="bucket-row">
+        <div class="bucket-label">>72h</div>
+        <div class="bucket-track"><div class="bucket-fill rev" style="width:0.0%;"></div></div>
+        <div class="bucket-count">0<span class="bucket-pct">0.0%</span></div>
+      </div>
+      </div>
+    </div>
+  </div>
+
+    <div class="footnote">
+      <b>口径说明：</b>
+      ① <code>comment_time</code> 缺失的样本不进 T1 / 端到端统计，但仍计入 T2；
+      ② 负 delta（极少数 created_at &lt; comment_time 的时区/时钟漂移）clamp 到 0；
+      ③ 「用户回复人数」用 DB 反查口径，<code>/api/cron/check-replies</code> 未轮到的会话会被低估；
+      ④ 「加微信」以 PM/运营每日告知为准，未提供时默认 0（CLI 加 <code>--wechat-conversions=N</code> 修正）。
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
