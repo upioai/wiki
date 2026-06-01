@@ -95,6 +95,11 @@
       <br>② <b>部署版本号/时间</b>（如 worker <code>v215</code>、Vercel 部署时间，证明上线了）
       <br>③ <b>一条验证数据</b>（如"抓一条视频看评论时间跨度到没到 7 天"，证明真生效）
       <br><span class="sub">下次谁说"改好了/部署成功"，你就回一句"给我这三样"——三样齐了才算真完成。</span></p>
+    <div class="callout c-warn" style="margin:10px 0"><b>避坑补充 ·「commit 了」既可能查不到、更可能没上线</b>（本轮复核 24h→7d 时实测，记下来全员避坑）：
+      <br>① <b>commit ≠ 上线</b>：本地 <code>git commit</code> 只是存档；要真生效必须<b>合进 main（PR 过审）→ 自动部署 → 真实数据验证</b>三步齐，缺一步线上跑的还是旧逻辑。
+      <br>② <b>squash 合并会改 commit hash</b>：个人那条提交（如本轮 fanny 的 <code>force_full_window</code>）走 PR squash 后会被压成一条新 commit，<b>原 hash 在 main 历史里搜不到</b>——但改动确实在 main 里。所以「<code>git log</code> 搜不到我的提交」≠「没合进去」，要核的是 <b>origin/main 里的代码 / PR 是否 merged</b>，别只盯单个 hash。
+      <br>③ <b>线上版本对一下</b>：查 worker <code>/health</code> 的 GIT_SHA、Vercel 部署版本，确认线上跑的就是合进去那版，再拿一条真实数据收尾——这次"看到 168h/7天评论"就是那条数据。
+    </div>
     </div></div>
   <div class="step"><div class="k">解决路径</div><div class="v"><ol>
       <li>把未提交的 <code>force_full_window</code> 收尾合并（PR #65）→ CI 部署到 worker <code>v214/215</code></li>
@@ -159,7 +164,13 @@
     <ul>
       <li>合并两份名单去重：<b>Top70 好号各自 top10 产线索视频</b> + <b>全源历史"单条产≥3 高意向"的已验证爆款</b> = <b>491 条</b></li>
       <li>对这 491 条做了<b>一次性</b>视频级复抓（7d 全窗口）</li>
-    </ul></div></div>
+    </ul>
+    <div class="callout c-find" style="margin:8px 0"><b>两份名单的精确定义</b>（口径来自生成脚本 <code>scripts/_enqueue-hot-video-rotation.ts</code>，非估算）：
+      <p style="margin:6px 0"><b>底层"自有信号"</b>：对每条视频从评论库算两个数——<code>hi</code>=高意向评论数、<code>total</code>=评论总数；视频一律按 <b>(hi 降序, total 降序)</b> 排，<b>不看点赞/转赞评</b>。</p>
+      <p style="margin:6px 0"><b>① Top70 好号 · 各自 top10 产线索视频</b>：先对每个 active 号源按 5 维打分（满分 100：主页视频数 + 近 30 天发文频率 + 评论总数 + <b>高意向占比≤30 分 + 高意向绝对数≤20 分</b>，后两维即"高意向相关占 50% 权重"），取分数最高的 <b>70 个</b>号；每个号再把它<b>有评论的</b>视频按 (hi, total) 排、<b>取前 10 条</b>。⚠️"top10"指<b>产线索最多的 10 条，不是主页最新 10 条</b>（所以与常规"抓最新 10/20 条"目标错开、不重复）。</p>
+      <p style="margin:6px 0"><b>② 全源历史"单条产≥3 高意向"的已验证爆款</b>：不限 Top70，<b>所有 active 号源</b>的视频里，凡<b>单条视频累计抓到过 ≥3 个高意向评论</b>（<code>hi&gt;=3</code>）的全收。"已验证"=历史上真产出过，不靠预测/点赞。</p>
+      <p style="margin:6px 0"><b>合并</b>：①∪②去重（一条视频若既在某 Top70 号的 top10、又 hi≥3，只算一次），并剔除离题视频（<code>topic_status=rejected</code>）与 0 评论视频 → 当日快照 <b>491 条</b>。<code>hi</code>/<code>total</code> 随评论积累每天浮动，491 是 5-31 快照值。</p>
+    </div></div></div>
   <div class="step"><div class="k">效果</div><div class="v">
     <div class="callout c-ok" style="margin:6px 0">491 条历史高产视频<b>一次性复抓完成（已验证做了）</b>：复抓后 <b>491 条里 121 条收到新评论</b>，共<b>新增 1013 条评论、24 个高意向线索</b>，已折进 5/30 的线索 surge。<br>产新线索 top 源：西安老王聊装修 +6 高意向 / 罗哥讲装修 +4 / 灿哥聊装修 +102 评论 / 设计师阿爽 +80 评论。最强单条历史产 40+ 高意向。</div>
     <span class="pill p-ok">已建常驻 cron</span> 在你拍板后，<b>已把"每日复扫历史爆款"做成显式 cron</b>（<code>/api/cron/hot-video-rotation</code>，PR #67，每日 04:45）：每天重算"每号 top10 已产 lead 且近 14d 仍活跃的视频 → 全局 top200"复扫。与 rescan 互补（rescan 管新视频&lt;7d、本 cron 管老视频但仍活跃的常青爆款），dedup 防重复。<b>#67 已 merged，Vercel 部署后每日 04:45 首跑。</b><span class="sub">本地干跑选片逻辑已验证：491 经"近 14d 仍活跃"过滤 + 上限收敛后 → <b>每天约复扫 120 条</b>（量合理、不失控）。</span></div></div>
