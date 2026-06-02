@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>企业知识库上传链接 · 总量保险丝改动说明 (2026-06-02)</title>
+<style>
+  :root {
+    --ink: #1a1a1a; --sub: #555; --line: #e6e6e6;
+    --accent: #2563eb; --good: #16a34a; --warn: #d97706; --bg-soft: #f7f8fa;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: var(--ink); line-height: 1.7; margin: 0;
+    background: #fafafa; padding: 32px 16px;
+  }
+  .wrap { max-width: 820px; margin: 0 auto; background: #fff;
+    border: 1px solid var(--line); border-radius: 12px; padding: 40px 44px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  .meta { color: var(--sub); font-size: 13px; margin-bottom: 28px; }
+  h2 { font-size: 18px; margin: 32px 0 12px; padding-bottom: 6px;
+    border-bottom: 2px solid var(--accent); display: inline-block; }
+  h3 { font-size: 15px; margin: 20px 0 6px; }
+  p { margin: 8px 0; }
+  ul { margin: 8px 0; padding-left: 22px; }
+  li { margin: 4px 0; }
+  code { background: var(--bg-soft); padding: 1px 6px; border-radius: 4px;
+    font-family: "SF Mono", Consolas, monospace; font-size: 13px; }
+  .card { background: var(--bg-soft); border: 1px solid var(--line);
+    border-radius: 8px; padding: 14px 18px; margin: 12px 0; }
+  .tag { display: inline-block; font-size: 12px; padding: 2px 8px;
+    border-radius: 999px; color: #fff; margin-right: 6px; }
+  .tag-db { background: #7c3aed; }
+  .tag-api { background: var(--accent); }
+  .tag-ui { background: var(--good); }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; }
+  th { background: var(--bg-soft); }
+  .callout { border-left: 4px solid var(--warn); background: #fffbeb;
+    padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0; }
+  .callout.good { border-left-color: var(--good); background: #f0fdf4; }
+  .step { display: flex; gap: 12px; margin: 10px 0; align-items: baseline; }
+  .step .n { flex: none; width: 24px; height: 24px; border-radius: 50%;
+    background: var(--accent); color: #fff; font-size: 13px; text-align: center;
+    line-height: 24px; }
+  footer { margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--line);
+    color: var(--sub); font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>企业知识库上传链接 · 总量保险丝</h1>
+  <div class="meta">改动说明 · 2026-06-02 · commit <code>6f0bc48</code></div>
+
+  <h2>一句话</h2>
+  <p>给「发给甲方销售的免登上传链接」加一道<strong>总量上限</strong>：同一条链接累计上传超过 <strong>2000 张</strong>就拒收，防止异常灌量把存储和视觉大模型刷爆。链接本身永不变，<strong>对销售完全透明</strong>。</p>
+
+  <h2>为什么要做</h2>
+  <p>上传接口原本已有四道门：token 校验（启用 / 过期）、文件类型白名单、单图 10MB 上限、同图 sha256 去重。但缺的是<strong>总量闸门</strong>——一条链接理论上能无限次上传，而每张图都会同步调一次视觉大模型（成本大头）。一旦被脚本或误操作刷量，存储和模型调用都没有上限。</p>
+
+  <h2>改了什么</h2>
+
+  <div class="card">
+    <span class="tag tag-db">数据库</span>
+    <h3 style="display:inline">新增 <code>max_uploads</code> 列</h3>
+    <p><code>enterprise_upload_tokens</code> 表加一列 <code>max_uploads INTEGER NOT NULL DEFAULT 2000</code>。每条上传链接挂一个上限数字，默认 2000。</p>
+    <p style="color:var(--sub);font-size:13px">文件：<code>supabase/migrations/20260602180135_upload_token_max_uploads.sql</code>（含 rollback）</p>
+  </div>
+
+  <div class="card">
+    <span class="tag tag-api">接口</span>
+    <h3 style="display:inline">上传前先查总量</h3>
+    <p>POST 收到图片后，在<strong>干任何重活之前</strong>（读文件 / 算 sha256 / 调大模型）先统计该 token 累计上传行数，<code>&ge; max_uploads</code> 直接返回 <code>429 quota_exceeded</code>。走已有索引，查询很轻。</p>
+    <p style="color:var(--sub);font-size:13px">文件：<code>src/app/api/upload/[token]/route.ts</code></p>
+  </div>
+
+  <div class="card">
+    <span class="tag tag-ui">上传页</span>
+    <h3 style="display:inline">软文案提示</h3>
+    <p>撞上限时，销售看到的是「本次上传已达上限，请联系对接人」，而不是冷冰冰的"上传失败"。</p>
+    <p style="color:var(--sub);font-size:13px">文件：<code>src/app/upload/[token]/form.tsx</code></p>
+  </div>
+
+  <h2>对甲方销售的影响</h2>
+  <div class="callout good">
+    <strong>零操作、无感。</strong>销售始终用最早发的那一条链接，URL 永不改变。这道闸只在「出意外灌量」时才触发，正常用根本碰不到。
+  </div>
+
+  <h3>撞到上限时怎么办（运维侧）</h3>
+  <div class="step"><div class="n">1</div><div>销售那一刻会看到「已达上限」的提示，暂时传不了。</div></div>
+  <div class="step"><div class="n">2</div><div>我方在数据库把该 token 的 <code>max_uploads</code> 数字调大（比如 2000 → 5000）。</div></div>
+  <div class="step"><div class="n">3</div><div>销售立刻恢复上传，<strong>链接不用换、不用重发</strong>。</div></div>
+
+  <h2>上传链路 · 五道门一览</h2>
+  <table>
+    <tr><th>顺序</th><th>门</th><th>作用</th><th>状态</th></tr>
+    <tr><td>1</td><td>token 校验</td><td>启用 / 未过期才放行</td><td>原有</td></tr>
+    <tr><td>2</td><td>文件类型白名单</td><td>仅 jpg / png / webp</td><td>原有</td></tr>
+    <tr><td>3</td><td>单图 10MB 上限</td><td>超大图拒收</td><td>原有</td></tr>
+    <tr><td>4</td><td>sha256 去重</td><td>同 org 同图只入一次</td><td>原有</td></tr>
+    <tr><td>5</td><td><strong>总量保险丝</strong></td><td>累计超 max_uploads 拒收</td><td><strong>本次新增</strong></td></tr>
+  </table>
+
+  <h2>上线说明</h2>
+  <div class="callout">
+    这条改动含数据库 migration，需经 <code>supabase-migrate.yml</code>（push 到 main 自动 <code>db push</code>）才能让 <code>max_uploads</code> 列生效到生产库。代码已 push（<code>6f0bc48</code>），请确认该 workflow 跑绿后保险丝才真正起作用。
+  </div>
+
+  <footer>
+    本文档由 Claude Code 生成 · 供审阅 · Akke 企业知识库上传链路 · 2026-06-02
+  </footer>
+
+</div>
+</body>
+</html>
