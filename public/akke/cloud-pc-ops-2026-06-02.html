@@ -204,41 +204,54 @@ pnpm tsx scripts/import-sent-log.ts --in=data/sent_log_20260602_blind.csv</pre>
 
 <!-- 问题与解决 -->
 <div class="card">
-  <h2>三、遇到的问题 &amp; 对应解决方案</h2>
+  <h2>三、两个核心问题 &amp; 具体解决指令</h2>
 
+  <!-- 问题 1 -->
   <div class="pb">
-    <div class="q">问题① 需求自相矛盾："要全自动 OCR，但又不要百炼 key"</div>
-    <div class="a">DashScope（百炼）OCR 是要鉴权的，没有免 key 的玩法。<br><b>解决：改走 <code>--blind</code> 裸自动档</b>——命令末尾加 <code>--blind</code>，不调 OCR、不要 key、不用人工确认，直接发。代价是没身份核对（见第四节）。</div>
+    <div class="q">问题① 想全自动，但"既要 OCR 身份核对、又不想申请百炼 key"——这俩凑不到一起</div>
+    <div class="a">
+      <p><b>是怎么卡住的：</b>全自动发送要靠视觉模型（OCR）在进私信前核对"搜出来的人是不是目标本人"，否则会发错。能在阿里无影内网稳定跑的视觉模型是 DashScope（阿里百炼）——但它是<b>收费鉴权 API，必须有 key</b>，没有免 key 模式。所以"全自动 + OCR + 不要 key"三个条件天然矛盾，只能三选二。</p>
+      <p><b>当时给的三个选项：</b></p>
+      <ul>
+        <li><b>A</b> = 全自动 + OCR + 申请一把百炼 key（最稳，但要去开通 key）</li>
+        <li><b>B</b> = 全自动 + 不要 key + 不做 OCR（<code>--blind</code> 裸自动档，快，但没身份核对）</li>
+        <li><b>C</b> = 不全自动，保留人工 y/n 逐条确认（不要 key、也不会发错，但要盯着）</li>
+      </ul>
+      <p><b>最终选 B（blind）。</b>具体怎么落地：</p>
+
+      <p style="margin-bottom:4px"><span class="tag good">本机 · Claude</span> 准备带 <code>--blind</code> 档的脚本，传到无影：</p>
+      <pre>curl -s --data-binary @data/_douyin_dm_wuying.py https://paste.rs
+<span class="c"># 返回脚本链接，如 https://paste.rs/G6qVC</span></pre>
+
+      <p style="margin-bottom:4px"><span class="tag" style="background:#e7ecff;color:var(--accent)">无影 · PowerShell</span> 下载后<b>命令末尾加 <code>--blind</code></b> 开跑：</p>
+      <pre>Invoke-WebRequest -Uri https://paste.rs/G6qVC -OutFile douyin_dm.py -UseBasicParsing
+python douyin_dm.py contacts.csv --blind</pre>
+
+      <p style="font-size:14px;color:var(--sub)">加了 <code>--blind</code> 就<b>不调 OCR、不读 key、不弹 y/n</b>，挨条直接发。代价是没有身份核对 → 见第四节"两个代价"，所以发之前必须先把常见名剔掉。</p>
+    </div>
   </div>
 
+  <!-- 问题 5 -->
   <div class="pb">
-    <div class="q">问题② 8 小时窗口拉出 0 条</div>
-    <div class="a">是<b>真空池</b>，近 8h 没有新的高意向进库，不是 bug。<br><b>解决：放宽时间窗到 72h</b>（命令 <code>--since-hours=72</code>），重新拉。</div>
-  </div>
+    <div class="q">问题② 坐标对不上：这台机是 1920×1018，仓库脚本默认是另一台机的 2286×1600</div>
+    <div class="a">
+      <p><b>是怎么卡住的：</b>脚本靠"绝对像素坐标"去点搜索框、私信键、发送↑ 这些按钮。坐标是<b>每台机器、每个分辨率专属的</b>。仓库里存的是另一台机（2286×1600）量好的值，直接拿到夏夏这台 1920×1018 上跑，<b>每个点都会偏，抖音完全没反应</b>。</p>
 
-  <div class="pb">
-    <div class="q">问题③ 24h 窗口"原始有 30 条"，但抢锁返回 0</div>
-    <div class="a">命中 RPC 的 <code>scan_cap=60</code> 陷阱：默认只扫排名前 60，<b>先截断再套时间窗</b>，近窗里排名靠后的就被切掉，误判空池。<br><b>解决：命令加 <code>--intent-label=高意向</code></b>，把扫描上限从 60 提到 500，越过堆积够到底下可抢的。加完就锁到了。</div>
-  </div>
+      <p><b>解决办法：用按本机 1920×1018 标定好的脚本，不用仓库默认值。</b></p>
 
-  <div class="pb">
-    <div class="q">问题④ 补单到 10 条时，小霞/东方/瑶 又冒出来了</div>
-    <div class="a">这仨是早上发错过的常见名，4 小时锁过期后回了池子。blind 档没身份核对，发常见名极易撞同名号。<br><b>解决：发前把这 3 个从 CSV 删掉</b>，只发独特名（麦小宝、不忘初心 这类）。</div>
-  </div>
+      <p style="margin-bottom:4px"><span class="tag good">本机 · Claude</span> 把脚本里的坐标常量改成 1920×1018 的标定值，传上去：</p>
+      <pre><span class="c"># Claude 已把 _douyin_dm_wuying.py 里坐标改成 1920×1018 专属值</span>
+curl -s --data-binary @data/_douyin_dm_wuying.py https://paste.rs</pre>
 
-  <div class="pb">
-    <div class="q">问题⑤ 坐标对不对？机器是 1920×1018，仓库里默认是 2286×1600</div>
-    <div class="a">坐标是机器专属的绝对像素，仓库那套换机会全偏、抖音零反应。<br><b>解决：单独配了一份按 1920×1018 标定的脚本传上无影</b>，没用仓库默认值。以后换机器或分辨率变了，要先在无影上跑 <code>calibrate.py</code> 重新量坐标。</div>
-  </div>
+      <p style="margin-bottom:4px"><span class="tag" style="background:#e7ecff;color:var(--accent)">无影 · PowerShell</span> 以后<b>换了机器、或分辨率变了</b>，要先重新量坐标再发：</p>
+      <pre><span class="c"># 1) 抖音登录、最大化、随便开一个私信窗口</span>
+<span class="c"># 2) 跑校准，跟着提示逐个点按钮，自动把新坐标写回脚本</span>
+python calibrate.py
+<span class="c"># 3) 量完再正常发</span>
+python douyin_dm.py contacts.csv --blind</pre>
 
-  <div class="pb">
-    <div class="q">问题⑥ paste.rs 拿到的链接是空的 "https://paste.rs/"</div>
-    <div class="a">链接<b>就是上传命令本身打印出来的那行输出</b>，不是另开网页找。<br><b>解决：</b><code>Invoke-RestMethod -Uri https://paste.rs -Method Post -InFile 文件</code> 执行后屏幕回的那串 <code>https://paste.rs/XXXXX</code> 就是。</div>
-  </div>
-
-  <div class="pb">
-    <div class="q">问题⑦ 收尾推送代码被拒（远端有同事先推了）</div>
-    <div class="a">合并时和同事改了同一个文件冲突，且<b>同事已经独立做了同一个功能、校验还更严</b>。<br><b>解决：把我那个重复提交跳过</b>（<code>git rebase --skip</code>），保留有用的记忆提交，恢复暂存，推送成功。</div>
+      <p style="font-size:14px;color:var(--sub)">⚠️ 无影分辨率有时会自己漂，漂了坐标也会失配，<b>尽量锁死无影显示分辨率</b>，免得每次都要重校。</p>
+    </div>
   </div>
 </div>
 
