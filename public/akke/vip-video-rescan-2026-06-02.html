@@ -162,6 +162,7 @@
       <div class="step"><div class="when">第 1–2 天</div><div class="body"><span class="big">互动冲进全局 Top 80 → 当天进 VIP</span> —— 只要互动分排进前 80，<b>哪怕高意向还是 0</b> 也照样打上 <code>is_vip</code>（这就是"早筛"）→ 当天起被每小时复扫。<br><span style="font-size:13px;color:var(--gray)">例：发布 1 天的视频 赞1200/转80/评95/藏210 = 2255 分，冲进 Top80，当天 VIP，不用等它攒评论。</span></div></div>
       <div class="step"><div class="when">互动数刷新</div><div class="body"><span class="big">每天最多刷新一次，分数随热度爬</span> —— 同一条视频的互动数<b>每 24 小时</b>才重抓一次（省接口）。视频越火、赞评转藏越涨，互动分越高、排名越靠前——所以"谁在 Top80"是<b>每天动态变</b>的，新爆款会顶掉降温的。</div></div>
       <div class="step"><div class="when">第 2–7 天</div><div class="body"><span class="big">A / B 接力，从"早筛"转"已验证"</span> —— 每小时复扫攒出评论后，若高意向够 5 条（A）或占比够 20%（B），它就<b>同时</b>命中 A/B。这时<b>即使热度退了、互动掉出 Top80</b>，也因为"已验证高转化"继续留在 VIP。</div></div>
+      <div class="step"><div class="when">休眠 <span class="tag" style="background:#efedfb;color:#6c5ce7">06-03</span></div><div class="body"><span class="big">7 天没新评论 → 暂停每小时复扫（但不摘 VIP 标）</span> —— 一条 VIP 视频若连续 <b>7 天不再来新评论</b>（产 0 评论），每小时还去复扫纯属白扫。所以<b>暂停对它的复扫</b>省无效抓取；它的 <code>is_vip</code> 标<b>保留</b>（历史高价值信号还在），一旦又冒新评论会自动恢复复扫。这跟下面的「退休」不一样——休眠是<b>不扫但留标</b>，退休是<b>连标都摘掉</b>。（<code>VIP_RESCAN_ACTIVE_DAYS=7</code>）</div></div>
       <div class="step"><div class="when">退休</div><div class="body"><span class="big">三类都不满足 → 次日自动摘标</span> —— 每天 04:45 重算时，互动掉出 Top80 且 A/B 也都不达标的视频，<code>is_vip</code> 自动置回 false，不再每小时复扫，把预算让给新的高价值视频。</div></div>
     </div>
     <div class="note"><b>一句话</b>：<b>爆火 = 早筛新爆款（看流量，第 1 天就进）</b>，<b>A/B = 补筛已验证高转化的老视频（看评论，滞后但准）</b>。一条好视频通常先靠爆火进来，再被 A/B 接住——即使它不再火，只要还在产潜客就一直被高频复扫。</div>
@@ -192,24 +193,33 @@
   <section class="sec" id="s5">
     <div class="sec-h"><span class="sec-n">SECTION 05</span><span class="sec-t">后续</span></div>
 
+    <div class="note"><b>06-03 进展更新</b>：
+      <ul style="margin:6px 0;padding-left:20px">
+        <li><b>复扫跳过死视频</b>：194 个 VIP 里 <b>44 个已 7d 无新评论</b>（产 0 评论），每小时还在白扫——加「活跃过滤」(<code>VIP_RESCAN_ACTIVE_DAYS=7</code>) 只复扫还在产评论的活视频，省无效抓取/worker，<b>零 lead 损失</b>（死视频本就不产评论；分类仍保留 is_vip 历史标）。</li>
+        <li><b>analyze 验证健康，不扩吞吐</b>：实测待打分队列<b>全是 &lt;24h 新评论、0 条陈旧</b>，且 newest-first（<b>新 lead 优先打分</b>）、过夜自清——说明打分跟得上，<b>不需要动 analyze</b>（省下改 critical lead 路径的风险）。</li>
+        <li><b>扫描覆盖已 95%</b>：全库 21,228 条视频 <b>95% 扫过至少一次</b>（tier1 99% / 活跃号 91%），且高频复扫中；印证"广扫全库存"是重复劳动，聚焦 tier1 + VIP 复扫即可。</li>
+      </ul>
+    </div>
+
     <p>这次「视频层」更新是接着前两天「视频互动数」能力做的——先有数据底座，再有调度：</p>
     <div class="funnel">
       <div class="step"><div class="when">6/01</div><div class="body"><span class="big">视频互动数底座</span> —— 打通用 f2 签名 + 匿名 cookie 抓抖音原生赞/评/转/藏（蝉妈妈互动源 5/28 封了之后的替代），给视频加互动数列、抓视频时搭车填。<b>这是"爆火"能算的前提。</b></div></div>
       <div class="step"><div class="when">6/02</div><div class="body"><span class="big">VIP 三类分类 + 每小时复扫</span> —— 即本文（在互动数底座上加"按价值挑 + 高频复扫"）。</div></div>
+      <div class="step"><div class="when">6/03</div><div class="body"><span class="big">复扫优化 + 验证</span> —— 跳死视频活跃过滤上线；互动数铺到 690；analyze 验证健康不扩吞吐。</div></div>
     </div>
 
     <table>
       <thead><tr><th>优先级</th><th>动作</th><th>为什么</th></tr></thead>
       <tbody>
         <tr><td><span class="tag" style="background:#fde2e2;color:#b91c1c">高</span></td><td>盯下游产出：复扫上线后"新入库高意向数"前后对比</td><td>验证每小时复扫真接住了更多新鲜潜客（不是只看部署绿）</td></tr>
-        <tr><td><span class="tag" style="background:#fde2e2;color:#b91c1c">高</span></td><td>把好号互动数从 514（24%）铺向全量</td><td>爆火 Top80 现在是从 514 里选；铺满后才是真·全库 Top80。靠每小时复扫搭车+分批轻量补，持续涨</td></tr>
+        <tr><td><span class="tag" style="background:#fde2e2;color:#b91c1c">高</span></td><td>把好号互动数从 690（33%）铺向全量</td><td>爆火 Top80 现从 690（33%）里选；靠每小时复扫搭车+分批轻量补，持续涨</td></tr>
         <tr><td><span class="tag">中</span></td><td>评论盘子涨上来后，复评 3 类门槛</td><td>现在门槛按"偏薄的评论池"定的；评论覆盖度修复爬坡后 ≥5 / 20% / Top80 都要重算</td></tr>
         <tr><td><span class="tag">中</span></td><td>VIP 视频监控页（本期先不做）</td><td>等数据攒厚（~1 周）再评估要不要给运营做个可视化看板；先把后台调度跑顺</td></tr>
       </tbody>
     </table>
   </section>
 
-  <footer>UPIO.AI · AKKE PROJECT DOCS · VIP 视频复扫 · 更新 2026-06-02</footer>
+  <footer>UPIO.AI · AKKE PROJECT DOCS · VIP 视频复扫 · 更新 2026-06-03</footer>
 </div>
 </body>
 </html>
