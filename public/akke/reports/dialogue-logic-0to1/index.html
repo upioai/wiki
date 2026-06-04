@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>对话项目作用逻辑 · 从一条评论到一段对话 | Akke</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --paper: #ffffff;
+      --ink: #1f2937;
+      --muted: #5f6b7a;
+      --line: #dde3ec;
+      --blue: #2563eb;
+      --blue-soft: #eaf1ff;
+      --green: #12816f;
+      --green-soft: #e8f6f2;
+      --orange: #ad6200;
+      --orange-soft: #fff1dc;
+      --red: #b43b47;
+      --red-soft: #fde9eb;
+      --purple: #6d4cb9;
+      --purple-soft: #f0ebfb;
+      --shadow: 0 14px 36px rgba(31, 41, 55, 0.08);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0; color: var(--ink); background: var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.65;
+    }
+    .wrap { width: min(1080px, calc(100% - 40px)); margin: 0 auto; }
+    a { color: var(--blue); }
+
+    /* HERO */
+    .hero { padding: 52px 0 28px; }
+    .badge {
+      display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px;
+      border: 1px solid var(--line); border-radius: 999px; background: var(--paper);
+      color: var(--muted); font-size: 13px; font-weight: 700;
+    }
+    .badge::before { content: ""; width: 8px; height: 8px; border-radius: 999px; background: var(--green); }
+    h1 { margin: 20px 0 14px; font-size: clamp(30px, 5vw, 50px); line-height: 1.1; }
+    .lead { max-width: 760px; margin: 0; color: #364252; font-size: 19px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 999px;
+      font-size: 13px; font-weight: 700; border: 1px solid var(--line); background: var(--paper); color: var(--muted); }
+    .chip.blue { background: var(--blue-soft); color: var(--blue); border-color: transparent; }
+    .chip.green { background: var(--green-soft); color: var(--green); border-color: transparent; }
+    .chip.purple { background: var(--purple-soft); color: var(--purple); border-color: transparent; }
+
+    .cocreate-note {
+      margin-top: 26px; padding: 16px 18px; border-left: 4px solid var(--purple);
+      border-radius: 0 8px 8px 0; background: var(--purple-soft); color: #43337a; font-size: 16px; font-weight: 600;
+    }
+
+    /* NAV */
+    .nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 28px 0 8px; }
+    .nav a { padding: 7px 13px; border-radius: 8px; background: var(--paper); border: 1px solid var(--line);
+      color: var(--ink); text-decoration: none; font-size: 14px; font-weight: 700; }
+    .nav a:hover { border-color: var(--blue); color: var(--blue); }
+
+    /* SECTION */
+    section { padding: 40px 0 8px; scroll-margin-top: 20px; }
+    .sec-num { display: inline-block; font-size: 13px; font-weight: 800; letter-spacing: 1px;
+      color: var(--blue); background: var(--blue-soft); padding: 3px 10px; border-radius: 999px; }
+    h2 { margin: 12px 0 6px; font-size: 28px; line-height: 1.2; }
+    .sec-hint { margin: 0 0 22px; color: var(--muted); font-size: 15px; max-width: 760px; }
+
+    /* CARDS */
+    .card { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);
+      padding: 22px; margin-bottom: 18px; }
+    .case-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .case-name { font-size: 20px; font-weight: 800; margin: 0; }
+    .case-meta { color: var(--muted); font-size: 13px; }
+    .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 800; }
+    .pill.high { background: var(--red-soft); color: var(--red); }
+    .pill.mid { background: var(--orange-soft); color: var(--orange); }
+
+    .comment-quote { margin: 14px 0; padding: 12px 14px; background: #f7f9fc; border-left: 3px solid var(--line);
+      border-radius: 0 8px 8px 0; color: #2b3645; font-size: 15px; }
+    .comment-quote b { color: var(--ink); }
+
+    .dm { margin: 12px 0; padding: 12px 14px; border-radius: 10px; font-size: 14.5px; }
+    .dm.akke { background: #f1edfb; border: 1px solid #e1d7f6; }
+    .dm.user { background: #eef2f7; border: 1px solid #dde3ec; }
+    .dm .who { font-size: 12px; font-weight: 800; color: var(--muted); margin-bottom: 4px; }
+    .dm.akke .who { color: var(--purple); }
+
+    .tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+    .tag { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 6px; }
+    .tag.good { background: var(--green-soft); color: var(--green); }
+    .tag.mid { background: var(--orange-soft); color: var(--orange); }
+    .tag.bad { background: var(--red-soft); color: var(--red); }
+
+    /* FLOW DIAGRAM */
+    .flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 6px 0 18px; }
+    .flow-step { border-radius: 12px; padding: 16px; border: 1px solid var(--line); background: var(--paper);
+      position: relative; box-shadow: var(--shadow); }
+    .flow-step .step-no { font-size: 12px; font-weight: 800; color: var(--muted); }
+    .flow-step .step-title { font-size: 16px; font-weight: 800; margin: 4px 0 8px; }
+    .flow-step ul { margin: 0; padding-left: 16px; font-size: 13px; color: #3a4658; }
+    .flow-step li { margin: 3px 0; }
+    .flow-step.blue { border-top: 4px solid var(--blue); }
+    .flow-step.orange { border-top: 4px solid var(--orange); }
+    .flow-step.green { border-top: 4px solid var(--green); }
+    .flow-legend { display: flex; flex-wrap: wrap; gap: 16px; margin: 0 0 18px; font-size: 13px; color: var(--muted); }
+    .flow-legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+    .sw.blue { background: var(--blue); } .sw.orange { background: var(--orange); } .sw.green { background: var(--green); }
+    .sw.gray { background: #9aa4b2; } .sw.purple { background: var(--purple); }
+
+    /* STAGE MACHINE */
+    .stages { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 6px 0 14px; }
+    .stage { border: 1px solid var(--line); border-radius: 10px; padding: 14px; background: #fbfcfe; }
+    .stage h4 { margin: 0 0 6px; font-size: 15px; }
+    .stage .stage-key { font-size: 12px; color: var(--purple); font-weight: 800; }
+    .stage p { margin: 6px 0 0; font-size: 13px; color: #3a4658; }
+    .stage-arrow { text-align: center; color: var(--muted); font-weight: 800; }
+
+    /* REPLY DECISION TREE */
+    .judge { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 6px 0 16px; }
+    .judge .ax { border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: #fbfcfe; }
+    .judge .ax .ax-t { font-size: 13px; font-weight: 800; color: var(--blue); }
+    .judge .ax .ax-v { font-size: 12.5px; color: #3a4658; margin-top: 5px; }
+    .judge .ax .ax-v b { color: var(--ink); }
+    .rb { border: 1px solid var(--line); border-radius: 12px; background: var(--paper); box-shadow: var(--shadow);
+      padding: 0; margin-bottom: 12px; overflow: hidden; }
+    .rb-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+    .rb-when { font-size: 14.5px; font-weight: 800; }
+    .rb-tag { font-size: 11px; font-weight: 800; padding: 2px 9px; border-radius: 999px; white-space: nowrap; margin-left: auto; }
+    .rb-tag.go { background: var(--green-soft); color: var(--green); }
+    .rb-tag.warn { background: var(--orange-soft); color: var(--orange); }
+    .rb-tag.stop { background: var(--red-soft); color: var(--red); }
+    .rb-body { padding: 12px 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .rb-do { font-size: 13.5px; color: #2b3645; }
+    .rb-do b { color: var(--purple); }
+    .rb-eg { background: #f1edfb; border: 1px solid #e1d7f6; border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+    .rb-eg .eg-l { font-size: 11px; font-weight: 800; color: var(--purple); margin-bottom: 4px; }
+    .rb.stop-row { border-left: 4px solid var(--red); }
+    @media (max-width: 760px) { .judge { grid-template-columns: 1fr 1fr; } .rb-body { grid-template-columns: 1fr; } }
+
+    /* KPI */
+    .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 14px; }
+    .kpi { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 16px; box-shadow: var(--shadow); }
+    .kpi .k-label { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+    .kpi .k-value { font-size: 30px; font-weight: 800; line-height: 1; letter-spacing: -.5px; }
+    .kpi .k-unit { font-size: 14px; font-weight: 700; color: var(--muted); margin-left: 3px; }
+    .kpi .k-sub { font-size: 12px; color: var(--muted); margin-top: 7px; }
+    .kpi.dm { border-top: 4px solid var(--blue); }
+    .kpi.rev { border-top: 4px solid var(--purple); }
+    .kpi.reply { border-top: 4px solid var(--green); }
+    .kpi.wechat { border-top: 4px solid var(--orange); }
+
+    /* TABLE */
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; background: var(--paper);
+      border: 1px solid var(--line); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { background: #f3f6fb; font-size: 12px; color: var(--muted); font-weight: 800; }
+    tr:last-child td { border-bottom: none; }
+    td code { background: #f0f3f8; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+    .st { font-weight: 800; font-size: 12px; padding: 2px 8px; border-radius: 6px; white-space: nowrap; }
+    .st.fixed { background: var(--green-soft); color: var(--green); }
+    .st.wip { background: var(--orange-soft); color: var(--orange); }
+    .st.todo { background: var(--red-soft); color: var(--red); }
+
+    .cat { font-weight: 800; color: var(--ink); }
+    .cat .cat-key { display: inline-block; width: 22px; height: 22px; line-height: 22px; text-align: center;
+      border-radius: 6px; background: var(--ink); color: #fff; font-size: 12px; margin-right: 6px; }
+
+    /* ROADMAP (co-create) */
+    .road-group { margin-bottom: 18px; }
+    .road-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .prio { font-weight: 800; font-size: 13px; padding: 3px 11px; border-radius: 999px; color: #fff; }
+    .prio.p0 { background: var(--red); } .prio.p1 { background: var(--orange); } .prio.p2 { background: var(--blue); }
+    .road-item { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 13px 15px;
+      margin-bottom: 9px; display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: start; }
+    .road-item .ri-title { font-weight: 700; font-size: 14.5px; }
+    .road-item .ri-why { color: var(--muted); font-size: 13px; margin-top: 3px; }
+    .branch { display: inline-block; margin-top: 8px; padding: 8px 11px; border-radius: 8px;
+      background: var(--purple-soft); border: 1px dashed #b9a8e6; color: #43337a; font-size: 13px; }
+    .branch b { color: var(--purple); }
+    .cc-tag { font-size: 11px; font-weight: 800; color: var(--purple); background: #fff; border: 1px solid #d7c9f3;
+      padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+
+    .footer { margin: 48px 0 60px; padding-top: 22px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+
+    @media (max-width: 760px) {
+      .flow, .stages, .kpi-row { grid-template-columns: 1fr 1fr; }
+      .road-item { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HERO -->
+  <header class="hero">
+    <span class="badge">对话项目 · 作用逻辑 · 2026-06-04</span>
+    <h1>对话项目作用逻辑</h1>
+    <p class="lead">在讲单个案例之前,先讲清楚「对话项目」到底怎么把一条抖音评论,变成一段有来有回、最终引导加微的对话。这页用 4 段串起来:真实案例长什么样 → 背后的 0→1 逻辑 → 全量跑下来的数据 → 暴露出的 Badcase 分类与进展。</p>
+    <div class="chips">
+      <span class="chip blue">① 真实案例</span>
+      <span class="chip blue">② 0→1 逻辑原理图</span>
+      <span class="chip blue">③ 全量统计</span>
+      <span class="chip blue">④ Badcase 分类·根因·进展</span>
+    </div>
+    <div class="cocreate-note">怎么读这页:① 看真实对话的样子 → ② 看这套逻辑怎么从 0 把评论变成对话 → ③ 看批量跑出来的全量数据 → ④ 看数据和案例里暴露的问题怎么分类、修到哪了。</div>
+    <nav class="nav">
+      <a href="#s1">① 真实案例</a>
+      <a href="#s2">② 逻辑原理图</a>
+      <a href="#s3">③ 全量统计</a>
+      <a href="#s4">④ Badcase</a>
+    </nav>
+  </header>
+
+  <!-- SECTION 1 -->
+  <section id="s1">
+    <span class="sec-num">SECTION 01</span>
+    <h2>真实案例</h2>
+    <p class="sec-hint">三条都是最近几天跑出来的真实对话,都走「同日破冰 → 客户当天回应 → 跟进引导加微」的路径,目前都停在 <code>ice_break</code> 阶段、微信已给、等客户添加。先看真实的样子,再看背后的逻辑。完整旅程页见每条标题链接。</p>
+
+    <!-- Case 1 -->
+    <div class="card">
+      <div class="case-head">
+        <h3 class="case-name"><a href="https://upio.ai/akke/cases/lutu-youni" target="_blank">吕途有你</a> <span class="pill high">85 分 · 高意向</span></h3>
+        <span class="case-meta">江苏 · 全国号源 · 评论 6-03 11:50 → 破冰 16:44(同日)</span>
+      </div>
+      <div class="comment-quote">触发评论:<b>"888张师傅发一份,谢谢!正准备装修。"</b></div>
+      <div class="dm akke"><div class="who">AI 破冰(同日,评论后约 4h54m)</div>你好,吕途,瓦工进场这步最容易漏细节,像防水坡度、墙砖压缝这些现在不盯后期返工费翻倍。你家现在装到水电阶段还是直接贴砖了?</div>
+      <div class="dm user"><div class="who">客户(约 4 分钟后)</div>你好 → 今天敲墙 → 好的 → <b>怎么收费啊</b>(最强购买信号)</div>
+      <div class="dm akke"><div class="who">AI 跟进</div>抓住"刚敲墙"的省钱窗口 + 给"分阶段避坑清单",报价延后到加微:Homedz3791(备注抖音=最低折扣)。</div>
+      <div class="tag-row">
+        <span class="tag good">时效 GOOD · 同日触达,4分钟回</span>
+        <span class="tag good">内容 GOOD · 精准点中"敲墙日"</span>
+        <span class="tag mid">价格 MID · 100% 转加微才报价</span>
+        <span class="tag bad">回写 BAD · 仅 opener 入库,4 条回复+2 跟进没回写</span>
+      </div>
+    </div>
+
+    <!-- Case 2 -->
+    <div class="card">
+      <div class="case-head">
+        <h3 class="case-name"><a href="https://upio.ai/akke/cases/youyu-de-ru" target="_blank">忧郁的入</a> <span class="pill high">93 分 · 高意向</span></h3>
+        <span class="case-meta">江西 · 旭东聊装修(全国知识号)· 评论 6-03 11:39 → 破冰 16:42</span>
+      </div>
+      <div class="comment-quote">触发评论:<b>"有老师帮忙看一下这个 668 一平贵吗"</b></div>
+      <div class="dm akke"><div class="who">AI 破冰(品类误判)</div>评论里说的668元/㎡包含哪些项目?我们兔宝宝/莫干山板材直供价是568元投影㎡,全系ENF级环保,假一赔三。<br><span style="color:var(--red);font-size:12px;font-weight:700;">⚠ 把"668 系统窗"误判成全屋定制(同自家 568 品类)</span></div>
+      <div class="dm user"><div class="who">客户</div>"你在云南我在江西"(发现账号 IP 跨省)→ "668是系统窗的"(纠正品类)→ "兔宝宝听说很多假的"(信任顾虑)</div>
+      <div class="dm akke"><div class="who">AI 跟进</div>"哈哈那是我看岔啦…我们全屋定制,衣柜橱柜榻榻米…全国都有门店" + 用"授权正品/防伪码/检测报告"回应假货顾虑,推加微。</div>
+      <div class="tag-row">
+        <span class="tag good">时效 GOOD · 21min 入库,同日触达</span>
+        <span class="tag mid">内容 MID · 品类误判,纠正得当但暴露"不确认就假设"</span>
+        <span class="tag bad">信任 BAD · 账号主页资产没抓,IP 跨省被客户当面点破</span>
+        <span class="tag bad">回写 BAD · 仅 opener 入库</span>
+      </div>
+    </div>
+
+    <!-- Case 3 -->
+    <div class="card">
+      <div class="case-head">
+        <h3 class="case-name"><a href="https://upio.ai/akke/cases/sanshaoye" target="_blank">三少爷</a> <span class="pill mid">78 分 · 中意向</span></h3>
+        <span class="case-meta">IP 云南 · 自报盐津县 · 宜宾号源 · 评论 5-28 10:53 → 破冰 21:02</span>
+      </div>
+      <div class="comment-quote">触发评论:<b>"盐津可以来装不?"</b></div>
+      <div class="dm akke"><div class="who">AI 破冰(先解地域顾虑再问)</div>你好 三少,盐津能做,宜宾周边县都送装。你家在盐津哪边?多大户型?</div>
+      <div class="dm user"><div class="who">客户(42 分钟后)</div>我是四室一厅的,138平方</div>
+      <div class="dm akke"><div class="who">AI 跟进(节奏偏急)</div>可以先给你免费出个138四室的方案+报价参考,方便加个V?…可以加我们Homedz3791</div>
+      <div class="tag-row">
+        <span class="tag good">内容 GOOD · 破冰先化解"跨省能不能做"再发问</span>
+        <span class="tag mid">加微 MID · 单轮回复后就急推加微</span>
+        <span class="tag bad">信任 BAD · 账号"零星"主页资产未核验</span>
+        <span class="tag bad">回写 BAD · 跟进 DM 未入库,有重复触达风险</span>
+      </div>
+    </div>
+
+    <div class="card" style="background:#f7f9fc;">
+      <b>三条的共同形状:</b>同日内把新鲜评论变成对话,客户都在几分钟到几十分钟内回了——证明「评分→破冰→触达」这条链能跑通。但三条也同时暴露同一批问题:<b>账号主页没背书、报价 100% 卡在加微、跟进节奏靠人感觉、回复几乎都没回写进库</b>。这正是第 ④⑤ 段要拆的。
+    </div>
+  </section>
+
+  <!-- SECTION 2 -->
+  <section id="s2">
+    <span class="sec-num">SECTION 02</span>
+    <h2>0→1 逻辑原理图</h2>
+    <p class="sec-hint">对话项目的骨架是 4 步流水线。颜色 = 这一步谁在干:<b style="color:var(--blue)">蓝 = 本机确定性代码</b>、<b style="color:var(--orange)">橙 = LLM 生成对话</b>、<b style="color:var(--green)">绿 = 真机发送 + 人工核验</b>。</p>
+
+    <div class="flow-legend">
+      <span><span class="sw blue"></span>本机确定性代码(采集/评分/锁定)</span>
+      <span><span class="sw orange"></span>LLM 生成(破冰/跟进/记忆)</span>
+      <span><span class="sw green"></span>真机发送 + 人工核验回写</span>
+    </div>
+
+    <div class="flow">
+      <div class="flow-step blue">
+        <div class="step-no">① 采集 + 评分</div>
+        <div class="step-title">看见一条评论</div>
+        <ul>
+          <li>worker 拉视频评论入库</li>
+          <li>LLM 打意向分(0–100)</li>
+          <li>三轴:类型 / 具体度 / 新鲜度</li>
+          <li>≥ 阈值才进对话池</li>
+        </ul>
+      </div>
+      <div class="flow-step blue">
+        <div class="step-no">② 锁定 + 备料</div>
+        <div class="step-title">认领这条线索</div>
+        <ul>
+          <li>claim 按 (org,用户) 锁 4h</li>
+          <li>去重:同人不被两人重复打</li>
+          <li>起草破冰话术(opener)</li>
+          <li>带地域 / 视频细节</li>
+        </ul>
+      </div>
+      <div class="flow-step orange">
+        <div class="step-no">③ 对话生成</div>
+        <div class="step-title">有来有回</div>
+        <ul>
+          <li>stage-aware 回复</li>
+          <li>破冰→培育→决策 三阶段</li>
+          <li>跨会话记忆(同人沉淀画像)</li>
+          <li>人格"小艳",自然口吻</li>
+        </ul>
+      </div>
+      <div class="flow-step green">
+        <div class="step-no">④ 发送 + 回写</div>
+        <div class="step-title">发出去 + 记下来</div>
+        <ul>
+          <li>真机串发(WDA/ADB/云电脑)</li>
+          <li>mark-contacted 回写会话</li>
+          <li>引导加微(给微信号)</li>
+          <li>状态机推进 stage</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 style="font-size:18px;margin:26px 0 4px;">子系统:我们到底怎么回复用户(③ 的核心)</h3>
+    <p class="sec-hint" style="margin-bottom:12px;">不是看到评论就硬发一句。每条评论先过一道<b>判别</b>(三轴 + 是否本地业务),再按判别结果走不同的<b>回复分支</b>——什么样的评论,配什么样的话。</p>
+
+    <h4 style="font-size:14.5px;margin:0 0 6px;color:var(--muted);">第一步 · 判别这条评论是什么</h4>
+    <div class="judge">
+      <div class="ax">
+        <div class="ax-t">类型 type</div>
+        <div class="ax-v"><b>product</b> 购买信号 / <b>knowledge</b> 咨询求助 / <b>share</b> 纯互动</div>
+      </div>
+      <div class="ax">
+        <div class="ax-t">具体度 specificity</div>
+        <div class="ax-v">low / medium / <b>high</b> — 指向商品/工艺/方案越具体越高</div>
+      </div>
+      <div class="ax">
+        <div class="ax-t">新鲜度 freshness</div>
+        <div class="ax-v"><b>urgent</b> 正在装 / active 在看 / none 没动作</div>
+      </div>
+      <div class="ax">
+        <div class="ax-t">是否本地业务 category</div>
+        <div class="ax-v"><b>home</b> 全屋定制相关 / off_topic 无关 → 直接丢弃</div>
+      </div>
+    </div>
+    <p class="sec-hint" style="margin:0 0 16px;">三轴合成意向分(高 / 中 / 低 / 无关)。只有 <b>home + 中高意向</b>才进对话池触达,其余丢弃。</p>
+
+    <h4 style="font-size:14.5px;margin:0 0 8px;color:var(--muted);">第二步 · 按判别结果选回复分支</h4>
+
+    <div class="rb">
+      <div class="rb-head"><span class="rb-when">分支 A · 客户已经主动要联系方式</span><span class="rb-tag go">直奔加微</span></div>
+      <div class="rb-body">
+        <div class="rb-do">命中"加微信 / 留个电话 / 怎么联系"等词 → 不再绕暖场,<b>直接反问客户要微信号</b>(简化路径)。客户已经表态,寒暄反而拖慢。</div>
+        <div class="rb-eg"><div class="eg-l">回复策略</div>"好呀,方便直接发下你微信号吗?我加你发方案。"</div>
+      </div>
+    </div>
+
+    <div class="rb">
+      <div class="rb-head"><span class="rb-when">分支 B · 强业务信号(报价/柜体/装修阶段词)</span><span class="rb-tag go">4 段式破冰</span></div>
+      <div class="rb-body">
+        <div class="rb-do"><b>招呼 + 视频/评论细节 + 地域接业务 + 一个开放反问</b>。点中客户当下的具体动作,显得"懂行",再用反问把话头抛回去。</div>
+        <div class="rb-eg"><div class="eg-l">真实例 · 吕途有你("正准备装修")</div>"你好,吕途,瓦工进场这步最容易漏细节…你家现在装到水电阶段还是直接贴砖了?"</div>
+      </div>
+    </div>
+
+    <div class="rb">
+      <div class="rb-head"><span class="rb-when">分支 C · 知识咨询型(knowledge · 求建议/求资料)</span><span class="rb-tag go">先给真东西再接业务</span></div>
+      <div class="rb-body">
+        <div class="rb-do">客户在问"怎么做 / 要注意啥 / 发份资料",不是直接表达购买。<b>先给一点真东西</b>(简短专业回答或答应发清单),建立"懂行又愿意帮"的信任,再自然抛一个开放反问,<b>不硬推销</b>。</div>
+        <div class="rb-eg"><div class="eg-l">应然例 · 客户问"自己装水电要注意啥"</div>"水电主要盯三点:回路分配、强弱电间距、防水闭水。要不要我整理份分阶段避坑清单发你?你家现在到哪步了?"</div>
+      </div>
+    </div>
+
+    <div class="rb">
+      <div class="rb-head"><span class="rb-when">分支 D · 带地域顾虑("X 地能做吗")</span><span class="rb-tag go">先解地域再发问</span></div>
+      <div class="rb-body">
+        <div class="rb-do"><b>第一句先明确"能服务你那"</b>,打消"你们是不是不到我这"的顾虑,然后才问户型/需求。顺序反了会被当成推销。</div>
+        <div class="rb-eg"><div class="eg-l">真实例 · 三少爷("盐津可以来装不?")</div>"你好 三少,盐津能做,宜宾周边县都送装。你家在盐津哪边?多大户型?"</div>
+      </div>
+    </div>
+
+    <div class="rb">
+      <div class="rb-head"><span class="rb-when">分支 E · 询价但品类不明</span><span class="rb-tag warn">先确认,别假设</span></div>
+      <div class="rb-body">
+        <div class="rb-do"><b>先问清这个价是什么品类</b>再接话,不要替客户假设成自家品类。<span style="color:var(--red);">反例:忧郁的入把"668 系统窗"当成全屋定制报了价,被当面纠正</span>——这条已在改 prompt。</div>
+        <div class="rb-eg"><div class="eg-l">应该怎么回</div>"这 668 是说窗户还是柜体呀?你这边主要想做哪块,我按这个给你算。"</div>
+      </div>
+    </div>
+
+    <div class="rb stop-row">
+      <div class="rb-head"><span class="rb-when">分支 F · 纯互动 / 无关(share + off_topic)</span><span class="rb-tag stop">不触达 · 丢弃</span></div>
+      <div class="rb-body" style="grid-template-columns:1fr;">
+        <div class="rb-do">"[赞]"、纯表情、广告、同行、与全屋定制无关的内容 → <b>不进对话池,直接丢弃</b>,不浪费触达额度。</div>
+      </div>
+    </div>
+
+    <h3 style="font-size:18px;margin:26px 0 4px;">第三步 · 客户回了之后,按阶段推进(对话阶段机)</h3>
+    <p class="sec-hint" style="margin-bottom:12px;">每段对话有"阶段",决定 LLM 用哪套系统提示、目标是什么。<b style="color:var(--purple)">目前三条案例都停在第一阶段 ice_break</b>——破冰发出、客户回了、还没推进到稳定加微。</p>
+    <div class="stages">
+      <div class="stage">
+        <h4>破冰 <span class="stage-key">ice_break</span></h4>
+        <p>目标:让客户回第一句。用视频细节 + 地域接业务 + 一个开放反问。<b>当前三案都在这。</b></p>
+      </div>
+      <div class="stage">
+        <h4>培育 <span class="stage-key">nurture</span></h4>
+        <p>目标:建立专业信任、问清户型预算。多轮来回,给价值(避坑清单/方案预览)而非急着要微信。</p>
+      </div>
+      <div class="stage">
+        <h4>决策 <span class="stage-key">decision</span></h4>
+        <p>目标:引导加微 / 留方案 / 转人工。给微信号 + 处理加微 friction(验证/备用号)。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 3 -->
+  <section id="s3">
+    <span class="sec-num">SECTION 03</span>
+    <h2>全量统计</h2>
+    <p class="sec-hint">这是项目跑到今天(2026-06-04)的<b>全量累计</b>(org 全部账号,非单日单账号)。一条评论从被采集到变成一段对话,中间每一步都在收窄——下面是真实的漏斗和会话状态分布。</p>
+
+    <div class="kpi-row">
+      <div class="kpi dm">
+        <div class="k-label">🔍 累计采集评论</div>
+        <div class="k-value">31,551<span class="k-unit">条</span></div>
+        <div class="k-sub">已 LLM 评分 27,817 条</div>
+      </div>
+      <div class="kpi rev">
+        <div class="k-label">⭐ 筛出中高意向</div>
+        <div class="k-value">7,152<span class="k-unit">条</span></div>
+        <div class="k-sub">高意向 2,439 · 中意向 4,713</div>
+      </div>
+      <div class="kpi reply">
+        <div class="k-label">📨 累计发出 DM</div>
+        <div class="k-value">1,325<span class="k-unit">条</span></div>
+        <div class="k-sub">近 7 天 464 · 反评另发 221</div>
+      </div>
+      <div class="kpi wechat">
+        <div class="k-label">↩️ 客户回复(DB 口径)</div>
+        <div class="k-value">38<span class="k-unit">条</span></div>
+        <div class="k-sub">反查严重低估 · 见下方说明</div>
+      </div>
+    </div>
+
+    <h3 style="font-size:18px;margin:18px 0 8px;">漏斗:一条评论怎么一步步收窄</h3>
+    <table>
+      <thead><tr><th>环节</th><th>数量</th><th>相对上一步</th><th>口径</th></tr></thead>
+      <tbody>
+        <tr><td>① 采集评论</td><td><b>31,551</b></td><td>—</td><td>worker 拉入库 <code>comments</code></td></tr>
+        <tr><td>② LLM 已评分</td><td><b>27,817</b></td><td>88.2%</td><td><code>intent_score</code> 非空</td></tr>
+        <tr><td>③ 中高意向(进对话池候选)</td><td><b>7,152</b></td><td>25.7%</td><td>高 2,439 + 中 4,713</td></tr>
+        <tr><td>④ 已开会话</td><td><b>7,254</b></td><td>—</td><td><code>conversations</code> 总数</td></tr>
+        <tr><td>⑤ 已触达(评论标记 contacted)</td><td><b>657</b></td><td>—</td><td><code>comments.status='contacted'</code></td></tr>
+        <tr><td>⑥ 累计发出 DM</td><td><b>1,325</b></td><td>—</td><td><code>messages.role='ai' status='sent'</code></td></tr>
+        <tr><td>⑦ 客户回复(DB 反查)</td><td><b>38</b></td><td>2.9%</td><td><code>messages.role='customer'</code> · 严重低估</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:18px;margin:22px 0 8px;">7,254 段会话现在停在哪个阶段</h3>
+    <table>
+      <thead><tr><th>阶段</th><th>会话数</th><th>占比</th><th>含义</th></tr></thead>
+      <tbody>
+        <tr><td><code>ice_break</code> 破冰</td><td><b>3,194</b></td><td>44.0%</td><td>破冰发出、等/已有回应,尚未推进(三条案例都在这)</td></tr>
+        <tr><td><code>expired</code> 已过期</td><td><b>4,052</b></td><td>55.9%</td><td>claim 4h 锁到期未跟进/未回写 → 线索流失(对应 Badcase A)</td></tr>
+        <tr><td><code>nurture</code> 培育</td><td>4</td><td>0.06%</td><td>进入多轮培育</td></tr>
+        <tr><td><code>decision</code> 决策</td><td>2</td><td>0.03%</td><td>引导加微/转化阶段</td></tr>
+        <tr><td><code>handed_off</code> 已交接</td><td>2</td><td>0.03%</td><td>已交人工/加微</td></tr>
+      </tbody>
+    </table>
+
+    <p class="sec-hint" style="margin-top:14px;">⚠ 两个必须诚实说的口径问题:<b>(1) 客户回复只统计到 38 条</b>,但案例里三条全有回复——因为客户回复要靠 <code>check-replies</code> 回灌才进库,大量没回灌,所以严重低估,这正是 Badcase A。<b>(2) 55.9% 会话 expired</b>:claim 锁了 4h 没跟进/没 mark-contacted 就过期,线索白白流失。换句话说——<b>评分链路很能跑(2.78万条已评分),但"跟进 + 回写"这段是当前最大的漏</b>,修好它统计才可信、线索才不流失。</p>
+  </section>
+
+  <!-- SECTION 4 -->
+  <section id="s4">
+    <span class="sec-num">SECTION 04</span>
+    <h2>Badcase · 分类 · 根因 · 优化方式 · 进展</h2>
+    <p class="sec-hint">从三条真实案例 + 全量跑里归出的问题,按 A–F 六类。其中 A(回写)和 F(排队)是工程问题、在修;D(报价)、E(加微节奏)是业务规则问题,需要和业务一起定细则。</p>
+
+    <table>
+      <thead><tr><th style="width:130px;">类别</th><th>表现 / 根因</th><th>优化方式</th><th style="width:80px;">进展</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="cat"><span class="cat-key">A</span>数据回写</td>
+          <td>只存了 opener,客户回复 + 跟进 DM 没写回 DB。导致:统计失真(回复=0)、4h 后 claim 过期被他人重复 claim 重发。<b>三条案例全中。</b></td>
+          <td>发完每条 DM 立即 <code>mark-contacted</code>;客户回复入库;补 check-replies 抓全 inbox。</td>
+          <td><span class="st todo">待修 · 最高优</span></td>
+        </tr>
+        <tr>
+          <td class="cat"><span class="cat-key">B</span>账号信任</td>
+          <td>messaging 账号(零星/野荞)主页没粉丝/简介/作品,客户点进来看不到背书;忧郁的入还当面点破"你在云南我在江西"。</td>
+          <td>抓并展示账号主页资产;同城/跨省话术分支;号源与 IP 对齐策略。</td>
+          <td><span class="st wip">设计中</span></td>
+        </tr>
+        <tr>
+          <td class="cat"><span class="cat-key">C</span>内容·品类误判</td>
+          <td>忧郁的入把"668 系统窗"误判成全屋定制(自家 568 品类),先入为主报了价。纠正得当但暴露"不确认就假设"。</td>
+          <td>破冰前先确认品类/需求,不替客户假设;评论语义不明时用开放反问。</td>
+          <td><span class="st wip">prompt 调整中</span></td>
+        </tr>
+        <tr>
+          <td class="cat"><span class="cat-key">D</span>价格门槛</td>
+          <td>报价 100% 延后到加微(吕途"怎么收费"、忧郁询价都被挡)。早期保护合理,但全卡可能劝退。</td>
+          <td>给"方法/区间"预览而非精确价;留一档可在 DM 透露的范围。<b>规则待定。</b></td>
+          <td><span class="st todo">规则待定</span></td>
+        </tr>
+        <tr>
+          <td class="cat"><span class="cat-key">E</span>加微节奏</td>
+          <td>三少爷单轮回复后就急推加微,可能显得功利、转化反而低。</td>
+          <td>按 stage / 信号强度决定何时推加微;弱信号先培育。<b>触发条件待定。</b></td>
+          <td><span class="st todo">规则待定</span></td>
+        </tr>
+        <tr>
+          <td class="cat"><span class="cat-key">F</span>时效排队</td>
+          <td>采集→发送还有 1.6h 均值排队(忧郁的入 4h41m),新鲜度被稀释。</td>
+          <td>高意向优先队列;缩短 claim→发送间隔;高峰自动提速。</td>
+          <td><span class="st wip">可优化</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <div class="footer">
+    数据来源:案例页(upio.ai/akke/cases) · 全量统计取自生产库 org 全账号累计(2026-06-04) · CLAUDE 架构文档。回复/加微为 DB 保守口径(check-replies 未回灌部分未计入),修复回写后将更新。<br>
+    本页 = 对话项目作用逻辑 · 真实案例 / 0→1 逻辑 / 全量统计 / Badcase · 2026-06-04
+  </div>
+
+</div>
+</body>
+</html>
