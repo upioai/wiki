@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Akke 视频数据清洗 · 2026-06-04</title>
+<style>
+  :root{
+    --ink:#1a1a1a; --gray:#6b7280; --line:#e7e7ea; --bg:#fff; --soft:#f7f7f9;
+    --accent:#6c5ce7; --accent-soft:#efedfb; --green:#16a34a; --amber:#d97706; --red:#dc2626;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    line-height:1.7;font-size:15px}
+  .wrap{max-width:880px;margin:0 auto;padding:40px 24px 80px}
+  .crumb{font-size:13px;color:var(--gray);margin-bottom:24px}
+  .crumb a{color:var(--gray);text-decoration:none}
+  h1{font-size:28px;margin:0 0 6px;letter-spacing:-.5px}
+  .meta{color:var(--gray);font-size:13px;margin-bottom:8px}
+  .jumps{font-size:13px;margin:18px 0 36px;padding-bottom:24px;border-bottom:1px solid var(--line);line-height:2}
+  .jumps a{color:var(--accent);text-decoration:none;margin-right:16px}
+  .sec{margin:44px 0}
+  .sec-h{display:flex;align-items:baseline;gap:12px;border-bottom:2px solid var(--ink);padding-bottom:8px;margin-bottom:20px}
+  .sec-n{font-size:13px;font-weight:700;color:var(--accent);letter-spacing:1px}
+  .sec-t{font-size:19px;font-weight:700}
+  p{margin:12px 0}
+  .note{background:var(--accent-soft);border-left:3px solid var(--accent);padding:12px 16px;border-radius:0 6px 6px 0;font-size:14px;margin:16px 0}
+  .note.warn{background:#fef3e2;border-left-color:var(--amber)}
+  .note.ok{background:#eafaf0;border-left-color:var(--green)}
+  table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:var(--soft);font-weight:600;font-size:13px;color:var(--gray)}
+  td.n{text-align:right;font-variant-numeric:tabular-nums}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin:18px 0}
+  .card{border:1px solid var(--line);border-radius:10px;padding:16px}
+  .card .lbl{font-size:12px;color:var(--gray);margin-bottom:6px}
+  .card .val{font-size:26px;font-weight:700;letter-spacing:-.5px}
+  .card .sub{font-size:12px;color:var(--gray);margin-top:4px}
+  .pipe{display:flex;flex-direction:column;gap:0;margin:18px 0}
+  .pipe .row{display:flex;align-items:flex-start;gap:12px;padding:11px 0}
+  .pipe .ico{flex:0 0 30px;height:30px;border-radius:8px;background:var(--accent-soft);color:var(--accent);font-weight:700;display:flex;align-items:center;justify-content:center;font-size:14px}
+  .pipe .arrow{flex:0 0 30px;text-align:center;color:var(--line);font-size:18px;line-height:.6}
+  .pipe .txt{flex:1}
+  .pipe .txt b{font-weight:600}
+  .funnel{margin:18px 0}
+  .step{display:flex;align-items:flex-start;gap:14px;padding:14px 0;border-bottom:1px dashed var(--line)}
+  .step:last-child{border-bottom:none}
+  .step .when{flex:0 0 96px;font-size:12px;color:var(--accent);font-weight:600;padding-top:2px}
+  .step .body{flex:1}
+  .step .big{font-weight:700}
+  .ex{border:1px solid var(--line);border-radius:8px;padding:6px 0;margin:10px 0;font-size:13.5px;overflow:hidden}
+  .ex .h{background:var(--soft);padding:6px 12px;font-weight:600;font-size:12.5px;color:var(--gray)}
+  .ex .b{padding:8px 12px}
+  .kill{color:var(--red)} .pass{color:var(--green)}
+  .tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;background:var(--soft);color:var(--gray);margin-right:4px}
+  .ok{color:var(--green);font-weight:600}
+  .gA{color:var(--green)} .gB{color:#0891b2} .gC{color:var(--amber)} .gD{color:var(--red)}
+  code{background:var(--soft);padding:1px 5px;border-radius:4px;font-size:13px}
+  footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--line);font-size:12px;color:var(--gray);letter-spacing:.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="crumb"><a href="/">upio.ai</a> / <a href="/akke/">Akke</a> / 视频数据清洗</div>
+  <h1>视频数据清洗</h1>
+  <div class="meta">Akke 项目 · 2026-06-04 · 从「抓回来的脏数据」到「能打分的干净评论」全过程 —— 抓取去重 → 噪音预过滤 → 互动补数 → VIP 高频复扫</div>
+  <div class="jumps">
+    <a href="#s1">01 为什么要清洗</a>
+    <a href="#s2">02 全景原理图</a>
+    <a href="#s3">03 抓取层：窗口 + 去重</a>
+    <a href="#s4">04 噪音预过滤（核心·举例）</a>
+    <a href="#s5">05 互动数补齐</a>
+    <a href="#s6">06 VIP 三类分类</a>
+    <a href="#s7">07 高频复扫 + 生命周期</a>
+    <a href="#s8">08 头部源号举例</a>
+    <a href="#s9">09 验证 · badcase · 待办</a>
+  </div>
+
+  <div class="note"><b>一句话</b>：抓回来的视频评论是<b>脏的</b>——有重复、有同行刷的、有纯表情玩梗、有问家电问自建房跑题的，还缺互动数。「视频数据清洗」就是在送大模型打分<b>之前</b>，把这些噪音/重复挡掉、把缺的互动数补上，再把「值得反复回头扫」的高价值视频挑出来高频复扫。<b>清洗做得好，下游意向打分又准又省钱，运营拿到的 leads 才干净。</b>本文按「一条评论从抓回来到入池」的顺序，逐层讲清洗规则并举真实例子。</div>
+
+  <!-- 01 -->
+  <section class="sec" id="s1">
+    <div class="sec-h"><span class="sec-n">SECTION 01</span><span class="sec-t">为什么要清洗 · 一条视频的真实数据</span></div>
+    <p>先看一组现状（2026-06-04 全库实时）：</p>
+    <div class="grid">
+      <div class="card"><div class="lbl">视频累计</div><div class="val">21,574</div><div class="sub">其中 3,613 条抓到过评论</div></div>
+      <div class="card"><div class="lbl">评论累计</div><div class="val">31,504</div><div class="sub">已分析占 98.6%</div></div>
+      <div class="card"><div class="lbl">无关噪音</div><div class="val" style="color:var(--gray)">55%</div><div class="sub">17,333 条 · 绝对大头</div></div>
+      <div class="card"><div class="lbl">高意向</div><div class="val gA">7.7%</div><div class="sub">2,440 条 · 真正值钱的</div></div>
+    </div>
+    <div class="note"><b>核心矛盾</b>：每 100 条评论里只有约 <b>8 条</b>是高意向潜客，其余一大半是噪音。如果把这 31,504 条<b>全</b>送大模型打分，既贵又慢，而且没洗过的脏数据会污染高意向池（同行刷的、跑题的混进来）。所以要在打分前先做<b>清洗</b>：<b>结构化能判死的（重复 / 同行号 / 纯表情 / 跑题品类）直接代码层挡掉，只把"可能有意向"的送大模型</b>。意向打分本身见 <a target="_blank" rel="noopener" href="/akke/intent-scoring-2026-06-04" style="color:var(--accent)">高中低意向打分</a>，本文只讲它<b>之前</b>的清洗。</div>
+  </section>
+
+  <!-- 02 -->
+  <section class="sec" id="s2">
+    <div class="sec-h"><span class="sec-n">SECTION 02</span><span class="sec-t">全景原理图 · 从抓回来到入池</span></div>
+    <p>一条评论从抖音抓回来，要过 5 道清洗/加工，才进到运营能用的池子：</p>
+    <div class="pipe">
+      <div class="row"><div class="ico">①</div><div class="txt"><b>抓取层 · 时间窗口 + 去重</b>　首抓往前看 7 天全收；复扫只补增量；同一条 (内容,作者) DB 已有 / 本批重复的，去掉（§3）</div></div>
+      <div class="arrow">↓</div>
+      <div class="row"><div class="ico">②</div><div class="txt"><b>噪音预过滤 · 送大模型前直接 skip</b>　同行号作者 / 套话查厂底 / 竞品广告 / 纯表情玩梗 / @AI / 家电·自建房跑题 → 代码层判 <code>无关</code>，<b>不花钱送 LLM</b>（§4，核心）</div></div>
+      <div class="arrow">↓</div>
+      <div class="row"><div class="ico">③</div><div class="txt"><b>互动数补齐</b>　用 f2 签名抓视频原生赞/评/转/藏，给"爆火"判定用（§5）</div></div>
+      <div class="arrow">↓</div>
+      <div class="row"><div class="ico">④</div><div class="txt"><b>意向打分</b>（不在本文）　过了预过滤的评论 → 大模型判 高/中/低/无关 → <a target="_blank" rel="noopener" href="/akke/intent-scoring-2026-06-04" style="color:var(--accent)">意向打分</a></div></div>
+      <div class="arrow">↓</div>
+      <div class="row"><div class="ico">⑤</div><div class="txt"><b>VIP 分类 + 高频复扫</b>　把"已验证高转化 / 正在爆火"的视频挑成 VIP，每小时回头复扫接住后续新潜客（§6、§7）</div></div>
+    </div>
+    <div class="note">②是<b>"减"</b>（把脏的挡掉），③是<b>"补"</b>（把缺的互动数填上），⑤是<b>"挑 + 反复洗"</b>（值钱的视频反复回头扫）。下面逐层拆。</div>
+  </section>
+
+  <!-- 03 -->
+  <section class="sec" id="s3">
+    <div class="sec-h"><span class="sec-n">SECTION 03</span><span class="sec-t">抓取层：时间窗口 + 去重</span></div>
+    <p>同一条视频会被反复抓（首抓 + 后续复扫），所以抓取层先解决两件事：<b>抓多久内的评论</b>、<b>怎么不重复入库</b>。</p>
+    <table>
+      <thead><tr><th>机制</th><th>规则</th><th>大白话</th></tr></thead>
+      <tbody>
+        <tr><td><b>首抓窗口 7 天</b></td><td>第一次见到一条视频，往前收 <b>7 天</b>的评论（首抓无视 24h 默认窗）</td><td>评论不是一次来齐，第 2–7 天还在冒；首抓只收 24h 会漏掉 92%（5-31 实测）</td></tr>
+        <tr><td><b>复扫走增量</b></td><td>VIP 每小时复扫只抓"上次扫过之后"的新评论（<code>since=上次 scraped_at</code>）</td><td>不每次翻 7 天全窗，省接口、能每小时跑</td></tr>
+        <tr><td><b>30 分钟短路</b></td><td>同一视频 <code>scraped_at</code> 在 30 分钟内 → 本轮跳过（<code>SCRAPE_SKIP_RECENT_MINUTES=30</code>）</td><td>多个 cron 同时选中同一条，也只抓一次；评论变化没那么快</td></tr>
+        <tr><td><b>两层去重</b></td><td>按 (评论内容, 作者) 去重：① DB 里已有的不重入 ② 同一批 INSERT 内重复的只留一条</td><td>f2 翻页 + 顶层/子回复重叠会返回重复行，实测 7d 数据里 <b>13.5% 是同毫秒重复</b></td></tr>
+      </tbody>
+    </table>
+    <div class="note"><b>举例</b>：「装修帮」某条视频，首抓往前收 7 天得 781 条评论，f2 翻页过程中有约 100 条 (内容,作者) 完全相同的重复行（翻页重叠 + 顶层评论在两个阶段各返回一次）→ 去重后实际入库 ~680 条。之后每小时复扫只补"上次之后"新冒的几条，不再翻整 7 天。</div>
+    <div class="note warn"><b>一个 badcase（已处理）</b>：爆款视频的高意向常藏在<b>嵌套子回复</b>里，但顶层父评论若被时间窗丢掉，子回复会"孤悬"无处挂。解法：顶层即使被 cutoff 过滤，也记到 <code>top_level_with_replies</code>，复扫时反查把新子回复挂回已有的老顶层；挂不上的子回复宁可跳过也不孤存（防脏数据）。</div>
+  </section>
+
+  <!-- 04 -->
+  <section class="sec" id="s4">
+    <div class="sec-h"><span class="sec-n">SECTION 04</span><span class="sec-t">噪音预过滤（核心）· 送大模型前直接 skip</span></div>
+    <p>这是清洗最值钱的一层：<b>能用规则判死的噪音，不送大模型</b>——既省 LLM 成本，又不让它们污染高意向池。命中下面任意一类，直接标 <code>无关</code>。下面每类都附<b>真实会被过滤的评论</b>。</p>
+
+    <p><b>① 同行号作者</b>（看昵称）—— 昵称含定制/工厂/建材/设计师/聊房等特征词的，整条 skip</p>
+    <div class="ex"><div class="h">会被过滤的作者昵称</div><div class="b">
+      <span class="kill">✗</span> 「乐清全屋定制工厂」 · 「佛山伟鑫发家具五金」 · 「绮美家纺（接私人订制）」 · 「XX设计师」 · 「谢大叔→聊房」（房产博主） · 「善瑞整脊理疗馆」<br>
+      <span style="color:var(--gray);font-size:12px">匹配 <code>定制/工厂/批发/家纺/五金/设计师/聊房/理疗馆…</code> 等 ~80 个特征词（peer-filter）</span>
+    </div></div>
+
+    <p><b>② 同行套话查厂底</b>（看内容）—— 装成买家、实为同行打听对方供应链</p>
+    <div class="ex"><div class="h">会被过滤的评论内容</div><div class="b">
+      <span class="kill">✗</span> 「你自己的厂吗」 · 「你们有工厂吗」 · 「你们做厂多少年」 · 「直接找厂家」<br>
+      <span style="color:var(--gray);font-size:12px">这类买家话术干净、昵称也干净，靠"打听厂底"的句式正则才抓得住</span>
+    </div></div>
+
+    <p><b>③ 竞品广告 / 引流</b>（招商、塞微信、工厂直供）—— 单信号强匹配 + 双信号组合都判广告</p>
+    <div class="ex"><div class="h">会被过滤的评论</div><div class="b">
+      <span class="kill">✗</span> 「诚招代理 全国招商」 · 「加微信报价」 · 「工厂直供 欢迎来厂参观」 · 「湖州木之春原木，板式全屋定制，源头工厂发货」<br>
+      <span style="color:var(--gray);font-size:12px">"行业词 + 源头/工厂 + 促销" 任意两项组合即判广告（worker comment_filter）</span>
+    </div></div>
+
+    <p><b>④ 纯表情 / 通用赞美 / @AI</b>（低信号，反向评论也无法 echo）</p>
+    <div class="ex"><div class="h">会被过滤 vs 会放行</div><div class="b">
+      <span class="kill">✗ 拦</span>：「[赞][比心][玫瑰]」（纯表情） · 「不错 / 很好 / 漂亮」（通用赞美） · 「你好」 · 「@豆包 帮我总结」（调 AI）<br>
+      <span class="pass">✓ 放行</span>：「价格」 · 「多少」 · 「怎么做」 —— <b>即使只有 2–3 字，含问询词就放行</b>（"价格报一下" 5 字仍是高价值意向，不能一刀切按长度砍）
+    </div></div>
+
+    <p><b>⑤ 非定制品类 / 跑题</b>（家电、自建房硬装、促销节点）—— 跟全屋定制零交集</p>
+    <div class="ex"><div class="h">会被过滤的评论</div><div class="b">
+      <span class="kill">✗</span> 「家电到底海尔美的还是格力」 · 「想买电视 55 寸」 · 「老板 E2S 油烟机咋样」（家电型号） · 「自建房外墙防水咋做」 · 「618 蹲一波优惠券」<br>
+      <span style="color:var(--gray);font-size:12px">匹配家电品类/品牌/型号、自建房/地基/承重、促销节点（618/双11/满减）等</span>
+    </div></div>
+
+    <div class="note warn"><b>两个真实 badcase + 怎么修的</b>：
+      <ul style="margin:6px 0;padding-left:20px">
+        <li><b>误伤"老板"</b>：用户常以「老板，多少钱」称呼装修师傅（vocative 敬称），但"老板"也是个家电品牌（老板电器）。一刀切拦"老板"会误杀真买家。<b>修法</b>：只拦带型号的「老板E2S / 老板L5P / 方太V10」，不拦光秃秃的"老板"。</li>
+        <li><b>误伤"电视柜"</b>：拦"电视"会连带误杀"电视柜 / 冰箱位"（这是定制需求）。<b>修法</b>：用动词短语「想买电视 / 放洗衣机」兜，不拦纯名词。</li>
+      </ul>
+      <b>口径诚实说</b>：这两层（worker 抓取时 + analyze 打分前）规则会持续补词——词库越全，漏判/误杀越少，但永远做不到 100%，所以大模型那层 + 发送前人工看主页都是兜底。
+    </div>
+
+    <div class="note bad" style="background:#fdecec;border-left:3px solid var(--red);padding:12px 16px;border-radius:0 6px 6px 0">⚠️ <b>规则抓不住的一类：同行卖家伪装成买家</b>。昵称干净、评论是满分买家话术（"我需要装修，怎么联系你"）→ 文本层判高意向，实为收割联系方式/反向推销。<b>识别信号</b>：① 主页/视频在卖灯具·建材·全屋定制（需发送前看主页）；② <b>主动塞自己微信</b>的（真买家是问"你微信多少"，卖家是甩"我的vx是xxx"）；③ 同一句"我需要装修"刷多个不同达人视频。<b>兜底 = 发送前点头像看一眼主页</b>，是卖家就 discard，不交销售。</div>
+  </section>
+
+  <!-- 05 -->
+  <section class="sec" id="s5">
+    <div class="sec-h"><span class="sec-n">SECTION 05</span><span class="sec-t">互动数补齐（engagement backfill）</span></div>
+    <p>清洗不只是"减噪音"，也要"补缺的数"。视频的原生<b>赞 / 评 / 转 / 藏</b>是判断"哪条在爆火"的关键，但抓评论时不一定带回来。所以加了一条专门补互动数的通道：</p>
+    <table>
+      <thead><tr><th>维度</th><th>做法</th></tr></thead>
+      <tbody>
+        <tr><td><b>怎么抓</b></td><td>用 <code>f2</code> 签名 + 匿名 cookie 调抖音 <code>aweme/detail</code>，拿 <code>digg/comment/share/collect</code> 四个数（蝉妈妈互动源 5-28 封了之后的替代路）</td></tr>
+        <tr><td><b>什么时候补</b></td><td>抓 tier1 好号视频时<b>搭车</b>顺手抓一次；<code>stats_fetched_at</code> 过 24h 才重抓（省接口）</td></tr>
+        <tr><td><b>限流护栏</b></td><td>批量抓会撞抖音限流 → 放慢到温和并发；每号至多 N 条 + 全局上限，可一键 kill</td></tr>
+      </tbody>
+    </table>
+    <div class="note">当前已给 <b>712 条</b>视频补上真实互动数（仍在随每小时复扫搭车持续涨）。"爆火"判定的 Top80 就是从这批有互动数的视频里选——覆盖涨上去，爆火筛得越准。<br><b>互动分公式</b>：<span style="background:var(--soft);border-radius:6px;padding:2px 10px">赞×1 ＋ 转×2 ＋ 评×<b>5</b> ＋ 藏×2</span>　例：赞1200/转80/评95/藏210 = <code>1200+160+475+420 = 2255 分</code>。<b>评论权重最高（×5）</b>——观众停下来打字问价/问工艺=最强买点信号；点赞最廉价（手一滑）×1；抖音网页端不给播放量（恒0）故不计。（2026-06-02 从旧权重"转×5·评×3"改成"转×2·评×5"，把"评论"这个真买点提到第一。）</div>
+  </section>
+
+  <!-- 06 -->
+  <section class="sec" id="s6">
+    <div class="sec-h"><span class="sec-n">SECTION 06</span><span class="sec-t">VIP 三类分类（并集 = VIP）</span></div>
+    <p>洗干净 + 补完数之后，把"值得每小时回头反复扫"的高价值视频挑成 <code>is_vip</code>。一条视频命中<b>任意一类</b>即为 VIP，每天全库重算一次：</p>
+    <table>
+      <thead><tr><th>类</th><th>门槛</th><th>大白话</th><th>当前命中<br><span style="font-weight:400;color:var(--gray);font-size:12px">2026-06-04</span></th></tr></thead>
+      <tbody>
+        <tr><td><b class="gA">A 高意向数高</b></td><td>高意向评论 <b>≥ 5</b> 条</td><td>已实打实产过好几个潜客的视频</td><td class="n">90</td></tr>
+        <tr><td><b class="gB">B 高意向占比高</b></td><td>总评论 <b>≥ 6</b> 且 高意向占比 <b>≥ 20%</b></td><td>评论不多但"质量浓度"高（地板设 6 防 1/1=100% 霸榜）</td><td class="n">113</td></tr>
+        <tr><td><b class="gC">爆火</b></td><td>互动分（赞1·转2·评5·藏2）<b>全局 Top 80</b></td><td>新爆款早筛，发布第 1 天靠流量就能进（那时还没攒评论）</td><td class="n">80</td></tr>
+        <tr><td colspan="3" style="text-align:right"><b>三类并集 = VIP 总数</b></td><td class="n"><b>225</b></td></tr>
+      </tbody>
+    </table>
+    <p style="font-size:13px;color:var(--gray)">（单类相加 90+113+80=283 &gt; 并集 225，因为有视频同时命中多类，如"高意向数够 + 占比也够"。）</p>
+    <div class="note"><b>门槛怎么定的（真实数据）</b>：<b>A 取 ≥5</b> —— 高意向数分布从"有过高意向的视频"陡降到 ≥5 的少数，5 是"稳定产 lead"的拐点；<b>B 取 20%</b> —— 在总评论≥10 的池子里高意向占比 p85 约 20%，挑明显高于平均的；<b>爆火取 Top80</b> —— 补 A/B"要先攒出评论才算得出"的滞后，互动数发布第 1 天就有。⚠️ <b>诚实说</b>：评论盘子仍偏薄，这些门槛是当前数据下的合理起点，评论入库量涨上来后要复评。</div>
+  </section>
+
+  <!-- 07 -->
+  <section class="sec" id="s7">
+    <div class="sec-h"><span class="sec-n">SECTION 07</span><span class="sec-t">高频复扫 + VIP 生命周期</span></div>
+    <p>挑出 VIP 后，对这批<b>每小时</b>增量复扫一次（普通视频按号轮转，慢得多）。<b>为什么要快</b>：高意向潜客"保鲜期"很短——实测无头像可加微的命中率 <b>6 小时 100% / 24 小时 50% / 48 小时 0%</b>，1 小时抓到 vs 隔天差一倍。复扫派单标<b>最高优先级</b>插队，保证新鲜评论优先被抓。</p>
+    <p><b>一条视频的 VIP 生命周期</b>（爆火早筛 → A/B 接力 → 休眠 → 退休）：</p>
+    <div class="funnel">
+      <div class="step"><div class="when">发布当天</div><div class="body"><span class="big">被发现 + 搭车抓互动数</span> —— 抓它评论时顺手抓一次原生赞评转藏，于是有了互动分。</div></div>
+      <div class="step"><div class="when">第 1–2 天</div><div class="body"><span class="big">互动冲进 Top80 → 当天进 VIP</span> —— 哪怕高意向还是 0，只要互动分排进前 80 就打 <code>is_vip</code>（早筛），当天起被每小时复扫。</div></div>
+      <div class="step"><div class="when">第 2–7 天</div><div class="body"><span class="big">A/B 接力，从"早筛"转"已验证"</span> —— 复扫攒出评论后，高意向够 5 条(A)或占比够 20%(B)就命中；<b>即使热度退了、互动掉出 Top80，也因"已验证高转化"继续留 VIP</b>。</div></div>
+      <div class="step"><div class="when">休眠</div><div class="body"><span class="big">7 天没新评论 → 暂停复扫但留标</span> —— 连续 7 天产 0 评论的 VIP，每小时还扫纯属白扫 → 暂停复扫省无效抓取（<code>VIP_RESCAN_ACTIVE_DAYS=7</code>），<code>is_vip</code> 标保留，再冒新评论自动恢复。<b>零 lead 损失</b>（死视频本就不产评论）。</div></div>
+      <div class="step"><div class="when">退休</div><div class="body"><span class="big">三类都不满足 → 次日摘标</span> —— 每天重算时，互动掉出 Top80 且 A/B 也不达标的，<code>is_vip</code> 置回 false，把预算让给新的高价值视频。</div></div>
+    </div>
+    <div class="note"><b>一句话</b>：<b>爆火 = 早筛新爆款（看流量，第 1 天进）</b>，<b>A/B = 补筛已验证高转化的老视频（看评论，滞后但准）</b>。好视频通常先靠爆火进来、再被 A/B 接住——即使不再火，只要还在产潜客就一直被高频复扫。</div>
+  </section>
+
+  <!-- 08 -->
+  <section class="sec" id="s8">
+    <div class="sec-h"><span class="sec-n">SECTION 08</span><span class="sec-t">哪些源号产了最多高意向（举例）</span></div>
+    <p>清洗 + VIP 复扫的价值，最终落在"哪些号的视频真产高意向潜客"。下面是<b>按名下累计高意向评论数排序的 Top 源号</b>（2026-06-04 实库）——绝大多数是 <b>tier1 高频好号</b>，正印证"把抓取预算压在少数好号上"是对的：</p>
+    <table>
+      <thead><tr><th>源号</th><th>品类</th><th>tier</th><th class="n">名下高意向评论</th></tr></thead>
+      <tbody>
+        <tr><td><b>一起装修网</b></td><td>平台号</td><td><span class="tag" style="background:#efedfb;color:#6c5ce7">tier1</span></td><td class="n gA">126</td></tr>
+        <tr><td><b>小刘厂长美式家具</b></td><td>本地号</td><td><span class="tag" style="background:#efedfb;color:#6c5ce7">tier1</span></td><td class="n gA">97</td></tr>
+        <tr><td><b>西安老王聊装修</b></td><td>本地号</td><td><span class="tag" style="background:#efedfb;color:#6c5ce7">tier1</span></td><td class="n gA">96</td></tr>
+        <tr><td><b>海哥—用心讲装修</b></td><td>知识号</td><td><span class="tag" style="background:#efedfb;color:#6c5ce7">tier1</span></td><td class="n gA">79</td></tr>
+        <tr><td>石材橱柜板材批发</td><td>工厂号</td><td><span class="tag">tier0</span></td><td class="n">79</td></tr>
+        <tr><td><b>设计师阿爽</b></td><td>知识号</td><td><span class="tag" style="background:#efedfb;color:#6c5ce7">tier1</span></td><td class="n">71</td></tr>
+        <tr><td><b>装修帮</b></td><td>知识号</td><td><span class="tag" style="background:#efedfb;color:#6c5ce7">tier1</span></td><td class="n">68</td></tr>
+        <tr><td>瑞卡彩砂艺术涂料</td><td>本地号</td><td><span class="tag">tier0</span></td><td class="n">68</td></tr>
+        <tr><td><b>灿哥聊装修</b></td><td>知识号</td><td><span class="tag" style="background:#efedfb;color:#6c5ce7">tier1</span></td><td class="n">64</td></tr>
+      </tbody>
+    </table>
+    <div class="note">读这张表：① 头部高度集中——Top 几十个号贡献了绝大部分高意向（少数好号撑起整盘）；② <b>9 个里 7 个是 tier1</b>，"按近 7 天高意向贡献升 tier1 高频抓"的逻辑被实数验证；③ 品类多样（平台号/本地号/知识号/工厂号都能出好号）——<b>名字品类只是入池线索，真高产还得抓了看产出</b>，所以"石材橱柜板材批发"这种工厂号也能进前列。号源怎么打分/分 tier 详见 <a target="_blank" rel="noopener" href="/akke/source-scoring-2026-06-04" style="color:var(--accent)">号源打分与筛选</a>。</div>
+  </section>
+
+  <!-- 09 -->
+  <section class="sec" id="s9">
+    <div class="sec-h"><span class="sec-n">SECTION 09</span><span class="sec-t">验证 · badcase · 待办</span></div>
+    <p><b>已验证（上线后实跑）</b>：</p>
+    <div class="funnel">
+      <div class="step"><div class="when">复扫见效</div><div class="body"><span class="big ok">每小时复扫真在接住后续评论</span> —— VIP 复扫上线后约 1.5 小时即从 VIP 视频捞回 1,337 条新评论；当前 VIP 225 条在高频复扫中。</div></div>
+      <div class="step"><div class="when">打分追上</div><div class="body"><span class="big">未分析评论从 19% → <b>1.4%</b></span> —— 清洗 + 打分吞吐已跟上，31,504 条评论里仅 436 条排队待分析（newest-first，新 lead 优先）。</div></div>
+      <div class="step"><div class="when">扫描覆盖</div><div class="body"><span class="big">全库 95% 视频扫过 ≥1 次</span>（tier1 ~99%）—— 印证"广扫全库存"是重复劳动，聚焦 tier1 + VIP 复扫即可。</div></div>
+    </div>
+    <table>
+      <thead><tr><th>问题（badcase）</th><th>优化方式</th><th>进展</th></tr></thead>
+      <tbody>
+        <tr><td>同毫秒重复入库（7d 数据 13.5%）</td><td>(内容,作者) 两层去重：DB 已有 + 本批内</td><td><span class="ok">✅ 已上线</span></td></tr>
+        <tr><td>嵌套子回复孤悬（顶层被窗口丢）</td><td>记 top_level_with_replies，复扫反查挂回老顶层</td><td><span class="ok">✅ 已上线</span></td></tr>
+        <tr><td>"老板"vocative 误判家电品牌</td><td>只拦带型号的"老板E2S"，不拦光秃"老板"</td><td><span class="ok">✅ 已修</span></td></tr>
+        <tr><td>死 VIP 视频每小时白扫（44 个产 0 评论）</td><td>活跃过滤：只复扫近 7d 还产评论的</td><td><span class="ok">✅ 已上线</span></td></tr>
+        <tr><td>同行伪装买家文本层抓不住</td><td>发送前人工看主页 + 主动塞微信判卖家</td><td><span class="tag" style="background:#fef3e2;color:#d97706">人工兜底</span></td></tr>
+      </tbody>
+    </table>
+    <p><b>下一步待做</b>：</p>
+    <table>
+      <thead><tr><th>优先级</th><th>动作</th><th>为什么</th></tr></thead>
+      <tbody>
+        <tr><td><span class="tag" style="background:#fde2e2;color:#b91c1c">高</span></td><td>互动数从 712 铺向全量好号视频</td><td>爆火 Top80 现从 712 里选，覆盖涨上去筛得更准；靠每小时复扫搭车 + 分批轻量补持续涨</td></tr>
+        <tr><td><span class="tag" style="background:#fde2e2;color:#b91c1c">高</span></td><td>盯下游产出：复扫前后"新入库高意向数"对比</td><td>验证每小时复扫真接住更多新鲜潜客（不只看部署绿）</td></tr>
+        <tr><td><span class="tag">中</span></td><td>评论盘子涨上来后复评 3 类门槛</td><td>现门槛按"偏薄评论池"定，覆盖度爬坡后 ≥5 / 20% / Top80 都要重算</td></tr>
+        <tr><td><span class="tag">中</span></td><td>持续补噪音过滤词库（同行后缀 / 家电品类）</td><td>词越全漏判/误杀越少；但 100% 做不到，大模型 + 人工是兜底</td></tr>
+        <tr><td><span class="tag">中</span></td><td>VIP 视频监控页（先不做）</td><td>等数据攒厚再评估给运营做可视化看板；先把后台调度跑顺</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer>UPIO.AI · AKKE PROJECT DOCS · 视频数据清洗 · 2026-06-04 · 抓取去重→噪音预过滤→互动补数→VIP 高频复扫</footer>
+</div>
+</body>
+</html>
