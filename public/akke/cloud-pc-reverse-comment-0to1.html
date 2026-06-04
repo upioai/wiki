@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>云电脑反向评论 · 0→1 复盘</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#171a21; --card2:#1d2129; --line:#2a2f3a;
+    --ink:#e6e9ef; --sub:#9aa3b2; --accent:#5b8cff; --accent2:#39d3a3;
+    --warn:#f0b429; --bad:#ff6b6b; --good:#39d3a3;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif;
+    line-height:1.65;font-size:15px}
+  .wrap{max-width:980px;margin:0 auto;padding:40px 22px 80px}
+  header{border-bottom:1px solid var(--line);padding-bottom:22px;margin-bottom:34px}
+  h1{font-size:28px;margin:0 0 8px;letter-spacing:.5px}
+  .meta{color:var(--sub);font-size:13.5px}
+  .meta b{color:var(--ink);font-weight:600}
+  h2{font-size:20px;margin:46px 0 16px;padding-left:12px;border-left:4px solid var(--accent)}
+  h3{font-size:16px;margin:26px 0 10px;color:var(--accent2)}
+  p{margin:10px 0}
+  .sub{color:var(--sub)}
+  code{background:#11141a;border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:13px;
+    font-family:"SF Mono",Menlo,Consolas,monospace;color:#cdd6e8}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px 22px;margin:16px 0}
+  .pill{display:inline-block;font-size:12px;padding:2px 9px;border-radius:999px;font-weight:600}
+  .p-good{background:rgba(57,211,163,.14);color:var(--good);border:1px solid rgba(57,211,163,.35)}
+  .p-warn{background:rgba(240,180,41,.14);color:var(--warn);border:1px solid rgba(240,180,41,.35)}
+  .p-bad{background:rgba(255,107,107,.14);color:var(--bad);border:1px solid rgba(255,107,107,.35)}
+  .p-todo{background:rgba(91,140,255,.14);color:var(--accent);border:1px solid rgba(91,140,255,.35)}
+
+  /* 流程图 */
+  .flow{display:flex;flex-direction:column;gap:0;margin:18px 0}
+  .lane{border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:10px 0;background:var(--card)}
+  .lane-h{font-size:13px;color:var(--sub);letter-spacing:1px;margin-bottom:12px;text-transform:uppercase}
+  .lane-h.mac{color:var(--accent)} .lane-h.win{color:var(--accent2)}
+  .steps{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch}
+  .step{background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:9px 12px;
+    font-size:13px;min-width:96px;flex:1 1 auto;position:relative}
+  .step b{display:block;font-size:13px;margin-bottom:2px}
+  .step span{color:var(--sub);font-size:11.5px}
+  .arrow{align-self:center;color:var(--sub);font-size:16px;padding:0 1px}
+  .down{text-align:center;color:var(--sub);font-size:18px;margin:2px 0}
+
+  /* 统计卡 */
+  .stats{display:flex;flex-wrap:wrap;gap:12px;margin:14px 0}
+  .stat{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:14px 16px;flex:1 1 150px}
+  .stat .n{font-size:26px;font-weight:700}
+  .stat .l{color:var(--sub);font-size:12.5px;margin-top:2px}
+
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--sub);font-weight:600;font-size:12.5px;background:var(--card2)}
+  tr:hover td{background:rgba(91,140,255,.04)}
+  td .cat{font-weight:600}
+
+  ul.todo{list-style:none;padding:0;margin:10px 0}
+  ul.todo li{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:12px 16px;margin:8px 0;
+    display:flex;gap:12px;align-items:flex-start}
+  ul.todo .num{color:var(--accent);font-weight:700;min-width:22px}
+  .note{background:rgba(240,180,41,.07);border:1px solid rgba(240,180,41,.3);border-radius:10px;
+    padding:12px 16px;margin:14px 0;font-size:13.5px;color:#f3d68a}
+  .q{color:var(--sub);font-size:13px}
+  blockquote{margin:12px 0;padding:10px 16px;border-left:3px solid var(--line);color:var(--sub);
+    background:var(--card);border-radius:0 8px 8px 0;font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>云电脑反向评论 · 0→1 复盘</h1>
+  <div class="meta">
+    通道：<b>阿里无影云电脑</b>（Windows）+ 抖音 PC 客户端 GUI 自动化 ·
+    脚本 <b>douyin_comment_grounded.py</b> · 实测机 <b>野荞 2560×1600</b><br>
+    阶段：<b>手动版端到端跑通</b>（未接 claim / 去重 / 队列 / 节流）· 记录日期 2026-06-03
+  </div>
+</header>
+
+<!-- ============ 1. 第一个案例 ============ -->
+<h2>一、第一个案例：从「不知道能不能发」到「真发出一条」</h2>
+
+<div class="card">
+  <h3>背景</h3>
+  <p>反向评论（去目标用户视频底下评论触达）此前只有 <b>Android ADB</b> / 已停的 <b>iOS WDA</b> 两条通道。
+  云电脑此前只用于发私信。<b>抖音 PC 客户端能不能在视频评论区发评论，完全没验证过</b>——
+  早期判断里「profile 视频 grid + 评论区是 webview，对自动化不可见」一度让这条路被打上问号。</p>
+
+  <h3>验证（spike）</h3>
+  <p>先写最小可行性脚本 <code>_probe-reverse-comment.py</code>，纯 GUI、不碰 DB，逐步走 + 每步截图，
+  目的只回答一个问题：<b>PC 客户端到底能不能发评论</b>。结论：</p>
+  <p><span class="pill p-good">✅ 能</span> 评论框是<b>真输入框</b>（不是吃不进字的死 webview），
+  SendInput 直键能打进去、能发出。spike 阶段在 <b>@梦想的天空分外蓝</b> 的视频下成功发出第一条测试评论「测试一下评论」。</p>
+
+  <h3>首条真实业务评论</h3>
+  <blockquote>
+    目标：<b>@峥宇60km/小时</b>（OCR 身份门 conf 0.98 通过）<br>
+    评论：「你好，峥宇60km小时哥。装修吵了半年确实够呛，价格透明才能少扯皮。你方便发个+v号过来吗
+    我让设计师加你，价格上能再让一档。」<br>
+    结果：<span class="pill p-good">真发出 ✓</span>（人工刷新评论区气泡确认）
+  </blockquote>
+  <p class="sub">这条同时验证了完整链路：搜人 → 身份门 → 开视频 → 暂停 → 评论区 → 长文案 SendInput → 发送。</p>
+</div>
+
+<!-- ============ 2. 0→1 逻辑原理图 ============ -->
+<h2>二、0→1 逻辑原理图</h2>
+<p class="sub">两层执行：本机（Mac）备料 + 投递，无影（Windows）做抖音 PC 客户端的 GUI 自动操作。</p>
+
+<div class="flow">
+  <div class="lane">
+    <div class="lane-h mac">① 本机 Mac · 备料 + 投递</div>
+    <div class="steps">
+      <div class="step"><b>备 CSV</b><span>真实昵称 + 评论文案</span></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>传无影</b><span>paste.rs / gzip+base64 剪贴板</span></div>
+    </div>
+  </div>
+
+  <div class="down">↓</div>
+
+  <div class="lane">
+    <div class="lane-h win">② 无影 Windows · douyin_comment_grounded.py 自动执行（每条循环）</div>
+    <div class="steps">
+      <div class="step"><b>硬拉前台</b><span>AttachThreadInput<br>+ SW_MAXIMIZE</span></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>搜人</b><span>固定坐标导航</span></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>OCR 身份门</b><span>防同名错评</span></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>开第一条视频</b><span>VL 定位</span></div>
+    </div>
+    <div class="steps" style="margin-top:8px">
+      <div class="step"><b>空格暂停</b><span>防自动跳下一条</span></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>切「评论」tab</b><span>VL 定位</span></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>点评论框</b><span>固定坐标 798,949</span></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>SendInput 打字</b><span>绕剪贴板 + IME</span></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>VL 定位发送</b><span>长文案位置会变</span></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>发出 + Esc</b><span>60s 后下一条</span></div>
+    </div>
+  </div>
+
+  <div class="down">↓</div>
+
+  <div class="lane">
+    <div class="lane-h mac">③ 收尾 · 人工核对</div>
+    <div class="steps">
+      <div class="step" style="flex:1 1 100%"><b>以抖音评论区实际气泡为准核对实发</b>
+        <span>脚本只点发送、不程序化判定；短名/同名重点查</span></div>
+    </div>
+  </div>
+</div>
+
+<h3>关键设计原则（为什么这么搭）</h3>
+<table>
+  <tr><th>原则</th><th>原因</th></tr>
+  <tr><td class="cat">大元素 VL / 小元素固定坐标</td><td>搜索框/视频/评论 tab 大而独立，VL 定位稳；评论框/发送键小而密集，VL 飘 → 实测固定坐标。</td></tr>
+  <tr><td class="cat">OCR 身份门</td><td>按昵称搜索会撞同名，公开评论错人代价大 → 进主页先核对昵称，不符就跳过不评。</td></tr>
+  <tr><td class="cat">SendInput 直键</td><td>无影剪贴板对抖音 Ctrl+V 失效、中文 IME 抢首字 → 逐字 unicode 直键绕开两个隐藏层。</td></tr>
+  <tr><td class="cat">先暂停视频</td><td>视频播完自动跳下一条，不暂停则打字期间可能评到别的视频。</td></tr>
+</table>
+
+<!-- ============ 3. 批量统计 + badcase ============ -->
+<h2>三、执行统计 + Badcase 与优化</h2>
+
+<div class="note">
+  ⚠️ <b>诚实标注</b>：截至 2026-06-03 仅完成 <b>spike + 小样本测试</b>，<b>尚未跑大批量</b>。
+  下方统计为实测小样本，<b>「大批量统计」一栏待真实批量后回填</b>，未编造数字。
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="n">1</div><div class="l">spike 测试评论发出</div></div>
+  <div class="stat"><div class="n">1</div><div class="l">真实业务评论发出（峥宇）</div></div>
+  <div class="stat"><div class="n">~4</div><div class="l">测试 contacts 跑过</div></div>
+  <div class="stat"><div class="n" style="color:var(--accent)">待回填</div><div class="l">大批量发出量 / 命中率</div></div>
+</div>
+
+<p class="sub">小样本里观察到的分流：数字号昵称 → 身份门拦下（wrong_user）；无作品/定位失败 → no_works；
+身份门通过 + 暂停 + 评论 → sent。漏斗各档真实占比需大批量才有意义。</p>
+
+<h3>Badcase 清单（全部实测踩到，按类别）</h3>
+<table>
+  <tr><th style="width:20%">类别 / 现象</th><th style="width:44%">优化方式</th><th style="width:12%">进展</th></tr>
+
+  <tr>
+    <td class="cat">SendInput 文字漏进终端/桌面</td>
+    <td>根因=打字时前台不是抖音。后台进程 <code>SetForegroundWindow</code> 被 Windows 静默拒 →
+      <code>AttachThreadInput</code> 绕开；拉前台用 <code>SW_MAXIMIZE</code>（<b>不能用 SW_RESTORE</b>，会缩小窗口→坐标落桌面）。
+      打字前打印前台标题做诊断。</td>
+    <td><span class="pill p-good">已修复</span></td>
+  </tr>
+
+  <tr>
+    <td class="cat">发送键点空（长评论框变高）</td>
+    <td>短评论发送键在 px(2519,1520)；长评论换行后挪到 ~px(2534,1541)，固定坐标偏上点空（文字进了框却没发）。
+      → 打完字 <b>VL 现场定位「红底白字 发送」</b>文字按钮，固定坐标兜底。</td>
+    <td><span class="pill p-good">已修复</span></td>
+  </tr>
+
+  <tr>
+    <td class="cat">视频播完自动跳下一条 → 评论发错视频</td>
+    <td>开视频后 <code>space</code> 暂停，再去评论区。</td>
+    <td><span class="pill p-good">已修复</span></td>
+  </tr>
+
+  <tr>
+    <td class="cat">nickname 填数字抖音号 → 身份门必拦</td>
+    <td>身份门按昵称子串匹配，数字号拿不到人类昵称。→ CSV <code>nickname</code> 列填<b>真实显示昵称</b>。</td>
+    <td><span class="pill p-good">已规范</span></td>
+  </tr>
+
+  <tr>
+    <td class="cat">短昵称 / 同名大号身份门<b>模糊放行</b> → 评错人</td>
+    <td>0.95 阈值对短名（≤3 字）会放过不同人（如「小嘟→嘟妹」）。
+      建议：短名收紧到精确相等 / 要求目标名是 seen 子串。当前靠<b>人工气泡核对</b>兜底。</td>
+    <td><span class="pill p-warn">兜底中 · 待收紧</span></td>
+  </tr>
+
+  <tr>
+    <td class="cat">旧版 douyin_dm_grounded 缺符号 → AttributeError 崩</td>
+    <td>无影上是 6/1 版，没有 6/3 才加的 <code>C_WORK_FIRST</code>/<code>_has_works_on_profile</code>。
+      → 新脚本自定义同名 env 常量，<b>不依赖</b> dm 模块新符号。</td>
+    <td><span class="pill p-good">已修复</span></td>
+  </tr>
+
+  <tr>
+    <td class="cat">paste.rs 在无影下载卡死（中国区）</td>
+    <td>脚本传输改 <b>gzip+base64 → 剪贴板</b>（~7KB，gzip CRC 自校验完整）；CSV 仍走 paste.rs（偶发，重试）。</td>
+    <td><span class="pill p-good">已缓解</span></td>
+  </tr>
+
+  <tr>
+    <td class="cat">无影剪贴板截断 / 首字符被吞</td>
+    <td>gzip 压到 ~7KB 单次可粘；部署命令<b>开头留一个空格</b>防吞掉首字符 <code>$</code>。</td>
+    <td><span class="pill p-good">已缓解</span></td>
+  </tr>
+
+  <tr>
+    <td class="cat">无影分辨率自适应漂移 → 固定坐标全偏</td>
+    <td>锁 <b>2560×1600</b>（关分辨率自适应 + 全屏别缩放窗口）。</td>
+    <td><span class="pill p-good">已修复</span></td>
+  </tr>
+
+  <tr>
+    <td class="cat">`✅ 已点发送` ≠ 真送达</td>
+    <td>脚本只点发送、不程序化判定（VL 自检在本机假阴性严重，已弃用）。→ 铁律：<b>以评论区气泡人工核对</b>。</td>
+    <td><span class="pill p-warn">人工兜底</span></td>
+  </tr>
+</table>
+
+<!-- ============ 4. 下一步优化 ============ -->
+<h2>四、下一步待做优化</h2>
+
+<ul class="todo">
+  <li><span class="num">1</span><div><b>接 reverse_comment_queue + claim 锁 + 去重</b> <span class="pill p-todo">P0</span><br>
+    <span class="q">当前读 CSV 直发、不写 DB，去重全靠人。需接 claim 锁定 + 按 (org,user) 去重，避免同一人重复评论 / 跨批撞车。</span></div></li>
+
+  <li><span class="num">2</span><div><b>节奏节流层</b> <span class="pill p-todo">P0</span><br>
+    <span class="q">当前仅固定 60s 间隔。需安全节奏（随机间隔）+ 日上限 + 活跃窗 + 限频 halt，参考 ADB 反评的 <code>_reverse_throttle.py</code>。</span></div></li>
+
+  <li><span class="num">3</span><div><b>身份门对短昵称收紧</b> <span class="pill p-todo">P1</span><br>
+    <span class="q">短名（≤3 字）精确相等 / 子串约束，堵「小嘟→嘟妹」这类模糊放行，减少错评。</span></div></li>
+
+  <li><span class="num">4</span><div><b>recheck：核查评论是否被静默删除</b> <span class="pill p-todo">P1</span><br>
+    <span class="q">参考 DM 通道的 reverse-comment-recheck，发出后回查评论是否还在，掉了说明被风控删/折叠。</span></div></li>
+
+  <li><span class="num">5</span><div><b>程序化判定「评论真发出」</b> <span class="pill p-todo">P1</span><br>
+    <span class="q">查评论区是否新增「自己发的气泡」来判定，减少纯人工核对负担（取代假阴性的 VL 自检）。</span></div></li>
+
+  <li><span class="num">6</span><div><b>评论文案生成接 Langfuse</b> <span class="pill p-todo">P2</span><br>
+    <span class="q">当前手动写 CSV。接入文案生成，按视频内容/客户画像生成评论，避免杜撰。</span></div></li>
+
+  <li><span class="num">7</span><div><b>与 DM 通道的同号冲突协调</b> <span class="pill p-todo">P2</span><br>
+    <span class="q">同机同号，DM 和评论不能同时跑两个脚本。需调度协调或互斥锁。</span></div></li>
+
+  <li><span class="num">8</span><div><b>sent_log → DB 回写 + 大批量实测</b> <span class="pill p-todo">P2</span><br>
+    <span class="q">沉淀触达记录到 DB；跑真实大批量采集漏斗 / 命中率 / 回复率统计（回填本页第三部分）。</span></div></li>
+</ul>
+
+<h3>彻底自动化怎么实现（目标态：0 人工值守）</h3>
+<p class="sub">把上面 8 条优化串起来，就是一条 <b>pull-based 公告板</b> 全自动闭环——复用 DM 通道已跑通的
+<code>dispatch_queue</code> + 云电脑常驻 poller 模型，没有任何节点持有云电脑的直连。
+核心纪律（全局规则 #5）：<b>非语言任务（claim / 去重 / 节奏 / 重试 / 发出判定 / recheck）一律确定性代码，LLM 只做打分和文案。</b></p>
+
+<div class="flow">
+  <div class="lane">
+    <div class="lane-h mac">① 候选 + 文案（Vercel Cron，自动）</div>
+    <div class="steps">
+      <div class="step"><b>analyze 打分</b><span>高意向评论<br><span style="color:var(--accent2)">LLM</span></span></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>入 reverse_comment_queue</b><span>候选自动入队<br>确定性</span></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>Langfuse 生成评论</b><span>按视频文案+画像<br><span style="color:var(--accent2)">LLM</span>+自检门</span></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>claim + 去重</b><span>锁(org,user)<br>NOT EXISTS 守卫</span></div>
+    </div>
+  </div>
+
+  <div class="down">↓</div>
+
+  <div class="lane">
+    <div class="lane-h mac">② 派单（Vercel Cron · 确定性节奏门）</div>
+    <div class="steps">
+      <div class="step" style="flex:1 1 100%"><b>按节奏门派单 → reverse_dispatch_queue</b>
+        <span>随机间隔 + 日上限 + 活跃窗 + 限频 halt（全确定性，不问 LLM）</span></div>
+    </div>
+  </div>
+
+  <div class="down">↓ 公告板（Supabase），云电脑主动来抢，无直连</div>
+
+  <div class="lane">
+    <div class="lane-h win">③ 云电脑常驻 poller（60s 轮询，自动）</div>
+    <div class="steps">
+      <div class="step"><b>claim_dispatch 抢锁</b><span>抢一条派单</span></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>调 douyin_comment_grounded</b><span>GUI 自动发（已跑通）</span></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>程序化判定真发出</b><span>查评论区自己气泡</span></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>complete + 去重</b><span>串 mark_contacted</span></div>
+    </div>
+  </div>
+
+  <div class="down">↓</div>
+
+  <div class="lane">
+    <div class="lane-h mac">④ 兜底（Vercel Cron + 监控，自动）</div>
+    <div class="steps">
+      <div class="step"><b>recheck 回查</b><span>评论被删/折叠→标 silent_dropped + 账号 halt</span></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>失败重试</b><span>确定性重试 / 升级，非 LLM</span></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>异常自愈 + Lark P0</b><span>崩溃 wrapper 重启 + 告警</span></div>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:24px">职责划分（谁管什么）</h3>
+<table>
+  <tr><th style="width:14%">角色</th><th>负责</th></tr>
+  <tr><td class="cat" style="color:var(--accent2)">LLM</td><td>只做两件：<b>意向打分</b>（analyze）+ <b>评论文案生成</b>（Langfuse，带自检门防杜撰）。其余一概不碰。</td></tr>
+  <tr><td class="cat" style="color:var(--accent)">确定性代码</td><td>claim 锁 / 去重守卫 / 节奏节流 / 派单 / 抢锁 / 发出判定 / 重试升级 / recheck / 身份门收紧 / halt / 自愈。</td></tr>
+  <tr><td class="cat">人</td><td>目标态 <b>0 操作</b>：只看监控告警 + 周期抽检命中率/错评率。前期保留人工气泡抽检直到程序化判定稳。</td></tr>
+</table>
+
+<h3 style="margin-top:24px">分阶段落地（从现在 → 全自动）</h3>
+<table>
+  <tr><th style="width:20%">阶段</th><th>能力</th><th style="width:14%">人工</th></tr>
+  <tr>
+    <td class="cat">现在 · 手动版 <span class="pill p-good">已到</span></td>
+    <td>CSV 直发，GUI 全自动跑完一批；身份门防错评。</td>
+    <td><span class="pill p-warn">备 CSV + 气泡核对</span></td>
+  </tr>
+  <tr>
+    <td class="cat">半自动（todo 1·2）</td>
+    <td>接 reverse_comment_queue + claim 去重 + 节奏门 + pull-based 派单。候选/文案自动备好，云电脑自动抢着发。</td>
+    <td><span class="pill p-warn">仅气泡抽检</span></td>
+  </tr>
+  <tr>
+    <td class="cat">全自动（+ todo 4·5·身份门收紧·自愈）</td>
+    <td>程序化判定真发出 + recheck 删除核查 + 异常自愈 + 短名身份门收紧。闭环去重，无需人工核对。</td>
+    <td><span class="pill p-good">0 值守</span></td>
+  </tr>
+</table>
+
+<div class="note">
+  🔒 <b>全自动前置安全闸（不可省）</b>：① 身份门短名收紧到精确相等（错评公开可见、代价大）；
+  ② 程序化「真发出」判定必须先验证可靠（取代当前人工气泡核对），否则会污染去重账本（评错人却标已联系=烧线索）；
+  ③ 节奏/限频确定性门到位（评论限频被风控 halt）。三闸不齐不开 0 值守。
+</div>
+
+<p class="sub" style="margin-top:40px;border-top:1px solid var(--line);padding-top:18px">
+  关联：skill <code>send-cloudpc-comment</code> · 脚本 <code>worker/scripts/wuying-dm/douyin_comment_grounded.py</code> ·
+  踩坑详录 memory <code>feedback_wuying_gui_fixed_coords_over_grounded.md</code>（点 21-27）。
+</p>
+
+</div>
+</body>
+</html>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>智能获客触达系统 · 现状 + 操作手册 + 设计考量</title>
+<title>多次触达系统 · 已落地（全 ADB 闭环）</title>
 <style>
   :root{
     --ink:#1a1a1a; --gray:#6b7280; --line:#e7e7ea; --bg:#fff; --soft:#f7f7f9;
@@ -54,102 +54,146 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="crumb"><a href="/">upio.ai</a> / <a href="/akke/">Akke</a> / 触达系统</div>
-  <h1>智能获客触达系统 · 现状 + 操作手册 + 设计考量</h1>
-  <div class="meta">Akke 智能获客 · 2026-06-03 · 给运营怎么用 + 给团队为什么这么做</div>
+  <div class="crumb"><a href="/">upio.ai</a> / <a href="/akke/">Akke</a> / 多次触达</div>
+  <h1>多次触达系统 · 已落地（全 ADB 闭环）</h1>
+  <div class="meta">Akke 智能获客 · 多次触达 / 潜在触达 · 2026-06-03 · 已开建上线（PR #99 + #100）· 待真发验证</div>
   <div class="jumps">
     <a href="#s1">01 现状一览</a>
-    <a href="#s2">02 操作手册</a>
-    <a href="#s3">03 多次触达·规则</a>
-    <a href="#s4">04 三个独立判断</a>
-    <a href="#s5">05 做什么·不做什么</a>
-    <a href="#s6">06 卡点 &amp; 待办</a>
+    <a href="#s2">02 实现 · 全 ADB 闭环</a>
+    <a href="#s3">03 费用 · 耗时 · 模型</a>
+    <a href="#s4">04 提示词（Langfuse 共享）</a>
+    <a href="#s5">05 规则（已定稿）</a>
+    <a href="#s6">06 三个独立判断</a>
+    <a href="#s7">07 做 / 不做</a>
+    <a href="#s8">08 卡点 &amp; 待办</a>
   </div>
 
-  <div class="note"><b>一句话</b>：把抖音获客的「找人 → 私信 → 没回再触达」做成一条可复用、低风控、三人共享的流水线。<b>抖音号精准搜索已上线</b>；<b>多次触达已定稿、待无影修通后开建</b>。本页讲<b>现在怎么用</b>，以及每个决定<b>为什么这么定</b>。</div>
+  <div class="note"><b>一句话</b>：把抖音获客里「DM 了、没回，再触达一次」做成一条可复用、低风控、三人共享的流水线——对 DM 过、几天仍没回的高+中意向用户，去 ta 主页最新视频下<b>点赞 + 公开评论</b>，把人勾回来看私信。<b>2026-06-03：规则与代码都已落地，全程走电脑连手机（ADB），不依赖无影。</b>剩「装个 langfuse + 人工审话术 + 真发验证」。</div>
 
   <!-- 01 -->
   <div class="sec" id="s1">
     <div class="sec-h"><span class="sec-n">01</span><span class="sec-t">现状一览</span></div>
-    <table>
-      <tr><th>模块</th><th>状态</th><th>说明</th></tr>
-      <tr><td><b>抖音号精准搜索</b></td><td><span class="pill done">已上线</span></td><td>无影搜名字会撞名（搜「东方」出来「东方甄选」）。改成搜唯一<b>抖音号</b>直达本人。已焊进导出脚本，导出自动补，运营不用碰命令。实测高意向 <b>~64%</b> 能拿到抖音号，还能救回改了名的用户。共享缓存三人复用。（PR #88 / #94 已合并）</td></tr>
-      <tr><td><b>多次触达（二次触达）</b></td><td><span class="pill wip">需求定稿·待开建</span></td><td>对「昨天 DM 了、今天没回」的高+中意向用户，自动去其视频下点赞+评论，勾回看私信。规则已全部敲定（见 03）。卡在无影 GUI（见下）。</td></tr>
-      <tr><td><b>无影云电脑（发送端）</b></td><td><span class="pill block">部分跑通</span></td><td>有人已跑通（可正常发），有人卡在分辨率/私信窗口不弹。根因=固定坐标没按本机分辨率校准。是上面两块能否真落地的<b>总前置</b>。</td></tr>
-    </table>
-    <div class="note warn"><b>主线提醒</b>：抖音号再准、多次触达再聪明，<b>无影点不出私信窗口就发不出去</b>。所以「修无影」是一切的前置，没跑通的人优先解决它（方案见 02）。</div>
+    <p><b>多次触达（= 二次触达 / 潜在触达）</b> &nbsp;<span class="pill done">已落地 · 待真发验证</span></p>
+    <p>对「DM 过、≥3 天仍没回」的高+中意向用户，节奏大脑算出今天该触达谁，本机脚本用 ADB 打开对方主页最新视频，<b>点赞 + 公开评论</b>，并把触达状态记进库防止天天重列。</p>
+    <div class="note ok"><b>✅ 重大修正：不卡无影。</b>之前以为「抓对方主页最新视频」要等无影 GUI 修通，错了——饭粒是<b>电脑连安卓走 ADB/u2</b>，主页用 deeplink（<code>snssdk1128://user/profile/?sec_uid=</code>）按抖音内部 ID 直达，点首格作品进最新视频，连「抖音号反查」都不用。这条链路本就有（之前没提交），现已正式化并接上节奏大脑。</div>
+    <div class="note warn"><b>⚠️ 还没真发过。</b>代码与链路已在真机（小米16 / Android 16）DRY 跑通（点赞按钮检出 + 评论链路全通，未点发送）。真发前要：① 本机 <code>pip install langfuse</code> ② 生成话术并<b>人工审稿</b> ③ 先 <code>--commit</code> 试 1 条。</div>
   </div>
 
   <!-- 02 -->
   <div class="sec" id="s2">
-    <div class="sec-h"><span class="sec-n">02</span><span class="sec-t">操作手册</span></div>
-
-    <p><b>A · 抖音号精准搜索（已上线，运营这样用）</b></p>
-    <p><b>第一次装一次</b>（每台 Mac，约 1–2 分钟）：</p>
-    <pre>cd ~/Akke && git pull
-bash worker/scripts/wuying-dm/setup-enrich.sh   <span class="c"># 看到 ✅ 装好了 就成</span></pre>
-    <p><b>以后</b>：照常导出名单（或跟 Claude 说「云电脑发 N 条」），<b>CSV 自动带抖音号，不用再敲别的命令</b>。导出末尾会打印：</p>
-    <pre>✓ 名字 → 抖音号 xxx      <span class="c"># 拿到了，精准搜</span>
-· 名字 查不到 → 回退昵称   <span class="c"># 跟以前一样，不丢人</span></pre>
-    <div class="note"><b>范围（会查谁）</b>：只查你<b>每次导出要发的那批人</b>（高+中意向 leads），发到谁查谁，不全库批量。查过的进共享库，三人复用、不重查。</div>
-    <div class="note warn"><b>查不到约 1/3，正常</b>：绝大多数是<b>用户自己没设过抖音号</b>（接口查成功了但没号）→ 无解，回退昵称，忽略即可；少数是临时限流 → 可救，放量再加固。<b>都不影响发送。</b></div>
-
-    <p style="margin-top:28px"><b>B · 无影按状态分方案</b>（决定每个人现在能用到多少）</p>
+    <div class="sec-h"><span class="sec-n">02</span><span class="sec-t">实现 · 全 ADB 闭环</span></div>
+    <p>整条流水线全在<b>本机（电脑连安卓手机）</b>跑，与无影无关。「算清单」和「执行」解耦：节奏大脑（只读库、算候选）随时能跑，执行那步用 ADB/u2 在手机上点。</p>
     <table>
-      <tr><th>无影状态</th><th>现在怎么做</th></tr>
-      <tr><td><span class="ok">已跑通</span></td><td>吃满全部能力：① <code>git pull</code> + 跑 <code>setup-enrich.sh</code>，导出自动带抖音号；② 正常发 DM；③ 多次触达建好第一批就能用；④ <b>当标杆</b>帮没跑通的人远程调通。</td></tr>
-      <tr><td><span class="bad">没跑通</span></td><td><b>两条路并行：</b><br>• <b>路1·修无影（治本）</b>：让跑通的人远程帮修——显示设置关分辨率自适应 + 全屏不缩放 + <b>锁 2560×1600</b>；锁不到就锁能锁的最大固定分辨率，再跑 <code>--capture</code> + <code>measure_nav.py</code> 重采坐标；锁完别再缩放窗口。<br>• <b>路2·手机兜底（不停工）</b>：修无影期间改用手机 <b>ADB/WDA</b> 发，不依赖无影；手机走 sec_uid 直达，<b>连抖音号都不需要</b>。产量不停。</td></tr>
+      <tr><th>#</th><th>步骤</th><th>脚本</th><th>干什么</th></tr>
+      <tr><td>1</td><td>节奏大脑出候选</td><td><code>scripts/second-touch-worklist.ts</code></td><td>≥3 天没回的高/中意向 → 候选；接 <code>second_touch_state</code> 表去重（排除已触达/冷却中/已停）</td></tr>
+      <tr><td>2</td><td>生成公开评论话术</td><td><code>worker/scripts/gen-second-touch-comments.py</code></td><td>qwen3 + Langfuse 生成轻钩子话术（复用生产反评提示词，见 04）→ 写进清单 → <b>人工审</b></td></tr>
+      <tr><td>3</td><td>触达前重扫</td><td><code>scripts/dm-phone-sender/scan-dm-replies.py</code></td><td>扫收件箱确认这些人确实没回（别骚扰已回的）</td></tr>
+      <tr><td>4</td><td>点赞 + 评论</td><td><code>worker/scripts/recomment_noreply.py</code></td><td>ADB/u2：deeplink 进主页 → 最新视频 → 点赞（幂等）→ 公开评论。每人间隔 75–105s</td></tr>
+      <tr><td>5</td><td>回写节奏状态</td><td><code>scripts/mark-second-touch.ts --from-file</code></td><td>把已触达的写进 <code>second_touch_state</code>（touch_count++ / 下次可触达时间 / 阶梯升降），<b>下次不重列</b></td></tr>
     </table>
+    <p style="margin-top:20px"><b>每天怎么跑</b>（一次性先 <code>pip install langfuse</code>；.env.local 的 LANGFUSE / OPENROUTER key 已配好）：</p>
+    <pre><span class="c"># D=日期，手机连着电脑、抖音停在 messaging 号</span>
+D=$(date +%F)
+pnpm tsx scripts/second-touch-worklist.ts --min-days=3 --max-days=5      <span class="c"># 1 出候选</span>
+python3.11 worker/scripts/gen-second-touch-comments.py --date $D        <span class="c"># 2 生成话术 → 人工审</span>
+python3.11 scripts/dm-phone-sender/scan-dm-replies.py \
+  --file=scripts/dm-phone-sender/data/second-touch-$D.json             <span class="c"># 3 触达前重扫</span>
+python3.11 worker/scripts/recomment_noreply.py --date $D --idx 1        <span class="c"># 4a DRY 看链路</span>
+python3.11 worker/scripts/recomment_noreply.py --date $D --commit --sleep 90  <span class="c"># 4b 真发</span>
+pnpm tsx scripts/mark-second-touch.ts \
+  --from-file=scripts/dm-phone-sender/data/second-touch-$D.json        <span class="c"># 5 回写状态</span></pre>
+    <p><b>节奏阶梯（状态表 <code>second_touch_state</code> 落地）</b>：触达 1 次 → <code>active</code>（隔约 4 天）；触达 ≥2 次仍没回 → <code>low_freq</code>（隔约 10 天养着）；对方回复/回访 → <code>stopped</code>（升级人工）；拒绝/删评/拉黑 → <code>stopped</code>。</p>
   </div>
 
   <!-- 03 -->
   <div class="sec" id="s3">
-    <div class="sec-h"><span class="sec-n">03</span><span class="sec-t">多次触达 · 规则（已定稿）</span></div>
-    <div class="note"><b>是什么</b>：给「昨天 DM 过、到今天仍没回」的高+中意向用户，<b>自动在 ta 视频下点赞 + 公开评论</b>，把人勾回来看私信。用抖音号精准定位。</div>
+    <div class="sec-h"><span class="sec-n">03</span><span class="sec-t">费用 · 耗时 · 模型</span></div>
+    <div class="grid">
+      <div class="card"><div class="lbl">话术模型</div><div class="val">qwen3</div><div class="sub">qwen3-235b-a22b · OpenRouter</div></div>
+      <div class="card"><div class="lbl">话术费用</div><div class="val">~0.1–0.3 元</div><div class="sub">40 条/天 · 估算 · 可忽略</div></div>
+      <div class="card"><div class="lbl">一批耗时</div><div class="val">~80 分钟</div><div class="sub">40 人 · 大头是发送限速</div></div>
+      <div class="card"><div class="lbl">发送节奏</div><div class="val">75–105s</div><div class="sub">每人间隔 · 防风控</div></div>
+    </div>
     <table>
-      <tr><th>维度</th><th>定下来的规则</th></tr>
-      <tr><td>目标</td><td>昨天 DM、今天没回的高+中意向用户</td></tr>
-      <tr><td>动作</td><td>脚本全自动点赞 + 公开评论</td></tr>
-      <tr><td>话术</td><td>公开评论只走「<b>轻钩子+勾私信</b>」（回应视频内容 + 暗示私信过 + 软钩子）；<b>报价/正经话术留私信，不公开晒</b>；生产模型 qwen3+Langfuse 现起</td></tr>
-      <tr><td>评哪条视频</td><td>近 3 天有新动态→评新视频；无→评最新历史视频 + 引用原始评论（不放弃）；完全无视频→退回补 DM/挂观察</td></tr>
-      <tr><td>时机</td><td>每天定时跑 1–2 次（v1）；优先「发新动态后」，否则按当初抓到评论的高峰时段</td></tr>
-      <tr><td>节奏</td><td><b>规则阶梯（不打分）</b>：没回→触达1→隔 3–5 天触达2（换视频/角度）→转低频养着（1–2 周/次，不删）；回复/回访/点赞→升级；拒绝/删评/拉黑→停</td></tr>
-      <tr><td>账号</td><td>各运营<b>自己的号</b>（发过 DM 那个）触达，不设专号；盯每日动作额度</td></tr>
-      <tr><td>送达门</td><td>v1 不卡（视频评论是独立通道，DM 没送达照样通知到）</td></tr>
+      <tr><th>环节</th><th>模型 / 机制</th><th>费用</th><th>耗时（40 人估算）</th></tr>
+      <tr><td>出候选（worklist）</td><td>纯查库，无模型</td><td>0</td><td>几秒</td></tr>
+      <tr><td>生成话术</td><td><b>qwen3-235b-a22b</b>（Langfuse 提示词 <code>comment.reverse-comment-system-py-single</code>，含反杜撰/称呼审计，最多 retry 4 次）</td><td>~80k token ≈ <b>0.1–0.3 元/天</b></td><td>3–6 分钟（串行）</td></tr>
+      <tr><td>触达前重扫</td><td>ADB 扫收件箱，无模型</td><td>0</td><td>1–2 分钟</td></tr>
+      <tr><td><b>点赞 + 评论</b></td><td>ADB/u2 GUI，无模型</td><td>0</td><td><b>70–130 分钟</b>（每人 ~2 分钟，含 75–105s 间隔，<b>风控限速是瓶颈</b>）</td></tr>
+      <tr><td>回写状态</td><td>纯写库，无模型</td><td>0</td><td>几秒</td></tr>
     </table>
+    <div class="note"><b>费用为什么这么低</b>：一天只 ~40 条短评论（每条输入提示词+原评论约千余 token、输出百来 token），qwen3 在这个量级就是几分钱。烧钱的是长对话（DM 多轮 chatReply），不是这种一次性短生成。<b>耗时大头不是模型，是发送端 75–105s/人 的风控限速</b>——这是刻意的，不强化也不绕过。</div>
+    <div class="note warn"><b>注</b>：费用是按当前 OpenRouter qwen3 价位估算；实际以 Langfuse trace 的 token 计量 + 月底 OpenRouter 账单为准。话术生成会按需 retry（命中杜撰/称呼违规自动重生），retry 多则费用/耗时略涨，但仍在「分钱 / 分钟」量级。</div>
   </div>
 
   <!-- 04 -->
   <div class="sec" id="s4">
-    <div class="sec-h"><span class="sec-n">04</span><span class="sec-t">三个独立判断（背后的考量）</span></div>
-
-    <p><b>① 「没回」不该减分 —— 它是噪音，不是意向信号</b></p>
-    <p>把「没回」当意向降级依据，有三重陷阱：</p>
-    <ul>
-      <li><b>长决策</b>：全屋定制是几周到几个月的大决策，真高意向也可能现在不回（比价、等交房、跟家人商量）。减分淘汰=把「只是还没到点的真买家」在犹豫期扔了。</li>
-      <li><b>测量脏</b>：抖音陌生人私信大量没被看到（进请求箱 / 被静默限流）。「没回」很多时候在量<b>送达失败</b>，不是意向——拿它减分=给自己的发送失败打分。</li>
-      <li><b>代价不对称</b>：误杀一个真买家=丢一单大几万；减分省下的只是一次触达额度。宁可坚持也别轻易丢。</li>
-    </ul>
-    <p>「没回」该驱动的是<b>节奏</b>（放慢、设次数上限防刷屏），不是意向降级。真正该减分/停手的是<b>硬信号</b>：拒绝、删评、拉黑、明说不需要、同行号。</p>
-
-    <p style="margin-top:24px"><b>② 公开评论不晒报价 —— 内容跟着渠道可见性走</b></p>
-    <p>视频下的评论是<b>公开</b>的。把私信那套报价搬上去：像广告（易被判垃圾删评、连累账号）、同行全看见（报价/打法泄露）、对方尴尬（视频又不是讲装修的）。公开评论的目的<b>不是再推销一遍</b>，只是「重新进视线 + 勾去看私信」。所以：<b>公开场合只做轻钩子，实质（报价/谈单）留私域</b>。</p>
-
-    <p style="margin-top:24px"><b>③ 不上打分引擎，用规则阶梯 —— 别要假精确</b></p>
-    <p>打分意味着给每个信号配权重，而配对权重需要<b>数据</b>（哪个信号真预测成交）——现在没有。硬上打分=<b>假精确</b>：一个看着科学、系数全靠拍脑袋的数字，反而会被过度信任、调错旋钮。规则阶梯简单、透明、好改。<b>顺序是：先用阶梯攒「触达→结果」数据，够了再升级成校准过的打分。</b>数据在前，打分在后。</p>
+    <div class="sec-h"><span class="sec-n">04</span><span class="sec-t">提示词（Langfuse · 全员共享）</span></div>
+    <div class="note ok"><b>「同事做的 RC / DM 提示词，我怎么没有？」</b>——你<b>有</b>。这些提示词不是存在某个人电脑里，是建在 <b>Langfuse 服务端、全团队共享</b>的。任何人只要 ① <code>.env.local</code> 配了 <code>LANGFUSE_PUBLIC_KEY</code> + <code>LANGFUSE_SECRET_KEY</code>（你<b>已经配了</b>）② 本机装了 <code>langfuse</code> 客户端（<code>pip install langfuse</code>，你<b>还没装</b>，所以话术那步暂时跑不起来），就能 fetch 到同一套生产提示词。装上即有，不用谁单独给你建。</div>
+    <table>
+      <tr><th>叫法</th><th>Langfuse 提示词名</th><th>用在哪</th></tr>
+      <tr><td><b>RC（反评 / 公开评论）</b></td><td><code>comment.reverse-comment-system-py-single</code></td><td>视频下公开评论。<b>多次触达的话术直接复用它</b>（反评=视频公开评论，同构），不另起炉灶</td></tr>
+      <tr><td rowspan="3"><b>DM（私信）</b></td><td><code>dm.ice_break.system</code></td><td>私信破冰阶段（首轮搭话）</td></tr>
+      <tr><td><code>dm.nurture.system</code></td><td>私信培育阶段（持续对话）</td></tr>
+      <tr><td><code>dm.decision.system</code></td><td>私信决策阶段（临门一脚）</td></tr>
+      <tr><td>意向分类</td><td><code>analyze.comments.system</code> / <code>analyze.decision_signal.system</code></td><td>评论意向打标（高/中/低），上游 analyze 用</td></tr>
+    </table>
+    <p><b>为什么多次触达不新建提示词</b>：「反评」本质就是「在高意向用户的视频下贴公开评论，勾去看私信」，和多次触达的公开评论一模一样。复用 <code>comment.reverse-comment-system-py-single</code> 直接拿到同事调好的人设、反杜撰锁、称呼规则，少维护一套、少一处漂移。生产模型生成不手搓，是团队规范。</p>
+    <p><b>提示词版本随时在更新</b>：同事会往 Langfuse 推新版（标 <code>production</code> label）。脚本每次跑都 fetch 最新 production，不写死——所以你不用同步任何东西，跑就是最新的。</p>
   </div>
 
   <!-- 05 -->
   <div class="sec" id="s5">
-    <div class="sec-h"><span class="sec-n">05</span><span class="sec-t">什么做 / 什么不做 · 为什么</span></div>
+    <div class="sec-h"><span class="sec-n">05</span><span class="sec-t">规则（已定稿）</span></div>
+    <div class="note"><b>是什么</b>：给「DM 过、仍没回」的高+中意向用户，<b>在 ta 最新视频下点赞 + 公开评论</b>，把人勾回来看私信。</div>
+    <table>
+      <tr><th>维度</th><th>定下来的规则</th></tr>
+      <tr><td>目标</td><td>DM 过、≥3 天没回的高+中意向用户（按状态表去重，不重复触达）</td></tr>
+      <tr><td>动作</td><td>ADB 脚本点赞 + 公开评论（先赞后评）</td></tr>
+      <tr><td>话术</td><td>公开评论只走「<b>轻钩子+勾私信</b>」（回应视频内容 + 暗示私信过 + 软钩子）；<b>报价/正经话术留私信，不公开晒</b>；qwen3+Langfuse 生成，<b>人工审稿后再发</b></td></tr>
+      <tr><td>评哪条视频</td><td>对方<b>主页最新视频</b>（执行时 deeplink 进主页点首格）；无公开作品/私密号→跳过</td></tr>
+      <tr><td>时机</td><td>每天定时跑 1–2 次（v1）；按当初抓到评论的高峰时段</td></tr>
+      <tr><td>节奏</td><td><b>规则阶梯（不打分）</b>：没回→触达1→隔 3–5 天触达2→转低频养（1–2 周/次，不删）；回复/回访→升级；拒绝/删评/拉黑→停。已落地为 <code>second_touch_state.ladder_status</code></td></tr>
+      <tr><td>账号</td><td>各运营<b>自己的号</b>（发过 DM 那个）触达，不设专号；盯每日动作额度（DM ~25–30 + 点赞评论额度别撞顶）</td></tr>
+      <tr><td>送达门</td><td>v1 不卡（视频评论是独立通道，DM 没送达照样通知到，见下方名词解释）</td></tr>
+    </table>
+
+    <p style="margin-top:24px"><b>名词解释：「视频评论是独立通道」</b></p>
+    <p>视频评论和私信是两条互不依赖的触达路径：<b>私信</b>常被抖音拦在「请求箱」里、对方根本没收到通知；<b>视频评论</b>会推一条「XX 评论了你的视频」的通知，走的是另一套机制、不受私信拦截影响。一条路堵了另一条还通——这就是 v1 不纠结私信到底送达没的原因。私信像寄到「陌生人收件箱」（可能被过滤），视频评论像在他家门口贴便利贴（出门必看到）。</p>
+
+    <p style="margin-top:24px"><b>名词解释：「转低频养着」</b></p>
+    <p>= 不放弃这个潜客，但把触达频率大幅降下来。全屋定制决策周期长（几个月），今天没回的人可能两个月后才动工；删了=他真要买时你已不在视野，高频骚扰=烦了拉黑。「低频养」是中间档：触达 ≥2 次没反应进 <code>low_freq</code>，每 1–2 周做最轻触达（给最新视频点个赞），不占主力额度；一旦有正向反应立刻升级，只有硬信号（拉黑/拒绝）才真停。</p>
+  </div>
+
+  <!-- 06 -->
+  <div class="sec" id="s6">
+    <div class="sec-h"><span class="sec-n">06</span><span class="sec-t">三个独立判断（背后的考量）</span></div>
+
+    <p><b>① 「没回」不该减分 —— 它是噪音，不是意向信号</b></p>
+    <ul>
+      <li><b>长决策</b>：全屋定制是几周到几个月的大决策，真高意向也可能现在不回（比价、等交房、跟家人商量）。减分淘汰=把「只是还没到点的真买家」在犹豫期扔了。</li>
+      <li><b>测量脏</b>：抖音陌生人私信大量没被看到（进请求箱 / 被静默限流）。「没回」很多时候在量<b>送达失败</b>，不是意向。</li>
+      <li><b>代价不对称</b>：误杀一个真买家=丢一单大几万；减分省下的只是一次触达额度。</li>
+    </ul>
+    <p>「没回」该驱动的是<b>节奏</b>（放慢、设次数上限），不是意向降级。真正该停手的是<b>硬信号</b>：拒绝、删评、拉黑、明说不需要、同行号。</p>
+
+    <p style="margin-top:24px"><b>② 公开评论不晒报价 —— 内容跟着渠道可见性走</b></p>
+    <p>视频下的评论是<b>公开</b>的。把私信那套报价搬上去：像广告（易被判垃圾删评、连累账号）、同行全看见（报价/打法泄露）、对方尴尬。公开评论的目的<b>不是再推销一遍</b>，只是「重新进视线 + 勾去看私信」。所以：公开场合只做轻钩子，实质留私域。</p>
+
+    <p style="margin-top:24px"><b>③ 不上打分引擎，用规则阶梯 —— 别要假精确</b></p>
+    <p>打分要给每个信号配权重，而配权重需要数据（哪个信号真预测成交）——现在没有。硬上打分=假精确：一个看着科学、系数全靠拍脑袋的数字，反而被过度信任、调错旋钮。规则阶梯简单、透明、好改。<b>先用阶梯攒「触达→结果」数据，够了再升级成校准过的打分</b>。数据在前，打分在后。</p>
+  </div>
+
+  <!-- 07 -->
+  <div class="sec" id="s7">
+    <div class="sec-h"><span class="sec-n">07</span><span class="sec-t">什么做 / 什么不做 · 为什么</span></div>
     <p><b>做（✓）</b></p>
     <table>
       <tr><th>做什么</th><th>为什么</th></tr>
-      <tr><td>抖音号精准搜索</td><td>根治无影搜名字撞名/搜错人，还能救回改了名的用户</td></tr>
-      <tr><td>共享缓存（查一次三人复用）</td><td>抖音号是用户固有属性，查一次存库，零重复打接口、避风控</td></tr>
-      <tr><td>导出自动补（焊进脚本）</td><td>运营不用记/敲命令，没装环境也柔性跳过不挡发送</td></tr>
       <tr><td>视频点赞+评论做二次触达</td><td>独立于私信的新触点，DM 没送达照样通知到对方</td></tr>
+      <tr><td>走 ADB/u2 在本机手机上跑</td><td>主页/视频/点赞/评论接口在服务器机房 IP 被抖音封，只能本机；deeplink 按 sec_uid 直达，不依赖无影、不用抖音号反查</td></tr>
       <tr><td>各运营用自己的号触达</td><td>身份连贯（发过 DM 的人再点赞=强化关系）+ 触达量摊到 3 个号降风控</td></tr>
+      <tr><td>话术复用生产反评提示词</td><td>反评=视频公开评论，同构；复用同事调好的人设/反杜撰锁，少维护少漂移</td></tr>
     </table>
     <p><b>不做（✗）</b></p>
     <table>
@@ -157,23 +201,23 @@ bash worker/scripts/wuying-dm/setup-enrich.sh   <span class="c"># 看到 ✅ 装
       <tr><td>不在公开评论晒报价</td><td>像广告、同行可见、对方尴尬；实质留私信</td></tr>
       <tr><td>不「没回就减分」</td><td>没回是噪音信号（没看到≠没意向），长决策行业易误杀真买家</td></tr>
       <tr><td>不上打分引擎（用阶梯）</td><td>没数据校准权重，过早打分=假精确；先攒数据再说</td></tr>
-      <tr><td>不批量预热全库抖音号</td><td>一天才发 ~20，全库 95% 用不到 + 压风控；懒填（发到谁查谁）够用</td></tr>
-      <tr><td>不设专「采集号」做触达</td><td>陌生身份跟 DM 对不上 + 风险集中在一个号</td></tr>
+      <tr><td>不强化/不绕过风控</td><td>每人间隔 75–105s，遇验证码/频繁提示硬停整批，宁慢勿封号</td></tr>
       <tr><td>不做分钟级实时监控新动态</td><td>常驻轮询重、有风控；v1 每天定时跑 1–2 次够用</td></tr>
-      <tr><td>反查不放云端（Fly/Vercel）cron</td><td>该接口在服务器机房 IP 被抖音封，只能本机/无影跑</td></tr>
+      <tr><td>不把 DM 原文当公开评论</td><td>同行可见/像广告；必须先 qwen3 生成专门的公开评论话术</td></tr>
     </table>
   </div>
 
-  <!-- 06 -->
-  <div class="sec" id="s6">
-    <div class="sec-h"><span class="sec-n">06</span><span class="sec-t">卡点 &amp; 待办</span></div>
-    <div class="step"><div class="when">前置·卡点</div><div class="body"><b>无影 GUI 修通</b>。多次触达要全自动点赞评论，依赖无影；没跑通的人先按 02-B 修或走手机兜底。</div></div>
-    <div class="step"><div class="when">待开建</div><div class="body"><b>多次触达功能</b>（需求 PR #93 已定稿）。监控新动态 → 抖音号定位 → 点赞+评论 → 话术生成。等无影通了开建。</div></div>
-    <div class="step"><div class="when">待解决</div><div class="body"><b>「没回」的测量</b>：抖音无已读回执，「今天没回」可能是 DM 没送达。v1 不卡（视频触点独立），但影响以后「判断要不要放弃」。理想是只对「送达确认 status_code==0」的 DM 做——但当前无影/手机发都不解码 status_code，需后续补。</div></div>
-    <div class="step"><div class="when">放量加固</div><div class="body"><b>临时失败别当「无号」缓存</b>：当前限流/cookie 失败会被存成「查过无果」、下次不重查。量小没事，放量时改成只缓存真无号、失败不缓存 + 多账号摊 + 错峰。</div></div>
+  <!-- 08 -->
+  <div class="sec" id="s8">
+    <div class="sec-h"><span class="sec-n">08</span><span class="sec-t">卡点 &amp; 待办</span></div>
+    <div class="step"><div class="when">一次性</div><div class="body"><b>本机装 langfuse</b>：<code>pip install langfuse</code>。话术生成（步骤 2）要它来 fetch 共享提示词。.env.local 的 key 已配，装完即可跑。</div></div>
+    <div class="step"><div class="when">每次必做</div><div class="body"><b>人工审话术</b>：qwen3 生成的公开评论先过一遍眼再发（审稿打回是常态）。审完先 <code>--commit</code> 试 1 条看真实效果，再放量。</div></div>
+    <div class="step"><div class="when">真发验证</div><div class="body"><b>首次真发盯一眼</b>：点赞有没有真上、评论有没有发出、有没有触发频繁提示。选择器（点赞 <code>gln</code> / 评论框 <code>eor</code> / 作品首格 <code>cover</code>）是抖音版本相关的，换机换版前先 DRY 重验。</div></div>
+    <div class="step"><div class="when">待解决</div><div class="body"><b>「没回」的测量</b>：抖音无已读回执，「没回」可能是 DM 没送达。v1 不卡（视频触点独立），但影响以后「判断要不要放弃」。理想是只对「送达确认 status_code==0」的 DM 做——当前发送都不解码 status_code，需后续补。</div></div>
+    <div class="step"><div class="when">放量加固</div><div class="body"><b>额度叠加盯紧</b>：同一号既 DM 又点赞评论，单日动作变多，盯平台额度（DM ~25–30 + 点赞评论额度）别撞顶。</div></div>
   </div>
 
-  <footer>Akke 智能获客 · 触达系统 · 2026-06-03 · 本页随策略更新</footer>
+  <footer>Akke 智能获客 · 多次触达（全 ADB 闭环）· 2026-06-03 · PR #99 + #100 · 本页随策略更新</footer>
 </div>
 </body>
 </html>
