@@ -66,6 +66,10 @@
   .q{color:var(--sub);font-size:13px}
   blockquote{margin:12px 0;padding:10px 16px;border-left:3px solid var(--line);color:var(--sub);
     background:var(--card);border-radius:0 8px 8px 0;font-size:14px}
+  .toc{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 20px;margin:8px 0 0}
+  .toc b{font-size:13px;color:var(--sub)}
+  .toc ol{margin:8px 0 0;padding-left:20px}
+  .toc a{color:var(--accent);text-decoration:none}
 </style>
 </head>
 <body>
@@ -74,10 +78,19 @@
 <header>
   <h1>反向评论批量化 · 0→1 复盘</h1>
   <div class="meta">
-    上游：<b>云电脑反向评论手动版</b>（已端到端跑通，见
+    上游：<b>云电脑反向评论手动版</b>（单条已跑通，见
     <a href="https://upio.ai/akke/cloud-pc-reverse-comment-0to1" style="color:var(--accent)">触达机制 0→1</a>）<br>
     本篇：把单发工具变成 <b>可安全批量、可重复跑、多人不撞车</b> 的闭环 ·
     实测机 <b>野荞 2560×1600</b> · 记录日期 <b>2026-06-04</b>
+  </div>
+  <div class="toc">
+    <b>四个部分</b>
+    <ol>
+      <li><a href="#s1">第一个案例：批量闭环的第一条「如嫣」</a></li>
+      <li><a href="#s2">完成 0→1 的逻辑原理图</a></li>
+      <li><a href="#s3">批量化执行的统计数据 · badcase · 每类优化及进展</a></li>
+      <li><a href="#s4">下一步待做的优化列表</a></li>
+    </ol>
   </div>
 </header>
 
@@ -86,40 +99,63 @@
   全部验证去重生效。<b>尚未大批量放量</b>，规模数据待回填。
 </div>
 
-<!-- ============ 1. 起点与真问题 ============ -->
-<h2>一、起点：手动版能发了，但「批量化」卡在哪</h2>
+<!-- ============ 1. 第一个案例 ============ -->
+<h2 id="s1">一、第一个案例：批量闭环的第一条「如嫣」</h2>
 
 <div class="card">
-  <p>手动版已经能在抖音 PC 客户端真发出评论。直觉上「批量化」=多塞几个人、循环跑。但真正的拦路虎不是技术，是<b>去重</b>：</p>
-  <ul>
-    <li><b>裸跑会重复触达</b>：工具读 CSV 直发、不写库。同一个人这批塞了、下批又被拉进来；A 同事评过、B 同事的 leads 池里他还在——对方体感是被群发，伤号伤品牌。</li>
-    <li><b>评错人无迹可查</b>：短名/大众名身份门可能模糊放行（实测「小嘟→嘟妹」），发错了没有任何记录能追。</li>
-  </ul>
-  <p>所以批量化的第一性问题是：<b>每发一条，怎么让这个人立刻从所有人的候选池里消失。</b></p>
+  <h3>背景：手动版能发，但不敢批量</h3>
+  <p>手动版已经能在抖音 PC 真发出评论。但「批量化」的拦路虎不是技术，是<b>去重</b>：工具读 CSV 直发、不写库，
+  同一个人这批塞了下批又被拉进来、A 评过 B 还会评，对方体感被群发。所以批量化的第一性问题是——
+  <b>每发一条，怎么让这个人立刻从所有人的候选池里消失。</b>「如嫣」就是验证这条闭环的第一个真实案例。</p>
+
+  <h3>如嫣这条怎么跑完全程</h3>
+  <div class="flow">
+    <div class="lane">
+      <div class="lane-h mac">① 本机备料 · export-leads-csv</div>
+      <p style="margin:0"><code>claim_leads_batch</code> 锁住如嫣（4h）→ 反查到抖音号 <code>hongyan96488</code> →
+      Langfuse 最新话术生成评论文案 → 出 CSV，带去重命门 <code>_comment_id=7d214d26…</code> / <code>_sec_uid=MS4w…N-BaEm6c</code>。</p>
+      <blockquote>「你好，如嫣姐。刷到你新房开工视频了，开工必备清单里水电瓷砖防水这些大项，我们全屋装修都包在 568 一平里，硬装+柜体+软装不用跑断腿。你家装修到哪步了？」</blockquote>
+    </div>
+    <div class="down">↓ gzip+base64 剪贴板传无影</div>
+    <div class="lane">
+      <div class="lane-h win">② 无影自动发 · douyin_comment_grounded.py</div>
+      <p style="margin:0" class="q">搜「鸿雁」→ <b>OCR 身份门 match=True conf=0.98</b> →
+      开第一条视频 (645,484) → 空格暂停 → 评论 tab (2496,945) → 点评论框 (2042,1518) →
+      SendInput 打字 → <b>VL 定位红色「发送」(2534,1542)</b> → <b>✅ 已点发送</b>。</p>
+    </div>
+    <div class="down">↓ comment_log 拷回本机</div>
+    <div class="lane">
+      <div class="lane-h mac">③ 本机写回 · import-comment-log</div>
+      <p style="margin:0">status=sent → 写 <code>outreach_events(channel=reverse_comment)</code> + 消费 claim。</p>
+    </div>
+  </div>
+
+  <h3>关键一刻：她从此「全员可见地已联系」</h3>
+  <p>写回后查 <code>outreach_account_for_sec_uid(如嫣)</code> → 返回 <code>小文（野荞）</code>。
+  意味着<b>任何同事再 <code>claim-leads</code> 都不会拿到她</b>（私信 + 评论统一去重）。
+  这一步是手动版做不到的——<b>批量「安全」的开关，就是这条写回</b>。如嫣验证了它真的合上。</p>
 </div>
 
-<!-- ============ 2. 关键洞察 ============ -->
-<h2>二、关键洞察：去重在数据层早已解决，别造第二套</h2>
+<!-- ============ 2. 0→1 逻辑原理图 ============ -->
+<h2 id="s2">二、完成 0→1 的逻辑原理图</h2>
 
 <div class="card">
-  <p>差点要新建一张 <code>reverse_comment_queue</code> 集成 + claim/mark RPC。翻代码才发现——<b>反向评论的去重账本早就建好且在跑</b>：</p>
+  <h3>核心原理：去重账本早已存在，别造第二套</h3>
+  <p>差点要新建 <code>reverse_comment_queue</code> 集成 + claim/mark RPC。翻代码才发现去重账本早就建好在跑：</p>
   <blockquote>
     <code>get_ranked_leads</code> / <code>claim-leads</code> 的「已触达」判定，2026-05-27 起就 UNION 了
-    <code>outreach_events.channel='reverse_comment'</code>（手动 ADB 反评写这张表）。
-    即：<b>私信 + 反向评论任一触达，都算这个 sec_uid 已联系</b>。
+    <code>outreach_events.channel='reverse_comment'</code>。即<b>私信 + 反向评论任一触达，都算该 sec_uid 已联系</b>。
   </blockquote>
-  <p>所以云电脑评论要批量化，<b>不需要新表 / 新队列 / 新 RPC</b>——只要发完写一条
-  <code>outreach_events</code>，整套去重 / 归因 / 池子热力全部自动生效。最小改动接进现成基建，正是 Karpathy「优先简洁」+「惯例优先」。</p>
+  <p>所以云电脑评论批量化<b>不需要新表 / 新队列 / 新 RPC</b>——发完写一条 <code>outreach_events</code>，
+  整套去重 / 归因 / 池子热力全部自动生效。最小改动接现成基建（简洁 + 惯例优先）。</p>
   <div class="stats">
     <div class="stat"><div class="n">0</div><div class="l">新建表 / 队列 / RPC</div></div>
-    <div class="stat"><div class="n">1</div><div class="l">新脚本（import-comment-log.ts）</div></div>
-    <div class="stat"><div class="n">0</div><div class="l">改动云电脑发送工具（log 已够用）</div></div>
+    <div class="stat"><div class="n">1</div><div class="l">新脚本 import-comment-log.ts</div></div>
+    <div class="stat"><div class="n">0</div><div class="l">改动云电脑发送工具<br>（log 已够 import 用）</div></div>
   </div>
 </div>
 
-<!-- ============ 3. 闭环架构图 ============ -->
-<h2>三、闭环：本机备料 → 无影发 → 本机写回去重</h2>
-
+<p class="sub">完整数据流——本机备料 → 无影发 → 本机写回去重，三段各司其职：</p>
 <div class="flow">
   <div class="lane">
     <div class="lane-h mac">① 本机 Mac · 备料（复用 DM 通道 builder）</div>
@@ -165,11 +201,22 @@
   所以「无影只负责发 + 产日志，本机负责备料 + 写库」——这也是脚本本身不查重、<b>去重完全靠 import 这步</b>的原因。漏跑 import = 4h 后被重新 claim 重发。
 </div>
 
-<!-- ============ 4. 真机踩坑与修复 ============ -->
-<h2>四、真机踩坑与修复（2026-06-04 野荞机）</h2>
+<!-- ============ 3. 统计 + badcase + 每类优化及进展 ============ -->
+<h2 id="s3">三、批量化执行的统计数据 · badcase · 每类优化及进展</h2>
 
+<h3>大致统计（小批验证，规模待回填）</h3>
+<div class="stats">
+  <div class="stat"><div class="n" style="color:var(--good)">3</div><div class="l">真实反向评论发出<br>如嫣 / 沈园外 / 罗洛</div></div>
+  <div class="stat"><div class="n">3 / 3</div><div class="l">写回 outreach_events 成功</div></div>
+  <div class="stat"><div class="n">212</div><div class="l">prod RC 事件总数<br>（209 + 本会话 3）</div></div>
+  <div class="stat"><div class="n" style="color:var(--good)">✓</div><div class="l">去重判定<br>= 已触达（全员可见）</div></div>
+  <div class="stat"><div class="n" style="color:var(--good)">no-op</div><div class="l">prod schema migration<br>DO 块守卫，数据未动</div></div>
+  <div class="stat"><div class="n" style="color:var(--warn)">1~2/6</div><div class="l">单批有效产出率<br>（detector 剔坏后）</div></div>
+</div>
+
+<h3>遇到的 badcase · 每类对应优化方式 · 进展</h3>
 <table>
-  <tr><th>现象 / Badcase</th><th>根因</th><th>修复 / 结论</th><th>状态</th></tr>
+  <tr><th>现象 / Badcase</th><th>根因</th><th>优化方式</th><th>进展</th></tr>
   <tr>
     <td><span class="cat">发送时跳出逐条 y/n 确认</span></td>
     <td>无影上是旧版脚本（默认逐条确认），仓库版早已默认自动</td>
@@ -177,52 +224,46 @@
     <td><span class="pill p-good">已修</span></td>
   </tr>
   <tr>
-    <td><span class="cat">第 2 条搜到的还是上一个人</span><br><span class="q">身份门 seen='上一个昵称' match=False</span></td>
+    <td><span class="cat">第 2 条搜到的还是上一个人</span><br><span class="q">身份门 seen='上一个昵称' match=False，整批串发垮</span></td>
     <td>发完用 Esc 退不出视频浮层（评论框/视频层吃焦点，连按 4 次仍卡在视频页），下一条搜索点击落空</td>
-    <td>改点视频页<b>左上角「返回」按钮</b>（VL 定位 region(0,0,.3,.22)，实测落 px(65,65)）+ ocr_verify 确认回主页。实测「第 1 次点返回后已回主页 ✅」</td>
-    <td><span class="pill p-good">已修</span></td>
+    <td>改点视频页<b>左上角「返回」按钮</b>（VL 定位 region(0,0,.3,.22)，实测落 px(65,65)）+ ocr_verify 确认回主页；可 pin <code>AKKE_C_BACK</code> 固定坐标</td>
+    <td><span class="pill p-good">已修 · 实测一次回主页</span></td>
   </tr>
   <tr>
     <td><span class="cat">罗洛（花体名）在 nav 坏时被判 wrong_user</span></td>
     <td>上一条没复位，罗洛的搜索停在了如嫣页 → OCR seen='@鸿雁'</td>
-    <td><b>身份门正确拦下、没误评给罗洛</b>——去重安全没破。这恰好证明身份门是有效兜底</td>
+    <td>无需改——<b>身份门正确拦下、没误评给罗洛</b>，证明它是有效兜底；nav 修好后罗洛重跑即正常发出</td>
     <td><span class="pill p-good">符合预期</span></td>
   </tr>
   <tr>
     <td><span class="cat">opener 自检剔除率偏高</span><br><span class="q">海艳「吉林」未授权省 / 朦胧的雨「雨姐」自加后缀 / 开心是福 非橱柜信号</span></td>
-    <td>话术质量门（detector + 自检）在 claim 阶段就剔坏文案</td>
-    <td>正常质量保护，不是 bug。但导致单批有效行少（6 claim → 1~2 有效），备料要多 claim 一些</td>
-    <td><span class="pill p-warn">关注</span></td>
+    <td>话术质量门（detector + 自检）在 claim 阶段就剔坏文案，单批 6 claim 仅 1~2 有效</td>
+    <td>这是质量保护不是 bug；备料时多 claim 一些覆盖损耗。后续可调 detector 严格度</td>
+    <td><span class="pill p-warn">关注 · 备料多拉</span></td>
   </tr>
   <tr>
     <td><span class="cat">export 一度返回 0 条（"池子空"）</span></td>
-    <td>不带 <code>--intent-label</code> 走浅扫（cap 60），top 60 全是已触达 backlog；其实底下有 70 可抢</td>
+    <td>不带 <code>--intent-label</code> 走浅扫（cap 60），top 60 全是已触达 backlog；底下其实有 70 可抢</td>
     <td>加 <code>--intent-label=高意向</code> 触发深扫（cap 500）。另发现账号握 35 个未消费 claim 触发 over-claim 防护</td>
-    <td><span class="pill p-warn">绕过</span></td>
+    <td><span class="pill p-warn">绕过 · 待默认深扫</span></td>
+  </tr>
+  <tr>
+    <td><span class="cat">短名 / 大众名可能评错人</span></td>
+    <td>身份门 0.95 阈值对 ≤3 字短昵称可能模糊放行不同人（实测「小嘟→嘟妹」）</td>
+    <td>短名/大众名走 <code>--confirm</code> 逐条确认，别塞自动批；放量前收紧短名身份门（见第四部分）</td>
+    <td><span class="pill p-todo">待收紧</span></td>
   </tr>
 </table>
-
-<!-- ============ 5. 实测数据 ============ -->
-<h2>五、实测数据（端到端验证）</h2>
-
-<div class="stats">
-  <div class="stat"><div class="n" style="color:var(--good)">3</div><div class="l">真实反向评论发出<br>如嫣 / 沈园外 / 罗洛</div></div>
-  <div class="stat"><div class="n">3 / 3</div><div class="l">写回 outreach_events 成功</div></div>
-  <div class="stat"><div class="n">212</div><div class="l">prod RC 事件总数<br>（209 + 本会话 3）</div></div>
-  <div class="stat"><div class="n" style="color:var(--good)">✓</div><div class="l">去重判定<br>outreach_account_for_sec_uid = 已触达</div></div>
-  <div class="stat"><div class="n" style="color:var(--good)">no-op</div><div class="l">prod schema migration<br>DO 块守卫，数据未动</div></div>
-</div>
 
 <div class="card">
   <h3>去重真生效的链路实证</h3>
   <p>以如嫣为例：发完写 <code>outreach_events(channel=reverse_comment, status=sent)</code> 后，
-  <code>outreach_account_for_sec_uid(如嫣)</code> 立刻返回触达账号 <code>小文（野荞）</code>——
-  即<b>她从此在所有同事的 leads 池里算「已联系」，任何人再 claim-leads 都不会拿到她</b>（私信 + 评论统一去重）。
-  这就是「批量化去重」的全部意义，已逐条验证。</p>
+  <code>outreach_account_for_sec_uid(如嫣)</code> 立刻返回 <code>小文（野荞）</code>——
+  她从此在所有同事的 leads 池里算「已联系」，任何人再 claim-leads 都不会拿到她。三条均已逐条验证。</p>
 </div>
 
-<!-- ============ 6. 下一步 ============ -->
-<h2>六、下一步优化</h2>
+<!-- ============ 4. 下一步优化列表 ============ -->
+<h2 id="s4">四、下一步待做的优化列表</h2>
 
 <ul class="todo">
   <li><span class="num">1</span><div><b>放量前收紧短名身份门</b> <span class="pill p-todo">高优</span><br>
@@ -230,12 +271,14 @@
   <li><span class="num">2</span><div><b>export-leads-csv 评论场景默认深扫</b><br>
     <span class="sub">评论复用 DM 的 builder，但不带 <code>--intent-label</code> 走浅扫易返 0。给评论批量默认 <code>高意向</code> 深扫，或封一个 <code>build-comment-batch</code> 薄封装。</span></div></li>
   <li><span class="num">3</span><div><b>over-claim 残留清理</b><br>
-    <span class="sub">账号易积压未消费 claim（实测 35 个）触发 over-claim 防护、拿不到新货。需要一个安全的「释放我自己超时未发的 claim」机制（不误伤他人 DM 待办）。</span></div></li>
+    <span class="sub">账号易积压未消费 claim（实测 35 个）触发 over-claim 防护、拿不到新货。需要安全的「释放我自己超时未发的 claim」机制（不误伤他人 DM 待办）。</span></div></li>
   <li><span class="num">4</span><div><b>实发气泡核对半自动化</b><br>
     <span class="sub">目前「✅ 已点发送 ≠ 真发出」靠人工逐条刷评论区。可让工具发完截评论区图回传，或 VL 核对自己那条气泡是否出现。</span></div></li>
-  <li><span class="num">5</span><div><b>彻底自动化（半自动 → 全自动）</b> <span class="pill p-todo">路线</span><br>
+  <li><span class="num">5</span><div><b>提升单批有效产出率</b><br>
+    <span class="sub">detector 剔除后单批 6→1~2 有效，备料损耗大。复盘剔除原因分布（未授权省/自加后缀/非品类信号），针对性放宽或前置过滤。</span></div></li>
+  <li><span class="num">6</span><div><b>彻底自动化（半自动 → 全自动）</b> <span class="pill p-todo">路线</span><br>
     <span class="sub">现状仍是「人在无影点运行 + 拷日志回来」。全自动 = 接 <code>reverse_comment_queue</code> agent 拉取 + 节奏 cron 控速 + 自动 recheck 对方是否回复 + 写回归一。详见
-    <a href="https://upio.ai/akke/cloud-pc-reverse-comment-0to1" style="color:var(--accent)">触达机制 0→1 复盘 · 第四部分「彻底自动化怎么实现」</a>。</span></div></li>
+    <a href="https://upio.ai/akke/cloud-pc-reverse-comment-0to1" style="color:var(--accent)">触达机制 0→1 · 第四部分「彻底自动化怎么实现」</a>。</span></div></li>
 </ul>
 
 <footer style="border-top:1px solid var(--line);margin-top:46px;padding-top:18px;color:var(--sub);font-size:13px">
