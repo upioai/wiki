@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>价格项目现有逻辑</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#171a21; --card2:#1e222b; --line:#2a2f3a;
+    --txt:#e6e9ef; --mut:#9aa3b2; --acc:#5b8cff; --good:#3ecf8e; --warn:#f5a623; --bad:#ff6b6b;
+    --chip:#232834; --purple:#c8a6ff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif;
+    line-height:1.65;font-size:15px}
+  .wrap{max-width:1040px;margin:0 auto;padding:40px 22px 80px}
+  header.hero{padding:34px 30px;border-radius:18px;
+    background:linear-gradient(135deg,#1b2230,#141821 60%);border:1px solid var(--line);margin-bottom:34px}
+  .hero h1{margin:0 0 8px;font-size:27px;letter-spacing:.3px}
+  .hero .sub{color:var(--mut);font-size:15px}
+  .hero .sub b{color:#fff}
+  .hero .meta{margin-top:18px;display:flex;flex-wrap:wrap;gap:10px}
+  .pill{background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:6px 13px;font-size:13px;color:var(--mut)}
+  .pill b{color:var(--txt)}
+  .part{margin:54px 0 6px;padding:14px 20px;border-radius:14px;border:1px solid var(--line);
+    background:linear-gradient(135deg,#1a2030,#15181f);font-size:14px;color:var(--mut)}
+  .part b{color:#fff;font-size:17px;letter-spacing:.5px}
+  h2.sec{font-size:13px;letter-spacing:2px;color:var(--acc);text-transform:uppercase;margin:40px 0 16px;
+    display:flex;align-items:center;gap:10px}
+  h2.sec .n{display:inline-flex;width:24px;height:24px;border-radius:7px;background:var(--acc);color:#06101f;
+    align-items:center;justify-content:center;font-size:13px;font-weight:700}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px 24px;margin-bottom:16px}
+  .case-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:720px){.case-grid{grid-template-columns:1fr}}
+  .case-msg{background:var(--card2);border-left:3px solid var(--good);border-radius:8px;padding:14px 16px;
+    font-size:14px;color:#d4dae6}
+  .case-msg.bad{border-left-color:var(--bad)}
+  .k{color:var(--mut);font-size:12px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+  .stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:8px}
+  @media(max-width:720px){.stat-row{grid-template-columns:repeat(2,1fr)}}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 16px;text-align:center}
+  .stat .v{font-size:30px;font-weight:700;letter-spacing:.5px}
+  .stat .l{color:var(--mut);font-size:12.5px;margin-top:4px}
+  .v.good{color:var(--good)} .v.acc{color:var(--acc)} .v.warn{color:var(--warn)} .v.bad{color:var(--bad)}
+  .flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:8px}
+  .step{flex:1;min-width:120px;background:var(--card2);border:1px solid var(--line);border-radius:11px;
+    padding:13px 12px;position:relative}
+  .step .t{font-weight:600;font-size:14px;margin-bottom:3px}
+  .step .d{color:var(--mut);font-size:12px}
+  .step .where{position:absolute;top:-9px;right:9px;font-size:10px;padding:2px 7px;border-radius:999px;
+    background:var(--chip);border:1px solid var(--line);color:var(--mut)}
+  .where.in{color:var(--acc)} .where.brain{color:var(--warn)} .where.guard{color:var(--good)}
+  .arrow{align-self:center;color:var(--mut);font-size:18px;padding:0 2px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--mut);font-size:12px;text-transform:uppercase;letter-spacing:.6px;font-weight:600}
+  td.tag{white-space:nowrap}
+  .badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:6px;font-weight:600}
+  .b-fixed{background:rgba(62,207,142,.13);color:var(--good);border:1px solid rgba(62,207,142,.3)}
+  .b-part{background:rgba(245,166,35,.13);color:var(--warn);border:1px solid rgba(245,166,35,.3)}
+  .b-open{background:rgba(255,107,107,.13);color:var(--bad);border:1px solid rgba(255,107,107,.3)}
+  .prob{font-weight:600;color:#eef1f6}
+  .todo{list-style:none;padding:0;margin:0}
+  .todo li{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:13px 16px;margin-bottom:10px;
+    display:flex;gap:12px;align-items:flex-start}
+  .todo .pri{font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:6px;white-space:nowrap;margin-top:1px}
+  .pri.P0{background:rgba(255,107,107,.15);color:var(--bad);border:1px solid rgba(255,107,107,.32)}
+  .pri.P1{background:rgba(245,166,35,.15);color:var(--warn);border:1px solid rgba(245,166,35,.32)}
+  .pri.P2{background:rgba(154,163,178,.13);color:var(--mut);border:1px solid var(--line)}
+  .todo .body{flex:1}
+  .todo .body b{color:#eef1f6}
+  .todo .body span{color:var(--mut);font-size:13px}
+  .todo .est{align-self:flex-start;white-space:nowrap;font-size:12px;font-weight:600;color:var(--acc);
+    background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:4px 11px;margin-top:1px}
+  .note{background:rgba(245,166,35,.07);border:1px solid rgba(245,166,35,.25);border-radius:10px;
+    padding:12px 16px;font-size:13px;color:#e8d9bb;margin-top:10px}
+  .ask td:first-child{color:var(--mut);width:26%}
+  .ask .now{color:#d4dae6}
+  .ask .branch{color:var(--acc)}
+  .foot{margin-top:48px;color:var(--mut);font-size:12.5px;text-align:center;border-top:1px solid var(--line);padding-top:20px}
+  code{background:var(--chip);padding:1px 6px;border-radius:5px;font-size:12.5px;color:var(--purple)}
+  .tier{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+  .tier .t{flex:1;min-width:150px;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .tier .t .n{font-size:12px;color:var(--mut)} .tier .t .p{font-size:20px;font-weight:700;margin:2px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <h1>价格项目现有逻辑</h1>
+    <div class="sub">把价格这条线<b>现在是怎么跑的</b>讲清楚：从评论问价，到一条带数字的破冰怎么生成、怎么校验、跑出什么数。结构：案例 → 原理图 → 统计 → Bad Case → 下一步。</div>
+    <div class="meta">
+      <span class="pill">模块 <b>价格</b></span>
+      <span class="pill">知识库口径 <b>568/㎡投影 ≈ 284/㎡房产证</b></span>
+      <span class="pill">样本 <b>2132 条价格招呼</b></span>
+      <span class="pill">数据截至 <b>2026-06-04</b></span>
+      <span class="pill">参考结构 <b>无影 0→1 进展页</b></span>
+    </div>
+  </header>
+
+  <!-- A1 案例分享 -->
+  <h2 class="sec"><span class="n">1</span>案例分享 · 透明报价的标杆样例</h2>
+  <div class="card">
+    <div class="case-grid">
+      <div>
+        <div class="k">目标客户</div>
+        <div style="font-size:17px;font-weight:600;margin-bottom:12px">森鹿 <span style="color:var(--mut);font-size:13px;font-weight:400">（宁夏 · 评论「110 平意式轻奢多少米」）</span></div>
+        <div class="k">逻辑链路（全自动）</div>
+        <div style="font-size:13.5px;color:#d4dae6">
+          命中价格意图 → 分类为 <b style="color:var(--acc)">A1 总价路径</b> → 取知识库口径（284/房产证㎡）→
+          三档总价锚定 → <b style="color:var(--good)">price-guard 后置校验</b>（提取价格 token、比对范围）→ 发出 → mark 去重。
+        </div>
+      </div>
+      <div>
+        <div class="k">实发文案</div>
+        <div class="case-msg">你好，森鹿。刷到你 110 平意式轻奢视频，你家是新房还是翻新？房产证面积算报价，<b style="color:var(--good)">284 一平</b>，标配约 3.4 万 / 高配 4.1 万 / 豪配 4.8 万。现在活动期价格优惠，你家准备先动哪一组柜子？</div>
+        <div style="margin-top:12px;color:var(--mut);font-size:12.5px">
+          ✅ 这条把价格逻辑「该做对的」全做对了：<b style="color:#d4dae6">给确定数字、给计价口径、给三档选择、给下一步问题</b>。它是整批里跑得最干净的样例。
+        </div>
+      </div>
+    </div>
+    <div class="note">
+      ⚠️ 这条三档数字其实<b>没和知识库公式对齐</b>（见第 4 节 Bad Case「三档外推偏离」）：标配 3.4 万对得上，但高配 / 豪配被 LLM 抬高了一档（公式应为 3.7 / 4.1 万）。逻辑跑得干净，数字却算得不准。
+    </div>
+  </div>
+
+  <!-- A2 0→1 逻辑原理图 -->
+  <h2 class="sec"><span class="n">2</span>0→1 逻辑原理图 · 评论问价 → 一条带数字的破冰</h2>
+  <div class="card">
+    <div style="margin-bottom:14px;color:var(--mut);font-size:13px">
+      <span class="pill" style="border-color:rgba(91,140,255,.4)">输入侧</span>
+      <span class="pill" style="border-color:rgba(245,166,35,.4)">话术大脑</span>
+      <span class="pill" style="border-color:rgba(62,207,142,.4)">后置守护</span>
+      三段：先认出这是问价、再决定怎么报、最后守住别报错。
+    </div>
+    <div class="flow">
+      <div class="step"><span class="where in">输入</span><div class="t">① 命中价格意图</div><div class="d">评论/对话里出现「多少钱/报价/预算/一平」等词</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><span class="where brain">大脑</span><div class="t">② 价格意图分类</div><div class="d">落到 5 个分支之一（见下）</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><span class="where brain">大脑</span><div class="t">③ 取知识库口径</div><div class="d">284/房产证㎡ · 三档系数 0.1/0.2/0.3</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><span class="where brain">大脑</span><div class="t">④ 透明报价话术</div><div class="d">单一最低锚定 · 禁「投影」字样 · 禁区间</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><span class="where guard">守护</span><div class="t">⑤ price-guard 校验</div><div class="d">提取价格 token，比对范围；越权/超范围打标</div></div>
+    </div>
+
+    <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--line)">
+      <div class="k">第②步内部 · 价格意图的 5 个分支（现有规则）</div>
+      <table style="margin-top:8px">
+        <thead><tr><th style="width:14%">分支</th><th style="width:32%">触发</th><th>现有接法</th></tr></thead>
+        <tbody>
+          <tr><td class="tag"><b>A1 总价</b></td><td>全屋多少钱 / N 平几万</td><td>给三档总价（标配/高配/豪配），单一最低锚定</td></tr>
+          <tr><td class="tag"><b>A2 计价方式</b></td><td>设计费/量尺/按平方/包含什么</td><td>澄清规则：设计量尺免费 · 按房产证 284 一平 · 全包</td></tr>
+          <tr><td class="tag"><b>A3 单组柜</b></td><td>一个柜子/衣柜/鞋柜多少钱</td><td>5 千/组；多层板 150/张</td></tr>
+          <tr><td class="tag"><b>A4 元/平</b></td><td>多少钱一平</td><td>「按平方算 284 一平」<b style="color:var(--bad)">禁说「投影」</b></td></tr>
+          <tr><td class="tag"><b>H 硬装软装</b></td><td>瓷砖/沙发/灯具/窗帘 + 多少钱</td><td><b style="color:var(--warn)">不报数字</b>，改「按项目报 + 加微信」（双 token 强校验）</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--line)">
+      <div class="k">第③步内部 · 知识库报价公式（有大有小口径）</div>
+      <div style="font-size:13.5px;color:#d4dae6;margin-top:6px">
+        预估投影面积 = 房产证面积 ÷ 2 × (1±5%)　·　总预算 = 投影面积 × <code>568</code> × (1 + 配置系数)
+      </div>
+      <div class="tier">
+        <div class="t"><div class="n">标配（系数 +10%）</div><div class="p" style="color:var(--good)">~3.1 万</div><div class="n">100㎡：50×568×1.1</div></div>
+        <div class="t"><div class="n">高配（系数 +20%）</div><div class="p" style="color:var(--acc)">~3.4 万</div><div class="n">玻璃门/见光板打满</div></div>
+        <div class="t"><div class="n">豪配（系数 +30%）</div><div class="p" style="color:var(--warn)">~3.7 万</div><div class="n">高拉手/造型/圆弧高定</div></div>
+      </div>
+      <div class="note">注：知识库以 <b>568/㎡投影</b> 计价，对客一律换算成 <b>284/㎡房产证</b> 说（客户听得懂、不绕投影面积）。<b>下一步报价话术应直接套这条公式取数</b>，而不是让模型自己外推三档（森鹿那条就外推偏了）。</div>
+    </div>
+
+    <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--line)">
+      <div class="k">nurture 阶段加挂 · 报价 4 段铺垫（需求 #19，已就绪待数据）</div>
+      <div class="flow" style="margin-top:8px">
+        <div class="step"><div class="t">命中下单词</div><div class="d">具体价/现在下单/优惠多少/活动截止/比了/能便宜</div></div>
+        <div class="arrow">→</div>
+        <div class="step"><div class="t">拉 active SKU</div><div class="d">促销价 + 名额 + 截止（deadline&gt;now, 名额未满）</div></div>
+        <div class="arrow">→</div>
+        <div class="step"><div class="t">套 Mustache 模板</div><div class="d">品牌/型号/零售价/到手价/名额/截止填进话术</div></div>
+        <div class="arrow">→</div>
+        <div class="step"><div class="t">叠到 nurture 话术顶部</div><div class="d">不替换原话术，增强报价说服力</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- A3 批量统计 -->
+  <h2 class="sec"><span class="n">3</span>批量执行统计 · 现有口径跑出来的数</h2>
+  <div class="stat-row">
+    <div class="stat"><div class="v acc">2132</div><div class="l">累计价格招呼（含数字/口径）</div></div>
+    <div class="stat"><div class="v bad">0.2%</div><div class="l">价格招呼回流回复率（4 条）</div></div>
+    <div class="stat"><div class="v">5</div><div class="l">价格意图分支（A1–A4 + H）</div></div>
+    <div class="stat"><div class="v warn">5</div><div class="l">待处理的价格 Bad Case</div></div>
+  </div>
+  <div class="card" style="padding-top:8px">
+    <table>
+      <thead><tr><th>分组</th><th>招呼数</th><th>回流回复</th><th>回复率</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td class="prob">价格招呼</td><td>2132</td><td>4</td><td><b style="color:var(--bad)">0.2%</b></td><td>破冰里带了数字 / 计价口径</td></tr>
+        <tr><td>非价格招呼</td><td>4524</td><td>5</td><td>0.1%</td><td>未提价的破冰</td></tr>
+        <tr><td>全量招呼</td><td>6656</td><td>9</td><td>0.1%</td><td>所有 AI 破冰</td></tr>
+      </tbody>
+    </table>
+    <div class="note">
+      🔎 <b>两个要看清的事实：</b><br>
+      1）<b>价格招呼回复率（0.2%）略高于非价格（0.1%）</b>——报价没有吓退，反而稍微好一点点；但<b>整体回复率都是地板级</b>，没回复是常态而非个例。<br>
+      2）<b>「回流回复」只统计了 DB 里 check-replies 抓到的 customer 消息（全库仅 38 条）。</b>抖音陌生人私信回复回流本身可能不全——所以 0.2% 是<b>下限</b>，真实回复率多少、怎么准确回流，是待核的口径。
+    </div>
+  </div>
+
+  <!-- A4 Bad Case -->
+  <h2 class="sec"><span class="n">4</span>Bad Case 分类 · 根因 · 优化方式 · 进展</h2>
+  <div class="card" style="padding-top:8px">
+    <table>
+      <thead><tr><th style="width:21%">Bad Case</th><th style="width:38%">根因</th><th>优化方式</th><th class="tag">进展</th></tr></thead>
+      <tbody>
+        <tr><td class="prob">三档总价外推偏离公式</td><td>森鹿案例：标配 3.4 万对、但高配/豪配被抬到 4.1/4.8 万（公式应为 3.7/4.1），模型自行外推</td><td>报价话术<b>直接套知识库公式取三档数</b>；price-guard 从「只比范围」升级到「按公式校验每档」</td><td class="tag"><span class="badge b-open">待修</span></td></tr>
+        <tr><td class="prob">报价口径错位（答非所问）</td><td>阳光明媚：客户说「简装」，破冰报的是「标配」，词对不上</td><td>价格意图分类增加<b>预算档位词识别</b>（简装/精装/豪装 → 映射 标配/高配/豪配）</td><td class="tag"><span class="badge b-open">待优化</span></td></tr>
+        <tr><td class="prob">信息不足硬报全屋总价</td><td>豆豆：客户只问「一屋子多少钱」没给面积，破冰用「5 万起步」兜底，锚点可能偏高</td><td>缺面积时走<b>「先反问面积、后报价」</b>分支；或保留「起步」软锚但配低门槛钩子</td><td class="tag"><span class="badge b-part">部分（已用「起步」）</span></td></tr>
+        <tr><td class="prob">活动优惠钩子空泛</td><td>「再让一档/再压一档」没有具体促销、名额、截止，说服力弱</td><td>接 active SKU 数据，需求 #19 的 4 段铺垫报价（促销价/名额/截止）上线</td><td class="tag"><span class="badge b-part">部分（模板就绪·数据待供）</span></td></tr>
+        <tr><td class="prob">报价了但 0 回复（共性）</td><td>2132 条价格招呼仅 0.2% 回——报完价对话就断了，缺少让对方「必须回一句」的钩子</td><td>降低单条信息密度、报价后补低门槛 CTA；锚点形态待 A/B 验证</td><td class="tag"><span class="badge b-open">待优化</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="foot">
+    价格项目现有逻辑 · 数据截至 2026-06-04 ·
+    价格逻辑 <code>src/lib/llm.ts</code>（5 分支）· <code>src/lib/price-guard.ts</code>（后置校验）· <code>src/lib/dm-templates.ts</code>（4 段铺垫）·
+    知识库口径 <code>enterprise-data/youdayouxiao/data/prices.json</code>
+  </div>
+
+</div>
+</body>
+</html>
