@@ -73,7 +73,7 @@
 <header class="hero">
   <h1>云电脑反向评论 · 部署 + 操作指南</h1>
   <p>在无影云电脑上，让 Claude 帮你对目标用户的视频底下自动发评论触达。一句话触发，本机备料、无影自动发。</p>
-  <div class="meta">适用：阿里无影云电脑 · Windows · Akke 反向评论通道 · 2026-06-03 端到端跑通（手动版）</div>
+  <div class="meta">适用：阿里无影云电脑 · Windows · Akke 反向评论通道 · 2026-06-04 接通 claim + 去重闭环</div>
 </header>
 
 <div class="say">
@@ -118,7 +118,7 @@
   <p class="lead">这套流程封装成了 Claude 的 skill <code class="inl">send-cloudpc-comment</code>。你<b>不用记命令</b>，对 Claude Code 说下面任意一句，它就自动按流程带你走：</p>
 
   <div class="say">
-    「<b>云电脑发评论</b>」<br>
+    「<b>云电脑发评论</b>」 / 「<b>批量发评论</b>」<br>
     「<b>无影发评论</b>」 / 「<b>无影反向评论</b>」<br>
     「<b>云电脑反向评论</b>」<br>
     「<b>用云电脑去评论区</b>」 / 「<b>云电脑评论区触达</b>」
@@ -139,19 +139,23 @@
   <p class="lead">触发后，Claude 做本机的活（备料 + 传文件），<b>你只需在无影 PowerShell 跑一条命令 + 最后核对</b>。</p>
 
   <ol class="steps">
-    <li><b>给 Claude 目标和文案</b>。Claude 会做成一个 <code class="inl">contacts.csv</code>。
-      <div class="call danger"><b>昵称必须是真实显示昵称，别填数字抖音号</b>
-      身份门按昵称核对，填一串数字（如 <code class="inl">61212819731104612</code>）会被当成"对不上"全部拦下，发不出去。</div></li>
+    <li><b>说要发几条</b>（如「云电脑发评论，发 10 条」）。Claude 自动锁一批高意向 lead、用最新话术生成评论文案，做成 <code class="inl">contacts.csv</code>（含去重要用的隐藏 ID 列）。也可以你自己点名 + 给文案。
+      <div class="call danger"><b>别手打 CSV 走批量</b>
+      Claude 出的 CSV 带 <code class="inl">_comment_id</code>/<code class="inl">_sec_uid</code> 两列——这是发完去重的命门。手打的 CSV 没这两列，发完无法回写去重账本，只能一次性临时用。</div></li>
 
-    <li><b>Claude 把 CSV 传到无影</b>，给你一条下载命令（或直接进剪贴板）。在无影 PowerShell 粘贴执行，把文件落到 <code class="inl">C:\akke-wuying\contacts.csv</code>。</li>
+    <li><b>Claude 把 CSV 传到无影</b>，给你一条命令（进剪贴板）。在无影 PowerShell <code class="inl">Ctrl+V → 回车</code>，文件落到 <code class="inl">C:\akke-wuying\contacts.csv</code>。</li>
 
     <li><b>在无影 PowerShell 跑</b>（默认自动发，中间不打断，每条隔 60 秒）：
       <pre><button class="copy" onclick="cp(this)">复制</button>python douyin_comment_grounded.py contacts.csv</pre>
       想<b>逐条人工把关</b>（每条发前问你 y/跳过）就加 <code class="inl">--confirm</code>：
       <pre><button class="copy" onclick="cp(this)">复制</button>python douyin_comment_grounded.py contacts.csv --confirm</pre>
-      <p class="lead">它每条会走：搜人 → 身份门核对 → 点开第一条视频 → 暂停 → 切评论区 → 打字 → 发送。</p></li>
+      <p class="lead">它每条会走：搜人 → 身份门核对 → 点开第一条视频 → 暂停 → 切评论区 → 打字 → 发送 → 点左上角返回键回主页。</p></li>
 
     <li><b>把运行日志整段贴回给 Claude</b>（每条的 <code class="inl">✅ 已点发送</code> / <code class="inl">[跳过] 身份门未过</code> 等），让它帮你判断哪些发了、哪些没发。</li>
+
+    <li><b>把 <code class="inl">comment_log_日期.csv</code> 拷回给 Claude 写回去重账本</b><span class="pill">别省</span>。无影上跑完会生成这个日志；让 Claude 给你一条命令把它打包传回本机，Claude 跑 <code class="inl">import-comment-log.ts</code> 写回。
+      <div class="call warn"><b>这步是去重命门</b>
+      不回写的话，这些人 4 小时后会被重新拉来重复触达。回写后他们立刻在所有同事的 leads 池里算「已联系」，私信 + 评论统一不重发。</div></li>
 
     <li><b>核对实发</b>（见下方铁律）：逐条刷新对方视频评论区，确认评论真出现了。</li>
   </ol>
@@ -172,6 +176,10 @@
   <div class="call warn"><b>③ 别和发私信同时跑</b>
   反向评论和发 DM 是同一台无影、同一抖音号，<b>同一时间只能跑一个脚本</b>（一台机只有一个抖音 PC 前台）。
   发 DM 的时候别开评论，反之亦然。</div>
+
+  <div class="call danger"><b>④ 发完一定回写去重账本</b>
+  把 <code class="inl">comment_log</code> 拷回给 Claude 跑 <code class="inl">import-comment-log.ts</code>。这是去重唯一生效的一步——漏了
+  这批人 4 小时后会被任何同事重新拉来重发，对方体感是被群发。</div>
 </section>
 
 <!-- ============ 5 ============ -->
@@ -183,6 +191,7 @@
     <tr><td>文字打到了 PowerShell / 桌面，没进评论框</td><td>焦点没在抖音（脚本会打印<code class="inl">前台窗口=</code>，应为「抖音」）。一般脚本自己会修；反复出现就重启脚本、确认抖音在最前。</td></tr>
     <tr><td>文字进了框但没发出去</td><td>发送键没点中（长评论框会变高）。脚本已改成现场找「发送」二字；还不行就贴日志给 Claude。</td></tr>
     <tr><td>评论发到了别的视频下</td><td>视频播完自动跳了下一条。脚本已加「先暂停」；若仍发生，贴日志给 Claude。</td></tr>
+    <tr><td>第 2 条起搜到的是上一个人 / 日志 <code class="inl">[复位] ⚠️ 未回主页</code></td><td>发完没退出视频浮层。脚本已改成点左上角「返回」键回主页；若 VL 没认出返回键，让 Claude 量一个固定坐标 <code class="inl">AKKE_C_BACK</code> 写进 <code class="inl">.env</code>。</td></tr>
     <tr><td>下载 CSV / 脚本卡死不动</td><td>paste.rs 在国内偶发卡 → 让 Claude 改用剪贴板打包（gzip+base64）方式重发。</td></tr>
     <tr><td>OCR 报 401 / 整批 wrong_user</td><td>无影 <code class="inl">.env</code> 里那把 key 失效了 → 找 Claude / PM 换一把已验证可用的 key。</td></tr>
   </table>
@@ -198,14 +207,15 @@
     <li>输入法切英文</li>
     <li><code class="inl">C:\akke-wuying\</code> 里有 <code class="inl">douyin_comment_grounded.py</code></li>
     <li>这台没在同时跑发私信脚本</li>
-    <li>CSV 的昵称是真实显示名（不是数字号）；短名/大众名走 <code class="inl">--confirm</code></li>
+    <li>CSV 由 Claude 生成（带 <code class="inl">_comment_id</code>/<code class="inl">_sec_uid</code>），昵称是真实显示名；短名/大众名走 <code class="inl">--confirm</code></li>
     <li>发完逐条刷评论区气泡核对实发</li>
+    <li><b>发完把 <code class="inl">comment_log</code> 拷回给 Claude 写回去重账本</b>（漏了会被重复触达）</li>
   </ul>
 </section>
 
 <footer>
-  Akke · 无影云电脑反向评论通道 · 部署 + 操作指南 ｜ 实测：2026-06-03 野荞机<br>
-  现状为手动版（读 CSV 直发，去重靠人，不要同一批重复塞同一个人）。无影界面随版本略有差异；卡住任何一步，<b>贴日志或截图发群找 PM</b>，别硬猜。
+  Akke · 无影云电脑反向评论通道 · 部署 + 操作指南 ｜ 实测：2026-06-04 野荞机端到端跑通（claim + 去重闭环）<br>
+  仍是手动驱动（你在无影跑发送、拷回日志），但<b>去重已自动</b>：CSV 走 claim 锁人、发完回写账本，私信 + 评论统一不重发。无影界面随版本略有差异；卡住任何一步，<b>贴日志或截图发群找 PM</b>，别硬猜。
 </footer>
 
 </div>
