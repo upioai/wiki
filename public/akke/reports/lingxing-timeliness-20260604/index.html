@@ -1,0 +1,367 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>零星 DM 时效分布 · 最近 100 条</title>
+<style>
+  :root{--r:#2563eb;--n:#f59e0b;}
+  *{box-sizing:border-box}
+  body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;margin:0;background:#f8fafc;color:#0f172a;line-height:1.5}
+  .wrap{max-width:840px;margin:0 auto;padding:28px 18px 60px}
+  h1{font-size:22px;margin:0 0 4px}
+  .sub{color:#64748b;font-size:13px;margin-bottom:20px}
+  .kpis{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px}
+  .kpi{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 18px;flex:1;min-width:120px}
+  .kpi .v{font-size:24px;font-weight:700}
+  .kpi .l{font-size:12px;color:#64748b;margin-top:2px}
+  .segment{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px 20px;margin-bottom:18px}
+  .segment h3{margin:0 0 4px;font-size:16px}
+  .hint{font-size:12px;color:#64748b;margin-bottom:10px}
+  .hint code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:11px}
+  .metricline{font-size:12px;color:#334155;background:#f8fafc;border-radius:8px;padding:8px 10px;margin-bottom:12px}
+  .dot-r,.dot-n{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:3px;vertical-align:middle}
+  .dot-r{background:var(--r)}.dot-n{background:var(--n)}
+  .bar-row{display:flex;align-items:center;margin:5px 0}
+  .bar-label{width:62px;font-size:12px;color:#475569;text-align:right;padding-right:10px;flex-shrink:0}
+  .bar-track{flex:1;position:relative;display:flex;align-items:center;height:22px;background:#f1f5f9;border-radius:5px;overflow:hidden}
+  .bar{height:100%}
+  .bar.replied{background:var(--r)}
+  .bar.noreply{background:var(--n)}
+  .bar.neutral{background:#60a5fa}
+  .warn{font-size:13px;color:#7c2d12;background:#fff7ed;border:1px solid #fdba74;border-radius:10px;padding:12px 14px;margin-bottom:20px}
+  .warn code{background:#ffedd5;padding:1px 5px;border-radius:4px;font-size:11px}
+  .bar-count{position:absolute;right:8px;font-size:11px;color:#0f172a;font-weight:600}
+  .bar-count .rn{color:#64748b;font-weight:400}
+  .legend{font-size:12px;color:#475569;margin:6px 0 18px}
+  .note{font-size:12px;color:#64748b;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px 14px;margin-top:18px}
+  .analysis{margin-top:30px}
+  .analysis h2{font-size:18px;margin:26px 0 12px;padding-bottom:6px;border-bottom:2px solid #e2e8f0}
+  .finding{display:flex;gap:12px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin-bottom:12px}
+  .ftag{flex-shrink:0;align-self:flex-start;font-size:11px;font-weight:700;color:#fff;border-radius:6px;padding:3px 9px}
+  .ftag.bad{background:#dc2626}.ftag.warn2{background:#ea580c}.ftag.ok{background:#0891b2}
+  .fbody{font-size:13.5px;color:#1e293b}
+  .fbody ul{margin:6px 0 0;padding-left:18px}
+  .fbody li{margin:5px 0}
+  .fbody code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px}
+  .solutions{display:flex;flex-direction:column;gap:10px}
+  .sol{display:flex;gap:12px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px}
+  .snum{flex-shrink:0;width:26px;height:26px;border-radius:50%;background:#2563eb;color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:14px}
+  .sbody{font-size:13.5px;color:#1e293b;line-height:1.6}
+  .sbody code{background:#0f172a;color:#e2e8f0;padding:2px 7px;border-radius:5px;font-size:12px}
+  .target{margin-top:16px;background:#ecfdf5;border:1px solid #6ee7b7;border-radius:10px;padding:13px 16px;font-size:13.5px;color:#065f46}
+</style></head><body><div class="wrap">
+  <h1>零星 · DM 发送时效分布</h1>
+  <div class="sub">最近 100 条已发出 DM ｜ 生成于 2026-06-04 02:42 UTC ｜ 桶：0-1/1-3/3-6/6-12/12-24/24-72/&gt;72h</div>
+  
+  <div class="warn">
+    <b>⚠️ 该账号 DB 内无回复信号</b>——零星全部 conversation 的 <code>messages.role='customer'</code> 与 <code>last_inbound_at</code> 均为 0，
+    说明 ADB 通道的 inbound 没有被 <code>/api/cron/check-replies</code> 回灌入库。<b>因此本报表无法从 DB 区分「已回复 / 未回复」</b>，
+    下方分布是<b>全部 100 条的整体时效</b>。要做「回复 vs 没回复」的时效对照，需要运营从手机端导出真实回复名单回填。
+  </div>
+  <div class="kpis">
+    <div class="kpi"><div class="v">100</div><div class="l">样本 DM 数</div></div>
+    <div class="kpi"><div class="v" style="color:#94a3b8">N/A</div><div class="l">回复信号缺失（DB 未回灌）</div></div>
+  </div>
+  <div class="legend">柱长 = 该时效桶内的 DM 条数（共 100 条）</div>
+  
+    <div class="segment">
+      <h3>① 用户评论 → 系统采集（拉评时效）</h3>
+      <div class="hint"><code>comments.comment_time</code> → <code>comments.created_at</code>；worker 抓到这条评论用了多久</div>
+      <div class="metricline">
+        全部 <b>n=100</b> · 均值 <b>11.5h</b> · 中位 <b>3.4h</b> · P90 <b>29.4h</b> · 最大 86.9h
+      </div>
+      <div class="bars">
+      <div class="bar-row">
+        <div class="bar-label">0–1h</div>
+        <div class="bar-track">
+          <div class="bar neutral" style="width:100%"></div>
+          <span class="bar-count">35</span>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">1–3h</div>
+        <div class="bar-track">
+          <div class="bar neutral" style="width:31.428571428571427%"></div>
+          <span class="bar-count">11</span>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">3–6h</div>
+        <div class="bar-track">
+          <div class="bar neutral" style="width:57.14285714285714%"></div>
+          <span class="bar-count">20</span>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">6–12h</div>
+        <div class="bar-track">
+          <div class="bar neutral" style="width:5.714285714285714%"></div>
+          <span class="bar-count">2</span>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">12–24h</div>
+        <div class="bar-track">
+          <div class="bar neutral" style="width:25.71428571428571%"></div>
+          <span class="bar-count">9</span>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">24–72h</div>
+        <div class="bar-track">
+          <div class="bar neutral" style="width:57.14285714285714%"></div>
+          <span class="bar-count">20</span>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">>72h</div>
+        <div class="bar-track">
+          <div class="bar neutral" style="width:8.571428571428571%"></div>
+          <span class="bar-count">3</span>
+        </div>
+      </div></div>
+    </div>
+  
+    <div class="segment">
+      <h3>② 系统采集 → 我们拉取（待办积压）</h3>
+      <div class="hint"><code>comments.created_at</code> → <code>lead_claims.claimed_at</code>；评论入库后多久被 operator claim</div>
+      <div class="metricline">
+        全部 <b>n=100</b> · 均值 <b>9.8h</b> · 中位 <b>4.0h</b> · P90 <b>25.2h</b> · 最大 66.6h
+      </div>
+      <div class="bars">
+      <div class="bar-row">
+        <div class="bar-label">0–1h</div>
+        <div class="bar-track">
+          <div class="bar neutral" style="width:100%"></div>
+          <span class="bar-count">29</span>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">1–3h</div>
+        <div class="bar-track">
+          <div class="bar neutral" style="width:55.172413793103445%"></div>
+          <span class="bar-count">16</span>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">3–6h</div>
+        <div class="bar-track">
+          <div class="bar neutral" style="width:37.93103448275862%"></div>
+          <span class="bar-count">11</span>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">6–12h</div>
+        <div class="bar-track">
+          <div class="bar neutral" style="width:27.586206896551722%"></div>
+          <span class="bar-count">8</span>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">12–24h</div>
+        <div class="bar-track">
+          <div class="bar neutral" style="width:75.86206896551724%"></div>
+          <span class="bar-count">22</span>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">24–72h</div>
+        <div class="bar-track">
+          <div class="bar neutral" style="width:48.275862068965516%"></div>
+          <span class="bar-count">14</span>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">>72h</div>
+        <div class="bar-track">
+          <div class="bar neutral" style="width:0%"></div>
+          <span class="bar-count">0</span>
+        </div>
+      </div></div>
+    </div>
+  
+    <div class="segment">
+      <h3>③ 我们拉取 → 真发出（运营动手）</h3>
+      <div class="hint"><code>lead_claims.claimed_at</code> → <code>messages.sent_at</code>；claim 之后多久真发出 DM</div>
+      <div class="metricline">
+        全部 <b>n=100</b> · 均值 <b>1.0h</b> · 中位 <b>0.5h</b> · P90 <b>4.2h</b> · 最大 5.3h
+      </div>
+      <div class="bars">
+      <div class="bar-row">
+        <div class="bar-label">0–1h</div>
+        <div class="bar-track">
+          <div class="bar neutral" style="width:100%"></div>
+          <span class="bar-count">82</span>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">1–3h</div>
+        <div class="bar-track">
+          <div class="bar neutral" style="width:6.097560975609756%"></div>
+          <span class="bar-count">5</span>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">3–6h</div>
+        <div class="bar-track">
+          <div class="bar neutral" style="width:15.853658536585366%"></div>
+          <span class="bar-count">13</span>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">6–12h</div>
+        <div class="bar-track">
+          <div class="bar neutral" style="width:0%"></div>
+          <span class="bar-count">0</span>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">12–24h</div>
+        <div class="bar-track">
+          <div class="bar neutral" style="width:0%"></div>
+          <span class="bar-count">0</span>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">24–72h</div>
+        <div class="bar-track">
+          <div class="bar neutral" style="width:0%"></div>
+          <span class="bar-count">0</span>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">>72h</div>
+        <div class="bar-track">
+          <div class="bar neutral" style="width:0%"></div>
+          <span class="bar-count">0</span>
+        </div>
+      </div></div>
+    </div>
+  
+    <div class="segment">
+      <h3>④ 端到端：用户评论 → 收到我们 DM</h3>
+      <div class="hint"><code>comments.comment_time</code> → <code>messages.sent_at</code>；用户从发评论到收到回复实际等了多久</div>
+      <div class="metricline">
+        全部 <b>n=100</b> · 均值 <b>22.2h</b> · 中位 <b>13.9h</b> · P90 <b>55.1h</b> · 最大 102.9h
+      </div>
+      <div class="bars">
+      <div class="bar-row">
+        <div class="bar-label">0–1h</div>
+        <div class="bar-track">
+          <div class="bar neutral" style="width:6.0606060606060606%"></div>
+          <span class="bar-count">2</span>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">1–3h</div>
+        <div class="bar-track">
+          <div class="bar neutral" style="width:51.515151515151516%"></div>
+          <span class="bar-count">17</span>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">3–6h</div>
+        <div class="bar-track">
+          <div class="bar neutral" style="width:39.39393939393939%"></div>
+          <span class="bar-count">13</span>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">6–12h</div>
+        <div class="bar-track">
+          <div class="bar neutral" style="width:51.515151515151516%"></div>
+          <span class="bar-count">17</span>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">12–24h</div>
+        <div class="bar-track">
+          <div class="bar neutral" style="width:45.45454545454545%"></div>
+          <span class="bar-count">15</span>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">24–72h</div>
+        <div class="bar-track">
+          <div class="bar neutral" style="width:100%"></div>
+          <span class="bar-count">33</span>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">>72h</div>
+        <div class="bar-track">
+          <div class="bar neutral" style="width:9.090909090909092%"></div>
+          <span class="bar-count">3</span>
+        </div>
+      </div></div>
+    </div>
+  
+  <div class="analysis">
+    <h2>⑤ 归因分析：没收到回复，时效卡在哪一环？</h2>
+
+    <div class="finding">
+      <div class="ftag bad">端到端</div>
+      <div class="fbody">
+        用户从发评论到收到我们 DM，<b>中位 13.9h、均值 22.2h</b>。
+        只有 <b>2/100</b> 条在 1 小时内送达，却有 <b>36/100（36%）</b> 拖到了 24 小时以上。
+        装修是冲动 + 比价型需求，评论当下热度最高；隔了大半天到一两天才私信，用户要么已经忘了、要么早被同行先捞走，<b>回复率天然被时效拖死</b>。
+      </div>
+    </div>
+
+    <div class="finding">
+      <div class="ftag warn2">主因</div>
+      <div class="fbody">
+        把端到端按中位拆三段，时间几乎全耗在前两步：
+        <b>① 评论→采集 3.4h（占 43%）</b> +
+        <b>② 采集→拉取 4.0h（占 51%）</b>，
+        而 <b>③ 拉取→发送只占 6%（中位 0.5h）</b>。
+        最大瓶颈是 <b>② 采集→拉取</b>，其次 <b>① 评论→采集</b>。
+        换句话说——<b>不是运营发得慢，是评论太老才轮到被发</b>。
+        ③ 段 13% 在 3h 内发出，运营响应没问题。
+      </div>
+    </div>
+
+    <div class="finding">
+      <div class="ftag ok">瓶颈拆解</div>
+      <div class="fbody">
+        <ul>
+          <li><b>① 评论→采集</b>：中位 3.4h 不算差，但长尾重——<b>23/100（23%）</b>的评论 worker 隔了 <b>24h+</b> 才抓到。抓取频率/覆盖不稳，热评被晾凉。</li>
+          <li><b>② 采集→拉取</b>：中位 4.0h，<b>36/100（36%）</b>的评论入库后压了 <b>12h+</b> 才被 claim。说明评论进了池子没人及时捞——拉单频次/人手或拉单策略的问题。</li>
+          <li><b>③ 拉取→发送</b>：中位 0.5h，基本即拉即发，<b>不是问题环节，无需优化</b>。</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>⑥ 对应解决方案（按性价比排序）</h2>
+    <div class="solutions">
+      <div class="sol">
+        <div class="snum">1</div>
+        <div class="sbody"><b>拉单只拉新鲜评论（最快见效，零成本）</b><br>
+          claim 时强制加时间窗：<code>pnpm tsx scripts/claim-leads.ts --limit=N --since-hours=6</code>，
+          只捞近 6h 评论，直接把 ② 段积压和端到端长尾砍掉。代价是可拉量变少，需要配合提高抓取量（方案 2）。</div>
+      </div>
+      <div class="sol">
+        <div class="snum">2</div>
+        <div class="sbody"><b>提高抓取频率 / 覆盖（治 ① 的长尾）</b><br>
+          ① 段 23% 评论 24h+ 才入库。提高 <code>/api/cron/scrape</code> 频率、对高产源加抓取并发，或给高意向源开小灶优先抓，把「评论→采集」中位压到 1h 内、消掉 24h+ 长尾。</div>
+      </div>
+      <div class="sol">
+        <div class="snum">3</div>
+        <div class="sbody"><b>缩短拉单间隔 / 高意向自动提醒（治 ② 的积压）</b><br>
+          36% 评论入库后压 12h+ 没人 claim。让运营每 1-2h 拉一次而不是一天一波，或对高意向新评论做 Lark 推送提醒，把「采集→拉取」从中位 4.0h 压到 2h 内。</div>
+      </div>
+      <div class="sol">
+        <div class="snum">4</div>
+        <div class="sbody"><b>把端到端时效纳入日报红线 + 真实回复回填</b><br>
+          给端到端设硬指标（如中位 &lt; 6h），每天在个人日报里盯。同时——当前 DB 无回复信号——让运营导出手机端真实回复名单回填，才能把「发得快是否真的更容易收到回复」这条因果坐实，而不是只看时效推断。</div>
+      </div>
+    </div>
+
+    <div class="target">
+      <b>目标线：</b>端到端中位从现在的 <b>13.9h</b> 压到 <b>6h 以内</b>（方案 1 立即砍长尾，方案 2/3 治本）。
+      回复率改善需待真实回复数据回填后量化验证。
+    </div>
+  </div>
+  <div class="note">
+    <b>怎么读：</b>对比每段「回复」(蓝) 与「未回复」(橙) 的中位时效——若未回复样本明显集中在更长的时效桶，说明「发太晚」是丢回复的重要原因；若两者分布接近，则回复差异更可能来自文案/意向而非时效。<br>
+    <b>口径说明：</b>①回复检测仅 DB 反查（同 conversation 后续 <code>messages.role='customer'</code>），依赖 <code>/api/cron/check-replies</code> 回灌，可能低估真实回复；② <code>comment_time</code> 或 <code>lead_claims</code> 缺失的样本不进对应段统计；③负 delta（时钟漂移）clamp 到 0。
+  </div>
+</div></body></html>
