@@ -57,7 +57,10 @@
 <div class="wrap">
   <div class="crumb"><a href="/">upio.ai</a> / <a href="/akke/">Akke</a> / 本地 f2 实拉号源新方法</div>
   <h1>本地 f2 实拉号源新方法</h1>
-  <div class="meta">Akke 项目 · 2026-06-04 首证，<b>2026-06-05 第二批实战 + 术语注解</b> · 数据随并行运营实时变动，以下为快照</div>
+  <div class="meta">Akke 项目 · 持续迭代文档（无固定截止）</div>
+  <div class="note" style="background:#f7f7f9;border-left-color:var(--gray)">
+    <b>📅 本页信息时段</b>：方法于 <b>2026-06-04</b> 首次验证、<b>2026-06-05</b> 跑第二批实战定型，正文沉淀这两批的真实运行。<b>页内一切数字（号源数、avgC、入库批次等）是写作时段的快照</b>，会随并行运营持续变动；方法论本身仍在迭代，本页随之更新，<b>请以页面最新修订为准、不要把某个具体数字当长期定值</b>。
+  </div>
   <div class="jumps">
     <a href="#s0">00 一句话</a>
     <a href="#sg">术语速查</a>
@@ -67,6 +70,7 @@
     <a href="#s4">04 怎么验证</a>
     <a href="#s5">05 怎么跑</a>
     <a href="#s6">06 怎么联动</a>
+    <a href="#s7">07 效率成本</a>
   </div>
   <div class="note" style="background:#eef6ff;border-left-color:#2563eb">
     <b>📖 看不懂术语？</b> 本页很多词（f2 / sec_uid / avgC / tier / 意向打分…）都在 <a href="#sg" style="color:#2563eb"><b>顶部「术语速查」</b></a>用大白话 + 我们真实号的例子解释了，边看边查。
@@ -309,7 +313,26 @@ TAG=douyin-search-20260530 python3 scripts/source-cohort-yield.py
     <div class="note warn"><b>注意复抓窗口</b>：worker 复抓评论有时间闸门（<code>SCRAPE_RECENT_COMMENT_HOURS</code>，5/31 已从 24h 调到 168h/7d）。新入库号的老视频评论可能在闸门外，<b>别因为「DB 里评论少」就判死</b>——这正是踩坑 ③，要用本地 f2 实拉量交叉验证。首抓窗口是否从 7d 再放宽到 30d 在评估中（见<a href="/akke/source-scoring-2026-06-04" style="color:var(--accent)">号源打分页</a>）。</div>
   </section>
 
-  <footer>UPIO.AI · AKKE PROJECT DOCS · 本地 f2 实拉号源新方法 · 2026-06-04 首证 · 2026-06-05 第二批实战 + 术语注解</footer>
+  <!-- 07 效率成本 -->
+  <section class="sec" id="s7">
+    <div class="sec-h"><span class="sec-n">SECTION 07</span><span class="sec-t">效率 · 用时 · 花费（一轮跑下来到底多快多省）</span></div>
+    <p>以 6/05 第二批为例（一轮干净跑 = 从搜索到 22 个号入库），各阶段的用时和花费：</p>
+    <table>
+      <thead><tr><th>阶段</th><th>这次的量</th><th class="n">用时</th><th>花费</th></tr></thead>
+      <tbody>
+        <tr><td>0 搜索候选</td><td>5 关键词 → 304 作者</td><td class="n">~2-3 分钟</td><td class="gA">免费（本机浏览器滚动 + 监听接口）</td></tr>
+        <tr><td>1 f2 富化</td><td>98 个号，~600 次 f2 调用（拉视频列表 + 转赞评）</td><td class="n">~13 分钟</td><td class="gA">免费（本机直连抖音，不走付费 API）</td></tr>
+        <tr><td>2 实拉验证</td><td>拉评论（免费）+ 意向打分（付费）</td><td class="n">~5-8 分钟</td><td class="gC">仅打分走 deepseek-v4-flash，<b>几分钱/批</b></td></tr>
+        <tr><td>3 入库 + 自动排检查</td><td>22 个号写库 + 自动建 T+7 提醒</td><td class="n">~10 秒</td><td class="gA">免费</td></tr>
+        <tr><td><b>合计</b></td><td><b>22 个金矿号入库</b></td><td class="n"><b>~20-25 分钟</b></td><td class="gA"><b>≈ 几分钱（只有阶段 2 打分）</b></td></tr>
+      </tbody>
+    </table>
+    <div class="note good"><b>为什么这么省</b>：阶段 0/1/3 全是<b>本机 f2 直连抖音</b>抓真实数据，<b>不依赖任何付费第三方平台</b>（蝉妈妈/飞瓜是会员制 + 限流，且飞瓜还给不了意向评论）。唯一现金成本是阶段 2 用 AI 给评论打意向分，而 deepseek-v4-flash 极便宜，一批一两百条评论也就几分钱。<b>本质是「用本机算力 + 自己号的 cookie」换「第三方平台的会员费」</b>。</div>
+    <div class="note warn"><b>⚠️ 真实瓶颈是「f2 必须串行」带来的用时，不是钱</b>：阶段 1 富化占了大头（~13min/98 号），因为 <code>fetch_user_posts</code> 的浏览器回退不能并发（并发必崩 + 限流，见 §UPDATE 第 1 条）。<b>想更快只能减少候选数（先按名字脉预筛），不能靠并发提速</b>——这是这套方法的硬约束。6/05 就是吃了「图快开并发」的亏，反而把端点干限流、多花了冷却等待时间。</div>
+    <p style="font-size:13px;color:var(--gray)">注：以上是「干净跑」的理论用时。6/05 当天因调试并发限流多耗了额外时间，那是操作失误不是方法成本——按串行老老实实跑就是上表的数。</p>
+  </section>
+
+  <footer>UPIO.AI · AKKE PROJECT DOCS · 本地 f2 实拉号源新方法 · 2026-06-04 首证 · 2026-06-05 第二批实战 + 术语注解 + 效率成本</footer>
 </div>
 </body>
 </html>
