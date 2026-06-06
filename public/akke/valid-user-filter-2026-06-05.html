@@ -59,9 +59,9 @@
 <div class="wrap">
   <div class="crumb"><a href="/akke/" target="_blank">Akke</a> / 专题 · 识别有效用户</div>
   <h1>识别有效用户 — 触达候选主页画像过滤</h1>
-  <div class="meta">需求方案 · 提交人 饭粒 · 2026-06-05 · 状态：待办（3 处 ⚠️ 待 PM 确认）</div>
+  <div class="meta">需求方案 · 提交人 饭粒 · 2026-06-05 · <b style="color:var(--green)">2026-06-06 已实现（PR #132 待审）· 回测 3/3 ✅</b></div>
   <div class="jumps">
-    <a href="#scope">① 口径</a><a href="#now">② 现状诊断</a><a href="#plan">③ 方案</a><a href="#accept">④ 验收</a><a href="#edge">⑤ 边界与风险</a><a href="#oos">⑥ Out of Scope</a>
+    <a href="#scope">① 口径</a><a href="#now">② 现状诊断</a><a href="#plan">③ 已实现的 5 道检查</a><a href="#backtest">④ 回测</a><a href="#accept">⑤ 验收时间表</a><a href="#edge">⑥ 边界与风险</a><a href="#oos">⑦ Out of Scope</a>
   </div>
 
   <div class="sec" id="scope">
@@ -86,67 +86,82 @@
   </div>
 
   <div class="sec" id="plan">
-    <div class="sec-h"><span class="sec-n">03</span><span class="sec-t">方案 · 拉单时自动查主页（A）+ 顺手扩词表（C）</span></div>
+    <div class="sec-h"><span class="sec-n">03</span><span class="sec-t">已实现的 5 道检查（PR #132 · src/lib/lead-validity.ts 两个拉单入口共用）</span></div>
     <table>
-      <tr><th style="width:24%">方案</th><th>成本</th><th>能拦多少</th><th style="width:18%">性价比</th></tr>
-      <tr><td><b>A. 拉单时查主页</b> ✅</td><td>每天 ~30-60 次主页请求（只查要触达的候选）；worker 接口现成、零改动</td><td>拦住「昵称干净、身份在简介里」的伪装者</td><td><span class="pill pOk">最高</span> 请求量是全量的 1/100，100% 花在真要发 DM 的人身上</td></tr>
-      <tr><td>B. analyze 全量查主页</td><td>每天几千次请求，反爬风险高</td><td>同 A</td><td><span class="pill pHi">低</span> 99% 的请求查的是永远不会触达的低意向评论</td></tr>
-      <tr><td><b>C. 扩词表</b> ✅（顺手）</td><td>零请求</td><td>「卖设计/灯具/瓷砖」昵称词已基本在表里，增量小</td><td><span class="pill pMid">白捡</span> 但治不了本</td></tr>
+      <tr><th style="width:26%">检查</th><th>怎么判</th><th style="width:20%">成本</th><th style="width:12%">强度</th></tr>
+      <tr><td><b>1. 主页画像</b></td><td>signature / 认证主体 / 昵称重扫同行词（室内装修/灯饰/照明/瓷砖…）</td><td>export 入口复用本来就拉的 profile 请求<b>零新增</b>；claim-leads 补拉 ~30-60 次/天</td><td><span class="pill pOk">强</span></td></tr>
+      <tr><td><b>2. 签名挂微信</b></td><td>签名里挂自己微信 = 引流/卖家（归一化破「我的_微__信__是_xxx」打散伎俩）。真买家是问<i>你</i>微信，不会把自己微信挂签名</td><td>零（同一次请求）</td><td><span class="pill pOk">强</span></td></tr>
+      <tr><td><b>3. 主页视频墙</b></td><td>主页视频标题 ≥2 条命中同行词且占比 ≥40%（满屏「全屋定制案例」）；业主记录自家装修只发 1-2 条，单条不定性</td><td>零（lead_profiles 已存主页视频标题，纯 DB）</td><td><span class="pill pMid">中强</span></td></tr>
+      <tr><td><b>4. 跨视频同文</b> 💡领导建议</td><td>同一用户把一模一样的评论刷到 ≥3 个视频下 = 收割/引流；2 个视频或短文案（"多少钱一平"类）只告警不杀——真买家比价场景</td><td>零（库里本来就存全量评论，纯 DB）</td><td><span class="pill pOk">强</span></td></tr>
+      <tr><td><b>5. 认证主体透出</b></td><td>worker 新增返回企业认证（"XX灯饰有限公司"）/自定义认证（"优质房产领域创作者"），并入检查 1</td><td>零（同一次请求 +2 字段）</td><td><span class="pill pOk">强</span></td></tr>
     </table>
-    <p><b>改造后拉单流程</b>（改 <code>claim-leads.ts</code> + <code>peer-filter.ts</code>，无 DB migration，worker 零改动）：</p>
+    <p><b>拉单流程</b>（判无效 → 沉淀「无关」+ 释放 claim，<b>全员永久出池</b>，防同事重复拉到同一卖家）：</p>
     <div class="flow">
-      <div class="box">RPC 拉候选<br><span class="meta">超额 ~1.5×</span></div><span class="arr">→</span>
-      <div class="box hit">逐条查主页 signature<br><span class="meta">worker 现成接口</span></div><span class="arr">→</span>
-      <div class="box hit">命中同行词？<br><span class="meta">室内装修/灯饰/照明/瓷砖…</span></div><span class="arr">→</span>
-      <div class="box">命中 → discard + 标「无关」沉淀<br><span class="meta">掉出全员池子，防同事重复拉到</span></div><span class="arr">→</span>
-      <div class="box">干净名单裁回 N 条交给运营</div>
+      <div class="box">RPC 拉候选</div><span class="arr">→</span>
+      <div class="box hit">5 道有效性检查<br><span class="meta">主页画像/挂微信/视频墙/同文/认证</span></div><span class="arr">→</span>
+      <div class="box">命中 → 沉淀「无关」+ 释放 claim<br><span class="meta">报告逐条列原因</span></div><span class="arr">→</span>
+      <div class="box">干净名单交给运营<br><span class="meta">不够提示再跑一次补拉</span></div>
     </div>
-    <div class="warn"><b>诚实声明</b>：signature 也可能是空的（很多人不写简介）——B嗯嗯如果简介没写「灯具」，signature 层也拦不住。那一类要靠主页<b>视频标题</b>画像（多一次请求），留 V2，回测结果说话。</div>
+    <div class="note"><b>设计变化 vs 06-05 方案</b>：① 视频标题画像原计划留 V2——实现时发现 <code>lead_profiles.raw_videos</code> 基建已存在，零成本提前落地；② 不做 1.5× 超额拉取——gate 剔除后实拿不足时「再跑一次」更简单；③ analyze 全量的问题天然消失（6/4 起 analyze 只打分，主页拉取本来就在 claim 时）。</div>
+  </div>
+
+  <div class="sec" id="backtest">
+    <div class="sec-h"><span class="sec-n">04</span><span class="sec-t">回测 · 3 个已知漏网案例全拦住（真实 DB + 真实接口，2026-06-06）</span></div>
+    <table>
+      <tr><th style="width:22%">案例</th><th style="width:26%">当时怎么漏的</th><th>现在哪道拦住</th></tr>
+      <tr><td><b>B嗯嗯</b>（卖灯具）</td><td>昵称干净 + 满分买家话术，两道文本过滤全漏</td><td><span class="pill pOk">双杀</span> 跨视频同文（同句刷 3 个视频）+ 签名挂微信（签名=「我的_微__信__是_chengxinjiuwu」，下划线打散「微信」躲关键词，归一化后命中）</td></tr>
+      <tr><td><b>谢大叔→聊房</b>（房产创作者）</td><td>旧词表无「聊房」</td><td><span class="pill pOk">拦截</span> 昵称:聊房（文本层 + 画像层都拦）</td></tr>
+      <tr><td><b>太湖美景</b></td><td>昵称无信号，身份在简介</td><td><span class="pill pOk">拦截</span> 签名:室内装修</td></tr>
+    </table>
+    <div class="note"><b>「跨视频同文」这条建议直接命中实战</b>：B嗯嗯那句「我需要装修，怎么联系你？」在库里刷了 3 个不同视频——这道检查是全部信号里最便宜的（零抖音请求，纯数据库查询），却独立拦住了最难的案例。</div>
   </div>
 
   <div class="sec" id="accept">
-    <div class="sec-h"><span class="sec-n">04</span><span class="sec-t">验收 · 基线 → 回测 → 复测（带数字，不说「更准」）</span></div>
+    <div class="sec-h"><span class="sec-n">05</span><span class="sec-t">验收时间表 · 基线 → 回测 ✅ → 复测</span></div>
     <div class="step">
-      <div class="when">STEP 0 基线</div>
-      <div class="body"><span class="big">抽最近 14 天已触达 leads 100 条，人工复核同行/卖货号占比 = 改造前无效率 X%</span>
-      <div class="eff">专题第一个交付数字；若基线本来 &lt;5%，整个改造优先级重新评估</div></div>
+      <div class="when">✅ 2026-06-06</div>
+      <div class="body"><span class="big">代码完成（PR #132）+ 回测通过 3/3</span>
+      <div class="eff">tsc / lint 全绿；回测用真实 DB + 真实 worker 接口跑已知漏网案例，见 ④</div></div>
     </div>
     <div class="step">
-      <div class="when">STEP 1 回测</div>
-      <div class="body"><span class="big">已知漏网案例新 gate 必须拦住</span>
-      <div class="eff">B嗯嗯（卖灯具）· 谢大叔→聊房（房产创作者）· 太湖美景（signature=室内装修）；signature 为空拦不住的如实记录，作为是否上 V2 的依据</div></div>
+      <div class="when">merge 当天 D0</div>
+      <div class="body"><span class="big">基线：抽最近 14 天已触达 leads 100 条，人工复核同行/卖货占比 = 改造前无效率 X%</span>
+      <div class="eff">专题第一个交付数字（人工复核约 1-2h）；同时 gate 随新拉单自动生效</div></div>
     </div>
     <div class="step">
-      <div class="when">STEP 2 复测</div>
-      <div class="body"><span class="big">新流程跑 7 天后抽 100 条已触达 leads 人工复核，同行/卖货占比 ≤5%</span>
-      <div class="eff">与基线 X% 对比，给领导的就是「X% → ≤5%」这组数字</div></div>
+      <div class="when">D0+7（约 06-13）</div>
+      <div class="body"><span class="big">复测：抽 100 条新流程已触达 leads 人工复核，同行/卖货占比 ≤5% → 验收</span>
+      <div class="eff">与基线对比，给领导的就是「X% → ≤5%」这组数字</div></div>
     </div>
   </div>
 
   <div class="sec" id="edge">
-    <div class="sec-h"><span class="sec-n">05</span><span class="sec-t">边界 case 与风险 ⚠️ 待 PM 确认</span></div>
+    <div class="sec-h"><span class="sec-n">06</span><span class="sec-t">边界 case 与风险（已按此实现）</span></div>
     <table>
       <tr><th style="width:38%">情况</th><th>处理</th></tr>
-      <tr><td>signature 为空（大量用户不写简介）</td><td><b>放行</b>，不误伤；日志记数</td></tr>
-      <tr><td>主页接口失败 / 超时</td><td><b>放行 + 拉单报告显式列出</b>「N 条未完成主页校验」，不静默跳过也不断拉单</td></tr>
-      <tr><td>signature 含「设计」但属生活语境（如「热爱生活设计」）</td><td>词表用「室内设计 / 设计师 / 全案设计」等带限定词形态，不收单字</td></tr>
-      <tr><td>被 discard 的候选 claim 锁</td><td>沉淀标「无关」后 4h 锁自然过期，不需主动释放</td></tr>
+      <tr><td>signature 为空（大量用户不写简介）</td><td><b>放行</b>，不误伤；空字段只跳过该项检查</td></tr>
+      <tr><td>主页接口失败 / 超时</td><td><b>放行 + 拉单报告显式列出</b>「N 条主页拉取失败」，不静默跳过也不断拉单</td></tr>
+      <tr><td>signature 含「装修」但属业主语境（"正在装修中"）</td><td>不收单字「装修」，只收「室内装修 / 全案设计」等完整形态</td></tr>
+      <tr><td>同文刷 2 个视频 / 文案 &lt;6 字（"多少钱一平"类）</td><td>只告警不硬杀——真买家比价可能在 2-3 条视频下问同样的话</td></tr>
+      <tr><td>主页视频单条命中同行词</td><td>不定性（业主记录自家装修）；要 ≥2 条且占比 ≥40% 才判</td></tr>
+      <tr><td>被 discard 的候选 claim 锁</td><td>主动释放（status='expired'）；释放失败也无碍，4h 自然过期</td></tr>
+      <tr><td>gate 剔除后实拿 &lt; 请求数</td><td>脚本如实报「实拿 M/N，再跑一次补拉」，不做超额拉取</td></tr>
     </table>
-    <p><b>风险</b>：① worker 主页接口走 sec_user_id 路径，5/19 实测拉回过 signature，但未大批量验证海外出口反爬表现——上线先小批量观察，失败率高退回本机拉取兜底；② 某天池子同行密度高时 1.5× 超额仍可能拉不满 N，报告如实报「拉到 M/N」。</p>
-    <p><b>历史数据</b>：不回填、不清理已触达历史（低影响又烧钱）；只对改造后新拉单生效，基线抽样仅作统计。</p>
+    <p><b>风险</b>：worker 主页接口走 sec_user_id 路径，回测 3 个真实 sec_uid 全部拉回成功；但未大批量验证海外出口反爬表现——上线后观察拉取失败率（报告里有显式计数），失败率高退回本机拉取兜底。</p>
+    <p><b>历史数据</b>：不回填、不清理已触达历史（低影响又烧钱）；只对 merge 后新拉单生效，基线抽样仅作统计。</p>
   </div>
 
   <div class="sec" id="oos">
-    <div class="sec-h"><span class="sec-n">06</span><span class="sec-t">Out of Scope（本期不做）⚠️ 待 PM 确认</span></div>
+    <div class="sec-h"><span class="sec-n">07</span><span class="sec-t">Out of Scope（本期不做）</span></div>
     <div class="grid">
-      <div class="card"><div class="lbl">留 V2</div><div class="val">主页视频标题画像</div><div class="sub">多一次请求/人；回测数据说话再决定</div></div>
-      <div class="card"><div class="lbl">不做</div><div class="val">analyze 全量拉主页</div><div class="sub">每天几千次请求，性价比极低</div></div>
-      <div class="card"><div class="lbl">V2 顺手加</div><div class="val">反评（RC）通道同款校验</div><div class="sub">同源候选，本期先收 DM 通道</div></div>
-      <div class="card"><div class="lbl">按既有规则</div><div class="val">引流号 handoff gate</div><div class="sub">口径已收窄，人工规则继续执行</div></div>
+      <div class="card"><div class="lbl">✅ 已提前落地</div><div class="val">主页视频标题画像</div><div class="sub">原计划留 V2；发现 lead_profiles.raw_videos 基建已存在，零成本并入本期（检查 3）</div></div>
+      <div class="card"><div class="lbl">天然消失</div><div class="val">analyze 全量拉主页</div><div class="sub">6/4 起 analyze 只打分，主页拉取本来就在 claim 时</div></div>
+      <div class="card"><div class="lbl">V2 顺手加</div><div class="val">反评（RC）通道 profile gate</div><div class="sub">RC 候选已用新词表（文本层自动生效）；主页画像层待接</div></div>
+      <div class="card"><div class="lbl">V2 看数据</div><div class="val">无画像用户实时拉主页视频</div><div class="sub">lead_profiles 没覆盖的用户视频墙检查为空跳过；看 cron 覆盖率再决定</div></div>
     </div>
   </div>
 
-  <footer>AKKE · 专题：识别有效用户 · 需求方案 v1 · 2026-06-05 · 源文件 docs/requirements/2026-06-05-给触达候选加主页画像同行过滤.md</footer>
+  <footer>AKKE · 专题：识别有效用户 · 需求方案 v2（2026-06-06 已实现 · PR #132）· 源文件 docs/requirements/2026-06-05-给触达候选加主页画像同行过滤.md</footer>
 </div>
 </body>
 </html>
