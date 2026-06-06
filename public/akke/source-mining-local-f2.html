@@ -170,7 +170,7 @@
     <div class="funnel">
       <div class="step"><div class="when">阶段 0<br>搜索候选</div><div class="body"><span class="big">手动 CDP 搜索 → 名字先验分</span><div style="font-size:13px;color:var(--gray);margin-top:4px">CDP Chrome 搜关键词（注意：Enter 不触发，<b>必须点搜索按钮</b>），监听搜索接口的作者列表 → <code>_douyin-search-score.py</code> 出 0–100 名字分 + dedup。<b>名字分只当入池线索，不当拍板依据。</b></div></div></div>
       <div class="step"><div class="when">阶段 1<br>f2 富化</div><div class="body"><span class="big">本地 f2 拉真实互动</span><div style="font-size:13px;color:var(--gray);margin-top:4px"><code>post_api.fetch_user_posts</code>（视频列表 + 发布时间 → 更新频率）+ <code>comment_api.fetch_aweme_stats</code>（单视频转赞评）→ 拿到 <code>last_pub / days_since_last</code> + <b>更新频率 <code>posts_7d / posts_30d</code></b> + <b>互动 <code>avg_comments_7d / avg_comments_30d / avg_digg_7d / avg_digg_30d</code></b>（评论量、点赞分 7 天和 30 天两个窗口）。<b>入库阈值挂评论量（≥150），不挂名字分。</b><br><span style="color:var(--accent)">为什么分窗口</span>：7d/30d 窗口能看出「现在还热不热」——某号 30 天均评 47 但历史均评上千，说明在降温，单看历史会误判。</div></div></div>
-      <div class="step"><div class="when">阶段 2<br>实拉验证</div><div class="body"><span class="big">f2 实拉新鲜评论 → 意向打分</span><div style="font-size:13px;color:var(--gray);margin-top:4px"><code>comment_api.fetch_comments</code> 拉在题号最新视频的真实评论 → 喂 production 意向分类器（deepseek-v4-flash + Langfuse prompt）→ 看高/中意向占比。<b>这一步把「评论多但偏题/稀释」的泛流量号筛掉。</b></div></div></div>
+      <div class="step"><div class="when">阶段 2<br>实拉验证</div><div class="body"><span class="big">f2 实拉新鲜评论 → 意向打分</span><div style="font-size:13px;color:var(--gray);margin-top:4px"><code>comment_api.fetch_comments</code> 拉在题号<b>最新 3 条视频</b>（不是 1 条）的真实评论 → 喂 production 意向分类器（deepseek-v4-flash + Langfuse prompt）→ 看高/中意向占比。<b>这一步把「评论多但偏题/稀释」的泛流量号筛掉。</b><br><span style="color:var(--gray)">例：首批 5 个在题号 × 各最新 3 条视频，共拉到 176 条评论喂打分。</span></div></div></div>
       <div class="step"><div class="when">阶段 3<br>入库联动</div><div class="body"><span class="big">写 source_accounts → 挂队列 → 升 tier1</span><div style="font-size:13px;color:var(--gray);margin-top:4px">入库（<code>org_id</code> 必填 / <code>category_legacy</code> 打标 / <code>is_active=true</code>）→ enqueue <code>scrape_jobs</code> → 照常走视频发现 + 评论抓取 + analyze。验证出高产的（如一只芋圆仔）直接升 tier1 高频抓。</div></div></div>
     </div>
     <div class="note"><b>📅 什么时候去追踪效果（效果追踪时点）</b>：每批入库后<b>不是立刻看产出</b>（刚入库 worker 还没抓、评论还没进库，看了全是 0 = 假死号）。正确节奏：
@@ -181,6 +181,17 @@
       </ul>
       一句话：<b>入库即排 T+7 提醒，满 7 天才查效果</b>——给抓取留足回流时间，避免「刚入库就判死」。</div>
     <div class="note warn"><b>⚠️ 别把「30 天富化数据」当成「要抓 30 天评论」</b>：富化看 7d/30d 只是<b>号源体检参考</b>（拉每条视频的评论<b>数字</b>判活跃度，不抓评论正文，便宜）。<b>实际抓评论做触达，保持新鲜窗口（24h~7d），不放到 30d</b>——抓 + 处理 30 天评论太贵太慢，且现实是<b>连 24h/48h/7d 的 leads 都还没消化完</b>（供给早超过处理能力）。两件事别混：富化 30d = 体检报告；抓评论 = 只抓今天能联系上的人。</div>
+
+    <p style="margin-top:24px"><b>已拉批次 · 各自什么时候 check 结果</b>（每批入库即自动排 T+7 提醒，满 7 天查）：</p>
+    <table>
+      <thead><tr><th>批次 TAG</th><th class="n">入库号</th><th>类型构成</th><th>T+7 检查日</th><th>Lark 提醒</th></tr></thead>
+      <tbody>
+        <tr><td><code>douyin-search-20260530</code></td><td class="n">16</td><td>早期混合批</td><td><b>2026-06-11</b></td><td class="gA">✅ 已排</td></tr>
+        <tr><td><code>douyin-search-20260605</code></td><td class="n">22</td><td>业主日记 22（一口的装修日记等）</td><td><b>2026-06-12</b></td><td class="gA">✅ 已排</td></tr>
+        <tr><td><code>douyin-search-20260606</code></td><td class="n">9</td><td>业主日记 3 + 本地号 6（旧改服务号）</td><td><b>2026-06-13</b></td><td class="gA">✅ 已排</td></tr>
+      </tbody>
+    </table>
+    <p style="font-size:13px;color:var(--gray)">查的时候跑 <code>TAG=&lt;批次&gt; python3 scripts/source-cohort-yield.py</code>。脚本已加<b>宽限期</b>：入库不满 9 天的号即使暂时 0 产出也只推「🆕新号观察中」，不推死号——避免 worker 还没抓够就误杀活号。</p>
   </section>
 
   <!-- 03 实战结果 -->
@@ -213,7 +224,7 @@
       <div class="step"><div class="when">阶段 1</div><div class="body"><span class="big">f2 富化 23 个</span> → 按 <code>avg_comments ≥ 150</code> 入库 <b>16 个</b>（砍掉 7 个低互动：想想Echo 134 / 李晶晶 104 / 吴文涛 81 / 老李 5 / 团子严选 0 等）</div></div>
       <div class="step"><div class="when">阶段 2</div><div class="body"><span class="big">内容相关性筛 → 10 在题号</span>
         <div style="font-size:13px;color:var(--gray);margin-top:6px">16 个入库号里，约 <b>6 个</b>是「泛生活流量爆款」——评论海量但内容偏题（家居美学 / vlog / 探店），装修咨询占比低 → 不优先验证。剩 10 个在题号（装修日记 / 全屋定制 / 设计）进实拉验证。</div></div></div>
-      <div class="step"><div class="when">阶段 2</div><div class="body"><span class="big">实拉验证 5 个</span> → f2 拉最新视频评论共 <b>176 条</b> → production 意向分类器打分</div></div>
+      <div class="step"><div class="when">阶段 2</div><div class="body"><span class="big">实拉验证 5 个</span>（每号最新 3 条视频）→ f2 拉评论共 <b>176 条</b> → production 意向分类器打分</div></div>
       <div class="step"><div class="when">产出</div><div class="body"><span class="big">16 条可触达 leads</span>（高意向 1 + 中意向 15；其余 27 低意向 + 133 无关）。<b>一只芋圆仔独占 10 条</b> → 升 tier1</div></div>
     </div>
     <div class="note warn"><b>诚实说 · 「砍 6」是推断不是台账</b>：outputs 里能锚定的是「入库 16 → 实拉验证挑了 5 个在题号」，并没有一份「砍掉的 6 个是谁、按什么砍」的记录。下面这 6 个是<b>我按 f2 富化数据 + 名字内容推断</b>的泛流量/偏题候选剔除项，<b>最终留存以入库后队列产出为准</b>，如与实际有出入请订正：
@@ -258,7 +269,7 @@
         <tr><td>号好不好（入库后）</td><td>单看名字 / 单看一次抓取</td><td><code>source-cohort-yield.py</code> 看批次近 7d 真实产出（总评论/高意向/占比/可触达）</td></tr>
       </tbody>
     </table>
-    <div class="note warn"><b>⚠️ 6/11 效果检查 routine 待改</b>：<code>source-cohort-yield.py</code> 现在按「我们 DB 里近 7d 评论数」判废——这正是踩坑 ③ 的同款误判，会枪毙刚入库或抓取滞后的活号。<b>需改成「本地 f2 实拉量」判废</b>，或至少给新入库号一个宽限期再纳入判废。在改之前，对这批搜索号的判废结论要人工复核。</div>
+    <div class="note good"><b>✅ 效果检查 routine 已加宽限期（2026-06-06 修）</b>：<code>source-cohort-yield.py</code> 原来按「DB 近 7d 评论数」判废，会枪毙刚入库/抓取滞后的活号（踩坑 ③ 同款）。已加 <code>GRACE_DAYS=9</code>：<b>入库不满 9 天的号即使暂时 0 产出也只推「🆕新号观察中」，不推死号</b>，给 worker 抓够时间。满 9 天仍 0 产出的才进入正常判废，且判废建议仍建议人工复核（脚本只出推荐、不自动 deactivate）。</div>
     <div class="note"><b>验证前先发数据给用户确认</b>：拉号源 / 拉 leads / 判号源好坏，跑之前先把真实数据表发个人确认、得到点头再下结论或改判废逻辑，不「直接执行 + 直接盖结论」。两次拿误导数据下结论会让号源判断失去信任。</div>
   </section>
 
