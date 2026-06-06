@@ -169,10 +169,17 @@
     <p><b>方法论 v2 · 阶段 0–3 闭环</b>：</p>
     <div class="funnel">
       <div class="step"><div class="when">阶段 0<br>搜索候选</div><div class="body"><span class="big">手动 CDP 搜索 → 名字先验分</span><div style="font-size:13px;color:var(--gray);margin-top:4px">CDP Chrome 搜关键词（注意：Enter 不触发，<b>必须点搜索按钮</b>），监听搜索接口的作者列表 → <code>_douyin-search-score.py</code> 出 0–100 名字分 + dedup。<b>名字分只当入池线索，不当拍板依据。</b></div></div></div>
-      <div class="step"><div class="when">阶段 1<br>f2 富化</div><div class="body"><span class="big">本地 f2 拉真实互动</span><div style="font-size:13px;color:var(--gray);margin-top:4px"><code>post_api.fetch_user_posts</code>（视频列表 + 发布时间 → 更新频率）+ <code>comment_api.fetch_aweme_stats</code>（单视频转赞评）→ 拿到 <code>last_pub / days_since_last / posts_30d / avg_comments / avg_digg</code>。<b>入库阈值挂 <code>avg_comments</code>（≥150），不挂名字分。</b></div></div></div>
+      <div class="step"><div class="when">阶段 1<br>f2 富化</div><div class="body"><span class="big">本地 f2 拉真实互动</span><div style="font-size:13px;color:var(--gray);margin-top:4px"><code>post_api.fetch_user_posts</code>（视频列表 + 发布时间 → 更新频率）+ <code>comment_api.fetch_aweme_stats</code>（单视频转赞评）→ 拿到 <code>last_pub / days_since_last</code> + <b>更新频率 <code>posts_7d / posts_30d</code></b> + <b>互动 <code>avg_comments_7d / avg_comments_30d / avg_digg_7d / avg_digg_30d</code></b>（评论量、点赞分 7 天和 30 天两个窗口）。<b>入库阈值挂评论量（≥150），不挂名字分。</b><br><span style="color:var(--accent)">为什么分窗口</span>：7d/30d 窗口能看出「现在还热不热」——某号 30 天均评 47 但历史均评上千，说明在降温，单看历史会误判。</div></div></div>
       <div class="step"><div class="when">阶段 2<br>实拉验证</div><div class="body"><span class="big">f2 实拉新鲜评论 → 意向打分</span><div style="font-size:13px;color:var(--gray);margin-top:4px"><code>comment_api.fetch_comments</code> 拉在题号最新视频的真实评论 → 喂 production 意向分类器（deepseek-v4-flash + Langfuse prompt）→ 看高/中意向占比。<b>这一步把「评论多但偏题/稀释」的泛流量号筛掉。</b></div></div></div>
       <div class="step"><div class="when">阶段 3<br>入库联动</div><div class="body"><span class="big">写 source_accounts → 挂队列 → 升 tier1</span><div style="font-size:13px;color:var(--gray);margin-top:4px">入库（<code>org_id</code> 必填 / <code>category_legacy</code> 打标 / <code>is_active=true</code>）→ enqueue <code>scrape_jobs</code> → 照常走视频发现 + 评论抓取 + analyze。验证出高产的（如一只芋圆仔）直接升 tier1 高频抓。</div></div></div>
     </div>
+    <div class="note"><b>📅 什么时候去追踪效果（效果追踪时点）</b>：每批入库后<b>不是立刻看产出</b>（刚入库 worker 还没抓、评论还没进库，看了全是 0 = 假死号）。正确节奏：
+      <ul style="margin:6px 0;padding-left:20px">
+        <li><b>入库当天（T+0）</b>：入库脚本<b>自动排一个 T+7 的 Lark 日历提醒</b>（带本批 TAG）——不用人记。</li>
+        <li><b>第 7 天（T+7）</b>：跑 <code>source-cohort-yield.py</code> 按 TAG 查这批近 7 天的<b>真实产出</b>（总评论 / 高意向 / 高意向占比 / 可触达 leads / 该升 tier1 的号）。给 worker 一周时间把评论抓全，这时的数才作准。</li>
+        <li><b>之后</b>：高产号留 + 升 tier1，零产出的号再淘汰。判废要交叉验证（见 §04），别一次抓取定生死。</li>
+      </ul>
+      一句话：<b>入库即排 T+7 提醒，满 7 天才查效果</b>——给抓取留足回流时间，避免「刚入库就判死」。</div>
   </section>
 
   <!-- 03 实战结果 -->
@@ -194,6 +201,10 @@
       </tbody>
     </table>
     <p style="font-size:13px;color:var(--gray)">读法：名字分高的「设计师·华生 / 想想 / 老李」avgC 只有 5~1891；名字分 -5（搜索源缺 aweme_count 被 zombie 误杀）的拾点 / 咕噜苗反而是评论巨矿。<b>金矿号「一只芋圆仔」名字分也是 -5，avgC 仅 736 不算高，却是后面意向产出最高的号</b> → 评论量是入池信号，但真好坏还得看意向。</p>
+    <div class="note"><b>这个「名字分」到底怎么算的？现在还在跑吗？</b>
+      <p style="margin:6px 0">是 <code>_douyin-search-score.py</code> 里一套<b>纯按号名加减分</b>的规则（满分约 100）：名字带「设计师_/设计师·」+25、带「讲装修/聊装修」+20、带「装修帮/避坑」知识词 +15、命中重点城市 +10；近 30 天发 0 视频判僵尸号 −5、带「工厂/批发」−15、带「小店/百货」−10。</p>
+      <p style="margin:6px 0"><b>还在跑</b>——它是阶段 0 的一步，每天捞完号都过一遍。但<b>只当「入池线索 + 去重」用，不当拍板依据</b>：搜索源不返回粉丝/视频数，僵尸号规则会把好号误扣到 −5（一只芋圆仔就是 −5 的金矿）。所以<b>真正决定入不入库的是阶段 1 富化的真实评论量，不是这个名字分</b>。它的价值是排序展示 + 标记「已在库」去重，不是质量裁判。</p>
+    </div>
 
     <p style="margin-top:24px"><b>② 筛选漏斗</b>：从 25 候选到 16 条可触达 leads：</p>
     <div class="funnel">
