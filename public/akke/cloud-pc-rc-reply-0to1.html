@@ -79,7 +79,7 @@
   <div class="meta">
     <span>2026-06-06 跑通</span>
     <span>通道：无影云电脑 · 抖音 PC 客户端</span>
-    <span>脚本 v1 → v9</span>
+    <span>脚本 v1 → v10</span>
     <span>适用：全体运营</span>
   </div>
 </header>
@@ -124,6 +124,7 @@
   <tr><td colspan="2"><strong>🔬 手工实验（30 秒，定案）</strong>：人坐在云电脑前手动点「回复」→ Ctrl+V 能进字、直接打字也能进字。<strong>字从来都进得去，是"判定"环节在说谎</strong>——全屏 2560×1600 截图里那行小字，视觉模型根本看不清，一直回答"框里没字"（假阴性）。DM 流 5/31 踩过同款坑并修过（裁剪放大后再判），RC 脚本没抄这个作业。</td><td><span class="pill mid">真相反转</span></td></tr>
   <tr><td>v8</td><td>判定截图从全屏改为<strong>回复框区域裁剪放大图</strong></td><td><span class="pill mid">粘贴一次进框✓，但发送复核又误杀</span></td></tr>
   <tr><td>v9</td><td>发送复核从"框里是否残留文字"（按完回车截图拍到刚发出的气泡也算"有字"→假阳性）改为正向问"<strong>框是否恢复灰色占位提示</strong>"+多等 1.5s</td><td><span class="pill ok">链路全通</span></td></tr>
+  <tr><td>v10</td><td>双道发送复核：占位态判定 fail 后，再到评论楼里<strong>直接找刚发出的回复气泡</strong>（看结果不看输入框），两道都 fail 才记 send_fail——"真发了却报 fail"的窗口进一步压缩</td><td><span class="pill ok">加固</span></td></tr>
 </table>
 <div class="alert success"><span class="icon">✅</span><div><strong>实锤时刻</strong>：v8 跑完日志写 <code>send_fail</code>，但去抖音一看，用户 N**（化名）那条评论下回复<strong>早就发出去了</strong>——发送一直是成功的，复核在冤枉好人。九版斗争的对手从来不是抖音，是自己的判定环节。</div></div>
 
@@ -133,7 +134,7 @@
 <h3>② 盲调 N 版，不如 30 秒地面真相</h3>
 <p>"打字进不去"这个结论本身从没被人工验证过——七个版本全在修"输入"，真凶却在"判定"。卡死时第一件事不是改代码，是<strong>人工复现一次脚本动作</strong>（手动点回复、手动 Ctrl+V），让事实先说话。成本 30 秒，省一个下午。</p>
 <h3>③ 假阳性和假阴性要双向设防，判定问法问"正向状态"</h3>
-<p>v5 防"假成功"（没发却报 sent），v9 防"假失败"（发了却报 fail）——两个方向都真实发生了。问法上，"是否残留文字"会把发出去的气泡残影也算进去；问"<strong>是否恢复占位提示态</strong>"这种明确的正向状态，歧义小得多。</p>
+<p>v5 防"假成功"（没发却报 sent），v9 防"假失败"（发了却报 fail）——两个方向都真实发生了。问法上，"是否残留文字"会把发出去的气泡残影也算进去；问"<strong>是否恢复占位提示态</strong>"这种明确的正向状态，歧义小得多。v10 再加一道"评论楼里找刚发的气泡"——直接验收结果而不是中间状态，两道都说没发才算没发。</p>
 
 <h2 id="sec5"><span class="num">5</span>同事操作手册（SOP）</h2>
 <p>跑一轮 ≈ 15 条 / 半小时挂机。前两次建议加 <code>--confirm</code> 逐条确认熟悉节奏，之后即可无人值守。</p>
@@ -206,14 +207,14 @@ python douyin_rc_reply_grounded.py contacts-rc-reply.csv --confirm</code></pre>
 <div class="alert danger"><span class="icon">⛔</span><div><strong>红线</strong>：日上限 15 条；条间间隔不压缩；同一用户 DM 和 RC 只能选一个（锁机制自动保证，前提是 STEP 5 回写别漏）；公开内容审稿不可跳过。</div></div>
 <h3>FAQ</h3>
 <ul>
-  <li><strong>Q: 日志全是 send_fail，是不是白跑了？</strong><br>A: 先去抖音看气泡再下结论。复核判定历史上出过假阳性（实际发成功被记失败）。v9 已修，但"以评论区实际气泡为准"永远是金标准。</li>
+  <li><strong>Q: 日志全是 send_fail，是不是白跑了？</strong><br>A: 先去抖音看气泡再下结论。复核判定历史上出过假阳性（实际发成功被记失败）。v9/v10 已双道修复（框态 + 楼内气泡都查），但"以评论区实际气泡为准"永远是金标准。</li>
   <li><strong>Q: 为什么有的条目跳过了？</strong><br>A: 常见三类：源视频搜不到（标题太泛）、评论楼滚 6 屏没找到 ta（评论被顶得太深）、作者关了评论权限。都会记进日志，锁自然过期，不损失。</li>
   <li><strong>Q: 卡住像死机？</strong><br>A: 大概率在等 VL 判定或条间随机歇。看 <code>C:\akke-wuying\screenshots\_yesno_box.png</code> 的修改时间——在动就没死。</li>
   <li><strong>Q: 怎么换自己的账号跑？</strong><br>A: 名单按你 <code>.env.local</code> 的 <code>AKKE_ACCOUNT_ID</code> 锁号归因；云电脑抖音登你自己的触达号即可，脚本无须改。</li>
 </ul>
 
 <footer>
-  <a class="back" href="/akke/">← 返回 Akke 知识库</a> · 2026-06-06 · 一筑通道 0→1 实录 · 脚本 <code>worker/scripts/wuying-dm/douyin_rc_reply_grounded.py</code>（v9）
+  <a class="back" href="/akke/">← 返回 Akke 知识库</a> · 2026-06-06 · 一筑通道 0→1 实录 · 脚本 <code>worker/scripts/wuying-dm/douyin_rc_reply_grounded.py</code>（v10）
 </footer>
 
 </div>
