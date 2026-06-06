@@ -35,6 +35,7 @@
   .card .lbl{font-size:12px;color:var(--gray);margin-bottom:6px}
   .card .val{font-size:20px;font-weight:700;letter-spacing:-.5px}
   .card .sub{font-size:12.5px;color:var(--gray);margin-top:6px}
+  .card .plain{font-size:12.5px;line-height:1.7;margin-top:10px;padding-top:8px;border-top:1px dashed var(--line)}
   .flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:18px 0;font-size:13px}
   .flow .box{border:1px solid var(--line);border-radius:8px;padding:10px 14px;background:var(--soft);text-align:center}
   .flow .box.hit{border-color:var(--accent);background:var(--accent-soft)}
@@ -154,10 +155,10 @@
   <div class="sec" id="oos">
     <div class="sec-h"><span class="sec-n">07</span><span class="sec-t">Out of Scope（本期不做）</span></div>
     <div class="grid">
-      <div class="card"><div class="lbl">✅ 已提前落地 · 6/6 补修供给</div><div class="val">主页视频标题画像</div><div class="sub">代码并入本期（检查 3）。6/6 实测发现 lead_profiles 全表 0 行空转：唯一 enqueue 点 analyze-once 无 cron 调度从未运行，且 scrape_jobs 的 job_type 白名单根本不认 scrape_lead_profile（5/06 migration 漏改，插入必报 23514）。已修：migration 扩白名单（已 apply prod）+ claim 时补 enqueue（PR #136，已 merge 部署）；端到端验证 worker 抓回 video_count=5</div></div>
-      <div class="card"><div class="lbl">天然消失 · 有副作用</div><div class="val">analyze 全量拉主页</div><div class="sub">6/4 起 analyze 只打分——但 analyze-once 退役也带走了 lead_profiles 的唯一供给源（当时没发现，因为白名单 bug 让它本来也没跑通过）。6/6 起供给改挂在 claim 时（PR #136，已 merge 部署）</div></div>
-      <div class="card"><div class="lbl">V2 顺手加</div><div class="val">反评（RC）通道 profile gate</div><div class="sub">RC 候选已用新词表（文本层自动生效）；主页画像层待接</div></div>
-      <div class="card"><div class="lbl">V2 看数据 · 6/6 已测</div><div class="val">无画像用户实时拉主页视频</div><div class="sub">6/6 实测：近 14d 高/中意向 5536 个用户覆盖率 0%（供给管线从未运行）。PR #136（已 merge）接通后画像随拉单逐日积累（~30-60 工单/天），是否还需实时补拉等积累 1-2 周再看</div></div>
+      <div class="card"><div class="lbl">✅ 已提前落地 · 6/6 补修供给</div><div class="val">主页视频标题画像</div><div class="sub">代码并入本期（检查 3）。6/6 实测发现 lead_profiles 全表 0 行空转：唯一 enqueue 点 analyze-once 无 cron 调度从未运行，且 scrape_jobs 的 job_type 白名单根本不认 scrape_lead_profile（5/06 migration 漏改，插入必报 23514）。已修：migration 扩白名单（已 apply prod）+ claim 时补 enqueue（PR #136，已 merge 部署）；端到端验证 worker 抓回 video_count=5</div><div class="plain">💬 <b>大白话</b>：「看他主页发过什么视频来判断是不是同行」原计划下期做，结果发现存主页数据的基建早就有，就提前并进本期。但 6/6 一查，这张存画像的表从建好到现在一直是<b>空的</b>——给它喂数据的流水线有两个故障：① 定时任务压根没排上日程，从来没跑过；② 数据库门卫的「工单类型白名单」不认这种工单，一提交就被拒。两处都已修好，现在改成「每次拉单时顺手下工单去抓对方主页」，并实际验证抓回了数据。</div></div>
+      <div class="card"><div class="lbl">天然消失 · 有副作用</div><div class="val">analyze 全量拉主页</div><div class="sub">6/4 起 analyze 只打分——但 analyze-once 退役也带走了 lead_profiles 的唯一供给源（当时没发现，因为白名单 bug 让它本来也没跑通过）。6/6 起供给改挂在 claim 时（PR #136，已 merge 部署）</div><div class="plain">💬 <b>大白话</b>：原来担心「每条评论都去拉一次评论者主页」太烧钱、太招反爬，所以列为不做。6/4 系统改版后，打分环节不再拉主页，这个担心自然消失了。但有个副作用：原来唯一负责给画像表喂数据的环节也跟着被裁掉了（当时没人发现——因为上面那个白名单 bug，它本来就从没喂成功过）。6/6 起改成拉单时顺手喂，闭环了。</div></div>
+      <div class="card"><div class="lbl">V2 顺手加</div><div class="val">反评（RC）通道 profile gate</div><div class="sub">RC 候选已用新词表（文本层自动生效）；主页画像层待接</div><div class="plain">💬 <b>大白话</b>：反评通道（不发私信，而是去用户评论下面回复）目前只接了第一道关——昵称或评论文字撞同行关键词就拦下，这次扩充的新词表已经自动生效；第二道关「打开他主页看画像再判一次」还没接上，下期再接。</div></div>
+      <div class="card"><div class="lbl">V2 看数据 · 6/6 已测</div><div class="val">无画像用户实时拉主页视频</div><div class="sub">6/6 实测：近 14d 高/中意向 5536 个用户覆盖率 0%（供给管线从未运行）。PR #136（已 merge）接通后画像随拉单逐日积累（~30-60 工单/天），是否还需实时补拉等积累 1-2 周再看</div><div class="plain">💬 <b>大白话</b>：「视频墙检查」（检查 3）靠的是提前存好的主页画像。6/6 实测：近 14 天 5536 个高/中意向用户，画像一条都没有——因为喂数据的管线从来没跑过，所以这道检查眼下基本是空转的。管线修好后，画像会随每天拉单慢慢攒起来（一天约 30-60 个）。要不要再加一个「没画像就当场去他主页拉一次」的兜底，等攒 1-2 周、看覆盖率数据再决定，不急着现在加。</div></div>
     </div>
   </div>
 
