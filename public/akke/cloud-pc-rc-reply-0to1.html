@@ -213,8 +213,38 @@ python douyin_rc_reply_grounded.py contacts-rc-reply.csv --confirm</code></pre>
   <li><strong>Q: 怎么换自己的账号跑？</strong><br>A: 名单按你 <code>.env.local</code> 的 <code>AKKE_ACCOUNT_ID</code> 锁号归因；云电脑抖音登你自己的触达号即可，脚本无须改。</li>
 </ul>
 
+<h2 id="sec7"><span class="num">7</span>第二天实战补丁（2026-06-07：17 条实跑的坑与解法）</h2>
+<p>6/7 用 v10 跑了第一个生产批（17 条，最终 6 发出），暴露的问题按"现象 → 根因/解法"记录：</p>
+
+<h3>① 整批 sent=0 全记 wrong_video？先小批试跑，别急着改代码</h3>
+<p>首轮 17 条全军覆没（15 wrong_video + 2 type_fail），同一份 CSV、同一份脚本，<strong>取前 2 条重跑立刻 2/2 全通</strong>——单次全败不等于脚本坏了，大概率是当时抖音窗口状态不对（被遮挡/没在最前台）。标准动作：</p>
+<pre><code># [云电脑] 取前 2 条试跑 + Tee 留完整日志
+$all = Get-Content contacts-rc-reply.csv
+$all[0..2] | Set-Content contacts-rc-test.csv -Encoding UTF8
+py -u douyin_rc_reply_grounded.py contacts-rc-test.csv 2>&1 | Tee-Object -FilePath run-test.log</code></pre>
+<p>重跑安全的前提：先核日志确认失败都发生在<strong>按发送之前</strong>（wrong_video / type_fail / comment_not_found 都是），才能整批重来不重复发。</p>
+
+<h3>② 文件传输：Invoke-WebRequest 会把 UTF-8 中文转码弄坏——一律 curl.exe</h3>
+<p>实测 <code>Invoke-WebRequest -OutFile</code> 下载含中文的脚本，22606 字节落地变 20900，脚本直接残废。云电脑 Windows 自带 <code>curl.exe</code>（注意 <code>.exe</code> 后缀，裸 <code>curl</code> 是 Invoke-WebRequest 的别名）：</p>
+<pre><code># [本机] 上传：curl -s --data-binary @文件 https://paste.rs   → 返回 URL
+# [云电脑] 下载（替代 STEP 3 的剪贴板块，更稳）：
+curl.exe -s https://paste.rs/XXXXX -o C:\akke-wuying\目标文件
+(Get-Item C:\akke-wuying\目标文件).Length    # 必须和本机 wc -c 字节一致
+# [云电脑→本机] 回传日志/截图：
+curl.exe -s --data-binary "@C:\akke-wuying\rc_reply_log_YYYYMMDD.csv" https://paste.rs</code></pre>
+<p>⚠️ paste.rs 单文件 ~384KB 截断（传大截图会缺尾），字节核对永远不能省。</p>
+
+<h3>③ 作品墙会点进直播间（待修，v11 候选）</h3>
+<p>源账号正在开播时，主页作品宫格<strong>第一格是直播间</strong>（缩略图带红色「直播」角标），VL 找视频时可能点进直播——后续评论楼流程全部失配，浪费一条额度。临时对策：值守时看到进了直播间手动 Esc 退出等它跳过；脚本修法（待做）：locate 的 prompt 明确排除带「直播」角标的格子 + 进页后加一道"当前是视频播放页而非直播间"的判定。</p>
+
+<h3>④ 批次后段 wrong_video 变多——疑似连续搜索被节流/页面状态污染</h3>
+<p>15 条连跑，最后 4-5 条集中"没进对源账号主页"。怀疑连续搜索触发软限流或残留页面状态叠加。对策：单批别贪长（8-10 条一批，批间歇 10 分钟），中后段失败率上来就停批，失败条自然回池明天再拉。</p>
+
+<h3>⑤ 正常损耗预期：17 条发 6 条不丢人</h3>
+<p>本批失败分布：wrong_video 5（搜索/主页问题）、type_fail 4（粘贴没进框，安全跳过）、video_not_found 1、comment_not_found 1（评论被压沉）。GUI 通道天然有损耗，<strong>拉单时按目标数的 2-3 倍备料</strong>，失败条不消耗去重（锁过期自动回池）。</p>
+
 <footer>
-  <a class="back" href="/akke/">← 返回 Akke 知识库</a> · 2026-06-06 · 一筑通道 0→1 实录 · 脚本 <code>worker/scripts/wuying-dm/douyin_rc_reply_grounded.py</code>（v10）
+  <a class="back" href="/akke/">← 返回 Akke 知识库</a> · 2026-06-06 首发 · 2026-06-07 补第 7 节实战补丁 · 脚本 <code>worker/scripts/wuying-dm/douyin_rc_reply_grounded.py</code>（v10）
 </footer>
 
 </div>
