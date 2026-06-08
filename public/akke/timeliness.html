@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>触达时效看板 · Akke</title>
+<style>
+  :root {
+    --bg: #0b0d12; --bg-elevated: #141821; --bg-deep: #1a1f2b;
+    --border: #242a38; --border-strong: #2f3646;
+    --text: #e4e7ed; --text-dim: #9ba3b4; --text-muted: #6b7384;
+    --accent: #8b5cf6; --accent-soft: rgba(139,92,246,.15);
+    --dm: #60a5fa; --dm-soft: rgba(96,165,250,.14);
+    --rev: #a78bfa; --rev-soft: rgba(167,139,250,.14);
+    --ok: #34d399; --warn: #fbbf24; --danger: #f87171;
+    /* 6 桶：快(绿) → 慢(红) */
+    --b0:#34d399; --b1:#a3e635; --b2:#fbbf24; --b3:#fb923c; --b4:#f87171; --b5:#ef4444;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px; line-height: 1.7; -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 1080px; margin: 0 auto; padding: 48px 24px 100px; }
+  .breadcrumb { font-size: 13px; color: var(--text-muted); margin-bottom: 22px; }
+  .breadcrumb a { color: var(--text-dim); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--accent); }
+  .breadcrumb span { margin: 0 8px; color: var(--border-strong); }
+
+  header.hero { padding: 4px 0 28px; border-bottom: 1px solid var(--border); margin-bottom: 28px; }
+  .tag { display:inline-block; padding:4px 12px; border-radius:999px; background:var(--accent-soft); color:var(--accent); font-size:13px; font-weight:500; margin-bottom:14px; }
+  h1 { font-size: 40px; font-weight: 700; margin: 0 0 12px; letter-spacing: -0.02em; line-height: 1.15;
+    background: linear-gradient(135deg, #e4e7ed 20%, var(--dm) 70%, var(--accent) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .subtitle { font-size: 17px; color: var(--text-dim); margin: 0 0 18px; max-width: 760px; }
+  .toolbar { display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  .segmented { display:inline-flex; background:var(--bg-elevated); border:1px solid var(--border); border-radius:10px; padding:3px; }
+  .segmented button { background:transparent; border:0; color:var(--text-dim); font-size:14px; font-weight:500; padding:7px 16px; border-radius:7px; cursor:pointer; font-family:inherit; }
+  .segmented button.active { background:var(--accent-soft); color:#c4b5fd; }
+  .updated { font-size:13px; color:var(--text-muted); display:flex; align-items:center; gap:7px; }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--ok); box-shadow:0 0 0 0 rgba(52,211,153,.6); animation:pulse 2s infinite; }
+  .dot.err { background:var(--danger); animation:none; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(52,211,153,.5);} 70%{box-shadow:0 0 0 6px rgba(52,211,153,0);} 100%{box-shadow:0 0 0 0 rgba(52,211,153,0);} }
+
+  h2 { font-size:12px; font-weight:600; color:var(--text-muted); letter-spacing:.12em; text-transform:uppercase; margin:44px 0 16px; }
+
+  .cards { display:grid; grid-template-columns:repeat(2,1fr); gap:16px; }
+  @media (max-width:720px){ .cards{ grid-template-columns:1fr; } }
+  .card { background:var(--bg-elevated); border:1px solid var(--border); border-radius:16px; padding:24px; border-top:3px solid var(--dm); }
+  .card.rev { border-top-color: var(--rev); }
+  .card .chan { font-size:13px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--dm); margin-bottom:14px; display:flex; justify-content:space-between; align-items:baseline; }
+  .card.rev .chan { color:var(--rev); }
+  .card .chan .n { color:var(--text-muted); font-size:12px; font-weight:500; text-transform:none; letter-spacing:0; }
+  .big { font-size:42px; font-weight:700; line-height:1; letter-spacing:-.02em; }
+  .big small { font-size:15px; font-weight:500; color:var(--text-muted); margin-left:8px; letter-spacing:0; }
+  .biglabel { font-size:13px; color:var(--text-dim); margin:8px 0 18px; }
+  .sub2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .sub2 .m { background:var(--bg-deep); border-radius:10px; padding:12px 14px; }
+  .sub2 .m .l { font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; }
+  .sub2 .m .v { font-size:20px; font-weight:600; margin-top:3px; }
+
+  .dist-block { background:var(--bg-elevated); border:1px solid var(--border); border-radius:16px; padding:22px 24px; margin-bottom:16px; }
+  .dist-block .head { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px; }
+  .dist-block .head .t { font-size:16px; font-weight:600; }
+  .dist-block .head .t .pill { font-size:11px; font-weight:600; padding:2px 8px; border-radius:6px; margin-left:8px; vertical-align:middle; }
+  .pill.dm { background:var(--dm-soft); color:var(--dm); } .pill.rev { background:var(--rev-soft); color:var(--rev); }
+  .dist-block .head .stat { font-size:12.5px; color:var(--text-muted); }
+  .dist-block .head .stat b { color:var(--text-dim); font-weight:600; }
+  .seg { display:grid; grid-template-columns:1fr; gap:0; margin-top:14px; }
+  .barrow { display:flex; align-items:center; gap:12px; margin:9px 0; }
+  .barrow .seglabel { width:58px; font-size:12px; color:var(--text-dim); text-align:right; flex:none; }
+  .bartrack { flex:1; height:26px; background:var(--bg-deep); border-radius:6px; overflow:hidden; display:flex; }
+  .barseg { height:100%; display:flex; align-items:center; justify-content:center; font-size:11px; color:#0b0d12; font-weight:700; min-width:0; transition:width .4s ease; }
+  .legend { display:flex; flex-wrap:wrap; gap:14px; margin-top:16px; font-size:12px; color:var(--text-muted); }
+  .legend i { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; vertical-align:middle; }
+
+  .trend-wrap { background:var(--bg-elevated); border:1px solid var(--border); border-radius:16px; padding:24px; }
+  .trend-wrap svg { width:100%; height:auto; display:block; }
+  .trend-legend { display:flex; gap:20px; margin-top:10px; font-size:13px; color:var(--text-dim); }
+  .trend-legend i { display:inline-block; width:16px; height:3px; border-radius:2px; margin-right:6px; vertical-align:middle; }
+
+  .notes { margin-top:40px; padding:20px 24px; background:var(--bg-elevated); border:1px solid var(--border); border-radius:14px; font-size:13.5px; color:var(--text-dim); line-height:1.75; }
+  .notes b { color:var(--text); }
+  .notes ul { margin:8px 0 0; padding-left:20px; } .notes li { margin:5px 0; }
+  code { background:var(--bg-deep); padding:1px 6px; border-radius:4px; font-size:.86em; color:#c4b5fd; font-family:"SF Mono",Menlo,Consolas,monospace; }
+  .err-banner { display:none; background:rgba(248,113,113,.1); border:1px solid rgba(248,113,113,.3); color:#fca5a5; border-radius:10px; padding:12px 16px; font-size:14px; margin-bottom:20px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="breadcrumb"><a href="/akke/">Akke 知识库</a><span>›</span>触达时效看板</div>
+  <header class="hero">
+    <span class="tag">实时 · 自动刷新</span>
+    <h1>触达时效看板</h1>
+    <p class="subtitle">从抖音用户发出评论，到我们触达 ta（私信首触 / 反评），各段耗时多久。数据直连生产库，最多落后 1 分钟。</p>
+    <div class="toolbar">
+      <div class="segmented" id="winSel">
+        <button data-win="24h">近 24h</button>
+        <button data-win="7d" class="active">近 7 天</button>
+        <button data-win="30d">近 30 天</button>
+      </div>
+      <div class="updated"><span class="dot" id="statusDot"></span><span id="updatedAt">加载中…</span></div>
+    </div>
+  </header>
+
+  <div class="err-banner" id="errBanner"></div>
+
+  <h2>头条 · 端到端触达时效（中位）</h2>
+  <div class="cards" id="cards"></div>
+
+  <h2>三段时延分布</h2>
+  <div id="dists"></div>
+
+  <h2>端到端中位走势 · 近 14 天</h2>
+  <div class="trend-wrap">
+    <div id="trendSvg"></div>
+    <div class="trend-legend"><span><i style="background:var(--dm)"></i>私信(DM)</span><span><i style="background:var(--rev)"></i>反评</span></div>
+  </div>
+
+  <div class="notes">
+    <b>口径说明</b>
+    <ul>
+      <li><b>T1 评论→采集</b>：用户在抖音发评的时刻 → 我们爬到这条评论入库（<code>comments.comment_time → created_at</code>）。<code>comment_time</code> 抖音未回传时该条不计入 T1/端到端，但仍计 T2。</li>
+      <li><b>T2 采集→发送</b>：评论入库 → 真正发出触达（运营审批+发送这段，<code>created_at → sent_at</code>）。</li>
+      <li><b>端到端</b>：用户发评 → 触达发出，用户真实等待体验。</li>
+      <li><b>触达口径</b>：DM 只算每个会话的<b>首次触达</b>（opener，<code>messages.role=ai, status=sent</code>，排除金丝雀）；反评算每条已发送（<code>reverse_comment_queue.status=sent</code>）。后续 nurture 回复不计入触达时效。</li>
+      <li>全局口径（org 维度），不区分运营个人。</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+const API_BASE = "https://akke.vercel.app/api/public/timeliness";
+let currentWin = "7d";
+let refreshTimer = null;
+
+const $ = (id) => document.getElementById(id);
+function fmtH(h){ if(h==null) return "—"; if(h<=0) return "—"; if(h<1) return Math.round(h*60)+"min"; if(h<10) return h.toFixed(1)+"h"; return Math.round(h)+"h"; }
+const BUCKET_COLORS = ["var(--b0)","var(--b1)","var(--b2)","var(--b3)","var(--b4)","var(--b5)"];
+
+function renderCards(rep){
+  const mk = (chan, key) => {
+    const c = rep.channels[key];
+    return `<div class="card ${key==='rev'?'rev':''}">
+      <div class="chan">${chan}<span class="n">${c.sent} 条已触达</span></div>
+      <div class="big">${fmtH(c.TOT.medianH)}<small>中位 · 端到端</small></div>
+      <div class="biglabel">均值 ${fmtH(c.TOT.meanH)} · 最快 ${fmtH(c.TOT.minH)} · 最慢 ${fmtH(c.TOT.maxH)} <span style="color:var(--text-muted)">(n=${c.TOT.total})</span></div>
+      <div class="sub2">
+        <div class="m"><div class="l">采集→发送 中位</div><div class="v">${fmtH(c.T2.medianH)}</div></div>
+        <div class="m"><div class="l">评论→采集 中位</div><div class="v">${fmtH(c.T1.medianH)}</div></div>
+      </div>
+    </div>`;
+  };
+  $("cards").innerHTML = mk("私信 (DM)","dm") + mk("反评","rev");
+}
+
+function renderDists(rep){
+  const labels = rep.bucketLabels;
+  const block = (title, chanClass, chanName, dist) => {
+    const total = dist.counts.reduce((a,b)=>a+b,0) || 1;
+    const segs = dist.counts.map((n,i)=>{
+      const pct = (n/total*100);
+      if(n===0) return "";
+      return `<div class="barseg" style="width:${pct}%;background:${BUCKET_COLORS[i]}" title="${labels[i]}: ${n}">${pct>7?n:""}</div>`;
+    }).join("");
+    return `<div class="barrow"><div class="seglabel">${title}</div><div class="bartrack">${segs}</div></div>`;
+  };
+  const legend = `<div class="legend">${rep.bucketLabels.map((l,i)=>`<span><i style="background:${BUCKET_COLORS[i]}"></i>${l}</span>`).join("")}</div>`;
+  const card = (key, name, cls) => {
+    const c = rep.channels[key];
+    return `<div class="dist-block">
+      <div class="head"><div class="t">${name}<span class="pill ${cls}">${c.sent} 条</span></div>
+        <div class="stat">端到端中位 <b>${fmtH(c.TOT.medianH)}</b></div></div>
+      <div class="seg">
+        ${block("评论→采集", cls, name, c.T1)}
+        ${block("采集→发送", cls, name, c.T2)}
+        ${block("端到端", cls, name, c.TOT)}
+      </div>
+      ${legend}
+    </div>`;
+  };
+  $("dists").innerHTML = card("dm","私信 (DM)","dm") + card("rev","反评","rev");
+}
+
+function renderTrend(rep){
+  const pts = rep.trend;
+  const W=1000, H=300, padL=44, padR=16, padT=16, padB=46;
+  const innerW = W-padL-padR, innerH = H-padT-padB;
+  const vals = pts.flatMap(p=>[p.dmMedian,p.revMedian]).filter(v=>v!=null);
+  const maxV = Math.max(24, Math.ceil((Math.max(...vals, 1))/12)*12);
+  const x = (i)=> padL + (pts.length<=1?innerW/2: i*innerW/(pts.length-1));
+  const y = (v)=> padT + innerH - (v/maxV)*innerH;
+  const grid = [];
+  const steps = 4;
+  for(let s=0;s<=steps;s++){ const v=maxV*s/steps; const yy=y(v);
+    grid.push(`<line x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="var(--border)" stroke-width="1"/>`);
+    grid.push(`<text x="${padL-8}" y="${yy+4}" text-anchor="end" font-size="11" fill="var(--text-muted)">${Math.round(v)}h</text>`);
+  }
+  const xlabels = pts.map((p,i)=> (i%2===0||pts.length<=7) ? `<text x="${x(i)}" y="${H-padB+20}" text-anchor="middle" font-size="10.5" fill="var(--text-muted)">${p.date.slice(5)}</text>`:"").join("");
+  const line = (key, color) => {
+    const seg = pts.map((p,i)=>({i, v:p[key]})).filter(o=>o.v!=null);
+    if(seg.length===0) return "";
+    const d = seg.map((o,k)=>`${k===0?"M":"L"}${x(o.i).toFixed(1)},${y(o.v).toFixed(1)}`).join(" ");
+    const dots = seg.map(o=>`<circle cx="${x(o.i).toFixed(1)}" cy="${y(o.v).toFixed(1)}" r="3.5" fill="${color}"/>`).join("");
+    return `<path d="${d}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>${dots}`;
+  };
+  $("trendSvg").innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+    ${grid.join("")}${xlabels}
+    ${line("revMedian","#a78bfa")}${line("dmMedian","#60a5fa")}
+  </svg>`;
+}
+
+function setStatus(ok, text){
+  $("statusDot").className = "dot" + (ok?"":" err");
+  $("updatedAt").textContent = text;
+}
+
+async function load(){
+  try {
+    const res = await fetch(`${API_BASE}?window=${currentWin}&_t=${Date.now()}`, { cache:"no-store" });
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    const rep = await res.json();
+    if(rep.error) throw new Error(rep.error);
+    renderCards(rep); renderDists(rep); renderTrend(rep);
+    const t = new Date(rep.generatedAt);
+    const hh = String(t.getHours()).padStart(2,"0"), mm = String(t.getMinutes()).padStart(2,"0");
+    setStatus(true, (rep.stale?"⚠ 降级缓存 · ":"") + `更新于 ${hh}:${mm}`);
+    $("errBanner").style.display = "none";
+  } catch(e){
+    setStatus(false, "数据获取失败");
+    const b = $("errBanner");
+    b.style.display = "block";
+    b.textContent = "暂时拉不到最新数据（"+e.message+"），将自动重试。";
+  }
+}
+
+$("winSel").addEventListener("click", (e)=>{
+  const btn = e.target.closest("button"); if(!btn) return;
+  currentWin = btn.dataset.win;
+  [...$("winSel").children].forEach(b=>b.classList.toggle("active", b===btn));
+  load();
+});
+
+load();
+refreshTimer = setInterval(load, 60000);
+</script>
+</body>
+</html>
