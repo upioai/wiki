@@ -59,7 +59,7 @@
   <h1>本地 f2 实拉号源新方法</h1>
   <div class="meta">Akke 项目 · 持续迭代文档（无固定截止）</div>
   <div class="note" style="background:#f7f7f9;border-left-color:var(--gray)">
-    <b>📅 本页信息时段</b>：方法于 <b>2026-06-04</b> 首次验证、<b>2026-06-05</b> 跑第二批实战定型，正文沉淀这两批的真实运行。<b>页内一切数字（号源数、avgC、入库批次等）是写作时段的快照</b>，会随并行运营持续变动；方法论本身仍在迭代，本页随之更新，<b>请以页面最新修订为准、不要把某个具体数字当长期定值</b>。
+    <b>📅 本页信息时段</b>：方法于 <b>2026-06-04</b> 首次验证、<b>2026-06-05</b> 跑第二批实战定型，正文沉淀这两批的真实运行。<b>页内一切数字（号源数、avgC、入库批次等）是写作时段的快照</b>，会随并行运营持续变动；方法论本身仍在迭代，本页随之更新，<b>请以页面最新修订为准、不要把某个具体数字当长期定值</b>。最近一次进度更新：<b>2026-06-07 晚</b>（新增「本周 by-day 进度」表 + 6/07 批次行）。
   </div>
   <div class="jumps">
     <a href="#s0">00 一句话</a>
@@ -71,6 +71,7 @@
     <a href="#s5">05 怎么跑</a>
     <a href="#s6">06 怎么联动</a>
     <a href="#s7">07 效率成本</a>
+    <a href="#s8">08 运营须知</a>
   </div>
   <div class="note" style="background:#eef6ff;border-left-color:#2563eb">
     <b>📖 看不懂术语？</b> 本页很多词（f2 / sec_uid / avgC / tier / 意向打分…）都在 <a href="#sg" style="color:#2563eb"><b>顶部「术语速查」</b></a>用大白话 + 我们真实号的例子解释了，边看边查。
@@ -168,10 +169,120 @@
     <p><b>方法论 v2 · 阶段 0–3 闭环</b>：</p>
     <div class="funnel">
       <div class="step"><div class="when">阶段 0<br>搜索候选</div><div class="body"><span class="big">手动 CDP 搜索 → 名字先验分</span><div style="font-size:13px;color:var(--gray);margin-top:4px">CDP Chrome 搜关键词（注意：Enter 不触发，<b>必须点搜索按钮</b>），监听搜索接口的作者列表 → <code>_douyin-search-score.py</code> 出 0–100 名字分 + dedup。<b>名字分只当入池线索，不当拍板依据。</b></div></div></div>
-      <div class="step"><div class="when">阶段 1<br>f2 富化</div><div class="body"><span class="big">本地 f2 拉真实互动</span><div style="font-size:13px;color:var(--gray);margin-top:4px"><code>post_api.fetch_user_posts</code>（视频列表 + 发布时间 → 更新频率）+ <code>comment_api.fetch_aweme_stats</code>（单视频转赞评）→ 拿到 <code>last_pub / days_since_last / posts_30d / avg_comments / avg_digg</code>。<b>入库阈值挂 <code>avg_comments</code>（≥150），不挂名字分。</b></div></div></div>
-      <div class="step"><div class="when">阶段 2<br>实拉验证</div><div class="body"><span class="big">f2 实拉新鲜评论 → 意向打分</span><div style="font-size:13px;color:var(--gray);margin-top:4px"><code>comment_api.fetch_comments</code> 拉在题号最新视频的真实评论 → 喂 production 意向分类器（deepseek-v4-flash + Langfuse prompt）→ 看高/中意向占比。<b>这一步把「评论多但偏题/稀释」的泛流量号筛掉。</b></div></div></div>
+      <div class="step"><div class="when">阶段 1<br>f2 富化</div><div class="body"><span class="big">本地 f2 拉真实互动</span><div style="font-size:13px;color:var(--gray);margin-top:4px"><code>post_api.fetch_user_posts</code>（视频列表 + 发布时间 → 更新频率）+ <code>comment_api.fetch_aweme_stats</code>（单视频转赞评）→ 拿到 <code>last_pub / days_since_last</code> + <b>更新频率 <code>posts_7d / posts_30d</code></b> + <b>互动 <code>avg_comments_7d / avg_comments_30d / avg_digg_7d / avg_digg_30d</code></b>（评论量、点赞分 7 天和 30 天两个窗口）。<b>入库阈值挂评论量（≥150），不挂名字分。</b><br><span style="color:var(--accent)">为什么分窗口</span>：7d/30d 窗口能看出「现在还热不热」——某号 30 天均评 47 但历史均评上千，说明在降温，单看历史会误判。</div></div></div>
+      <div class="step"><div class="when">阶段 2<br>实拉验证</div><div class="body"><span class="big">f2 实拉新鲜评论 → 意向打分</span><div style="font-size:13px;color:var(--gray);margin-top:4px"><code>comment_api.fetch_comments</code> 拉在题号<b>最新 3 条视频</b>（不是 1 条）的真实评论 → 喂 production 意向分类器（deepseek-v4-flash + Langfuse prompt）→ 看高/中意向占比。<b>这一步把「评论多但偏题/稀释」的泛流量号筛掉。</b><br><span style="color:var(--gray)">例：首批 5 个在题号 × 各最新 3 条视频，共拉到 176 条评论喂打分。</span></div></div></div>
       <div class="step"><div class="when">阶段 3<br>入库联动</div><div class="body"><span class="big">写 source_accounts → 挂队列 → 升 tier1</span><div style="font-size:13px;color:var(--gray);margin-top:4px">入库（<code>org_id</code> 必填 / <code>category_legacy</code> 打标 / <code>is_active=true</code>）→ enqueue <code>scrape_jobs</code> → 照常走视频发现 + 评论抓取 + analyze。验证出高产的（如一只芋圆仔）直接升 tier1 高频抓。</div></div></div>
     </div>
+    <div class="note"><b>📅 什么时候去追踪效果（效果追踪时点）</b>：每批入库后<b>不是立刻看产出</b>（刚入库 worker 还没抓、评论还没进库，看了全是 0 = 假死号）。正确节奏：
+      <ul style="margin:6px 0;padding-left:20px">
+        <li><b>入库当天（T+0）</b>：入库脚本<b>自动排一个 T+7 的 Lark 日历提醒</b>（带本批 TAG）——不用人记。</li>
+        <li><b>第 7 天（T+7）</b>：跑 <code>source-cohort-yield.py</code> 按 TAG 查这批近 7 天的<b>真实产出</b>（总评论 / 高意向 / 高意向占比 / 可触达 leads / 该升 tier1 的号）。给 worker 一周时间把评论抓全，这时的数才作准。</li>
+        <li><b>之后</b>：高产号留 + 升 tier1，零产出的号再淘汰。判废要交叉验证（见 §04），别一次抓取定生死。</li>
+      </ul>
+      一句话：<b>入库即排 T+7 提醒，满 7 天才查效果</b>——给抓取留足回流时间，避免「刚入库就判死」。</div>
+    <div class="note warn"><b>⚠️ 别把「30 天富化数据」当成「要抓 30 天评论」</b>：富化看 7d/30d 只是<b>号源体检参考</b>（拉每条视频的评论<b>数字</b>判活跃度，不抓评论正文，便宜）。<b>实际抓评论做触达，保持新鲜窗口（24h~7d），不放到 30d</b>——抓 + 处理 30 天评论太贵太慢，且现实是<b>连 24h/48h/7d 的 leads 都还没消化完</b>（供给早超过处理能力）。两件事别混：富化 30d = 体检报告；抓评论 = 只抓今天能联系上的人。</div>
+
+    <p style="margin-top:24px"><b>已拉批次 · 各自什么时候 check 结果</b>（每批入库即自动排 T+7 提醒，满 7 天查）：</p>
+    <table>
+      <thead><tr><th>批次 TAG</th><th class="n">入库号</th><th>类型构成</th><th>T+7 检查日</th><th>Lark 提醒</th></tr></thead>
+      <tbody>
+        <tr><td><code>douyin-search-20260530</code></td><td class="n">16</td><td>早期混合批</td><td><b>2026-06-11</b></td><td class="gA">✅ 已排</td></tr>
+        <tr><td><code>douyin-search-20260605</code></td><td class="n">22</td><td>业主日记 22（一口的装修日记等）</td><td><b>2026-06-12</b></td><td class="gA">✅ 已排</td></tr>
+        <tr><td><code>douyin-search-20260606</code></td><td class="n">9</td><td>业主日记 3 + 本地号 6（旧改服务号）</td><td><b>2026-06-13</b></td><td class="gA">✅ 已排</td></tr>
+        <tr><td><code>douyin-search-20260607</code></td><td class="n">10</td><td>装修vlog 脉 10（实拉验证给了负信号，按 avgC≥150 保量入库，T+7 严判）</td><td><b>2026-06-14</b></td><td class="gA">✅ 已排</td></tr>
+        <tr style="background:#f0fff4"><td><code>douyin-search-20260607-intent</code></td><td class="n">6</td><td><b>「高评论动态→主页评估」法首批</b>（全部过入库前意向终审，详见下方新方法节；当晚两轮：业主晒家主题 5 + 钱字头主题 1）</td><td><b>2026-06-14</b></td><td class="gA">✅ 已排</td></tr>
+      </tbody>
+    </table>
+    <p style="font-size:13px;color:var(--gray)">查的时候跑 <code>TAG=&lt;批次&gt; python3 scripts/source-cohort-yield.py</code>。脚本已加<b>宽限期</b>：入库不满 9 天的号即使暂时 0 产出也只推「🆕新号观察中」，不推死号——避免 worker 还没抓够就误杀活号。</p>
+
+    <p style="margin-top:24px"><b>本周 by-day 进度</b>（快照 <b>2026-06-07 晚</b>，「截至目前产出」列= cohort-yield 近 7d 实时数，未到 T+7 都是中途数）：</p>
+    <table>
+      <thead><tr><th>日期/批次</th><th>当日动作（捞号→新号→入库）</th><th class="n">近7d评论</th><th class="n">高意向</th><th class="n">高%</th><th class="n">可触达</th><th>当日要点</th></tr></thead>
+      <tbody>
+        <tr><td><b>5/30</b>（前情）</td><td>首批 25 候选 → 入库 16（现 active 10）</td><td class="n">331</td><td class="n gA">7</td><td class="n gA">2.1%</td><td class="n">6</td><td>一只芋圆仔 ⭐tier1（3.9%）；6 号已淘汰</td></tr>
+        <tr><td><b>6/04</b></td><td>方法首次验证跑通（CDP 搜词 + 本地 f2 实拉），未单独入库</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td>「入库前实拉验证」闸门定型</td></tr>
+        <tr><td><b>6/05</b></td><td>捞 304 → 入库 22（业主装修日记脉）</td><td class="n">1512</td><td class="n gA">24</td><td class="n gA">1.6%</td><td class="n">12</td><td>曾师傅装修日记 ⭐tier1（8.0%）；「个人装修日记」脉首验出矿</td></tr>
+        <tr style="background:#f0fff4"><td><b>6/06</b></td><td>捞 344 → 入库 9（旧房改造 + 毛坯入住脉）</td><td class="n">134</td><td class="n gA">14</td><td class="n gA"><b>10.4%</b></td><td class="n">12</td><td><b>本周最优脉</b>：旧房改造号 6/6 留存建议、最高单号 25%；评论少但纯度极高</td></tr>
+        <tr><td><b>6/07 早</b></td><td>捞 336 → 新 284 → vlog 脉富化 99 → 入库 10</td><td class="n">0</td><td class="n">0</td><td class="n">–</td><td class="n">0</td><td>「装修vlog」脉<b>实拉证伪</b>（341 条评论 0 高 3 中=自装工艺粉）；入库 10 为保量批，评论还没回流</td></tr>
+        <tr style="background:#f0fff4"><td><b>6/07 晚</b></td><td>动态法两轮验证 18 号 ~650 条评论 → 入库 6（<code>-intent</code> 批）</td><td class="n">–</td><td class="n gA">9</td><td class="n gA">1.4%</td><td class="n">28</td><td><b>「高评论动态→主页评估」新法首战告捷</b>：大橘的家可触达 24.4% 超 tier1 基准；第二轮钱字头词再中斯斯装修避坑（8.9%）；用户搜索 track 同晚仅 1 边缘合格——动态法完胜（此行高/可触达列=入库前验证样本数，非 DB 回流数）</td></tr>
+        <tr style="background:var(--soft)"><td><b>本周合计</b></td><td><b>捞 ~1320 → 入库 47</b>（+前情 16 = 在库 63，active 57）</td><td class="n"><b>1977</b></td><td class="n gA"><b>45</b></td><td class="n gA"><b>2.3%</b></td><td class="n"><b>30</b></td><td>tier1 候选 2 + 准 tier1 新号 4；出矿脉 2 条 + 新方法 1 个；证伪 1 条（装修vlog）</td></tr>
+      </tbody>
+    </table>
+    <div class="note"><b>截至 6/7 的脉结论（选词直接抄这个）</b>：① <b>旧房改造/毛坯入住</b>＝纯度王（高% 10.4%，但单号评论量小，适合多号薄采）；② <b>个人装修日记/晒家</b>＝量价平衡（评论量大 + 出 tier1）；③ <b>装修vlog</b>＝证伪退役（受众是自装工艺粉不是定制买家）；④ 「晒家」一词被晾衣架/防晒/晒家乡污染，捞回来要按名字正则二次清洗。</div>
+
+    <h3 style="margin-top:32px">🆕 新方法（6/07 晚定型）·「高评论动态 → 主页评估」法</h3>
+    <p>老路是「搜<b>用户</b>→按名字筛号」；新路反过来：「搜<b>动态（视频）</b>→挑评论爆的→顺着进作者主页评估」。逻辑很朴素：<b>评论多的装修动态，评论区本身就是买家聚集地</b>——尤其「花费清单 / 装修全流程 / 硬装预算」这类钱字头主题，围观的全是正在做装修决策的人。</p>
+    <table>
+      <thead><tr><th>步骤</th><th>做什么</th><th>工具/口径</th></tr></thead>
+      <tbody>
+        <tr><td><b>1 搜动态</b></td><td>CDP 真浏览器搜关键词（type=video），监听 <code>search/item</code> 接口抽每条动态的评论数/收藏数/作者</td><td>免费，~2min/4词，单轮可捕 ~180 条动态</td></tr>
+        <tr><td><b>2 初筛</b></td><td>留「30 天内发布 + 评论 ≥50」的动态，作者 sec_uid 对 DB 排重，名字正则剔商家/同行</td><td>183 → 26 条（6/07 实测）</td></tr>
+        <tr><td><b>3 主页评估·身份+活跃</b></td><td>进作者主页（f2 拉最新 3 条视频）：① 个人业主号而非商家；② 14d 内有更新；③ 评论量不是「一条爆款其余冷清」的一波流</td><td>f2 post 接口（与评论接口不同限流池）</td></tr>
+        <tr><td><b>4 意向终审（定生死）</b></td><td>实拉该作者热门动态评论喂 production 意向分类器，按<b>可触达占比（高+中意向）</b>排名——<b>≥4% 且 ≥2 条才入库</b>，不再看 avgC</td><td>CDP 拉评论 + deepseek 打分，几分钱/批</td></tr>
+        <tr><td><b>5 入库</b></td><td>独立 TAG（<code>-intent</code> 后缀）入库，T+7 与「保量批」对照检验</td><td>import 脚本 --input --tag</td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:16px"><b>首战成绩（6/07 晚 · 双 track 同晚对照）</b>：</p>
+    <table>
+      <thead><tr><th>号源</th><th class="n">可触达%</th><th class="n">高</th><th class="n">中</th><th class="n">样本</th><th>来源 track</th><th>处置</th></tr></thead>
+      <tbody>
+        <tr><td>大橘的家🏠（软装中）</td><td class="n gA"><b>24.4%</b></td><td class="n">0</td><td class="n">11</td><td class="n">45</td><td>动态法</td><td class="gA">✅ 入库（超 tier1 基准 17.8%）</td></tr>
+        <tr><td>远远装修日记</td><td class="n gA">10.4%</td><td class="n">1</td><td class="n">4</td><td class="n">48</td><td>动态法</td><td class="gA">✅ 入库</td></tr>
+        <tr><td>婷婷（预算贴）</td><td class="n gA">8.6%</td><td class="n">2</td><td class="n">1</td><td class="n">35</td><td>动态法</td><td class="gA">✅ 入库</td></tr>
+        <tr><td>谭胖胖的家🏠</td><td class="n">2.9%</td><td class="n">1</td><td class="n">0</td><td class="n">35</td><td>用户搜索</td><td class="gA">✅ 入库（有真高意向）</td></tr>
+        <tr><td>佳姐装修日记</td><td class="n">2.7%</td><td class="n">2</td><td class="n">0</td><td class="n">75</td><td>动态法</td><td class="gA">✅ 入库（单视频 2286 评，绝对量大）</td></tr>
+        <tr><td>斯斯装修避坑（第二轮·钱字头词）</td><td class="n gA">8.9%</td><td class="n">3</td><td class="n">1</td><td class="n">45</td><td>动态法</td><td class="gA">✅ 入库（避坑/合同/预算干货号=决策期人群磁铁，日更；高意向含「下月交房200平预算300w求好公司」）</td></tr>
+        <tr><td style="color:var(--gray)">其余 9 号（小可爱/糖果/悦悦等）</td><td class="n" style="color:var(--gray)">0%</td><td class="n" style="color:var(--gray)">0</td><td class="n" style="color:var(--gray)">0</td><td class="n" style="color:var(--gray)">~265</td><td>用户搜索为主</td><td style="color:var(--gray)">❌ 不入库</td></tr>
+      </tbody>
+    </table>
+    <div class="note warn"><b>同晚对照的结论</b>：动态法 10 个候选出 4 个合格（40%），用户搜索 track 10 个活号只出 1 个边缘合格（10%）——<b>「评论爆的动态」是比「名字像业主」强得多的先验</b>。后续动态法转正为阶段 0 的默认路径之一，钱字头主题（花费/预算/流程）的词优先。注意：验证样本是单视频 35-75 条评论，可触达% 有方差，T+7（6/14）的 DB 回流数才是终审。</div>
+
+    <p style="margin-top:24px"><b>① 我们 6 月新批 · 早期意向四档</b>（2026-06-06 快照，<b>高/中意向占比已拆开</b>；三批都没到 T+7，是未成熟中途数）：</p>
+    <table>
+      <thead><tr><th>批次</th><th class="n">近7d评论</th><th class="n">高意向</th><th class="n">高%</th><th class="n">中意向</th><th class="n">中%</th><th class="n">低</th><th class="n">无关</th></tr></thead>
+      <tbody>
+        <tr><td><code>…20260530</code>(16号)</td><td class="n">295</td><td class="n gA">6</td><td class="n gA">2.0%</td><td class="n">19</td><td class="n">6.4%</td><td class="n">31</td><td class="n" style="color:var(--gray)">239</td></tr>
+        <tr><td><code>…20260605</code>(22号)</td><td class="n">662</td><td class="n gA">12</td><td class="n gA">1.8%</td><td class="n">46</td><td class="n">6.9%</td><td class="n">50</td><td class="n" style="color:var(--gray)">554</td></tr>
+        <tr><td><code>…20260606</code>(9号)</td><td class="n">0</td><td class="n">0</td><td class="n">–</td><td class="n">0</td><td class="n">–</td><td class="n">0</td><td class="n">0</td></tr>
+        <tr style="background:var(--soft)"><td><b>合计</b></td><td class="n"><b>957</b></td><td class="n gA"><b>18</b></td><td class="n gA"><b>1.9%</b></td><td class="n"><b>65</b></td><td class="n"><b>6.8%</b></td><td class="n"><b>81</b></td><td class="n" style="color:var(--gray)"><b>793</b></td></tr>
+      </tbody>
+    </table>
+
+    <p style="margin-top:24px"><b>② 基准对比 · 按 tier/来源（互斥 cohort · 全量·按高意向% 降序）</b><span style="color:var(--gray);font-size:13px"> · 完整方法论/取数路径见 repo <code>docs/analysis/source-intent-baseline-2026-06-06.md</code></span></p>
+    <table>
+      <thead><tr><th>Cohort（号源之间不重合）</th><th class="n">号</th><th class="n">近7d评论</th><th class="n">高%</th><th class="n">中%</th><th class="n">低%</th><th class="n">无关%</th></tr></thead>
+      <tbody>
+        <tr><td><b>A·tier1 长跑</b>（已验证好号·上限基准）</td><td class="n">92</td><td class="n">13058</td><td class="n gA"><b>4.6%</b></td><td class="n">13.2%</td><td class="n">15.8%</td><td class="n" style="color:var(--gray)">66.2%</td></tr>
+        <tr><td>D·tier0 其他/同行历史</td><td class="n">676</td><td class="n">8317</td><td class="n gA">2.9%</td><td class="n">12.2%</td><td class="n">8.7%</td><td class="n" style="color:var(--gray)">76.1%</td></tr>
+        <tr><td>B·tier0 蝉妈妈历史</td><td class="n">275</td><td class="n">6510</td><td class="n gA">2.7%</td><td class="n">4.5%</td><td class="n">7.2%</td><td class="n" style="color:var(--gray)">85.6%</td></tr>
+        <tr style="background:#eef6ff"><td><b>C·tier0 抖音搜索 6月新批</b>（我们的）</td><td class="n">40</td><td class="n">1220</td><td class="n gA">1.7%</td><td class="n">6.9%</td><td class="n">6.8%</td><td class="n" style="color:var(--gray)">84.6%</td></tr>
+      </tbody>
+    </table>
+    <div class="note warn"><b>怎么读这张表（重要，别误读）</b>
+      <ul style="margin:6px 0;padding-left:20px">
+        <li><b>tier1 高意向 4.6% = 上限基准</b>（最好的号仍 66% 无关 = 装修评论底噪地板）。</li>
+        <li><b>「蝉妈妈不行」和它高意向 2.7% 不矛盾</b>：「不行」指 ① 拉新号渠道挂了 ② 存量老号在降温（无关 85.6% 全场最高=噪声最重）。它高意向单项略高，但<b>中意向只 4.5% 特别低</b>。</li>
+        <li><b>按「可触达(高+中)」比才公平：我们新批 8.6%（1.7+6.9）其实已超蝉妈妈 7.2%（2.7+4.5）</b>。上面按「高意向单项」降序排，会让未成熟的新批看着垫底——<b>那是排序口径的错觉</b>。</li>
+        <li><b>新批高意向 1.7% 是「未成熟地板」</b>：40 号才入库 1–7 天、评论还在陆续抓、analyze 没跑全，T+7（6/11–13）会涨；A/B/D 都是成熟存量号。<b>⚠️ 现在还不能下「新方法优于蝉妈妈」的定论——可触达占优，但高意向纯度要等 T+7 成熟数。</b></li>
+      </ul>
+    </div>
+
+    <p style="margin-top:24px"><b>③ 类别细分 · 更新频率 + 近7d 意向（全量 active 号 · 按高意向% 降序）</b></p>
+    <table>
+      <thead><tr><th>类别</th><th class="n">active号</th><th class="n">7d发片<br><span style="font-weight:400;font-size:11px">总(人均)</span></th><th class="n">30d发片<br><span style="font-weight:400;font-size:11px">总(人均)</span></th><th class="n">近7d评论</th><th class="n">高%</th><th class="n">中%</th><th class="n">低%</th><th class="n">无关%</th></tr></thead>
+      <tbody>
+        <tr><td>本地号</td><td class="n">515</td><td class="n">157 (0.3)</td><td class="n">3469 (6.7)</td><td class="n">12831</td><td class="n gA"><b>4.1%</b></td><td class="n">13.1%</td><td class="n">11.8%</td><td class="n" style="color:var(--gray)">71.0%</td></tr>
+        <tr><td>知识号</td><td class="n">112</td><td class="n">46 (0.4)</td><td class="n">935 (8.3)</td><td class="n">6929</td><td class="n gA">3.5%</td><td class="n">10.9%</td><td class="n">16.7%</td><td class="n" style="color:var(--gray)">68.7%</td></tr>
+        <tr><td>工厂号</td><td class="n">191</td><td class="n">63 (0.3)</td><td class="n">1392 (7.3)</td><td class="n">1354</td><td class="n gA">3.4%</td><td class="n">14.8%</td><td class="n">3.5%</td><td class="n" style="color:var(--gray)">78.2%</td></tr>
+        <tr><td>全屋定制</td><td class="n">189</td><td class="n">94 (0.5)</td><td class="n">2035 (10.8)</td><td class="n">4886</td><td class="n gA">2.8%</td><td class="n">5.7%</td><td class="n">8.2%</td><td class="n" style="color:var(--gray)">83.3%</td></tr>
+        <tr><td>设计号</td><td class="n">8</td><td class="n">5 (0.6)</td><td class="n">58 (7.3)</td><td class="n">142</td><td class="n gA">2.8%</td><td class="n">4.2%</td><td class="n">25.4%</td><td class="n" style="color:var(--gray)">67.6%</td></tr>
+        <tr><td>品牌号</td><td class="n">28</td><td class="n">8 (0.3)</td><td class="n">211 (7.5)</td><td class="n">395</td><td class="n gA">2.3%</td><td class="n">8.1%</td><td class="n">7.6%</td><td class="n" style="color:var(--gray)">82.0%</td></tr>
+        <tr><td><b>业主日记</b>（我们新脉）</td><td class="n">26</td><td class="n">3 (0.1)</td><td class="n">75 (2.9)</td><td class="n">1046</td><td class="n gA">1.9%</td><td class="n">7.6%</td><td class="n">6.5%</td><td class="n" style="color:var(--gray)">84.0%</td></tr>
+        <tr style="color:var(--gray)"><td>平台号 <span style="font-size:11px">(仅 1 号「一起装修网」· 样本太小·不参与排序)</span></td><td class="n">1</td><td class="n">0 (0)</td><td class="n">11 (11)</td><td class="n">12</td><td class="n">8.3%</td><td class="n">8.3%</td><td class="n">8.3%</td><td class="n">75.0%</td></tr>
+      </tbody>
+    </table>
+    <div class="note"><b>「号」的定义</b>：这里一个「号」= <code>source_accounts</code> 表里 <b>is_active=true</b>（在抓取轮转里、worker 每隔几小时会去抓它新视频评论）的<b>一个抖音号源</b>——即我们去抓评论、找潜客的一个抖音账号，按它的 <code>category</code> 字段归类。「人均发片」= 该类总发片数 ÷ 该类 active 号数。</div>
+    <p style="font-size:13px;color:var(--gray)">读：<b>本地号高意向 4.1% 最高</b>（平台号 1 个号样本太小忽略），知识号/工厂号次之；<b>全屋定制类别高意向只 2.8%</b>（商家自卖稀释，故扩源该维度走加严过滤剔商家）；<b>业主日记高意向 1.9% 暂垫底但人均发片最低(7d 0.1)</b>——个人号更新慢、多数才入库 1 天未成熟。<br><b>⚠️ 全部 T+7 前快照</b>，满 7 天（6/11–6/13）的数才作准，别据此判废。</p>
   </section>
 
   <!-- 03 实战结果 -->
@@ -193,6 +304,10 @@
       </tbody>
     </table>
     <p style="font-size:13px;color:var(--gray)">读法：名字分高的「设计师·华生 / 想想 / 老李」avgC 只有 5~1891；名字分 -5（搜索源缺 aweme_count 被 zombie 误杀）的拾点 / 咕噜苗反而是评论巨矿。<b>金矿号「一只芋圆仔」名字分也是 -5，avgC 仅 736 不算高，却是后面意向产出最高的号</b> → 评论量是入池信号，但真好坏还得看意向。</p>
+    <div class="note"><b>这个「名字分」到底怎么算的？现在还在跑吗？</b>
+      <p style="margin:6px 0">是 <code>_douyin-search-score.py</code> 里一套<b>纯按号名加减分</b>的规则（满分约 100）：名字带「设计师_/设计师·」+25、带「讲装修/聊装修」+20、带「装修帮/避坑」知识词 +15、命中重点城市 +10；近 30 天发 0 视频判僵尸号 −5、带「工厂/批发」−15、带「小店/百货」−10。</p>
+      <p style="margin:6px 0"><b>还在跑</b>——它是阶段 0 的一步，每天捞完号都过一遍。但<b>只当「入池线索 + 去重」用，不当拍板依据</b>：搜索源不返回粉丝/视频数，僵尸号规则会把好号误扣到 −5（一只芋圆仔就是 −5 的金矿）。所以<b>真正决定入不入库的是阶段 1 富化的真实评论量，不是这个名字分</b>。它的价值是排序展示 + 标记「已在库」去重，不是质量裁判。</p>
+    </div>
 
     <p style="margin-top:24px"><b>② 筛选漏斗</b>：从 25 候选到 16 条可触达 leads：</p>
     <div class="funnel">
@@ -200,7 +315,7 @@
       <div class="step"><div class="when">阶段 1</div><div class="body"><span class="big">f2 富化 23 个</span> → 按 <code>avg_comments ≥ 150</code> 入库 <b>16 个</b>（砍掉 7 个低互动：想想Echo 134 / 李晶晶 104 / 吴文涛 81 / 老李 5 / 团子严选 0 等）</div></div>
       <div class="step"><div class="when">阶段 2</div><div class="body"><span class="big">内容相关性筛 → 10 在题号</span>
         <div style="font-size:13px;color:var(--gray);margin-top:6px">16 个入库号里，约 <b>6 个</b>是「泛生活流量爆款」——评论海量但内容偏题（家居美学 / vlog / 探店），装修咨询占比低 → 不优先验证。剩 10 个在题号（装修日记 / 全屋定制 / 设计）进实拉验证。</div></div></div>
-      <div class="step"><div class="when">阶段 2</div><div class="body"><span class="big">实拉验证 5 个</span> → f2 拉最新视频评论共 <b>176 条</b> → production 意向分类器打分</div></div>
+      <div class="step"><div class="when">阶段 2</div><div class="body"><span class="big">实拉验证 5 个</span>（每号最新 3 条视频）→ f2 拉评论共 <b>176 条</b> → production 意向分类器打分</div></div>
       <div class="step"><div class="when">产出</div><div class="body"><span class="big">16 条可触达 leads</span>（高意向 1 + 中意向 15；其余 27 低意向 + 133 无关）。<b>一只芋圆仔独占 10 条</b> → 升 tier1</div></div>
     </div>
     <div class="note warn"><b>诚实说 · 「砍 6」是推断不是台账</b>：outputs 里能锚定的是「入库 16 → 实拉验证挑了 5 个在题号」，并没有一份「砍掉的 6 个是谁、按什么砍」的记录。下面这 6 个是<b>我按 f2 富化数据 + 名字内容推断</b>的泛流量/偏题候选剔除项，<b>最终留存以入库后队列产出为准</b>，如与实际有出入请订正：
@@ -245,7 +360,7 @@
         <tr><td>号好不好（入库后）</td><td>单看名字 / 单看一次抓取</td><td><code>source-cohort-yield.py</code> 看批次近 7d 真实产出（总评论/高意向/占比/可触达）</td></tr>
       </tbody>
     </table>
-    <div class="note warn"><b>⚠️ 6/11 效果检查 routine 待改</b>：<code>source-cohort-yield.py</code> 现在按「我们 DB 里近 7d 评论数」判废——这正是踩坑 ③ 的同款误判，会枪毙刚入库或抓取滞后的活号。<b>需改成「本地 f2 实拉量」判废</b>，或至少给新入库号一个宽限期再纳入判废。在改之前，对这批搜索号的判废结论要人工复核。</div>
+    <div class="note good"><b>✅ 效果检查 routine 已加宽限期（2026-06-06 修）</b>：<code>source-cohort-yield.py</code> 原来按「DB 近 7d 评论数」判废，会枪毙刚入库/抓取滞后的活号（踩坑 ③ 同款）。已加 <code>GRACE_DAYS=9</code>：<b>入库不满 9 天的号即使暂时 0 产出也只推「🆕新号观察中」，不推死号</b>，给 worker 抓够时间。满 9 天仍 0 产出的才进入正常判废，且判废建议仍建议人工复核（脚本只出推荐、不自动 deactivate）。</div>
     <div class="note"><b>验证前先发数据给用户确认</b>：拉号源 / 拉 leads / 判号源好坏，跑之前先把真实数据表发个人确认、得到点头再下结论或改判废逻辑，不「直接执行 + 直接盖结论」。两次拿误导数据下结论会让号源判断失去信任。</div>
   </section>
 
@@ -332,7 +447,46 @@ TAG=douyin-search-20260530 python3 scripts/source-cohort-yield.py
     <p style="font-size:13px;color:var(--gray)">注：以上是「干净跑」的理论用时。6/05 当天因调试并发限流多耗了额外时间，那是操作失误不是方法成本——按串行老老实实跑就是上表的数。</p>
   </section>
 
-  <footer>UPIO.AI · AKKE PROJECT DOCS · 本地 f2 实拉号源新方法 · 2026-06-04 首证 · 2026-06-05 第二批实战 + 术语注解 + 效率成本</footer>
+  <!-- 08 运营须知 -->
+  <section class="sec" id="s8">
+    <div class="sec-h"><span class="sec-n">SECTION 08</span><span class="sec-t">运营须知（产出规律 / 关键词 / 去重 / 安全 / 分类）</span></div>
+
+    <p><b>① 每天产出有上下限，且会衰减</b>——「产出」= 当天入库的活跃金矿号数。三批实测：</p>
+    <table>
+      <thead><tr><th>批次</th><th>关键词脉</th><th class="n">入库金矿号</th></tr></thead>
+      <tbody>
+        <tr><td>5/30</td><td>装修案例等</td><td class="n">16</td></tr>
+        <tr><td>6/5</td><td>装修日记 / 全屋定制 / 懒人装修 / 晒新家 / 小户型改造</td><td class="n gA">22</td></tr>
+        <tr><td>6/6</td><td>新房装修 / 毛坯改造 / 二手房翻新 / 出租屋改造 / 婚房装修</td><td class="n gC">9</td></tr>
+      </tbody>
+    </table>
+    <table>
+      <thead><tr><th></th><th>大致区间</th><th>由什么决定</th></tr></thead>
+      <tbody>
+        <tr><td><b>上限</b></td><td class="n">≈ 20–40/天</td><td>关键词新鲜覆盖（每词捞~60-70 作者）× ~8% 通过率（avgC≥150活跃）× 串行富化的时间预算（conc=1，一轮能富化~100-150 候选）</td></tr>
+        <tr><td><b>下限</b></td><td class="n">≈ 0–5/天</td><td>已入库池子越大、去重掉的越多；同一批关键词越挖越枯竭（蝉妈妈 5/28 关键词矩阵枯竭同款规律）；该垂类活跃创作者总量有限</td></tr>
+      </tbody>
+    </table>
+    <div class="note warn"><b>命门 = 关键词的新鲜度和多样性</b>。换新角度的词 → 产出趋上限；吃老本重复用词 → 大半被去重掉、趋向下限 0。<b>6/6 用「毛坯/旧改/翻新」这组词，只入 9 个、且多是旧改服务号——明显不如 6/5 的「装修日记」脉（22 个金矿）</b>，就是关键词决定产出的实证。</div>
+
+    <p><b>② 关键词怎么选</b>：目前按经验挑——锚定「个人装修日记 / 晒家」这条出过金矿（一只芋圆仔）的脉，选装修相邻、能勾出个人晒家评论的词，<b>每天换新角度避免去重</b>。诚实说：还没有系统化选词机制，是已知缺口（更严谨该配抖音指数验词热度）。</p>
+
+    <p><b>③ 去重</b>：每次打分时<b>实时拉全量号源库的 sec_uid + 名称比对</b>，命中的标记 dup、不入库。6/6 实测 344 作者 → 331 新 / 13 已在库。<b>sec_uid 去重很硬，入库的号不会重复</b>；历史捞过但没入库的号可能被再捞一次，但不入库、无害。</p>
+
+    <div class="note"><b>④ 账号安全（封号风险）</b>：f2 富化/实拉是<b>用某个真实抖音号的 cookie 去程序化调抖音接口</b>，持续高频有让那个号被风控标记的风险。降险三条：<b>① 用专用「采集号」cookie 抓取，别烧发送 DM 的业务号</b>；② 串行 conc=1 + 每天一轮、不连续轰；③ 浏览器搜索那段（像真人浏览）风险低，f2 程序化调用那段风险高。<b>注意：抓取/读取的封禁风险远低于发 DM 滥用</b>——真正高危的是发送线不是抓取线。临时「限流」（返回空数据）≠ 封号，冷却即恢复。</div>
+
+    <p style="margin-top:24px"><b>⑤ 入库的号有「类型」和「来源」标签</b>（号源页可见）：</p>
+    <table>
+      <thead><tr><th>字段</th><th>怎么来的</th><th>取值</th></tr></thead>
+      <tbody>
+        <tr><td><b>类型</b></td><td>入库时按<b>号名特征词</b>自动归类（有据可查，名字无明显特征就<b>留空不瞎猜</b>，等抓到内容再分）</td><td>业主日记（个人晒自己装修）/ 本地号 / 知识号 / 工厂号 / 设计号 / 品牌号 / 全屋定制</td></tr>
+        <tr><td><b>来源</b></td><td>标明这号是哪个渠道找来的</td><td><b>抖音搜索·本地f2</b>（本套方法）· 蝉妈妈（历史第三方平台）· 手动</td></tr>
+      </tbody>
+    </table>
+    <p style="font-size:13px;color:var(--gray)">注：早期入库脚本曾把所有号硬标「全屋定制」（一刀切、不准），已修正为按名字分类并回填历史批次。例：6/6 入库 9 个 = 3 业主日记（入住毛坯房/小于的家…）+ 6 本地号（城市+旧房改造服务号）。</p>
+  </section>
+
+  <footer>UPIO.AI · AKKE PROJECT DOCS · 本地 f2 实拉号源新方法 · 2026-06-04 首证 · 2026-06-05 第二批 · 2026-06-06 第三批 + 运营须知</footer>
 </div>
 </body>
 </html>
