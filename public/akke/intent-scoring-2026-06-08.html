@@ -40,6 +40,7 @@
   .ex{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:10px 0;font-size:14px}
   .ex .q{font-weight:600}
   .ex .calc{font-size:12.5px;color:var(--gray);margin-top:4px;font-variant-numeric:tabular-nums}
+  .vs{font-weight:700}
   .pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;color:#fff}
   .pHi{background:var(--red)} .pMid{background:var(--amber)} .pLo{background:#0891b2} .pNo{background:var(--gray)}
   .step{display:flex;align-items:flex-start;gap:14px;padding:16px 0;border-bottom:1px dashed var(--line)}
@@ -54,6 +55,10 @@
   code{background:var(--soft);padding:1px 6px;border-radius:4px;font-size:13px}
   .updn{font-weight:700}
   .up{color:var(--green)} .dn{color:var(--red)}
+  .lyr{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:6px;margin-right:6px}
+  .lyrTbl{background:#e0f2fe;color:#0369a1} .lyrPr{background:#fef3c7;color:#92400e} .lyrBiz{background:#f3e8ff;color:#7c3aed}
+  .liveTag{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:#dcfce7;color:#15803d}
+  .gateTag{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:#fef3c7;color:#b45309}
   footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--line);font-size:12px;color:var(--gray);letter-spacing:.5px}
 </style>
 </head>
@@ -63,21 +68,22 @@
   <h1>高 / 中 / 低意向 打分标准 · 客户标注校准版</h1>
   <div class="meta">Akke 项目 · <b>2026-06-08</b> · 上一版见 <a href="/akke/intent-scoring-2026-06-04" style="color:var(--accent)">06-04 版</a> · 「意向」= 一条评论背后的人有多想找装修服务 · 数据为实测快照</div>
   <div class="jumps">
-    <a href="#s0">00 这次校准的由来</a>
-    <a href="#s1">01 上一版打分机制</a>
-    <a href="#s2">02 客户标准 vs 我们</a>
-    <a href="#s3">03 今天分析出的关键点</a>
-    <a href="#s4">04 更新版打分机制</a>
-    <a href="#s5">05 生效时间</a>
-    <a href="#s6">06 同一批 520 条·新旧对比</a>
-    <a href="#s7">07 我对意向分演变的看法</a>
+    <a href="#s0">00 由来</a>
+    <a href="#s1">01 上一版机制</a>
+    <a href="#s2">02 客户 vs 我们（举例）</a>
+    <a href="#s3">03 五个关键发现（举例）</a>
+    <a href="#s4">04 方案总览</a>
+    <a href="#s5">05 三层方案详解</a>
+    <a href="#s6">06 实际上线 = B+C</a>
+    <a href="#s7">07 同批 520 条实测</a>
+    <a href="#s8">08 我的看法</a>
   </div>
 
   <!-- 00 -->
   <section class="sec" id="s0">
     <div class="sec-h"><span class="sec-n">CASE</span><span class="sec-t">这次校准从哪来的</span></div>
     <p>客户拿我们之前导出的评论文档，<b>逐条人工标注了 99 条</b>（《客户评论标注-20260606》），给每条打了 0–100 分（半随机抽样 + 半「我们判得跟同类多数不一样」的分歧样本）。这是<b>第一次有客户侧的"标准答案"</b>来校准我们的意向打分——以前都是我们自己定标准。</p>
-    <div class="note">这一版的所有改动，<b>都是拿客户这 99 条标注当尺子量出来的</b>：先看我们和客户哪里判得不一样、差在哪，再决定改什么。下面 §2 是差异，§3 是发现，§4 是改动。</div>
+    <div class="note">这一版的所有改动，<b>都是拿客户这 99 条标注当尺子量出来的</b>：先看我们和客户哪里判得不一样（§2）、归纳出关键发现（§3）、把问题按"该改哪一层"分类（§4），再分层落地（§5）。</div>
   </section>
 
   <!-- 01 -->
@@ -96,7 +102,6 @@
     <div class="ex"><span class="pill pHi">高意向 93</span> <span class="q">「120平一般装多少钱」</span><div class="calc">问购 60 + 具体 25 + 在调研 8 = 93</div></div>
     <div class="ex"><span class="pill pMid">中意向 78</span> <span class="q">「这套下来多少钱」</span><div class="calc">问购 60 + 一般 10 + 在调研 8 = 78（够 60 不够 80）</div></div>
     <div class="ex"><span class="pill pLo">低意向 58</span> <span class="q">「求份攻略」</span><div class="calc">问工艺 40 + 一般 10 + 在调研 8 = 58</div></div>
-    <div class="note">⚠️ <b>这一版（06-08）没有改这张表</b>——基础分/加分/阈值<b>全部保持原样</b>。改的是「大模型怎么把评论拆成这 3 个维度」（prompt）和「同档里先碰谁」（排序）。为什么不改表，见 §7。</div>
   </section>
 
   <!-- 02 -->
@@ -113,64 +118,114 @@
       </tbody>
     </table>
     <div class="note">严格同档一致 <b>51%</b>，±1 档内一致 <b>91%</b>——没有离谱乱判，但<b>一档之差是系统性的、有方向的</b>：<b>该捞的高意向没捞上来，不该扔的当无关扔了</b>。</div>
-    <p>一句话总结客户的"评分观"：</p>
-    <p style="border-left:3px solid var(--ink);padding-left:14px;font-size:15px"><b>客户的门槛整体比我们松、更看重"人愿意开口具体提问"这件事本身</b>——问价、深度请教、求资料、甚至同行搭话，在他眼里都是值得碰的线索；而我们的模型偏"学术"，按"知识 vs 产品""具体 vs 泛"打分，反而把"具体的技术请教"误当成了无意向。</p>
+    <p><b>典型分歧（库里实抓 · 我们 vs 客户）</b>：</p>
+    <div class="ex"><span class="q">「博主，这客厅多少平？」</span><div class="calc">我们 <span class="vs">78 / 中意向</span> &nbsp;→&nbsp; 客户 <span class="vs" style="color:var(--red)">100 / 高意向</span>（卡在 80 线下一点点）</div></div>
+    <div class="ex"><span class="q">「这套下来多少钱」「可以发一份装修清单吗」</span><div class="calc">我们 <span class="vs">78 / 中意向</span> &nbsp;→&nbsp; 客户 <span class="vs" style="color:var(--red)">100 / 高意向</span></div></div>
+    <div class="ex"><span class="q">「请教老师，水泥墙有涂料，预拌砂浆贴要铲掉吗？环氧碳基呢」</span><div class="calc">我们 <span class="vs" style="color:var(--gray)">0 / 无关</span>（误判成非装修品类） &nbsp;→&nbsp; 客户 <span class="vs" style="color:var(--red)">100 / 高意向</span></div></div>
+    <div class="ex"><span class="q">「我这有两户过来给我帖」</span><div class="calc">我们 <span class="vs">33 / 低意向</span> &nbsp;→&nbsp; 客户 <span class="vs" style="color:var(--red)">100 / 高意向</span>（客户把同行合作当线索）</div></div>
+    <div class="ex"><span class="q">「空调装哪里？」</span><div class="calc">我们 <span class="vs" style="color:var(--gray)">15 / 无关</span> &nbsp;→&nbsp; 客户 <span class="vs" style="color:var(--amber)">60 / 中意向</span></div></div>
+    <p style="border-left:3px solid var(--ink);padding-left:14px;font-size:15px"><b>一句话总结客户的"评分观"</b>：客户的门槛整体比我们松、更看重"人愿意开口具体提问"这件事本身——问价、深度请教、求资料、甚至同行搭话，在他眼里都是值得碰的线索；而我们的模型偏"学术"，按"知识 vs 产品""具体 vs 泛"打分，反而把"具体的技术请教"误当成了无意向。</p>
   </section>
 
   <!-- 03 -->
   <section class="sec" id="s3">
-    <div class="sec-h"><span class="sec-n">SECTION 03</span><span class="sec-t">今天分析出的 5 个关键点</span></div>
+    <div class="sec-h"><span class="sec-n">SECTION 03</span><span class="sec-t">今天分析出的 5 个关键发现</span></div>
     <table>
-      <thead><tr><th>#</th><th>发现</th><th>证据 / 例子</th></tr></thead>
+      <thead><tr><th>#</th><th>发现</th><th>例子</th></tr></thead>
       <tbody>
-        <tr><td>1</td><td><b>真高意向被压成"中意向"（最大漏召）</b></td><td>我们判中意向的 30 条里，客户有 <b>21 条判成高</b>。我们"高"档很准（说高时客户 90% 认同），但太保守——大量该进高的卡在中档（多数卡在 78 分，差 80 线一点点）。</td></tr>
-        <tr><td>2</td><td><b>预算/价格类被系统性低估</b></td><td>这类平均比客户低 <b>26 分</b>。「多付钱不」我们 35/低→客户 80；「已经看了好久 10000-1000…」我们 30/低→客户 80。</td></tr>
-        <tr><td>3</td><td><b>知识类判得"一刀切"</b></td><td>大批做法/工艺咨询统一给 58/低。但客户把它劈两半：闲好奇（"风水没问题吗"）→ 低；真技术请教（"水泥墙有涂料，预拌砂浆贴要不要铲掉"）→ 100。同一个标签，客户眼里天差地别。</td></tr>
-        <tr><td>4</td><td><b>"无关"下手太狠 + 误杀</b></td><td>我们判无关的 22 条里 11 条客户要留。最严重：一条认真技术请教被判 <b>0 分</b>（误判成非装修品类），客户给 100。</td></tr>
-        <tr><td>5</td><td><b>同行/分享类客户当高价值</b></td><td>「我这有两户过来给我帖」我们 33/低→客户 100。这位客户（工长/师傅）把<b>同行合作</b>当线索，跟我们默认相反。</td></tr>
+        <tr><td>1</td><td><b>真高意向被压成"中意向"（最大漏召）</b><br><span style="color:var(--gray);font-size:13px">我们判中意向的 30 条里，客户有 <b>21 条</b>判成高；多数卡在 78 分，差 80 线一点点</span></td><td>「这套下来多少钱」「186平可以设计吗」我们 78/中 → 客户 100/高</td></tr>
+        <tr><td>2</td><td><b>预算/价格类被系统性低估</b><br><span style="color:var(--gray);font-size:13px">这类平均比客户低 <b>26 分</b></span></td><td>「多付钱不」我们 35/低 → 客户 80；「已经看了好久 10000-1000…」我们 30/低 → 客户 80</td></tr>
+        <tr><td>3</td><td><b>知识类判得"一刀切"</b><br><span style="color:var(--gray);font-size:13px">大批做法/工艺咨询统一给 58/低，但客户劈成两半</span></td><td>闲好奇「这样搞风水没问题吗」→ 低；真请教「水泥墙有涂料，预拌砂浆贴要铲掉吗」→ 100</td></tr>
+        <tr><td>4</td><td><b>"无关"下手太狠 + 误杀</b><br><span style="color:var(--gray);font-size:13px">我们判无关的 22 条里 11 条客户要留</span></td><td>一条认真技术请教被判 <b>0 分</b>（误判成非装修），客户给 100</td></tr>
+        <tr><td>5</td><td><b>同行/分享类客户当高价值</b><br><span style="color:var(--gray);font-size:13px">工长/师傅客户把同行合作当线索，跟我们默认相反</span></td><td>「我这有两户过来给我帖」「大庆有推荐的装修公司吗」我们低 → 客户 80-100</td></tr>
       </tbody>
     </table>
   </section>
 
-  <!-- 04 -->
+  <!-- 04 方案总览 -->
   <section class="sec" id="s4">
-    <div class="sec-h"><span class="sec-n">SECTION 04</span><span class="sec-t">更新版打分机制（这次实际上线的 = B + C）</span></div>
-    <p>校准走了一个<b>「不爆池」的折中方案</b>（为什么不直接采纳客户的松门槛，见 §7）。两块改动：</p>
-
-    <p style="font-weight:700;margin-top:20px">B｜把"大模型怎么拆维度"改准（prompt 修 3 处真错，已上线）</p>
+    <div class="sec-h"><span class="sec-n">SECTION 04</span><span class="sec-t">方案总览：问题分两类，修法不同</span></div>
+    <p>5 个发现按"该改哪一层"分类——<b>有的改评分公式表能解，有的只能改大模型的 prompt，有的是产品决策</b>：</p>
     <table>
-      <thead><tr><th>修了什么</th><th>效果</th></tr></thead>
+      <thead><tr><th>问题</th><th>占多少</th><th>根因</th><th>修在哪</th></tr></thead>
       <tbody>
-        <tr><td><b>装修工艺/施工请教 + 房子相关，不再误判"非装修品类"</b>（砂浆/涂料/防水/美缝/户型/装修费）</td><td>"水泥墙涂料请教" <span class="dn">0/无关</span> → <span class="up">中意向</span>，不再被当垃圾扔。只有<b>成品家具(沙发/床单买)、家电、数码</b>才判无关→0。</td></tr>
-        <tr><td><b>知识类"具体程度"拆开</b>：带自家户型/材料/施工现状的深度请教 → 具体(high)；泛泛闲好奇/抬杠 → 模糊(low)</td><td>深度技术请教升档；闲好奇（"风水没问题吗"）落低意向，不再都挤中间。</td></tr>
-        <tr><td><b>同步补回 3 条客户/PM 既定规则</b>（报面积→问购、报面积→具体、全屋智能→装修）</td><td>"98平小三室预算多少"→<span class="up">高意向 93</span>、"186平可以设计吗"→<span class="up">高意向 93</span>。</td></tr>
+        <tr><td>高意向漏召（中→高 21 条）</td><td>大头</td><td>评分表门槛卡太高</td><td><span class="lyr lyrTbl">配方表</span>立竿见影</td></tr>
+        <tr><td>中段太严（低↔中 错位）</td><td>中</td><td>中意向门槛 60 太高</td><td><span class="lyr lyrTbl">配方表</span></td></tr>
+        <tr><td>认真技术请教被判 0/无关</td><td>4 条但最伤</td><td>大模型把它判成 off_topic / 没吐轴</td><td><span class="lyr lyrPr">prompt</span>表救不了</td></tr>
+        <tr><td>明确问价被判无关</td><td>个别</td><td>大模型误判 off_topic</td><td><span class="lyr lyrPr">prompt</span></td></tr>
+        <tr><td>同行/share 客户当高价值</td><td>整类</td><td>客户行业特殊偏好</td><td><span class="lyr lyrBiz">产品决策</span></td></tr>
       </tbody>
     </table>
+    <div class="note"><b>为什么要分层</b>：同一个误判，可能是"大模型把评论的类型/具体度拆错了"（<span class="lyr lyrPr" style="margin:0">prompt</span> 的事），也可能是"公式阈值划错了"（<span class="lyr lyrTbl" style="margin:0">配方表</span> 的事）。<b>先分清是哪一层再动手</b>——乱动阈值是最容易出事的。</div>
+  </section>
 
-    <p style="font-weight:700;margin-top:20px">C｜中意向桶内"按分优先"（拉单排序，已上线）</p>
-    <p>真高意向被压在中档（78 分那批"问价/要清单/求设计"）——这次<b>没硬把它们提进高意向</b>（避免池子失控，见 §7），而是改成：运营拉单时，<b>中意向桶里高分的排在最前面优先碰</b>。等于"暂不提档、但优先处理"。</p>
-    <div class="ex"><span class="pill pMid">中意向 78</span> <span class="q">「这套下来多少钱」「可以发一份装修清单吗」「186平可以设计吗」</span><div class="calc">仍是中意向，但 C 让它们排在中意向桶最前列 → 运营优先碰，不被 60 分的随口一问稀释</div></div>
+  <!-- 05 三层方案 -->
+  <section class="sec" id="s5">
+    <div class="sec-h"><span class="sec-n">SECTION 05</span><span class="sec-t">三层方案详解</span></div>
+
+    <p style="font-weight:700;font-size:16px;margin-top:8px"><span class="lyr lyrTbl">第一层</span> 评分配方 v6_calibrated（改公式表）<span class="gateTag">已备好 · 暂未默认启用</span></p>
+    <p>系统已有"配方"机制（<code>INTENT_PROFILE</code> 环境变量一键切换、随时回滚）。用客户这 99 条标注当标准答案、网格搜索出的最优配方：</p>
+    <table>
+      <thead><tr><th>参数</th><th>现网 v1</th><th>新 v6_calibrated</th><th>为什么</th></tr></thead>
+      <tbody>
+        <tr><td>product（问购）底分</td><td class="n">60</td><td class="n"><b>65</b></td><td>把「问购·一般·在调研」78→83 顶过高意向线</td></tr>
+        <tr><td>knowledge（问工艺）底分</td><td class="n">40</td><td class="n"><b>45</b></td><td>客户认为技术问询比我们看得重</td></tr>
+        <tr><td>share（同行/分享）底分</td><td class="n">15</td><td class="n"><b>25</b></td><td>同行/分享类整体提一档（= 第三层的"普适提权"）</td></tr>
+        <tr><td>具体度加分（具体）</td><td class="n">+25</td><td class="n"><b>+30</b></td><td>拉开知识类两端：深度请教进高、闲好奇落低</td></tr>
+        <tr><td>时效加分</td><td class="n">15/8/0</td><td class="n">不变</td><td></td></tr>
+        <tr><td>高意向门槛</td><td class="n">≥80</td><td class="n">≥80（不变）</td><td>靠底分提，不动线更稳</td></tr>
+        <tr><td><b>中意向门槛</b></td><td class="n">≥60</td><td class="n"><b>≥50</b></td><td>⭐ 最大杠杆：捞回中段</td></tr>
+        <tr><td>低意向门槛</td><td class="n">≥30</td><td class="n">不变</td><td></td></tr>
+      </tbody>
+    </table>
+    <p>拿 99 条标注实测的效果：</p>
+    <div class="grid">
+      <div class="card"><div class="lbl">跟客户严格同档</div><div class="val">42% <span style="color:var(--green);font-size:16px">→ 54%</span></div></div>
+      <div class="card"><div class="lbl">漏掉的高意向</div><div class="val">29 <span style="color:var(--green);font-size:16px">→ 9</span></div><div class="sub">条</div></div>
+      <div class="card"><div class="lbl">我们抓到的高意向</div><div class="val">19 <span style="color:var(--green);font-size:16px">→ 38</span></div><div class="sub">客户认 47</div></div>
+      <div class="card"><div class="lbl">代价：误判成高</div><div class="val">6 <span style="color:var(--amber);font-size:16px">→ 11</span></div><div class="sub">条</div></div>
+    </div>
+    <div class="note warn">⚠️ 这套配方<b>已写进代码但暂未设为默认</b>——因为全量切会让高意向池子 3.3 倍（见 §6）。留作"产能就绪后"的目标态，<code>INTENT_PROFILE</code> 一行环境变量即可启用。</div>
+
+    <p style="font-weight:700;font-size:16px;margin-top:32px"><span class="lyr lyrPr">第二层</span> prompt 层：3 条公式表救不了的硬伤 <span class="liveTag">已上线 Langfuse v11</span></p>
+    <p>这 3 个是大模型"拆维度"本身就拆错了，改分数表无济于事，必须改 prompt：</p>
+    <div class="ex"><b>① 认真技术请教被当 off_topic → 0 分</b>
+      <div style="margin:6px 0">例：<span class="q">「请教老师，水泥墙有涂料，预拌砂浆贴要铲掉吗？环氧碳基呢」</span> 客户 100、我们 <span style="color:var(--gray)">0</span></div>
+      <div class="calc">修复：带「请教/求教 + 具体工艺细节 + 自家情况」的长问句，必须判 type=知识、具体度=高，<b>禁止判 off_topic</b>。</div></div>
+    <div class="ex"><b>② 知识类具体度"一刀切"打 medium</b>
+      <div style="margin:6px 0">闲好奇<span class="q">「风水没问题吗」</span> vs 真请教<span class="q">「水泥墙有涂料…要铲掉吗」</span>——以前全打 medium，分不开</div>
+      <div class="calc">修复：含具体尺寸/型号/自家户型/施工细节 → 具体(high)；纯泛问 → 模糊(low)。高的自然进高意向，低的掉无关，不再都卡中间。</div></div>
+    <div class="ex"><b>③ 明确问价被判 off_topic</b>
+      <div style="margin:6px 0">例：<span class="q">「这套沙发的尺寸和价格是多少」</span> 我们判 0</div>
+      <div class="calc">修复（按客户细化）：<b>房子/全屋定制相关</b>的问价/要清单/求联系方式 → 一律 home，禁判 off_topic；但<b>成品家具(沙发/床)、家电、数码</b>这类非定制品的问购，仍判 off_topic→0（沙发是成品家具不是定制，该判 0 是对的）。</div></div>
+
+    <p style="font-weight:700;font-size:16px;margin-top:32px"><span class="lyr lyrBiz">第三层</span> 产品决策：同行/share 类 <span class="liveTag">结果：A 普适提权</span></p>
+    <p>同行/分享类（<span class="q">「我这有两户过来给我帖」「大庆有推荐的装修公司吗」</span>客户给 80-100，我们给低）——决定<b>普适提权</b>：所有 org 都把 share 类整体提一档（即第一层里 share 底分 15→25），不只针对这一个客户。</p>
+  </section>
+
+  <!-- 06 实际上线 -->
+  <section class="sec" id="s6">
+    <div class="sec-h"><span class="sec-n">SECTION 06</span><span class="sec-t">实际上线的是什么 = B + C（不爆池折中）</span></div>
+    <div class="note warn"><b>关键判断</b>：第一层 v6 配方虽然对齐客户最优，但拿全库 <b>39,471 条</b>实测，只要把「问价/要清单」(中意向 78 分那批) 提进高意向，<b>高意向池子会从 2,896 涨到约 9,500（7.3% → 24%，3.3 倍）</b>。这批是评论里最大的一桶，运营 5 人 + 私信配额<b>扛不住 3.3 倍</b>。而且客户标注 49% 是"故意挑的分歧 case"，不代表真实分布——<b>"对齐客户最优" ≠ "线上能跑"</b>。</div>
+    <p>所以这版<b>没有全量切 v6</b>，走"修真错 + 不爆池"的折中：</p>
+    <table>
+      <thead><tr><th>动作</th><th>是什么</th><th>状态</th></tr></thead>
+      <tbody>
+        <tr><td><b>B｜prompt 修真错</b></td><td>第二层那 3 条（技术请教不再判 0、知识具体度拆分、问价按房子/成品家具区分）。改的是"四轴拆得准不准"，<b>不动阈值表</b>。</td><td><span class="liveTag">已上线 v11</span></td></tr>
+        <tr><td><b>C｜中意向内按分优先</b></td><td>真高意向（78 分那批）<b>暂不硬提档</b>（避免爆池），改成：运营拉单时，中意向桶里高分的排在最前面优先碰。等于"暂不提档、但优先处理"。</td><td><span class="liveTag">已部署生产库</span></td></tr>
+        <tr><td>第一层 v6 配方（改阈值）</td><td>会让池子 3.3 倍，<b>暂不默认启用</b></td><td><span class="gateTag">备用 gated</span></td></tr>
+      </tbody>
+    </table>
     <div class="note good"><b>新版举例（实测）</b>：<br>
-      · 「水泥墙有涂料，预拌砂浆贴要不要铲掉」→ <span class="up">不再 0 分</span>（深度请教归"具体"，进中意向，C 里优先）<br>
+      · 「水泥墙有涂料，预拌砂浆贴要铲掉吗」→ <span class="up">不再 0 分</span>（深度请教归"具体"，进中意向，C 里优先）<br>
       · 「98平小三室预算多少」→ <span class="up">高意向 93</span>（报面积 = 强购买意图）<br>
       · 「这样搞风水没问题吗」→ <span class="pill pLo" style="font-size:10px">低意向</span>（泛泛闲好奇，不再误占中档）</div>
   </section>
 
-  <!-- 05 -->
-  <section class="sec" id="s5">
-    <div class="sec-h"><span class="sec-n">SECTION 05</span><span class="sec-t">生效时间</span></div>
-    <div class="step"><div class="when">2026-06-08</div><div class="body"><span class="big">B（prompt 修复）已上线生产</span>
-      <div class="eff">Langfuse <code>analyze.comments.system</code> v10 → <b>v11</b>，所有租户即时生效。</div></div></div>
-    <div class="step"><div class="when">2026-06-08 18:06</div><div class="body"><span class="big">C（中意向内按分优先）已部署生产库</span>
-      <div class="eff">PR #165 合入 main，<code>claim_leads_batch</code> v4.5 经 supabase-migrate 部署成功。</div></div></div>
-    <div class="step"><div class="when">备用未启用</div><div class="body"><span class="big">v6_calibrated 配方（改阈值的激进版）</span>
-      <div class="eff">已进代码但<b>非默认</b>（env 开关），留作"产能就绪后"的目标态。为什么没切，见 §7。</div></div></div>
-  </section>
-
-  <!-- 06 -->
-  <section class="sec" id="s6">
-    <div class="sec-h"><span class="sec-n">SECTION 06</span><span class="sec-t">同一批 520 条真实评论 · 老版 vs 新版</span></div>
-    <p>取库里最新 <b>520 条真实评论</b>，分别用<b>老 prompt(v10)</b> 和<b>新 prompt(v11)</b> 各跑一遍（阈值表都用 v1_strict，隔离出 prompt 的纯效果），看分布和耗时怎么变：</p>
+  <!-- 07 520 -->
+  <section class="sec" id="s7">
+    <div class="sec-h"><span class="sec-n">SECTION 07</span><span class="sec-t">同一批 520 条真实评论 · 老版 vs 新版</span></div>
+    <p>取库里最新 <b>520 条真实评论</b>，分别用<b>老 prompt(v10)</b> 和<b>新 prompt(v11)</b> 各跑一遍（阈值表都用现网 v1，隔离出 prompt 的纯效果）：</p>
     <table>
       <thead><tr><th>档位</th><th class="n">老版 v10</th><th class="n">新版 v11</th><th>变化</th></tr></thead>
       <tbody>
@@ -181,52 +236,35 @@
       </tbody>
     </table>
     <div class="bar">
-      <div style="flex:16;background:var(--red)" title="老版高意向"></div>
-      <div style="flex:58;background:var(--amber)"></div>
-      <div style="flex:64;background:#0891b2"></div>
-      <div style="flex:382;background:var(--gray)">老版 v10</div>
+      <div style="flex:16;background:var(--red)"></div><div style="flex:58;background:var(--amber)"></div><div style="flex:64;background:#0891b2"></div><div style="flex:382;background:var(--gray)">老版 v10</div>
     </div>
     <div class="bar">
-      <div style="flex:15;background:var(--red)"></div>
-      <div style="flex:85;background:var(--amber)">中 85</div>
-      <div style="flex:40;background:#0891b2"></div>
-      <div style="flex:380;background:var(--gray)">新版 v11</div>
+      <div style="flex:15;background:var(--red)"></div><div style="flex:85;background:var(--amber)">中 85</div><div style="flex:40;background:#0891b2"></div><div style="flex:380;background:var(--gray)">新版 v11</div>
     </div>
-    <div class="note good"><b>读这张表</b>：① <b>高意向几乎不变（16→15）</b>——证明 B+C <b>没有把高意向池子搞大</b>，跟激进版 v6 的"3.3 倍"形成鲜明对照，运营产能不受冲击。② 真正的变化是 <b>低意向 −24 → 中意向 +27</b>：被旧 prompt 误压到低意向/无关的"技术请教、边界问购"被捞回中意向，再由 C 在中意向桶内优先碰。③ <b>无关基本不变（73.5%→73.1%）</b>——装修评论区噪音是绝对大头，筛得准比抓得多重要。</div>
-    <div class="note"><b>关于耗时</b>：520 条评论各版约 <b>3.4–4.4 分钟</b>跑完（DeepSeek V4 Flash，4 路并发）。两版时长相当——<b>打分机制不影响处理速度</b>（同一个模型；实测差异是当时 OpenRouter API 响应波动，不是版本差异）。所以"快慢"不是这次的考量点，<b>分布质量才是</b>。</div>
+    <div class="note good"><b>读这张表</b>：① <b>高意向几乎不变（16→15）</b>——证明 B+C <b>没把高意向池子搞大</b>，跟激进版 v6 的"3.3 倍"形成对照，产能不受冲击。② 真正的变化是 <b>低意向 −24 → 中意向 +27</b>：被旧 prompt 误压的"技术请教、边界问购"被捞回中意向，再由 C 在桶内优先碰。③ <b>无关基本不变（73%）</b>——装修评论区噪音是绝对大头，筛得准比抓得多重要。</div>
+    <div class="note"><b>关于耗时</b>：520 条各版约 <b>3.4–4.4 分钟</b>跑完（同一个模型）。两版时长相当——<b>打分机制不影响处理速度</b>，实测差异是当时 API 响应波动，不是版本差异。所以"快慢"不是考量点，<b>分布质量才是</b>。</div>
   </section>
 
-  <!-- 07 -->
-  <section class="sec" id="s7">
-    <div class="sec-h"><span class="sec-n">SECTION 07</span><span class="sec-t">我对"意向分演变"的看法 · 对这一版的看法</span></div>
-
-    <p style="font-weight:700">关于意向分演变的"基础"——我的三条看法：</p>
+  <!-- 08 -->
+  <section class="sec" id="s8">
+    <div class="sec-h"><span class="sec-n">SECTION 08</span><span class="sec-t">我对"意向分演变"的看法</span></div>
     <table>
       <tbody>
-        <tr><td style="width:30%"><b>① 分数不是目的，"该不该碰这个人"才是</b></td><td>意向分只是把"要不要私信"这个动作可排序、可解释。所以演变的尺子永远是<b>业务侧的真值</b>（客户/运营认不认），不是某个内部指标好看。这次有了客户标注，第一次能拿外部真值校准——这比我们自己调参靠谱得多。</td></tr>
-        <tr><td><b>② 分类（prompt）和打分（公式表）要分开演变</b></td><td>同一个错判，可能是"模型把评论类型/具体度拆错了"（prompt 的事），也可能是"公式阈值划错了"（表的事）。<b>先分清是哪一层</b>再动手——这次大部分问题是 prompt 拆错（技术请教被当非装修），改 prompt 就好，不该动阈值。乱动阈值是最容易出事的。</td></tr>
-        <tr><td><b>③ 召回和产能是一对约束，不能只看准</b></td><td>"判得跟客户一样准"和"运营 5 人能消化多少"是两件事。把召回拉满、池子翻几倍，但发不出去，等于把真高意向稀释在一堆里——反而更差。意向分的演变必须<b>带着下游产能一起算</b>。</td></tr>
+        <tr><td style="width:30%"><b>① 分数不是目的，"该不该碰这个人"才是</b></td><td>意向分只是把"要不要私信"这个动作可排序、可解释。演变的尺子永远是<b>业务侧的真值</b>（客户/运营认不认）。这次第一次有客户标注当外部真值，比我们自己调参靠谱得多。</td></tr>
+        <tr><td><b>② 分类（prompt）和打分（公式表）要分开演变</b></td><td>先分清错在哪一层再动手——这次大部分问题是 prompt 拆错（技术请教被当非装修），改 prompt 就好，不该动阈值。乱动阈值最容易出事。</td></tr>
+        <tr><td><b>③ 召回和产能是一对约束，不能只看准</b></td><td>"判得跟客户一样准"和"运营能消化多少"是两件事。把召回拉满、池子翻几倍但发不出去，等于把真高意向稀释在一堆里——反而更差。意向分演变必须<b>带着下游产能一起算</b>。这就是为什么这版选 B+C 而不是直接全切 v6。</td></tr>
       </tbody>
     </table>
-
-    <p style="font-weight:700;margin-top:24px">对这一版的看法——为什么是 B+C，不是直接采纳客户：</p>
-    <div class="note warn"><b>关键发现（也是这版最重要的判断）</b>：客户认为"问价/要清单/求设计"(中意向 78 分那批) 都该是高意向——这没错。但拿全库 <b>39,471 条</b>实测，只要把这批提进高意向，<b>高意向池子会从 2,896 涨到约 9,500（7.3% → 24%，3.3 倍）</b>。这批是评论里最大的一桶，绕不过去。运营 5 人 + 私信配额<b>扛不住 3.3 倍</b>。</div>
-    <p>而且客户标注样本里 <b>49% 是"故意挑的分歧 case"</b>，不代表真实评论分布——拿它校准阈值套回真实流，会系统性过度提权。<b>"对齐客户标注最优" ≠ "线上能跑"。</b></p>
-    <p>所以这版的取舍是：</p>
-    <div class="grid">
-      <div class="card good" style="border-color:var(--green)"><div class="lbl">✅ 立刻做（B+C）</div><div class="val" style="font-size:16px">修真错 + 优先排序</div><div class="sub">prompt 误杀（技术请教判0）是硬伤，必须修；product/medium 暂不提档但在中意向里优先碰。不爆池、低风险。</div></div>
-      <div class="card warn" style="border-color:var(--amber)"><div class="lbl">⏸ 暂不做（v6）</div><div class="val" style="font-size:16px">改阈值 / 提档</div><div class="sub">会让池子 3.3 倍。配方已备好(env 开关)，等产能上来、且用<b>新一批标注复核</b>后再切。</div></div>
-    </div>
-    <div class="note">⚠️ <b>诚实标注</b>：v6 配方的"严格对齐客户 53%"是拿 99 条 in-sample、且基于旧 prompt 产出的四轴调出来的——<b>是"对着答案考试"的上限值</b>，真实新数据会更低，且 prompt 一改四轴会变、最优阈值会漂。正确顺序是<b>先上 prompt（已做）→ 用一个新标注批次复核 → 再谈要不要切 v6</b>。</div>
     <p style="font-weight:700;margin-top:20px">下一步</p>
     <table>
       <thead><tr><th>优先级</th><th>动作</th><th>为什么</th></tr></thead>
       <tbody>
         <tr><td><span class="tag" style="background:#fde2e2;color:#b91c1c">高</span></td><td>新一批客户标注 / A-B 回测</td><td>验证 B 的 prompt 修复在新数据上的真实精度，并决定 v6 是否值得切</td></tr>
-        <tr><td><span class="tag">中</span></td><td>同行/share 类是否给这客户单独提权</td><td>这位客户把同行合作当高价值，可能是行业特性；先确认是普适还是个例</td></tr>
         <tr><td><span class="tag">中</span></td><td>产能上来后评估切 v6</td><td>真要把"问价/要清单"提进高意向，得先有消化 3.3 倍的私信产能</td></tr>
+        <tr><td><span class="tag">中</span></td><td>意向打分 ↔ 号源打分联动</td><td>高意向集中在少数号 → 反哺号源 A/B/C 分级</td></tr>
       </tbody>
     </table>
+    <div class="note">⚠️ <b>诚实标注</b>：v6 配方的"严格对齐客户 54%"是拿 99 条 in-sample、且基于旧 prompt 产出的四轴调出来的，<b>是"对着答案考试"的上限值</b>，真实新数据会更低；且 prompt 一改四轴会变、最优阈值会漂。正确顺序是<b>先上 prompt（已做）→ 新批标注复核 → 再谈要不要切 v6</b>。</div>
   </section>
 
   <footer>UPIO.AI · AKKE PROJECT DOCS · 高中低意向打分 · 客户标注校准版 · 2026-06-08</footer>
