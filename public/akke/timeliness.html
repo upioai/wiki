@@ -55,16 +55,32 @@
   .card.rev::before { background:linear-gradient(90deg,var(--rev),var(--rev-2)); }
   .card.rev { animation-delay:.08s; }
   @keyframes rise { to { opacity:1; transform:none; } }
-  .card .chan { font-size:13px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--dm); margin-bottom:14px; display:flex; justify-content:space-between; align-items:baseline; }
+  .card:hover { border-color:var(--border-strong); transform:translateY(-2px); transition:transform .2s, border-color .2s; }
+  .card .chan { font-size:13px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--dm); margin-bottom:16px; display:flex; justify-content:space-between; align-items:baseline; }
   .card.rev .chan { color:var(--rev); }
   .card .chan .n { color:var(--text-muted); font-size:12px; font-weight:500; text-transform:none; letter-spacing:0; }
-  .big { font-size:46px; font-weight:700; line-height:1; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
-  .big small { font-size:15px; font-weight:500; color:var(--text-muted); margin-left:8px; letter-spacing:0; }
-  .biglabel { font-size:13px; color:var(--text-dim); margin:8px 0 18px; }
-  .sub2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-  .sub2 .m { background:var(--bg-deep); border-radius:10px; padding:12px 14px; }
-  .sub2 .m .l { font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; }
-  .sub2 .m .v { font-size:20px; font-weight:600; margin-top:3px; font-variant-numeric:tabular-nums; }
+  .cardbody { display:flex; gap:22px; align-items:center; }
+  @media (max-width:520px){ .cardbody{ flex-direction:column; align-items:stretch; } }
+  /* circular gauge */
+  .gauge { position:relative; width:144px; height:144px; flex:none; align-self:center; }
+  .gauge svg { width:144px; height:144px; transform:rotate(-90deg); display:block; }
+  .gauge .track { fill:none; stroke:var(--bg-deep); stroke-width:11; }
+  .gauge .arc { fill:none; stroke-width:11; stroke-linecap:round; transition:stroke-dashoffset 1.15s cubic-bezier(.22,1,.36,1); }
+  .gglow { position:absolute; inset:2px; border-radius:50%; background:conic-gradient(from 0deg, transparent 0%, var(--dm) 35%, transparent 70%); filter:blur(13px); opacity:.22; animation:spin 7s linear infinite; pointer-events:none; }
+  .card.rev .gglow { background:conic-gradient(from 0deg, transparent 0%, var(--rev) 35%, transparent 70%); }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .gcenter { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .gval { font-size:34px; font-weight:700; line-height:1; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
+  .gval small { display:none; }
+  .gsub { font-size:10.5px; color:var(--text-muted); margin-top:5px; letter-spacing:.02em; }
+  .cardstats { flex:1; min-width:0; }
+  .gtimely { font-size:13px; color:var(--text-dim); margin-bottom:12px; }
+  .gtimely b { font-size:24px; font-weight:700; color:var(--ok); font-variant-numeric:tabular-nums; margin-right:3px; }
+  .biglabel { font-size:12.5px; color:var(--text-dim); margin:0 0 14px; }
+  .sub2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .sub2 .m { background:var(--bg-deep); border-radius:10px; padding:11px 13px; }
+  .sub2 .m .l { font-size:10.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; }
+  .sub2 .m .v { font-size:19px; font-weight:600; margin-top:3px; font-variant-numeric:tabular-nums; }
 
   /* histogram */
   .dist-block { background:var(--bg-elevated); border:1px solid var(--border); border-radius:16px; padding:22px 24px 18px; margin-bottom:16px; }
@@ -117,6 +133,8 @@
     <p class="subtitle">从抖音用户发出评论，到我们触达 ta（私信首触 / 反评），各段耗时多久。数据直连生产库，最多落后 1 分钟。</p>
     <div class="toolbar">
       <div class="segmented" id="winSel">
+        <button data-win="6h">近 6h</button>
+        <button data-win="12h">近 12h</button>
         <button data-win="24h">近 24h</button>
         <button data-win="7d" class="active">近 7 天</button>
         <button data-win="30d">近 30 天</button>
@@ -193,25 +211,51 @@ function animateNum(el, to, fmt){
 }
 
 /* ---------- headline cards ---------- */
+const GAUGE_R = 60, GAUGE_C = 2*Math.PI*GAUGE_R;   // 半径 / 周长
+function timelyRate(c){ const s=c.samples.TOT||[]; return s.length ? s.filter(x=>x<=24).length/s.length : 0; }
+
 function renderCards(rep){
   const mk = (chan,key)=>{
     const c=rep.channels[key];
+    const g1=key==="dm"?"#60a5fa":"#a78bfa", g2=key==="dm"?"#38bdf8":"#c084fc";
     return `<div class="card ${key==='rev'?'rev':''}">
       <div class="chan">${chan}<span class="n">${c.sent} 条已触达</span></div>
-      <div class="big" id="big-${key}">—<small>中位 · 端到端</small></div>
-      <div class="biglabel">均值 ${fmtH(c.TOT.meanH)} · 最快 ${fmtH(c.TOT.minH)} · 最慢 ${fmtH(c.TOT.maxH)} <span style="color:var(--text-muted)">(n=${c.TOT.total})</span></div>
-      <div class="sub2">
-        <div class="m"><div class="l">采集→发送 中位</div><div class="v">${fmtH(c.T2.medianH)}</div></div>
-        <div class="m"><div class="l">评论→采集 中位</div><div class="v">${fmtH(c.T1.medianH)}</div></div>
+      <div class="cardbody">
+        <div class="gauge">
+          <div class="gglow"></div>
+          <svg viewBox="0 0 144 144">
+            <defs><linearGradient id="garc-${key}" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="${g1}"/><stop offset="1" stop-color="${g2}"/></linearGradient></defs>
+            <circle class="track" cx="72" cy="72" r="${GAUGE_R}"/>
+            <circle class="arc" id="arc-${key}" cx="72" cy="72" r="${GAUGE_R}"
+              stroke="url(#garc-${key})" stroke-dasharray="${GAUGE_C.toFixed(1)}" stroke-dashoffset="${GAUGE_C.toFixed(1)}"/>
+          </svg>
+          <div class="gcenter"><div class="gval" id="big-${key}">—</div><div class="gsub">中位 · 端到端</div></div>
+        </div>
+        <div class="cardstats">
+          <div class="gtimely"><b id="timely-${key}">—</b>在 24h 内触达</div>
+          <div class="biglabel">均值 ${fmtH(c.TOT.meanH)} · 最快 ${fmtH(c.TOT.minH)} · 最慢 ${fmtH(c.TOT.maxH)} <span style="color:var(--text-muted)">(n=${c.TOT.total})</span></div>
+          <div class="sub2">
+            <div class="m"><div class="l">采集→发送 中位</div><div class="v">${fmtH(c.T2.medianH)}</div></div>
+            <div class="m"><div class="l">评论→采集 中位</div><div class="v">${fmtH(c.T1.medianH)}</div></div>
+          </div>
+        </div>
       </div>
     </div>`;
   };
   $("cards").innerHTML = mk("私信 (DM)","dm") + mk("反评","rev");
   for(const key of ["dm","rev"]){
-    const v=rep.channels[key].TOT.medianH;
-    const el=$("big-"+key); const small=`<small>中位 · 端到端</small>`;
-    if(v<=0){ el.innerHTML="—"+small; continue; }
-    animateNum({set textContent(t){ el.innerHTML=t+small; }}, v, (x)=>fmtH(x));
+    const c=rep.channels[key];
+    const v=c.TOT.medianH;
+    const el=$("big-"+key);
+    if(v<=0){ el.textContent="—"; } else { animateNum(el, v, (x)=>fmtH(x)); }
+    // 圆环扫入 = 24h 内触达率
+    const rate=timelyRate(c);
+    const arc=$("arc-"+key);
+    requestAnimationFrame(()=>{ arc.style.strokeDashoffset = (GAUGE_C*(1-rate)).toFixed(1); });
+    // 及时率数字 count-up
+    const tEl=$("timely-"+key);
+    animateNum(tEl, rate*100, (x)=>Math.round(x)+"%");
   }
 }
 
@@ -275,7 +319,7 @@ function renderDists(rep){
 
 /* ---------- elegant area + line trend ---------- */
 function renderTrend(rep){
-  $("trendTitle").textContent = "端到端中位走势 · " + (rep.granularity==="hour"?"近 24 小时":(rep.windowDays<=7?"近 14 天":"近 30 天"));
+  $("trendTitle").textContent = "端到端中位走势 · " + (rep.granularity==="hour"?`近 ${rep.trend.length} 小时`:(rep.windowDays<=7?"近 14 天":"近 30 天"));
   const pts=rep.trend;
   const W=1000,H=300,padL=42,padR=14,padT=14,padB=42;
   const innerW=W-padL-padR, innerH=H-padT-padB;
