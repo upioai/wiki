@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>实时潜在触达 · 可行性探讨（2026-06-08）</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#171a21; --card2:#1e222b; --line:#2a2f3a;
+    --txt:#e6e9ef; --mut:#9aa3b2; --acc:#5b8cff; --good:#3ecf8e; --warn:#f5a623; --bad:#ff6b6b;
+    --chip:#232834; --purple:#c8a6ff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif;
+    line-height:1.65;font-size:15px}
+  .wrap{max-width:1040px;margin:0 auto;padding:40px 22px 80px}
+  header.hero{padding:34px 30px;border-radius:18px;
+    background:linear-gradient(135deg,#1b2230,#141821 60%);border:1px solid var(--line);margin-bottom:34px}
+  .hero h1{margin:0 0 8px;font-size:27px;letter-spacing:.3px}
+  .hero .sub{color:var(--mut);font-size:15px}
+  .hero .sub b{color:#fff}
+  .hero .meta{margin-top:18px;display:flex;flex-wrap:wrap;gap:10px}
+  .pill{background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:6px 13px;font-size:13px;color:var(--mut)}
+  .pill b{color:var(--txt)}
+  .part{margin:50px 0 6px;padding:14px 20px;border-radius:14px;border:1px solid var(--line);
+    background:linear-gradient(135deg,#1a2030,#15181f);font-size:14px;color:var(--mut)}
+  .part b{color:#fff;font-size:17px;letter-spacing:.5px}
+  h2.sec{font-size:13px;letter-spacing:2px;color:var(--acc);text-transform:uppercase;margin:38px 0 16px;
+    display:flex;align-items:center;gap:10px}
+  h2.sec .n{display:inline-flex;width:24px;height:24px;border-radius:7px;background:var(--acc);color:#06101f;
+    align-items:center;justify-content:center;font-size:13px;font-weight:700}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px 24px;margin-bottom:16px}
+  .card p{margin:0 0 12px} .card p:last-child{margin-bottom:0}
+  .k{color:var(--mut);font-size:12px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+  .stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:6px 0 8px}
+  @media(max-width:720px){.stat-row{grid-template-columns:repeat(2,1fr)}}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 16px;text-align:center}
+  .stat .v{font-size:28px;font-weight:700;letter-spacing:.5px}
+  .stat .l{color:var(--mut);font-size:12.5px;margin-top:4px}
+  .v.good{color:var(--good)} .v.acc{color:var(--acc)} .v.warn{color:var(--warn)} .v.bad{color:var(--bad)}
+  .flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:8px;margin:6px 0}
+  .step{flex:1;min-width:130px;background:var(--card2);border:1px solid var(--line);border-radius:11px;padding:13px 12px}
+  .step .t{font-weight:600;font-size:14px;margin-bottom:3px}
+  .step .d{color:var(--mut);font-size:12px}
+  .arrow{align-self:center;color:var(--mut);font-size:18px;padding:0 2px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin:4px 0}
+  th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--mut);font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+  td b{color:#fff}
+  .tag{display:inline-block;font-size:11.5px;padding:2px 9px;border-radius:6px;font-weight:600}
+  .tag.good{color:var(--good);background:rgba(62,207,142,.1);border:1px solid rgba(62,207,142,.28)}
+  .tag.bad{color:var(--bad);background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.28)}
+  .tag.warn{color:var(--warn);background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.28)}
+  .callout{border-radius:12px;padding:16px 18px;margin:14px 0;font-size:14px;border:1px solid var(--line)}
+  .callout.bad{background:rgba(255,107,107,.07);border-color:rgba(255,107,107,.3)}
+  .callout.good{background:rgba(62,207,142,.07);border-color:rgba(62,207,142,.3)}
+  .callout.warn{background:rgba(245,166,35,.07);border-color:rgba(245,166,35,.3)}
+  .callout b{color:#fff}
+  .vs{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:6px 0}
+  @media(max-width:720px){.vs{grid-template-columns:1fr}}
+  .lane{background:var(--card2);border:1px solid var(--line);border-radius:13px;padding:18px 18px}
+  .lane h4{margin:0 0 10px;font-size:15px}
+  .lane.dead h4{color:var(--bad)} .lane.win h4{color:var(--good)}
+  .lane ul{margin:0;padding-left:18px;color:#cdd4e0;font-size:13.5px} .lane li{margin-bottom:6px}
+  .quote{border-left:3px solid var(--acc);background:var(--card2);border-radius:8px;padding:12px 15px;
+    margin:10px 0;color:#d4dae6;font-size:14px}
+  .quote .who{color:var(--mut);font-size:12px;margin-bottom:4px}
+  code{background:var(--chip);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px;color:var(--purple)}
+  .foot{margin-top:50px;padding-top:20px;border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>实时潜在触达 · 可行性探讨</h1>
+  <div class="sub">把「<b>给已 DM/RC、没回的老 lead 提触达时效</b>」这个想法，<b>用真实数据验到底</b>——而不是直接砸一套实时系统。一天里它从「该怎么搭」走到「先别搭、换条路」。</div>
+  <div class="meta">
+    <span class="pill">📅 <b>2026-06-08</b></span>
+    <span class="pill">🎯 通道 <b>潜在触达（多次触达）</b></span>
+    <span class="pill">👥 人群 <b>DM/RC 已发 · 未回</b></span>
+    <span class="pill">🔬 方法 <b>先验数据，再决定</b></span>
+  </div>
+</header>
+
+<!-- 1 -->
+<div class="part"><b>① 起点</b> ：想要的时效，长什么样</div>
+<h2 class="sec"><span class="n">1</span>我们想做的事</h2>
+<div class="card">
+  <p>对一个高意向用户，我们发过私信（DM）或反向评论（RC），但 ta 一直没回。原来的「多次触达」是<b>每小时扫名单 → 评 ta 当前最新视频 → 一条评论</b>，没有时效要求（那条视频可能是几个月前发的）。</p>
+  <p>这次想升级成<b>事件驱动的实时触达</b>：</p>
+  <div class="flow">
+    <div class="step"><div class="t">① 盯新视频</div><div class="d">ta 一发新视频就侦测到</div></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="t">② 点赞</div><div class="d">先给新视频点赞</div></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="t">③ 评论 1</div><div class="d">评这条新视频内容（互动）</div></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="t">④ 评论 2</div><div class="d">反评钩子，勾回私信</div></div>
+  </div>
+  <p style="margin-top:14px">KPI：<b>新视频发布后 10 分钟内</b>完成。价值在于——新视频评论区是空的，<b>10 分钟内评 = 前排可见 = lead 真能看到</b>；几小时后评就被埋了。</p>
+</div>
+
+<!-- 2 -->
+<div class="part"><b>② 第一个发现</b> ：这群人，几乎不发视频</div>
+<h2 class="sec"><span class="n">2</span>扫了 184 个候选，触发源几乎为零</h2>
+<div class="card">
+  <p>用账号 cookie 签名拉「作品列表」API，把 fanny 一个号的 <b>184 个潜在触达候选</b>（DM/RC 未回、高/中意向）全量扫了一遍，看他们到底多久发一次视频。</p>
+  <div class="stat-row">
+    <div class="stat"><div class="v bad">0.71</div><div class="l">条/天 · 全池新视频</div></div>
+    <div class="stat"><div class="v bad">25%</div><div class="l">零作品（从不发视频）</div></div>
+    <div class="stat"><div class="v warn">6 人</div><div class="l">近 7 天发过视频</div></div>
+    <div class="stat"><div class="v acc">100%</div><div class="l">API 拉取成功率</div></div>
+  </div>
+  <div class="callout bad">
+    <b>触发事件极其罕见。</b>这群人是<b>装修需求方</b>——他们在<i>别人</i>的装修视频下评论求报价，自己不是做内容的、不发视频。「盯他们发新视频」每天活儿 ≈ 0，为它砸一套高频实时系统，投入产出严重不匹配。
+  </div>
+  <p>更糟：近 30 天里发视频活跃的那批，<b>不少是商家/同行号</b>（火腿厂家、家私店、品牌号在做内容营销），不是真客户。对他们刷「卖货评论」= 打错人、甚至打到同行脸上。</p>
+</div>
+
+<!-- 3 -->
+<div class="part"><b>③ 两条侦测路</b> ：一条死，一条通</div>
+<h2 class="sec"><span class="n">3</span>怎么实时知道「谁发了新视频」</h2>
+<div class="card">
+  <p>就算量小，我们仍想验证机制能不能成立。难点是：抖音不会推送给我们的脚本，得自己轮询。两条路实测对决——</p>
+  <div class="vs">
+    <div class="lane dead">
+      <h4>✗ 路 A · 逐人并发轮询作品列表</h4>
+      <ul>
+        <li>顺序 0.6s 间隔拉 184 人 → <b>100% 成功</b></li>
+        <li>但要满足时效得并发。<b>并发 10 持续拉，第 3 轮（约 2 分钟）被反爬打死</b>（183/184 返回空 body）</li>
+        <li>单号有反爬速率预算，高频轮询会把号怼进冷却、和发 DM 抢号健康度</li>
+        <li><span class="tag bad">否决</span> 除非降速率 + 多账号/代理池（基建重，不划算）</li>
+      </ul>
+    </div>
+    <div class="lane win">
+      <h4>✓ 路 B · 特别关注 + 关注更新流</h4>
+      <ul>
+        <li>让号<b>特别关注</b>目标 → 轮询「关注 feed」一次聚合查询拿「谁更新了」</li>
+        <li><b>6 个请求拿到 27 个作者的更新</b>，vs 逐人 184 个请求</li>
+        <li>请求量小两个数量级 → <b>限流问题直接解了</b></li>
+        <li><span class="tag good">选定</span> 这正是「特别关注」这个产品功能的用法</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 4 -->
+<div class="part"><b>④ 路 B 实证</b> ：特别关注的人，发了就进 feed</div>
+<h2 class="sec"><span class="n">4</span>真机验了一把</h2>
+<div class="card">
+  <p>用「一筑·全屋定制」号特别关注了几个测试目标，再拉关注 feed 看抓不抓得到：</p>
+  <div class="callout good">
+    <b>掌上雨衣</b>（特别关注的测试目标之一）——ta <b>约 2 小时前刚发的视频，第一页就抓到了</b>，带作者 sec_uid + 发布时间 + 标题。机制成立。
+  </div>
+  <table>
+    <tr><th>核对项</th><th>结果</th></tr>
+    <tr><td>6 页 feed 去重</td><td><b>27 个不同作者</b></td></tr>
+    <tr><td>其中是我们 184 池子里的 lead</td><td><b>7 个</b>（号本就关注了一批 leads）</td></tr>
+    <tr><td>命中本次特别关注测试名单</td><td><b>3 个</b>（不管有多苦 / 掌上雨衣 / 楊六郎）</td></tr>
+    <tr><td>每条数据是否够判「新视频」</td><td><span class="tag good">够</span> sec_uid + create_time + 标题齐全</td></tr>
+  </table>
+  <div class="callout warn">
+    <b>一个工程细节：</b>feed 是<b>算法排序、不是纯时间序</b>，且每次调用返回的帖子还不固定。所以生产侦测不能信单次结果，要<b>持续轮询 + 每个作者记最新发布时间 + 和水位线比对去重</b>。数据都在，可做。
+  </div>
+</div>
+
+<!-- 5 -->
+<div class="part"><b>⑤ 结论</b> ：路通了，剩最后一哆嗦</div>
+<h2 class="sec"><span class="n">5</span>今天的落点 + 下一步</h2>
+<div class="card">
+  <p><b>路 B 选定，实时潜在触达机制基本走通。</b>限流这个最大的拦路虎解决了，特别关注的人发视频确实能被 feed 抓到。</p>
+  <div class="callout bad">
+    <b>🔴 唯一没验的 make-or-break：</b>新视频发布后<b>多久</b>才在关注 feed 里冒出来？看到的都是几小时~几天前的帖，<b>还没确认「发布后 10 分钟内 surface」</b>。如果 feed 推送延迟超过 10 分钟，时效 KPI 就崩。
+  </div>
+  <div class="flow">
+    <div class="step"><div class="t">下一步前置</div><div class="d">把（更多）目标特别关注上</div></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="t">挂被动监控</div><div class="d">每 3min 轻量拉几页，跑一天</div></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="t">逮到新帖</div><div class="d">量「发布→feed 出现」真实延迟</div></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="t">定稿</div><div class="d">延迟 ≤10min 即可落地</div></div>
+  </div>
+  <p style="margin-top:14px">当前只特别关注了几个、且这群人日发 &lt;1 条，样本太少逮不到。所以延迟那一关，等特别关注铺全后挂被动监控跑一天，自然就有答案。</p>
+</div>
+
+<!-- 方法论 -->
+<h2 class="sec"><span class="n">✦</span>这次探讨的方法</h2>
+<div class="card">
+  <div class="quote"><div class="who">起点假设</div>「盯老 lead 发新视频，5 分钟内点赞 + 两条评论，搭个实时系统。」</div>
+  <div class="quote"><div class="who">数据说话后</div>这群人几乎不发视频（0.71 条/天）→ 直接砸实时系统 ROI 差；逐人轮询会限流 → 换成关注 feed；5 分钟放宽到 10 分钟，侦测预算更松。</div>
+  <p style="margin-top:12px;color:#cdd4e0">没有一上来写代码。<b>先用脚本把「这批人每天几条新视频」「API 会不会限流」「feed 抓不抓得到」一个个验出真实数字</b>，每一步用数据决定下一步走向——省下的是一套可能每天只触发不到一次的实时系统的白工。</p>
+</div>
+
+<div class="foot">
+  Akke · 智能获客 ｜ 实时潜在触达可行性探讨 ｜ 2026-06-08 ｜ 内部探讨记录，结论以最新 spec 为准
+</div>
+
+</div>
+</body>
+</html>
