@@ -409,6 +409,31 @@ py douyin_dm_grounded.py contacts.csv</pre>
     </table>
   </div>
 
+  <!-- ===== 7. 常见疑问(部署冲突) ===== -->
+  <h2 class="sec"><span class="n">7</span> 常见疑问 · 自动 agent 会不会跟手动流冲突 / 重发</h2>
+  <p class="lead">每个新部署的人都会问这两条 —— 都已对照代码核实,放心起 agent。</p>
+
+  <div class="card" style="margin-bottom:14px">
+    <h3>Q1 · dispatch_queue 谁来喂单?要手动灌吗?</h3>
+    <p><b style="color:var(--good)">有 cron 自动喂,不用手动灌。</b>上游 <code>/api/cron/cloud-pc-dispatch</code>(每 <b>5 分钟</b>)→ <code>claim_leads_batch</code> claim 高意向 + 现起 opener + 写 <code>dispatch_queue</code>;无影 <code>wuying_poll_agent.py</code> 每 60s 拉走发。</p>
+    <div class="note">⚠️ <b>唯一前提</b>:该账号必须 <code>channel_pref=cloud_pc</code> + <code>status=active</code> + <code>type=messaging</code>(部署第 4 步「让 PM 开后台」)。<b>没 flip 成 cloud_pc,cron 找不到账号 → 一条不派 → agent 空转。</b>这一步是开关,不是要你手动灌队列。二触队列由 <code>/api/cron/second-touch-dispatch</code>(每 2 分钟)喂,需两个开关都开。</div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <h3>Q2 · agent 去重和我手动去重是不是同一套?会不会重发?</h3>
+    <p><b style="color:var(--good)">同一套,全局共享,不会重发。</b><code>dispatch_queue</code> 只是 agent 的传送带、不是去重点。两个真正的去重点,手动链和 agent 链写的是<b>同一处</b>:</p>
+    <table>
+      <thead><tr><th style="width:30%">去重点</th><th>手动链</th><th>agent 链</th></tr></thead>
+      <tbody>
+        <tr><td><b>4h claim 锁</b><br><code>lead_claims</code></td><td><code>claim-leads.ts</code> → <code>claim_leads_batch</code></td><td>cron → <b>同一个</b> <code>claim_leads_batch</code></td></tr>
+        <tr><td><b>永久去重</b><br><code>comments.contacted</code></td><td><code>mark-contacted.ts</code> → <code>mark_lead_contacted</code></td><td><code>complete_dispatch(sent)</code> → <b>同一个</b> <code>mark_lead_contacted</code></td></tr>
+      </tbody>
+    </table>
+    <div class="note">代码实锤:<code>claim_leads_batch</code> 候选过滤含 <code>contacted_by_account IS NULL</code>(已触达的人直接排除)+ UPSERT <code>lead_claims</code> 的 <code>ON CONFLICT (org_id, douyin_user_id)</code> 仅在锁过期才重抢。<b>你手动锁过/发过的人,4h 内 agent claim 不到、已 contacted 的永久跳过 —— 不会重发。</b>去重按 <code>(org_id, douyin_user_id)</code> 生效,<b>跨账号 / 跨机器 / 跨手动·自动全互通</b>。</div>
+  </div>
+
+  <div class="warn-box" style="margin-bottom:8px">⚠️ <b>唯一的真冲突 = 抢抖音窗口(跟去重无关,是物理层)</b>。agent 每 60s 抢窗口发送,<b>同一台机器</b>上再手动跑 DM/RC/二触脚本 → 两程序抢同一个抖音窗口、点错位双崩。<b>但只在同机同窗口才发生</b>:新无影跑自己的号 + 你本机跑别的号 = 两台机两个号 → GUI 不冲突、DB 去重照样互通。结论:<b>同号同机别同时跑 agent + 手动脚本;不同机器/不同号可放心并行。</b>(RC 反向评论镜像 agent 不管,要跑得先停 agent 让窗口。)</div>
+
   <p class="lead" style="margin-top:28px;text-align:center"><span class="talk">镜像克隆 → 抖音登对号 → .env 开二触开关 → DB 开 cloud_pc → 重启 → 两条通道自己跑。</span></p>
 
 </div>
