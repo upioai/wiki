@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- 本页带客户身份信息：禁止搜索引擎收录 + 不可猜 URL，降低被收录/撞到的风险 -->
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<title>客户旅程时间轴 · Akke</title>
+<style>
+  :root {
+    --bg: #0b0d12; --bg-elevated: #141821; --bg-deep: #1a1f2b;
+    --border: #242a38; --border-strong: #2f3646;
+    --text: #e4e7ed; --text-dim: #9ba3b4; --text-muted: #6b7384;
+    --accent: #8b5cf6; --accent-soft: rgba(139,92,246,.15);
+    --dm: #60a5fa;
+    --ok: #34d399; --warn: #fbbf24; --danger: #f87171; --neutral: #3a4456;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(96,165,250,.06), transparent 60%),
+      radial-gradient(1000px 500px at -10% 0%, rgba(139,92,246,.06), transparent 55%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px; line-height: 1.7; -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 1080px; margin: 0 auto; padding: 48px 24px 100px; }
+  .breadcrumb { font-size: 13px; color: var(--text-muted); margin-bottom: 22px; }
+  .breadcrumb a { color: var(--text-dim); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--accent); }
+  .breadcrumb span { margin: 0 8px; color: var(--border-strong); }
+
+  header.hero { padding: 4px 0 28px; border-bottom: 1px solid var(--border); margin-bottom: 28px; }
+  .tag { display:inline-flex; align-items:center; gap:7px; padding:4px 13px; border-radius:999px; background:var(--accent-soft); color:#c4b5fd; font-size:13px; font-weight:500; margin-bottom:14px; }
+  .tag .dot { width:7px; height:7px; border-radius:50%; background:var(--ok); animation:pulse 2.2s infinite; }
+  .tag .dot.err { background:var(--danger); animation:none; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(52,211,153,.5);} 70%{box-shadow:0 0 0 6px rgba(52,211,153,0);} 100%{box-shadow:0 0 0 0 rgba(52,211,153,0);} }
+  h1 { font-size: 40px; font-weight: 700; margin: 0 0 12px; letter-spacing: -0.02em; line-height: 1.15;
+    background: linear-gradient(135deg, #e4e7ed 20%, var(--dm) 70%, var(--accent) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .subtitle { font-size: 17px; color: var(--text-dim); margin: 0 0 18px; max-width: 760px; }
+  .toolbar { display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  .segmented { display:inline-flex; background:var(--bg-elevated); border:1px solid var(--border); border-radius:10px; padding:3px; }
+  .segmented button { background:transparent; border:0; color:var(--text-dim); font-size:14px; font-weight:500; padding:7px 16px; border-radius:7px; cursor:pointer; font-family:inherit; transition:.18s; }
+  .segmented button:hover { color:var(--text); }
+  .segmented button.active { background:var(--accent-soft); color:#c4b5fd; }
+
+  h2 { font-size:12px; font-weight:600; color:var(--text-muted); letter-spacing:.12em; text-transform:uppercase; margin:36px 0 14px; }
+  .legend { display:flex; flex-wrap:wrap; gap:16px; align-items:center; background:var(--bg-elevated); border:1px solid var(--border); border-radius:12px; padding:12px 18px; font-size:12.5px; color:var(--text-dim); margin-bottom:8px; }
+  .legend b { color:var(--text-muted); font-weight:600; }
+  .legend .sw { display:inline-flex; align-items:center; gap:7px; }
+  .legend .sw i { width:18px; height:5px; border-radius:3px; display:inline-block; }
+
+  .rows { display:flex; flex-direction:column; gap:12px; }
+  .jr { background:var(--bg-elevated); border:1px solid var(--border); border-radius:14px; padding:16px 18px; opacity:0; transform:translateY(8px); animation:rise .45s ease forwards; }
+  @keyframes rise { to { opacity:1; transform:none; } }
+  .jr:hover { border-color:var(--border-strong); }
+  .jr .meta { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px; font-size:13px; }
+  .jr .nm { font-weight:600; color:var(--text); }
+  .jr .pill { font-size:11px; font-weight:600; padding:2px 9px; border-radius:6px; background:var(--accent-soft); color:#c4b5fd; }
+  .jr .snip { color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:46ch; }
+  .jr .noreply { margin-left:auto; font-size:11px; padding:2px 9px; border-radius:6px; background:var(--bg-deep); color:var(--text-muted); }
+
+  .strip { display:flex; align-items:flex-start; min-width:640px; }
+  .stripwrap { overflow-x:auto; }
+  .dot { flex:0 0 70px; display:flex; flex-direction:column; align-items:center; text-align:center; }
+  .dot .c { width:13px; height:13px; border-radius:50%; background:var(--text-dim); box-shadow:0 0 0 3px var(--bg-elevated); }
+  .dot .c.empty { background:var(--neutral); }
+  .dot .lab { margin-top:7px; font-size:11px; color:var(--text-dim); font-weight:500; }
+  .dot .ts { font-size:10.5px; color:var(--text-muted); line-height:1.35; }
+  .seg { flex:1 1 0; display:flex; flex-direction:column; align-items:center; padding-top:4px; min-width:42px; }
+  .seg .bar { height:5px; width:100%; border-radius:3px; }
+  .seg .bar.dashed { opacity:.4; }
+  .seg .gl { margin-top:6px; font-size:11px; font-variant-numeric:tabular-nums; }
+
+  .empty-state { background:var(--bg-elevated); border:1px solid var(--border); border-radius:14px; padding:48px 24px; text-align:center; color:var(--text-muted); }
+  .notes { margin-top:36px; padding:20px 24px; background:var(--bg-elevated); border:1px solid var(--border); border-radius:14px; font-size:13.5px; color:var(--text-dim); line-height:1.75; }
+  .notes b { color:var(--text); }
+  .notes ul { margin:8px 0 0; padding-left:20px; } .notes li { margin:5px 0; }
+  code { background:var(--bg-deep); padding:1px 6px; border-radius:4px; font-size:.86em; color:#c4b5fd; font-family:"SF Mono",Menlo,Consolas,monospace; }
+  .privacy { margin-top:14px; padding:12px 16px; border-radius:10px; background:rgba(251,191,36,.08); border:1px solid rgba(251,191,36,.25); color:#fcd34d; font-size:12.5px; }
+  .err-banner { display:none; background:rgba(248,113,113,.1); border:1px solid rgba(248,113,113,.3); color:#fca5a5; border-radius:10px; padding:12px 16px; font-size:14px; margin-bottom:20px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="breadcrumb"><a href="/akke/">Akke 知识库</a><span>›</span>客户旅程时间轴</div>
+  <header class="hero">
+    <span class="tag"><span class="dot" id="statusDot"></span><span id="updatedAt">加载中…</span></span>
+    <h1>客户旅程时间轴</h1>
+    <p class="subtitle">每个用户一条时间轴：抖音视频发布 → ta 发评论 → 我们抓取 → 我们触达 → ta 回复。颜色只标我们能控的延迟（抓取、触达），灰色是客户行为或缺数据。数据直连生产库，最多落后 1 分钟。</p>
+    <div class="toolbar">
+      <div class="segmented" id="winSel">
+        <button data-win="6h">近 6h</button>
+        <button data-win="12h">近 12h</button>
+        <button data-win="24h">近 24h</button>
+        <button data-win="7d" class="active">近 7 天</button>
+        <button data-win="30d">近 30 天</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="err-banner" id="errBanner"></div>
+
+  <div class="legend">
+    <b>颜色</b>
+    <span class="sw"><i style="background:var(--ok)"></i>快</span>
+    <span class="sw"><i style="background:var(--warn)"></i>中</span>
+    <span class="sw"><i style="background:var(--danger)"></i>慢</span>
+    <span class="sw"><i style="background:var(--neutral)"></i>客户行为 / 未知</span>
+    <span style="color:var(--text-muted)">· 仅「评论→抓取」「抓取→触达」两段上色（我们能控的延迟）</span>
+  </div>
+
+  <h2 id="countTitle">客户旅程</h2>
+  <div class="rows" id="rows"></div>
+
+  <div class="notes">
+    <b>口径说明</b>
+    <ul>
+      <li><b>视频发布</b>：评论所在抖音视频的发布时刻（<code>videos.published_at</code>，常缺，缺时该点置灰标「未知」）。</li>
+      <li><b>评论</b>：用户在抖音发评的时刻（<code>comments.comment_time</code>，抖音未回传时置灰）。</li>
+      <li><b>抓取</b>：我们爬到这条评论入库（<code>comments.created_at</code>）。<b>评论→抓取</b> = 抓取新鲜度（🟢&lt;3h 🟡3–12h 🔴&gt;12h）。</li>
+      <li><b>触达</b>：每个会话首次触达发出（<code>messages.role=ai, status=sent</code>，排除金丝雀）。<b>抓取→触达</b> = 审批+发送瓶颈（🟢&lt;3h 🟡3–9h 🔴&gt;9h）。</li>
+      <li><b>回复</b>：用户回我们的第一条（<code>messages.role=customer</code>）。未回复时该点置灰。</li>
+      <li>一个用户一行（按 <code>douyin_user_id</code> 去重取最早触达），按「抓取→触达」最慢排前，最多 200 条。全局口径（org 维度）。</li>
+    </ul>
+    <div class="privacy">本页含客户身份信息，已设 <code>noindex</code> 且使用不可猜 URL，请勿公开分享链接到搜索引擎可达的位置。</div>
+  </div>
+</div>
+
+<script>
+const API_BASE = "https://akke.vercel.app/api/public/journeys";
+let currentWin = "7d";
+const $ = (id) => document.getElementById(id);
+
+/* ---- 与 src/lib/journeys.ts 同口径（保持一致，改一处记得改两处） ---- */
+function gapMs(a, b){ if(!a||!b) return null; const ms = new Date(b) - new Date(a); return isFinite(ms) ? Math.max(0, ms) : null; }
+function gapLabel(ms){ if(ms==null) return ""; const min = ms/60000; if(min<60) return "+"+Math.max(1,Math.round(min))+"m"; const h = min/60; if(h<24) return "+"+Math.round(h)+"h"; return "+"+Math.round(h/24)+"d"; }
+function gapColor(key, ms){
+  if(ms==null) return "neutral";
+  const h = ms/3600000;
+  if(key==="comment_scrape") return h<3?"green":h<12?"yellow":"red";
+  if(key==="scrape_contact") return h<3?"green":h<9?"yellow":"red";
+  return "neutral";
+}
+const COL = { green:"var(--ok)", yellow:"var(--warn)", red:"var(--danger)", neutral:"var(--neutral)" };
+const TCOL = { green:"#34d399", yellow:"#fbbf24", red:"#f87171", neutral:"var(--text-muted)" };
+
+function esc(s){ return (s==null?"":String(s)).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
+function fmtTs(iso){ if(!iso) return "未知"; const d=new Date(iso); if(isNaN(d)) return "未知";
+  const p=(n)=>String(n).padStart(2,"0"); return p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes()); }
+
+function dot(iso, label){
+  return `<div class="dot"><div class="c ${iso?"":"empty"}"></div><div class="lab">${label}</div><div class="ts">${fmtTs(iso)}</div></div>`;
+}
+function seg(key, ms){
+  const c = gapColor(key, ms);
+  return `<div class="seg"><div class="bar ${ms==null?"dashed":""}" style="background:${COL[c]}"></div><div class="gl" style="color:${TCOL[c]}">${gapLabel(ms)||"—"}</div></div>`;
+}
+
+function renderRow(j){
+  const strip =
+    dot(j.videoPublishedAt, "视频发布") +
+    seg("video_comment",  gapMs(j.videoPublishedAt, j.commentTime)) +
+    dot(j.commentTime, "评论") +
+    seg("comment_scrape", gapMs(j.commentTime, j.scrapedAt)) +
+    dot(j.scrapedAt, "抓取") +
+    seg("scrape_contact", gapMs(j.scrapedAt, j.contactedAt)) +
+    dot(j.contactedAt, "触达") +
+    seg("contact_reply",  gapMs(j.contactedAt, j.repliedAt)) +
+    dot(j.repliedAt, "回复");
+  return `<div class="jr">
+    <div class="meta">
+      <span class="nm">${esc(j.customerName||"未命名")}</span>
+      ${j.intentLabel?`<span class="pill">${esc(j.intentLabel)}</span>`:""}
+      <span class="snip">${esc(j.commentSnippet||"")}</span>
+      ${j.repliedAt?"":`<span class="noreply">未回复</span>`}
+    </div>
+    <div class="stripwrap"><div class="strip">${strip}</div></div>
+  </div>`;
+}
+
+function render(payload){
+  const rows = payload.rows||[];
+  $("countTitle").textContent = "客户旅程 · 共 " + (payload.count ?? rows.length) + " 条";
+  if(rows.length===0){
+    $("rows").innerHTML = `<div class="empty-state">当前窗口内没有已触达的客户。</div>`;
+    return;
+  }
+  $("rows").innerHTML = rows.map(renderRow).join("");
+  requestAnimationFrame(()=>{
+    document.querySelectorAll(".jr").forEach((el,i)=>{ el.style.animationDelay=Math.min(i*18,400)+"ms"; });
+  });
+}
+
+function setStatus(ok, text){ $("statusDot").className="dot"+(ok?"":" err"); $("updatedAt").textContent=text; }
+
+async function load(){
+  try{
+    const res = await fetch(`${API_BASE}?window=${currentWin}&_t=${Date.now()}`, {cache:"no-store"});
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    const payload = await res.json();
+    if(payload.error) throw new Error(payload.error);
+    render(payload);
+    const t = new Date(payload.generatedAt);
+    const hh=String(t.getHours()).padStart(2,"0"), mm=String(t.getMinutes()).padStart(2,"0");
+    setStatus(true, (payload.stale?"⚠ 降级缓存 · ":"实时 · ")+`更新于 ${hh}:${mm}`);
+    $("errBanner").style.display="none";
+  }catch(e){
+    setStatus(false, "数据获取失败");
+    const b=$("errBanner"); b.style.display="block"; b.textContent="暂时拉不到最新数据（"+e.message+"），将自动重试。";
+  }
+}
+
+$("winSel").addEventListener("click", e=>{
+  const btn=e.target.closest("button"); if(!btn) return;
+  currentWin=btn.dataset.win;
+  [...$("winSel").children].forEach(b=>b.classList.toggle("active", b===btn));
+  load();
+});
+
+load();
+setInterval(load, 60000);
+</script>
+</body>
+</html>
