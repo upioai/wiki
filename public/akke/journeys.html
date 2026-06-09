@@ -59,6 +59,9 @@
   .jr .meta { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px; font-size:13px; }
   .jr .nm { font-weight:600; color:var(--text); }
   .jr .pill { font-size:11px; font-weight:600; padding:2px 9px; border-radius:6px; background:var(--accent-soft); color:#c4b5fd; }
+  .jr .chtag { font-size:11px; font-weight:600; padding:2px 9px; border-radius:6px; }
+  .jr .chtag.dm { background:rgba(96,165,250,.16); color:#93c5fd; }
+  .jr .chtag.rc { background:rgba(167,139,250,.18); color:#c4b5fd; }
   .jr .snip { color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:46ch; }
   .jr .noreply { margin-left:auto; font-size:11px; padding:2px 9px; border-radius:6px; background:var(--bg-deep); color:var(--text-muted); }
 
@@ -98,6 +101,11 @@
         <button data-win="7d" class="active">近 7 天</button>
         <button data-win="30d">近 30 天</button>
       </div>
+      <div class="segmented" id="chanSel">
+        <button data-chan="" class="active">全渠道</button>
+        <button data-chan="dm">私信</button>
+        <button data-chan="rc">反评</button>
+      </div>
     </div>
   </header>
 
@@ -121,17 +129,19 @@
       <li><b>视频发布</b>：评论所在抖音视频的发布时刻（<code>videos.published_at</code>，常缺，缺时该点置灰标「未知」）。</li>
       <li><b>评论</b>：用户在抖音发评的时刻（<code>comments.comment_time</code>，抖音未回传时置灰）。</li>
       <li><b>抓取</b>：我们爬到这条评论入库（<code>comments.created_at</code>）。<b>评论→抓取</b> = 抓取新鲜度（🟢&lt;3h 🟡3–12h 🔴&gt;12h）。</li>
-      <li><b>触达</b>：每个会话首次触达发出（<code>messages.role=ai, status=sent</code>，排除金丝雀）。<b>抓取→触达</b> = 审批+发送瓶颈（🟢&lt;3h 🟡3–9h 🔴&gt;9h）。</li>
-      <li><b>回复</b>：用户回我们的第一条（<code>messages.role=customer</code>）。未回复时该点置灰。</li>
+      <li><b>触达</b>：首次触达发出。<b>私信</b>=<code>messages.role=ai, status=sent</code>（排除金丝雀）；<b>反评</b>=在 ta 视频下回评 <code>reverse_comment_queue.status=sent</code>。<b>抓取→触达</b> = 审批+发送瓶颈（🟢&lt;3h 🟡3–9h 🔴&gt;9h）。</li>
+      <li><b>回复</b>：用户回我们的第一条 —— 私信回复（<code>messages.role=customer</code>）或反评下目标用户的回评，取最早一条。未回复时该点置灰。</li>
+      <li><b>渠道</b>：每行标「私信 / 反评」=该用户最早一次触达走的通道；可用上方筛选只看某一渠道。</li>
       <li>一个用户一行（按 <code>douyin_user_id</code> 去重取最早触达），按「抓取→触达」最慢排前，最多 200 条。全局口径（org 维度）。</li>
     </ul>
-    <div class="privacy">本页含客户身份信息，已设 <code>noindex</code> 且使用不可猜 URL，请勿公开分享链接到搜索引擎可达的位置。</div>
+    <div class="privacy">本页含客户身份信息，已设 <code>noindex</code>（搜索引擎不收录），但 URL 为固定路径、可被猜到，请勿把链接贴到公开可索引的位置。</div>
   </div>
 </div>
 
 <script>
 const API_BASE = "https://akke.vercel.app/api/public/journeys";
 let currentWin = "7d";
+let currentChan = "";
 const $ = (id) => document.getElementById(id);
 
 /* ---- 与 src/lib/journeys.ts 同口径（保持一致，改一处记得改两处） ---- */
@@ -173,6 +183,7 @@ function renderRow(j){
   return `<div class="jr">
     <div class="meta">
       <span class="nm">${esc(j.customerName||"未命名")}</span>
+      <span class="chtag ${j.channel==="rc"?"rc":"dm"}">${j.channel==="rc"?"反评":"私信"}</span>
       ${j.intentLabel?`<span class="pill">${esc(j.intentLabel)}</span>`:""}
       <span class="snip">${esc(j.commentSnippet||"")}</span>
       ${j.repliedAt?"":`<span class="noreply">未回复</span>`}
@@ -198,7 +209,8 @@ function setStatus(ok, text){ $("statusDot").className="dot"+(ok?"":" err"); $("
 
 async function load(){
   try{
-    const res = await fetch(`${API_BASE}?window=${currentWin}&_t=${Date.now()}`, {cache:"no-store"});
+    const chanQ = currentChan ? `&channel=${currentChan}` : "";
+    const res = await fetch(`${API_BASE}?window=${currentWin}${chanQ}&_t=${Date.now()}`, {cache:"no-store"});
     if(!res.ok) throw new Error("HTTP "+res.status);
     const payload = await res.json();
     if(payload.error) throw new Error(payload.error);
@@ -217,6 +229,13 @@ $("winSel").addEventListener("click", e=>{
   const btn=e.target.closest("button"); if(!btn) return;
   currentWin=btn.dataset.win;
   [...$("winSel").children].forEach(b=>b.classList.toggle("active", b===btn));
+  load();
+});
+
+$("chanSel").addEventListener("click", e=>{
+  const btn=e.target.closest("button"); if(!btn) return;
+  currentChan=btn.dataset.chan;
+  [...$("chanSel").children].forEach(b=>b.classList.toggle("active", b===btn));
   load();
 });
 
