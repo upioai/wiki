@@ -302,6 +302,51 @@ AKKE_SECOND_TOUCH_ENABLED=1
 AKKE_SECOND_TOUCH_CLAIM_LIMIT=3</pre>
   <div class="warn-box">🔒 <b>安全(共享云桌面更要注意):</b> <code>service_role</code> 权限很大。更稳的做法是用<b>受控 JWT</b>(role=wuying_worker,只能领单/回写)替代它 —— <code>.env</code> 里删掉 <code>SUPABASE_SERVICE_ROLE_KEY</code>、改填 <code>SUPABASE_SCOPED_JWT</code>(配合 anon key),agent 自动识别。这把 JWT 要用 JWT 密钥签出来、<code>cat</code> 不出来,<b>问 PM 要一次</b>(全队共用一把)。OpenRouter key 也务必后台设 Credit limit($30 等),烧超即停、不碰生产额度。</div>
 
+  <!-- ===== 2.2 异分辨率补采坐标 ===== -->
+  <h2 class="sec"><span class="n">2.2</span> 异分辨率 · 补采「关注 / 点赞 / 返回」坐标(measure_nav.py)</h2>
+  <p class="lead"><b>只有分辨率跟源镜像(2560×1600)不一致时才要做这步。</b>一致的话坐标随镜像 <code>.env</code> 来了,啥都不用采。</p>
+  <div class="warn-box" style="margin-bottom:14px">⚠️ 采坐标有<b>两个脚本、分两批</b>:① <code>douyin_dm_grounded.py --capture</code> 采<b>发私信 5 个基础坐标</b>(搜索框 / 用户tab / 私信 / 发送↑ / 输入框);② 本节的 <code>measure_nav.py</code> 才采<b>关注·点赞那一套(7 项)</b>。只跑了 <code>--capture</code> = 缺关注/点赞/返回,那段会自动跳过(只发私信不报错),整套「关注→点赞→私信」不生效。两个都要跑。</div>
+
+  <div class="card">
+    <h3>0 · 先准备</h3>
+    <p>无影上打开<b>抖音 PC 客户端</b>登录好号;先想好一个<b>有作品的用户</b>(等下进 ta 主页);切<b>英文输入法</b>。</p>
+    <h3 style="margin-top:14px">1 · 起脚本</h3>
+    <pre class="code">cd C:\akke-wuying\wuying-dm
+python measure_nav.py</pre>
+    <p>它先打印分辨率(确认是你这台真实值),然后逐条提示。</p>
+    <h3 style="margin-top:14px">2 · 操作手法(每步都一样)</h3>
+    <div class="note">把鼠标移到目标元素上<b>悬停住 → 不要点击 → 回到键盘按回车</b>。脚本读你按回车那刻鼠标停在哪。<b>别用鼠标点目标</b>(点了焦点跑去抖音、可能误触发),只悬停。按完回车它打印这一项的「归一化 x,y」,记下来。</div>
+    <h3 style="margin-top:14px">3 · 依次量 7 项(脚本逐条提示)</h3>
+    <p><b>在搜索结果页</b>(先搜个人、点「用户」结果页):</p>
+    <ul>
+      <li>① 顶部「<b>用户</b>」分类标签 → <code>AKKE_C_USERTAB</code></li>
+      <li>② 用户结果<b>第一条用户头像中心</b> → <code>AKKE_C_FIRST</code></li>
+    </ul>
+    <p><b>换界面 → 进一个【有作品】用户的个人主页</b>:</p>
+    <ul>
+      <li>③ 主页头部【<b>关注</b>】按钮中心 → <code>AKKE_C_FOLLOW</code></li>
+      <li>④ <b>先手动点一下「关注」变【已关注】</b>(关注后私信按钮会左移,必须在已关注态量),再量头部【<b>私信</b>】按钮中心 → <code>AKKE_C_DM</code></li>
+      <li>⑤ 作品宫格<b>第一个(最新)作品封面中心</b> → <code>AKKE_C_WORK_FIRST</code></li>
+    </ul>
+    <p><b>手动点进那个作品 → 打开视频播放页</b>:</p>
+    <ul>
+      <li>⑥ 视频页【<b>点赞♡</b>】(心形)中心 → <code>AKKE_C_LIKE</code></li>
+      <li>⑦ 视频页<b>左上角「返回」按钮</b>中心 → <code>AKKE_C_BACK</code>(可选,不采走 VL 实时定位;采上更稳)</li>
+    </ul>
+    <h3 style="margin-top:14px">4 · 写进 .env</h3>
+    <p><code>notepad .env</code>,按下面格式填(用脚本打印的「归一化 x,y」,<b>逗号分隔、千分比整数、不要括号不要空格</b>;值是举例,填你自己量的):</p>
+    <pre class="code">AKKE_C_USERTAB=287,45
+AKKE_C_FIRST=...,...
+AKKE_C_FOLLOW=...,...
+AKKE_C_DM=...,...
+AKKE_C_WORK_FIRST=...,...
+AKKE_C_LIKE=...,...
+AKKE_C_BACK=...,...</pre>
+    <h3 style="margin-top:14px">5 · 重启 agent 才生效</h3>
+    <div class="note">改完 <code>.env</code> <b>必须重启 agent</b>,不重启不读新值。重启后 <code>Get-Content C:\akke-wuying\wuying-dm\agent.log -Tail 8</code> 看是否在拉单。</div>
+  </div>
+  <p class="lead" style="margin:14px 0 0"><span class="talk">measure_nav.py → 悬停+回车量 7 个点(第④步先手动点关注再量私信)→ 归一化值写 .env → 重启 agent。</span></p>
+
   <!-- ===== 3. 关机重开 ===== -->
   <h2 class="sec"><span class="n">3</span> 云电脑关了 · 重开之后怎么操作</h2>
 
