@@ -42,6 +42,11 @@ const GUIDES = [
     title: 'VPN 快速上手',
     desc: '团队自建 VPN 节点配置，从客户端安装到分流规则。',
   },
+  {
+    file: 'design-system.html',
+    title: 'upio.ai 设计系统',
+    desc: '本站统一的暗色主题设计规范：色板、排版、组件样式，做新页面/子站时照此取值。',
+  },
 ];
 
 const missing = GUIDES.filter(g => !fs.existsSync(path.join(publicDir, g.file)));
