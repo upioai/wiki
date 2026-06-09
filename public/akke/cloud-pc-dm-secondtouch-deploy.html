@@ -43,6 +43,8 @@
   .lane .tag{font-size:11px;display:inline-block;padding:3px 9px;border-radius:999px;margin-bottom:8px}
   .tag.dm{background:rgba(37,99,235,.12);color:var(--acc);border:1px solid rgba(37,99,235,.3)}
   .tag.st{background:rgba(124,58,237,.12);color:var(--purple);border:1px solid rgba(124,58,237,.3)}
+  .lane.rc{border-top:3px solid var(--good)}
+  .tag.rc{background:rgba(22,163,74,.12);color:var(--good);border:1px solid rgba(22,163,74,.3)}
   .lane h3{margin:0 0 6px;font-size:17px}
   .lane p{margin:0 0 8px;color:var(--mut);font-size:13px}
   .lane ul{margin:6px 0 0;padding-left:18px;font-size:13px;color:var(--txt)}
@@ -101,8 +103,8 @@
 
   <header class="hero">
     <h1>无影云电脑 · DM + 二次触达 · 部署与操作指南</h1>
-    <div class="sub">一台无影同时跑<b>自动私信(DM)</b>和<b>自动二次触达(评论)</b>两条通道,<span class="talk">人零操作</span>。
-      本页讲透:① 镜像部署 ② 关机重开怎么办 ③ 两条通道自动发送的逻辑 ④ 想立马就发怎么手动触发。</div>
+    <div class="sub">一台无影同时跑<b>自动私信(DM)</b>、<b>自动反向评论(RC)</b>和<b>自动二次触达(评论)</b>三条通道,<span class="talk">人零操作</span>。
+      本页讲透:① 镜像部署 ② 关机重开怎么办 ③ 三条通道自动发送的逻辑 ④ 想立马就发怎么手动触发。</div>
     <div class="meta">
       <span class="pill">面向 <b>运营 / PM</b></span>
       <span class="pill">DM 原理 <b>wuying-selfdrive-deploy.html</b></span>
@@ -125,7 +127,7 @@
       <div class="arrow">→</div>
       <div class="step"><div class="t">⑤ 回写去重</div><div class="d">complete_* RPC</div></div>
     </div>
-    <p style="margin:12px 0 0;color:var(--mut);font-size:13px">整条链全在云上,<b style="color:var(--txt)">不碰任何人的本机</b>。每台无影只要:① 抖音登录对应账号 ② <code>.env</code> 配好 ③ 账号 <code>channel_pref=cloud_pc</code>,就两条通道一起自动跑。</p>
+    <p style="margin:12px 0 0;color:var(--mut);font-size:13px">整条链全在云上,<b style="color:var(--txt)">不碰任何人的本机</b>。每台无影只要:① 抖音登录对应账号 ② <code>.env</code> 配好 ③ 账号 <code>channel_pref=cloud_pc</code>,就三条通道一起自动跑。</p>
   </div>
   <div class="note">🖥 <b>两台机器别搞混(全文反复出现):</b><br>
     • <b>「本机」= 你自己的电脑(Mac),装了 Akke 仓库</b> —— 跑 <code>pnpm tsx …</code> / Claude Code / claim 拉单。<b>就是你现在看这份文档的这台。</b><br>
@@ -133,26 +135,28 @@
     口诀:<b>命令带 <code>pnpm</code>/<code>tsx</code> 的在本机 Mac 跑;带 <code>py</code> / <code>Invoke-WebRequest</code> / <code>Get-Content</code> 的在无影跑。</b></div>
 
   <!-- ===== 1. 自动发送逻辑 ===== -->
-  <h2 class="sec"><span class="n">1</span> DM + 二触 自动发送的逻辑</h2>
-  <p class="lead">同一台机上两条通道<b>不是两个程序同时跑</b> —— 是<b>一个 agent 进程、一个循环、两条 lane 严格串行</b>。</p>
+  <h2 class="sec"><span class="n">1</span> DM + RC + 二触 自动发送的逻辑</h2>
+  <p class="lead">同一台机上三条通道<b>不是三个程序同时跑</b> —— 是<b>一个 agent 进程、一个循环、三条 lane 严格串行(DM &gt; RC &gt; 二触)</b>。</p>
 
   <div class="card">
     <div class="st" style="font-weight:600;font-size:15px;margin-bottom:6px">为什么必须串行?</div>
-    <p style="margin:0 0 10px;color:var(--mut);font-size:13.5px">抖音 PC 是 GUI 自动化(模拟鼠标点屏幕坐标、抢窗口焦点)。<b style="color:var(--txt)">同一时刻只能有一个程序操作抖音窗口</b> —— 两个一起点必然抢焦点、点错位、双双崩溃。所以 agent 用阻塞式调用,DM 那批<b>发完</b>才轮到二触,时间上完全错开。</p>
+    <p style="margin:0 0 10px;color:var(--mut);font-size:13.5px">抖音 PC 是 GUI 自动化(模拟鼠标点屏幕坐标、抢窗口焦点)。<b style="color:var(--txt)">同一时刻只能有一个程序操作抖音窗口</b> —— 两个一起点必然抢焦点、点错位、双双崩溃。所以 agent 用阻塞式调用,DM 那批<b>发完</b>才轮到 RC、RC 完才轮到二触,时间上完全错开。</p>
     <pre class="code">wuying_poll_agent.py   <span class="c"># 全机唯一进程,start.bat 只拉它一个</span>
   while True:
      <span class="c"># 路线 A —— DM 私信</span>
      claim_dispatch(≤3)        → douyin_dm_grounded.py       <span class="c"># 阻塞到这批发完</span>
-     <span class="c"># 路线 B —— 二次触达评论(开关开了才跑)</span>
-     claim_second_touch(≤3)    → douyin_comment_grounded.py  <span class="c"># A 完了才开始,阻塞</span>
-     sleep(60)                 <span class="c"># 两条都跑完 → 歇 60s → 下一轮</span></pre>
+     <span class="c"># 路线 B —— RC 反向评论(开关开了才跑,优先于二触)</span>
+     claim_rc_dispatch(≤3)     → douyin_rc_reply_grounded.py <span class="c"># A 完了才开始,阻塞</span>
+     <span class="c"># 路线 C —— 二次触达评论(开关开了才跑,最后)</span>
+     claim_second_touch(≤3)    → douyin_comment_grounded.py  <span class="c"># B 完了才开始,阻塞</span>
+     sleep(60)                 <span class="c"># 三条都跑完 → 歇 60s → 下一轮</span></pre>
   </div>
 
   <div class="lanes">
     <div class="lane dm">
       <span class="tag dm">路线 A</span>
       <h3>DM · 自动私信</h3>
-      <p>给高/中意向新评论的人发<b>开场白私信</b>(LLM 现起文案)。本版(镜像 <code>14398943</code>)私信前先<b>进主页关注 → 点赞最新作品 → 再私信</b>(best-effort,关注/点赞失败不阻断私信;无作品用户只跳点赞、照常关注+私信)。</p>
+      <p>给高/中意向新评论的人发<b>开场白私信</b>(LLM 现起文案)。本版(镜像 <code>43953460</code>)私信前先<b>进主页关注 → 点赞最新作品 → 再私信</b>(best-effort,关注/点赞失败不阻断私信;无作品用户只跳点赞、照常关注+私信)。</p>
       <ul>
         <li>队列:<code>dispatch_queue</code></li>
         <li>每轮领 ≤3(<code>AKKE_CLAIM_LIMIT</code>)</li>
@@ -162,8 +166,20 @@
         <li>滚动 1h 上限:<code>CLOUD_PC_HOURLY_CAP</code>(默认 10)</li>
       </ul>
     </div>
+    <div class="lane rc">
+      <span class="tag rc">路线 B</span>
+      <h3>RC · 自动反向评论</h3>
+      <p>对高/中意向用户,在<b>源账号视频评论区公开回复 ta 那条意向评论本身</b>(楼中回复)。话术由服务端 <code>/rc/gen</code> 现起,趁新鲜(6h 命中≈100%)。</p>
+      <ul>
+        <li>队列:<code>rc_dispatch_queue</code>(服务端 1h cron <code>reverse-comment-dispatch</code> 派单)</li>
+        <li>每轮领 ≤3(<code>AKKE_REVERSE_COMMENT_CLAIM_LIMIT</code>,默认 3)</li>
+        <li>批内逐条间隔 <b>60–90s</b></li>
+        <li>当日上限:<code>AKKE_RC_DAILY_LIMIT</code>(15)—— <b>RC 独立计,不并入 DM/二触 合并门</b></li>
+        <li>去重:与 DM 同池(<code>sendable</code> = DM/RC 都没碰过)+ <code>outreach_events</code></li>
+      </ul>
+    </div>
     <div class="lane st">
-      <span class="tag st">路线 B</span>
+      <span class="tag st">路线 C</span>
       <h3>二触 · 自动评论唤回</h3>
       <p>对<b>发过 DM、≥3 天没回</b>的高/中意向用户,去 ta 视频下发一条评论唤回(复用最后一条 DM 原文)。</p>
       <ul>
@@ -176,7 +192,8 @@
       </ul>
     </div>
   </div>
-  <div class="note">📌 <b>两通道不会叠加超量</b>:DM 日限和二触日限是两张表分开计数,但「单号每小时总动作」用<b>合并 1h 门</b>锁住(近 1h 的 DM 实发 + 评论之和 ≥6 就停派二触)。日预算还跨通道合并 —— 同账号人工(手机/WDA)发的也占额度,当天人工发多了云电脑当天就少发。<b>只数真成功</b>,被拒/跳过不占。</div>
+  <div class="note">🔀 <b>三通道同机严格串行,优先级 DM &gt; RC &gt; 二触</b>:一个 agent 进程一个循环,每轮<b>依次跑 DM → RC → 二触</b>,各自 claim、阻塞到这批发完才轮下一条 lane。RC 是对高意向的公开回评、要趁新鲜,所以排在二触之前先占窗口。同一时刻只一个程序操作抖音窗口,不并发、不抢窗口。</div>
+  <div class="note">📌 <b>DM + 二触 不会叠加超量</b>:DM 日限和二触日限是两张表分开计数,但「单号每小时总动作」用<b>合并 1h 门</b>锁住(近 1h 的 DM 实发 + 评论之和 ≥6 就停派二触)。日预算还跨通道合并 —— 同账号人工(手机/WDA)发的也占额度,当天人工发多了云电脑当天就少发。<b>只数真成功</b>,被拒/跳过不占。<b>RC 独立日限(15)、不并入这道合并门</b>。</div>
 
   <!-- ===== 2. 镜像部署 ===== -->
   <h2 class="sec"><span class="n">2</span> 镜像部署方案(推荐)</h2>
@@ -186,7 +203,7 @@
     <div class="method rec">
       <span class="tag rec">✅ 推荐</span>
       <h3>A · 镜像克隆</h3>
-      <p>镜像里已含 Python + 依赖 + 全部脚本(DM + 二触)+ 模板 + 开机自启。新机克隆出来只改账号 + 开开关。</p>
+      <p>镜像里已含 Python + 依赖 + 全部脚本(DM + 二触 + RC)+ 模板 + 开机自启。新机克隆出来只改账号 + 开开关。</p>
     </div>
     <div class="method man">
       <span class="tag man">备用</span>
@@ -199,12 +216,12 @@
     <ol class="steps">
       <li>
         <div class="st">把配好的那台烤成自定义镜像(PM 做一次)</div>
-        <div class="sd">阿里无影控制台 → 选中实例 → <b>创建自定义镜像</b>。镜像内含:Python 3.12 + 依赖、<code>C:\akke-wuying\wuying-dm\</code>(脚本 <code>wuying_poll_agent.py</code> / <code>douyin_dm_grounded.py</code> / <b><code>douyin_comment_grounded.py</code></b> + <code>templates/</code>)、开机自启 <code>akke_wuying_agent.bat</code>。</div>
-        <div class="note">🔑 <b>本套镜像码 = <code class="key">14398943</code></b>(PM 已烤好,克隆新机时填它,见下一步)。<b>务必确认源机已装 <code>douyin_comment_grounded.py</code> 且二触坐标校准过</b>,否则克隆机只能发 DM。</div>
+        <div class="sd">阿里无影控制台 → 选中实例 → <b>创建自定义镜像</b>。镜像内含:Python 3.12 + 依赖、<code>C:\akke-wuying\wuying-dm\</code>(脚本 <code>wuying_poll_agent.py</code> / <code>douyin_dm_grounded.py</code> / <b><code>douyin_comment_grounded.py</code></b> / <b><code>douyin_rc_reply_grounded.py</code></b> + <code>templates/</code>)、开机自启 <code>akke_wuying_agent.bat</code>。</div>
+        <div class="note">🔑 <b>本套镜像码 = <code class="key">43953460</code></b>(PM 已烤好,克隆新机时填它,见下一步)。<b>务必确认源机已装 <code>douyin_comment_grounded.py</code>(二触)+ <code>douyin_rc_reply_grounded.py</code>(RC)且坐标校准过</b>,否则克隆机只能发 DM。</div>
       </li>
       <li>
         <div class="st">新机用这个镜像开 / 重装</div>
-        <div class="sd">新建无影实例时「镜像」处选「自定义镜像」→ 填<b>镜像码 <code class="key">14398943</code></b> → 克隆出来零重装、零装依赖。</div>
+        <div class="sd">新建无影实例时「镜像」处选「自定义镜像」→ 填<b>镜像码 <code class="key">43953460</code></b> → 克隆出来零重装、零装依赖。</div>
         <div class="warn-box">⚠️ <b>分辨率必须和源机一致</b>(本套 <b>2560×1600</b>)。一致 → 模板/坐标直接复用、<span class="hl">零校准</span>。不一致 → DM 走 <code>douyin_dm_grounded.py --capture</code> +(本版新增)<code>measure_nav.py</code> 补采 关注 / 点赞 / 私信(已关注态)/ 返回 坐标(<code>AKKE_C_FOLLOW / C_LIKE / C_DM / C_BACK</code>)、二触走 <code>_measure-comment.py</code>,各重采一次。建议在无影客户端<b>锁死分辨率</b>。</div>
       </li>
       <li>
@@ -220,8 +237,12 @@
         <div class="sd">二触默认是<b>干跑(dry-run)只算不发</b>。要真发,在 Vercel 环境变量设 <code>SECOND_TOUCH_AUTOSEND_ENABLED=true</code>。<b>两个开关都开才真发二触</b>:Vercel 的 <code>SECOND_TOUCH_AUTOSEND_ENABLED</code>(派单侧)+ 无影 <code>.env</code> 的 <code>AKKE_SECOND_TOUCH_ENABLED</code>(执行侧)。</div>
       </li>
       <li>
+        <div class="st">PM 在 Vercel 开 RC 真发开关(全 org 一次性)</div>
+        <div class="sd">RC 默认也是<b>干跑(dry-run)只算不发</b>。要真发,在 Vercel 环境变量设 <code>AKKE_RC_DISPATCH_LIVE=1</code>。执行侧 <code>AKKE_REVERSE_COMMENT_ENABLED=1</code> <b>已烤进镜像(rc=on),克隆机不用另加</b>,所以 RC 只差 Vercel 这一个开关。<span class="hl">⚠️ 一翻就会对真实用户公开回评,定好时机再开。</span></div>
+      </li>
+      <li>
         <div class="st">重启一次 → 完成</div>
-        <div class="sd">重启无影 → 登录后开机自启 agent 自动跑。验证(<b>在 PowerShell 里</b>跑,详见第 3 章):<code>Get-Content C:\akke-wuying\wuying-dm\agent.log -Tail 8</code>,看到 <code>=== wuying_poll_agent account=… every 60s  second_touch=on …</code> 即两条通道都在。</div>
+        <div class="sd">重启无影 → 登录后开机自启 agent 自动跑。验证(<b>在 PowerShell 里</b>跑,详见第 3 章):<code>Get-Content C:\akke-wuying\wuying-dm\agent.log -Tail 8</code>,看到 <code>=== wuying_poll_agent account=… every 60s  second_touch=on  rc=on …</code> 即三条通道都在。</div>
       </li>
     </ol>
   </div>
@@ -370,8 +391,8 @@ AKKE_C_BACK=...,...</pre>
       <li><b>验证 agent 在跑</b>:开始菜单(按 <code>Win</code> 键)→ 输 <code>powershell</code> → 回车,打开<b>蓝底的 Windows PowerShell 窗口</b>,把下面这条<b>粘进去回车</b>(只有 PowerShell 认这个命令):</li>
     </ul>
     <pre class="code">Get-Content C:\akke-wuying\wuying-dm\agent.log -Tail 8</pre>
-    <pre class="code"><span class="c"># 输出里看到这行 = 两条通道都在(second_touch=on):</span>
-=== wuying_poll_agent  account=81cc9678…  every 60s  claim=3  second_touch=on  rc=off ===</pre>
+    <pre class="code"><span class="c"># 输出里看到这行 = 三条通道都在(second_touch=on rc=on):</span>
+=== wuying_poll_agent  account=81cc9678…  every 60s  claim=3  second_touch=on  rc=on ===</pre>
     <div class="warn-box"><b>没看到那行 / 报「找不到文件」= agent 没起来</b>,手动拉一下(二选一):
       <div style="margin-top:7px"><b>① 最省事:双击 <code>start.bat</code></b> —— 文件管理器进 <code>C:\akke-wuying\wuying-dm</code> 文件夹,双击 <code>start.bat</code>。会弹出一个<b>能实时看到日志滚动</b>的黑窗口,出现 <code>account=…</code> 那行就成了。</div>
       <div style="margin-top:7px"><b>② 或在刚才那个 PowerShell 窗口里</b>逐行敲:
@@ -479,7 +500,7 @@ py douyin_dm_grounded.py contacts.csv</pre>
 
   <div class="warn-box" style="margin-bottom:8px">⚠️ <b>唯一的真冲突 = 抢抖音窗口(跟去重无关,是物理层)</b>。agent 每 60s 抢窗口发送,<b>同一台机器</b>上再手动跑 DM/RC/二触脚本 → 两程序抢同一个抖音窗口、点错位双崩。<b>但只在同机同窗口才发生</b>:新无影跑自己的号 + 你本机跑别的号 = 两台机两个号 → GUI 不冲突、DB 去重照样互通。结论:<b>同号同机别同时跑 agent + 手动脚本;不同机器/不同号可放心并行。</b>(RC 反向评论镜像 agent 不管,要跑得先停 agent 让窗口。)</div>
 
-  <p class="lead" style="margin-top:28px;text-align:center"><span class="talk">镜像克隆 → 抖音登对号 → .env 开二触开关 → DB 开 cloud_pc → 重启 → 两条通道自己跑。</span></p>
+  <p class="lead" style="margin-top:28px;text-align:center"><span class="talk">镜像克隆 → 抖音登对号 → .env 改账号(RC 已默认开)→ DB 开 cloud_pc → 重启 → 三条通道自己跑。</span></p>
 
 </div>
 </body>
