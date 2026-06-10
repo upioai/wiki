@@ -57,11 +57,16 @@
   @keyframes rise { to { opacity:1; transform:none; } }
   .jr:hover { border-color:var(--border-strong); }
   .jr .meta { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px; font-size:13px; }
-  .jr .nm { font-weight:600; color:var(--text); }
+  .jr .nm { font-weight:600; color:var(--text); text-decoration:none; }
+  a.nm:hover { color:var(--dm); text-decoration:underline; }
+  .jr .vlink { font-size:11px; color:var(--text-dim); text-decoration:none; padding:2px 8px; border:1px solid var(--border-strong); border-radius:6px; white-space:nowrap; transition:.15s; }
+  .jr .vlink:hover { color:var(--dm); border-color:var(--dm); }
   .jr .pill { font-size:11px; font-weight:600; padding:2px 9px; border-radius:6px; background:var(--accent-soft); color:#c4b5fd; }
   .jr .chtag { font-size:11px; font-weight:600; padding:2px 9px; border-radius:6px; }
   .jr .chtag.dm { background:rgba(96,165,250,.16); color:#93c5fd; }
   .jr .chtag.rc { background:rgba(167,139,250,.18); color:#c4b5fd; }
+  .jr .chtag.pt { background:rgba(45,212,191,.16); color:#5eead4; }
+  .jr .tcount { font-size:11px; font-weight:600; padding:2px 8px; border-radius:6px; background:rgba(45,212,191,.10); color:#5eead4; }
   .jr .snip { color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:46ch; }
   .jr .noreply { margin-left:auto; font-size:11px; padding:2px 9px; border-radius:6px; background:var(--bg-deep); color:var(--text-muted); }
 
@@ -83,6 +88,10 @@
   .notes ul { margin:8px 0 0; padding-left:20px; } .notes li { margin:5px 0; }
   code { background:var(--bg-deep); padding:1px 6px; border-radius:4px; font-size:.86em; color:#c4b5fd; font-family:"SF Mono",Menlo,Consolas,monospace; }
   .privacy { margin-top:14px; padding:12px 16px; border-radius:10px; background:rgba(251,191,36,.08); border:1px solid rgba(251,191,36,.25); color:#fcd34d; font-size:12.5px; }
+  .ptdef { display:none; margin:8px 0 0; padding:14px 18px; border-radius:12px; background:rgba(45,212,191,.06); border:1px solid rgba(45,212,191,.22); font-size:13px; color:var(--text-dim); line-height:1.72; }
+  .ptdef b { color:#5eead4; font-weight:600; }
+  .ptdef .t { color:var(--text); font-weight:600; font-size:14px; margin-bottom:5px; }
+  .ptdef .gl { margin-top:7px; color:var(--text-muted); font-size:12px; }
   .err-banner { display:none; background:rgba(248,113,113,.1); border:1px solid rgba(248,113,113,.3); color:#fca5a5; border-radius:10px; padding:12px 16px; font-size:14px; margin-bottom:20px; }
 </style>
 </head>
@@ -105,6 +114,7 @@
         <button data-chan="" class="active">全渠道</button>
         <button data-chan="dm">私信</button>
         <button data-chan="rc">反评</button>
+        <button data-chan="pt">潜在触达</button>
       </div>
     </div>
   </header>
@@ -120,6 +130,13 @@
     <span style="color:var(--text-muted)">· 仅「评论→抓取」「抓取→触达」两段上色（我们能控的延迟）</span>
   </div>
 
+  <div class="ptdef" id="ptDef">
+    <div class="t">「潜在触达」是什么</div>
+    私信 / 反评发出后，对方 <b>≥3 天没再跟进</b>、且原评论<b>高意向</b>、又<b>不是商家号</b> —— 不放弃，把 ta 设特别关注持续盯。ta 一冒新视频，且（没回过 &amp; 这条没触过 &amp; 距上次触达≥3天 &amp; 累计触达&lt;3次），就<b>点赞 + 评论1（评视频）+ 评论2（顺到产品）</b>。触完不排倒计时，继续等 ta 下一条随机视频。<br>
+    <b>护栏</b>：同一人最短隔 3 天才触下一条（防刷屏）；触满 3 次还没回就停（人凉了别追）；商家 / 同行号入库即排除。　<b>出库</b>：扫到回复 / 已转化 / 触满 3 次 → 停（可取关）。
+    <div class="gl">本筛选 = 已被二次触达过的人；「潜在触达」节点 = 最近一次二次触达时刻，<b style="color:#5eead4">×N</b> = 累计触达次数。「抓取→潜在触达」灰段 = 设计内的 ≥3 天等待，不计入「我们能控的延迟」故不上色。</div>
+  </div>
+
   <h2 id="countTitle">客户旅程</h2>
   <div class="rows" id="rows"></div>
 
@@ -131,7 +148,8 @@
       <li><b>抓取</b>：我们爬到这条评论入库（<code>comments.created_at</code>）。<b>评论→抓取</b> = 抓取新鲜度（🟢&lt;3h 🟡3–12h 🔴&gt;12h）。</li>
       <li><b>触达</b>：首次触达发出。<b>私信</b>=<code>messages.role=ai, status=sent</code>（排除金丝雀）；<b>反评</b>=在 ta 视频下回评 <code>reverse_comment_queue.status=sent</code>。<b>抓取→触达</b> = 审批+发送瓶颈（🟢&lt;3h 🟡3–9h 🔴&gt;9h）。</li>
       <li><b>回复</b>：用户回我们的第一条 —— 私信回复（<code>messages.role=customer</code>）或反评下目标用户的回评，取最早一条。未回复时该点置灰。</li>
-      <li><b>渠道</b>：每行标「私信 / 反评」=该用户最早一次触达走的通道；可用上方筛选只看某一渠道。</li>
+      <li><b>渠道</b>：每行标「私信 / 反评」=该用户最早一次触达走的通道；可用上方筛选只看某一渠道。<b>潜在触达</b>是独立透镜（首触没回后的二次盯防人群，非首触渠道），点上方「潜在触达」查看定义与名单。</li>
+      <li><b>链接</b>：点客户名 = 打开 ta 的抖音主页；点「原视频 ↗」= 打开评论所在的那条抖音视频（均新窗口打开）。</li>
       <li>一个用户一行（按 <code>douyin_user_id</code> 去重取最早触达），按「抓取→触达」最慢排前，最多 200 条。全局口径（org 维度）。</li>
     </ul>
     <div class="privacy">本页含客户身份信息，已设 <code>noindex</code>（搜索引擎不收录），但 URL 为固定路径、可被猜到，请勿把链接贴到公开可索引的位置。</div>
@@ -164,28 +182,39 @@ function fmtTs(iso){ if(!iso) return "未知"; const d=new Date(iso); if(isNaN(d
 function dot(iso, label){
   return `<div class="dot"><div class="c ${iso?"":"empty"}"></div><div class="lab">${label}</div><div class="ts">${fmtTs(iso)}</div></div>`;
 }
-function seg(key, ms){
-  const c = gapColor(key, ms);
+function seg(key, ms, forceNeutral){
+  const c = forceNeutral ? "neutral" : gapColor(key, ms);
   return `<div class="seg"><div class="bar ${ms==null?"dashed":""}" style="background:${COL[c]}"></div><div class="gl" style="color:${TCOL[c]}">${gapLabel(ms)||"—"}</div></div>`;
 }
 
+const CHAN = { dm:["dm","私信"], rc:["rc","反评"], pt:["pt","潜在触达"] };
+
 function renderRow(j){
+  const pt = j.channel==="pt";
   const strip =
     dot(j.videoPublishedAt, "视频发布") +
     seg("video_comment",  gapMs(j.videoPublishedAt, j.commentTime)) +
     dot(j.commentTime, "评论") +
     seg("comment_scrape", gapMs(j.commentTime, j.scrapedAt)) +
     dot(j.scrapedAt, "抓取") +
-    seg("scrape_contact", gapMs(j.scrapedAt, j.contactedAt)) +
-    dot(j.contactedAt, "触达") +
+    /* pt：触达点=最近一次潜在触达，距原评论按设计≥3天，不算我们能控的延迟 → 不上色 */
+    seg("scrape_contact", gapMs(j.scrapedAt, j.contactedAt), pt) +
+    dot(j.contactedAt, pt?"潜在触达":"触达") +
     seg("contact_reply",  gapMs(j.contactedAt, j.repliedAt)) +
     dot(j.repliedAt, "回复");
+  const ch = CHAN[j.channel] || CHAN.dm;
+  const nm = esc(j.customerName||"未命名");
+  const nmEl = j.douyinUserId
+    ? `<a class="nm" href="https://www.douyin.com/user/${esc(j.douyinUserId)}" target="_blank" rel="noopener noreferrer nofollow" title="打开 ta 的抖音主页 ↗">${nm}</a>`
+    : `<span class="nm">${nm}</span>`;
   return `<div class="jr">
     <div class="meta">
-      <span class="nm">${esc(j.customerName||"未命名")}</span>
-      <span class="chtag ${j.channel==="rc"?"rc":"dm"}">${j.channel==="rc"?"反评":"私信"}</span>
+      ${nmEl}
+      <span class="chtag ${ch[0]}">${ch[1]}</span>
+      ${pt && j.touchCount!=null?`<span class="tcount">×${j.touchCount}</span>`:""}
       ${j.intentLabel?`<span class="pill">${esc(j.intentLabel)}</span>`:""}
       <span class="snip">${esc(j.commentSnippet||"")}</span>
+      ${j.videoUrl?`<a class="vlink" href="${esc(j.videoUrl)}" target="_blank" rel="noopener noreferrer nofollow" title="打开评论所在的原视频 ↗">原视频 ↗</a>`:""}
       ${j.repliedAt?"":`<span class="noreply">未回复</span>`}
     </div>
     <div class="stripwrap"><div class="strip">${strip}</div></div>
@@ -196,7 +225,7 @@ function render(payload){
   const rows = payload.rows||[];
   $("countTitle").textContent = "客户旅程 · 共 " + (payload.count ?? rows.length) + " 条";
   if(rows.length===0){
-    $("rows").innerHTML = `<div class="empty-state">当前窗口内没有已触达的客户。</div>`;
+    $("rows").innerHTML = `<div class="empty-state">${currentChan==="pt"?"当前窗口内还没有已二次触达的客户。":"当前窗口内没有已触达的客户。"}</div>`;
     return;
   }
   $("rows").innerHTML = rows.map(renderRow).join("");
@@ -236,6 +265,7 @@ $("chanSel").addEventListener("click", e=>{
   const btn=e.target.closest("button"); if(!btn) return;
   currentChan=btn.dataset.chan;
   [...$("chanSel").children].forEach(b=>b.classList.toggle("active", b===btn));
+  $("ptDef").style.display = currentChan==="pt" ? "block" : "none";
   load();
 });
 
