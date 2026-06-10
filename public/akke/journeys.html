@@ -66,7 +66,11 @@
   .jr .chtag.dm { background:rgba(96,165,250,.16); color:#93c5fd; }
   .jr .chtag.rc { background:rgba(167,139,250,.18); color:#c4b5fd; }
   .jr .chtag.pt { background:rgba(45,212,191,.16); color:#5eead4; }
-  .jr .tcount { font-size:11px; font-weight:600; padding:2px 8px; border-radius:6px; background:rgba(45,212,191,.10); color:#5eead4; }
+  .jr .slots { font-size:13px; letter-spacing:1.5px; color:#5eead4; font-weight:700; }
+  .jr .slots .n { font-size:11px; color:var(--text-dim); font-weight:600; margin-left:4px; letter-spacing:0; }
+  .jr .ptstat { font-size:11px; font-weight:600; padding:2px 8px; border-radius:6px; }
+  .jr .ptstat.watching { background:rgba(45,212,191,.12); color:#5eead4; }
+  .jr .ptstat.stopped { background:var(--bg-deep); color:var(--text-muted); }
   .jr .snip { color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:46ch; }
   .jr .noreply { margin-left:auto; font-size:11px; padding:2px 9px; border-radius:6px; background:var(--bg-deep); color:var(--text-muted); }
 
@@ -134,7 +138,7 @@
     <div class="t">「潜在触达」是什么</div>
     私信 / 反评发出后，对方 <b>≥3 天没再跟进</b>、且原评论<b>高意向</b>、又<b>不是商家号</b> —— 不放弃，把 ta 设特别关注持续盯。ta 一冒新视频，且（没回过 &amp; 这条没触过 &amp; 距上次触达≥3天 &amp; 累计触达&lt;3次），就<b>点赞 + 评论1（评视频）+ 评论2（顺到产品）</b>。触完不排倒计时，继续等 ta 下一条随机视频。<br>
     <b>护栏</b>：同一人最短隔 3 天才触下一条（防刷屏）；触满 3 次还没回就停（人凉了别追）；商家 / 同行号入库即排除。　<b>出库</b>：扫到回复 / 已转化 / 触满 3 次 → 停（可取关）。
-    <div class="gl">本筛选 = 已被二次触达过的人；「潜在触达」节点 = 最近一次二次触达时刻，<b style="color:#5eead4">×N</b> = 累计触达次数。「抓取→潜在触达」灰段 = 设计内的 ≥3 天等待，不计入「我们能控的延迟」故不上色。</div>
+    <div class="gl">本筛选 = <b>已被二次触达过</b>的人；<b style="color:#5eead4">●●○</b> = 一共 3 次机会(实心=已触/空心=未触)，触满 3 次或回复/转化 → <b>已出库</b>。「抓取→潜在触达」灰段 = 设计内 ≥3 天等待，不上色。<br>⚠️ 还没二次触达的高意向积压(约 785 人)<b>暂不在此逐行列出</b>——服务端暂时无法识别谁已回复(安卓端回复不入库)，列出会把已回客户误标"待触达"。待回复检测回写 DB 后再开。</div>
   </div>
 
   <h2 id="countTitle">客户旅程</h2>
@@ -188,6 +192,7 @@ function seg(key, ms, forceNeutral){
 }
 
 const CHAN = { dm:["dm","私信"], rc:["rc","反评"], pt:["pt","潜在触达"] };
+function ptSlots(n){ const f=Math.min(Math.max(n||0,0),3); return "●".repeat(f)+"○".repeat(3-f); }
 
 function renderRow(j){
   const pt = j.channel==="pt";
@@ -211,7 +216,7 @@ function renderRow(j){
     <div class="meta">
       ${nmEl}
       <span class="chtag ${ch[0]}">${ch[1]}</span>
-      ${pt && j.touchCount!=null?`<span class="tcount">×${j.touchCount}</span>`:""}
+      ${pt && j.touchCount!=null?`<span class="slots" title="一共 3 次机会，已触 ${Math.min(j.touchCount,3)}/3">${ptSlots(j.touchCount)}<span class="n">${Math.min(j.touchCount,3)}/3</span></span><span class="ptstat ${j.ptStatus||"watching"}">${j.ptStatus==="stopped"?"已出库":"盯防中"}</span>`:""}
       ${j.intentLabel?`<span class="pill">${esc(j.intentLabel)}</span>`:""}
       <span class="snip">${esc(j.commentSnippet||"")}</span>
       ${j.videoUrl?`<a class="vlink" href="${esc(j.videoUrl)}" target="_blank" rel="noopener noreferrer nofollow" title="打开评论所在的原视频 ↗">原视频 ↗</a>`:""}
