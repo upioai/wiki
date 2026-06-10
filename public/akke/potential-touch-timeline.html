@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>潜在触达 · 进度时间线</title>
+<style>
+  :root{
+    --paper:#f5efe3;
+    --paper-deep:#ede4d2;
+    --ink:#211d18;
+    --ink-soft:#5a5347;
+    --ink-faint:#968c7a;
+    --vermilion:#b3382c;
+    --vermilion-soft:#d8a49d;
+    --green:#3d6b4f;
+    --amber:#a06b1e;
+    --line:#d9cdb6;
+    --card:#faf6ec;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--paper);
+    background-image:
+      radial-gradient(ellipse 90% 50% at 50% -10%, rgba(179,56,44,.05), transparent),
+      repeating-linear-gradient(0deg, transparent 0 23px, rgba(33,29,24,.025) 23px 24px);
+    color:var(--ink);
+    font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    font-size:15px;line-height:1.75;
+    padding:0 20px 80px;
+  }
+  .wrap{max-width:980px;margin:0 auto}
+  .serif{font-family:"Songti SC","STSong","SimSun",serif}
+
+  /* ───── header ───── */
+  header{padding:56px 0 28px;border-bottom:3px double var(--ink);position:relative}
+  .kicker{font-size:12px;letter-spacing:.45em;color:var(--vermilion);font-weight:600;margin-bottom:14px}
+  h1{font-family:"Songti SC","STSong","SimSun",serif;font-size:clamp(34px,6vw,54px);font-weight:900;letter-spacing:.04em;line-height:1.2}
+  h1 .thin{font-weight:400;color:var(--ink-soft)}
+  .sub{margin-top:14px;max-width:640px;color:var(--ink-soft);font-size:14px}
+  .sub b{color:var(--ink)}
+  .stamp{
+    position:absolute;right:0;top:60px;
+    border:3px solid var(--vermilion);color:var(--vermilion);
+    font-family:"Songti SC","STSong","SimSun",serif;font-weight:900;font-size:20px;letter-spacing:.3em;
+    padding:6px 14px 6px 18px;transform:rotate(6deg);opacity:.85;
+    border-radius:4px;background:rgba(179,56,44,.04);
+  }
+  .meta-line{display:flex;gap:24px;flex-wrap:wrap;margin-top:20px;font-size:12px;color:var(--ink-faint)}
+  .meta-line span b{color:var(--ink-soft);font-weight:600}
+
+  /* ───── section titles ───── */
+  section{margin-top:56px}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:22px}
+  .sec-num{font-family:"Songti SC","STSong","SimSun",serif;font-size:13px;color:var(--vermilion);letter-spacing:.2em;font-weight:700;white-space:nowrap}
+  .sec-head h2{font-family:"Songti SC","STSong","SimSun",serif;font-size:26px;font-weight:900;letter-spacing:.06em}
+  .sec-head .rule{flex:1;height:1px;background:var(--ink);opacity:.25;transform:translateY(-6px)}
+  .sec-note{font-size:12px;color:var(--ink-faint);margin:-14px 0 20px;letter-spacing:.02em}
+
+  /* ───── status dashboard ───── */
+  .dash{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px}
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:6px;
+    padding:16px 16px 14px;position:relative;overflow:hidden;
+    box-shadow:0 1px 0 rgba(33,29,24,.06);
+  }
+  .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--st,#999)}
+  .card .name{font-size:13px;color:var(--ink-soft);letter-spacing:.05em}
+  .card .state{font-family:"Songti SC","STSong","SimSun",serif;font-size:19px;font-weight:900;margin-top:5px;color:var(--st,#333)}
+  .card .det{font-size:12px;color:var(--ink-faint);margin-top:6px;line-height:1.6}
+  .ok{--st:var(--green)} .warn{--st:var(--amber)} .crit{--st:var(--vermilion)} .hold{--st:var(--ink-faint)}
+
+  /* ───── charts ───── */
+  .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px}
+  .chart{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:20px 20px 16px}
+  .chart h3{font-family:"Songti SC","STSong","SimSun",serif;font-size:16px;font-weight:900;letter-spacing:.04em}
+  .chart .cap{font-size:11.5px;color:var(--ink-faint);margin:3px 0 16px}
+  .bar-row{display:grid;grid-template-columns:108px 1fr 44px;align-items:center;gap:10px;margin:9px 0;font-size:12.5px}
+  .bar-row .lab{color:var(--ink-soft);text-align:right;line-height:1.3}
+  .bar-row .val{font-weight:700;font-variant-numeric:tabular-nums}
+  .track{height:18px;background:var(--paper-deep);border-radius:3px;overflow:hidden}
+  .fill{height:100%;border-radius:3px;background:var(--ink-soft);animation:grow 1s cubic-bezier(.2,.8,.2,1) both}
+  .fill.red{background:var(--vermilion)} .fill.green{background:var(--green)} .fill.amber{background:var(--amber)} .fill.faint{background:#b8ad97}
+  @keyframes grow{from{width:0 !important}}
+  .chart .punch{margin-top:14px;padding:10px 12px;background:rgba(179,56,44,.06);border-left:3px solid var(--vermilion);font-size:12.5px;color:var(--ink-soft);border-radius:0 4px 4px 0}
+  .chart .punch b{color:var(--vermilion)}
+  .stackbar{display:flex;height:30px;border-radius:4px;overflow:hidden;margin:8px 0 4px}
+  .stackbar div{display:flex;align-items:center;justify-content:center;color:#faf6ec;font-size:12px;font-weight:700;letter-spacing:.03em}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-faint);margin-top:8px}
+  .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;transform:translateY(.5px)}
+
+  /* ───── timeline ───── */
+  .tl{position:relative;padding-left:34px}
+  .tl::before{content:"";position:absolute;left:9px;top:6px;bottom:6px;width:2px;background:repeating-linear-gradient(180deg,var(--ink) 0 6px,transparent 6px 11px);opacity:.3}
+  .day{position:relative;margin-bottom:40px}
+  .day::before{
+    content:"";position:absolute;left:-32px;top:9px;width:14px;height:14px;border-radius:50%;
+    background:var(--paper);border:3px solid var(--vermilion);
+  }
+  .day.gray::before{border-color:var(--ink-faint)}
+  .day-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .day-date{font-family:"Songti SC","STSong","SimSun",serif;font-size:21px;font-weight:900;letter-spacing:.05em}
+  .day-title{font-size:13.5px;color:var(--vermilion);font-weight:600;letter-spacing:.05em}
+  .ev{margin-top:12px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:13px 16px;font-size:13.5px;color:var(--ink-soft)}
+  .ev b{color:var(--ink)}
+  .ev .hd{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+  .ev .hd .t{font-weight:700;color:var(--ink);font-size:14px}
+  .tag{font-size:10.5px;padding:1px 8px;border-radius:99px;border:1px solid;letter-spacing:.08em;white-space:nowrap;font-weight:600}
+  .tag.done{color:var(--green);border-color:var(--green);background:rgba(61,107,79,.07)}
+  .tag.test{color:var(--amber);border-color:var(--amber);background:rgba(160,107,30,.07)}
+  .tag.crash{color:var(--vermilion);border-color:var(--vermilion);background:rgba(179,56,44,.07)}
+  .tag.fix{color:#5b5380;border-color:#5b5380;background:rgba(91,83,128,.07)}
+  .tag.key{color:var(--vermilion);border-color:var(--vermilion);background:var(--vermilion);color:#faf6ec}
+  .ev .pt{font-size:11px;color:var(--ink-faint);margin-top:6px;font-family:ui-monospace,Menlo,Consolas,monospace}
+  .ev ul{margin:6px 0 0 18px}
+  .ev li{margin:3px 0}
+
+  /* ───── open issues ───── */
+  .issues{counter-reset:iss;display:flex;flex-direction:column;gap:10px}
+  .iss{
+    display:flex;gap:16px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:14px 18px;
+    align-items:flex-start;
+  }
+  .iss::before{
+    counter-increment:iss;content:counter(iss,decimal-leading-zero);
+    font-family:"Songti SC","STSong","SimSun",serif;font-size:24px;font-weight:900;color:var(--vermilion);opacity:.75;
+    line-height:1.2;min-width:38px;
+  }
+  .iss .body{font-size:13.5px;color:var(--ink-soft)}
+  .iss .body b{color:var(--ink)}
+  .iss.blocker{border-left:4px solid var(--vermilion)}
+
+  /* ───── files / footer ───── */
+  .files{font-size:12.5px;color:var(--ink-soft);background:var(--card);border:1px solid var(--line);border-radius:6px;padding:18px 22px}
+  .files dt{font-weight:700;color:var(--ink);margin-top:10px}
+  .files dt:first-child{margin-top:0}
+  .files dd{margin-left:0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;color:var(--ink-faint);overflow-wrap:anywhere}
+  footer{margin-top:64px;border-top:3px double var(--ink);padding-top:18px;font-size:11.5px;color:var(--ink-faint);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+
+  @media (max-width:640px){
+    .stamp{position:static;display:inline-block;margin-top:16px;transform:rotate(-2deg)}
+    .bar-row{grid-template-columns:84px 1fr 40px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">AKKE · 内部作战档案</div>
+  <h1>潜在触达<span class="thin"> · 进度时间线</span></h1>
+  <div class="stamp">进行中</div>
+  <p class="sub">对「DM / RC 已触达、<b>≥3 天没再跟进</b>」的高/中意向老 lead 做再触达。两代机制：<b>时间驱动二次触达</b>（满 3 天捞名单评其最新视频，已上线自驱）→ <b>事件驱动实时触达</b>（盯新视频，10 分钟内点赞 + 双评论，建设中）。</p>
+  <div class="meta-line">
+    <span><b>起点</b> 2026-06-03</span>
+    <span><b>最后更新</b> 2026-06-10</span>
+    <span><b>权威细节</b> spec §14 / repo: docs/runbooks/potential-touch-timeline.md</span>
+  </div>
+</header>
+
+<!-- ═══════ 状态仪表盘 ═══════ -->
+<section>
+  <div class="sec-head"><span class="sec-num">壹</span><h2>当前状态</h2><div class="rule"></div></div>
+  <div class="dash">
+    <div class="card ok">
+      <div class="name">时间驱动二触（前代）</div>
+      <div class="state">✅ 已上线自驱</div>
+      <div class="det">cron */2min 派单 + 无影三 lane 串行；双开关控真发</div>
+    </div>
+    <div class="card ok">
+      <div class="name">实时侦测</div>
+      <div class="state">✅ 落地在跑</div>
+      <div class="det">本机后台每 60s 拉 follow/feed，饭粒池 164 人，≤10min 闸</div>
+    </div>
+    <div class="card warn">
+      <div class="name">执行端（无影 GUI）</div>
+      <div class="state">⚠️ 护栏成 · 导航卡</div>
+      <div class="det">防错人护栏实测拦住误发；但搜到人点不进主页 → 真 lead 还发不成</div>
+    </div>
+    <div class="card ok">
+      <div class="name">话术生成</div>
+      <div class="state">✅ 定版</div>
+      <div class="det">「私信桥」版 PM 审过；弃反评生成器；无 emoji 只表情码</div>
+    </div>
+    <div class="card crit">
+      <div class="name">回复检测（命门②）</div>
+      <div class="state">🔴 未建</div>
+      <div class="det">「未回」口径与出库逻辑的前提；inbox_scan 待建</div>
+    </div>
+    <div class="card hold">
+      <div class="name">特别关注铺设</div>
+      <div class="state">⏸️ 暂放</div>
+      <div class="det">PC 端 GUI 设法未验通；先用普通关注；日增限 ~20</div>
+    </div>
+    <div class="card crit">
+      <div class="name">供给问题</div>
+      <div class="state">⏳ 待 PM 拍板</div>
+      <div class="det">客户几乎不发视频，每天新视频机会 &lt;1 条 — 全项目最大悬置</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ 数据图表 ═══════ -->
+<section>
+  <div class="sec-head"><span class="sec-num">贰</span><h2>关键数据</h2><div class="rule"></div></div>
+  <p class="sec-note">三组实测数：人群有多大 → 名单怎么漏下来的 → 为什么说瓶颈是供给。</p>
+  <div class="charts">
+
+    <div class="chart">
+      <h3>触达人群总盘 ≈ 792 人</h3>
+      <div class="cap">三号（饭粒/野荞/夏夏）去重 · DM ∪ RC · 2026-06-09 实测</div>
+      <div class="stackbar">
+        <div style="width:72.3%;background:var(--ink-soft)">DM 573</div>
+        <div style="width:4.4%;background:var(--amber)" title="DM∩RC 35">35</div>
+        <div style="width:23.3%;background:var(--vermilion)">RC-only 184</div>
+      </div>
+      <div class="legend">
+        <span><i style="background:var(--ink-soft)"></i>仅私信 573</span>
+        <span><i style="background:var(--amber)"></i>私信∩反评 35</span>
+        <span><i style="background:var(--vermilion)"></i>仅反评 184（DM 口径完全漏掉的人）</span>
+      </div>
+      <div class="punch">792 是<b>上限</b>：回复状态基本 unknown（仅 2 人确认已回），回复检测建成后会下降。</div>
+    </div>
+
+    <div class="chart">
+      <h3>饭粒名单漏斗 369 → 164</h3>
+      <div class="cap">高意向 · 最近 AI 私信 ≥3 天前 · 去商家去重 · 2026-06-10</div>
+      <div class="bar-row"><span class="lab">全部会话</span><div class="track"><div class="fill faint" style="width:100%"></div></div><span class="val">369</span></div>
+      <div class="bar-row"><span class="lab">高意向</span><div class="track"><div class="fill amber" style="width:61.5%"></div></div><span class="val">227</span></div>
+      <div class="bar-row"><span class="lab">≥3天没再跟进</span><div class="track"><div class="fill" style="width:45.3%"></div></div><span class="val">167</span></div>
+      <div class="bar-row"><span class="lab">去商家·去重</span><div class="track"><div class="fill red" style="width:44.4%"></div></div><span class="val">164</span></div>
+      <div class="punch">口径注意：是「3 天<b>没再跟进</b>」不是「3 天未回」——回复检测未建，"未回"无法核实，别对外说错。</div>
+    </div>
+
+    <div class="chart">
+      <h3>🔑 供给诊断：客户根本不发视频</h3>
+      <div class="cap">抽查 50 个被监控客户的最近发布 · 2026-06-10</div>
+      <div class="bar-row"><span class="lab">24h 内发过</span><div class="track"><div class="fill green" style="width:2%"></div></div><span class="val">0</span></div>
+      <div class="bar-row"><span class="lab">2–7 天</span><div class="track"><div class="fill amber" style="width:10%"></div></div><span class="val">5</span></div>
+      <div class="bar-row"><span class="lab">&gt;7 天没动静</span><div class="track"><div class="fill red" style="width:64%"></div></div><span class="val">32</span></div>
+      <div class="bar-row"><span class="lab">无作品 / 私密</span><div class="track"><div class="fill faint" style="width:26%"></div></div><span class="val">13</span></div>
+      <div class="punch"><b>瓶颈是供给不是技术</b>：feed 侦测延迟 2min 达标，但盯的是评论区买家——天然不拍视频，每天新视频机会 &lt;1 条。投基建前先解供给。</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════ 时间线 ═══════ -->
+<section>
+  <div class="sec-head"><span class="sec-num">叁</span><h2>时间线</h2><div class="rule"></div></div>
+  <p class="sec-note">只记结论和数据；推演过程在 spec（§14 为准），教训在 memory。有新进展往末尾追加。</p>
+  <div class="tl">
+
+    <div class="day gray">
+      <div class="day-head"><span class="day-date">06·03</span><span class="day-title">起点：二次触达需求 + 数据勘察 + 节奏大脑</span></div>
+      <div class="ev">
+        <div class="hd"><span class="t">勘察出三个硬事实</span><span class="tag test">勘察</span></div>
+        conversations 跟进字段全是死的；回复捕获几乎为零（6281 会话仅 9 个有回复记录）；真实「发了没回」信号在 messages.role。<b>回复检测从这天起就是已知欠账</b>（即后来的命门②）。
+        <div class="pt">PR #93 需求稿 · feedback_second_touch_cadence_data_keystone.md</div>
+      </div>
+      <div class="ev">
+        <div class="hd"><span class="t">节奏大脑 + 全 ADB 闭环建成</span><span class="tag done">落地</span></div>
+        second-touch-worklist（≥3 天候选计算）+ second_touch_state 状态阶梯（touched→active+4d→低频+10d→stopped）+ mark 回写；worklist → 话术生成（人审）→ ADB deeplink 点赞+评论 → 回写，全链跑通。
+        <div class="pt">PR #95 / #99 / #100 / #102</div>
+      </div>
+    </div>
+
+    <div class="day gray">
+      <div class="day-head"><span class="day-date">06·06</span><span class="day-title">术语拍板 + 自动派单设计</span></div>
+      <div class="ev">
+        <div class="hd"><span class="t">PM 拍板触达术语；二触自动派单 spec 完成</span><span class="tag done">定版</span></div>
+        DM=私信首触 / RC=回意向评论 / 多次触达=DM 未回去评其最新视频。设计：cron 派单 → second_touch_dispatch_queue → 无影 poll agent 评论支线，双开关默认关。
+        <div class="pt">specs/2026-06-06-second-touch-auto-dispatch-design.md</div>
+      </div>
+    </div>
+
+    <div class="day">
+      <div class="day-head"><span class="day-date">06·08</span><span class="day-title">二触自驱上线 + 实时方案侦察日</span></div>
+      <div class="ev">
+        <div class="hd"><span class="t">时间驱动二触自驱上线</span><span class="tag done">上线</span></div>
+        cron 派单（后加密到 */2min）+ 无影同机 DM / RC / 二触三 lane 严格串行。
+      </div>
+      <div class="ev">
+        <div class="hd"><span class="t">实时触达侦察：四个决定性发现</span><span class="tag test">实测</span></div>
+        <ul>
+          <li><b>这群人几乎不发视频</b>：184 候选近 7 天全池仅 5 条（0.71 条/天），25% 零作品。但新视频=低频高质信号，10min 内评=前排可见。</li>
+          <li><b>路 A（逐人轮询）否决</b>：单 cookie C=10 约 2 分钟被反爬打死。</li>
+          <li><b>路 B（关注流 follow/feed）验通</b>：一圈 ~6 请求与人数无关，单号扛几百人的唯一法。</li>
+          <li><b>写操作 API 全 403</b>：点赞/评论/关注只能无影真客户端——侦测可后台，执行必无影。</li>
+        </ul>
+        <div class="pt">spec §0/§11/§12 · ADB 执行 MVP 同日跑通</div>
+      </div>
+    </div>
+
+    <div class="day">
+      <div class="day-head"><span class="day-date">06·09</span><span class="day-title">推演定稿日：路线 → 方案 B → 实测校准 → 深夜误判</span></div>
+      <div class="ev">
+        <div class="hd"><span class="t">10min KPI 首样本 PASS</span><span class="tag test">实测</span></div>
+        monitor 逮到 lead 新视频<b>发布后 3.2 分钟即进 feed</b>（n=1；样本恰是商家号，反向印证商家过滤必须做）。
+      </div>
+      <div class="ev">
+        <div class="hd"><span class="t">§13 路线定版 + §14 方案 B 最终定版</span><span class="tag key">PM 拍板</span></div>
+        人群总盘实测 ≈792；四条侦测路比完关注流胜出，执行定无影。<b>方案 B</b>：三运营各自把「触达后≥3 天没回的高意向」设特别关注 → 拉自己关注流盯新视频 → 无影点赞+评论1（评视频）+评论2（dm_content 包装），10min 内。机制=<b>事件驱动状态机</b>（不排时间表只反应）+ 护栏（入库满 3 天 / 间隔≥3 天 / 上限 3 次 / 商家过滤）。
+      </div>
+      <div class="ev">
+        <div class="hd"><span class="t">晚间实测校准：命门②是命门①的前置</span><span class="tag test">校准</span></div>
+        饭粒高意向≥3天=152；导出 50 设关注，46 个早被老脚本关注过；last_inbound_at 全空 → 筛不出干净"未回"；feed 首轮 32 作者仅 3/50 是 lead，被历史杂关注稀释。
+      </div>
+      <div class="ev">
+        <div class="hd"><span class="t">深夜：特别关注撞 ~20 上限 → 误判"出局"转向方案 D</span><span class="tag crash">次日作废</span></div>
+        实测每天设到 ~20 就撞墙，当时误读为总数上限。
+      </div>
+    </div>
+
+    <div class="day">
+      <div class="day-head"><span class="day-date">06·10</span><span class="day-title">三连更正 + 决定性诊断 + 执行端验通（+首跑翻车修复）</span></div>
+      <div class="ev">
+        <div class="hd"><span class="t">00:29 更正：特别关注是「每日新增≤20」非总数上限 → 回归首选</span><span class="tag fix">更正</span></div>
+        ramp 铺法：152 人按 20/天 ≈ 8 天铺满，先铺最热。
+      </div>
+      <div class="ev">
+        <div class="hd"><span class="t">09:13 决定性诊断：瓶颈是供给不是技术</span><span class="tag key">🔑 关键</span></div>
+        50 个被监控客户 24h 内发视频 <b>0 人</b>、&gt;7 天没动静 32 人。monitor 12h 逮 0 不是 feed 漏，是<b>客户根本不发</b>。feed 延迟 2min 达标。每天新视频机会 &lt;1 条——投基建前先解供给（放大人群 / 接受低量 / 潜水买家走私信跟进），<b>待 PM 定</b>。
+      </div>
+      <div class="ev">
+        <div class="hd"><span class="t">10:51 实时侦测脚本落地</span><span class="tag done">落地</span></div>
+        _realtime_touch_watch.py 本机后台：每 60s 拉 follow/feed 3 页 → 作者∈lead 池（164）且发布 ≤10min 且未处理 → 入队；≤10min 闸同时挡历史回灌。<b>口径更正：对外说「3 天没再跟进」不说「3 天未回」</b>。
+      </div>
+      <div class="ev">
+        <div class="hd"><span class="t">13:52 客户旅程加「潜在触达」透镜</span><span class="tag done">PR #240</span></div>
+        journeys 页面可按潜在触达视角看客户。
+      </div>
+      <div class="ev">
+        <div class="hd"><span class="t">13:58 执行端机械流程实测通过 + 话术「私信桥」定版</span><span class="tag done">验通</span></div>
+        无影实测点赞+双评论全落地、抖音没吞同视频连发。生成层弃反评生成器（公开扒评论记录瘆人）——关键认知：<b>客户自发视频大概率与装修无关，装修话题必须靠「私信桥」带入</b>。评论2 = 万金油开场 +「之前私信跟你聊过〈需求锚点〉」+ 邀翻私信，≤45 字；全程无 emoji 只用 [赞][鼓掌] 表情码。
+      </div>
+      <div class="ev">
+        <div class="hd"><span class="t">下午 真 lead 首跑翻车 → v2 防错人护栏</span><span class="tag crash">翻车</span><span class="tag fix">已修</span></div>
+        v1 按标题搜视频且无身份门：真 lead 标题纯 #话题被洗空 → 搜不到目标<b>绕回操作号自己，把两条评论发到了自己视频下</b>（没发给客户）。v2 改「搜昵称 → OCR 身份门 → 开作品墙第一格」，<b>身份门不过即跳过、绝不发</b>——再跑实测护栏生效（宁漏触不错发）。新暴露第二问题：<b>搜到人却没点进主页</b>（固定坐标+加载时机），现状"能保证不发错，还不能保证发得成"，待对屏调。
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════ 未决问题 ═══════ -->
+<section>
+  <div class="sec-head"><span class="sec-num">肆</span><h2>未决问题 / 下一步</h2><div class="rule"></div></div>
+  <div class="issues">
+    <div class="iss blocker"><div class="body"><b>执行端导航修整（挡在自动化前）</b>：搜到人点不进主页（固定坐标 + 加载时机），需对屏调坐标或加"等主页加载 + VL 确认"重试。护栏已确保失败=安全跳过，不阻塞但发不成。</div></div>
+    <div class="iss blocker"><div class="body"><b>接 dispatch_queue 自动化</b>：job_type=potential_touch + poll_agent 分支——人肉 paste.rs 接力赶不上 10min 窗口。</div></div>
+    <div class="iss blocker"><div class="body"><b>命门② 回复检测</b>：douyin_inbox_scan.py 回写 last_inbound_at，让"未回"口径成立 + 出库（stopped）能触发。</div></div>
+    <div class="iss"><div class="body"><b>供给决策（待 PM）</b>：放大人群（全 792 含中意向）/ 接受低量 / 潜水买家走私信跟进——决定后续基建投入力度。</div></div>
+    <div class="iss"><div class="body"><b>特别关注 GUI 脚本</b>：set_special_follow_client.py 卡在下拉菜单找不到入口，待现场看屏；铺设按 20/天 ramp。</div></div>
+    <div class="iss"><div class="body"><b>镜像脚本基线债</b>：无影镜像 43953460 的 poll_agent 来自 block1 分支非 main，更新要考古；待把 inbox_scan 合进 main。</div></div>
+  </div>
+</section>
+
+<!-- ═══════ 文件索引 ═══════ -->
+<section>
+  <div class="sec-head"><span class="sec-num">伍</span><h2>关键文件索引</h2><div class="rule"></div></div>
+  <dl class="files">
+    <dt>Spec（推演 + 定版，§14 为准）</dt>
+    <dd>docs/superpowers/specs/2026-06-08-realtime-potential-touch-new-video-design.md</dd>
+    <dt>Memory</dt>
+    <dd>docs/claude-memory/project_akke_realtime_potential_touch.md（方案/命门/资产）· feedback_potential_touch_targets_rarely_post_videos.md（供给+限流硬事实）· feedback_second_touch_cadence_data_keystone.md（回复捕获欠账根因）</dd>
+    <dt>侦测</dt>
+    <dd>worker/scripts/wuying-dm/_realtime_touch_watch.py（本机后台）· scripts/_follow_worklist_hi.py（worklist）· scripts/_dm_rc_pool.py（总盘）</dd>
+    <dt>执行 / 生成</dt>
+    <dd>worker/scripts/wuying-dm/douyin_realtime_touch_grounded.py（无影）· worker/scripts/gen-realtime-touch-comments.py（私信桥话术）</dd>
+    <dt>前代二触</dt>
+    <dd>scripts/second-touch-worklist.ts · mark-second-touch.ts · src/lib/second-touch-dispatch.ts · /api/cron/second-touch-dispatch</dd>
+  </dl>
+</section>
+
+<footer>
+  <span>AKKE 潜在触达进度档案 · 团队内部页面</span>
+  <span>源文件：Akke repo docs/runbooks/potential-touch-timeline.html · 同步更新 md 版与本页后重推 upio</span>
+</footer>
+
+</div>
+</body>
+</html>
