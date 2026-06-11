@@ -85,9 +85,9 @@
   .e2e.na { background:var(--bg-deep); color:var(--text-muted); font-weight:500; }
   .jr .errline { margin-top:10px; font-size:12px; color:#fca5a5; background:rgba(248,113,113,.07); border:1px solid rgba(248,113,113,.18); border-radius:8px; padding:6px 12px; }
 
-  .strip { display:flex; align-items:flex-start; min-width:560px; }
+  .strip { display:flex; align-items:flex-start; min-width:860px; }
   .stripwrap { overflow-x:auto; }
-  .dot2 { flex:0 0 70px; display:flex; flex-direction:column; align-items:center; text-align:center; }
+  .dot2 { flex:0 0 64px; display:flex; flex-direction:column; align-items:center; text-align:center; }
   .dot2 .c { width:13px; height:13px; border-radius:50%; background:var(--text-dim); box-shadow:0 0 0 3px var(--bg-elevated); }
   .dot2 .c.empty { background:var(--neutral); }
   .dot2 .c.live { background:var(--dm); animation:pulse 2.2s infinite; }
@@ -114,7 +114,7 @@
     <span class="tag"><span class="dot" id="statusDot"></span><span id="updatedAt">加载中…</span></span>
     <h1>云电脑自动化 DM · 今日实时时效监控</h1>
     <p class="subtitle">账号 <b id="accName">小文（野荞）</b> 的 <code>dispatch_queue</code> 一触私信，按北京时间当天滚动。
-      核心问题：<b>评论冒头 → 私信发出，有没有压进 10 分钟？</b> 每 60s 自动刷新，数据直连生产库（端点 60s 缓存，最多落后约 2 分钟）。</p>
+      核心问题：<b>评论冒头 → 私信发出，有没有压进 10 分钟？</b> 每条展示完整 <b>8 节点旅程</b>（视频发布→评论→抓取→打分→生成话术→派单→触达→回复）。每 60s 自动刷新，数据直连生产库。</p>
   </header>
 
   <div class="err-banner" id="errBanner"></div>
@@ -127,12 +127,12 @@
 
   <h2 id="countTitle">逐条明细</h2>
   <div class="legend">
-    <b>线段颜色</b>
-    <span class="sw"><i style="background:var(--ok)"></i>≤5min</span>
-    <span class="sw"><i style="background:var(--warn)"></i>5–10min</span>
-    <span class="sw"><i style="background:var(--danger)"></i>&gt;10min</span>
-    <span class="sw"><i style="background:var(--neutral)"></i>缺数据</span>
-    <span style="color:var(--text-muted)">· 右上徽章 = 端到端（评论→发出）对 10min 目标的判定</span>
+    <b>线段颜色</b>（各段按自身 SLA 上色）
+    <span class="sw"><i style="background:var(--ok)"></i>达标</span>
+    <span class="sw"><i style="background:var(--warn)"></i>偏慢</span>
+    <span class="sw"><i style="background:var(--danger)"></i>超标</span>
+    <span class="sw"><i style="background:var(--neutral)"></i>客户行为 / 缺数据</span>
+    <span style="color:var(--text-muted)">· 右上徽章 = 端到端（评论→发出）对 10min 目标的判定 · 阈值口径见 <a href="/akke/journeys.html" style="color:var(--text-dim)">客户旅程页</a></span>
   </div>
   <div class="rows" id="rows"></div>
 
@@ -140,8 +140,9 @@
     <b>口径说明</b>
     <ul>
       <li><b>只看这一个账号</b>：小文（野荞）<code>81cc9678</code>，云电脑（无影）自动化通道 <code>dispatch_queue</code> 一触私信。二触（评论区唤回）、反评、其他运营账号、人工 ADB/WDA 发送都<b>不在</b>本页。</li>
-      <li><b>评论</b> = <code>comments.comment_time</code>（用户在抖音发评的时刻，抖音未回传时缺失，该条不计入达标率）；<b>抓取</b> = <code>comments.created_at</code>（爬虫入库）；<b>入队</b> = <code>dispatch_queue.created_at</code>（派单写公告板）；<b>发出</b> = <code>completed_at</code>（无影 GUI 真发出）。</li>
-      <li><b>端到端</b> = 评论 → 发出，目标 ≤10min（🟢达标 / 🟡10–30min / 🔴&gt;30min）。<b>通道内</b> = 入队 → 发出（派单+抢锁+GUI 串发，我们 100% 可控的段）。</li>
+      <li><b>8 节点时间轴</b>：<b>视频发布</b>=<code>videos.published_at</code>（常缺，置灰）；<b>评论</b>=<code>comments.comment_time</code>（抖音未回传时缺，不计入达标率）；<b>抓取</b>=<code>comments.created_at</code>（爬虫入库）；<b>打分</b>=<code>comments.analyzed_at</code>（06-11 前历史行 NULL）；<b>生成话术</b>=<code>llm_call_provenance</code> 按评论回链取最早；<b>派单</b>=<code>dispatch_queue.created_at</code>；<b>触达</b>=<code>completed_at</code>（仅 <code>status=sent</code> 点亮，无影 GUI 真发出）；<b>回复</b>=<code>messages.role=customer</code> 最早一条。</li>
+      <li><b>段颜色</b>只热「我们能控的段」，阈值各段不同（口径与<a href="/akke/journeys.html">客户旅程页</a>一致）：评论→抓取🟢&lt;3h、抓取→打分🟢&lt;15m、打分→生成话术🟢&lt;3h、生成话术→派单🟢&lt;10m、派单→触达🟢&lt;30m；视频→评论、触达→回复 = 客户行为，灰。</li>
+      <li><b>端到端</b> = 评论 → 发出，目标 ≤10min（🟢达标 / 🟡10–30min / 🔴&gt;30min，右上徽章）。<b>通道内</b> = 派单 → 发出（抢锁+GUI 串发，我们 100% 可控的段）。<code>pending/claimed</code> 进行中行：派单→触达段显示「已等 X」（蓝色脉冲）。</li>
       <li>「今天」按北京时间日界；<code>pending / claimed</code>（排队中/发送中）的积压行不分日全部显示，盯队列卡没卡。</li>
       <li><code>skipped / failed</code> 行展开失败原因（如 <code>wrong_user</code> 撞名、<code>daily_cap_skip</code> 顶日限），已发条数只算 <code>sent</code>。</li>
       <li>数据源：<code>/api/public/cloud-pc-dm-live</code>（只读、60s 内存缓存、CORS 锁 upio.ai）。</li>
@@ -170,11 +171,23 @@ function fmtMin(ms){ if(ms==null) return "—";
 function median(arr){ if(!arr.length) return null; const s=[...arr].sort((a,b)=>a-b); const mid=Math.floor(s.length/2);
   return s.length%2 ? s[mid] : (s[mid-1]+s[mid])/2; }
 
-/* 线段配色：≤5m 绿 / ≤10m 黄 / >10m 红 / 缺数据灰 */
-function segColor(ms){ if(ms==null) return "var(--neutral)";
-  const m=ms/60000; return m<=5 ? "var(--ok)" : m<=TARGET_MIN ? "var(--warn)" : "var(--danger)"; }
-function segText(ms){ if(ms==null) return "var(--text-muted)";
-  const m=ms/60000; return m<=5 ? "#34d399" : m<=TARGET_MIN ? "#fbbf24" : "#f87171"; }
+/* 段配色 = 客户旅程口径：每段各自 SLA 阈值，灰=客户行为或缺数据。
+   与 src/lib/journeys.ts gapColor 一致（改一处记得改 journeys.html + 库） */
+function gapLabel(ms){ if(ms==null) return ""; const min=ms/60000;
+  if(min<60) return "+"+Math.max(1,Math.round(min))+"m"; const h=min/60;
+  if(h<24) return "+"+Math.round(h)+"h"; return "+"+Math.round(h/24)+"d"; }
+function gapColor(key, ms){
+  if(ms==null) return "neutral";
+  const h = ms/3600000;
+  if(key==="comment_scrape") return h<3?"green":h<12?"yellow":"red";
+  if(key==="scrape_analyze") return h<0.25?"green":h<2?"yellow":"red";
+  if(key==="analyze_opener") return h<3?"green":h<9?"yellow":"red";
+  if(key==="opener_dispatch") return h<1/6?"green":h<1?"yellow":"red";
+  if(key==="dispatch_contact") return h<0.5?"green":h<2?"yellow":"red";
+  return "neutral"; // video_comment / contact_reply = 客户行为
+}
+const COL = { green:"var(--ok)", yellow:"var(--warn)", red:"var(--danger)", neutral:"var(--neutral)" };
+const TCOL = { green:"#34d399", yellow:"#fbbf24", red:"#f87171", neutral:"var(--text-muted)" };
 
 const ST = {
   pending: ["排队中","wait"], claimed: ["发送中","wait"], sent: ["已发","sent"],
@@ -184,14 +197,16 @@ const ST = {
 function dot2(iso, label, cls){
   return `<div class="dot2"><div class="c ${cls||(iso?"":"empty")}"></div><div class="lab">${label}</div><div class="ts">${fmtTs(iso)}</div></div>`;
 }
-function seg(ms, dashed){
-  return `<div class="seg"><div class="bar ${dashed?"dashed":""}" style="background:${segColor(ms)}"></div><div class="gl" style="color:${segText(ms)}">${ms==null&&!dashed?"—":fmtMin(ms)}</div></div>`;
+function segK(key, ms){
+  const c = gapColor(key, ms);
+  return `<div class="seg"><div class="bar ${ms==null?"dashed":""}" style="background:${COL[c]}"></div><div class="gl" style="color:${TCOL[c]}">${gapLabel(ms)||"—"}</div></div>`;
+}
+function segWait(ms){ // 进行中：派单后已等多久（蓝色脉冲虚线段）
+  return `<div class="seg"><div class="bar dashed" style="background:var(--dm)"></div><div class="gl" style="color:#93c5fd">${fmtMin(ms)}</div></div>`;
 }
 
 function renderRow(r, now){
-  const done = !!r.completedAt;
   const inflight = r.status==="pending" || r.status==="claimed";
-  const endTs = r.completedAt;
   const e2e = r.status==="sent" ? gapMs(r.commentTime, r.completedAt) : null;
 
   let e2eBadge;
@@ -206,15 +221,27 @@ function renderRow(r, now){
     e2eBadge = `<span class="e2e na">未发出</span>`;
   }
 
+  // 8 节点旅程轴（口径对齐客户旅程页 / src/lib/journeys.ts）。派单=dispatch_queue.created_at；
+  // 触达只在真发出(status=sent)点亮；进行中显示派单后已等多久（蓝色脉冲段）。
   const strip =
+    dot2(r.videoPublishedAt, "视频发布") +
+    segK("video_comment",  gapMs(r.videoPublishedAt, r.commentTime)) +
     dot2(r.commentTime, "评论") +
-    seg(gapMs(r.commentTime, r.scrapedAt)) +
+    segK("comment_scrape", gapMs(r.commentTime, r.scrapedAt)) +
     dot2(r.scrapedAt, "抓取") +
-    seg(gapMs(r.scrapedAt, r.queuedAt)) +
-    dot2(r.queuedAt, "入队") +
-    (done
-      ? seg(gapMs(r.queuedAt, endTs)) + dot2(endTs, r.status==="sent"?"发出":"定格")
-      : seg(now - new Date(r.queuedAt), true) + dot2(null, "发出", inflight?"live":"empty"));
+    segK("scrape_analyze", gapMs(r.scrapedAt, r.analyzedAt)) +
+    dot2(r.analyzedAt, "打分") +
+    segK("analyze_opener", gapMs(r.analyzedAt, r.openerGenAt)) +
+    dot2(r.openerGenAt, "生成话术") +
+    segK("opener_dispatch", gapMs(r.openerGenAt, r.queuedAt)) +
+    dot2(r.queuedAt, "派单") +
+    (r.status==="sent"
+      ? segK("dispatch_contact", gapMs(r.queuedAt, r.contactedAt)) + dot2(r.contactedAt, "触达")
+      : inflight
+        ? segWait(now - new Date(r.queuedAt)) + dot2(null, "触达", "live")
+        : segK("dispatch_contact", null) + dot2(null, "触达", "empty")) +
+    segK("contact_reply",  gapMs(r.contactedAt, r.repliedAt)) +
+    dot2(r.repliedAt, "回复");
 
   const [stLab, stCls] = ST[r.status] || [r.status, "fail"];
   return `<div class="jr ${inflight?"inflight":""}">
@@ -253,7 +280,7 @@ function render(p){
     kpi("今日已发", sent.length + `<span style="font-size:14px;color:var(--text-muted)"> / ${p.account?.dailyLimit||"–"}</span>`, "", "日限") +
     kpi("≤10min 达标率", rate==null?"—":rate+"%", rate==null?"dim":rate>=80?"ok":rate>=50?"warn":"bad", `${within}/${e2es.length} 条（有评论时间的）`) +
     kpi("端到端中位", med==null?"—":fmtMin(med), med==null?"dim":med<=TARGET_MIN*60000?"ok":med<=30*60000?"warn":"bad", "评论 → 发出") +
-    kpi("通道内中位", medChan==null?"—":fmtMin(medChan), medChan==null?"dim":medChan<=5*60000?"ok":medChan<=TARGET_MIN*60000?"warn":"bad", "入队 → 发出") +
+    kpi("通道内中位", medChan==null?"—":fmtMin(medChan), medChan==null?"dim":medChan<=5*60000?"ok":medChan<=TARGET_MIN*60000?"warn":"bad", "派单 → 发出") +
     kpi("队列积压", String(inflight.length), inflight.length===0?"dim":inflight.length<=3?"ok":"warn", "排队中 + 发送中") +
     kpi("失败 / 跳过", String(failed.length), failed.length===0?"ok":failed.length<=3?"warn":"bad", "wrong_user / 日限等");
 
