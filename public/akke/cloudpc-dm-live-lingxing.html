@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- 本页带客户身份信息：禁止搜索引擎收录 -->
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<title>零星 · 云电脑 DM 今日 8 节点实时监控 · Akke</title>
+<style>
+  :root {
+    --bg: #0b0d12; --bg-elevated: #141821; --bg-deep: #1a1f2b;
+    --border: #242a38; --border-strong: #2f3646;
+    --text: #e4e7ed; --text-dim: #9ba3b4; --text-muted: #6b7384;
+    --accent: #8b5cf6; --accent-soft: rgba(139,92,246,.15);
+    --dm: #60a5fa;
+    --ok: #34d399; --warn: #fbbf24; --orange: #fb923c; --danger: #f87171; --neutral: #3a4456;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(96,165,250,.06), transparent 60%),
+      radial-gradient(1000px 500px at -10% 0%, rgba(52,211,153,.05), transparent 55%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px; line-height: 1.7; -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 1180px; margin: 0 auto; padding: 48px 24px 100px; }
+  .breadcrumb { font-size: 13px; color: var(--text-muted); margin-bottom: 22px; }
+  .breadcrumb a { color: var(--text-dim); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--accent); }
+  .breadcrumb span { margin: 0 8px; color: var(--border-strong); }
+
+  header.hero { padding: 4px 0 24px; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+  .tag { display:inline-flex; align-items:center; gap:7px; padding:4px 13px; border-radius:999px; background:var(--accent-soft); color:#c4b5fd; font-size:13px; font-weight:500; margin-bottom:14px; }
+  .tag .dot { width:7px; height:7px; border-radius:50%; background:var(--ok); animation:pulse 2.2s infinite; }
+  .tag .dot.err { background:var(--danger); animation:none; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(52,211,153,.5);} 70%{box-shadow:0 0 0 6px rgba(52,211,153,0);} 100%{box-shadow:0 0 0 0 rgba(52,211,153,0);} }
+  h1 { font-size: 36px; font-weight: 700; margin: 0 0 10px; letter-spacing: -0.02em; line-height: 1.15;
+    background: linear-gradient(135deg, #e4e7ed 20%, var(--ok) 70%, var(--dm) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .subtitle { font-size: 16px; color: var(--text-dim); margin: 0; max-width: 860px; }
+  .subtitle b { color: var(--text); }
+
+  h2 { font-size:12px; font-weight:600; color:var(--text-muted); letter-spacing:.12em; text-transform:uppercase; margin:34px 0 14px; }
+
+  .kpis { display:grid; grid-template-columns:repeat(7,1fr); gap:10px; }
+  @media(max-width:1000px){ .kpis{ grid-template-columns:repeat(4,1fr);} }
+  @media(max-width:560px){ .kpis{ grid-template-columns:repeat(2,1fr);} }
+  .kpi { background:var(--bg-elevated); border:1px solid var(--border); border-radius:12px; padding:14px 15px; }
+  .kpi .h { font-size:11px; color:var(--text-muted); letter-spacing:.06em; text-transform:uppercase; margin-bottom:6px; }
+  .kpi .v { font-size:24px; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.2; }
+  .kpi .s { font-size:11.5px; color:var(--text-muted); margin-top:4px; }
+  .kpi .v.ok { color:var(--ok); } .kpi .v.warn { color:var(--warn); } .kpi .v.bad { color:var(--danger); } .kpi .v.dim { color:var(--text-dim); }
+
+  .dist { background:var(--bg-elevated); border:1px solid var(--border); border-radius:12px; padding:16px 18px; }
+  .drow { display:flex; align-items:center; gap:12px; margin:7px 0; font-size:12.5px; }
+  .drow .lab { width:70px; color:var(--text-dim); text-align:right; flex-shrink:0; font-variant-numeric:tabular-nums; }
+  .drow .track { flex:1; background:var(--bg-deep); border-radius:5px; height:18px; position:relative; overflow:hidden; }
+  .drow .fill { height:100%; border-radius:5px; transition:width .4s; }
+  .drow .cnt { width:46px; color:var(--text-muted); font-variant-numeric:tabular-nums; }
+
+  .legend { display:flex; flex-wrap:wrap; gap:14px; align-items:center; background:var(--bg-elevated); border:1px solid var(--border); border-radius:12px; padding:12px 18px; font-size:12.5px; color:var(--text-dim); margin-bottom:10px; }
+  .legend b { color:var(--text-muted); font-weight:600; }
+  .legend .sw { display:inline-flex; align-items:center; gap:7px; }
+  .legend .sw i { width:18px; height:5px; border-radius:3px; display:inline-block; }
+
+  .rows { display:flex; flex-direction:column; gap:12px; }
+  .jr { background:var(--bg-elevated); border:1px solid var(--border); border-radius:14px; padding:16px 18px; opacity:0; transform:translateY(8px); animation:rise .45s ease forwards; }
+  @keyframes rise { to { opacity:1; transform:none; } }
+  .jr:hover { border-color:var(--border-strong); }
+  .jr.inflight { border-color:rgba(96,165,250,.35); }
+  .jr .meta { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px; font-size:13px; }
+  .jr .nm { font-weight:600; color:var(--text); }
+  .jr .pill { font-size:11px; font-weight:600; padding:2px 9px; border-radius:6px; background:var(--accent-soft); color:#c4b5fd; }
+  .jr .st { font-size:11px; font-weight:600; padding:2px 9px; border-radius:6px; }
+  .st.sent { background:rgba(52,211,153,.14); color:#6ee7b7; }
+  .st.wait { background:rgba(96,165,250,.16); color:#93c5fd; }
+  .st.fail { background:rgba(248,113,113,.14); color:#fca5a5; }
+  .st.replied { background:rgba(52,211,153,.22); color:#34d399; }
+  .jr .snip { color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:36ch; }
+  .jr .e2e { margin-left:auto; font-size:12px; font-weight:700; padding:3px 11px; border-radius:8px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .e2e.ok { background:rgba(52,211,153,.14); color:#6ee7b7; }
+  .e2e.warn { background:rgba(251,191,36,.13); color:#fcd34d; }
+  .e2e.bad { background:rgba(248,113,113,.13); color:#fca5a5; }
+  .e2e.na { background:var(--bg-deep); color:var(--text-muted); font-weight:500; }
+  .jr .errline { margin-top:10px; font-size:12px; color:#fca5a5; background:rgba(248,113,113,.07); border:1px solid rgba(248,113,113,.18); border-radius:8px; padding:6px 12px; }
+
+  .strip { display:flex; align-items:flex-start; min-width:900px; }
+  .stripwrap { overflow-x:auto; }
+  .dot2 { flex:0 0 64px; display:flex; flex-direction:column; align-items:center; text-align:center; }
+  .dot2 .c { width:13px; height:13px; border-radius:50%; background:var(--text-dim); box-shadow:0 0 0 3px var(--bg-elevated); }
+  .dot2 .c.empty { background:var(--neutral); }
+  .dot2 .c.live { background:var(--dm); animation:pulse 2.2s infinite; }
+  .dot2 .c.reply { background:var(--ok); }
+  .dot2 .lab { margin-top:7px; font-size:11px; color:var(--text-dim); font-weight:500; white-space:nowrap; }
+  .dot2 .ts { font-size:10.5px; color:var(--text-muted); line-height:1.35; }
+  .seg { flex:1 1 0; display:flex; flex-direction:column; align-items:center; padding-top:4px; min-width:36px; }
+  .seg .bar { height:5px; width:100%; border-radius:3px; }
+  .seg .bar.dashed { opacity:.4; }
+  .seg .gl { margin-top:6px; font-size:11px; font-variant-numeric:tabular-nums; }
+
+  .empty-state { background:var(--bg-elevated); border:1px solid var(--border); border-radius:14px; padding:48px 24px; text-align:center; color:var(--text-muted); }
+  .notes { margin-top:36px; padding:20px 24px; background:var(--bg-elevated); border:1px solid var(--border); border-radius:14px; font-size:13.5px; color:var(--text-dim); line-height:1.75; }
+  .notes b { color:var(--text); }
+  .notes ul { margin:8px 0 0; padding-left:20px; } .notes li { margin:5px 0; }
+  code { background:var(--bg-deep); padding:1px 6px; border-radius:4px; font-size:.86em; color:#c4b5fd; font-family:"SF Mono",Menlo,Consolas,monospace; }
+  .privacy { margin-top:14px; padding:12px 16px; border-radius:10px; background:rgba(251,191,36,.08); border:1px solid rgba(251,191,36,.25); color:#fcd34d; font-size:12.5px; }
+  .err-banner { display:none; background:rgba(248,113,113,.1); border:1px solid rgba(248,113,113,.3); color:#fca5a5; border-radius:10px; padding:12px 16px; font-size:14px; margin-bottom:20px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="breadcrumb"><a href="/akke/journeys.html">客户旅程时间轴</a><span>›</span><a href="/akke/cloudpc-dm-live.html">云电脑 DM 实时监控</a><span>›</span>零星（夏夏）</div>
+  <header class="hero">
+    <span class="tag"><span class="dot" id="statusDot"></span><span id="updatedAt">加载中…</span></span>
+    <h1>零星 · 云电脑 DM 今日 8 节点实时监控</h1>
+    <p class="subtitle">账号 <b id="accName">零星（夏夏）</b> 的 <code>dispatch_queue</code> 一触私信，按北京时间当天滚动。
+      每条 lead 展示完整链路：<b>视频发布 → ta 发评论 → 我们抓取 → LLM 打分 → 生成话术 → 派单 → 触达 → ta 回复</b>。
+      每 60s 自动刷新，数据直连生产库（端点 60s 缓存，最多落后约 2 分钟）。</p>
+  </header>
+
+  <div class="err-banner" id="errBanner"></div>
+
+  <h2>今日概览 <span id="dateLab" style="letter-spacing:0;color:var(--text-muted)"></span></h2>
+  <div class="kpis" id="kpis"></div>
+
+  <h2>端到端分布（评论 → 发出）</h2>
+  <div class="dist" id="dist"></div>
+
+  <h2 id="countTitle">逐条 8 节点路径</h2>
+  <div class="legend">
+    <b>线段颜色</b>
+    <span class="sw"><i style="background:var(--ok)"></i>该环节达标</span>
+    <span class="sw"><i style="background:var(--warn)"></i>偏慢</span>
+    <span class="sw"><i style="background:var(--danger)"></i>明显卡住</span>
+    <span class="sw"><i style="background:var(--neutral)"></i>客户行为段 / 缺数据（灰，不评分）</span>
+    <span style="color:var(--text-muted)">· 各环节阈值见页底口径 · 右上徽章 = 评论→发出对 10min 目标的判定</span>
+  </div>
+  <div class="rows" id="rows"></div>
+
+  <div class="notes">
+    <b>口径说明（8 节点）</b>
+    <ul>
+      <li><b>只看这一个账号</b>：零星（夏夏）<code>8af08f10</code>，云电脑（无影）自动化通道 <code>dispatch_queue</code> 一触私信。二触、反评、其他运营账号、人工 ADB/WDA 发送都<b>不在</b>本页。</li>
+      <li>① <b>视频发布</b> = <code>videos.published_at</code>（抖音常不回传，缺失置灰）；② <b>发评论</b> = <code>comments.comment_time</code>（缺失的不计入达标率）；③ <b>抓取</b> = <code>comments.created_at</code>；④ <b>LLM 打分</b> = <code>comments.analyzed_at</code>（2026-06-11 前的历史评论无此值）；⑤ <b>生成话术</b> = <code>llm_call_provenance</code> 回链最早一次生成；⑥ <b>派单</b> = <code>dispatch_queue.created_at</code>；⑦ <b>触达</b> = <code>completed_at</code>（无影 GUI 真发出）；⑧ <b>回复</b> = 触达之后该用户最早一条回信（<code>messages role=customer</code>）。</li>
+      <li><b>各环节阈值</b>（我们可控的段才上色）：评论→抓取 🟢&lt;3h 🔴&gt;12h；抓取→打分 🟢&lt;15m 🔴&gt;2h；打分→话术 🟢&lt;3h 🔴&gt;9h；话术→派单 🟢&lt;10m 🔴&gt;1h；派单→触达 🟢&lt;30m 🔴&gt;2h。视频→评论、触达→回复是客户行为，恒灰。</li>
+      <li><b>端到端徽章</b> = 评论→发出，目标 ≤10min（🟢达标 / 🟡10–30min / 🔴&gt;30min）。</li>
+      <li>「今天」按北京时间日界；<code>pending / claimed</code>（排队中/发送中）的积压行不分日全部显示，盯队列卡没卡。<code>skipped / failed</code> 行展开失败原因，已发条数只算 <code>sent</code>。</li>
+      <li>安卓/云电脑侧的回复不一定实时回流入库，「回复」节点可能滞后于实际；以抖音客户端为准。</li>
+      <li>数据源：<code>/api/public/cloud-pc-dm-live</code>（只读、60s 内存缓存、CORS 锁 upio.ai）。</li>
+    </ul>
+    <div class="privacy">本页含客户身份信息，已设 <code>noindex</code>（搜索引擎不收录），请勿把链接贴到公开可索引的位置。</div>
+  </div>
+</div>
+
+<script>
+const ACCOUNT_ID = "8af08f10-6db5-4d83-8942-b908349efbda"; // 零星（夏夏）cloud_pc
+const API = "https://akke.vercel.app/api/public/cloud-pc-dm-live?account=" + ACCOUNT_ID;
+const TARGET_MIN = 10;
+const $ = (id) => document.getElementById(id);
+
+function esc(s){ return (s==null?"":String(s)).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
+function fmtTs(iso){ if(!iso) return "未知"; const d=new Date(iso); if(isNaN(d)) return "未知";
+  const p=(n)=>String(n).padStart(2,"0"); return p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes()); }
+function gapMs(a,b){ if(!a||!b) return null; const ms = new Date(b) - new Date(a); return isFinite(ms) ? Math.max(0,ms) : null; }
+function fmtMin(ms){ if(ms==null) return "—";
+  const m = ms/60000;
+  if(m < 1) return Math.round(ms/1000)+"s";
+  if(m < 60) return (m<10 ? m.toFixed(1) : Math.round(m)) + "m";
+  const h = m/60;
+  if(h < 24) return h.toFixed(1)+"h";
+  return (h/24).toFixed(1)+"d"; }
+function median(arr){ if(!arr.length) return null; const s=[...arr].sort((a,b)=>a-b); const mid=Math.floor(s.length/2);
+  return s.length%2 ? s[mid] : (s[mid-1]+s[mid])/2; }
+
+/* 各环节阈值上色（与 /journeys 旅程页同款）；客户行为段(key=null)恒灰 */
+function heat(key, ms){
+  if(key==null || ms==null) return null;
+  const h = ms/3600000;
+  if(key==="comment_scrape")  return h<3    ? "ok" : h<12 ? "warn" : "danger";
+  if(key==="scrape_analyze")  return h<0.25 ? "ok" : h<2  ? "warn" : "danger";
+  if(key==="analyze_opener")  return h<3    ? "ok" : h<9  ? "warn" : "danger";
+  if(key==="opener_dispatch") return h<1/6  ? "ok" : h<1  ? "warn" : "danger";
+  if(key==="dispatch_contact")return h<0.5  ? "ok" : h<2  ? "warn" : "danger";
+  return null;
+}
+const HEAT_BAR = { ok:"var(--ok)", warn:"var(--warn)", danger:"var(--danger)" };
+const HEAT_TXT = { ok:"#34d399", warn:"#fbbf24", danger:"#f87171" };
+
+const ST = {
+  pending: ["排队中","wait"], claimed: ["发送中","wait"], sent: ["已发","sent"],
+  skipped: ["跳过","fail"], failed: ["失败","fail"], aborted: ["中止","fail"],
+};
+
+function dot2(iso, label, cls){
+  return `<div class="dot2"><div class="c ${cls||(iso?"":"empty")}"></div><div class="lab">${label}</div><div class="ts">${fmtTs(iso)}</div></div>`;
+}
+function seg(key, ms, dashed){
+  const lv = heat(key, ms);
+  const bar = lv ? HEAT_BAR[lv] : "var(--neutral)";
+  const txt = lv ? HEAT_TXT[lv] : "var(--text-muted)";
+  return `<div class="seg"><div class="bar ${dashed?"dashed":""}" style="background:${bar}"></div><div class="gl" style="color:${txt}">${ms==null&&!dashed?"—":fmtMin(ms)}</div></div>`;
+}
+
+function renderRow(r, now){
+  const done = !!r.completedAt;
+  const inflight = r.status==="pending" || r.status==="claimed";
+  const e2e = r.status==="sent" ? gapMs(r.commentTime, r.completedAt) : null;
+
+  let e2eBadge;
+  if(r.status==="sent"){
+    if(e2e==null) e2eBadge = `<span class="e2e na">评论时间未知</span>`;
+    else { const m=e2e/60000;
+      e2eBadge = `<span class="e2e ${m<=TARGET_MIN?"ok":m<=30?"warn":"bad"}">评论→发出 ${fmtMin(e2e)} ${m<=TARGET_MIN?"✓ 达标":m<=30?"· 超标":"✗ 超标"}</span>`; }
+  } else if(inflight){
+    const waitMs = now - new Date(r.queuedAt);
+    e2eBadge = `<span class="e2e ${waitMs<=TARGET_MIN*60000?"ok":"warn"}">已等 ${fmtMin(waitMs)}</span>`;
+  } else {
+    e2eBadge = `<span class="e2e na">未发出</span>`;
+  }
+
+  /* ①视频发布 ②发评论 ③抓取 ④打分 ⑤话术 ⑥派单 ⑦触达 ⑧回复 */
+  let strip =
+    dot2(r.videoPublishedAt, "视频发布") +
+    seg(null, gapMs(r.videoPublishedAt, r.commentTime)) +
+    dot2(r.commentTime, "发评论") +
+    seg("comment_scrape", gapMs(r.commentTime, r.scrapedAt)) +
+    dot2(r.scrapedAt, "抓取") +
+    seg("scrape_analyze", gapMs(r.scrapedAt, r.analyzedAt)) +
+    dot2(r.analyzedAt, "LLM 打分") +
+    seg("analyze_opener", gapMs(r.analyzedAt, r.openerGenAt)) +
+    dot2(r.openerGenAt, "生成话术") +
+    seg("opener_dispatch", gapMs(r.openerGenAt, r.queuedAt)) +
+    dot2(r.queuedAt, "派单");
+
+  if(done){
+    strip += seg("dispatch_contact", gapMs(r.queuedAt, r.completedAt)) +
+      dot2(r.completedAt, r.status==="sent"?"触达":"定格");
+    if(r.status==="sent"){
+      strip += r.repliedAt
+        ? seg(null, gapMs(r.completedAt, r.repliedAt)) + dot2(r.repliedAt, "已回复", "reply")
+        : seg(null, null, true) + dot2(null, "未回复", "empty");
+    }
+  } else {
+    strip += seg("dispatch_contact", now - new Date(r.queuedAt), true) +
+      dot2(null, "触达", inflight?"live":"empty") +
+      seg(null, null, true) + dot2(null, "回复", "empty");
+  }
+
+  const [stLab, stCls] = ST[r.status] || [r.status, "fail"];
+  return `<div class="jr ${inflight?"inflight":""}">
+    <div class="meta">
+      <span class="nm">${esc(r.customerName||"未命名")}</span>
+      <span class="st ${stCls}">${stLab}</span>
+      ${r.repliedAt?`<span class="st replied">已回复</span>`:""}
+      ${r.intentLabel?`<span class="pill">${esc(r.intentLabel)}</span>`:""}
+      <span class="snip">${esc(r.commentSnippet||"")}</span>
+      ${e2eBadge}
+    </div>
+    <div class="stripwrap"><div class="strip">${strip}</div></div>
+    ${(stCls==="fail"&&r.errorMessage)?`<div class="errline">${esc(r.errorMessage.slice(0,140))}</div>`:""}
+  </div>`;
+}
+
+function kpi(h, v, vCls, s){
+  return `<div class="kpi"><div class="h">${h}</div><div class="v ${vCls||""}">${v}</div><div class="s">${s||""}</div></div>`;
+}
+
+function render(p){
+  const now = Date.now();
+  const rows = p.rows || [];
+  $("accName").textContent = p.account?.name ? p.account.name + "（夏夏）" : "—";
+  $("dateLab").textContent = "· " + (p.date||"");
+
+  const sent = rows.filter(r=>r.status==="sent");
+  const inflight = rows.filter(r=>r.status==="pending"||r.status==="claimed");
+  const failed = rows.filter(r=>r.status==="skipped"||r.status==="failed"||r.status==="aborted");
+  const replied = sent.filter(r=>r.repliedAt);
+  const e2es = sent.map(r=>gapMs(r.commentTime, r.completedAt)).filter(x=>x!=null);
+  const chans = sent.map(r=>gapMs(r.queuedAt, r.completedAt)).filter(x=>x!=null);
+  const within = e2es.filter(ms=>ms<=TARGET_MIN*60000).length;
+  const rate = e2es.length ? Math.round(within/e2es.length*100) : null;
+  const med = median(e2es), medChan = median(chans);
+
+  $("kpis").innerHTML =
+    kpi("今日已发", sent.length + `<span style="font-size:14px;color:var(--text-muted)"> / ${p.account?.dailyLimit||"–"}</span>`, "", "日限") +
+    kpi("≤10min 达标率", rate==null?"—":rate+"%", rate==null?"dim":rate>=80?"ok":rate>=50?"warn":"bad", `${within}/${e2es.length} 条（有评论时间的）`) +
+    kpi("端到端中位", med==null?"—":fmtMin(med), med==null?"dim":med<=TARGET_MIN*60000?"ok":med<=30*60000?"warn":"bad", "评论 → 发出") +
+    kpi("通道内中位", medChan==null?"—":fmtMin(medChan), medChan==null?"dim":medChan<=5*60000?"ok":medChan<=TARGET_MIN*60000?"warn":"bad", "派单 → 发出") +
+    kpi("已回复", String(replied.length), replied.length>0?"ok":"dim", sent.length?`回复率 ${Math.round(replied.length/sent.length*100)}%`:"今日已发为 0") +
+    kpi("队列积压", String(inflight.length), inflight.length===0?"dim":inflight.length<=3?"ok":"warn", "排队中 + 发送中") +
+    kpi("失败 / 跳过", String(failed.length), failed.length===0?"ok":failed.length<=3?"warn":"bad", "wrong_user / 日限等");
+
+  // 分布
+  const buckets = [
+    ["≤5m", 0, 5, "var(--ok)"], ["5–10m", 5, 10, "var(--ok)"],
+    ["10–30m", 10, 30, "var(--warn)"], ["30m–2h", 30, 120, "var(--orange)"],
+    ["2–12h", 120, 720, "var(--danger)"], ["&gt;12h", 720, Infinity, "var(--danger)"],
+  ];
+  const counts = buckets.map(([,lo,hi], i) =>
+    e2es.filter(ms=>{const m=ms/60000; return (i===0 ? m<=hi : m>lo && m<=hi);}).length);
+  const maxC = Math.max(1, ...counts);
+  $("dist").innerHTML = e2es.length===0
+    ? `<div style="color:var(--text-muted);font-size:13.5px">今天还没有可计算端到端的已发记录。</div>`
+    : buckets.map((b,i)=>`<div class="drow"><div class="lab">${b[0]}</div>
+        <div class="track"><div class="fill" style="width:${counts[i]/maxC*100}%;background:${b[3]}"></div></div>
+        <div class="cnt">${counts[i]} 条</div></div>`).join("");
+
+  // 明细：进行中置顶（旧的在前），已完成按完成时间倒序
+  const sorted = [
+    ...inflight.sort((a,b)=>new Date(a.queuedAt)-new Date(b.queuedAt)),
+    ...rows.filter(r=>!inflight.includes(r)).sort((a,b)=>new Date(b.completedAt||b.queuedAt)-new Date(a.completedAt||a.queuedAt)),
+  ];
+  $("countTitle").textContent = `逐条 8 节点路径 · 已发 ${sent.length} · 已回复 ${replied.length} · 进行中 ${inflight.length} · 失败/跳过 ${failed.length}`;
+  $("rows").innerHTML = sorted.length===0
+    ? `<div class="empty-state">今天这个账号还没有任何派单记录。</div>`
+    : sorted.map(r=>renderRow(r, now)).join("");
+  requestAnimationFrame(()=>{
+    document.querySelectorAll(".jr").forEach((el,i)=>{ el.style.animationDelay=Math.min(i*18,400)+"ms"; });
+  });
+}
+
+function setStatus(ok, text){ $("statusDot").className="dot"+(ok?"":" err"); $("updatedAt").textContent=text; }
+
+async function load(){
+  try{
+    const res = await fetch(API + "&_t=" + Date.now(), {cache:"no-store"});
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    const payload = await res.json();
+    if(payload.error) throw new Error(payload.error);
+    render(payload);
+    const t = new Date(payload.generatedAt);
+    const p=(n)=>String(n).padStart(2,"0");
+    setStatus(true, (payload.stale?"⚠ 降级缓存 · ":"实时 · ")+`更新于 ${p(t.getHours())}:${p(t.getMinutes())}:${p(t.getSeconds())}`);
+    $("errBanner").style.display="none";
+  }catch(e){
+    setStatus(false, "数据获取失败");
+    const b=$("errBanner"); b.style.display="block"; b.textContent="暂时拉不到最新数据（"+e.message+"），将自动重试。";
+  }
+}
+
+load();
+setInterval(load, 60000);
+</script>
+</body>
+</html>
