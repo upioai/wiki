@@ -299,11 +299,22 @@ function render(p){
         <div class="track"><div class="fill" style="width:${counts[i]/maxC*100}%;background:${b[3]}"></div></div>
         <div class="cnt">${counts[i]} 条</div></div>`).join("");
 
-  // 明细：进行中置顶（旧的在前），已完成按完成时间倒序
-  const sorted = [
-    ...inflight.sort((a,b)=>new Date(a.queuedAt)-new Date(b.queuedAt)),
-    ...rows.filter(r=>!inflight.includes(r)).sort((a,b)=>new Date(b.completedAt||b.queuedAt)-new Date(a.completedAt||a.queuedAt)),
-  ];
+  // 明细：时效达标置顶 → 已发超标/失败居中 → 没发送（积压）垫底。
+  // 同档内：已发段按发出时间新→旧；积压段按入队旧→新（等最久的靠前）。
+  const sortRank = (r) => {
+    if(r.status==="pending" || r.status==="claimed") return 2; // 没发送 → 最后
+    if(r.status==="sent"){
+      const e2e = gapMs(r.commentTime, r.completedAt);
+      if(e2e!=null && e2e/60000<=TARGET_MIN) return 0; // 时效达标 → 最前
+    }
+    return 1; // 已发超标/无评论时间/失败跳过 → 居中
+  };
+  const sorted = [...rows].sort((a,b)=>{
+    const ra=sortRank(a), rb=sortRank(b);
+    if(ra!==rb) return ra-rb;
+    if(ra===2) return new Date(a.queuedAt)-new Date(b.queuedAt);
+    return new Date(b.completedAt||b.queuedAt)-new Date(a.completedAt||a.queuedAt);
+  });
   $("countTitle").textContent = `逐条明细 · 已发 ${sent.length} · 进行中 ${inflight.length} · 失败/跳过 ${failed.length}`;
   $("rows").innerHTML = sorted.length===0
     ? `<div class="empty-state">今天这个账号还没有任何派单记录。</div>`
