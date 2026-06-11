@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DM 链路端到端提速分析 · 评论→发出 秒级账本 + 提速实验复盘 · 20260611</title>
+<style>
+body{font-family:-apple-system,"PingFang SC",sans-serif;margin:0;color:#1a1a1a;line-height:1.6;background:#fafafa}
+.wrap{max-width:980px;margin:0 auto;padding:24px 20px 80px}
+h1{font-size:23px;margin:0 0 6px}
+h2{font-size:18px;margin:38px 0 10px;padding-top:10px;border-top:2px solid #1a1a1a}
+h3{font-size:15px;margin:22px 0 8px;color:#334155}
+.sub{color:#666;font-size:13.5px;margin:0 0 16px}
+.verdict{display:inline-block;background:#fee2e2;color:#b91c1c;border-radius:6px;padding:4px 12px;font-size:14px;font-weight:600;margin:8px 0}
+.verdict.ok{background:#dcfce7;color:#166534}
+table{width:100%;border-collapse:collapse;font-size:13px;margin:10px 0 6px;background:#fff}
+th,td{text-align:left;padding:8px 9px;border-bottom:1px solid #ececec;vertical-align:top}
+th{background:#f4f4f5;font-weight:600}
+td.n,th.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.chip{display:inline-block;border-radius:4px;padding:1px 6px;font-size:11.5px;white-space:nowrap}
+.c-wait{background:#eff6ff;color:#1d4ed8}
+.c-run{background:#f0fdf4;color:#15803d}
+.c-floor{background:#fef2f2;color:#b91c1c}
+.c-lever{background:#fefce8;color:#a16207}
+.callout{background:#fff;border-left:4px solid #94a3b8;border-radius:0 8px 8px 0;padding:12px 16px;margin:14px 0;font-size:13.5px}
+.callout.bad{border-color:#dc2626;background:#fef6f6}
+.callout.good{border-color:#16a34a;background:#f4fdf6}
+.callout.key{border-color:#a16207;background:#fffdf3}
+.callout b{display:block;margin-bottom:4px}
+.meta{color:#888;font-size:11.5px}
+.step{display:flex;gap:10px;margin:0;padding:10px 0;border-bottom:1px dashed #e5e7eb}
+.step .t{font-variant-numeric:tabular-nums;font-weight:600;min-width:90px;color:#0f172a}
+.tl{font-size:13px}
+.tl .row{display:grid;grid-template-columns:130px 1fr;gap:10px;padding:6px 0;border-bottom:1px dashed #eee}
+.tl .stage{font-weight:600}
+.big{font-size:15px;font-weight:600}
+.win{color:#15803d}.lose{color:#b91c1c}
+code{background:#f1f5f9;border-radius:4px;padding:1px 5px;font-size:12px}
+.foot{color:#888;font-size:12px;margin-top:30px;border-top:1px solid #e5e5e5;padding-top:12px}
+.hero{background:#1a1a1a;color:#fff;border-radius:12px;padding:20px 22px;margin:8px 0 6px}
+.hero h1{color:#fff}.hero .sub{color:#cbd5e1}
+.kpi{display:flex;gap:22px;flex-wrap:wrap;margin-top:10px}
+.kpi div{font-size:13px;color:#cbd5e1}.kpi b{display:block;font-size:19px;color:#fff;font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="hero">
+<h1>DM 链路端到端提速分析</h1>
+<p class="sub">「评论→发出」秒级账本 + 一次提速实验的完整复盘（诊断 → 上线 → 实测 → 翻车 → 回滚）· 2026-06-11</p>
+<div class="kpi">
+<div>单条 lead 端到端 p50<b>12–20 min</b></div>
+<div>理论极限<b>~4 min 15s</b></div>
+<div>提速实验结果<b class="lose">翻车·已回滚</b></div>
+<div>真正的可提速点<b>打分并发 ×5</b></div>
+</div>
+</div>
+
+<p class="sub">这条链路所有的“几分钟”，<b>九成是 cron 节拍 + 轮询等待</b>，真干活都是秒级。下面把每一跳拆成「<span class="chip c-wait">等待</span>（排队/节拍）+ <span class="chip c-run">执行</span>（真干活）」，并复盘一次想压缩它、却反而搞慢了的真实实验。</p>
+
+<h2>一、单条 lead 秒级账本（评论 → 发出）</h2>
+<table>
+<thead><tr><th>环节</th><th>做什么</th><th>等待（节拍/轮询）</th><th>执行（真干活）</th><th class="n">典型合计</th></tr></thead>
+<tbody>
+<tr><td><b>B1</b> 评论→抓取</td><td>定时刷视频评论区，抓新评论入库</td><td><span class="chip c-wait">抓取节拍 ~60s</span> + 抖音评论可见延迟 30–120s</td><td><span class="chip c-run">单视频抓取 6.8s</span></td><td class="n">p50 ~4–6 min</td></tr>
+<tr><td><b>B2</b> 抓取→打分</td><td>批量给评论打意向分（高/中/低/无关）+ 关键词</td><td><span class="chip c-wait">analyze <code>*/2</code> 半周期 ~60s</span> + batch 排队 0~数 min</td><td><span class="chip c-run">单条 3s</span>（整批 15 条 44.7s，deepseek-v4-flash）</td><td class="n">1–3 min</td></tr>
+<tr><td><b>B3</b> 打分→生成话术</td><td>高/中意向生成破冰首句</td><td>0（多为 claim 时现生，不等 cron）</td><td><span class="chip c-run">opener 6–8s</span>（qwen3-235b-2507）</td><td class="n">6–8 s</td></tr>
+<tr><td><b>B4</b> 话术→派单</td><td>claim 4h 锁，写 dispatch_queue</td><td><span class="chip c-wait">dispatch <code>*/1</code> 半周期 ~30s</span></td><td><span class="chip c-run">claim+insert &lt;0.1s</span></td><td class="n">~30 s</td></tr>
+<tr><td><b>B5</b> 派单→触达起</td><td>云电脑 agent 轮询拉走 claim，写 CSV，启动发送脚本</td><td><span class="chip c-wait">云电脑轮询 60s 半周期 ~30s</span></td><td><span class="chip c-run">RPC+CSV &lt;0.1s</span></td><td class="n">~30–60 s</td></tr>
+<tr><td><b>B6</b> GUI 实发（单条）</td><td>搜人→定位→核身份→打字→点发送</td><td><span class="chip c-floor">条间 sleep 30–90s（反检测硬墙）</span></td><td><span class="chip c-run">净操作 30–60s</span>（逐步见下）</td><td class="n">60–150 s</td></tr>
+<tr><td><b>B7</b> 触达→回复</td><td>轮询对方是否回复</td><td>用户侧不可控</td><td><span class="meta">check-replies 现为 no-op</span></td><td class="n">—</td></tr>
+</tbody>
+</table>
+
+<h3>B6 GUI 发送逐步秒表（一条 DM 的真实分解）</h3>
+<div class="step"><span class="t">10–20 s</span><span>搜人（粘抖音号/昵称 → 点搜，固定坐标）</span></div>
+<div class="step"><span class="t">5–10 s</span><span>VL 定位（用户 tab → 第一条头像，Qwen-VL + OpenCV 模板匹配）</span></div>
+<div class="step"><span class="t">3–8 s</span><span>身份核查 OCR（主页昵称比对，不匹配 → 标 wrong_user 跳过）</span></div>
+<div class="step"><span class="t">3–5 s</span><span>进主页 → 点私信 → 粘文案</span></div>
+<div class="step"><span class="t">5–10 s</span><span>点发送 + 反应</span></div>
+<div class="step"><span class="t">3–8 s</span><span>发送验证 OCR（读气泡 / 限频提示，判 sent/rejected/7911）</span></div>
+<div class="step"><span class="t">= 30–60 s</span><span><b>单条净操作小计</b></span></div>
+<div class="step"><span class="t">+ 30–90 s</span><span><span class="lose">条间 sleep（到下一条）= 反检测硬墙，压不动</span></span></div>
+
+<h3>累计时间线对比（mm:ss）</h3>
+<table>
+<thead><tr><th>环节</th><th class="n">① 理想最快</th><th class="n">② 图里青箱（实样本）</th><th class="n">③ 典型 p50</th></tr></thead>
+<tbody>
+<tr><td>B1 评论→抓取</td><td class="n">1:30</td><td class="n">5:00</td><td class="n">6:00</td></tr>
+<tr><td>B2 抓取→打分</td><td class="n">0:50</td><td class="n">1:00</td><td class="n">2:00</td></tr>
+<tr><td>B3 生成话术</td><td class="n">0:08</td><td class="n">1:00</td><td class="n">0:30</td></tr>
+<tr><td>B4 派单</td><td class="n">0:30</td><td class="n">1:00</td><td class="n">1:00</td></tr>
+<tr><td>B5 派单→触达起</td><td class="n">0:30</td><td class="n">—</td><td class="n">1:00</td></tr>
+<tr><td>B6 GUI 实发（首条）</td><td class="n">0:45</td><td class="n">2:00（含 B5）</td><td class="n">1:30</td></tr>
+<tr style="background:#f8fafc"><td><b>合计（评论→发出）</b></td><td class="n big win">≈ 4:15</td><td class="n big">9:18</td><td class="n big">12–20 min</td></tr>
+</tbody>
+</table>
+<div class="callout key"><b>极限 ≈ 4 分 15 秒</b>再往下压不动，地板是三块：抖音评论可见延迟（B1，几十秒，不可控）+ cron/轮询节拍（B1/B2/B4/B5 各半个周期）+ GUI 单条净操作 30–60s + 条间反检测 30–90s（B6）。</div>
+
+<h2>二、上游：号源生命周期（天级，每个号一次性）</h2>
+<p class="sub">这段不在单条 lead 时间线里，但它决定一条评论的视频<b>在不在抓取快车道</b>——是 2 分钟还是 4 小时被抓到。</p>
+<table>
+<thead><tr><th>阶段</th><th>做什么</th><th class="n">耗时</th><th>说明 / 瓶颈</th></tr></thead>
+<tbody>
+<tr><td>A1 选词</td><td>从 6 维度词库挑词</td><td class="n">~3 min</td><td>本地免费；词库用尽会卡产能 <span class="chip c-lever">提升点</span></td></tr>
+<tr><td>A2 捞作者</td><td>CDP Chrome 触发抖音搜索直链</td><td class="n">~2–3 min/100</td><td>不花蝉妈妈钱</td></tr>
+<tr><td>A3 f2 富化</td><td>本地 f2 拉每号视频，算 avg_comments</td><td class="n">~13 min/100</td><td><span class="chip c-floor">串行硬墙 ≈ 12 号/min</span>，并发会崩 + 限流</td></tr>
+<tr><td>A4 实拉验证（可选）</td><td>拉新鲜评论 LLM 打分</td><td class="n">~5–8 min</td><td>可 soft-skip</td></tr>
+<tr><td>A5 入库</td><td>置信度分流 + 标 tier1</td><td class="n">~10 s</td><td>org_id 必填</td></tr>
+<tr style="background:#f8fafc"><td><b>一轮扩源</b></td><td>手工驱动</td><td class="n big">~20–25 min</td><td>日产 tier1 ~4–10 / 总号 ~50–100</td></tr>
+<tr><td>A6 tier0→tier1 升级</td><td>近 3 天高意向 ≥5 自动升</td><td class="n big">最快 3 天</td><td>需先抓够评论、打够分；每天 01:00 UTC 跑 <span class="chip c-lever">改滑窗可压到 1–2 天</span></td></tr>
+</tbody>
+</table>
+
+<h2>三、提速实验复盘：想压 B1，却把它搞慢了 4 倍</h2>
+<span class="verdict">结论：激进提速触发抖音限速 → 净更慢 → 已回滚</span>
+
+<h3>① 诊断（先想再写）</h3>
+<div class="callout"><b>瓶颈是节拍还是吞吐？</b>跑队列诊断：<code>scrape_jobs</code> 队列<b>全空</b>、worker 利用率 ~10%（8s/job）。判定瓶颈是 <b>cron 节拍 + 视频进快车道的资格门</b>，不是 worker 吞吐 → 调密 cron“应该”能压延迟、不会堆积队列。<span class="meta">（这一步对：队列确实没堆。但下一步的赌注错了。）</span></div>
+
+<h3>② 决策 + 上线（PR #298）</h3>
+<table>
+<thead><tr><th>cron</th><th class="n">提速前</th><th class="n">提速后</th><th>意图</th></tr></thead>
+<tbody>
+<tr><td>vip-video-rescan</td><td class="n">*/5</td><td class="n">*/2</td><td>VIP 视频更勤复扫</td></tr>
+<tr><td>scrape-hot（tier1 源）</td><td class="n">*/3</td><td class="n">*/2</td><td>新视频更快发现</td></tr>
+<tr><td>hot-video-rotation</td><td class="n">日更</td><td class="n">每 6h</td><td>新爆款当天进快车道</td></tr>
+</tbody>
+</table>
+<p class="sub">部署 ~07:58 UTC。上线前明确标过<b>唯一风险</b>：抖音对单视频评论 API 的限频。这一把赌它扛得住——<span class="lose">赌输了</span>。</p>
+
+<h3>③ 实测：四轮测量，方向一致地变差</h3>
+<table>
+<thead><tr><th>测量</th><th>口径</th><th class="n">全部 p50/p90</th><th class="n">中高意向 p50</th><th>判读</th></tr></thead>
+<tbody>
+<tr><td>基线（提速前）</td><td>近 3h 窗口快照</td><td class="n">11 / 690 min</td><td class="n">6（n小）</td><td>参考</td></tr>
+<tr><td>R1 · 部署后 67min</td><td>只看部署后新评论</td><td class="n">4.2 / 22.5</td><td class="n">—（n=4 太薄）</td><td>早期像正面，<b>但有右删失偏差</b></td></tr>
+<tr><td>R2 · 部署后 128min</td><td>只看部署后新评论</td><td class="n">15.2 / 48.5</td><td class="n">16.5（n=9）</td><td>明显变差，但混着时段/删失</td></tr>
+<tr style="background:#f4fdf6"><td><b>决定性 · 提速前</b></td><td>06-10 08:00–09:00 UTC</td><td class="n win">3.4 / 20.7</td><td class="n win">4.4（n=14）</td><td rowspan="2"><b>同一北京下午时段、隔天对比</b>，排除时段混淆 → p50 <span class="lose">3.4 → 15.1，约 4× 恶化</span></td></tr>
+<tr style="background:#fef6f6"><td><b>决定性 · 提速后</b></td><td>06-11 08:00–09:00 UTC</td><td class="n lose">15.1 / 49.3</td><td class="n lose">16.4（n=6）</td></tr>
+</tbody>
+</table>
+<div class="callout bad"><b>测量教训：早测会骗人</b>R1（部署后 67min）看着是正面的（p50 4.2），其实是<b>右删失偏差</b>——早测时只看得到“已经被抓到”的评论（偏快），慢的那批还没进数据。<b>同时段隔天 cohort 比较</b>才把时段混淆和删失都控住，得出真相。</div>
+
+<h3>④ 根因：抖音限速</h3>
+<div class="callout bad"><b>更勤地扫 → 被限速 → 每抓变慢 → 评论更晚入库 → 延迟反升</b>
+<table style="margin-top:8px">
+<thead><tr><th>证据</th><th>读数</th></tr></thead>
+<tbody>
+<tr><td>worker 单次抓取耗时一路爬</td><td class="n">6.8s → 8.0s → 10.3s</td></tr>
+<tr><td>队列状态</td><td>始终空（非积压，是每抓被拖慢）</td></tr>
+<tr><td>请求密度</td><td>vip-rescan/scrape-hot 翻倍 → 单视频评论 API 命中翻倍</td></tr>
+</tbody>
+</table>
+经典翻车：<b>扫太狠 → 触发风控 → 净更慢。</b></div>
+
+<h3>⑤ 回滚（PR #303，10:14 UTC 合并）</h3>
+<p class="sub">三条 cron 全部退回提速前原值，止血。纯 <code>vercel.json</code> 改，<code>git revert</code> 即回。回滚后再测一轮：延迟回到 ~4min = 坐实因果；仍高 = 抖音独立事件另查。</p>
+
+<h2>四、结论与教训</h2>
+<div class="callout good"><b>1 · 真正的可提速点不是抓取，是打分并发</b>抓取的快车道本来就 ~4min，主导项是抖音可见延迟 + worker 轮询，<b>不是 */5 vs */2 的 cron</b>——所以提速 cron 不仅没用，还触发了限速。真正有肉的是 <b>打分 intra-run 并发</b>（现在一批批串行、吞吐 margin 仅 1.7×，改 5 并发 → 吞吐 ×5）。</div>
+<div class="callout"><b>2 · 触达 GUI 30–90s/条是反检测地板</b>永远压不动，压了像机器人触发 7911 限频。要提吞吐<b>只能加账号数</b>（N 个号各守 30–90s = N 倍），不能压单号、不能并发（一台云电脑一个抖音窗口）。</div>
+<div class="callout"><b>3 · 打分按批省调用，生成话术按条无法批量</b>打分一次 LLM call 打 15 条（省调用，瓶颈在批间串行）；生成话术每条单独 6–8s（要个性化，无法拼批，只能对热 lead 预生成省那 6–8s）。</div>
+<div class="callout key"><b>4 · 量化方法论：同时段隔天 cohort 才干净</b>“近 N 小时”快照同时受<b>右删失</b>（慢样本还没进数据）和<b>时段混淆</b>（午 vs 下午负载不同）污染。要判一个改动的因果，固定同一时刻、隔天对照、且两批都沉淀够。</div>
+<div class="callout bad"><b>5 · 上线前标的“唯一风险”就是最后翻车的那个</b>抖音单视频评论 API 限频——决策时已写明，仍选激进档。教训：当“唯一风险”不可量化时，<b>小步灰度（先调一档、先 */5→*/3）+ 同口径快速验</b>，比一次拉满更稳。</div>
+
+<p class="foot">数据来源：本机 <code>_diag-scrape-lag</code> / <code>_diag-cohort-compare</code> 实测（2026-06-11）。相关 PR：#298（提速·已回滚）、#303（回滚）。链路涉及 Vercel cron + Fly worker（f2 抓取）+ 阿里无影云电脑 GUI 发送。</p>
+
+</div>
+</body>
+</html>
