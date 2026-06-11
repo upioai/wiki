@@ -114,7 +114,7 @@ code{background:#f1f5f9;border-radius:4px;padding:1px 5px;font-size:12px}
 </table>
 
 <h2>三、提速实验复盘：想压 B1，却把它搞慢了 4 倍</h2>
-<span class="verdict">结论：激进提速触发抖音限速 → 净更慢 → 已回滚</span>
+<span class="verdict">结论：同时段实测抓取慢 4 倍 → 已回滚止血（根因未坐实，待复测）</span>
 
 <h3>① 诊断（先想再写）</h3>
 <div class="callout"><b>瓶颈是节拍还是吞吐？</b>跑队列诊断：<code>scrape_jobs</code> 队列<b>全空</b>、worker 利用率 ~10%（8s/job）。判定瓶颈是 <b>cron 节拍 + 视频进快车道的资格门</b>，不是 worker 吞吐 → 调密 cron“应该”能压延迟、不会堆积队列。<span class="meta">（这一步对：队列确实没堆。但下一步的赌注错了。）</span></div>
@@ -143,17 +143,18 @@ code{background:#f1f5f9;border-radius:4px;padding:1px 5px;font-size:12px}
 </table>
 <div class="callout bad"><b>测量教训：早测会骗人</b>R1（部署后 67min）看着是正面的（p50 4.2），其实是<b>右删失偏差</b>——早测时只看得到“已经被抓到”的评论（偏快），慢的那批还没进数据。<b>同时段隔天 cohort 比较</b>才把时段混淆和删失都控住，得出真相。</div>
 
-<h3>④ 根因：抖音限速</h3>
-<div class="callout bad"><b>更勤地扫 → 被限速 → 每抓变慢 → 评论更晚入库 → 延迟反升</b>
+<h3>④ 根因：未坐实（曾误判为限速，已撤回）</h3>
+<div class="callout bad"><b>第一版根因「抖音限速」证据不足，已撤回。</b>最初看 <code>_diag-scrape-lag</code> 的 6h 滚动平均，以为 worker 单抓耗时 6.8→10.3s「一路爬」=被限速。但那是被 limit 截断的伪趋势。<b>按完成时间分桶重测，结论反转</b>：
 <table style="margin-top:8px">
-<thead><tr><th>证据</th><th>读数</th></tr></thead>
+<thead><tr><th>时段</th><th class="n">单抓耗时</th></tr></thead>
 <tbody>
-<tr><td>worker 单次抓取耗时一路爬</td><td class="n">6.8s → 8.0s → 10.3s</td></tr>
-<tr><td>队列状态</td><td>始终空（非积压，是每抓被拖慢）</td></tr>
-<tr><td>请求密度</td><td>vip-rescan/scrape-hot 翻倍 → 单视频评论 API 命中翻倍</td></tr>
+<tr><td>提速前·基线</td><td class="n">12.0s</td></tr>
+<tr><td>提速期</td><td class="n win">7.8–8.4s</td></tr>
+<tr><td>回滚后</td><td class="n">9.6–10.7s</td></tr>
 </tbody>
 </table>
-经典翻车：<b>扫太狠 → 触发风控 → 净更慢。</b></div>
+提速期执行耗时<b>反而更低</b>，没有限速变慢的信号 → <b>限速根因不成立</b>。</div>
+<div class="callout key"><b>那 4× 慢是真的，但归因未定。</b>「06-11 比 06-10 同时段慢 4 倍」的观测为真；可能的解释（均未坐实）：① 隔天本身差异（当天热视频/评论量/抖音侧变动）；② <b>优先级饿死长尾</b>——提速让 worker 把更多力气花在高优先级 VIP 重扫上，挤占常规视频覆盖（priority 0/1 饿死 priority 5），长尾评论等更久（队列空、执行不变、延迟升——fits，但未验）。<b>回滚是零下行风险的预防动作，但不等于「修好了」</b>，需回滚跑 1–2h 后同口径复测才能坐实/排除。</div>
 
 <h3>⑤ 回滚（PR #303，10:14 UTC 合并）</h3>
 <p class="sub">三条 cron 全部退回提速前原值，止血。纯 <code>vercel.json</code> 改，<code>git revert</code> 即回。回滚后再测一轮：延迟回到 ~4min = 坐实因果；仍高 = 抖音独立事件另查。</p>
@@ -163,7 +164,7 @@ code{background:#f1f5f9;border-radius:4px;padding:1px 5px;font-size:12px}
 <div class="callout"><b>2 · 触达 GUI 30–90s/条是反检测地板</b>永远压不动，压了像机器人触发 7911 限频。要提吞吐<b>只能加账号数</b>（N 个号各守 30–90s = N 倍），不能压单号、不能并发（一台云电脑一个抖音窗口）。</div>
 <div class="callout"><b>3 · 打分按批省调用，生成话术按条无法批量</b>打分一次 LLM call 打 15 条（省调用，瓶颈在批间串行）；生成话术每条单独 6–8s（要个性化，无法拼批，只能对热 lead 预生成省那 6–8s）。</div>
 <div class="callout key"><b>4 · 量化方法论：同时段隔天 cohort 才干净</b>“近 N 小时”快照同时受<b>右删失</b>（慢样本还没进数据）和<b>时段混淆</b>（午 vs 下午负载不同）污染。要判一个改动的因果，固定同一时刻、隔天对照、且两批都沉淀够。</div>
-<div class="callout bad"><b>5 · 上线前标的“唯一风险”就是最后翻车的那个</b>抖音单视频评论 API 限频——决策时已写明，仍选激进档。教训：当“唯一风险”不可量化时，<b>小步灰度（先调一档、先 */5→*/3）+ 同口径快速验</b>，比一次拉满更稳。</div>
+<div class="callout bad"><b>5 · 别急着拍根因——先有干净数据再归因</b>本次翻车后第一时间把根因拍成「抖音限速」，结果分桶数据反转、限速不成立，<b>不得不当场撤回</b>。教训：① 6h 滚动平均会造伪趋势，判趋势要<b>按时间分桶</b>；② 观测到回归 ≠ 知道原因，归因前先排除隔天变异、且验证机制；③ 提速实验<b>小步灰度（先 */5→*/3）+ 同口径快速验</b>比一次拉满更稳，也更容易归因。</div>
 
 <p class="foot">数据来源：本机 <code>_diag-scrape-lag</code> / <code>_diag-cohort-compare</code> 实测（2026-06-11）。相关 PR：#298（提速·已回滚）、#303（回滚）。链路涉及 Vercel cron + Fly worker（f2 抓取）+ 阿里无影云电脑 GUI 发送。</p>
 
