@@ -74,7 +74,7 @@
   .jr .snip { color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:46ch; }
   .jr .noreply { margin-left:auto; font-size:11px; padding:2px 9px; border-radius:6px; background:var(--bg-deep); color:var(--text-muted); }
 
-  .strip { display:flex; align-items:flex-start; min-width:640px; }
+  .strip { display:flex; align-items:flex-start; min-width:920px; }
   .stripwrap { overflow-x:auto; }
   .dot { flex:0 0 70px; display:flex; flex-direction:column; align-items:center; text-align:center; }
   .dot .c { width:13px; height:13px; border-radius:50%; background:var(--text-dim); box-shadow:0 0 0 3px var(--bg-elevated); }
@@ -105,7 +105,7 @@
   <header class="hero">
     <span class="tag"><span class="dot" id="statusDot"></span><span id="updatedAt">加载中…</span></span>
     <h1>客户旅程时间轴</h1>
-    <p class="subtitle">每个用户一条时间轴：抖音视频发布 → ta 发评论 → 我们抓取 → 我们触达 → ta 回复。颜色只标我们能控的延迟（抓取、触达），灰色是客户行为或缺数据。数据直连生产库，最多落后 1 分钟。</p>
+    <p class="subtitle">每个用户一条时间轴，8 个节点：抖音视频发布 → ta 发评论 → 我们抓取 → LLM 打分 → 生成话术 → 派单 → 触达 → ta 回复。颜色只标我们能控的延迟，灰色是客户行为或缺数据。数据直连生产库，最多落后 1 分钟。</p>
     <div class="toolbar">
       <div class="segmented" id="winSel">
         <button data-win="6h">近 6h</button>
@@ -131,7 +131,7 @@
     <span class="sw"><i style="background:var(--warn)"></i>中</span>
     <span class="sw"><i style="background:var(--danger)"></i>慢</span>
     <span class="sw"><i style="background:var(--neutral)"></i>客户行为 / 未知</span>
-    <span style="color:var(--text-muted)">· 仅「评论→抓取」「抓取→触达」两段上色（我们能控的延迟）</span>
+    <span style="color:var(--text-muted)">· 评论→抓取→打分→话术→派单→触达 五段上色（我们能控的延迟）；视频→评论、触达→回复是客户行为不上色</span>
   </div>
 
   <div class="ptdef" id="ptDef">
@@ -150,7 +150,10 @@
       <li><b>视频发布</b>：评论所在抖音视频的发布时刻（<code>videos.published_at</code>，常缺，缺时该点置灰标「未知」）。</li>
       <li><b>评论</b>：用户在抖音发评的时刻（<code>comments.comment_time</code>，抖音未回传时置灰）。</li>
       <li><b>抓取</b>：我们爬到这条评论入库（<code>comments.created_at</code>）。<b>评论→抓取</b> = 抓取新鲜度（🟢&lt;3h 🟡3–12h 🔴&gt;12h）。</li>
-      <li><b>触达</b>：首次触达发出。<b>私信</b>=<code>messages.role=ai, status=sent</code>（排除金丝雀）；<b>反评</b>=在 ta 视频下回评 <code>reverse_comment_queue.status=sent</code>。<b>抓取→触达</b> = 审批+发送瓶颈（🟢&lt;3h 🟡3–9h 🔴&gt;9h）。</li>
+      <li><b>打分</b>：LLM 意向打分完成（<code>comments.analyzed_at</code>，打分 cron 每 2 分钟一轮）。<b>抓取→打分</b> = 打分排队（🟢&lt;15m 🟡15m–2h 🔴&gt;2h）。2026-06-11 前的历史评论没记这个时刻，置灰「未知」。</li>
+      <li><b>生成话术</b>：私信开场白由 LLM 现场生成的时刻（<code>llm_call_provenance</code> 按评论回链取最早一次；反评取反评话术生成）。话术在运营 claim 拉单时才生成，所以<b>打分→生成话术</b>主要是评论在池子里等被领走的时间（🟢&lt;3h 🟡3–9h 🔴&gt;9h）。</li>
+      <li><b>派单</b>：任务进自动发送队列（私信=<code>dispatch_queue.created_at</code>，反评=<code>reverse_comment_queue.created_at</code>）。<b>仅自动通道有</b>——运营手机直发的没有这个节点，置灰。<b>话术→派单</b>（🟢&lt;10m 🟡10m–1h 🔴&gt;1h）、<b>派单→触达</b>（🟢&lt;30m 🟡30m–2h 🔴&gt;2h）。</li>
+      <li><b>触达</b>：首次触达发出。<b>私信</b>=<code>messages.role=ai, status=sent</code>（排除金丝雀）；<b>反评</b>=在 ta 视频下回评 <code>reverse_comment_queue.status=sent</code>。</li>
       <li><b>回复</b>：用户回我们的第一条 —— 私信回复（<code>messages.role=customer</code>）或反评下目标用户的回评，取最早一条。未回复时该点置灰。</li>
       <li><b>渠道</b>：每行标「私信 / 反评」=该用户最早一次触达走的通道；可用上方筛选只看某一渠道。<b>潜在触达</b>是独立透镜（首触没回后的二次盯防人群，非首触渠道），点上方「潜在触达」查看定义与名单。</li>
       <li><b>链接</b>：点客户名 = 打开 ta 的抖音主页；点「原视频 ↗」= 打开评论所在的那条抖音视频（均新窗口打开）。</li>
@@ -173,6 +176,10 @@ function gapColor(key, ms){
   if(ms==null) return "neutral";
   const h = ms/3600000;
   if(key==="comment_scrape") return h<3?"green":h<12?"yellow":"red";
+  if(key==="scrape_analyze") return h<0.25?"green":h<2?"yellow":"red";
+  if(key==="analyze_opener") return h<3?"green":h<9?"yellow":"red";
+  if(key==="opener_dispatch") return h<1/6?"green":h<1?"yellow":"red";
+  if(key==="dispatch_contact") return h<0.5?"green":h<2?"yellow":"red";
   if(key==="scrape_contact") return h<3?"green":h<9?"yellow":"red";
   return "neutral";
 }
@@ -183,8 +190,8 @@ function esc(s){ return (s==null?"":String(s)).replace(/[&<>"]/g, c => ({"&":"&a
 function fmtTs(iso){ if(!iso) return "未知"; const d=new Date(iso); if(isNaN(d)) return "未知";
   const p=(n)=>String(n).padStart(2,"0"); return p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes()); }
 
-function dot(iso, label){
-  return `<div class="dot"><div class="c ${iso?"":"empty"}"></div><div class="lab">${label}</div><div class="ts">${fmtTs(iso)}</div></div>`;
+function dot(iso, label, hint){
+  return `<div class="dot"${hint?` title="${hint}"`:""}><div class="c ${iso?"":"empty"}"></div><div class="lab">${label}</div><div class="ts">${fmtTs(iso)}</div></div>`;
 }
 function seg(key, ms, forceNeutral){
   const c = forceNeutral ? "neutral" : gapColor(key, ms);
@@ -202,8 +209,17 @@ function renderRow(j){
     dot(j.commentTime, "评论") +
     seg("comment_scrape", gapMs(j.commentTime, j.scrapedAt)) +
     dot(j.scrapedAt, "抓取") +
-    /* pt：触达点=最近一次潜在触达，距原评论按设计≥3天，不算我们能控的延迟 → 不上色 */
-    seg("scrape_contact", gapMs(j.scrapedAt, j.contactedAt), pt) +
+    /* pt：触达点=最近一次潜在触达，中间链路（打分/话术/派单）走二触自有节奏 → 整段置灰；
+       dm/rc 走 8 节点 */
+    (pt
+      ? seg("scrape_contact", gapMs(j.scrapedAt, j.contactedAt), true)
+      : seg("scrape_analyze", gapMs(j.scrapedAt, j.analyzedAt)) +
+        dot(j.analyzedAt, "打分", "LLM 意向打分完成（06-11 前历史数据未记录）") +
+        seg("analyze_opener", gapMs(j.analyzedAt, j.openerGenAt)) +
+        dot(j.openerGenAt, "生成话术", "claim 拉单时现场生成话术") +
+        seg("opener_dispatch", gapMs(j.openerGenAt, j.dispatchedAt)) +
+        dot(j.dispatchedAt, "派单", "自动通道入队时刻；手动通道无此节点") +
+        seg("dispatch_contact", gapMs(j.dispatchedAt, j.contactedAt))) +
     dot(j.contactedAt, pt?"潜在触达":"触达") +
     seg("contact_reply",  gapMs(j.contactedAt, j.repliedAt)) +
     dot(j.repliedAt, "回复");
