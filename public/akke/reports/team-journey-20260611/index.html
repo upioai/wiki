@@ -105,7 +105,7 @@
 <div class="wrap">
   <div class="header">
     <h1 class="title">三人旅程汇总复盘 · 饭粒 / 野荞 / 夏夏</h1>
-    <div class="subtitle">2026-06-11（BJT 00:00–23:59）· 共 47 条 case · 达标线 = 评论→发出 ≤10min · 生成于 2026-06-12T03:18:19.668Z</div>
+    <div class="subtitle">2026-06-11（BJT 00:00–23:59）· 共 47 条 case · 达标线 = 评论→发出 ≤10min · 生成于 2026-06-12T06:45:15.541Z</div>
     <div class="datebar">
       <button onclick="goDay(-1)">◀ 前一天</button>
       <input type="date" id="dp" value="2026-06-11" max="2026-06-11" onchange="goDate(this.value)" />
@@ -415,16 +415,34 @@
     d.setDate(d.getDate() + n);
     location.href = toUrl(d.toISOString().slice(0,10));
   }
+  // 指派共享：存 Akke 公开端点（全队可见），localStorage 作离线兜底
+  const ASG_API = "https://akke.vercel.app/api/public/team-journey-assignments";
+  const REPORT_DATE = "2026-06-11";
+  function clusterOf(k){ return k.split('|')[1]; }
+  function setLbl(sel, v){ const lbl = sel.parentElement.querySelector('.asg-lbl'); if(lbl) lbl.textContent = v ? ('→ ' + v + ' 执行') : ''; }
   function saveAssignee(sel){
-    localStorage.setItem('tjr:' + sel.dataset.k, sel.value);
-    const lbl = sel.parentElement.querySelector('.asg-lbl');
-    if(lbl) lbl.textContent = sel.value ? ('→ ' + sel.value + ' 执行') : '';
+    const v = sel.value;
+    localStorage.setItem('tjr:' + sel.dataset.k, v);
+    setLbl(sel, v);
+    fetch(ASG_API, { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ date: REPORT_DATE, cluster_key: clusterOf(sel.dataset.k), assignee: v }) })
+      .catch(function(){ /* 离线：已存 localStorage，下次在线再覆盖 */ });
+  }
+  function applyAll(map){
+    document.querySelectorAll('select.assignee').forEach(function(sel){
+      const cl = clusterOf(sel.dataset.k);
+      const shared = map && map[cl];
+      const local = localStorage.getItem('tjr:' + sel.dataset.k);
+      const v = shared != null ? shared : (local || '');
+      if(v){ sel.value = v; setLbl(sel, v); }
+    });
   }
   window.addEventListener('DOMContentLoaded', function(){
-    document.querySelectorAll('select.assignee').forEach(function(sel){
-      const v = localStorage.getItem('tjr:' + sel.dataset.k);
-      if(v){ sel.value = v; const lbl = sel.parentElement.querySelector('.asg-lbl'); if(lbl) lbl.textContent = '→ ' + v + ' 执行'; }
-    });
+    applyAll(null); // 先用本地兜底秒显
+    fetch(ASG_API + '?date=' + REPORT_DATE + '&_t=' + Date.now(), { cache:'no-store' })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(j){ if(j && j.assignments) applyAll(j.assignments); })
+      .catch(function(){ /* 离线：保持本地 */ });
   });
 </script>
 </body>
