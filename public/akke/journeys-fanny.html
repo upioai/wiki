@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- 本页带客户身份信息：禁止搜索引擎收录 + 不可猜 URL，降低被收录/撞到的风险 -->
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
-<title>客户旅程 · 饭粒 · Akke</title>
+<title>用户旅程 · Akke</title>
 <style>
   :root {
     --bg: #0b0d12; --bg-elevated: #141821; --bg-deep: #1a1f2b;
@@ -68,7 +68,7 @@
   .drow { display:flex; align-items:center; gap:12px; margin:7px 0; font-size:12.5px; }
   .drow .lab { width:78px; color:var(--text-dim); text-align:right; flex-shrink:0; font-variant-numeric:tabular-nums; }
   .drow .track { flex:1; background:var(--bg-deep); border-radius:5px; height:18px; position:relative; overflow:hidden; }
-  .drow .fill { height:100%; border-radius:5px; transition:width .4s; }
+  .drow .fill { display:block; height:100%; min-width:2px; border-radius:5px; transition:width .4s; }
   .drow .cnt { width:58px; color:var(--text-muted); font-variant-numeric:tabular-nums; }
 
   /* pt 玩法 / 链路 / 护栏 卡 */
@@ -147,10 +147,10 @@
 <body>
 <div class="wrap" id="wrap" data-chan="dm">
 <div class="container">
-  <div class="breadcrumb"><a href="/akke/">Akke 知识库</a><span>›</span>客户旅程 · 饭粒</div>
+  <div class="breadcrumb"><a href="/akke/">Akke 知识库</a><span>›</span>用户旅程</div>
   <header class="hero">
     <span class="tag"><span class="dot" id="statusDot"></span><span id="updatedAt">加载中…</span></span>
-    <h1 id="pageH1">客户旅程 · 饭粒</h1>
+    <h1 id="pageH1">用户旅程</h1>
     <p class="subtitle" id="subtitle">每个用户一条端到端时间轴。切上方板块看 <b>私信 / 反评 / 潜在触达</b> 三个通道，颜色只标我们能控的延迟，灰色是客户行为或缺数据。每 60s 自动刷新，数据直连生产库。</p>
     <div class="toolbar">
       <div class="segmented tabs" id="chanSel">
@@ -176,7 +176,14 @@
     <div class="kpis" id="kpis"></div>
     <h2 id="distTitle">端到端分布（评论 → 发出）</h2>
     <div class="dist" id="dist"></div>
-    <h2 id="countTitle">逐条明细</h2>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:26px 0 10px">
+      <h2 id="countTitle" style="margin:0">逐条明细</h2>
+      <div class="segmented" id="sortSel" style="margin-left:auto">
+        <button data-sort="comment" class="active">最新评论</button>
+        <button data-sort="dur_desc">时长最长</button>
+        <button data-sort="dur_asc">时长最短</button>
+      </div>
+    </div>
     <div class="legend">
       <b>线段颜色</b>（各段按自身 SLA 上色）
       <span class="sw"><i style="background:var(--ok)"></i>达标</span>
@@ -263,15 +270,18 @@ const API_BASE = "https://akke.vercel.app/api/public/journeys";
 const TARGET_MIN = 10;
 let currentChan = "dm";
 let currentWin = "24h";
+let currentSort = "comment";   // comment=最新评论 | dur_desc=时长最长 | dur_asc=时长最短
+let lastPayload = null;          // 缓存上次拉取，切排序时本地重排不重拉
+const ACCOUNT_ID = "c5d236e1-fd80-4cff-b349-506dfd09699b";  // 饭粒（一筑·全屋定制）—— 只算这个号
 const $ = (id) => document.getElementById(id);
 
 const hc = location.hash.replace("#","");
 if(["dm","rc","pt"].includes(hc)) currentChan = hc;
 
 const META = {
-  dm: { label:"私信", h1:"私信旅程 · 饭粒", sub:"全组织 <b>私信（DM）首触</b>端到端旅程：视频发布 → 评论 → 抓取 → 打分 → 生成话术 → 派单 → 私信发出 → 回复。涵盖云电脑自动 + 人工 ADB/WDA 全部 DM 通道。", dist:"端到端分布（评论 → 私信发出）" },
-  rc: { label:"反评", h1:"反评旅程 · 饭粒", sub:"全组织 <b>反向评论（RC）首触</b>端到端旅程：视频发布 → 评论 → 抓取 → 打分 → 生成话术 → 派单 → 在 ta 视频下回评 → ta 回评。", dist:"端到端分布（评论 → 反评发出）" },
-  pt: { label:"潜在触达", h1:"潜在触达 · 饭粒", sub:"私信 / 反评发出后没回的高意向用户，不放弃 —— 盯着 ta 的新视频持续软触达。<b>目标：每天都让 ta 看到我们的身影，发送量足时一天一条、连发一周（最多 7 次）。</b>" },
+  dm: { label:"私信", h1:"用户旅程", sub:"饭粒 <b>私信（DM）首触</b>端到端旅程：视频发布 → 评论 → 抓取 → 打分 → 生成话术 → 派单 → 私信发出 → 回复。涵盖云电脑自动 + 人工 ADB/WDA 全部 DM 通道。", dist:"端到端分布（评论 → 私信发出）" },
+  rc: { label:"反评", h1:"用户旅程", sub:"饭粒 <b>反向评论（RC）首触</b>端到端旅程：视频发布 → 评论 → 抓取 → 打分 → 生成话术 → 派单 → 在 ta 视频下回评 → ta 回评。", dist:"端到端分布（评论 → 反评发出）" },
+  pt: { label:"潜在触达", h1:"用户旅程", sub:"饭粒：私信 / 反评发出后没回的高意向用户，不放弃 —— 盯着 ta 的新视频持续软触达。<b>目标：每天都让 ta 看到我们的身影，发送量足时一天一条、连发一周（最多 7 次）。</b>" },
 };
 
 function esc(s){ return (s==null?"":String(s)).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
@@ -417,13 +427,34 @@ function applyChanUI(){
   if(history.replaceState) history.replaceState(null,"","#"+currentChan);
 }
 
+// 端到端时长（评论→发出），缺评论时间则无时长
+function e2eMs(r){ return gapMs(r.commentTime, r.contactedAt); }
+function sortRows(list){
+  const rows = list.slice();
+  if(currentSort==="dur_desc" || currentSort==="dur_asc"){
+    const dir = currentSort==="dur_desc" ? -1 : 1;
+    // 有时长的按时长排（最长/最短在前），无时长的统一垫底
+    rows.sort((a,b)=>{
+      const da=e2eMs(a), db=e2eMs(b);
+      if(da==null && db==null) return 0;
+      if(da==null) return 1;
+      if(db==null) return -1;
+      return (da-db)*dir;
+    });
+  } else {
+    // 默认：最新评论在前；评论时间缺失的排末尾
+    rows.sort((a,b)=>{
+      const ta=a.commentTime?new Date(a.commentTime).getTime():-Infinity;
+      const tb=b.commentTime?new Date(b.commentTime).getTime():-Infinity;
+      return tb-ta;
+    });
+  }
+  return rows;
+}
+
 function render(payload){
-  // 按评论时间倒序（最新评论在前；评论时间缺失的排末尾）
-  const rows = (payload.rows||[]).slice().sort((a,b)=>{
-    const ta=a.commentTime?new Date(a.commentTime).getTime():-Infinity;
-    const tb=b.commentTime?new Date(b.commentTime).getTime():-Infinity;
-    return tb-ta;
-  });
+  lastPayload = payload;
+  const rows = sortRows(payload.rows||[]);
   if(currentChan==="pt"){
     $("ptCountTitle").textContent = "盯防名单 · 共 " + (payload.count ?? rows.length) + " 人";
     $("rows").innerHTML = rows.length ? rows.map(renderRowPt).join("")
@@ -441,7 +472,7 @@ function setStatus(ok, text){ $("statusDot").className="dot"+(ok?"":" err"); $("
 
 async function load(){
   try{
-    const res = await fetch(`${API_BASE}?window=${currentWin}&channel=${currentChan}&_t=${Date.now()}`, {cache:"no-store"});
+    const res = await fetch(`${API_BASE}?window=${currentWin}&channel=${currentChan}&account=${ACCOUNT_ID}&_t=${Date.now()}`, {cache:"no-store"});
     if(!res.ok) throw new Error("HTTP "+res.status);
     const payload = await res.json();
     if(payload.error) throw new Error(payload.error);
@@ -456,6 +487,12 @@ async function load(){
   }
 }
 
+$("sortSel").addEventListener("click", e=>{
+  const btn=e.target.closest("button"); if(!btn) return;
+  currentSort=btn.dataset.sort;
+  [...$("sortSel").children].forEach(b=>b.classList.toggle("active", b===btn));
+  if(lastPayload) render(lastPayload);   // 本地重排，不重拉
+});
 $("chanSel").addEventListener("click", e=>{
   const btn=e.target.closest("button"); if(!btn) return;
   currentChan=btn.dataset.chan; applyChanUI(); $("rows").innerHTML=""; load();
