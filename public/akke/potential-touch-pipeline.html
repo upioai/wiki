@@ -111,6 +111,42 @@
     </tbody>
   </table>
 
+  <!-- ============ 监控原理：读 vs 写 ============ -->
+  <h2 class="sec">实时监控原理 ·「不点界面、纯后台读数据」<span class="hint">为什么监控稳、发送脆</span></h2>
+  <div class="cards">
+    <div class="card ok"><h3>监控（读）= 直接向抖音服务器要数据，不开界面</h3>
+      <p class="why">你平时看抖音"关注"页，背后其实是 APP 偷偷向抖音服务器要了一份"我关注的人最新视频清单"。<b>监控跳过"开 APP、画画面"，直接向服务器要这份清单</b>，拿回的是纯文字数据（作者 / 视频ID / 发布时间 / 文案），代码直接读、挑出"池里的人 + 发布<10min"。<b>全程没有鼠标点击、没有画面、不用抖音窗口在前台。</b></p>
+      <div class="row"><span><b>f2 + cookie：</b>服务器要求请求带"签名"证明是合法登录用户——<code>f2</code> 算签名、cookie 是一筑登录凭证，凑齐就能要到数据。</span></div>
+    </div>
+    <div class="card no"><h3>发送 / 关注（写）= 只能像真人一样点界面，所以脆</h3>
+      <p class="why">抖音把"读"和"写"分两种态度：<b>读</b>（看别人发了啥）服务器愿意给（带签名就行）→ 监控走后台；<b>写</b>（点赞 / 评论 / 关注）抖音严防机器人、<b>把接口封死了</b>（直接调 403 / 封号）→ 只能<b>像真人一样点界面</b>糊弄反爬。点界面靠"鼠标点对坐标、屏幕长对样"，坐标偏 / 窗口没最大化 / 视频在轮播就点空——<b>这就是当前发送出问题的根源</b>。</p>
+    </div>
+  </div>
+  <table>
+    <thead><tr><th>对比</th><th>点界面（发送 / 关注 · 写）</th><th>后台读数据（监控 · 读）</th></tr></thead>
+    <tbody>
+      <tr><td class="step">靠什么</td><td>鼠标点对坐标、屏幕长对样</td><td>一个数据请求</td></tr>
+      <tr><td class="step">快慢</td><td>慢，一条 1–3 分钟</td><td>秒级，一次几十条</td></tr>
+      <tr><td class="step">怕坐标 / 窗口</td><td><span class="pill no">怕</span> 坐标偏就点空</td><td><span class="pill yes">不怕</span> 跟屏幕无关</td></tr>
+      <tr><td class="step">抢不抢鼠标</td><td><span class="pill no">抢</span> 跑时别碰</td><td><span class="pill yes">不抢</span> 后台静默</td></tr>
+      <tr><td class="step">怕不怕黑屏</td><td><span class="pill no">怕</span> 黑屏就瘫</td><td><span class="pill yes">不怕</span> 不看屏幕</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ============ 翻页能力 ============ -->
+  <h2 class="sec">翻页能力 · 会不会漏视频<span class="hint">现状 + 关注涨到 500 人</span></h2>
+  <p class="subtitle" style="margin-top:6px">监控每 60 秒翻 3 页 ≈ 45–60 条最新视频。「漏」= 某视频在它发布后 10 分钟里一直被更新的视频挤出前 3 页。</p>
+  <div class="cards">
+    <div class="card ok"><h3>现状（关注 ~21 人）：不会漏</h3>
+      <p class="why">21 个关注一天发的视频总量远低于 45–60 条 → 3 页绰绰有余。配合"发布<10min 才触达"：视频发出后 10 分钟里每 60 秒查一次 = <b>10 次露面机会</b>，足够逮到。</p></div>
+    <div class="card semi"><h3>未来（关注 500 人）：取决于"发帖多不多"，不是 500 这个数</h3>
+      <p class="why">500 个<b>正常号</b>（一天发 1 条左右）→ 每 10 分钟才约 3–4 条新视频 → <b>3 页照样不漏</b>。<b>真正风险</b> = 混进高频商家号 / MCN（一天发几十条），60 秒冒出几十条把目标挤出前 3 页才会漏——但这种号本就该在<b>进池筛选时挡掉</b>，不是潜在触达对象。</p></div>
+  </div>
+  <ul class="status">
+    <li><b>涨上去怎么保证不漏（都是旋钮、几乎零成本）</b>：① 加页 3 → 5–6（仍远低于关注流翻到 ~46 页卡死的红线）；② 加频 60s → 30–45s；③ 加体检——记录"逮到的视频落在第几页"，频繁落第 3 页 = 接近边缘的信号，提前加页 / 加频。</li>
+    <li><b>一句话</b>：现在不会漏、500 人也大概率不会漏；真要保险把"页数 / 频率"调一调就行，<b>是个旋钮不是墙</b>。唯一要守的：别把高频商家号关进来。</li>
+  </ul>
+
   <!-- ============ 同事复刻 SOP ============ -->
   <h2 class="sec">同事复刻 SOP<span class="hint">换一个账号 / 换一个运营，从零跑起来</span></h2>
   <p class="subtitle" style="margin-top:6px">前提：你有①一台<b>已登录抖音 PC 的无影云电脑</b>（目录 <code>C:\akke-wuying\wuying-dm\</code>）；②本机（mac）能跑仓库 <code>pnpm tsx</code> + <code>worker/.venv</code>；③你的 <code>messaging 账号 id</code>（<code>AKKE_ACCOUNT_ID</code>）+ <code>AKKE_ORG_ID</code>。把下面命令里的账号换成你自己的。</p>
