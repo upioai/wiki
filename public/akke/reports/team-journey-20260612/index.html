@@ -107,11 +107,11 @@
 <div class="wrap">
   <div class="header">
     <h1 class="title">三人旅程汇总复盘 · 饭粒 / 野荞 / 夏夏</h1>
-    <div class="subtitle">2026-06-12（BJT 00:00–23:59）· 共 15 条 case · 达标线 = 评论→发出 ≤10min · 生成于 2026-06-13T02:51:55.845Z</div>
+    <div class="subtitle">2026-06-12（BJT 00:00–23:59）· 共 15 条 case · 达标线 = 评论→发出 ≤10min · 生成于 2026-06-13T14:11:14.957Z</div>
     <div class="datebar">
-      <button onclick="goDay(-1)">◀ 前一天</button>
-      <input type="date" id="dp" value="2026-06-12" max="2026-06-12" onchange="goDate(this.value)" />
-      <button onclick="goDay(1)">后一天 ▶</button>
+      <button id="prevb" onclick="goDay(-1)">◀ 前一天</button>
+      <input type="date" id="dp" value="2026-06-12" onchange="goDate(this.value)" />
+      <button id="nextb" onclick="goDay(1)">后一天 ▶</button>
       <span class="dphint">选日期看那天的复盘（只有已生成的日期能打开）</span>
     </div>
   </div>
@@ -213,14 +213,31 @@
 </div>
 <script>
   const BASE = "https://upio.ai/akke/reports/team-journey-";
-  function toUrl(d){ return BASE + d.replace(/-/g,""); }
-  function goDate(d){ if(d) location.href = toUrl(d); }
-  function goDay(n){
-    const i = document.getElementById('dp');
-    const d = new Date(i.value + "T00:00:00");
-    d.setDate(d.getDate() + n);
-    location.href = toUrl(d.toISOString().slice(0,10));
+  const CUR = "2026-06-12".replace(/-/g,"");  // 当前页日期 compact
+  let AVAIL = [];                                          // 已发布日期 compact，新→旧
+  function toUrlC(c){ return BASE + c; }
+  function goDate(d){
+    if(!d) return;
+    const c = d.replace(/-/g,"");
+    if(c === CUR) return;
+    if(AVAIL.length && AVAIL.indexOf(c) < 0){ alert("那天还没有复盘报表"); return; }
+    location.href = toUrlC(c);
   }
+  // n=-1 前一天(更旧) / +1 后一天(更新)。AVAIL 降序：更旧在后、更新在前。
+  function goDay(n){
+    const i = AVAIL.indexOf(CUR);
+    if(i < 0) return;
+    const t = n < 0 ? AVAIL[i+1] : AVAIL[i-1];
+    if(t) location.href = toUrlC(t);
+  }
+  function syncNav(){
+    const i = AVAIL.indexOf(CUR);
+    const pb = document.getElementById('prevb'), nb = document.getElementById('nextb');
+    if(pb) pb.disabled = !(i >= 0 && i < AVAIL.length - 1);
+    if(nb) nb.disabled = !(i > 0);
+  }
+  fetch("/akke/reports/team-journey/dates.json").then(function(r){return r.json();})
+    .then(function(ds){ AVAIL = ds || []; syncNav(); }).catch(function(){});
   // 指派共享：存 Akke 公开端点（全队可见），localStorage 作离线兜底
   const ASG_API = "https://akke.vercel.app/api/public/team-journey-assignments";
   const REPORT_DATE = "2026-06-12";
