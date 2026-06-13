@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>派单为什么喂得慢 · 新鲜度根因诊断 + Playwright 方案 + Lark 远程操控设计 · 20260613</title>
+<style>
+body{font-family:-apple-system,"PingFang SC",sans-serif;margin:0;color:#1a1a1a;line-height:1.6;background:#fafafa}
+.wrap{max-width:980px;margin:0 auto;padding:24px 20px 80px}
+h1{font-size:23px;margin:0 0 6px}
+h2{font-size:18px;margin:40px 0 10px;padding-top:10px;border-top:2px solid #1a1a1a}
+h3{font-size:15px;margin:22px 0 8px;color:#334155}
+.sub{color:#666;font-size:13.5px;margin:0 0 16px}
+.verdict{display:inline-block;background:#fee2e2;color:#b91c1c;border-radius:6px;padding:4px 12px;font-size:14px;font-weight:600;margin:8px 0}
+.verdict.ok{background:#dcfce7;color:#166534}
+table{width:100%;border-collapse:collapse;font-size:13px;margin:10px 0 6px;background:#fff}
+th,td{text-align:left;padding:8px 9px;border-bottom:1px solid #ececec;vertical-align:top}
+th{background:#f4f4f5;font-weight:600}
+td.n,th.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.chip{display:inline-block;border-radius:4px;padding:1px 6px;font-size:11.5px;white-space:nowrap}
+.c-wait{background:#eff6ff;color:#1d4ed8}
+.c-run{background:#f0fdf4;color:#15803d}
+.c-floor{background:#fef2f2;color:#b91c1c}
+.c-lever{background:#fefce8;color:#a16207}
+.callout{background:#fff;border-left:4px solid #94a3b8;border-radius:0 8px 8px 0;padding:12px 16px;margin:14px 0;font-size:13.5px}
+.callout.bad{border-color:#dc2626;background:#fef6f6}
+.callout.good{border-color:#16a34a;background:#f4fdf6}
+.callout.key{border-color:#a16207;background:#fffdf3}
+.callout b{display:block;margin-bottom:4px}
+code{background:#f1f5f9;border-radius:4px;padding:1px 5px;font-size:12px}
+.chain{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:18px 20px;font-size:13.5px;line-height:1.9;margin:14px 0}
+.chain b{color:#fbbf24}
+.foot{color:#888;font-size:12px;margin-top:34px;border-top:1px solid #e5e5e5;padding-top:12px}
+.hero{background:#1a1a1a;color:#fff;border-radius:12px;padding:20px 22px;margin:8px 0 6px}
+.hero h1{color:#fff}.hero .sub{color:#cbd5e1}
+.kpi{display:flex;gap:22px;flex-wrap:wrap;margin-top:10px}
+.kpi div{font-size:13px;color:#cbd5e1}.kpi b{display:block;font-size:19px;color:#fff;font-variant-numeric:tabular-nums}
+.win{color:#15803d}.lose{color:#b91c1c}
+ol li,ul li{margin:5px 0}
+.tag{display:inline-block;background:#1e293b;color:#cbd5e1;border-radius:4px;padding:1px 7px;font-size:11px;margin-right:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="hero">
+<h1>派单为什么喂得慢 —— 新鲜度根因诊断</h1>
+<p class="sub">从「夏夏拉不到 DM」一路挖到抖音 API 的 6 天延迟 + Playwright 解法 + 「终端↔Lark 远程操控」设计 · 2026-06-13</p>
+<div class="kpi">
+<div>今天可派 lead 占比<b class="lose">1.1%</b></div>
+<div>全库最新视频<b class="lose">7 天前</b></div>
+<div>今天抓取量 vs 昨天<b class="lose">44×</b></div>
+<div>真正瓶颈<b>视频供给（API 6天延迟）</b></div>
+</div>
+</div>
+
+<p class="sub">起因是运营反馈「夏夏的云电脑今天才拉到 4 条 DM」。顺着查下去，发现这不是某个号坏了，而是<b>整条「抓取→打分→派单」链路被抖音 API 的一个平台限制卡住了喉咙</b>。本页是这轮诊断的完整账本。</p>
+
+<h2>0 · 两个入口问题（已处理）</h2>
+<table>
+<tr><th>问题</th><th>真因</th><th>处置</th></tr>
+<tr><td><b>野荞</b>云电脑一直没自动发</td><td>账号 <code>dispatch_paused_until</code> 被人为静音到 6-14（不是她记的"早 9 点"那条，那条早过期了）。派单系统见到未来时刻即跳过该号，队列不灌单</td><td>已清空静音（<span class="win">7→恢复派单</span>），并在「智能获客日常小分队」@野荞 说明</td></tr>
+<tr><td><b>夏夏</b>今天才拉到 4 条</td><td>夏夏=零星号，<b>号没坏</b>：每单入队几秒内就被 claim、poller 一直在拉。问题是一整天只派进来 ~10 单</td><td>见下文——是供给侧饿，不是她的号的问题</td></tr>
+</table>
+
+<h2>1 · 根因链（一路到底）</h2>
+<div class="chain">
+派单只发「用户 <b>7 分钟内</b>刚发的评论」（per-account <code>fresh_window_minutes</code>，PM 2026-06-10「不满足时效性不发送」）<br>
+&nbsp;&nbsp;↓ 但评论长在视频上<br>
+我们能抓到的<b>最新视频也是 7 天前</b>的（"7 天硬底线"）<br>
+&nbsp;&nbsp;↓ 7 天的视频，底下评论自然也老（comment_time 中位 <b>44 小时</b>）<br>
+= <b>99% 的合格 lead 一进库就过期</b>，派不出去（可派的 1% 是"今天还有人翻到 7 天前老视频评论"）<br>
+&nbsp;&nbsp;↓ 再往源头<br>
+视频为什么只到 7 天？→ 抖音 web <code>/aweme/v1/web/aweme/post/</code> 接口对<b>匿名调用有 ~6 天的"发布→可见"延迟</b><br>
+&nbsp;&nbsp;↓<br>
+我们抓号源走的就是这条匿名 API → <b>永远只拿得到 7 天前的老视频</b>
+</div>
+
+<h2>2 · 数据证据</h2>
+
+<h3>2.1 三天对比 —— "视频老"是常态，"可派比例"在塌</h3>
+<table>
+<tr><th>　</th><th class="n">今天</th><th class="n">昨天</th><th class="n">前天</th></tr>
+<tr><td>高/中意向 lead</td><td class="n">1174</td><td class="n">330</td><td class="n">87</td></tr>
+<tr><td>可派比例（评论 ≤7min）</td><td class="n lose">1.1%</td><td class="n">12.1%</td><td class="n">20.7%</td></tr>
+<tr><td>≤60min</td><td class="n">6.2%</td><td class="n">28.8%</td><td class="n">63.2%</td></tr>
+<tr><td>估算可派池</td><td class="n">~13</td><td class="n">~40</td><td class="n">~18</td></tr>
+<tr><td>视频发布距今中位</td><td class="n">9.8 天</td><td class="n">9.9 天</td><td class="n">11.1 天</td></tr>
+<tr><td>视频 ≤3 天发布</td><td class="n lose">0%</td><td class="n lose">0%</td><td class="n lose">0%</td></tr>
+</table>
+<p class="sub">反直觉点：今天 lead 量是昨天 3.5×，可派池反而缩水（13 vs 40）——量越灌越多，能用的越少。</p>
+
+<h3>2.2 新鲜度 —— 流水线不慢，是供给老</h3>
+<table>
+<tr><th>口径（今天 1170 条高/中意向）</th><th class="n">值</th></tr>
+<tr><td>用户发评论 → 我们打完分 中位延迟</td><td class="n lose">≈ 2661 分钟（约 44 小时）</td></tr>
+<tr><td>comment_time ≤7min（可派）</td><td class="n">1.0%</td></tr>
+<tr><td>我们自己流水线（抓到→打完分）中位</td><td class="n win">0.9 分钟（97.2% 在 7min 内）</td></tr>
+</table>
+<p class="sub">内部流水线 97% 在 7 分钟内完成——快得很。慢的不是我们，是抓进来的评论本身就老。</p>
+
+<h3>2.3 视频供给 —— 7 天硬底线</h3>
+<table>
+<tr><th>今天抓到 6666 个视频，按发布时间</th><th class="n">占比</th></tr>
+<tr><td>发布 ≤24h</td><td class="n lose">0 个（0%）</td></tr>
+<tr><td>≤72h（3 天）</td><td class="n lose">0 个（0%）</td></tr>
+<tr><td>≤7 天</td><td class="n">13 个（0.2%）</td></tr>
+<tr><td>全库最新的视频</td><td class="n lose">发布于 7 天前（167h）</td></tr>
+</table>
+<p class="sub">全库按发布时间排最新的视频全部卡在 ~167h（7 天）——这条线特别齐，是平台限制的指纹，不是号主发帖规律。</p>
+
+<h3>2.4 抓取量暴涨 44× —— 但不是 bug，是覆盖恢复</h3>
+<table>
+<tr><th>　</th><th class="n">今天</th><th class="n">昨天</th></tr>
+<tr><td>抓取视频总数</td><td class="n">6666</td><td class="n">150</td></tr>
+<tr><td>涉及不同号源</td><td class="n">961</td><td class="n">90</td></tr>
+<tr><td>发布 &gt;7 天（派单无效）</td><td class="n">100%</td><td class="n">100%</td></tr>
+</table>
+<div class="callout key"><b>真相：昨天才是"生病的一天"</b>
+池子里 1189 个 active 号源（tier0=1019 大池子 / tier1=170 好号）。昨天 VIP 复扫洪水（7.9 万次/天空转）把产能全吃了，只够扫 90 个号；今早修了 VIP（PR#329）+ 新开第 2 台机器，产能释放，今天恢复到扫 961 个（81% 覆盖）。<b>所以今天的"暴涨"是覆盖恢复正常，不是该刹的车。</b>但因 6 天 API 延迟，扫满全池也全是 7 天老视频 → 等于把无效量放大了 44×，还在烧 LLM（今天打分 7597 条换 ~13 可派）。</div>
+
+<h2>3 · 为什么有"6 天延迟"</h2>
+<p>2026-05-28 实测（"小米·全屋定制"5/27 视频）：匿名签名接口 5/28 仍<b>不返回</b>该视频、且只给前 ~5 条；同一视频用<b>登录身份</b>或<b>浏览器渲染主页</b>都能立刻看到。</p>
+<div class="callout bad"><b>结论（推断）：这是抖音的反爬设计</b>
+延迟延的是<b>内容</b>不是响应——匿名接口秒回，但给你一份又少又旧的快照；新视频要"沉淀"几天才进这个可缓存的匿名视图。真实数据只留给登录客户端 / 正常渲染的网页。我们抓竞品<b>故意匿名</b>（怕暴露身份），所以吃这个亏。</div>
+<table>
+<tr><th>路径</th><th>响应快慢</th><th>数据新旧</th><th>代价</th></tr>
+<tr><td>匿名 API（现在用的）</td><td>⚡ 快（亚秒）</td><td class="lose">🔴 旧（最新 7 天前）</td><td>—</td></tr>
+<tr><td>登录 cookie 打同一接口（B）</td><td>⚡ 快（亚秒）</td><td class="win">🟢 新</td><td>暴露我们身份给竞品</td></tr>
+<tr><td>Playwright 渲染主页（A）</td><td>🐢 慢（15-30s/号）</td><td class="win">🟢 新</td><td>慢 / 抢浏览器</td></tr>
+</table>
+
+<h2>4 · 解决方案：高产号源切 Playwright</h2>
+<p>好消息：<code>discover_videos_from_profile</code>（discoverer.py）<b>已内置 Playwright DOM 抓取</b>——现在是"API 失败才兜底"，所以 API 一成功就 return、永远轮不到它。改动 = 给选中的号<b>跳过 API、直接走那段现成的 Playwright</b>，不是新写。</p>
+<ol>
+<li><b>选哪些号</b>：不按 tier 一刀切（tier0 有 1019 个，全切要 2.8h/轮、霸占机器，不可行）。新增 <code>source_accounts.playwright_discovery</code> 布尔列，人工圈"<b>最近真出可派 lead + 发帖勤</b>"的高频号——目标 <b>100 个</b>（摊到抓取周期，2 台机器约 17min/轮，扛得住）。</li>
+<li><b>env 开关</b> <code>PLAYWRIGHT_DISCOVERY_ENABLED</code>（默认关，灰度开，秒回滚）。</li>
+<li><b>机器协调</b>：<code>/send</code> cron 已停（发送搬去 ADB/WDA/云电脑），Fly worker 浏览器主要给抓取，争用低；维持每机器 1 Chromium 单例防 OOM。</li>
+<li><b>验证</b>：圈中号"今天抓到的视频"出现 &lt;24h 的 + <code>comment_time ≤7min</code> 占比往上抬。</li>
+<li><b>流程</b>：改 worker/** 走 PR + CI + <code>/health</code> 探活。</li>
+</ol>
+<div class="callout bad"><b>⚠️ 上线前必须先验证的一件事：Fly 东京 IP 行不行</b>
+Fly 机器在东京，而东京 IP 被抖音针对过（handle/search/profile/qr 接口从东京返回空）。<b>Playwright 渲染主页从东京 IP 能不能拿到真·新视频，尚未验证</b>——可能东京渲染出来的也是降级版。
+<br>· 能 → 全跑 Fly，<b>不用 fanny 的 Mac</b>，无人值守。
+<br>· 不能 → 只能上 <b>fanny 的 Mac（国内 IP + CDP，跟扩源同一条路）</b>，但要 Mac 常开。
+<br><b>下一步动作 = 在 Fly 上对 2-3 个发帖勤的号手动触发 Playwright，看 published_at 有没有 &lt;7 天的。</b></div>
+
+<h2>5 · 本轮已落地的改动 / 待办</h2>
+<table>
+<tr><th>项</th><th>状态</th></tr>
+<tr><td>野荞 <code>dispatch_paused_until</code> 清空（恢复派单）</td><td class="win">✅ 已做</td></tr>
+<tr><td>「智能获客日常小分队」@野荞 说明原因</td><td class="win">✅ 已发</td></tr>
+<tr><td>饭粒-一筑 DM <code>fresh_window_minutes</code>：7 → 10</td><td class="win">✅ 已做（提醒：7→10 几乎不增量，真量靠 Playwright）</td></tr>
+<tr><td>反评（RC）想设 10min</td><td><span class="chip c-floor">未做</span> RC 现在<b>无任何时效闸</b>（全池捞），已是最大量；加 10min 闸要改代码且会<b>减量</b>，与"提量"相反 → 停，等确认</td></tr>
+<tr><td>Fly 东京 IP Playwright 取新视频验证</td><td><span class="chip c-lever">待跑</span> 决定"用不用 Mac"的前置</td></tr>
+<tr><td>圈定 100 个高频号源名单</td><td><span class="chip c-lever">待跑</span> 验证通过后</td></tr>
+</table>
+
+<h2>6 · 设计：终端 ↔ 个人 Lark 远程操控</h2>
+<p class="sub">目标：fanny 人在外面 →（出站）Claude 有结果推她个人 Lark；（入站）她从 Lark 发指令 → 终端 Claude 执行。</p>
+
+<h3>出站（Claude → Lark）—— 已经能做</h3>
+<p>脚本 / Claude 用 <code>lark-cli im +messages-send --as user</code>（或 bot）推到个人单聊/群。本轮已在用（@野荞 那条就是）。结果卡片、链接、告警都走这个，零开发。</p>
+
+<h3>入站（Lark → Claude 执行）—— 难点，三条路</h3>
+<table>
+<tr><th>路</th><th>怎么做</th><th>优点</th><th>缺点</th></tr>
+<tr><td><b>A. /loop + handle-lark-requests</b><br><span class="tag">最现成</span></td><td>已有 skill <code>handle-lark-requests</code>（拉同事 Lark 单聊、按授权自动处理、以本人身份回）。用 <code>/loop 5m</code> 让常驻 session 每几分钟轮询 fanny↔bot 新消息、解读成指令并执行</td><td>现成、零开发，今天就能用</td><td>① Mac 要开着 + loop 一直跑；② 轮询有 interval 延迟；③ 要 allowlist 限可自动执行的动作</td></tr>
+<tr><td><b>B. lark-event consume + headless Claude</b><br><span class="tag">更实时</span></td><td><code>lark-cli event consume</code> 把 Lark 消息当 NDJSON 实时流出；写常驻 bridge：消费 fanny→bot 消息 → 调 headless <code>claude -p "&lt;指令&gt;"</code>（Agent SDK / 无头）执行 → 结果 push 回 Lark</td><td>实时，不靠轮询</td><td>要开发 bridge + 跑 bot 长连接；Mac 仍要开着</td></tr>
+<tr><td><b>C. Claude Code 手机/网页端</b><br><span class="tag">最省事</span></td><td>Claude Code 有 claude.ai/code 网页 + 手机端，在外面直接用手机发指令</td><td>零开发、官方、完整工具</td><td>不是"在 Lark 里"，要切 App</td></tr>
+</table>
+
+<div class="callout key"><b>共同约束 / 风险（无论哪条路都要解决）</b>
+<b>1. 常开机器</b>：终端 Claude 跑在 Mac 上，Mac 睡了就停。要么 <code>caffeinate</code> 设不休眠，<b>要么把常驻 agent 搬到已经 24h 常开的机器（无影云电脑 / Fly）</b>。
+<br><b>2. 安全 = 远程代码执行</b>：从 Lark 发指令让终端执行 = 谁能发那个 Lark 谁就能跑命令。必须：① 只认 fanny 本人 open_id（发信人校验）；② 高危动作（部署 / 删除 / 凭据）仍二次确认、不自动执行；③ 可自动执行的动作定 allowlist。
+<br><b>3. 延迟</b>：轮询（A）按 interval；事件流（B）实时但要开发。</div>
+
+<div class="callout good"><b>推荐落地路径</b>
+<b>MVP 用 路 A</b>（<code>/loop</code> + <code>handle-lark-requests</code>，今天就能起）：在一台常开机器（建议无影云电脑，免 Mac 睡眠问题）上跑常驻 loop，轮询 fanny↔bot 单聊；出站继续用 <code>--as user</code> 推结果。跑顺、定好 allowlist 后，想要实时再升级到 路 B。</div>
+
+<p class="foot">本页由 Claude Code 于 2026-06-13 自动生成，归档本轮终端对话的诊断、数据与方案。数据口径：Supabase 生产库 <code>comments / videos / accounts / source_accounts</code> 实时查询。诊断脚本 <code>scripts/_diag-*.ts</code>（_ 前缀，gitignored）。</p>
+
+</div>
+</body>
+</html>
