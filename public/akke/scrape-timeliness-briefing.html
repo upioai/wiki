@@ -66,12 +66,12 @@
     <span class="pill">📅 更新 <b>2026-06-13</b></span>
     <span class="pill">快道 tier1 <b>163</b> 个号</span>
     <span class="pill">慢道 tier0 <b>1019</b> 个号</span>
-    <span class="pill">加 1 台机器 <b>≈ ¥77 / 月</b></span>
+    <span class="pill">✅ <b>已修复并实测验证</b>（6-13）</span>
   </div>
   <div class="toc">
     <a href="#s0">0 一分钟结论</a><a href="#s1">1 三层节奏全景</a><a href="#s2">2 3分钟扫什么</a>
     <a href="#s3">3 tier 分级</a><a href="#s4">4 3分钟为何变47分</a><a href="#s5">5 复扫有没有用</a>
-    <a href="#s6">6 加 VM</a><a href="#s7">7 06-10 根因</a><a href="#s8">8 三条路</a>
+    <a href="#s6">6 加 VM</a><a href="#s7">7 06-10 根因</a><a href="#s8">8 已执行+实测</a>
   </div>
 </header>
 
@@ -83,7 +83,7 @@
     <li><b>三个不同闹钟，扫的是不同东西，别混：</b><span class="tag g">3分钟＝挑优质号源</span> <span class="tag r">5分钟＝复扫优质视频(刨老坟)</span> <span class="tag b">2分钟＝给评论打标</span></li>
     <li><b>tier 就两级：0 普通 / 1 优质。</b>没有 2、3。schema 留了加更多级的口子（可做 tier2 给最尖子开超快道），但没实现。</li>
     <li><b>复扫不是没用，是方向反了</b>——该复扫最近 1-3 天的视频，现在却每 5 分钟刨 276 个 7 天以上的老视频。</li>
-    <li><b>加机器 ≈¥77/月、30秒生效、产能翻倍</b>，但有两个坑。<b>最划算：先免费给复扫限流，再按需加机器。</b></li>
+    <li><b>✅ 已执行（6-13）：复扫限流 + 加 1 台 VM 都已上线</b>。实测：真新鲜评论捕获 <b>~23 分钟</b>、tier0 覆盖 0→106 源、复扫洪水归零。详见第 8 节。</li>
   </ul>
 </div>
 
@@ -245,29 +245,46 @@
 </table>
 <div class="callout bad"><b>一句话根因</b>复扫洪水（vip-video-rescan 每 5 分钟扫 276 个老视频 ≈ 7.9 万次/天）把 worker 灌满 → "发现新视频"被挤降、慢道饿到 0 → 没产能及时抓新鲜评论 → 时效从 2h 崩到 56h、中高意向量腰斩。<b>跟评论窗口无关，是复扫抢光了产能。</b></div>
 
-<!-- 8 三条路 -->
-<h2 class="sec" id="s8"><span class="n">8</span>三条路 · 我的建议</h2>
-<div class="opt">
-  <div class="h">① 先给复扫限流 <span class="tag g">免费 · 推荐先做</span></div>
-  把"无差别每 5 分钟扫所有老 VIP"改成"只扫最近几天的视频 / 老视频退役"。不花钱，把被白白浪费的产能抢回来。<b>代价：改代码/cron（高危路径，走 PR）。</b>
+<!-- 8 已执行+实测 -->
+<h2 class="sec" id="s8"><span class="n">8</span>已执行的动作 + 今日实测验证</h2>
+<p style="color:var(--mut);font-size:14px;margin:-2px 0 14px">原计划的"三条路"已选 <b>③ 都上</b> 并全部落地（2026-06-13）。下面是做了什么 + 生产库实测结果。</p>
+
+<div class="card">
+  <h3>✅ 已执行（全部上线/部署/验证）</h3>
+  <table>
+    <tr><th>动作</th><th>方式</th><th>状态</th></tr>
+    <tr><td>① 复扫限流（老视频退役）</td><td>vip-rescan 加视频年龄闸 ≤4天，PR #329</td><td><span class="tag g">合并+部署 ✅</span></td></tr>
+    <tr><td>② 加 1 台 VM</td><td><code>fly scale count=2</code>（2台/东京）</td><td><span class="tag g">已生效 ✅</span></td></tr>
+    <tr><td>③ 提拔金矿入快道</td><td>62 个证明过的号 → tier1（101→163）</td><td><span class="tag g">已生效 ✅</span></td></tr>
+    <tr><td>④ tier 注释对齐</td><td>4h/5min→1h/3min，PR #327</td><td><span class="tag g">合并生效 ✅</span></td></tr>
+  </table>
 </div>
-<div class="opt">
-  <div class="h">② 加 1 台 VM <span class="tag y">+¥77/月 · 立竿见影</span></div>
-  不动代码、一条命令、30 秒生效。产能翻倍喂饱 163 快道 + 漏点给慢道。<b>代价：每月 ¥77，且会喂到复扫洪水。</b>
+
+<div class="card">
+  <h3>📊 实测验证（改造后 vs 改造前）</h3>
+  <table>
+    <tr><th>指标</th><th>改造前</th><th>改造后</th></tr>
+    <tr><td><b>真新鲜评论捕获</b>（发布≤2h）</td><td>—</td><td class="good"><b>中位 ~23 分钟，≤1h 96%</b> ✅ 目标达成</td></tr>
+    <tr><td>tier0 覆盖</td><td>近24h 仅 3 个源（≈饿死）</td><td class="good">30min 内 <b>106 个源</b>被采</td></tr>
+    <tr><td>worker 吞吐</td><td>~207/h</td><td class="good">~300–460/h（2.2×）</td></tr>
+    <tr><td>vip 复扫洪水</td><td>~3.3k/h（7.9万/天空转）</td><td class="good"><b>归零</b>（276 老视频退役）</td></tr>
+    <tr><td>worker 积压</td><td>洪水期堆积</td><td class="good">仅 14 条（完全追平）</td></tr>
+  </table>
 </div>
-<div class="opt rec">
-  <div class="h">③ 两个都上 <span class="tag g">最优</span></div>
-  先限流把产能从"刨老坟"挪到"抓新鲜"，再加 1 台把饼做大。新鲜 lead 捕获率会真正上去，慢道也能见光。
+
+<div class="callout good">
+  <b>⏳ 唯一还在跑的「恢复期」——会自己结束，不是问题</b>
+  1019 个被饿死几天的源正在"首次复活补抓"，把各自积压的老评论一次性倒进来——所以<b>整体时效中位短期仍显示偏高</b>（老评论拉的）。但这批是在<b>找回被搁置的高意向 leads</b>（非垃圾），且不挡运营（lead 队列按发布时间倒序，新鲜永远排最前）。实测已在排空：老回填占比 <b>91% → 43%（2 小时内）</b>。再过几小时整体数字也会跟着回落。
 </div>
+
 <div class="callout">
-  <b>已做 / 没做</b>
-  <b>已做：</b>① 把 62 个"证明过产高意向"的号升进快道（tier1 101→163）；② 更新 tier 列注释对齐真实节奏（PR #327 已合并生效）。<br>
-  <b>没做（按你说停手）：</b>加 VM、复扫限流、tier2。<b>这版要真生效，①或②至少做一个</b>——等你拍板。
+  <b>没做（按你的指示）</b>
+  <b>tier2 超快道</b>（你说不用）；<b>lead 队列时间窗从 7天收紧到 48-72h</b>（业务策略，留你定）。
 </div>
 
 <div class="foot">
-  Akke 智能获客 · 抓取管线时效专题 · 更新于 2026-06-13 · 数据全部来自生产库实测<br>
-  待你拍板：先走 ① 限流 / ② 加 VM / ③ 都上（含要不要顺手做 tier2）。回一句即可，我接着执行。
+  Akke 智能获客 · 抓取管线时效专题 · 更新于 2026-06-13（已执行+实测）· 数据全部来自生产库实测<br>
+  现状：改造全部落地并验证，新鲜捕获 ~23 分钟达标，恢复期数小时内自然排空。
 </div>
 
 </div>
