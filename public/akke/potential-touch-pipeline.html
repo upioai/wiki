@@ -88,8 +88,9 @@
   <p class="subtitle">把 <b>已 DM 触达过、≥1 天没回的高/中意向用户</b>（反评 RC 纳入为待做项）做成<b>事件驱动盯防</b>：本人一发新视频，就在发布 <b>≤10 分钟</b>内自动完成<b>点赞 + 评论1（评这条视频内容）+ 评论2（逐字搬首触原文）</b>。每人每天 ≤1 次、累计 ≤7 次、对方一回复就停、商家/同行排除。监控 + 三连发送都搬<b>无影一台云电脑常驻</b>（路 B），队列与发送同机闭环。</p>
   <div class="meta-tags">
     <span class="tag"><span class="dot"></span>样板账号：饭粒 / 一筑 c5d236e1</span>
-    <span class="tag"><span class="dot"></span>✅ 已上线无影常驻 2026-06-12</span>
-    <span class="tag warn"><span class="dot"></span>覆盖率 12% 是当前瓶颈</span>
+    <span class="tag"><span class="dot"></span>✅ 三连真视频首落地 2026-06-14</span>
+    <span class="tag warn"><span class="dot"></span>头号坑：连播 autoplay 打偏</span>
+    <span class="tag warn"><span class="dot"></span>待解：无影空闲挂起 → 真 7×24</span>
   </div>
 
   <div class="gate">
@@ -176,7 +177,7 @@ tar -xf rtb.tgz</code></pre>
       打印 <code>key=有</code> + 一条贴合视频的评论 = ✅；打印 <code>key=无(退兜底)</code> + <code>赞赞赞</code> = .env 缺 key（补上才有内容反应版）。</li>
     <li><b>发送前置（每次开机必查）</b><span class="where wy">无影</span><br>抖音 PC <b>已登录 + 最大化 + 前台</b>；屏幕分辨率锁 <b>2560×1600</b>；输入法切 <b>英文</b>。</li>
     <li><b>启动常驻</b><span class="where wy">无影</span><br>双击 <code>_start-realtime-touch.bat</code> → 弹两个黑窗口（<code>Akke-watch</code> 监控 + <code>Akke-consume</code> 消费），各带崩溃自动重启。<b>跑批期间别碰鼠标键盘</b>（发评论时全程控 GUI）。</li>
-    <li><b>验证真发了</b><span class="where mac">mac</span><br>逮到第一条三连后查 DB：<code>second_touch_state.last_touch_at</code> 往前走 + <code>outreach_events</code> 出现 <code>video_like</code> / <code>comment_like</code> 事件（点赞=三连铁证，纯首触没有这俩）。comment_log 摆渡回 mac 跑 <code>mark-second-touch.ts --from-comment-log</code> 回写节奏。</li>
+    <li><b>验证真发了</b><span class="where mac">mac</span><br><b>别信消费日志的「✅已点发送」</b>——它会假阳性。铁证两层：①<b>执行器验证闸</b>当场截图验（点赞验爱心变红、评论验气泡出现），验不过记 <code>unverified</code> 不算成功；②人工复核 = 用<b>一筑「喜欢」列表</b>看视频在不在 + <b>另号/无痕</b>看评论气泡。⚠️ 三连的点赞<b>不写</b> <code>outreach_events</code>（<code>video_like</code>/<code>comment_like</code> 恒 0，别拿它当铁证），证据看 <code>comment_log</code> + <code>second_touch_state.last_touch_at</code>。comment_log 摆渡回 mac 跑 <code>mark-second-touch.ts --from-comment-log</code> 回写节奏。</li>
   </ol>
 
   <!-- ============ 常态运维 ============ -->
@@ -236,18 +237,52 @@ tar -xf rtb.tgz</code></pre>
       <p class="why"><code>f2==0.0.1.7</code> 硬锁 <code>httpx==0.27.2</code>，监控拉关注流靠 f2 签名。<b>别单独升 httpx</b>，否则签名失败拉不到 feed。</p></div>
   </div>
 
+  <!-- ============ 实战问题 & 解决（路 B 实跑） ============ -->
+  <h2 class="sec">实战问题 &amp; 解决<span class="hint">2026-06-13~14 路 B 真跑无影踩的坑 + 解法</span></h2>
+
+  <div class="gate" style="background:linear-gradient(180deg,#e9f6f1,#fff);border-color:#bfe3d8">
+    <h2 style="color:var(--green)">🎉 里程碑：三连首次在真视频落地（点赞 + 评论）</h2>
+    <p>2026-06-14，<b>监控 → 入队 → 身份门 → 点赞 → 评论1 → 评论2 → 验证闸</b> 全链路在一筑号实测跑通，<b>第一条真视频三连成功落地并验证通过</b>。executor 修复已提交主仓（commit <code>0a1e62b</code>）。下面是这两天真跑踩出来的坑和解法。</p>
+  </div>
+
+  <div class="cards">
+    <div class="card no"><h3>🥇 头号执行坑：连播（autoplay）把点赞评论打偏</h3>
+      <p class="why">抖音 PC 打开一条视频后<b>播完会自动跳下一条</b>。脚本以为还停在目标视频上，结果<b>点赞 / 评论全打到了下一条别人的视频</b>——目标视频既没赞也没评论，脚本却走完流程、还因为读到跳过去那条的红心<b>误判"已赞"</b>。<br><b>解法：取消连播。</b>右下角连播开关关一次<b>持久记住</b>（开新视频仍是关闭态）→ 靠人手关一次即可，脚本<b>不点它</b>（它是 toggle，每条点反而又打开）。执行器另加 <code>pause_video</code> 暂停作双保险。</p></div>
+
+    <div class="card semi"><h3>暂停演进：空格为什么不管用</h3>
+      <p class="why">试了三种暂停：①<b>空格键</b>——焦点不在播放器上时变成"翻页"，<b>不暂停</b>；②<b>点视频画面中心</b>——能暂停但受网速/时机影响不稳，短视频常在点到之前就跳了；③<b>取消连播</b>——最稳，根上不跳。最终：人手关连播 + 脚本 hover 唤出控制条、定位<b>左下角播放/暂停键</b>点它兜底。</p></div>
+
+    <div class="card ok"><h3>「✅ 已点发送」不可信 → 加了真发验证闸</h3>
+      <p class="why">6/12 整夜跑、日志写"3 条三连✅已点发送"，<b>实测全是假阳性</b>：以一筑身份看，爱心不红、评论没有、"喜欢"列表里也没有——GUI 点击<b>点空了</b>但脚本仍 return 成功。<br><b>解法：把"点一下=成功"改成"验到才算"。</b>点赞后验<b>爱心真变红</b>、评论后验<b>气泡真出现 + 输入框清空</b>；验不过记 <code>unverified</code>、<b>不计成功、不标 touched、不假报</b>。6/14 真视频落地就是这道闸放行的。</p></div>
+
+    <div class="card ok"><h3>「覆盖率 12%」是误判 → 盲关 200 已否决</h3>
+      <p class="why">之前以为关注流只命中 12%＝号没关注那些人、得批量补关注。<b>实测是误判</b>：监控关注流<b>只露最近发过视频的人</b>，"没出现 ≠ 没关注"。一筑号到本人页一看 18 个里 10 个已关、一轮监控就逮到 7 个池里人的视频 → <b>关注覆盖其实够</b>，不是瓶颈。<b>"盲关 200 人"的计划已否决</b>，省下日限 30/号的几天铺设。真正的 wrong_user 问题用<b>按抖音号反查</b>（<code>_enrich-follow-douyin-number.ts</code>）定点修，不靠盲关。</p></div>
+
+    <div class="card ok"><h3>文件摆渡：paste.rs / 0x0 / tmpfiles 全挂 → 改 gh gist</h3>
+      <p class="why">把脚本/表从 mac 传无影的中转站接连失效：<code>paste.rs</code>、<code>0x0.st</code>、<code>tmpfiles</code> 全挂或限流。<b>改用 <code>gh gist</code> 上传（走 GitHub，git 级稳）+ 无影 <code>curl.exe</code> 下载</b>（下载方向一直通）。比临时 paste 站可靠得多。</p></div>
+
+    <div class="card no"><h3>无影平台层会"空闲挂起" → 真 7×24 还没解</h3>
+      <p class="why">实测一段 <b>23:30 → 09:02 共 9.5 小时全空白</b>：不是脚本崩，是<b>无影平台层把空闲会话挂起了</b>——<code>powercfg</code> 改电源策略管的是 OS 层，<b>管不到平台层</b>这层挂起。所以"关掉一切它自己 7×24 跑"目前还做不到，要解无影空闲断开（保持连接 / 控制台保活策略）。生产档监控 <code>--max-age-min 10</code>，两窗口（监控+消费）可见、能自重启常驻。</p></div>
+
+    <div class="card ok"><h3>关注流导航三根因已修（6/13）</h3>
+      <p class="why">之前批量~9 成"点空/落到非主页"，根因三条全修：①<code>用户</code>tab 坐标与首条结果<b>重叠成同一点</b>→改 VL 定位「用户」二字；②搜人前没回首页 → 搜索框漂移点空 → <code>goto_home()</code> 钉死首页再搜；③<code>already_followed()</code> 用诱导式提问"找已关注按钮"→<b>问就答已关注</b>、一个不关 → 改裁剪头部"读按钮文字"判别。配 OCR 身份门"非主页/加载中"重试 3 次。</p></div>
+
+    <div class="card semi"><h3>坐标体系：千分比 + 抓坐标小工具</h3>
+      <p class="why">无影上所有点击坐标用<b>千分比（0–1000）</b>而非绝对像素，换分辨率不用全量重标。要精确坐标时用 <code>_capture_pos.py</code>（倒数 5 秒捕获鼠标位置 → 打印千分比）。连播开关、左下角暂停键这些都靠它量。另有 <code>seen</code> 去重表按 <code>aweme_id</code> 防同一视频重复触。</p></div>
+  </div>
+
   <!-- ============ 当前状态 ============ -->
-  <h2 class="sec">当前真实状态（2026-06-12 · 不粉饰）</h2>
+  <h2 class="sec">当前真实状态（2026-06-14 · 不粉饰）</h2>
   <ul class="status">
-    <li><span class="ok">✅ 已上线无影常驻</span>：watch + consume 双窗口在跑，监控启动正常（cookie 5150 字节 / lead 池 164 / 每 60s 拉 3 页），逮到的旧视频按 ≤10min 闸正确放弃。检测链路通。</li>
-    <li><span class="ok">✅ 评论1 JIT 内容反应版验通</span>：无影 <code>key=有</code>，真实视频正文 → qwen3 出贴合内容的干净评论（楼梯储物视频 → 「楼梯下还能藏个储物间，这操作太解压了！」）。</li>
-    <li><span class="ok">✅ 评论2 照发不挡空</span>：表共 122 人有评论2（含 86 带促销词照发）、42 人无首触原文只发点赞+评论1、0 人被闸挡空。</li>
-    <li><span class="bad">⚠️ 覆盖率仍 12%</span>：池 164 只关注 21，<b>88% 的人发新视频进不了关注流</b>（第 0 步未补齐）→ 一天预计 1–2 条。这是当前头号产量瓶颈。</li>
-    <li><span class="bad">⚠️ 7×24 无人值守未完全解</span>：无影黑屏 + 需前台，现阶段靠「保持无影在线 + 脚本常驻」的半自动；治本待 EDS 远程命令 + 按需唤醒。</li>
-    <li><b>一句话：</b>链路<b>已闭环、能发</b>，就等第一条 &lt;10min 新视频触发验证；产量靠第 0 步补关注往上拉。</li>
+    <li><span class="ok">✅ 三连首次在真视频落地</span>：2026-06-14 一筑号实测，监控→入队→身份门→点赞→评论1→评论2→<b>验证闸</b>全链路跑通，第一条真视频<b>点赞 + 评论都验证成功</b>。执行链全部打通。</li>
+    <li><span class="ok">✅ 真发验证闸有效</span>：点赞验爱心变红、评论验气泡出现，验不过记 <code>unverified</code> 不假报——6/12 那批"已点发送"假阳性被它挡住、不再误入库。</li>
+    <li><span class="ok">✅ 关注覆盖够用</span>：「覆盖率 12%」已确认是误判（关注流只露近期发视频的人），盲关 200 人计划已否决；wrong_user 用按抖音号反查定点修。</li>
+    <li><span class="ok">✅ 评论1 JIT + 评论2 照发不挡空</span>：评论1 现场看视频正文 qwen3 生成干净反应（空正文退「赞赞赞」）；评论2 逐字搬首触原文、带促销词照发、0 人被闸挡空。</li>
+    <li><span class="bad">⚠️ 真 7×24 无人值守未解</span>：无影<b>平台层会空闲挂起</b>（实测 9.5h 空白，powercfg 管不到）；现阶段靠「保持无影在线 + 双窗口自重启常驻」的半自动，治本待保活 / EDS 远程命令 + 按需唤醒。</li>
+    <li><b>一句话：</b>执行链<b>已全部打通、真视频已落地</b>；剩的是把无影"空闲挂起"解掉、做到真常驻不靠人盯。</li>
   </ul>
 
-  <p class="foot">Akke · 潜在触达流程 + 复刻 SOP + 常态运维 · 口径随实现演进，以代码为准 · 2026-06-12</p>
+  <p class="foot">Akke · 潜在触达流程 + 复刻 SOP + 常态运维 · 口径随实现演进，以代码为准 · 2026-06-14</p>
 </div>
 </body>
 </html>
