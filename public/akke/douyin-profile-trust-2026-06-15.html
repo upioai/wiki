@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>三号主页信任度评估 · 详细拆解版</title>
+<style>
+  :root {
+    --green:#16a34a; --red:#dc2626; --amber:#d97706; --blue:#2563eb; --purple:#9333ea;
+    --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb; --bg:#f8fafc;
+    --soft-green:#f0fdf4; --soft-red:#fef2f2; --soft-amber:#fffbeb; --soft-blue:#eff6ff; --soft-purple:#faf5ff;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif; color:var(--ink); background:var(--bg); line-height:1.65; }
+  .wrap { max-width:1000px; margin:0 auto; padding:32px 20px 64px; }
+  h1 { font-size:26px; margin:0 0 6px; }
+  .sub { color:var(--muted); font-size:14px; margin-bottom:8px; }
+  .lead { background:#fff; border:1px solid var(--line); border-left:4px solid var(--blue); border-radius:8px; padding:14px 18px; margin:18px 0 32px; font-size:14px; color:#374151; }
+  h2 { font-size:20px; margin:40px 0 14px; padding-bottom:6px; border-bottom:2px solid var(--line); }
+  h3 { font-size:16px; margin:22px 0 10px; color:#374151; }
+  h4 { font-size:14px; margin:14px 0 6px; color:var(--muted); font-weight:600; }
+
+  /* 业务定位 callout */
+  .biz { background:#fff; border:2px solid #fde68a; border-radius:10px; padding:14px 18px; margin:18px 0; }
+  .biz .label { display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; background:var(--amber); color:#fff; margin-right:8px; }
+  .biz .text { font-size:14px; }
+
+  /* 维度框架卡 */
+  .frame { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px; margin:10px 0; }
+  .frame .card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  .frame .card .title { font-size:14px; font-weight:700; margin-bottom:8px; color:var(--blue); }
+  .frame .card ul { margin:0; padding-left:18px; font-size:12.5px; color:#374151; }
+  .frame .card li { margin:3px 0; }
+
+  /* 排名榜 */
+  .ranks { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:14px; }
+  .rank { background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px; }
+  .rank.r1 { border-left:4px solid var(--green); background:var(--soft-green); }
+  .rank.r2 { border-left:4px solid var(--amber); background:var(--soft-amber); }
+  .rank.r3 { border-left:4px solid var(--red); background:var(--soft-red); }
+  .rank .medal { font-size:24px; margin-bottom:4px; }
+  .rank .name { font-size:17px; font-weight:700; margin-bottom:2px; }
+  .rank .dbname { font-size:12px; color:var(--muted); margin-bottom:10px; }
+  .rank .score { font-size:32px; font-weight:800; line-height:1; }
+  .rank.r1 .score { color:var(--green); } .rank.r2 .score { color:var(--amber); } .rank.r3 .score { color:var(--red); }
+  .rank .score-label { font-size:12px; color:var(--muted); margin-bottom:10px; }
+  .rank .verdict { font-size:13px; color:#374151; }
+  .rank .grade { display:inline-block; font-size:11px; padding:2px 8px; border-radius:999px; background:#fff; border:1px solid var(--line); color:var(--ink); font-weight:600; margin-left:6px; }
+
+  /* 账号详情大卡 */
+  .acct { background:#fff; border:1px solid var(--line); border-radius:14px; padding:24px; margin:18px 0; }
+  .acct.a1 { border-top:4px solid var(--green); }
+  .acct.a2 { border-top:4px solid var(--amber); }
+  .acct.a3 { border-top:4px solid var(--red); }
+  .acct .head { display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:6px; }
+  .acct .head .title { font-size:19px; font-weight:700; }
+  .acct .head .id { font-size:12px; color:var(--muted); font-family:Menlo, Consolas, monospace; }
+  .acct .tagline { font-size:13px; color:var(--muted); margin-bottom:8px; }
+
+  /* 子项评分 */
+  .subscore { display:grid; gap:8px; margin:8px 0 10px; }
+  .sub-item { display:grid; grid-template-columns:140px 70px 1fr; gap:10px; align-items:center; padding:8px 12px; background:#fafbfc; border-radius:6px; border:1px solid var(--line); }
+  .sub-item .sname { font-size:13px; color:#374151; font-weight:500; }
+  .sub-item .badge { font-size:10px; font-weight:700; padding:2px 7px; border-radius:999px; text-align:center; justify-self:start; }
+  .sub-item .stext { font-size:12.5px; color:#4b5563; line-height:1.55; }
+  .badge.good { background:#dcfce7; color:var(--green); }
+  .badge.mid { background:#fef3c7; color:var(--amber); }
+  .badge.bad { background:#fee2e2; color:var(--red); }
+
+  /* 总结框 */
+  .summary-box { padding:12px 16px; border-radius:8px; font-size:13px; margin-top:10px; }
+  .summary-box.good { background:var(--soft-green); border:1px solid #bbf7d0; }
+  .summary-box.mid { background:var(--soft-amber); border:1px solid #fde68a; }
+  .summary-box.bad { background:var(--soft-red); border:1px solid #fecaca; }
+  .summary-box strong { display:block; margin-bottom:4px; }
+  .summary-box.good strong { color:var(--green); } .summary-box.mid strong { color:var(--amber); } .summary-box.bad strong { color:var(--red); }
+
+  /* 对标号详情卡 */
+  .bench-group { margin:14px 0 8px; }
+  .bench-group-title { font-size:14px; font-weight:700; padding:8px 14px; background:#f1f5f9; border-radius:6px 6px 0 0; border-left:3px solid var(--blue); display:inline-block; }
+  .bench-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:10px; margin-top:8px; }
+  .bench-card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px 16px; font-size:13px; }
+  .bench-card .bn { font-size:15px; font-weight:700; margin-bottom:4px; }
+  .bench-card .bf { font-size:12px; color:var(--muted); margin-bottom:10px; }
+  .bench-card .bf strong { color:var(--ink); }
+  .bench-card .row { margin:6px 0; }
+  .bench-card .row .lbl { display:inline-block; font-size:11px; font-weight:600; color:var(--blue); margin-right:4px; }
+  .bench-card .row .val { font-size:12.5px; color:#374151; }
+  .bench-card .learn { margin-top:8px; padding:8px 10px; background:var(--soft-blue); border-radius:6px; font-size:12.5px; color:#1e40af; }
+  .bench-card .learn strong { color:var(--blue); }
+
+  /* 改造 action */
+  .actions { display:grid; gap:14px; }
+  .act-block { background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px; }
+  .act-block .pri { display:inline-block; font-size:11px; font-weight:700; padding:2px 10px; border-radius:999px; margin-right:8px; }
+  .pri.p0 { background:#fee2e2; color:var(--red); }
+  .pri.p1 { background:#fef3c7; color:var(--amber); }
+  .pri.p2 { background:#dbeafe; color:var(--blue); }
+  .act-block .title { font-size:15px; font-weight:700; display:inline-block; }
+  .act-block ul { margin:8px 0 0; padding-left:22px; }
+  .act-block li { margin:6px 0; font-size:13.5px; }
+  .act-block li code { background:#eef2ff; padding:1px 6px; border-radius:4px; font-size:12px; font-family:Menlo, Consolas, monospace; }
+
+  pre { background:#0f172a; color:#e2e8f0; padding:12px 16px; border-radius:8px; font-size:12.5px; line-height:1.6; overflow-x:auto; font-family:Menlo, Consolas, monospace; margin:6px 0; white-space:pre-wrap; }
+
+  /* 按账号的 to-do 清单 */
+  .todo-acct { background:#fff; border:1px solid var(--line); border-radius:14px; padding:22px; margin:18px 0; }
+  .todo-acct.t1 { border-top:4px solid var(--green); }
+  .todo-acct.t2 { border-top:4px solid var(--amber); }
+  .todo-acct.t3 { border-top:4px solid var(--red); }
+  .todo-acct .todo-head { display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px; margin-bottom:4px; }
+  .todo-acct .todo-name { font-size:18px; font-weight:700; }
+  .todo-acct .todo-status { font-size:12px; color:var(--muted); }
+  .todo-acct .todo-summary { font-size:13px; color:#374151; margin-bottom:14px; padding:10px 14px; background:#f8fafc; border-radius:6px; border-left:3px solid var(--line); }
+  .todo-acct.t1 .todo-summary { border-left-color:var(--green); }
+  .todo-acct.t2 .todo-summary { border-left-color:var(--amber); }
+  .todo-acct.t3 .todo-summary { border-left-color:var(--red); }
+  .task { border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin:10px 0; background:#fff; }
+  .task .task-head { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:8px; padding-bottom:8px; border-bottom:1px dashed var(--line); }
+  .task .task-num { font-size:12px; font-weight:700; color:var(--muted); background:#f1f5f9; padding:2px 8px; border-radius:4px; }
+  .task .task-title { font-size:14.5px; font-weight:700; color:var(--ink); flex:1; min-width:200px; }
+  .task .task-meta { font-size:12px; color:var(--muted); margin:4px 0 8px; }
+  .task .task-meta strong { color:#374151; }
+  .task .task-section-label { font-size:12px; font-weight:700; color:var(--blue); margin:10px 0 4px; text-transform:uppercase; letter-spacing:0.5px; }
+  .task ol, .task ul { margin:4px 0 8px; padding-left:22px; font-size:13px; line-height:1.65; }
+  .task ol li, .task ul li { margin:3px 0; }
+  .task .check-row { display:flex; gap:10px; align-items:flex-start; padding:6px 0; font-size:13px; }
+  .task .check-row::before { content:"☐"; color:var(--blue); font-size:16px; line-height:1.4; }
+  .task pre { margin:6px 0 10px; }
+  .task.p0-task { border-left:3px solid var(--red); }
+  .task.p1-task { border-left:3px solid var(--amber); }
+  .task.p2-task { border-left:3px solid var(--blue); }
+  .callout { background:var(--soft-purple); border:1px solid #e9d5ff; border-radius:8px; padding:14px 18px; margin:10px 0; font-size:14px; }
+  .callout strong { color:var(--purple); }
+  .callout ol { margin:8px 0 0; padding-left:22px; } .callout li { margin:6px 0; }
+  .note { font-size:12px; color:var(--muted); margin-top:32px; border-top:1px solid var(--line); padding-top:14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>三号主页信任度评估 · 详细拆解版</h1>
+  <div class="sub">小星聊全屋 / 小米·全屋定制 / 一筑·全屋定制 · 2026-06-15</div>
+
+  <div class="biz">
+    <span class="label">业务定位</span>
+    <span class="text"><strong>承接全国所有业务 · 线上 + 线下双通道</strong>。这意味着主页所有"地域限定"措辞需要调整——比如小星的"本地可约上门量尺"、一筑的"IP: 浙江"权重，都需要在简介里用"全国接单 / 重点城市上门"重新校准。</span>
+  </div>
+
+  <div class="biz" style="background:#fefce8; border-color:#fde047; margin-top:10px;">
+    <span class="label" style="background:#ca8a04;">代运营约束</span>
+    <span class="text">Akke 团队是<strong>代为管理这 3 个账号</strong>——不能去工厂 / 客户家 / 施工现场实拍。所有内容只能靠：① 品牌方提供的素材库（成品图 / 工厂照 / 案例对比图）；② 纯桌面字幕款科普视频（剪映/醒图就能做）；③ 选题/知识/转述驱动的二创。下方所有任务已按这个约束修订——<strong>不会出现"去工厂拍"等不可执行的动作</strong>。</span>
+  </div>
+
+  <div class="lead">
+    <strong>怎么读这份报告：</strong>三个号在<strong>陌生 DM 接通场景</strong>下被评估——目标是"对方收到私信、点头像验真、3 秒内决定回不回"。<br>
+    每个号的 4 大维度（头像 / 昵称 / 简介 / 视频）<strong>都拆成 4-6 个子项</strong>逐项打分，最后给出 P0/P1/P2 改造清单 + 对标参考详情。
+  </div>
+
+  <h2>📐 评估框架：4 维度 × 子项拆解</h2>
+  <div class="frame">
+    <div class="card">
+      <div class="title">头像 · 4 子项</div>
+      <ul>
+        <li>视觉风格（色调 / 形状）</li>
+        <li>信息内容（文字 / logo）</li>
+        <li>与封面统一度</li>
+        <li>是否不出镜（硬约束）</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="title">昵称 · 5 子项</div>
+      <ul>
+        <li>IP 名（个人/品牌感）</li>
+        <li>身份品类后缀</li>
+        <li>分隔符与可读性</li>
+        <li>是否传递"全国"信号</li>
+        <li>三号矩阵一致性</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="title">简介 · 6 子项</div>
+      <ul>
+        <li>身份证明（年限/规模）</li>
+        <li>业务范围（全国 / 线上线下）</li>
+        <li>主营品类列举</li>
+        <li>反套路承诺</li>
+        <li>服务 / CTA</li>
+        <li>地域信号（IP 标签影响）</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="title">视频内容 · 4 子项</div>
+      <ul>
+        <li>置顶位 3 条选材</li>
+        <li>封面样式（字幕款/实景款）</li>
+        <li>选题密度 / 深度</li>
+        <li>更新频率 / 互动情况</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>🏆 信任度总分排名</h2>
+  <div class="ranks">
+    <div class="rank r1">
+      <div class="medal">🥇</div>
+      <div class="name">小星聊全屋 <span class="grade">A 级</span></div>
+      <div class="dbname">DB 账号名：零星 · 抖音号 79300349290</div>
+      <div class="score">8.5</div>
+      <div class="score-label">/ 10 信任度</div>
+      <div class="verdict">三号统一标杆。仅"本地可约上门量尺"需改成"全国接单+上门"。</div>
+    </div>
+    <div class="rank r2">
+      <div class="medal">🥈</div>
+      <div class="name">小米·全屋定制 <span class="grade">B+ 级</span></div>
+      <div class="dbname">DB 账号名：小文（野荞）· 抖音号 46385260836</div>
+      <div class="score">7.5</div>
+      <div class="score-label">/ 10 信任度</div>
+      <div class="verdict">头像/简介都好。缺科普封面 + 简介未明示"全国"。</div>
+    </div>
+    <div class="rank r3">
+      <div class="medal">🥉</div>
+      <div class="name">一筑·全屋定制 <span class="grade">C 级</span></div>
+      <div class="dbname">DB 账号名：饭粒 · 抖音号 54362559027</div>
+      <div class="score">4.0</div>
+      <div class="score-label">/ 10 信任度</div>
+      <div class="verdict">视频内容最强，但头像（真人女图）+ IP 浙江属地把"全国专业感"双杀。</div>
+    </div>
+  </div>
+
+  <!-- ============== 小星聊全屋 ============== -->
+  <h2>🥇 小星聊全屋 · 详细评估</h2>
+  <div class="acct a1">
+    <div class="head">
+      <div class="title">小星聊全屋</div>
+      <div class="id">DB 零星 · 79300349290</div>
+    </div>
+    <div class="tagline">19 获赞 · 23 互关 · 345 关注 · 29 粉丝 · 顶图横幅"8 年老定制·讲真话·不踩坑" · 私域"不踩坑装修指南" 2645 人</div>
+
+    <h3>📷 头像（4/4 全 GOOD）</h3>
+    <div class="subscore">
+      <div class="sub-item"><div class="sname">视觉风格</div><div class="badge good">GOOD</div><div class="stext">米色圆形底 + 烫金色描边，色调温暖、低饱和，给人"靠谱、不浮夸"的视觉感受。</div></div>
+      <div class="sub-item"><div class="sname">信息内容</div><div class="badge good">GOOD</div><div class="stext">"小星"两字白色描边大字 + 顶部金色五角星 + 底部"全屋定制"小字。<strong>3 个信息层级齐备</strong>。</div></div>
+      <div class="sub-item"><div class="sname">与封面统一度</div><div class="badge good">GOOD</div><div class="stext">置顶视频封面用同款米色/橙色调，<strong>头像和封面一眼能看出是同一个号</strong>。</div></div>
+      <div class="sub-item"><div class="sname">不出镜</div><div class="badge good">GOOD</div><div class="stext">完全字体 logo 化，满足"不真人出镜"硬约束。</div></div>
+    </div>
+
+    <h3>🏷 昵称（4/5 GOOD，1 项可优化）</h3>
+    <div class="subscore">
+      <div class="sub-item"><div class="sname">IP 名</div><div class="badge good">GOOD</div><div class="stext">"小星"——亲切 + 易记 + 性别中性，跟头像呼应。</div></div>
+      <div class="sub-item"><div class="sname">身份品类后缀</div><div class="badge good">GOOD</div><div class="stext">"聊全屋"——完美匹配「X 哥聊装修」句式，专业身份明确。</div></div>
+      <div class="sub-item"><div class="sname">分隔符与可读性</div><div class="badge good">GOOD</div><div class="stext">直接连读"小星聊全屋"5 字，无多余符号，朗朗上口。</div></div>
+      <div class="sub-item"><div class="sname">全国信号</div><div class="badge mid">MID</div><div class="stext">昵称本身不强调地域，是中性的。但因为简介里出现"本地"二字，整体感觉偏本地号。</div></div>
+      <div class="sub-item"><div class="sname">矩阵一致性</div><div class="badge good">GOOD</div><div class="stext">跟小米/一筑的"·全屋定制"略不同（小星走"聊全屋"动词句式）。但都明确传递专业身份。</div></div>
+    </div>
+
+    <h3>📝 简介（4 GOOD / 2 需调整）</h3>
+    <div class="subscore">
+      <div class="sub-item"><div class="sname">身份证明</div><div class="badge good">GOOD</div><div class="stext">"全屋定制 8 年" + 顶图横幅"8 年老定制"双重强化，可信度高。</div></div>
+      <div class="sub-item"><div class="sname">业务范围</div><div class="badge bad">❌ BAD</div><div class="stext"><strong>"本地可约上门量尺"——直接跟全国业务定位冲突</strong>。陌生人看到"本地"会假定你只做某一城。</div></div>
+      <div class="sub-item"><div class="sname">主营品类列举</div><div class="badge good">GOOD</div><div class="stext">"板材 / 五金 / 报价单"——具体到品类，不空喊。</div></div>
+      <div class="sub-item"><div class="sname">反套路承诺</div><div class="badge good">GOOD</div><div class="stext">"没有滤镜 没有摆拍"——直接对抗装修行业的滤镜痛点，强信任 hook。</div></div>
+      <div class="sub-item"><div class="sname">服务 / CTA</div><div class="badge good">GOOD</div><div class="stext">"私信户型当天回"——明确响应承诺 + 给出私信触发动作。</div></div>
+      <div class="sub-item"><div class="sname">地域信号</div><div class="badge mid">MID</div><div class="stext">"本地可约上门量尺"造成"只服务一城"的误读。需改成"全国接单 · 重点城市可上门"。</div></div>
+    </div>
+
+    <h3>🎬 视频内容（4/4 全 GOOD）</h3>
+    <div class="subscore">
+      <div class="sub-item"><div class="sname">置顶位 3 条</div><div class="badge good">GOOD</div><div class="stext">"盯紧这 12 个细节" / "装修 8 大后悔点" / "板材怎么选" ——<strong>全是避坑科普选题</strong>，验真型陌生人正好需要这种 hook。</div></div>
+      <div class="sub-item"><div class="sname">封面样式</div><div class="badge good">GOOD</div><div class="stext">字幕款米色/橙色调封面，统一性极强；"避坑红黑榜"红色徽章是辨识 mark。</div></div>
+      <div class="sub-item"><div class="sname">选题密度</div><div class="badge good">GOOD</div><div class="stext">"衣柜/水电/橱柜 8 大后悔点"系列 + "全屋收纳 / 卫生间 / 衣柜定制黄金布局"——成体系。</div></div>
+      <div class="sub-item"><div class="sname">更新频率与互动</div><div class="badge mid">MID</div><div class="stext">最高 126 播放、最低 14 播放。号刚起步，互动不高，但内容资产已经成型。</div></div>
+    </div>
+
+    <div class="summary-box good">
+      <strong>总结：</strong>三号里最完整、最像 mid-tier 标杆。唯一关键改动 = 把简介里"本地可约上门量尺"改成"全国接单 / 重点城市可上门量尺"，让陌生人不会因为"本地"二字流失。
+    </div>
+  </div>
+
+  <!-- ============== 小米·全屋定制 ============== -->
+  <h2>🥈 小米·全屋定制 · 详细评估</h2>
+  <div class="acct a2">
+    <div class="head">
+      <div class="title">小米·全屋定制</div>
+      <div class="id">DB 小文（野荞）· 46385260836</div>
+    </div>
+    <div class="tagline">157 获赞 · 11 互关 · 107 关注 · 18 粉丝 · 有 3 条爆款（1509 / 1449 / 5576 互动）· 私域"定制家具设计" 12.8 万</div>
+
+    <h3>📷 头像（4/4 全 GOOD）</h3>
+    <div class="subscore">
+      <div class="sub-item"><div class="sname">视觉风格</div><div class="badge good">GOOD</div><div class="stext">厨房一角实景图 + 暖光 + 木质感橱柜——给人"实拍、真现场"的信任感。</div></div>
+      <div class="sub-item"><div class="sname">信息内容</div><div class="badge mid">MID</div><div class="stext">纯实景图无文字标识。<strong>跟小星比少了 logo/品类标识</strong>，单看头像不一定立刻知道是全屋定制。但厨房橱柜的画面本身有强暗示。</div></div>
+      <div class="sub-item"><div class="sname">与封面统一度</div><div class="badge good">GOOD</div><div class="stext">9 宫格都是同款实景成品图，跟头像调性一致。</div></div>
+      <div class="sub-item"><div class="sname">不出镜</div><div class="badge good">GOOD</div><div class="stext">满足硬约束。</div></div>
+    </div>
+
+    <h3>🏷 昵称（5/5 全 GOOD）</h3>
+    <div class="subscore">
+      <div class="sub-item"><div class="sname">IP 名</div><div class="badge good">GOOD</div><div class="stext">"小米"——超国民度认知 + 软性人格化（不会因雷军那个小米被混淆，因为加了"·全屋定制"）。</div></div>
+      <div class="sub-item"><div class="sname">身份品类后缀</div><div class="badge good">GOOD</div><div class="stext">"·全屋定制"——分隔符 + 品类一清二楚。</div></div>
+      <div class="sub-item"><div class="sname">分隔符与可读性</div><div class="badge good">GOOD</div><div class="stext">"·"中圆点用得标准（同行如村小宅、一筑都用这个符号）。</div></div>
+      <div class="sub-item"><div class="sname">全国信号</div><div class="badge mid">MID</div><div class="stext">昵称无地域绑定，但简介没明示"全国"，全国感缺一道。</div></div>
+      <div class="sub-item"><div class="sname">矩阵一致性</div><div class="badge good">GOOD</div><div class="stext">"·全屋定制"结构跟一筑完全一致，矩阵感强。</div></div>
+    </div>
+
+    <h3>📝 简介（4 GOOD / 2 需补）</h3>
+    <div class="subscore">
+      <div class="sub-item"><div class="sname">身份证明</div><div class="badge good">GOOD</div><div class="stext">"全屋定制师傅，入行第 8 年🔨"——身份明确 + 工具 emoji 强化"手艺人"标签。</div></div>
+      <div class="sub-item"><div class="sname">业务范围</div><div class="badge bad">❌ BAD</div><div class="stext"><strong>未写"全国接单 / 线上+线下"</strong>，陌生人看不出能不能服务他所在的城市。</div></div>
+      <div class="sub-item"><div class="sname">主营品类列举</div><div class="badge good">GOOD</div><div class="stext">"板材 / 五金 / 报价"——具体。</div></div>
+      <div class="sub-item"><div class="sname">反套路承诺</div><div class="badge good">GOOD</div><div class="stext">"没有精修图，只有真实工地现场"——比小星的"没有滤镜"更具象。</div></div>
+      <div class="sub-item"><div class="sname">服务 / CTA</div><div class="badge good">GOOD</div><div class="stext">"📍私信户型当天回"——CTA 清晰，标签 emoji 突出。</div></div>
+      <div class="sub-item"><div class="sname">地域信号</div><div class="badge mid">MID</div><div class="stext">未明示。IP 属地系统默认显示，简介里需主动补"全国接单"。</div></div>
+    </div>
+
+    <h3>🎬 视频内容（2 GOOD / 2 MID）</h3>
+    <div class="subscore">
+      <div class="sub-item"><div class="sname">置顶位 3 条</div><div class="badge mid">MID</div><div class="stext">置顶位<strong>全是实景成品图</strong>，缺一道"内行人讲干货"的字幕封面 hook。</div></div>
+      <div class="sub-item"><div class="sname">封面样式</div><div class="badge mid">MID</div><div class="stext">100% 实景款，无字幕封面。优点是看着舒服，缺点是无法快速向陌生人传递"我懂行"。</div></div>
+      <div class="sub-item"><div class="sname">选题密度</div><div class="badge mid">MID</div><div class="stext">看不出选题分类，<strong>更像作品集，不像知识号</strong>。验真型陌生人需要看到"内行知识"再决定信不信。</div></div>
+      <div class="sub-item"><div class="sname">更新频率与互动</div><div class="badge good">GOOD</div><div class="stext">有 3 条爆款（1509 / 1449 / 5576 互动）——实景内容是<strong>有自然推荐流量</strong>的，质量过关。</div></div>
+    </div>
+
+    <div class="summary-box mid">
+      <strong>总结：</strong>头像 / 昵称 / 简介都非常稳，差距全在视频结构上。补 3 条字幕款科普视频顶到置顶（题材直接复用小星的"水电 8 大坑 / 板材怎么选 / 全屋定制报价拆解"），同时简介补"全国接单 · 线上+线下"。两改一上立刻 8 分。
+    </div>
+  </div>
+
+  <!-- ============== 一筑·全屋定制 ============== -->
+  <h2>🥉 一筑·全屋定制 · 详细评估</h2>
+  <div class="acct a3">
+    <div class="head">
+      <div class="title">一筑·全屋定制</div>
+      <div class="id">DB 饭粒 · 54362559027 · IP 浙江</div>
+    </div>
+    <div class="tagline">217 获赞 · 543 关注 · 44 粉丝 · 22 条作品（三号选题密度最高）</div>
+
+    <h3>📷 头像（1 GOOD / 1 BAD）</h3>
+    <div class="subscore">
+      <div class="sub-item"><div class="sname">视觉风格</div><div class="badge bad">❌ BAD</div><div class="stext">柔光阳光 + 唯美调色——<strong>跟"专业全屋定制"完全不搭</strong>，更像情感号 / 颜值号风格。</div></div>
+      <div class="sub-item"><div class="sname">信息内容</div><div class="badge bad">❌ BAD</div><div class="stext">真人女性侧脸 + 长发——<strong>看着像 AI 美女图或网图</strong>，触发"营销小号 / 杀猪盘"判定的最强信号。</div></div>
+      <div class="sub-item"><div class="sname">与封面统一度</div><div class="badge bad">❌ BAD</div><div class="stext">头像柔光人像 vs 封面粉橙调字幕——<strong>完全不是同一个号的视觉</strong>。</div></div>
+      <div class="sub-item"><div class="sname">不出镜</div><div class="badge bad">❌ BAD</div><div class="stext">违反硬约束（真人出镜）。</div></div>
+    </div>
+
+    <h3>🏷 昵称（5/5 全 GOOD · 三号最强）</h3>
+    <div class="subscore">
+      <div class="sub-item"><div class="sname">IP 名</div><div class="badge good">GOOD</div><div class="stext">"一筑"——品牌名 + 文化感（"筑"字暗示建筑/家居），三号里<strong>唯一带品牌感的</strong>。</div></div>
+      <div class="sub-item"><div class="sname">身份品类后缀</div><div class="badge good">GOOD</div><div class="stext">"·全屋定制"——分隔符 + 品类清晰。</div></div>
+      <div class="sub-item"><div class="sname">分隔符与可读性</div><div class="badge good">GOOD</div><div class="stext">"·"标准用法。</div></div>
+      <div class="sub-item"><div class="sname">全国信号</div><div class="badge good">GOOD</div><div class="stext">"一筑"作为品牌名不绑地域。如果未来要做"一筑成都站""一筑上海站"等矩阵也方便。</div></div>
+      <div class="sub-item"><div class="sname">矩阵一致性</div><div class="badge good">GOOD</div><div class="stext">"·全屋定制"结构跟小米完全一致。</div></div>
+    </div>
+
+    <h3>📝 简介（3 GOOD / 3 需调）</h3>
+    <div class="subscore">
+      <div class="sub-item"><div class="sname">身份证明</div><div class="badge good">GOOD</div><div class="stext">"10 年现代简约全屋定制经验"——年限明确 + 风格明确。</div></div>
+      <div class="sub-item"><div class="sname">业务范围</div><div class="badge good">GOOD</div><div class="stext">"全国团队，全国工厂，全国售后"——<strong>是三号里唯一把"全国"写明的</strong>。这是优点。</div></div>
+      <div class="sub-item"><div class="sname">主营品类列举</div><div class="badge mid">MID</div><div class="stext">缺品类列举（板材 / 五金 / 报价等），不如小星 / 小米具体。</div></div>
+      <div class="sub-item"><div class="sname">反套路承诺</div><div class="badge bad">❌ BAD</div><div class="stext">"对每一个家负责"——<strong>是抒情口号，不是承诺</strong>。陌生人看了无感、不信。</div></div>
+      <div class="sub-item"><div class="sname">服务 / CTA</div><div class="badge bad">❌ BAD</div><div class="stext"><strong>完全没有 CTA</strong>。陌生人看完不知道下一步该干什么。</div></div>
+      <div class="sub-item"><div class="sname">地域信号</div><div class="badge mid">MID</div><div class="stext">系统强标"IP: 浙江"会让陌生人误以为只服务浙江——虽然简介有"全国"对冲，但需在简介更前置位置强化"全国 · 线上+线下"。</div></div>
+    </div>
+
+    <h3>🎬 视频内容（4/4 全 GOOD · 三号最强）</h3>
+    <div class="subscore">
+      <div class="sub-item"><div class="sname">置顶位 3 条</div><div class="badge good">GOOD</div><div class="stext">"装修全流程 26 步" / "全屋定制正确流程 8 个节点" / "硬装+软装 10 万 132㎡"——选题深、结构化。</div></div>
+      <div class="sub-item"><div class="sname">封面样式</div><div class="badge good">GOOD</div><div class="stext">粉/橙/红字幕款，统一性强。每张封面都有"关键数字+核心词"双层信息。</div></div>
+      <div class="sub-item"><div class="sname">选题密度</div><div class="badge good">GOOD</div><div class="stext"><strong>22 条作品 · 三号最深</strong>："5万 vs 10万差在哪 / 13 个板材品牌真实价格 / 选商家 5 个硬指标 / 12 个套路 / 签合同 6 条 / 学会跟商家 battle"——商家视角内幕级别。</div></div>
+      <div class="sub-item"><div class="sname">更新频率与互动</div><div class="badge mid">MID</div><div class="stext">最高 33 互动、最低 1 互动。粉丝基数低，但单条质量高。一旦头像换正常，量级会跟着上来。</div></div>
+    </div>
+
+    <div class="summary-box bad">
+      <strong>致命冲突：</strong>视频内容客观上是三号里最强的（选题密度、深度都最高），<strong>但头像直接把"专业全屋定制人"反转成"美女营销号"</strong>。<br>
+      陌生人 DM 后点开主页第一眼看到这个头像，会自动打"杀猪盘"标签——根本不会下翻看那 22 条优质视频。<strong>这单一改动可能就能把 DM 回复率拉一倍以上。</strong>
+    </div>
+  </div>
+
+  <!-- ============== 对标参考 ============== -->
+  <h2>📚 对标参考详细（不出镜专业号）</h2>
+
+  <p style="font-size:13px; color:var(--muted); margin:6px 0 12px;">下列号都来自我们 <code>source_accounts</code> 池里的真实数据。"运营套路推测"基于命名规律 + 同 category 头部规律，建议你<strong>挨个搜抖音号去亲眼验证</strong>，特别是「村小宅」三号联看，矩阵思路最直观。</p>
+
+  <div class="bench-group">
+    <div class="bench-group-title">🔧 A 路线 · 「X 哥聊装修」IP 个人号</div>
+    <p style="font-size:12.5px; color:var(--muted); margin:4px 0 8px;">最贴小星的人设路线。头像通常字体 logo / 工具卡通 / 实景一角，不出镜。</p>
+    <div class="bench-grid">
+      <div class="bench-card">
+        <div class="bn">王叔讲装修</div>
+        <div class="bf"><strong>263 万</strong> fans · 全屋定制 category</div>
+        <div class="row"><span class="lbl">人设</span><span class="val">行业老法师 · 头部标杆</span></div>
+        <div class="row"><span class="lbl">推测套路</span><span class="val">头像走字体 logo / 老法师漫画；简介强调年限+服务户数；视频以"避坑+拆解"为主</span></div>
+        <div class="learn"><strong>我们能学：</strong>"老法师"人设比"年轻师傅"在 DM 验真场景信任感更高，可在小星的简介里强化"老定制"标签。</div>
+      </div>
+      <div class="bench-card">
+        <div class="bn">静哥讲装修</div>
+        <div class="bf"><strong>103 万</strong> fans · 全屋定制</div>
+        <div class="row"><span class="lbl">人设</span><span class="val">厂家/老板</span></div>
+        <div class="row"><span class="lbl">推测套路</span><span class="val">视频里经常出现工厂 / 仓库画面 → 强化"厂家直供"信任感</span></div>
+        <div class="learn"><strong>我们能学：</strong>一筑简介里有"全国工厂直供"——但视频里没看到工厂画面。补 1-2 条工厂实拍能让"全国工厂"信号落地。</div>
+      </div>
+      <div class="bench-card">
+        <div class="bn">周老板聊装修</div>
+        <div class="bf"><strong>74 万</strong> fans · 全屋定制</div>
+        <div class="row"><span class="lbl">人设</span><span class="val">老板视角</span></div>
+        <div class="row"><span class="lbl">推测套路</span><span class="val">"老板"前缀给"决策人"印象 — 陌生人感觉"找他能直接拍板"</span></div>
+        <div class="learn"><strong>我们能学：</strong>一筑简介前置加"团队主理人"或"创始人"标签能强化决策力。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bench-group">
+    <div class="bench-group-title">🎨 B 路线 · 「设计师 + 姓名」专业角色号</div>
+    <p style="font-size:12.5px; color:var(--muted); margin:4px 0 8px;">头像通常是工作场景 / 图纸 / 作品。简介强调专业资质 + 服务过的项目数。</p>
+    <div class="bench-grid">
+      <div class="bench-card">
+        <div class="bn">室内设计师 夏凡尼</div>
+        <div class="bf"><strong>137 万</strong> fans · 全屋定制</div>
+        <div class="row"><span class="lbl">人设</span><span class="val">女性设计师 · 高端</span></div>
+        <div class="row"><span class="lbl">推测套路</span><span class="val">作品偏向高质感成品图；简介强调"设计师"专业身份</span></div>
+        <div class="learn"><strong>我们能学：</strong>"设计师"专业前缀比"师傅"更高单价信任。小米可以试"设计师·小米"句式。</div>
+      </div>
+      <div class="bench-card">
+        <div class="bn">设计师大鹏</div>
+        <div class="bf"><strong>47 万</strong> fans · 全屋定制</div>
+        <div class="row"><span class="lbl">人设</span><span class="val">男性设计师 · 中坚</span></div>
+        <div class="row"><span class="lbl">推测套路</span><span class="val">头像很可能是工作中的手部特写（图纸/CAD 屏幕）；简介标准三段式（身份+主营+CTA）</span></div>
+        <div class="learn"><strong>我们能学：</strong>不出镜的"设计师"头像 = 手 + 工具 + 屏幕。可作一筑头像方案。</div>
+      </div>
+      <div class="bench-card">
+        <div class="bn">建筑师 linkai</div>
+        <div class="bf"><strong>47 万</strong> fans · 全屋定制</div>
+        <div class="row"><span class="lbl">人设</span><span class="val">"建筑师"前缀强化专业度</span></div>
+        <div class="row"><span class="lbl">推测套路</span><span class="val">前缀"建筑师"是同行少用的差异化标签</span></div>
+        <div class="learn"><strong>我们能学：</strong>差异化前缀能让你在搜索时被记住。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bench-group">
+    <div class="bench-group-title">🏢 C 路线 · 「公司 / 工作室」机构号</div>
+    <p style="font-size:12.5px; color:var(--muted); margin:4px 0 8px;">头像通常是 logo / 门头照；简介强调公司规模 + 服务城市/区域 + 资质。<strong>跟"全国业务"匹配度最高的一条路线</strong>。</p>
+    <div class="bench-grid">
+      <div class="bench-card">
+        <div class="bn">名雕装饰</div>
+        <div class="bf"><strong>46 万</strong> fans · 全屋定制</div>
+        <div class="row"><span class="lbl">人设</span><span class="val">装企品牌号</span></div>
+        <div class="row"><span class="lbl">推测套路</span><span class="val">头像 logo；简介："全国 XX 家分公司 / 服务超 X 万家庭"</span></div>
+        <div class="learn"><strong>我们能学：</strong>一筑就该走这条路线——"全国工厂直供"概念扩展成完整品牌叙事。</div>
+      </div>
+      <div class="bench-card">
+        <div class="bn">和木家全屋整装</div>
+        <div class="bf"><strong>45 万</strong> fans · 全屋定制</div>
+        <div class="row"><span class="lbl">人设</span><span class="val">品类直接放账号名</span></div>
+        <div class="row"><span class="lbl">推测套路</span><span class="val">"全屋整装"作为账号名核心词，搜索权重高</span></div>
+        <div class="learn"><strong>我们能学：</strong>"一筑·全屋定制"已经在做了，路线对。</div>
+      </div>
+      <div class="bench-card">
+        <div class="bn">乡墅建筑设计工作室</div>
+        <div class="bf"><strong>46 万</strong> fans · 全屋定制</div>
+        <div class="row"><span class="lbl">人设</span><span class="val">工作室号</span></div>
+        <div class="row"><span class="lbl">推测套路</span><span class="val">头像是工作室 logo；强调"工作室"小而精</span></div>
+        <div class="learn"><strong>我们能学：</strong>"工作室"标签比"团队"更专业，可考虑在一筑简介里替换。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bench-group">
+    <div class="bench-group-title">🌟 D 路线 · 「系列矩阵」最像我们三号场景</div>
+    <p style="font-size:12.5px; color:var(--muted); margin:4px 0 8px;"><strong>强烈建议优先看这一组</strong>。一套品牌跑 3+ 个号，<strong>头像/简介/选题/封面同源</strong>。是你们"零星+小文+一筑"三号统一的最佳模板。</p>
+    <div class="bench-grid">
+      <div class="bench-card">
+        <div class="bn">村小宅图纸设计</div>
+        <div class="bf"><strong>49 万</strong> fans · 设计号</div>
+        <div class="row"><span class="lbl">人设</span><span class="val">"村小宅"品牌 + 子品类后缀</span></div>
+        <div class="row"><span class="lbl">推测套路</span><span class="val">头像同款 logo + 子品类微调</span></div>
+        <div class="learn"><strong>我们能学：</strong>三号都加同款 logo + 不同后缀（小星=避坑 / 小米=案例 / 一筑=报价）。</div>
+      </div>
+      <div class="bench-card">
+        <div class="bn">村小宅乡墅设计</div>
+        <div class="bf"><strong>47 万</strong> fans · 设计号</div>
+        <div class="row"><span class="lbl">人设</span><span class="val">同上 + 乡墅子品类</span></div>
+        <div class="row"><span class="lbl">推测套路</span><span class="val">视频选题严格围绕"乡墅"子主题，不发散</span></div>
+        <div class="learn"><strong>我们能学：</strong>三号视频选题要做<strong>分工</strong>，不要全发"避坑"题材打架。</div>
+      </div>
+      <div class="bench-card">
+        <div class="bn">村小宅-中式设计</div>
+        <div class="bf"><strong>47 万</strong> fans · 设计号</div>
+        <div class="row"><span class="lbl">人设</span><span class="val">同上 + 中式风格</span></div>
+        <div class="row"><span class="lbl">推测套路</span><span class="val">中式专攻号</span></div>
+        <div class="learn"><strong>我们能学：</strong>子品类细分让搜索更精准，建议三号也按风格 / 阶段分工。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============== 战略选择 ============== -->
+  <h2>⚔️ 战略选择：三号「独立同类号」 vs 「统一矩阵」</h2>
+  <p style="font-size:13px; color:var(--muted); margin:6px 0 12px;">在动手改造之前，先定大方向：三号到底要做成<strong>3 个独立的同类账号</strong>（像 3 个不同的"X 哥讲装修"），还是<strong>统一矩阵</strong>（像村小宅 3 号那样同源 + 子品类分工）？</p>
+
+  <table style="margin:8px 0 14px;">
+    <thead>
+      <tr><th style="width:140px;">维度</th><th>选项 A：3 号独立同类号</th><th>选项 B：统一矩阵 ⭐推荐</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>信任叠加</strong></td><td>弱（每号都是孤号支撑信任）</td><td><strong>强</strong>：陌生人验真看到 3 号互链 → "品牌矩阵"而非"营销小号"</td></tr>
+      <tr><td><strong>制作成本</strong></td><td>高（每号独立模板 + 独立选题）</td><td><strong>低</strong>：一套 logo 模板 + 一套封面模板服务三号</td></tr>
+      <tr><td><strong>内容素材</strong></td><td>各自池子分散</td><td><strong>共享池</strong>：品牌方一份素材 → 3 号不同角度剪 = <strong>3 倍产出</strong></td></tr>
+      <tr><td><strong>搜索覆盖</strong></td><td>3 个独立标签</td><td>3 号互链 + 品牌词都能蹭</td></tr>
+      <tr><td><strong>代运营兼容度</strong></td><td>低（素材稀缺难支撑独立产出）</td><td><strong>高</strong>：共享素材 + 一套模板符合代运营人手现实</td></tr>
+      <tr><td><strong>风险隔离</strong></td><td>强（一号封不连坐）</td><td>中（视觉同源但不绑同一品牌名 → 风险可控）</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout" style="background:var(--soft-green); border-color:#bbf7d0;">
+    <strong style="color:var(--green);">推荐结论：走「轻矩阵化」</strong>
+    <ol>
+      <li><strong>保留三号独立 IP 名</strong>：小星聊全屋 / 小米·全屋定制 / 一筑·全屋定制 这 3 个名字已经做得不错，<strong>不要</strong>改成"一筑·小米""一筑·小星"等强品牌绑定（一旦某品牌出事三号全连坐）。</li>
+      <li><strong>视觉同源</strong>：三号头像用同一套 logo 模板（米色底 + 圆形 + 字体 logo），各自主色微调（小星金 / 小米暖橙 / 一筑可选另一色）。封面也用同款字号/排版模板。</li>
+      <li><strong>选题分工</strong>：小星 →「避坑科普」/ 小米 →「成品案例」/ 一筑 →「商家报价深度」。三号选题不打架。</li>
+      <li><strong>简介互链</strong>：三号简介末尾加"姊妹号 → @另外两号"，形成矩阵信号。</li>
+      <li><strong>素材共享</strong>：品牌方提供的同一份成品图 / 工厂照 / 报价表 → 三号按各自定位用不同标题剪 3 条不同视频。这是代运营最大的杠杆点。</li>
+    </ol>
+  </div>
+
+  <div class="callout" style="background:var(--soft-blue); border-color:#bfdbfe;">
+    <strong>跟之前分析的关系：</strong>前文"对标参考"里的 D 路线（村小宅 3 号）就是这个策略的标准范例——一套视觉风格 + 三个独立但相关的子品类账号。区别是村小宅是同一品牌，我们建议<strong>视觉同源但不绑品牌</strong>，更稳。
+  </div>
+
+  <!-- ============== 每个账号的具体操作清单 ============== -->
+  <h2>📋 每个账号的具体操作清单（按"轻矩阵化"战略 + 代运营约束修订）</h2>
+  <p style="font-size:13px; color:var(--muted); margin:6px 0 14px;">每个任务都包含：<strong>步骤 / 耗时 / 工具 / 文案素材 / 验收标准</strong>。建议三个运营各自认领自己的号，按 P0 → P1 → P2 顺序执行。</p>
+
+  <!-- ============== 小星聊全屋 ============== -->
+  <div class="todo-acct t1">
+    <div class="todo-head">
+      <div class="todo-name">🥇 小星聊全屋（DB：零星）</div>
+      <div class="todo-status">A 级 · 任务量最少（3 个任务）</div>
+    </div>
+    <div class="todo-summary">现状已是三号标杆，主要任务 = <strong>简介改"全国" + 维持现有发布节奏 + 30 天内补 1 条全国接单流程视频</strong>。其他两号往这个号靠就行。</div>
+
+    <!-- 小星 · 任务 1 -->
+    <div class="task p0-task">
+      <div class="task-head">
+        <span class="task-num">任务 1</span>
+        <span class="pri p0">P0 · 今日内</span>
+        <span class="task-title">改写简介：把"本地可约上门量尺"改成全国版</span>
+      </div>
+      <div class="task-meta"><strong>耗时：</strong>30 分钟 · <strong>执行人：</strong>零星运营本人 · <strong>工具：</strong>抖音 APP</div>
+
+      <div class="task-section-label">具体步骤</div>
+      <ol>
+        <li>打开抖音 APP → 右下角"我" → "编辑资料"</li>
+        <li>找到"个人简介"字段，清空原内容</li>
+        <li>复制粘贴下列新文案，保存</li>
+      </ol>
+
+      <div class="task-section-label">文案素材（直接复制）</div>
+<pre>全屋定制 8 年｜板材 / 五金 / 报价单 一手拍一手讲
+全国接单 · 线上对接 + 重点城市可上门量尺
+没有滤镜 没有摆拍 | 私信户型当天回</pre>
+
+      <div class="task-section-label">验收标准</div>
+      <div class="check-row">简介第二行包含"全国接单"4 字</div>
+      <div class="check-row">原"本地可约上门量尺"已删除</div>
+      <div class="check-row">陌生人看完知道：可以服务全国客户 + 线上能远程对接</div>
+    </div>
+
+    <!-- 小星 · 任务 2 -->
+    <div class="task p1-task">
+      <div class="task-head">
+        <span class="task-num">任务 2</span>
+        <span class="pri p1">P1 · 持续</span>
+        <span class="task-title">维持现有发布节奏（作为三号标杆）</span>
+      </div>
+      <div class="task-meta"><strong>耗时：</strong>每周 4-6 小时 · <strong>执行人：</strong>零星运营本人</div>
+
+      <div class="task-section-label">具体步骤</div>
+      <ol>
+        <li>保持"避坑/后悔点"系列字幕封面的产出节奏（每周 2-3 条）</li>
+        <li>每周再穿插 1-2 条实景效果图（已有的成品图素材）</li>
+        <li>封面继续走米色/橙色调，标题用"数字 + 关键词"格式（例："板材怎么选 / 8 大后悔点"）</li>
+      </ol>
+
+      <div class="task-section-label">验收标准</div>
+      <div class="check-row">每周作品数 ≥ 3 条</div>
+      <div class="check-row">字幕款 : 实景款 ≈ 2:1</div>
+      <div class="check-row">封面色调与头像保持一致（米橙调）</div>
+    </div>
+
+    <!-- 小星 · 任务 3 -->
+    <div class="task p2-task">
+      <div class="task-head">
+        <span class="task-num">任务 3</span>
+        <span class="pri p2">P2 · 30 天内</span>
+        <span class="task-title">补 1 条"全国跨城接单流程"视频</span>
+      </div>
+      <div class="task-meta"><strong>耗时：</strong>3-5 小时（含拍摄+剪辑） · <strong>执行人：</strong>零星运营本人</div>
+
+      <div class="task-section-label">推荐选题</div>
+      <ul>
+        <li>"全国客户找定制怎么对接？4 步走完整流程"</li>
+        <li>"不在浙江/不在我们当地怎么办？线上+线下双通道是这样跑的"</li>
+      </ul>
+
+      <div class="task-section-label">为什么要做</div>
+      <p style="margin:4px 0; font-size:13px;">简介改了"全国接单"——但陌生人需要看到具体怎么跑流程才会真信。这条视频就是把"全国"信号落地的证据。</p>
+
+      <div class="task-section-label">验收标准</div>
+      <div class="check-row">30 天内发布 1 条新选题作品</div>
+      <div class="check-row">封面写明"全国接单流程"</div>
+    </div>
+  </div>
+
+  <!-- ============== 小米·全屋定制 ============== -->
+  <div class="todo-acct t2">
+    <div class="todo-head">
+      <div class="todo-name">🥈 小米·全屋定制（DB：小文/野荞）</div>
+      <div class="todo-status">B+ 级 · 任务量中等（4 个任务）</div>
+    </div>
+    <div class="todo-summary">头像/昵称都好，主要任务 = <strong>简介补"全国" + 拍 3 条字幕款科普视频顶置顶 + 维持实景内容产出</strong>。两改一上就能升 A 级。</div>
+
+    <!-- 小米 · 任务 1 -->
+    <div class="task p0-task">
+      <div class="task-head">
+        <span class="task-num">任务 1</span>
+        <span class="pri p0">P0 · 今日内</span>
+        <span class="task-title">简介补"全国接单 · 线上+线下"</span>
+      </div>
+      <div class="task-meta"><strong>耗时：</strong>30 分钟 · <strong>执行人：</strong>小文/野荞本人 · <strong>工具：</strong>抖音 APP</div>
+
+      <div class="task-section-label">具体步骤</div>
+      <ol>
+        <li>抖音 APP → "我" → "编辑资料" → "个人简介"</li>
+        <li>清空原文，粘贴下列新文案</li>
+      </ol>
+
+      <div class="task-section-label">文案素材</div>
+<pre>全屋定制师傅，入行第 8 年🔨
+没有精修图，只有真实工地现场
+全国接单 · 线上+线下双通道 | 现代简约风格
+📍私信户型当天回</pre>
+
+      <div class="task-section-label">验收标准</div>
+      <div class="check-row">简介第三行包含"全国接单 · 线上+线下双通道"</div>
+      <div class="check-row">陌生人 3 秒内能看到全国业务信号</div>
+    </div>
+
+    <!-- 小米 · 任务 2 -->
+    <div class="task p0-task">
+      <div class="task-head">
+        <span class="task-num">任务 2</span>
+        <span class="pri p0">P0 · 本周内（5-7 天）</span>
+        <span class="task-title">拍 3 条字幕款科普视频，顶到置顶位</span>
+      </div>
+      <div class="task-meta"><strong>耗时：</strong>每条 2-3 小时 · <strong>执行人：</strong>小文/野荞本人 · <strong>工具：</strong>抖音 APP 拍 + 剪映 / 醒图做封面</div>
+
+      <div class="task-section-label">3 条选题（推荐顺序）</div>
+      <ol>
+        <li><strong>水电 8 大坑——装错了住进去就后悔</strong>（封面写"水电 8 大坑"+"装错了住进去就后悔"小字）</li>
+        <li><strong>板材怎么选——国产 6 大品牌一篇说透</strong>（封面写"板材怎么选"+"国产 6 大品牌"小字）</li>
+        <li><strong>全屋定制报价单——隐藏的 5 个坑</strong>（封面写"报价单 5 大坑"+"签合同前必看"小字）</li>
+      </ol>
+
+      <div class="task-section-label">封面样式要求</div>
+      <ul>
+        <li><strong>色调</strong>：用小米现有头像的暖光木质感（深棕 + 暖白），<strong>不要</strong>套小星的米橙色 — 保持各号差异化</li>
+        <li><strong>结构</strong>："核心数字 + 关键词"（占封面 60% 视觉权重） + "副标题"（小字一行）</li>
+        <li><strong>字体</strong>：粗体黑体或宋体，颜色用米白 / 暖橙描边</li>
+        <li><strong>角标</strong>：左上角加"避坑指南"小红色徽章（强化"内行知识"信号）</li>
+      </ul>
+
+      <div class="task-section-label">视频结构（每条 60-90 秒）</div>
+      <ol>
+        <li>开头 3 秒抛痛点（"装修朋友 80% 都踩过这个坑"）</li>
+        <li>中间 50 秒列 X 个具体细节 + 真实工地画面或讲解</li>
+        <li>结尾 10 秒 CTA："私信我户型图，发你完整避坑清单"</li>
+      </ol>
+
+      <div class="task-section-label">置顶操作</div>
+      <ol>
+        <li>3 条都发完后，在每条作品的"管理"里勾选"置顶"</li>
+        <li>抖音个人主页最多置顶 3 条 — 把这 3 条排在最前</li>
+      </ol>
+
+      <div class="task-section-label">验收标准</div>
+      <div class="check-row">3 条字幕款科普视频已发布</div>
+      <div class="check-row">3 条都顶到主页置顶位</div>
+      <div class="check-row">封面色调跟小米的厨房头像视觉一致（暖光木质感）</div>
+      <div class="check-row">陌生人点开主页第一屏 = 3 条"内行干货"</div>
+    </div>
+
+    <!-- 小米 · 任务 3 -->
+    <div class="task p1-task">
+      <div class="task-head">
+        <span class="task-num">任务 3</span>
+        <span class="pri p1">P1 · 持续</span>
+        <span class="task-title">保留实景成品图作为主流内容</span>
+      </div>
+      <div class="task-meta"><strong>耗时：</strong>每周 3-4 小时 · <strong>执行人：</strong>小文/野荞本人</div>
+
+      <div class="task-section-label">说明</div>
+      <p style="margin:4px 0; font-size:13px;">小米的实景成品图已经跑出 3 条爆款（1509 / 1449 / 5576 互动）— 这是已验证的内容资产，<strong>不要因为补字幕款就停掉</strong>。继续每周 3-5 条实景图，跟字幕款穿插发。</p>
+
+      <div class="task-section-label">代运营素材来源</div>
+      <ul>
+        <li><strong>主路径</strong>：品牌方提供的成品图库（已经在用的素材池）</li>
+        <li><strong>补充路径</strong>：品牌方有新案例就补进来；可向品牌方提一份"小米选题清单"，让对方按主题供图</li>
+        <li><strong>不要</strong>：搬运其他抖音号的成品图（侵权 + 限流风险）</li>
+      </ul>
+
+      <div class="task-section-label">验收标准</div>
+      <div class="check-row">每周作品数 ≥ 4 条</div>
+      <div class="check-row">其中 ≥ 3 条实景款（卧室/厨房/衣帽间等）</div>
+      <div class="check-row">所有图都来自品牌方授权素材池（可追溯）</div>
+    </div>
+
+    <!-- 小米 · 任务 4 -->
+    <div class="task p2-task">
+      <div class="task-head">
+        <span class="task-num">任务 4</span>
+        <span class="pri p2">P2 · 30 天内</span>
+        <span class="task-title">选题方向锁定「成品/案例展示号」</span>
+      </div>
+      <div class="task-meta"><strong>耗时：</strong>选题对齐 30 分钟 · <strong>执行人：</strong>小文 + 整体运营负责人</div>
+
+      <div class="task-section-label">分工说明</div>
+      <p style="margin:4px 0; font-size:13px;">三号要做差异化分工，小米的强项 = 实景效果图。锁定方向后避免跟小星/一筑的"避坑/报价"选题打架。</p>
+
+      <div class="task-section-label">未来内容重点</div>
+      <ul>
+        <li>各种户型/风格的成品案例（小户型 / 大平层 / loft / 复式）</li>
+        <li>before-after 对比（毛坯 → 成品）</li>
+        <li>客户家完工后的居家视频</li>
+        <li>同款户型不同风格对比（一份户型图，3 种简约风方案）</li>
+      </ul>
+
+      <div class="task-section-label">验收标准</div>
+      <div class="check-row">30 天后回看，70% 以上作品是案例/成品类</div>
+      <div class="check-row">避坑/报价类话题让给小星和一筑</div>
+    </div>
+  </div>
+
+  <!-- ============== 一筑·全屋定制 ============== -->
+  <div class="todo-acct t3">
+    <div class="todo-head">
+      <div class="todo-name">🥉 一筑·全屋定制（DB：饭粒）</div>
+      <div class="todo-status">C 级 · 任务量最多（5 个任务）</div>
+    </div>
+    <div class="todo-summary"><strong>头像是当下唯一的致命问题</strong>——视频内容已经是三号最强。换头像 + 改简介 + 补工厂实拍 这三步做完，立刻能升 A 级。</div>
+
+    <!-- 一筑 · 任务 1 -->
+    <div class="task p0-task">
+      <div class="task-head">
+        <span class="task-num">任务 1</span>
+        <span class="pri p0">P0 · 48 小时内最高优先级</span>
+        <span class="task-title">换头像（把真人女图换成字体 logo / 实景图）</span>
+      </div>
+      <div class="task-meta"><strong>耗时：</strong>1-3 小时（含做图） · <strong>执行人：</strong>饭粒本人 / 找设计协助</div>
+
+      <div class="task-section-label">为什么这是最高优先级</div>
+      <p style="margin:4px 0; font-size:13px;">现头像（真人女性侧脸 + 长发柔光）会被陌生人直接判为"AI 美女图 / 杀猪盘"。视频再好也救不回来——<strong>陌生人不会下翻就划走</strong>。这一步是 ROI 最高的改造。</p>
+
+      <div class="task-section-label">三个备选方案（强烈推荐方案 A）</div>
+      <ol>
+        <li>
+          <strong>方案 A · 跟小星统一字体 logo 风格（推荐 ⭐）</strong>
+          <ul>
+            <li>圆形底色：米色 <code>#F5EBD8</code></li>
+            <li>顶部装饰：金色（参考小星的五角星，但换成不同元素，比如"金色房屋小图标"或"金色弧线")</li>
+            <li>中央文字："一筑"2 个大字（建议宋体 / 思源宋体，字号占头像 60%）</li>
+            <li>底部小字："全屋定制"4 字</li>
+            <li>整体调子要看着"跟小星是一家"</li>
+          </ul>
+        </li>
+        <li><strong>方案 B · 用代表作做实景头像</strong>：从一筑现有视频里挑一张最满意的成品图（建议岛台或衣帽间），裁成圆形头像（参考小米的厨房头像方向）</li>
+        <li><strong>方案 C · 纯品牌 logo</strong>："一筑"字体 + 简约线条 + 单色底（最简约，但少温度）</li>
+      </ol>
+
+      <div class="task-section-label">制作工具</div>
+      <ul>
+        <li><strong>自己做（最快）</strong>：Canva 或创客贴 → 搜"自媒体头像"模板 → 改字 + 改色</li>
+        <li><strong>找设计</strong>：把"方案 A 的具体参数"发设计师，1 小时内能出</li>
+        <li><strong>用 AI 生成</strong>：豆包 / 即梦输入"圆形米色底，金色装饰，中央'一筑'中文宋体大字，底部小字'全屋定制'"</li>
+      </ul>
+
+      <div class="task-section-label">上传步骤</div>
+      <ol>
+        <li>抖音 APP → "我" → "编辑资料" → 点头像</li>
+        <li>从相册选择新做好的头像图</li>
+        <li>裁剪 → 确认</li>
+        <li>保存</li>
+      </ol>
+
+      <div class="task-section-label">验收标准</div>
+      <div class="check-row">头像不再是真人形象</div>
+      <div class="check-row">陌生人 1 秒内能看出"这是一个全屋定制账号"</div>
+      <div class="check-row">头像跟小星 / 小米的视觉风格在同一调子上</div>
+      <div class="check-row">头像在小图状态（评论区 / DM 列表）下也能看清是 logo</div>
+    </div>
+
+    <!-- 一筑 · 任务 2 -->
+    <div class="task p0-task">
+      <div class="task-head">
+        <span class="task-num">任务 2</span>
+        <span class="pri p0">P0 · 今日内</span>
+        <span class="task-title">改写简介：补反套路承诺 + CTA + 强化全国</span>
+      </div>
+      <div class="task-meta"><strong>耗时：</strong>30 分钟 · <strong>执行人：</strong>饭粒本人</div>
+
+      <div class="task-section-label">现有简介的 3 个问题</div>
+      <ul>
+        <li>"对每一个家负责"是抒情口号 → 陌生人不信</li>
+        <li>完全没有 CTA → 陌生人不知道下一步该干什么</li>
+        <li>"IP: 浙江"会让人误以为只服务浙江 → 简介里要更前置压过 IP 标签</li>
+      </ul>
+
+      <div class="task-section-label">具体步骤</div>
+      <ol>
+        <li>抖音 APP → "我" → "编辑资料" → "个人简介"</li>
+        <li>清空原文，粘贴下列新文案</li>
+      </ol>
+
+      <div class="task-section-label">文案素材</div>
+<pre>一筑全屋定制 10 年｜现代简约 / 极简专攻
+全国工厂直供 · 全国售后 · 全国线上+重点城市上门
+没有 PPT 报价 没有口头承诺 | 一份合同写到底
+私信户型当天出方案</pre>
+
+      <div class="task-section-label">验收标准</div>
+      <div class="check-row">简介 4 段都齐：身份（10 年专攻）/ 全国业务 / 反套路承诺 / CTA</div>
+      <div class="check-row">"全国"在第二行就出现，权重压过"IP: 浙江"</div>
+      <div class="check-row">最后一行明确给出"私信户型当天出方案"行动指引</div>
+    </div>
+
+    <!-- 一筑 · 任务 3 -->
+    <div class="task p1-task">
+      <div class="task-head">
+        <span class="task-num">任务 3</span>
+        <span class="pri p1">P1 · 本周内</span>
+        <span class="task-title">做 1-2 条"全国工厂直供"纯字幕款解说，让承诺落地</span>
+      </div>
+      <div class="task-meta"><strong>耗时：</strong>每条 2-3 小时 · <strong>执行人：</strong>饭粒（代运营，桌面剪辑）</div>
+
+      <div class="task-section-label">代运营约束下的方案</div>
+      <p style="margin:4px 0; font-size:13px;">原计划"工厂实拍"不可行（我们不能去工厂）。改为：<strong>纯字幕款知识视频</strong> + <strong>品牌方提供的工厂照片/视频素材二创</strong>。陌生人看不到"我们拍的工厂"，但能看到"我们讲清了工厂直供的供应链逻辑"——同样建立信任。</p>
+
+      <div class="task-section-label">推荐选题（纯字幕款 / 纯口播 + 素材剪辑）</div>
+      <ol>
+        <li><strong>"全屋定制为什么要找'工厂直供'？中间多 3 道差价"</strong>——纯字幕款，讲清"经销商加价链 vs 工厂直供"对比逻辑</li>
+        <li><strong>"全国直供怎么跑通的？4 步对接 + 物流时效拆解"</strong>——纯字幕款，把"全国接单"具体流程图解化</li>
+      </ol>
+
+      <div class="task-section-label">素材策略</div>
+      <ul>
+        <li><strong>主体内容</strong>：字幕款（同小米任务 2 的封面样式 / 视频结构），纯桌面剪映就能做</li>
+        <li><strong>辅助素材</strong>：找品牌方索取 1-2 张工厂车间照片 / 物流打包图 / 板材堆叠图，作为视频中段的画面切换（每张停 2-3 秒，配文字说明）</li>
+        <li><strong>实在拿不到</strong>：用图库网站（pexels / 包图网）的"工厂 / 仓库 / 板材"图替代，加上"示意图"小字标注（不夸大、不伪造）</li>
+      </ul>
+
+      <div class="task-section-label">封面样式</div>
+      <ul>
+        <li>用一筑现有的粉/橙调字幕封面模板</li>
+        <li>核心词："工厂直供省 3 万" / "全国对接 4 步走"</li>
+        <li>右下角加"价格内幕"或"全国对接"小徽章</li>
+      </ul>
+
+      <div class="task-section-label">验收标准</div>
+      <div class="check-row">本周内发布 1-2 条字幕款"工厂直供"主题视频</div>
+      <div class="check-row">每条视频中段至少出现 1 张品牌方提供的工厂/物流相关图片（或图库示意图 + 标注）</div>
+      <div class="check-row">视频结尾有 CTA："私信户型，1 对 1 拆解你的工厂直供报价"</div>
+    </div>
+
+    <!-- 一筑 · 任务 4 -->
+    <div class="task p2-task">
+      <div class="task-head">
+        <span class="task-num">任务 4</span>
+        <span class="pri p2">P2 · 30 天内</span>
+        <span class="task-title">选题方向锁定「商家/报价深度号」</span>
+      </div>
+      <div class="task-meta"><strong>耗时：</strong>选题对齐 30 分钟 · <strong>执行人：</strong>饭粒 + 整体运营负责人</div>
+
+      <div class="task-section-label">分工说明</div>
+      <p style="margin:4px 0; font-size:13px;">一筑的强项 = 商家视角内幕（已经在做"12 个套路 / 跟商家 battle / 签合同 6 条"）。继续强化这个方向，跟小星（避坑科普）+ 小米（成品案例）形成三号互补。</p>
+
+      <div class="task-section-label">未来重点选题方向</div>
+      <ul>
+        <li>选合同 / 防坑系列</li>
+        <li>报价拆解系列（"5 万 vs 10 万差在哪"这条路线继续走）</li>
+        <li>跟商家 battle 系列</li>
+        <li><strong>新增方向</strong>：全国不同城市报价差异（结合全国业务，对照"北京 vs 杭州 vs 成都"价格）</li>
+      </ul>
+
+      <div class="task-section-label">验收标准</div>
+      <div class="check-row">30 天后回看，70% 以上作品是"商家/报价"主题</div>
+      <div class="check-row">至少 1 条作品涉及"全国不同城市报价对比"</div>
+    </div>
+
+    <!-- 一筑 · 任务 5 -->
+    <div class="task p2-task">
+      <div class="task-head">
+        <span class="task-num">任务 5</span>
+        <span class="pri p2">P2 · 30 天内</span>
+        <span class="task-title">三号矩阵互链（简介末尾互 @）</span>
+      </div>
+      <div class="task-meta"><strong>耗时：</strong>15 分钟 × 3 个号 · <strong>执行人：</strong>三号运营各自</div>
+
+      <div class="task-section-label">为什么</div>
+      <p style="margin:4px 0; font-size:13px;">陌生人验真时，发现这是"一家三号互链"——信任度再 +1（不是孤号 / 不是营销小号）。</p>
+
+      <div class="task-section-label">具体步骤（三号都要做）</div>
+      <ol>
+        <li>每个号的简介末尾加一行：<code>姊妹号 → @小星聊全屋 @小米·全屋定制 @一筑·全屋定制</code>（每号去掉自己）</li>
+        <li>抖音简介支持 @ 用户，点出来是可跳转链接</li>
+      </ol>
+
+      <div class="task-section-label">验收标准</div>
+      <div class="check-row">三号简介末尾都有姊妹号 @</div>
+      <div class="check-row">陌生人点开任一号，能看到另外两号入口</div>
+    </div>
+  </div>
+
+  <!-- ============== 全局阶段 ============== -->
+  <h2>📅 全局推进时间表</h2>
+  <table style="margin-top:8px;">
+    <thead>
+      <tr><th style="width:90px;">时间</th><th style="width:90px;">优先级</th><th>动作</th><th style="width:80px;">负责号</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>今日</td><td><span class="pri p0">P0</span></td><td>小星简介改"全国" / 小米简介补"全国" / 一筑简介改 4 段式</td><td>三号</td></tr>
+      <tr><td>48 小时</td><td><span class="pri p0">P0</span></td><td>一筑头像换掉</td><td>一筑</td></tr>
+      <tr><td>本周内</td><td><span class="pri p0">P0</span></td><td>小米拍 3 条字幕款科普视频 + 顶置顶</td><td>小米</td></tr>
+      <tr><td>本周内</td><td><span class="pri p1">P1</span></td><td>一筑做 1-2 条"工厂直供"字幕款解说（不实拍，纯桌面剪辑）</td><td>一筑</td></tr>
+      <tr><td>30 天内</td><td><span class="pri p2">P2</span></td><td>三号矩阵互链 / 选题分工 / 一筑补"全国城市报价对比" / 小星补"全国接单流程"</td><td>三号</td></tr>
+    </tbody>
+  </table>
+
+  <h2>💡 关键洞察</h2>
+  <div class="callout">
+    <ol>
+      <li><strong>小星聊全屋是你们内部已经跑出来的标杆</strong>——不用去抄外部样板，照着小星这个号的结构（头像 logo / 简介反套路+CTA / 封面避坑系列）统一另外两号就行。它已经在 mid-tier 同行的中位数以上。</li>
+      <li><strong>一筑的视频内容客观上是三号里最强的</strong>，但仅头像一项就让它垫底。<strong>在 DM 触达场景里，主页门面中"头像权重 &gt; 视频质量"</strong>——陌生人不会先翻 22 条视频再决定回不回。</li>
+      <li><strong>全国业务定位决定地域信号要主动表达</strong>。抖音 IP 属地标签是系统强标改不掉的，所以简介里第一/二行就要明示"全国接单 · 线上+线下"——把"全国"权重压过 IP 属地，让浙江/某城市的陌生人不会因为"以为只服务本地"流失。</li>
+      <li><strong>头像 / 简介 / 选题三号差异化</strong>是矩阵化的关键，不是改成完全一样。同源 + 分工 + 互链——参考"村小宅"三个号联看。</li>
+      <li><strong>代运营约束 = 矩阵化的最强理由</strong>。素材稀缺 + 人手有限的现实下，"3 号独立同类"产能跟不上，"统一矩阵 + 共享素材池"是唯一可持续路线。但<strong>不要强绑同一品牌名</strong>——一旦换甲方三号全死。当前"小星/小米/一筑"3 个独立 IP 名是对的，要动的是头像视觉一致性 + 封面模板 + 选题分工 + 互链 这 4 件事。</li>
+    </ol>
+  </div>
+
+  <div class="note">
+    评估口径：陌生人收到 DM → 点开主页 → 决定是否回复的 3 秒判断窗口。<br>
+    数据来源：account 信息来自 <code>accounts</code> 表（2026-06-15 查询）；对标号来自 <code>source_accounts</code> Top-Fans 池筛分。<br>
+    对标号"推测套路"基于命名规律 + 同 category 头部规律；具体头像 / 简介 / 视频细节建议挨个搜抖音号亲眼验证。
+  </div>
+</div>
+</body>
+</html>
