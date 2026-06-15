@@ -98,16 +98,23 @@
     <p>「趁新鲜」是潜在触达的命门。触达闸 <b>2026-06-14 起放宽到 ≤20 分钟</b>（达标线），<b>≤10 分钟</b>是理想（首个达成=质感 4.3min）。监控检测 + 回复门 + 话术（评论1 JIT 秒级 / 评论2 查表零延迟）+ 三连执行（1–3min）要全挤进这窗口；超过则该视频作废、不触。<span style="color:var(--muted)">注：曾以为「feed 上架延迟 10–15min」是硬约束，PM 实测发视频 1–2min 即进 feed、已撤回——检测慢的真因是评论落在抓取周期的随机位置，不是 feed 慢。</span></p>
   </div>
 
-  <h2 class="sec">六步全流程<span class="hint">耗时 · 原理 · 是否可云自动</span></h2>
+  <h2 class="sec">六步全流程<span class="hint">一个号的生命周期 · 耗时 · 原理 · 落库</span></h2>
+  <div class="card" style="border-color:#bfe3d8;background:linear-gradient(180deg,#e9f6f1,#fff)">
+    <div style="font-weight:700;color:var(--green);margin-bottom:4px">这是一个号的「潜在触达生命周期」</div>
+    <b>起点</b>：某个号被我们<b>首次私信（DM）触达后、≥1 天还没回</b> → 进池、开始事件驱动盯防他发新视频。<br>
+    <b>过程</b>：他每发一条新视频（≤20min 新鲜）就触一次（点赞 + 评论1 + 评论2）；<b>同一个人每天最多 1 次</b>。<br>
+    <b>终点（二选一）</b>：① <b>累计触达满 7 次</b>仍没回 → 永久出库（人凉了别追）；② 中途<b>任意一次触达后扫到他回复</b> → 立即停、退出自动节奏、转人工接手。
+    <p class="why" style="margin-top:8px"><b>「7 次 / 每天 1 次」的定义沿革</b>（别按"连发 7 次"理解，按这个）：早期（6-03/06）是「active 隔 3–5 天、触 ≥2 次转 low_freq 隔 10 天、<b>从不按次数停</b>」+ 进池门 ≥3 天；<b>2026-06-11 改成现行</b>——间隔恒 1 天（每天 ≤1）、<b>累计满 7 次出库</b>、进池门 ≥3 天 → ≥1 天；<b>2026-06-13 加 deferred</b>：wrong_user 等"触达尝试失败"不算成功次数、只冷却 1 天、不出库。单一真相源 = <code>mark_second_touch</code> RPC + <code>second_touch_state</code> 表。</p>
+  </div>
   <table>
     <thead><tr><th class="num">#</th><th>步骤</th><th>耗时</th><th>原理</th><th>可云自动</th></tr></thead>
     <tbody>
       <tr><td class="num">0</td><td class="step">关注补齐<br><span style="color:var(--faint);font-weight:400">（前置·瓶颈）</span></td><td class="cost">日限 30/号<br>补 164 ≈ 5–6 天</td><td>监控只能看到「号关注了的人」。关注<b>写</b>动作被抖音反爬挡死（raw API 403、Playwright 空白页），唯一通路 = 无影 GUI 原生登录点关注（<code>_follow_grounded.py</code>）。</td><td><span class="pill semi">半自动</span><br><span style="color:var(--faint);font-size:11px">无影 GUI 常驻</span></td></tr>
       <tr><td class="num">1</td><td class="step">进池筛选<br><span style="color:var(--faint);font-weight:400">（候选计算）</span></td><td class="cost">秒级<br>批量 SQL</td><td><code>second-touch-worklist.ts</code>：本号 DM 过 · 距最后一条 DM ≥1 天 · 原评论高/中意向 · 未停（未回未满 7 次）。</td><td><span class="pill yes">可全云</span><br><span style="color:var(--faint);font-size:11px">纯 DB，可 cron</span></td></tr>
-      <tr><td class="num">2</td><td class="step">实时监控<br><span style="color:var(--faint);font-weight:400">发新视频</span></td><td class="cost">检测延迟<br>≤60s + 网络</td><td>f2 签名拉账号<b>关注流</b> <code>follow/feed</code>，每 ~45s 翻 5 页，视频 <code>age≤20min</code> 才算新鲜入队。<code>_realtime_touch_watch_wuying.py</code>，纯只读 API。</td><td><span class="pill yes">无影已跑</span><br><span style="color:var(--faint);font-size:11px">无 VPN、无 fake-IP</span></td></tr>
+      <tr><td class="num">2</td><td class="step">实时监控<br><span style="color:var(--faint);font-weight:400">发新视频</span></td><td class="cost">检测延迟<br>≤60s + 网络</td><td>f2 签名拉账号<b>关注流</b> <code>follow/feed</code>，每 ~45s 翻 5 页，视频 <code>age≤20min</code> 才算新鲜入队。<code>_realtime_touch_watch_wuying.py</code>，纯只读 API。<b>产物 → 入队</b> <code>realtime-touch-queue.jsonl</code>（视频id / sec_uid / 发布时间 / 文案）。</td><td><span class="pill yes">无影已跑</span><br><span style="color:var(--faint);font-size:11px">无 VPN、无 fake-IP</span></td></tr>
       <tr><td class="num">3</td><td class="step">回复识别<br><span style="color:var(--faint);font-weight:400">（去重停发）</span></td><td class="cost">scan 扫收件箱<br>分钟级</td><td>列表预览指纹比对判 replied → 回了就停。<b>洞② P0 已落库</b> <code>conversations.last_inbound_at</code>，回复真相首次可查、跨机收敛。</td><td><span class="pill semi">半自动</span><br><span style="color:var(--faint);font-size:11px">scan 需登录设备 GUI</span></td></tr>
       <tr><td class="num">4</td><td class="step">话术生成</td><td class="cost">评论1 LLM 秒级<br>评论2 查表 0 延迟</td><td><b>评论1</b> = 逮到视频那刻 JIT：看这条<b>视频标题/正文</b>现场用 qwen3 生成对内容的反应（空正文 → 「赞赞赞」表情兜底）。<b>评论2</b> = 查表逐字搬<b>首触原文（DM/反评）</b>，<b>照发不挡空</b>（带微信/报价也发，封号风险走节奏层兜）。</td><td><span class="pill yes">已实现</span><br><span style="color:var(--faint);font-size:11px">评论1 无影 JIT / 评论2 mac 预生成查表</span></td></tr>
-      <tr><td class="num">5</td><td class="step">三连执行<br><span style="color:var(--faint);font-weight:400">点赞+评论1+评论2</span></td><td class="cost">每条 ~1–3min<br>须 ≤20min 窗内打完</td><td>无影 GUI <code>douyin_comment_grounded.py</code>：搜人 → 身份门 → 开视频 → 暂停 → 点赞 → 评论1 → 评论2（VL/模板匹配 + SendInput）。consumer <code>_realtime_touch_consume_wuying.py</code> 常驻 drain 队列。</td><td><span class="pill no">卡 GUI</span><br><span style="color:var(--faint);font-size:11px">无影专用，桌面须醒着</span></td></tr>
+      <tr><td class="num">5</td><td class="step">三连执行<br><span style="color:var(--faint);font-weight:400">点赞+评论1+评论2</span></td><td class="cost">每条 ~1–3min<br>须 ≤20min 窗内打完</td><td>无影 GUI <code>douyin_comment_grounded.py</code>：搜人 → 身份门 → 开视频 → 暂停 → 点赞 → 评论1 → 评论2（VL/模板匹配 + SendInput）。consumer <code>_realtime_touch_consume_wuying.py</code> 常驻 drain 队列。<b>产物 → 写</b> <code>comment_log_*.csv</code>（点赞 / 评论1 / 评论2 各自状态 + 发送时刻）。</td><td><span class="pill no">卡 GUI</span><br><span style="color:var(--faint);font-size:11px">无影专用，桌面须醒着</span></td></tr>
       <tr><td class="num">6</td><td class="step">节奏控制<br><span style="color:var(--faint);font-weight:400">/ 出库</span></td><td class="cost">秒级</td><td><code>mark-second-touch.ts</code> + RPC：每天 ≤1 次、累计满 7 次 / 对方回复 → 永久出库；<code>second_touch_state</code> 单调推进、跨机去重。comment_log 摆渡回 mac 回写。</td><td><span class="pill yes">可全云</span><br><span style="color:var(--faint);font-size:11px">纯 DB</span></td></tr>
     </tbody>
   </table>
@@ -116,7 +123,7 @@
   <h2 class="sec">实时监控原理 ·「不点界面、纯后台读数据」<span class="hint">为什么监控稳、发送脆</span></h2>
   <div class="cards">
     <div class="card ok"><h3>监控（读）= 直接向抖音服务器要数据，不开界面</h3>
-      <p class="why">你平时看抖音"关注"页，背后其实是 APP 偷偷向抖音服务器要了一份"我关注的人最新视频清单"。<b>监控跳过"开 APP、画画面"，直接向服务器要这份清单</b>，拿回的是纯文字数据（作者 / 视频ID / 发布时间 / 文案），代码直接读、挑出"池里的人 + 发布<10min"。<b>全程没有鼠标点击、没有画面、不用抖音窗口在前台。</b></p>
+      <p class="why">你平时看抖音"关注"页，背后其实是 APP 偷偷向抖音服务器要了一份"我关注的人最新视频清单"。<b>监控跳过"开 APP、画画面"，直接向服务器要这份清单</b>，拿回的是纯文字数据（作者 / 视频ID / 发布时间 / 文案），代码直接读、挑出"池里的人 + 发布≤20min"。<b>全程没有鼠标点击、没有画面、不用抖音窗口在前台。</b></p>
       <div class="row"><span><b>f2 + cookie：</b>服务器要求请求带"签名"证明是合法登录用户——<code>f2</code> 算签名、cookie 是一筑登录凭证，凑齐就能要到数据。</span></div>
     </div>
     <div class="card no"><h3>发送 / 关注（写）= 只能像真人一样点界面，所以脆</h3>
@@ -135,17 +142,17 @@
   </table>
 
   <!-- ============ 翻页能力 ============ -->
-  <h2 class="sec">翻页能力 · 会不会漏视频<span class="hint">现状 + 关注涨到 500 人</span></h2>
-  <p class="subtitle" style="margin-top:6px">监控每 60 秒翻 3 页 ≈ 45–60 条最新视频。「漏」= 某视频在它发布后 10 分钟里一直被更新的视频挤出前 3 页。</p>
+  <h2 class="sec">翻页能力 · 会不会漏视频<span class="hint">关注覆盖 + 池子涨大</span></h2>
+  <p class="subtitle" style="margin-top:6px">监控每 ~45 秒翻 5 页 ≈ 75–100 条最新视频。「漏」= 某视频在它发布后 20 分钟里一直被更新的视频挤出前几页。当前池 <b>318 人</b>。</p>
   <div class="cards">
-    <div class="card ok"><h3>现状（关注 ~21 人）：不会漏</h3>
-      <p class="why">21 个关注一天发的视频总量远低于 45–60 条 → 3 页绰绰有余。配合"发布<10min 才触达"：视频发出后 10 分钟里每 60 秒查一次 = <b>10 次露面机会</b>，足够逮到。</p></div>
-    <div class="card semi"><h3>未来（关注 500 人）：取决于"发帖多不多"，不是 500 这个数</h3>
-      <p class="why">500 个<b>正常号</b>（一天发 1 条左右）→ 每 10 分钟才约 3–4 条新视频 → <b>3 页照样不漏</b>。<b>真正风险</b> = 混进高频商家号 / MCN（一天发几十条），60 秒冒出几十条把目标挤出前 3 页才会漏——但这种号本就该在<b>进池筛选时挡掉</b>，不是潜在触达对象。</p></div>
+    <div class="card ok"><h3>关注覆盖其实够（"12%" 是误判）</h3>
+      <p class="why">曾以为关注流只命中 12%＝没关注那些人。<b>实测是误判</b>：关注流<b>只露最近发过视频的人</b>，"没出现 ≠ 没关注"。一筑号 500+ 关注 &gt;&gt; 池 318，覆盖大概率够，<b>盲关 200 已否决</b>。配合"发布 ≤20min 才触"：视频发出后 20 分钟里每 ~45 秒查一次 = <b>~25 次露面机会</b>，足够逮到。</p></div>
+    <div class="card semi"><h3>会漏的唯一情形：关注流被高频号刷屏</h3>
+      <p class="why">正常号一天发 1 条左右 → 5 页绰绰有余。<b>唯一风险</b> = 关注流里混进<b>一天发几十条的高频号</b>（实测有狗 / 雨衣厂这类），45 秒冒出一堆把目标挤出前几页才会漏。<b>应对是旋钮不是墙</b>：加页 / 加频 / 体检"逮到的视频落第几页"。<span style="color:var(--muted)">（注：这些高频号若是已 DM 老 lead 照样触——"统一都触不按内容筛"；这里只说它们占监控带宽，不是要排除。）</span></p></div>
   </div>
   <ul class="status">
-    <li><b>涨上去怎么保证不漏（都是旋钮、几乎零成本）</b>：① 加页 3 → 5–6（仍远低于关注流翻到 ~46 页卡死的红线）；② 加频 60s → 30–45s；③ 加体检——记录"逮到的视频落在第几页"，频繁落第 3 页 = 接近边缘的信号，提前加页 / 加频。</li>
-    <li><b>一句话</b>：现在不会漏、500 人也大概率不会漏；真要保险把"页数 / 频率"调一调就行，<b>是个旋钮不是墙</b>。唯一要守的：别把高频商家号关进来。</li>
+    <li><b>池子涨大怎么保证不漏（都是旋钮、几乎零成本）</b>：① 加页 5 → 8–10（仍远低于关注流翻到 ~46 页卡死的红线）；② 加频 45s → 30s；③ 加体检——记录"逮到的视频落在第几页"，频繁落最后一页 = 接近边缘的信号，提前加页 / 加频。</li>
+    <li><b>一句话</b>：现在不会漏、池子涨大也大概率不会漏；真要保险把"页数 / 频率"调一调就行，<b>是个旋钮不是墙</b>。</li>
   </ul>
 
   <!-- ============ 同事复刻 SOP ============ -->
@@ -205,17 +212,17 @@ tar -xf rtb.tgz</code></pre>
   <!-- ============ 常见 QA ============ -->
   <h2 class="sec">常见 QA</h2>
   <div class="qa">
-    <details><summary>一天能发多少条？为什么这么少？</summary><div class="ans">受<b>关注覆盖率</b>卡死。监控只能看到号关注了的人发的视频，样板号 164 池只关注了 ~21（覆盖 12%），所以一天可能就 <b>1–2 条甚至 0</b>。这是设计内、不是坏了。要提产量＝先补关注（第 0 步）。</div></details>
+    <details><summary>一天能发多少条？为什么少？</summary><div class="ans">6-15 实测一天 <b>逮到 18、实发 10（成功 6）</b>。瓶颈<b>不是</b>关注覆盖（12% 是误判、覆盖其实够），而是 <b>① 真 lead 发新鲜装修视频的少</b>（关注流大量是非装修内容）+ <b>② 评论执行成功率 ~60%</b>（focus_fail / 验证误判，可调）。提产量＝把执行成功率提上去 + 窗口对准发帖高峰（傍晚 17–21）。</div></details>
     <details><summary>评论1 和评论2 分别是什么？</summary><div class="ans"><b>评论1</b> = 对 ta 刚发的<b>这条视频内容</b>的真实反应（看标题/正文 JIT 生成，干净、不带价格微信）；视频没文案就发「赞赞赞」。<b>评论2</b> = 逐字搬你之前给 ta 发的<b>首触原文</b>（DM 或反评），带产品/微信也照发。两条都是公开评论。</div></details>
     <details><summary>为什么有的人只发了「点赞 + 评论1」，没有评论2？</summary><div class="ans">那个人在 worklist 里<b>没取到首触原文</b>（多为只反评过、没 DM 过的人——反评记录在 <code>reverse_comment_queue</code>，当前 worklist 只读 <code>messages</code>）。评论2 空就只发点赞+评论1，不报错。要补这批，让 worklist 多 union 反评表（扩量项）。</div></details>
     <details><summary>带微信/报价的公开评论会被限号吗？</summary><div class="ans">本项目<b>未实测到限号</b>（2026-06-02 反评衍生公开评论实跑记录是「零风控」），PM 6/6 已拍板「首触原文照发、不做私信→公开安全转换」，封号风险靠<b>节奏层</b>兜：同人每天 ≤1、累计 ≤7、灰度从低起。所以评论2 照发、不挡空。</div></details>
     <details><summary>会不会重复骚扰同一个人？</summary><div class="ans">三道去重：①无影本地「同人每天 ≤1 次」；②DB <code>second_touch_state</code> 累计满 7 次 / 对方一回复 → 永久出库；③监控按 <code>aweme_id</code> 去重，同一条视频只触一次。</div></details>
     <details><summary>发评论时我能用这台无影干别的吗？</summary><div class="ans"><b>不能</b>。点赞+评论是模拟人手操作（控鼠标键盘 + 截图找控件），跑批期间你碰鼠标/切窗口会打断它。它一天只动几分钟，其余时间空等，那时可以用。</div></details>
-    <details><summary>我（一筑）号不是都关注了吗？为什么覆盖只 12%？</summary><div class="ans">抖音里<b>「关注」是独立动作</b>（点对方主页"关注"按钮），跟<b>给对方发私信、对方评论你、你回复评论</b>都不是一回事。监控只能看到你<b>主动点过"关注"</b>的人发的视频。给 164 人发过 DM ≠ 关注了他们。2026-06-11 实测：你号关注流深挖 588 条/124 人，跟 164 池只命中 21 → 只关注了 ~21 个，其余 143 个没点关注、发视频监控看不到。提覆盖 = 第 0 步补关注（无影 GUI 点关注，日限 30/号）。</div></details>
+    <details><summary>关注覆盖到底够不够？（之前说的 12% 呢）</summary><div class="ans">够。"覆盖只 12%"是<b>误判</b>——监控关注流<b>只露最近发过视频的人</b>，"没出现 ≠ 没关注"。一筑号 500+ 关注 &gt;&gt; 池 318，一轮监控就能逮到多个池里人的新视频 → 覆盖<b>不是瓶颈</b>，<b>盲关 200 已否决</b>。真要修的是<b>同名搜错人(wrong_user)</b>，用按抖音号反查定点解，不靠盲关。<span style="color:var(--faint)">（抖音里"关注"是独立动作，跟发没发过私信无关——这点没变。）</span></div></details>
     <details><summary>进池拉的是什么意向的人？包含反评(RC)吗？</summary><div class="ans">当前 <code>second-touch-worklist.ts</code> 筛 <b>intent_label ∈ {高意向, 中意向}</b>（<b>高+中都拉，不是只高</b>）；且只读 <code>messages</code>（DM 记录）、<b>不读 <code>reverse_comment_queue</code>（反评）</b>→ 只反评过没 DM 过的人当前不进池。<b>「只高意向 + 纳入 RC」是待定改动项</b>（需改 worklist + 重生成池/表 + 重摆渡；注意只留高意向会让池更小、12% 覆盖更紧）。</div></details>
-    <details><summary>实时监控、回复识别到底怎么工作？</summary><div class="ans"><b>实时监控</b>：每 60s 用你号登录态拉一次「你关注的人最近发了啥」（走数据接口，等于 APP 的"关注"信息流），看到池里人发了 10min 内新视频就排队，纯读取不操作。<b>回复识别</b>：发之前扫你号私信收件箱，用之前发给 ta 那句话当指纹比对，对方已回 → 标"已回"、不再触达（回了还发不礼貌也没必要）。</div></details>
+    <details><summary>实时监控、回复识别到底怎么工作？</summary><div class="ans"><b>实时监控</b>：每 ~45s 用你号登录态拉一次「你关注的人最近发了啥」（走数据接口，等于 APP 的"关注"信息流），看到池里人发了 20min 内新视频就排队，纯读取不操作。<b>回复识别</b>：发之前扫你号私信收件箱，用之前发给 ta 那句话当指纹比对，对方已回 → 标"已回"、不再触达（回了还发不礼貌也没必要）。</div></details>
     <details><summary>「节奏层兜底」是什么意思？</summary><div class="ans">评论2 照搬私信原文会带微信/报价，公开评论理论有封号风险。「节奏层兜」= <b>不靠改话术、靠控频率压风险</b>：同人每天最多 1 次、累计满 7 次出库、灰度从小量起。即"话术带敏感词没关系，靠发得克制不密集把封号概率压住"。</div></details>
-    <details><summary>三连最快多久发完一条？</summary><div class="ans">实测约 <b>1.5–3 分钟</b>（搜人→开视频→点赞→评论1→评论2）。<b>快不下去不是程序慢，是故意加了防风控停顿</b>（每步间 sleep 几十秒模拟人手），硬压到几秒反而像机器人更易被抓。1.5–3min 是"安全速度"地板，10min 窗口够发 1 条。</div></details>
+    <details><summary>三连最快多久发完一条？</summary><div class="ans">实测约 <b>1.5–3 分钟</b>（搜人→开视频→点赞→评论1→评论2）。<b>快不下去不是程序慢，是故意加了防风控停顿</b>（每步间 sleep 几十秒模拟人手），硬压到几秒反而像机器人更易被抓。1.5–3min 是"安全速度"地板，20min 窗口够发 1 条。</div></details>
     <details><summary>话术表重生成能更自动、少依赖 mac 吗？</summary><div class="ans">现在表在 mac 生成（要连库）+ 手动摆渡。<b>最优解（待做）</b>：做一个 Vercel 定时接口（有库权限、自动重算最新表、挂固定网址），无影消费脚本每轮直接 HTTP 拉表（无影有外网）→ 表全自动更新、零 mac、零手动摆渡。关注补齐(第0步)+cookie 续期依赖登录态，暂仍需 GUI。</div></details>
     <details><summary>API 取关注流会标「已读」吗？手工刷会不会让监控漏？</summary><div class="ans">大概率<b>不按已读过滤</b>（证据：关注流能翻 ~46 页历史、日志里 2.5 天前老视频也会被取到——若按已读门控不会有这么多历史）。监控去重靠<b>本地 seen 清单(aweme_id)</b>、不依赖抖音已读。<b>但有个待实测点</b>：手工刷"一筑"关注页会不会因账号级已读共享、让 API 取不到 → 漏。<b>观察法</b>：连取两次第 0 页比对 aweme_id 是否一样 + 手工滑走几条再取是否还在。<b>兜底规则</b>：监控跑着时别用一筑号手工刷关注页，这号专给监控用。</div></details>
   </div>
