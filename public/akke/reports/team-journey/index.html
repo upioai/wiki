@@ -50,6 +50,10 @@
   .sum-send-row.ok{color:var(--green)} .sum-send-row.bad{color:var(--red)}
   .sum-send-foot{font-size:11px;color:var(--faint);margin-top:6px;border-top:1px solid var(--line);padding-top:6px}
 
+  .case-filters{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:10px;font-size:12px;color:var(--muted)}
+  .case-filters label{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+  .case-filters select{font-size:12px;padding:4px 8px;border:1px solid var(--line);border-radius:7px;background:#fff;font-family:inherit;color:var(--ink);cursor:pointer}
+  .case-filters .f-count{margin-left:auto;font-size:11.5px;color:var(--faint);font-weight:500}
   .tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
   table.cases{border-collapse:collapse;width:100%;font-size:11.5px;min-width:1060px}
   table.cases th{background:#fafbfd;color:var(--muted);font-weight:600;padding:7px 6px;text-align:center;border-bottom:1px solid var(--line);white-space:nowrap}
@@ -129,8 +133,8 @@
       <input type="date" id="dp" onchange="goDate(this.value)" />
       <button id="nextb" onclick="goDay(1)">后一天 ▶</button>
       <button onclick="reload()">↻ 立即刷新</button>
-      <span class="liveflag" id="liveflag" style="display:none">🟢 实时 · 每 30 分钟自动刷新</span>
-      <span class="dphint">看今天默认实时；可往回切看昨天/前天</span>
+      <span class="liveflag" id="liveflag" style="display:none">🟢 每 30 分钟自动刷新</span>
+      <span class="dphint">今天的数据每 30 分钟自动刷新一次（每次刷新都是当下最新；想立刻看点 ↻立即刷新）；可往回切看昨天/前天</span>
     </div>
   </div>
   <div id="app"><div class="empty">加载中…</div></div>
@@ -177,12 +181,29 @@
     var sub = document.getElementById("sub");
     if(sub){
       sub.innerHTML = curDate + "（BJT 00:00–23:59）· 共 " + (j.total||0) + " 条 case · 达标线 = 评论→发出 ≤10min · "
-        + (j.isToday ? "实时数据，" : "") + "更新于 " + fmtClock(j.generatedAt);
+        + (j.isToday ? "每 30 分钟自动刷新 · " : "") + "更新于 " + fmtClock(j.generatedAt);
     }
-    // 注入后重新绑定指派勾选
+    // 注入后：初始化筛选计数 + 重新绑定指派勾选
+    filterCases();
     applyAssignmentsLocal();
     loadAssignments();
   }
+
+  // ── 案例表筛选（意向 / 渠道，纯前端显示隐藏行）──
+  function filterCases(){
+    var fi=document.getElementById("f-intent"),fc=document.getElementById("f-channel");
+    if(!fi||!fc)return;
+    var wi=fi.value,wc=fc.value,shown=0,total=0;
+    document.querySelectorAll("table.cases tbody tr").forEach(function(tr){
+      total++;
+      var ok=(!wi||tr.dataset.intent===wi)&&(!wc||tr.dataset.channel===wc);
+      tr.style.display=ok?"":"none";
+      if(ok)shown++;
+    });
+    var cnt=document.getElementById("f-count");
+    if(cnt)cnt.textContent="显示 "+shown+" / 共 "+total+" 条";
+  }
+  window.filterCases=filterCases;
 
   function load(date){
     curDate = date;
