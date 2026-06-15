@@ -148,7 +148,7 @@
 <li>又慢又重的「整号活」（执行中位 23 秒、最慢 211 秒）和「单视频快活」（5 秒）<b>挤在同一条 pri=1 队</b>——前面卡一个慢的，后面快的全等。</li>
 <li>worker 实测 8 个并发槽、~72 活/分钟、~270 整号活/小时；pri=1 到达速率 ≈ 服务速率 → <b>始终积压上百条，每条新活平均等 ~4.6 分钟</b>。</li>
 </ul>
-<div class="kx warn">⚠️ 一个还没坐实的悖论：8 个槽看起来利用率才 ~18%、却要排 4.6 分钟，理论上说不通。需要 worker 活体 <code>/queue/stats</code> + <code>fly status</code>（实际几台机/几个真槽）才能定死病灶——已列入待办。</div>
+<div class="kx good">✅ <b>已坐实（2026-06-15 23:00 实查 worker 活体）</b>：不是 slot 闲置。<code>/queue/stats</code> 报 pending=2 是假象（只数最近 1000 条窗口），<b>真实 pending=640（pri1 103 / pri5 537）</b>；8 槽真忙（claim 78/分、running 常态 8 个无僵尸）。Leg C 的真因 = <b>pri=1 队列常年积压 ~100 条</b>，新活按"同级先到先得"排在后面——实测一个 23:06:53 的 tick 灌的批次，全等到 ~23:11:35 才被领走（285 秒）。排不空因为：① 快车道<b>昼夜不停</b>每 2 分钟灌一批（深夜 313s ≈ 午间 276s，无低峰）；② 慢整号活（2+ 分钟）混在同条 pri=1 道占槽；③ 还有 <b>poison 活</b>（一条 38 小时前的 pri1 整号活重试到顶卡死、永远 pending）。</div>
 
 <h3>Leg D / E · 抓取 + 写库（秒级）</h3>
 <p>轮到后，worker 调抖音评论 API：抖音<b>新评论排最前</b>，增量抓只取首页、整页无新即早停，通常 1 个请求 ~5 秒搞定；写库亚秒。<b>所以抓取本身不慢，慢的全在 B、C 两段等待。</b></p>
@@ -199,7 +199,8 @@
 <p><span class="pill g">P0-a</span> <b>给 tier-1 加降级（断总根因）</b>。把 130 个僵尸降回 tier-0，tier-1 从 176 砍到 ~46，产能立刻覆盖得过来、tier-0 松绑、冷视频减少。<span class="mut">——单这一刀解大半。</span></p>
 <p><span class="pill g">P0-b</span> <b>破鸡生蛋（治 Leg B 冷视频）</b>。任何视频一冒高意向评论，立刻临时拉它进快车道，别等它自己够 60 分钟门槛。<span class="mut">——治那 97% 冷视频。</span></p>
 <p><span class="pill g">P0-c</span> <b>队列双层优先级（治 Leg C 排队）</b>。给「真带新评论」的活提到 <code>pri=0</code> 插队、把又慢又重的整号活和投机空扫降级；砍掉快车道空跑洪水（多数复扫 found=0）。<span class="mut">——直接压那 4.6 分钟。</span></p>
-<p><span class="pill w">P1</span> 提有效吞吐：先查清 worker 实际机器/并发数（解 Leg C 那个 8 槽悖论），不够就扩。</p>
+<p><span class="pill g">P0-d</span> <b>清 poison 活 + 给 pri=1 队列减负</b>。已发现 38 小时前重试到顶仍卡 pending 的僵尸活；这类该自动清。配合 P0-c 把慢整号活挪出快车道那条 pri=1 道。</p>
+<p><span class="pill w">P1</span> 有效并发已实测 ~8（非瓶颈），无需盲目扩机；真瓶颈是 pri=1 队列结构（P0-c/d）。</p>
 <p><span class="pill b">不要做</span> 把闹钟从 2 分钟提到 1 分钟——会让快道空跑翻倍、Leg C 更糟。<span class="mut">(今天 #346 已验证 cron 不是瓶颈)</span></p>
 </div>
 <p class="mut">理论地板：治好 B、C 两段后，整条链可压到 10–30 秒。今天那几条 1 分钟抓到的，就是低峰不拥堵时跑出来的——目标是把「1 分钟内」从偶发变常态。</p>
@@ -210,7 +211,7 @@
 <span class="tag">cron tick=2分 ✓</span><span class="tag">Leg C 中位 276s / p99 327s</span><span class="tag">Leg D 中位 4.9s</span><span class="tag">快车道命中率 18%</span><span class="tag">worker 8 slot · ~270 整号/h</span><span class="tag">tier-1 176(僵尸130)</span><span class="tag">tier-0 1019</span><span class="tag">慢路 37%(近2天)</span><span class="tag">冷视频 97%</span>
 </p>
 <div class="foot">
-方法注记：所有数字为 2026-06-15 当日直查生产库（comments / scrape_jobs / source_accounts）+ Lark 采集快照卡。诚实边界：① 每日 tier 数变化库里无历史表、不可严格重建，本页用当前快照近似；② 「8 slot 健康却排 4.6 分」的并发悖论需 worker 活体 <code>/queue/stats</code> + <code>fly status</code> 坐实（待办）；③ 僵尸判定用 7 天 / 高意向≥5（对齐升级线）。<br>
+方法注记：所有数字为 2026-06-15 当日直查生产库（comments / scrape_jobs / source_accounts）+ worker 活体 <code>/queue/stats</code> + Lark 采集快照卡。诚实边界：① 每日 tier 数变化库里无历史表、不可严格重建，本页用当前快照近似；② Leg C 的「8 槽悖论」已于 23:00 实查坐实＝不是闲置，是 pri=1 队列常年积压 ~100 条 + 慢整号活占槽 + poison 活（见 Leg C）；fly machines API 因 deploy token 无读权限未取到机器数，但 running 常态 8 + 78/分吞吐，有效并发 ~8；③ 僵尸判定用 7 天 / 高意向≥5（对齐升级线）。<br>
 Akke 内部调查 · Claude Code 协助 · 2026-06-15
 </div>
 
