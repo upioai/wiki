@@ -327,6 +327,19 @@ tar -xf rtb.tgz</code></pre>
     <p>无影 <code>.env</code> <b>没开</b> <code>AKKE_COMMENT_VERIFY_LENIENT</code> / <code>AKKE_COMMENT_TRUST_SEND</code> → 在用最严格 VL 验证，而验证<b>常误判</b> → <code>send_unverified</code> 被假阴性灌水、成功率虚低。<b>处置</b>：① 云电脑加 <code>AKKE_COMMENT_VERIFY_LENIENT=1</code>（宽松验证、减误判）；② 跑时别碰鼠标、保持抖音前台（治 <code>focus_fail</code>）；③ 失败的人没标 touched、下次再逮到会重触、不丢。</p>
   </div>
 
+  <!-- ============ 快问快答：推演/吞吐/回传 ============ -->
+  <h2 class="sec">快问快答 · 推演 / 吞吐 / 回传<span class="hint">2026-06-16</span></h2>
+  <table>
+    <thead><tr><th>问</th><th>答</th></tr></thead>
+    <tbody>
+      <tr><td class="step">端到端推到极限，能压到多快？怎么做？good/bad？</td><td><b>现实地板 ≈ 3min</b>：三连执行 <b>~2.4min 固定</b>（搜人→身份门→开视频→暂停→点赞→双评论，每步防风控 sleep）+ 检测 ≤45s/轮。质感 4.3min 已接近地板。<b>再压只能两条路</b>：① <b>路2 直盯目标主页 post-list</b>（本人一发当场有，绕开 feed 上架的随机延迟）；② 压执行 sleep（<b>不建议</b>，像机器人、易限号）。<b>good</b>=越快越新鲜、评论趁视频热度高更易被看到、达标率高。<b>bad</b>=路2 高频盯主页吃反爬 + 单号 req/min 有容量上限（200 人每 3min≈67 req/min ≫ feed 的 ~8/min）→ 要多号分层、成本↑；压 sleep 伤号。<b>探针①(feed延迟)②(单号 req/min) 还没跑出数 → 路2 到底能压多少、单号盯几人，未知。</b></td></tr>
+      <tr><td class="step">「入队」入的是什么队？</td><td>无影本地文件队列 <code>realtime-touch-queue.jsonl</code>（每行一条待触视频：aweme / sec_uid / 发布时间 / 文案）。监控写、消费端 tail 它逐条发。<b>是本地文件、不是数据库队列</b>（区别于 DM/RC 的 Supabase <code>dispatch_queue</code> / <code>rc_dispatch_queue</code> 表）。</td></tr>
+      <tr><td class="step">快车道 100 条过完要多久？</td><td>三连<b>串行</b>、每条 ~1.5–3min（含防风控 sleep）→ 100 条 ≈ <b>2.5–5 小时</b>。一台无影只有一个抖音 GUI、<b>串行不能并发</b>，要快只能多号多机并行。<span style="color:var(--faint)">（若"快车道"指 #340 抓评论热快道那是抓取侧、另一套，请说明。）</span></td></tr>
+      <tr><td class="step">云电脑 DM / RC 数据怎么回传？</td><td><b>都全自动、走「DB 队列 + RPC 回写」，不靠文件摆渡</b>：DM → <code>dispatch_queue</code> → <code>complete_dispatch</code> → 写 messages/conversations；RC → <code>rc_dispatch_queue</code> → <code>complete_rc_dispatch</code> → 写 outreach_events(channel=reverse_comment)。cron 派单、无影 <code>wuying_poll_agent.py</code> 拉取执行、发完调 RPC 回写。</td></tr>
+      <tr><td class="step">更新的 PR #360 能自动回传吗？</td><td><b>能</b>——<code>complete</code> 端点让无影发完直接 POST 回写 <code>second_touch_state</code>（次数 + e2e），不用人搬。<b>但要无影脚本切到 <code>--api-base</code> 模式才生效</b>（脚本已改好、还没切）。注：DM/RC 的自动回传<b>不是 #360 带来的</b>、它们早就有；<b>#360 只补「潜在触达」这一条原本靠手动摆渡的缺口</b>。</td></tr>
+    </tbody>
+  </table>
+
   <!-- ============ 当前状态 ============ -->
   <h2 class="sec">当前真实状态（2026-06-14 · 不粉饰）</h2>
   <ul class="status">
