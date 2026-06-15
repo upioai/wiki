@@ -93,6 +93,11 @@
     <span class="tag warn"><span class="dot"></span>待解：无影空闲挂起 → 真 7×24</span>
   </div>
 
+  <div class="gate" style="background:linear-gradient(180deg,#e9f6f1,#fff);border-color:#bfe3d8">
+    <h2 style="color:var(--green)">🆕 2026-06-16：PR #360 已上线 — 路 B 后端收尾</h2>
+    <p><b>变了什么（已部署 + 生产库验证过）</b>：① <b>停了「派单二触」cron</b> → 潜在触达只剩路 B 一条事件驱动通道，<b>跨通道重复触达从根消除</b>（6-15 和为贵被两通道各触一次那种不会再有）。② <b>三个云端端点上线</b> <code>/api/internal/pt/{pool,claim,complete}</code>（用现有 <code>FLY_WORKER_SECRET</code> 鉴权、Vercel 没新增 env）+ 数据库加 <code>claim_second_touch</code> 领号 RPC + <code>second_touch_state</code> 加 e2e 两列。③ 无影可切「<b>端点模式</b>」：每轮 <b>GET pool</b> 直接拉名单+话术（<b>去掉 mac 出表 → gist 摆渡</b>那一整圈）、发前 <b>POST claim</b> 原子领号（别的通道当天碰过就作废）、发后 <b>POST complete</b> 实时回写 DB + 记「发布→完成」时效（journeys 达标徽章数据通了）。<br><b>⚠️ 还差一步才真用上</b>：无影消费脚本加 <code>--api-base https://akke.vercel.app/api/internal/pt</code>（token 默认读 <code>FLY_WORKER_SECRET</code>）。没切之前仍走手动摆渡——<b>端点已 ready、随时可切</b>。</p>
+  </div>
+
   <div class="gate">
     <h2>⏱ 绑死全局的硬约束：视频发布 → 三连完成 ≤ 20 分钟</h2>
     <p>「趁新鲜」是潜在触达的命门。触达闸 <b>2026-06-14 起放宽到 ≤20 分钟</b>（达标线），<b>≤10 分钟</b>是理想（首个达成=质感 4.3min）。监控检测 + 回复门 + 话术（评论1 JIT 秒级 / 评论2 查表零延迟）+ 三连执行（1–3min）要全挤进这窗口；超过则该视频作废、不触。<span style="color:var(--muted)">注：曾以为「feed 上架延迟 10–15min」是硬约束，PM 实测发视频 1–2min 即进 feed、已撤回——检测慢的真因是评论落在抓取周期的随机位置，不是 feed 慢。</span></p>
@@ -187,6 +192,16 @@ tar -xf rtb.tgz</code></pre>
     <li><b>验证真发了</b><span class="where mac">mac</span><br><b>别信消费日志的「✅已点发送」</b>——它会假阳性。铁证两层：①<b>执行器验证闸</b>当场截图验（点赞验爱心变红、评论验气泡出现），验不过记 <code>unverified</code> 不算成功；②人工复核 = 用<b>一筑「喜欢」列表</b>看视频在不在 + <b>另号/无痕</b>看评论气泡。⚠️ 三连的点赞<b>不写</b> <code>outreach_events</code>（<code>video_like</code>/<code>comment_like</code> 恒 0，别拿它当铁证），证据看 <code>comment_log</code> + <code>second_touch_state.last_touch_at</code>。comment_log 摆渡回 mac 跑 <code>mark-second-touch.ts --from-comment-log</code> 回写节奏。</li>
   </ol>
 
+  <!-- ============ 开机/启动 ============ -->
+  <h2 class="sec">开机 / 启动 · 打开 shell 后怎么操作<span class="hint">每次进无影先做这几步</span></h2>
+  <ol class="steps">
+    <li><b>远程进无影桌面</b><span class="where wy">无影</span>：确认<b>抖音 PC 已登录 + 窗口最大化 + 在前台</b>；分辨率锁 <b>2560×1600</b>；输入法切<b>英文</b>。</li>
+    <li><b>（建议）开评论宽松验证</b><span class="where wy">无影</span>：脚本目录 <code>.env</code> 加 <code>AKKE_COMMENT_VERIFY_LENIENT=1</code>（减少「评论假失败」，6-15 查到一直没开 → send_unverified 虚高）。</li>
+    <li><b>双击 <code>_start-realtime-touch.bat</code></b><span class="where wy">无影</span> → <b>弹出 2 个黑窗口</b>：<code>Akke-watch</code>（监控盯关注流）+ <code>Akke-consume</code>（消费发三连），各自崩溃会自动重启。<b>就这 2 个，别多开、也别关。</b></li>
+    <li><b>跑批期间别碰鼠标键盘</b><span class="where wy">无影</span>：发评论时全程控 GUI，碰一下就 <code>focus_fail</code>。它一天只动几分钟、其余时间在空等。</li>
+  </ol>
+  <p class="subtitle" style="margin-top:6px"><b>怎么看它还在跑</b>：监控窗 banner 有 <code>lead池 318</code>、日志在刷 🔥/⏰ 时间戳。<b>断了</b>（无影后半夜可能被平台层空闲挂起）→ 重新双击 <code>.bat</code> 即可。深夜 00–06 点本就没什么人发视频（占全天 1.8%），挂了不亏，重点保白天 + 傍晚高峰。</p>
+
   <!-- ============ 常态运维 ============ -->
   <h2 class="sec">常态运维：要一直开着吗？<span class="hint">最常被问</span></h2>
   <div class="cards">
@@ -223,7 +238,7 @@ tar -xf rtb.tgz</code></pre>
     <details><summary>实时监控、回复识别到底怎么工作？</summary><div class="ans"><b>实时监控</b>：每 ~45s 用你号登录态拉一次「你关注的人最近发了啥」（走数据接口，等于 APP 的"关注"信息流），看到池里人发了 20min 内新视频就排队，纯读取不操作。<b>回复识别</b>：发之前扫你号私信收件箱，用之前发给 ta 那句话当指纹比对，对方已回 → 标"已回"、不再触达（回了还发不礼貌也没必要）。</div></details>
     <details><summary>「节奏层兜底」是什么意思？</summary><div class="ans">评论2 照搬私信原文会带微信/报价，公开评论理论有封号风险。「节奏层兜」= <b>不靠改话术、靠控频率压风险</b>：同人每天最多 1 次、累计满 7 次出库、灰度从小量起。即"话术带敏感词没关系，靠发得克制不密集把封号概率压住"。</div></details>
     <details><summary>三连最快多久发完一条？</summary><div class="ans">实测约 <b>1.5–3 分钟</b>（搜人→开视频→点赞→评论1→评论2）。<b>快不下去不是程序慢，是故意加了防风控停顿</b>（每步间 sleep 几十秒模拟人手），硬压到几秒反而像机器人更易被抓。1.5–3min 是"安全速度"地板，20min 窗口够发 1 条。</div></details>
-    <details><summary>话术表重生成能更自动、少依赖 mac 吗？</summary><div class="ans">现在表在 mac 生成（要连库）+ 手动摆渡。<b>最优解（待做）</b>：做一个 Vercel 定时接口（有库权限、自动重算最新表、挂固定网址），无影消费脚本每轮直接 HTTP 拉表（无影有外网）→ 表全自动更新、零 mac、零手动摆渡。关注补齐(第0步)+cookie 续期依赖登录态，暂仍需 GUI。</div></details>
+    <details><summary>话术表重生成能更自动、少依赖 mac 吗？</summary><div class="ans"><b>✅ 已上线（PR #360，2026-06-16）</b>：端点 <code>GET /api/internal/pt/pool</code> 有库权限、实时算最新名单+话术，无影消费脚本加 <code>--api-base</code> 后每轮直接 HTTP 拉 → <b>零 mac、零手动摆渡</b>（连 claim 领号 + complete 回写也一起做了）。<b>差一步</b>：把无影脚本切到 <code>--api-base</code> 模式（端点已 ready）。关注补齐(第0步)+cookie 续期仍依赖登录态 GUI、绕不开。</div></details>
     <details><summary>API 取关注流会标「已读」吗？手工刷会不会让监控漏？</summary><div class="ans">大概率<b>不按已读过滤</b>（证据：关注流能翻 ~46 页历史、日志里 2.5 天前老视频也会被取到——若按已读门控不会有这么多历史）。监控去重靠<b>本地 seen 清单(aweme_id)</b>、不依赖抖音已读。<b>但有个待实测点</b>：手工刷"一筑"关注页会不会因账号级已读共享、让 API 取不到 → 漏。<b>观察法</b>：连取两次第 0 页比对 aweme_id 是否一样 + 手工滑走几条再取是否还在。<b>兜底规则</b>：监控跑着时别用一筑号手工刷关注页，这号专给监控用。</div></details>
   </div>
 
