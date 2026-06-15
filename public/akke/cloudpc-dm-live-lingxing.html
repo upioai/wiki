@@ -159,23 +159,32 @@ const $ = (id) => document.getElementById(id);
 
 function esc(s){ return (s==null?"":String(s)).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
 function fmtTs(iso){ if(!iso) return "未知"; const d=new Date(iso); if(isNaN(d)) return "未知";
-  const p=(n)=>String(n).padStart(2,"0"); return p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes()); }
+  const p=(n)=>String(n).padStart(2,"0");
+  /* 拆两行：日期 / 时:分:秒，64px 列宽放得下 */
+  return p(d.getMonth()+1)+"-"+p(d.getDate())+"<br>"+p(d.getHours())+":"+p(d.getMinutes())+":"+p(d.getSeconds()); }
 function gapMs(a,b){ if(!a||!b) return null; const ms = new Date(b) - new Date(a); return isFinite(ms) ? Math.max(0,ms) : null; }
+/* 全程精确到秒：<60s 直显秒；<60min "XmYs"；<24h "XhYmZs"；>=1d "XdYh" */
 function fmtMin(ms){ if(ms==null) return "—";
-  const m = ms/60000;
-  if(m < 1) return Math.round(ms/1000)+"s";
-  if(m < 60) return (m<10 ? m.toFixed(1) : Math.round(m)) + "m";
-  const h = m/60;
-  if(h < 24) return h.toFixed(1)+"h";
-  return (h/24).toFixed(1)+"d"; }
+  const totalSec = Math.round(ms/1000);
+  if(totalSec < 60) return totalSec+"s";
+  if(totalSec < 3600){ const m=Math.floor(totalSec/60), s=totalSec%60; return m+"m"+(s?s+"s":""); }
+  if(totalSec < 86400){ const h=Math.floor(totalSec/3600), m=Math.floor((totalSec%3600)/60), s=totalSec%60;
+    return h+"h"+(m?m+"m":"")+(s?s+"s":""); }
+  const d=Math.floor(totalSec/86400), h=Math.floor((totalSec%86400)/3600);
+  return d+"d"+(h?h+"h":""); }
 function median(arr){ if(!arr.length) return null; const s=[...arr].sort((a,b)=>a-b); const mid=Math.floor(s.length/2);
   return s.length%2 ? s[mid] : (s[mid-1]+s[mid])/2; }
 
 /* 段配色 = 客户旅程口径：每段各自 SLA 阈值，灰=客户行为或缺数据。
    与 src/lib/journeys.ts gapColor 一致（改一处记得改 journeys.html + 库） */
-function gapLabel(ms){ if(ms==null) return ""; const min=ms/60000;
-  if(min<60) return "+"+Math.max(1,Math.round(min))+"m"; const h=min/60;
-  if(h<24) return "+"+Math.round(h)+"h"; return "+"+Math.round(h/24)+"d"; }
+/* 段间隔小标签：精确到秒
+   <60s "+Xs"；<60min "+XmYs"；<24h "+XhYm"；>=1d "+XdYh" */
+function gapLabel(ms){ if(ms==null) return "";
+  const totalSec = Math.round(ms/1000);
+  if(totalSec<60) return "+"+totalSec+"s";
+  if(totalSec<3600){ const m=Math.floor(totalSec/60), s=totalSec%60; return "+"+m+"m"+(s?s+"s":""); }
+  if(totalSec<86400){ const h=Math.floor(totalSec/3600), m=Math.floor((totalSec%3600)/60); return "+"+h+"h"+(m?m+"m":""); }
+  const d=Math.floor(totalSec/86400), h=Math.floor((totalSec%86400)/3600); return "+"+d+"d"+(h?h+"h":""); }
 function gapColor(key, ms){
   if(ms==null) return "neutral";
   const h = ms/3600000;
