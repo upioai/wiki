@@ -84,9 +84,13 @@
   .e2e.bad { background:rgba(248,113,113,.13); color:#fca5a5; }
   .e2e.na { background:var(--bg-deep); color:var(--text-muted); font-weight:500; }
   .jr .errline { margin-top:10px; font-size:12px; color:#fca5a5; background:rgba(248,113,113,.07); border:1px solid rgba(248,113,113,.18); border-radius:8px; padding:6px 12px; }
-  .jr .dreason { margin-top:10px; font-size:12px; color:var(--text-dim); background:var(--bg-deep); border:1px solid var(--border); border-radius:8px; padding:7px 12px; line-height:1.65; }
-  .jr .dreason b { color:var(--text); font-weight:600; }
-  .jr .dreason .k { color:var(--dm); font-weight:600; font-variant-numeric:tabular-nums; }
+  .jr .segbreak { margin-top:10px; border:1px solid var(--border); border-radius:8px; background:var(--bg-deep); padding:9px 13px; display:flex; flex-direction:column; gap:6px; }
+  .jr .sbrow { display:flex; align-items:flex-start; gap:9px; font-size:12px; line-height:1.55; }
+  .jr .sbrow i { flex:0 0 8px; width:8px; height:8px; border-radius:50%; margin-top:5px; }
+  .jr .sbseg { flex:0 0 112px; color:var(--text); font-weight:600; }
+  .jr .sbt { flex:0 0 60px; color:var(--dm); font-weight:600; font-variant-numeric:tabular-nums; }
+  .jr .sbwhy { flex:1; color:var(--text-dim); }
+  @media(max-width:560px){ .jr .sbrow{ flex-wrap:wrap; } .jr .sbseg{ flex-basis:auto; } .jr .sbwhy{ flex-basis:100%; padding-left:17px; } }
 
   .strip { display:flex; align-items:flex-start; min-width:860px; }
   .stripwrap { overflow-x:auto; }
@@ -146,7 +150,7 @@
       <li><b>8 节点时间轴</b>：<b>视频发布</b>=<code>videos.published_at</code>（常缺，置灰）；<b>评论</b>=<code>comments.comment_time</code>（抖音未回传时缺，不计入达标率）；<b>抓取</b>=<code>comments.created_at</code>（爬虫入库）；<b>打分</b>=<code>comments.analyzed_at</code>（06-11 前历史行 NULL）；<b>生成话术</b>=<code>llm_call_provenance</code> 按评论回链取最早；<b>派单</b>=<code>dispatch_queue.created_at</code>；<b>触达</b>=<code>completed_at</code>（仅 <code>status=sent</code> 点亮，无影 GUI 真发出）；<b>回复</b>=<code>messages.role=customer</code> 最早一条。</li>
       <li><b>段颜色</b>只热「我们能控的段」，阈值各段不同（口径与<a href="/akke/journeys.html">客户旅程页</a>一致）：评论→抓取🟢&lt;3h、抓取→打分🟢&lt;15m、打分→生成话术🟢&lt;3h、生成话术→派单🟢&lt;10m、派单→触达🟢&lt;30m；视频→评论、触达→回复 = 客户行为，灰。</li>
       <li><b>端到端</b> = 评论 → 发出，目标 ≤10min（🟢达标 / 🟡10–30min / 🔴&gt;30min，右上徽章）。<b>通道内</b> = 派单 → 发出（抢锁+GUI 串发，我们 100% 可控的段）。<code>pending/claimed</code> 进行中行：派单→触达段显示「已等 X」（蓝色脉冲）。</li>
-      <li><b>每条下方「派单→触达」灰条</b>：逐条拆解这一段时长为什么不一样 ＝ <b>抢锁等待</b>（<code>派单→claimed</code>，取决于派单落点 vs 云电脑轮询节拍，0s～1 整轮不等）＋ <b>GUI 串发</b>（<code>claimed→触达</code>，抖音搜索定位 + 身份门 + 私信窗加载 + 逐字 SendInput）。skipped/failed 行则说明为什么没有触达时间。</li>
+      <li><b>每条下方灰盒「7 段逐段原因」</b>：把 8 节点之间每一段时长为什么不一样都列出来——<b>视频发布→评论</b> & <b>触达→回复</b> = 客户行为·不可控（纯随机）；<b>评论→抓取</b> = 等 scrape cron（热门号源 scrape-hot 每 2min / 普通号源每小时整点 + 队列位置）；<b>抓取→打分</b> = 等 analyze cron（每 2min）；<b>打分→生成话术</b> = 等无影派单 cron 这一跳（每 1min）临时调 LLM 生成话术；<b>生成话术→派单</b> = 同跳完成、恒≈0；<b>派单→触达</b> = 抢锁等待（落点 vs 无影轮询）＋ GUI 串发（搜索定位+身份门+私信窗+逐字 SendInput）。每段尾部带 🟢达标/🟡偏慢/🔴超标（客户行为段不判定）。</li>
       <li>「今天」按北京时间日界；<code>pending / claimed</code>（排队中/发送中）的积压行不分日全部显示，盯队列卡没卡。</li>
       <li><code>skipped / failed</code> 行展开失败原因（如 <code>wrong_user</code> 撞名、<code>daily_cap_skip</code> 顶日限），已发条数只算 <code>sent</code>。</li>
       <li>数据源：<code>/api/public/cloud-pc-dm-live</code>（只读、60s 内存缓存、CORS 锁 upio.ai）。</li>
@@ -208,40 +212,74 @@ function segWait(ms){ // 进行中：派单后已等多久（蓝色脉冲虚线�
   return `<div class="seg"><div class="bar dashed" style="background:var(--dm)"></div><div class="gl" style="color:#93c5fd">${fmtMin(ms)}</div></div>`;
 }
 
-/* 派单→触达 = 抢锁等待(queuedAt→claimedAt，落点 vs 云电脑轮询节拍) + GUI 串发(claimedAt→contactedAt，
-   搜索定位+身份门+私信窗+逐字 SendInput)。逐条拆出主导项，解释为什么这条比别条快/慢。 */
-function dispatchReason(r){
+/* 派单→触达内部 = 抢锁等待(queuedAt→claimedAt，落点 vs 无影轮询节拍) + GUI 串发(claimedAt→contactedAt，
+   搜索定位+身份门+私信窗+逐字 SendInput)。返回这一段的原因句（含主导项判定）。 */
+function dispatchWhy(r){
   if(r.status==="sent" && r.contactedAt && r.queuedAt){
-    const total = gapMs(r.queuedAt, r.contactedAt);
     const claim = gapMs(r.queuedAt, r.claimedAt);
     const gui   = gapMs(r.claimedAt, r.contactedAt);
-    if(claim==null || gui==null)
-      return `<b>派单→触达 <span class="k">${fmtMin(total)}</span></b>：抢锁/串发分段时间缺失，仅有总时长。`;
+    if(claim==null || gui==null) return "抢锁/串发分段时间缺失，仅有总时长";
     const bits = [];
-    if(claim < 5000)       bits.push(`派单几乎踩中云电脑轮询节拍，抢锁≈0，时间几乎全花在 GUI 串发`);
-    else if(claim > 45000) bits.push(`派单刚好错过上一跳、多等了将近一整轮云电脑轮询（${fmtMin(claim)}）才抢到锁，这是它比别条慢的主因`);
-    else                   bits.push(`抢锁等待 ${fmtMin(claim)}，落在轮询常态区间`);
-    if(gui > 120000)       bits.push(`GUI 串发又偏长（${fmtMin(gui)}：搜索定位+私信窗加载+逐字 SendInput），叠加后总时长偏高`);
-    else if(gui < 75000)   bits.push(`GUI 串发很顺（${fmtMin(gui)}），定位和发送都快`);
-    else                   bits.push(`GUI 串发 ${fmtMin(gui)}，常态`);
-    return `<b>派单→触达 <span class="k">${fmtMin(total)}</span></b> ＝ 抢锁 ${fmtMin(claim)} ＋ GUI 串发 ${fmtMin(gui)}。${bits.join("；")}。`;
+    if(claim < 5000)       bits.push("派单几乎踩中无影轮询节拍，抢锁≈0");
+    else if(claim > 45000) bits.push(`派单错过上一跳、等了近一整轮无影轮询（${fmtMin(claim)}）才抢到锁，是这段慢的主因`);
+    else                   bits.push(`抢锁等待 ${fmtMin(claim)}（轮询常态）`);
+    if(gui > 120000)       bits.push(`GUI 串发偏长（${fmtMin(gui)}：搜索定位+私信窗+逐字 SendInput），叠加后偏高`);
+    else if(gui < 75000)   bits.push(`GUI 串发很顺（${fmtMin(gui)}）`);
+    else                   bits.push(`GUI 串发 ${fmtMin(gui)}（常态）`);
+    return `＝ 抢锁 ${fmtMin(claim)} ＋ GUI 串发 ${fmtMin(gui)}。${bits.join("；")}`;
   }
-  if(r.status==="pending" || r.status==="claimed"){
-    return `<b>派单→触达 进行中</b>：已派单，` + (r.claimedAt ? `已抢锁、等 GUI 串发` : `等云电脑下一跳轮询抢锁`) + `，尚未真发出，故无触达时间。`;
+  if(r.status==="pending" || r.status==="claimed")
+    return "进行中：已派单，" + (r.claimedAt ? "已抢锁、等 GUI 串发" : "等无影下一跳轮询抢锁") + "，尚未真发出";
+  const em = r.errorMessage || "";
+  const map = {
+    "rejected": "运营在无影端人工驳回（话术 / 对象不合适），未发出",
+    "wrong_user": "搜索定位撞名、身份门拦截，未发出",
+    "expired_stale_pending(comment>10min)": "入队那刻评论已过 10min 时效线，判过期不进串发",
+    "expired_at_claim(comment>10min)": "抢锁那刻评论已超 10min 时效线，放弃发送",
+  };
+  let why = map[em];
+  if(!why) why = em.indexOf("daily_cap")>=0 ? "顶到当日发送上限，跳过不发" : ("因 "+esc(em)+" 跳过、未发出");
+  return "未发出：" + why + "，故无触达时间";
+}
+
+/* 8 节点 = 7 段，逐段给「这段时间为什么不一样」的机制原因。口径对齐 src/lib/journeys.ts + vercel.json cron 节拍。 */
+const SEGS = [
+  { k:"video_comment",   a:"视频发布", b:"评论",     get:(r)=>gapMs(r.videoPublishedAt, r.commentTime) },
+  { k:"comment_scrape",  a:"评论",     b:"抓取",     get:(r)=>gapMs(r.commentTime, r.scrapedAt) },
+  { k:"scrape_analyze",  a:"抓取",     b:"打分",     get:(r)=>gapMs(r.scrapedAt, r.analyzedAt) },
+  { k:"analyze_opener",  a:"打分",     b:"生成话术", get:(r)=>gapMs(r.analyzedAt, r.openerGenAt) },
+  { k:"opener_dispatch", a:"生成话术", b:"派单",     get:(r)=>gapMs(r.openerGenAt, r.queuedAt) },
+  { k:"dispatch_contact",a:"派单",     b:"触达",     get:(r)=>r.status==="sent"?gapMs(r.queuedAt, r.contactedAt):null },
+  { k:"contact_reply",   a:"触达",     b:"回复",     get:(r)=>gapMs(r.contactedAt, r.repliedAt) },
+];
+function slaNote(k, ms){ const c=gapColor(k, ms);
+  return c==="green"?"🟢 达标":c==="yellow"?"🟡 偏慢":c==="red"?"🔴 超标":""; }
+function segReason(k, ms, r){
+  switch(k){
+    case "video_comment":   return ms==null ? "缺视频发布时间（抖音常不回传），这段算不出"
+      : "客户行为·不可控：视频发布后客户多久刷到才评论，纯随机；老视频仍在持续来评论，所以常是几天~几十天";
+    case "comment_scrape":  return ms==null ? "评论时间缺失（抖音未回传），算不出"
+      : "爬虫入库：等 scrape cron 下一轮抓这条视频——热门号源 scrape-hot 每 2min、普通号源每小时整点，再叠加它在抓取队列里的位置";
+    case "scrape_analyze":  return "意向打分：等 analyze cron 下一跳（每 2min）给它打分，评论落在两跳之间的位置决定快慢";
+    case "analyze_opener":  return "生成话术：等无影派单 cron 下一跳（每 1min）——这一跳临时调 LLM 生成 opener，落点决定快慢";
+    case "opener_dispatch": return "话术生成与写入 dispatch_queue 在同一跳里前后脚完成，所以恒≈0";
+    case "dispatch_contact":return dispatchWhy(r);
+    case "contact_reply":   return ms==null ? "客户还没回复（或这条未触达），无回复时间"
+      : "客户行为·不可控：DM 发出后客户多久回，纯随机";
+    default: return "";
   }
-  if(r.status==="skipped" || r.status==="failed" || r.status==="aborted"){
-    const em = r.errorMessage || "";
-    const map = {
-      "rejected": "运营在云电脑端人工驳回（话术 / 对象不合适），未发出",
-      "wrong_user": "抖音搜索定位到的账号与目标对不上（撞名），身份门拦截、未发出",
-      "expired_stale_pending(comment>10min)": "入队那一刻评论已过 10min 时效线，直接判过期、不进串发",
-      "expired_at_claim(comment>10min)": "抢锁那一刻评论已超 10min 时效线，放弃发送",
-    };
-    let why = map[em];
-    if(!why) why = em.indexOf("daily_cap")>=0 ? "顶到当日发送上限，跳过不发" : ("因 "+esc(em)+" 跳过、未发出");
-    return `<b>无派单→触达</b>：${why}，所以这条没有触达时间。`;
-  }
-  return "";
+}
+function segmentBreakdown(r){
+  const rows = SEGS.map(s=>{
+    const ms = s.get(r);
+    const inflightDc = s.k==="dispatch_contact" && (r.status==="pending"||r.status==="claimed");
+    const col = inflightDc ? "var(--dm)" : COL[gapColor(s.k, ms)];
+    const tlab = (s.k==="dispatch_contact" && r.status==="sent") ? fmtMin(ms) : (ms==null ? "—" : "+"+fmtMin(ms));
+    const sla = slaNote(s.k, ms);
+    return `<div class="sbrow"><i style="background:${col}"></i><span class="sbseg">${s.a}→${s.b}</span>`
+      + `<span class="sbt">${tlab}</span><span class="sbwhy">${segReason(s.k, ms, r)}${sla?" · "+sla:""}</span></div>`;
+  }).join("");
+  return `<div class="segbreak">${rows}</div>`;
 }
 
 function renderRow(r, now){
@@ -292,7 +330,7 @@ function renderRow(r, now){
       ${e2eBadge}
     </div>
     <div class="stripwrap"><div class="strip">${strip}</div></div>
-    <div class="dreason">${dispatchReason(r)}</div>
+    ${segmentBreakdown(r)}
     ${(stCls==="fail"&&r.errorMessage)?`<div class="errline">${esc(r.errorMessage.slice(0,140))}</div>`:""}
   </div>`;
 }
