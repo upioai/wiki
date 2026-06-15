@@ -84,6 +84,9 @@
   .e2e.bad { background:rgba(248,113,113,.13); color:#fca5a5; }
   .e2e.na { background:var(--bg-deep); color:var(--text-muted); font-weight:500; }
   .jr .errline { margin-top:10px; font-size:12px; color:#fca5a5; background:rgba(248,113,113,.07); border:1px solid rgba(248,113,113,.18); border-radius:8px; padding:6px 12px; }
+  .jr .dreason { margin-top:10px; font-size:12px; color:var(--text-dim); background:var(--bg-deep); border:1px solid var(--border); border-radius:8px; padding:7px 12px; line-height:1.65; }
+  .jr .dreason b { color:var(--text); font-weight:600; }
+  .jr .dreason .k { color:var(--dm); font-weight:600; font-variant-numeric:tabular-nums; }
 
   .strip { display:flex; align-items:flex-start; min-width:860px; }
   .stripwrap { overflow-x:auto; }
@@ -143,6 +146,7 @@
       <li><b>8 节点时间轴</b>：<b>视频发布</b>=<code>videos.published_at</code>（常缺，置灰）；<b>评论</b>=<code>comments.comment_time</code>（抖音未回传时缺，不计入达标率）；<b>抓取</b>=<code>comments.created_at</code>（爬虫入库）；<b>打分</b>=<code>comments.analyzed_at</code>（06-11 前历史行 NULL）；<b>生成话术</b>=<code>llm_call_provenance</code> 按评论回链取最早；<b>派单</b>=<code>dispatch_queue.created_at</code>；<b>触达</b>=<code>completed_at</code>（仅 <code>status=sent</code> 点亮，无影 GUI 真发出）；<b>回复</b>=<code>messages.role=customer</code> 最早一条。</li>
       <li><b>段颜色</b>只热「我们能控的段」，阈值各段不同（口径与<a href="/akke/journeys.html">客户旅程页</a>一致）：评论→抓取🟢&lt;3h、抓取→打分🟢&lt;15m、打分→生成话术🟢&lt;3h、生成话术→派单🟢&lt;10m、派单→触达🟢&lt;30m；视频→评论、触达→回复 = 客户行为，灰。</li>
       <li><b>端到端</b> = 评论 → 发出，目标 ≤10min（🟢达标 / 🟡10–30min / 🔴&gt;30min，右上徽章）。<b>通道内</b> = 派单 → 发出（抢锁+GUI 串发，我们 100% 可控的段）。<code>pending/claimed</code> 进行中行：派单→触达段显示「已等 X」（蓝色脉冲）。</li>
+      <li><b>每条下方「派单→触达」灰条</b>：逐条拆解这一段时长为什么不一样 ＝ <b>抢锁等待</b>（<code>派单→claimed</code>，取决于派单落点 vs 云电脑轮询节拍，0s～1 整轮不等）＋ <b>GUI 串发</b>（<code>claimed→触达</code>，抖音搜索定位 + 身份门 + 私信窗加载 + 逐字 SendInput）。skipped/failed 行则说明为什么没有触达时间。</li>
       <li>「今天」按北京时间日界；<code>pending / claimed</code>（排队中/发送中）的积压行不分日全部显示，盯队列卡没卡。</li>
       <li><code>skipped / failed</code> 行展开失败原因（如 <code>wrong_user</code> 撞名、<code>daily_cap_skip</code> 顶日限），已发条数只算 <code>sent</code>。</li>
       <li>数据源：<code>/api/public/cloud-pc-dm-live</code>（只读、60s 内存缓存、CORS 锁 upio.ai）。</li>
@@ -204,6 +208,42 @@ function segWait(ms){ // 进行中：派单后已等多久（蓝色脉冲虚线�
   return `<div class="seg"><div class="bar dashed" style="background:var(--dm)"></div><div class="gl" style="color:#93c5fd">${fmtMin(ms)}</div></div>`;
 }
 
+/* 派单→触达 = 抢锁等待(queuedAt→claimedAt，落点 vs 云电脑轮询节拍) + GUI 串发(claimedAt→contactedAt，
+   搜索定位+身份门+私信窗+逐字 SendInput)。逐条拆出主导项，解释为什么这条比别条快/慢。 */
+function dispatchReason(r){
+  if(r.status==="sent" && r.contactedAt && r.queuedAt){
+    const total = gapMs(r.queuedAt, r.contactedAt);
+    const claim = gapMs(r.queuedAt, r.claimedAt);
+    const gui   = gapMs(r.claimedAt, r.contactedAt);
+    if(claim==null || gui==null)
+      return `<b>派单→触达 <span class="k">${fmtMin(total)}</span></b>：抢锁/串发分段时间缺失，仅有总时长。`;
+    const bits = [];
+    if(claim < 5000)       bits.push(`派单几乎踩中云电脑轮询节拍，抢锁≈0，时间几乎全花在 GUI 串发`);
+    else if(claim > 45000) bits.push(`派单刚好错过上一跳、多等了将近一整轮云电脑轮询（${fmtMin(claim)}）才抢到锁，这是它比别条慢的主因`);
+    else                   bits.push(`抢锁等待 ${fmtMin(claim)}，落在轮询常态区间`);
+    if(gui > 120000)       bits.push(`GUI 串发又偏长（${fmtMin(gui)}：搜索定位+私信窗加载+逐字 SendInput），叠加后总时长偏高`);
+    else if(gui < 75000)   bits.push(`GUI 串发很顺（${fmtMin(gui)}），定位和发送都快`);
+    else                   bits.push(`GUI 串发 ${fmtMin(gui)}，常态`);
+    return `<b>派单→触达 <span class="k">${fmtMin(total)}</span></b> ＝ 抢锁 ${fmtMin(claim)} ＋ GUI 串发 ${fmtMin(gui)}。${bits.join("；")}。`;
+  }
+  if(r.status==="pending" || r.status==="claimed"){
+    return `<b>派单→触达 进行中</b>：已派单，` + (r.claimedAt ? `已抢锁、等 GUI 串发` : `等云电脑下一跳轮询抢锁`) + `，尚未真发出，故无触达时间。`;
+  }
+  if(r.status==="skipped" || r.status==="failed" || r.status==="aborted"){
+    const em = r.errorMessage || "";
+    const map = {
+      "rejected": "运营在云电脑端人工驳回（话术 / 对象不合适），未发出",
+      "wrong_user": "抖音搜索定位到的账号与目标对不上（撞名），身份门拦截、未发出",
+      "expired_stale_pending(comment>10min)": "入队那一刻评论已过 10min 时效线，直接判过期、不进串发",
+      "expired_at_claim(comment>10min)": "抢锁那一刻评论已超 10min 时效线，放弃发送",
+    };
+    let why = map[em];
+    if(!why) why = em.indexOf("daily_cap")>=0 ? "顶到当日发送上限，跳过不发" : ("因 "+esc(em)+" 跳过、未发出");
+    return `<b>无派单→触达</b>：${why}，所以这条没有触达时间。`;
+  }
+  return "";
+}
+
 function renderRow(r, now){
   const inflight = r.status==="pending" || r.status==="claimed";
   const e2e = r.status==="sent" ? gapMs(r.commentTime, r.completedAt) : null;
@@ -252,6 +292,7 @@ function renderRow(r, now){
       ${e2eBadge}
     </div>
     <div class="stripwrap"><div class="strip">${strip}</div></div>
+    <div class="dreason">${dispatchReason(r)}</div>
     ${(stCls==="fail"&&r.errorMessage)?`<div class="errline">${esc(r.errorMessage.slice(0,140))}</div>`:""}
   </div>`;
 }
