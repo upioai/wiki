@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>云电脑 DM 触达 · 个别用户发送失败排查 · 2026-06-15</title>
+<style>
+  :root{
+    --ink:#1a1a2e; --sub:#5b5b73; --line:#e6e6ef; --bg:#f6f7fb;
+    --hl:#ffe84d; --hl-soft:#fff7c2;
+    --good:#1a7f4b; --good-bg:#e6f6ec;
+    --bad:#c0392b; --bad-bg:#fdecea;
+    --blue:#2456c4; --blue-bg:#e9f0ff;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,Roboto,sans-serif;
+    line-height:1.7;font-size:16px;}
+  .wrap{max-width:920px;margin:0 auto;padding:40px 28px 80px;}
+  header{border-bottom:3px solid var(--ink);padding-bottom:18px;margin-bottom:8px;}
+  h1{font-size:27px;margin:0 0 6px;letter-spacing:.5px;}
+  .meta{color:var(--sub);font-size:14px;}
+  h2{font-size:20px;margin:38px 0 14px;padding-left:12px;border-left:5px solid var(--ink);}
+  h3{font-size:16px;margin:20px 0 8px;color:var(--sub);}
+  p{margin:8px 0;}
+  mark{background:var(--hl);padding:1px 5px;border-radius:3px;font-weight:600;}
+  .hl-soft{background:var(--hl-soft);padding:1px 4px;border-radius:3px;}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:20px 22px;margin:14px 0;
+    box-shadow:0 1px 3px rgba(20,20,40,.04);}
+  .tldr{background:#fffdf0;border:2px solid var(--hl);border-radius:12px;padding:20px 22px;margin:18px 0 6px;}
+  .tldr h2{border:0;padding:0;margin:0 0 10px;font-size:18px;}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14.5px;}
+  th,td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top;}
+  th{background:#f0f1f7;font-weight:600;}
+  .mono{font-family:"SF Mono",Consolas,Menlo,monospace;font-size:13.5px;}
+  .tag{display:inline-block;padding:1px 9px;border-radius:20px;font-size:12.5px;font-weight:600;}
+  .tag.good{background:var(--good-bg);color:var(--good);}
+  .tag.bad{background:var(--bad-bg);color:var(--bad);}
+  .tag.blue{background:var(--blue-bg);color:var(--blue);}
+  ul{margin:8px 0;padding-left:22px;}
+  li{margin:5px 0;}
+  .step{display:flex;gap:14px;margin:12px 0;}
+  .step .n{flex:0 0 30px;height:30px;border-radius:50%;background:var(--ink);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;}
+  .step .b{flex:1;}
+  .strike{color:var(--bad);text-decoration:line-through;opacity:.7;}
+  .footnote{color:var(--sub);font-size:13px;margin-top:6px;}
+  .pill{font-size:12px;color:var(--sub);border:1px solid var(--line);border-radius:20px;padding:2px 10px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>云电脑 DM 触达 · 个别用户发送失败排查</h1>
+  <div class="meta">汇报日期：2026-06-15　|　通道：阿里无影云电脑 · 抖音 PC 客户端自动发私信　|　影响范围：2 个用户</div>
+</header>
+
+<!-- 一句话结论 -->
+<div class="tldr">
+  <h2>📌 一句话结论</h2>
+  <p>个别 emoji 昵称用户私信发不出（<span class="tag bad">wrong_user</span>），<mark>根因不是程序 bug，而是抖音客户端的结构性限制</mark>：他们的抖音号在抖音搜索框里搜不到本人、昵称又是 emoji 严重撞名，而客户端只能靠搜索、没有"精准直达"入口。
+  <mark>目前此类用户仅 2 个，不值得为此大改系统</mark>；系统现状已安全（不会发错人、不会反复重试），这 2 个改为人工触达即可。</p>
+</div>
+<p class="footnote">附带成果：排查中顺手定位并修复了一个真 bug（搜索后没点中"用户"tab，详见末尾）。</p>
+
+<!-- 现象 -->
+<h2>一、现象</h2>
+<div class="card">
+  <p>云电脑自动发私信流程：<span class="mono">搜索抖音号 → 进本人主页 → 核对身份 → 发送</span>。</p>
+  <p>近期发现：<mark>名字是 emoji / 特殊符号的用户，反复发送失败、记为 wrong_user（搜不到本人，不发）</mark>。本次抓到 2 个典型：<b>🙂🙃</b>、<b>张3️⃣疯</b>。</p>
+</div>
+
+<!-- 排查过程 -->
+<h2>二、排查过程（三轮假设，逐一证伪）</h2>
+
+<div class="step">
+  <div class="n">1</div>
+  <div class="b">
+    <h3>假设：是"用户"tab 没点中 → <span class="tag good">真 bug，已修复</span></h3>
+    <p>发现搜索后用"AI 视觉定位"去点"用户"分类 tab，定位会漂移、偶尔点空，导致落到视频/错页。<mark>已改回固定坐标，稳定点中</mark>。但修复后这 2 个用户<b>仍然失败</b> → 说明它们另有原因。</p>
+  </div>
+</div>
+
+<div class="step">
+  <div class="n">2</div>
+  <div class="b">
+    <h3>假设：用户没设抖音号，系统回退了"搜不到的内部 ID" → <span class="tag bad">证伪</span></h3>
+    <p>怀疑这类用户没设抖音号，程序回退用了一个抖音内部 ID（搜不到本人）。<b>用接口实测三个用户的真实字段后推翻</b>：他们的抖音号都是<u>真实、用户自己设置的号</u>，不是内部 ID 回退。</p>
+  </div>
+</div>
+
+<div class="step">
+  <div class="n">3</div>
+  <div class="b">
+    <h3>真相：抖音搜索本身搜不到 + 客户端没有直达入口 → <span class="tag blue">最终定性</span></h3>
+    <p><mark>这些是真实抖音号，但在抖音搜索框里搜不出本人</mark>（抖音返回的是一堆号码尾部相似的"陌生人"，本人不在里面，属于抖音搜索的黑盒行为、不可控）；<mark>而 emoji 昵称又严重撞名</mark>，靠名字也定位不到。我们手里虽然有能唯一定位本人的身份 ID（sec_uid），但 <mark>抖音 PC 客户端只能用搜索框、没有"凭 ID 直达主页"的入口</mark>。两条路全堵，这是客户端的天花板。</p>
+  </div>
+</div>
+
+<!-- 案例数据 -->
+<h2>三、两个用户的实测数据（含 1 个成功对照组）</h2>
+<div class="card">
+  <table>
+    <tr>
+      <th>用户昵称</th><th>抖音号（真实设置）</th><th>号的来源字段</th><th>抖音内部ID</th><th>结果</th>
+    </tr>
+    <tr>
+      <td>🙂🙃</td>
+      <td class="mono">62589085393</td>
+      <td><span class="hl-soft">真实抖音号</span></td>
+      <td class="mono">0（未用）</td>
+      <td><span class="tag bad">搜不到 · wrong_user</span></td>
+    </tr>
+    <tr>
+      <td>张3️⃣疯</td>
+      <td class="mono">69011451554</td>
+      <td><span class="hl-soft">真实抖音号</span></td>
+      <td class="mono">0（未用）</td>
+      <td><span class="tag bad">搜不到 · wrong_user</span></td>
+    </tr>
+    <tr style="background:var(--good-bg);">
+      <td>不倒翁<br><span class="pill">对照组</span></td>
+      <td class="mono">40884218219</td>
+      <td><span class="hl-soft">真实抖音号</span></td>
+      <td class="mono">0（未用）</td>
+      <td><span class="tag good">搜得到 · 发送成功</span></td>
+    </tr>
+  </table>
+  <p class="footnote">关键对比：<mark>三个号长得一模一样（都是 11 位纯数字、都是真实抖音号），不倒翁能搜到、另两个搜不到</mark> —— 差异在抖音搜索引擎本身，不在我们的程序，也无法从号码外观提前判断。</p>
+</div>
+
+<!-- 方案评估 -->
+<h2>四、解决方案评估</h2>
+
+<div class="card">
+  <table>
+    <tr><th style="width:18%;">方案</th><th>做法</th><th style="width:14%;">成本</th><th>评价</th></tr>
+    <tr>
+      <td><b>① 止损</b><br><span class="tag blue">低成本</span></td>
+      <td>失败的自动跳过（现状已是），可再加"提前判定搜不到就快速放弃"省时间；承认此类用户客户端通道暂不可达</td>
+      <td>极低 / 0</td>
+      <td>保证不发错人、不空耗；不解决"触达不到"</td>
+    </tr>
+    <tr>
+      <td><b>② 根治</b><br><span class="tag bad">大工程</span></td>
+      <td>改用<b>浏览器版抖音</b>，用身份 ID 直接打开本人主页发私信，<span class="hl-soft">一次根治所有此类失败</span></td>
+      <td>高<br>（整套自动化重做）</td>
+      <td>彻底，但工程量大、需单独立项</td>
+    </tr>
+    <tr style="background:var(--hl-soft);">
+      <td><b>✅ 本次决策</b></td>
+      <td><mark>目前仅 2 个用户，②大改不划算、①也不必动代码</mark>；这 2 个改为<b>人工用浏览器打开主页直接私信</b>；若日后此类用户量明显上升，再立项做②</td>
+      <td>—</td>
+      <td><b>性价比最优</b></td>
+    </tr>
+  </table>
+</div>
+
+<h3>为什么"放着不管"也是安全的</h3>
+<div class="card">
+  <ul>
+    <li><mark>绝不会发错人</mark>：搜不到本人时系统直接跳过、不发送。</li>
+    <li><mark>不会反复重试空耗</mark>：失败会被自动抑制，不再反复派给云电脑。</li>
+    <li>这 2 个用户已记录在案，需要的话人工 2 分钟/个用浏览器触达即可。</li>
+  </ul>
+</div>
+
+<!-- 附带成果 -->
+<h2>五、附带成果（本次排查顺带修复的真 bug）</h2>
+<div class="card">
+  <p><span class="tag good">已修复并上线</span> <mark>搜索后"用户"tab 点不中 → 大批落错页失败</mark>的问题。</p>
+  <p>原先用 AI 视觉定位点"用户"分类 tab，定位漂移、偶尔点空 → 落到视频或错页，<b>这是一个影响面更大的真 bug</b>。已改回稳定的固定坐标点击，搜索环节恢复稳定。</p>
+  <p class="footnote">注：此修复与上面 2 个 emoji 用户是<b>两个独立问题</b>——tab 修复解决的是普遍性失败，emoji 用户是抖音搜索 + 客户端限制的个别情况。</p>
+</div>
+
+<h2>六、结论</h2>
+<div class="tldr">
+  <ul style="margin:0;">
+    <li><mark>emoji 用户发送失败 = 抖音搜索 + 客户端限制，非程序 bug</mark>；</li>
+    <li><mark>仅 2 个用户，不大改系统</mark>，改人工浏览器触达；</li>
+    <li>系统现状安全（不发错人、不重派）；</li>
+    <li>顺带修复了"用户 tab 点不中"这个影响更大的真 bug，搜索环节已稳定；</li>
+    <li>若此类用户量上升，再评估"浏览器版直达"根治方案。</li>
+  </ul>
+</div>
+
+</div>
+</body>
+</html>
