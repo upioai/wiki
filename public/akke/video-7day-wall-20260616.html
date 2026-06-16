@@ -22,7 +22,7 @@ td.n,th.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 .callout.bad{border-color:#dc2626;background:#fef6f6}
 .callout.good{border-color:#16a34a;background:#f4fdf6}
 .callout.key{border-color:#a16207;background:#fffdf3}
-.callout b{display:block;margin-bottom:4px}
+.callout b:first-child{display:block;margin-bottom:4px}
 code{background:#f1f5f9;border-radius:4px;padding:1px 5px;font-size:12px}
 .chain{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:18px 20px;font-size:13.5px;line-height:1.95;margin:14px 0}
 .chain b{color:#fbbf24}
@@ -152,6 +152,18 @@ ol li,ul li{margin:6px 0;font-size:14px}
 抖音 App 里你「关注」的人发了新视频，会进你的「关注更新流」——这是一个<b>和 post_api 完全不同的接口面，没有那道 7 天墙</b>。实测用采集号拉关注流，能冒出 <b>1.12 天前</b>的新视频。这是目前唯一被验证能拿到 day-0 新视频的路。
 </div>
 
+<h3>「换接口面」到底换的是什么？</h3>
+<p>抖音内部拿视频其实有两套不同的「通道」，我们原来一直走第一套。所谓「换」，就是从第一套切到第二套：</p>
+<table>
+<tr><th>对比</th><th>原来的路：按号查作品（post_api）</th><th>新的路：关注更新流（follow feed）</th></tr>
+<tr><td><b>怎么拿到视频</b></td><td>我们主动去问抖音「这个博主最近发了啥」</td><td>先关注博主，抖音主动把他的新视频推进我们的「关注流」</td></tr>
+<tr><td><b>新鲜度</b></td><td class="lose">压 ~7 天才给看</td><td class="win">近实时（实测 1.12 天）</td></tr>
+<tr><td><b>能看到谁的</b></td><td>任意号，不用关注</td><td>只能看到「已经关注的人」</td></tr>
+<tr><td><b>为什么是这样</b></td><td>这是对外查询接口，抖音给它加了延迟/缓存（大概率防爬）</td><td>这是给粉丝看的时间线，必须实时否则用户体验崩</td></tr>
+</table>
+<p>所以「换接口面」= 不再挨个主动去查每个号，改成 <b>养一个号（小胡）把目标全关注上，靠刷它的关注流被动接收新视频</b>。代价很明确：关注流只能看到已关注的人——这就是为什么必须先让小胡去关注那 113 个核心号（一次性的活，关上就长期有效）。</p>
+<div class="callout">打个比方：<b>post_api</b> 像「你每天打电话挨个问朋友'最近发朋友圈没'，但只能问到一周前的动态」；<b>follow feed</b> 像「你先把他们加成好友，他们一发朋友圈就直接出现在你的信息流里，实时」。我们换的就是这个——从「挨个打电话查旧的」换成「加好友等推送新的」。</div>
+
 <h3>为什么选它（而不是搬国内服务器）</h3>
 <ul>
 <li><b>已验证</b>：1.12 天新鲜度是实测出来的，不是推断。</li>
@@ -190,6 +202,41 @@ ol li,ul li{margin:6px 0;font-size:14px}
 <li>最值钱的 day-0 高意向评论，从「85% 都迟到 6 天」变成「当天/次日就能触达」。</li>
 <li>不丢量（量本来也没丢），<b>抢回的是那 5~6 天的黄金触达期</b>。</li>
 </ul>
+
+<!-- ===================== 6 ===================== -->
+<h2>六、能全自动吗？tier1 变了怎么办</h2>
+
+<p>能，而且大部分零件都现成。但要先说清楚一句：<b>整条链路里有且只有一个「限速闸」——无影上点关注那一步</b>，其余全可无人值守。</p>
+
+<table>
+<tr><th>步骤</th><th>能自动吗</th><th>说明</th></tr>
+<tr><td>① 小胡关注 113 个号</td><td><b class="lose">半自动（限速）</b></td><td>无影 GUI 脚本 <code>_follow_grounded.py</code> 已现成，能在无影上自动点关注；但抖音反爬把「关注」这个写操作压在 <b>~30 个/天</b>，这是硬天花板、代码突破不了；且要求无影开机 + 登录</td></tr>
+<tr><td>② 轮询关注流逮新视频</td><td><b class="win">✅ 全自动</b></td><td>cron 定时刷，只要 cookie 就行；机制现成（潜在触达的关注流 watcher 已在用）</td></tr>
+<tr><td>③ 抓评论 → 打分 → 派单 → 私信</td><td><b class="win">✅ 全自动</b></td><td>原有流程，零改动</td></tr>
+</table>
+
+<h3>tier1 会变，关注名单怎么自动跟上？</h3>
+<p>tier1 不是固定名单——系统每天自动把高产新号<b>升</b>进 tier1（<code>auto-promote-tier1</code> + cron <code>/api/cron/auto-tier1</code>），把死号<b>降</b>出去。所以小胡的关注名单必须自动对账，不能靠人维护。做法是加一个对账环节：</p>
+
+<div class="chain">
+每天一个<b>对账 cron</b>：拉「当前 tier1 集合」 vs 「小胡已关注集合」<br>
+&nbsp;&nbsp;↓ 算差集<br>
+新升进 tier1、还没关注的号 → <b>自动写进关注队列</b><br>
+&nbsp;&nbsp;↓<br>
+无影关注 worker 从队列里取，每天 ~30 个限速点关注 → 成功的<b>把「已关注」状态回写到表里</b>（如在 <code>source_accounts</code> 加一列 <code>followed_by_collector_at</code>）<br>
+&nbsp;&nbsp;↓<br>
+降出 tier1 的号 → 可选自动取关（保持名单干净），不取关也不影响新鲜度
+</div>
+
+<div class="callout key">
+<b>结论</b>
+全程不用人手维护关注名单：新号升 tier1 → 次日对账自动入队 → 无影限速关上 → 关注流自动逮它的新视频。唯一的人工 / 环境依赖是「<b>无影得开着 + 接受 ~30 个/天 的铺号速度</b>」。代价是新升级的号有 ~1 天的「上架延迟」（升级当天可能还没被小胡关注上、要等对账+限速排到它），但相比原来那道 7 天墙，已经好太多。
+</div>
+
+<div class="callout bad">
+<b>还没现成、要搭的那一点点</b>
+零件大多有了，缺的是把它们串起来的「对账 cron + 关注队列 + 已关注状态列」这层胶水，外加把②的关注流 watcher 从「潜在触达专用」改造成「发现新视频入库」（往 <code>videos</code> 表增量 upsert，additive、不动现有流程）。工作量小，难点不在代码、在第①步的无影权限和限速节奏。
+</div>
 
 <div class="foot">
 诊断与数据：本机实测 post_api 5/5 卡 6.8–9.3 天、登录 vs 匿名逐字节相同；45 天 2403 视频 / 11864 高中意向评论 by-day 分布；捕获延迟实测（day0-1 高意向中位 5.7 天 / 24h 内仅 14.9%）；真实例子博主 Ly•🏠 6/9 发布、6/15 入库。关注流实测 1.12 天新鲜（采集号小胡）。<br>
