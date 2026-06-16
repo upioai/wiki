@@ -276,7 +276,21 @@
       </table>
       </div>
       <div style="margin-top:8px;font-size:12px;color:var(--text-muted)">⏱️ <b>20–60min 边缘档：本档 0 条。</b>监控当前只把 ≤20min 过闸项落盘（&gt;20min 超时项仅打日志、且未记 aweme_id），故此档暂无数据可列；要开此档需改 watch 脚本记录超时项。</div>
-      <div style="margin-top:6px;font-size:12px;color:var(--text-muted)">注：3 条里 2 条同号「雨霖麻麻」（已 DM 过的老 lead，撞车去重在消费端处理），上午时段、清单随监控持续追加。</div>
+      <div style="margin-top:6px;font-size:12px;color:var(--text-muted)">注：此表是上午 11:05 的快照（仅 ≤20min 过闸项）；全天实际逮到 <b>15 条</b>新鲜视频，但真发为 0 —— 原因见下方复盘卡。</div>
+    </div>
+
+    <div class="card">
+      <div class="t">06-16 全天复盘 · 路B 潜在触达（检测 15 → 真发 <b style="color:#dc2626">0</b>）</div>
+      <div style="font-size:13px;color:var(--text-dim);margin-bottom:10px">
+        监控（watch）<b>全天正常</b>——轮次心跳 09:55→19:30 连续没断，逮到 <b>15 条</b>新鲜视频（10:02–19:14）。但三连<b style="color:#dc2626">真发 0 条</b>：当天唯一一次执行（10:02 雨霖麻麻）<b>卡死 10 小时</b>，其余 14 条全在队列里过期作废。检测不饿、execution 全挂。
+      </div>
+      <div class="guard" style="font-size:13px;color:var(--text-dim)">
+        <div style="margin-bottom:8px"><b>现象</b>：10:02 消费端逮到雨霖麻麻新视频、调执行器发三连 → 直到 <b>20:08 才返回</b>（10h05m），结果是 <code>wrong_user</code>（身份门搜错人、没赞没评论）。这 10 小时里消费端被这一次调用<b>整个冻住</b>，后面 14 条检测堆在队列没人处理，20:08 解冻后一次性判「侦测超时」全部作废。</div>
+        <div style="margin-bottom:8px"><b style="color:#047857">真因（已证实）</b>：消费脚本调执行器那行 <code>subprocess.run()</code> <b>没有设超时</b> → 执行器一旦在 GUI 环节卡住，整条流水线就无限等。铁证三条：① 消费日志 <code>[10:02:55] 触达 → [20:08:17] 返回0</code>；② <code>comment_log_20260616.csv</code> 全天<b>仅 1 行</b>、状态 <code>wrong_user</code>；③ 连「到达运行时长上限自动退出」都被堵到 20:08 才触发 = 进程确实卡在那一次调用里。</div>
+        <div style="margin-bottom:8px"><b style="color:#b45309">没定位到的（不瞎猜）</b>：执行器在 GUI 的<b>具体哪一步</b>卡住，<b>从现有日志查不出来</b>——执行器的分阶段输出当时没存盘、只剩入口/出口两个时间戳。<b>能排除的</b>：不是 <code>--confirm</code> 交互等待（启动命令无 --confirm，且 wrong_user 在交互提示之前就 return 了）；不是远程桌面断开（屏幕全程常亮、未断连）。具体根因留待下次用新加的落盘日志现场抓。</div>
+        <div><b style="color:#0f766e">怎么解决（今天已部署无影 4 脚本）</b>：① 消费给执行器调用加 <b>300s 硬超时</b>（<code>AKKE_EXEC_TIMEOUT_SEC</code>）→ 超时自动 kill+跳过，<b>再不会一条卡死全天</b>；② 执行器输出<b>落盘</b> <code>executor-runs.log</code>（带阶段时间戳）→ 下次卡死可定位到具体步骤；③ 开 <code>AKKE_COMMENT_VERIFY_LENIENT</code> 减评论假失败；④ 执行器 <code>_is_liked</code> 双采修复（减点赞假阳性）+ 身份门撞名修复（减 wrong_user）；⑤ 监控 <code>gate=expired</code> 超时项落盘 + 触达闸对齐 <b>20min</b>。</div>
+        <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border);color:var(--text-muted);font-size:12px">关键认知：端点化（免 comment_log 摆渡）解决的是<b>回写</b>、解决不了<b>执行卡死</b>——这是两层，超时保护必须独立有。今天 gap 全在执行层，所以先修执行（超时+落盘+验证修复），稳住真发后再切端点免摆渡。</div>
+      </div>
     </div>
     </div><!-- /ptday 06-16 -->
 
