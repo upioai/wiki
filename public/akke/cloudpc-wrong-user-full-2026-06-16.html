@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>云电脑发私信 · wrong_user 完整分析 · 2026-06-16</title>
+<style>
+  :root{
+    --bg:#0f1115;--card:#191c23;--card2:#1f232c;--line:#2a2f3a;--tx:#e8eaef;--tx2:#9aa3b2;--tx3:#6b7280;
+    --green:#22c55e;--green-bg:#10301c;--amber:#f0a500;--amber-bg:#3a2e10;
+    --red:#ef4444;--red-bg:#3a1414;--blue:#3b82f6;--blue-bg:#11233f;--purple:#a78bfa;--purple-bg:#241b3a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--tx);
+    font:16px/1.8 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+  .wrap{max-width:900px;margin:0 auto;padding:34px 22px 90px}
+  h1{font-size:28px;margin:0 0 4px}
+  .sub{color:var(--tx2);font-size:14px;margin-bottom:24px}
+  h2{font-size:22px;margin:42px 0 14px;padding-left:12px;border-left:5px solid var(--amber)}
+  h3{font-size:17px;margin:20px 0 8px}
+  .lead{background:linear-gradient(135deg,#1d2230,#191c23);border:1px solid #313a4d;border-radius:14px;padding:22px 24px;margin:16px 0}
+  .lead b{color:#fff}
+  /* 重点标记框 */
+  .key{border-radius:14px;padding:18px 22px;margin:18px 0;position:relative}
+  .key.r{background:var(--red-bg);border:1.5px solid #7a2020}
+  .key.a{background:var(--amber-bg);border:1.5px solid #6a5413}
+  .key.g{background:var(--green-bg);border:1.5px solid #1d5536}
+  .key.b{background:var(--blue-bg);border:1.5px solid #234168}
+  .key .kh{font-size:13px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+  .key.r .kh{color:#ff9a9a} .key.a .kh{color:var(--amber)} .key.g .kh{color:#7ee2a3} .key.b .kh{color:#8fbcff}
+  .key .big{font-size:30px;font-weight:800;line-height:1.15;margin:2px 0 8px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:18px 22px;margin:14px 0}
+  .row{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0}
+  .col{flex:1;min-width:150px;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:16px 18px;text-align:center}
+  .col .n{font-size:32px;font-weight:800;line-height:1}
+  .nG{color:var(--green)} .nR{color:var(--red)} .nA{color:var(--amber)} .nB{color:var(--blue)}
+  .tag{display:inline-block;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px}
+  .tG{background:var(--green-bg);color:var(--green);border:1px solid #1d5536}
+  .tA{background:var(--amber-bg);color:var(--amber);border:1px solid #5a4a1a}
+  .tR{background:var(--red-bg);color:var(--red);border:1px solid #5a2020}
+  .tB{background:var(--blue-bg);color:var(--blue);border:1px solid #234168}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14px}
+  th,td{text-align:left;padding:9px 11px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--tx2);font-size:12.5px;font-weight:600}
+  tr:last-child td{border-bottom:none}
+  code{background:#0c0e12;color:#e0c98a;padding:1.5px 7px;border-radius:5px;font:13px monospace}
+  mark{background:#5a4a13;color:#ffe08a;padding:1px 5px;border-radius:4px;font-weight:600}
+  .block{display:flex;gap:13px;align-items:flex-start;border-radius:11px;padding:13px 16px;margin:10px 0}
+  .block.r{background:var(--red-bg);border:1px solid #5a2020}
+  .block.b{background:var(--blue-bg);border:1px solid #234168}
+  .block.g{background:var(--green-bg);border:1px solid #1d5536}
+  .block .ic{font-size:21px;line-height:1.2}
+  .block .t{font-size:14.5px}
+  .block .t b{color:#fff}
+  .bar{height:22px;border-radius:6px;background:#23272f;overflow:hidden;display:flex;margin:5px 0}
+  .bar i{display:block;height:100%}
+  ul{margin:7px 0;padding-left:22px} li{margin:5px 0}
+  .mut{color:var(--tx3);font-size:13.5px}
+  .rank{display:flex;gap:13px;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:13px 16px;margin:10px 0}
+  .rank .m{font-size:24px}
+  footer{margin-top:50px;padding-top:18px;border-top:1px solid var(--line);color:var(--tx3);font-size:13px}
+  .toc{background:var(--card2);border:1px solid var(--line);border-radius:11px;padding:14px 20px;margin:14px 0;font-size:14px}
+  .toc a{color:var(--tx2);text-decoration:none;display:inline-block;margin:3px 14px 3px 0}
+  .toc a:hover{color:var(--amber)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>云电脑发私信 · <code style="font-size:23px">wrong_user</code> 完整分析</h1>
+  <div class="sub">发不出去的问题:到底卡在哪 · 重点标记 · 2026-06-16 · 合并「野荞当日报告」+「全天 21 条逐条人工验证」</div>
+
+  <div class="toc">
+    <b>目录:</b>
+    <a href="#big">① 最重要的发现</a>
+    <a href="#dapan">② 当日大盘</a>
+    <a href="#three">③ wrong_user 三类</a>
+    <a href="#cold">④ 冷缓存根因</a>
+    <a href="#block">⑤ 根本卡点</a>
+    <a href="#feed">⑥ 进料端瓶颈</a>
+    <a href="#done">⑦ 已做的</a>
+    <a href="#opt">⑧ 优化优先级</a>
+  </div>
+
+  <!-- 0 一句话 -->
+  <div class="lead">
+    <p style="margin:0 0 10px"><b>先记住一句:这些"发不出去"的 <span style="color:var(--green)">没有一条发错人、也没有一条真发出去</span>。</b></p>
+    <p style="margin:0;color:var(--tx2)">系统发之前会先核对"找到的是不是本人",对不上就<b>主动跳过不发</b>(记 <code>wrong_user</code>)——是<b>安全拦截</b>,不是发错。代价是 lead 当天没联系上 + 机器空跑。</p>
+  </div>
+
+  <!-- 1 最重要的发现 -->
+  <h2 id="big">① 最重要的发现(先看这个)</h2>
+  <div class="key r">
+    <div class="kh">🔴 真正的瓶颈不是"发不出去",是"料抓到时就过期了"</div>
+    <div class="big">40% 的高意向评论,采集到手时已超过 24 小时</div>
+    <p style="margin:0">24 小时内 97 条高意向里:<mark>只有 34% 在 10 分钟内采到</mark>(够得上发送时效),<mark>40% 抓到时已经过期 24h+</mark>。采集<b>中位延迟 185 分钟(约 3 小时)</b>。</p>
+    <p style="margin:8px 0 0;color:#ffd0d0"><b>结论:发送通道的 wrong_user 是小头;大头是"进料慢"——评论抓到时人早凉了。优化重心应放在"采集提速",不是死磕发送。</b></p>
+  </div>
+
+  <!-- 2 当日大盘 -->
+  <h2 id="dapan">② 当日大盘(野荞账号一个时段)</h2>
+  <div class="row">
+    <div class="col"><div class="n nG">25</div><div class="mut">成功发出</div></div>
+    <div class="col"><div class="n nR">15</div><div class="mut">跳过(没发)</div></div>
+  </div>
+  <div class="card">
+    <p><b>15 条跳过拆解:</b></p>
+    <div class="bar">
+      <i style="width:47%;background:var(--red)"></i>
+      <i style="width:40%;background:var(--amber)"></i>
+      <i style="width:13%;background:var(--purple)"></i>
+    </div>
+    <table>
+      <tr><td><span class="tag tR">7 条</span></td><td><b>wrong_user</b> — 核对不上本人(本报告重点)</td></tr>
+      <tr><td><span class="tag tA">6 条</span></td><td><b>超时</b> — 超过 10 分钟时效窗口(对应进料端瓶颈)</td></tr>
+      <tr><td><span class="tag tB">2 条</span></td><td><b>被拒</b> — 对方隐私设置/拒收</td></tr>
+    </table>
+    <p class="mut">注:野荞报告聚焦这 7 条 wrong_user;下方第③节是<b>全天累计 21 条</b>的逐条人工验证(更大样本),两者口径不同,合看更全。</p>
+  </div>
+
+  <!-- 3 三类 -->
+  <h2 id="three">③ wrong_user 分四类(先看:派单时有没有抖音号)</h2>
+  <p>失败先看一个分叉:<b>派单时缓存里有没有这人的抖音号</b>。有号 → 用号搜(A/B/C);没号 → 退回昵称搜(D)。</p>
+  <p class="mut" style="margin-top:-4px">A/B/C 来自全天 21 条逐条人工搜的样本(都有号);D 来自野荞报告的兮兮宝贝(冷缓存没号)。</p>
+  <div class="row">
+    <div class="col" style="text-align:left">
+      <span class="tag tA">A 类 · 能救</span>
+      <h3 style="margin:8px 0 6px">有号·搜得到却被误判</h3>
+      <p style="font-size:13.5px;margin:0">本人在第一条、号也对,但拍照那刻<b>没认出是主页</b>(没加载好/残留)。→ 重试可救</p>
+    </div>
+    <div class="col" style="text-align:left">
+      <span class="tag tR">B 类 · 救不了</span>
+      <h3 style="margin:8px 0 6px">有号·搜到的是别人</h3>
+      <p style="font-size:13.5px;margin:0">用号搜返回<b>另一个人</b>(号段相近)。本人没出现。</p>
+    </div>
+    <div class="col" style="text-align:left">
+      <span class="tag tR">C 类 · 救不了</span>
+      <h3 style="margin:8px 0 6px">有号·压根搜不到</h3>
+      <p style="font-size:13.5px;margin:0">号、昵称都<b>搜不到本人</b>,停在结果页/视频页。</p>
+    </div>
+    <div class="col" style="text-align:left;border-color:#5a4a1a">
+      <span class="tag tA">D 类 · 能救</span>
+      <h3 style="margin:8px 0 6px">没号·退回昵称搜撞名</h3>
+      <p style="font-size:13.5px;margin:0">新评论<b>缓存还没号</b> → 按昵称搜 → 撞同名。本人其实搜得到,<b>给它号(预热)就能救</b>(兮兮宝贝)。</p>
+    </div>
+  </div>
+  <div class="card">
+    <table>
+      <tr><th>组</th><th>例子(抖音号)</th><th>手搜结果</th><th>结论</th></tr>
+      <tr><td><span class="tag tA">A 搜得到</span></td>
+        <td><code>833997494</code> <code>69540571321a</code> <code>x.g.z.6688</code>(私密)<br><code>2026588128</code> <code>187193079</code> <code>58835709546</code></td>
+        <td>✅ 搜得到本人</td><td>系统误判,<b>能救</b></td></tr>
+      <tr><td><span class="tag tR">B+C 搜不到</span></td>
+        <td><code>41780494807</code> <code>zhaoliang.666</code> <code>13936266666l</code><br><code>84554044</code> <code>aassddffqqwwee</code> <code>573733910</code> …</td>
+        <td>❌ 搜不到本人</td><td>本通道<b>够不到</b></td></tr>
+      <tr><td><span class="tag tA">D 冷缓存</span></td>
+        <td>兮兮宝贝(派单时无号)</td>
+        <td>昵称搜撞名(本人其实搜得到)</td><td>缓存预热给号 → <b>能救</b></td></tr>
+    </table>
+    <div class="row">
+      <div class="col"><div class="n nG">A + D</div><div class="mut">能救:A 靠重试(#375)、D 靠缓存预热(FIX2)</div></div>
+      <div class="col"><div class="n nR">B + C</div><div class="mut">够不到:本人在抖音上就搜不到</div></div>
+    </div>
+    <p class="mut" style="margin-top:4px">有号的 21 条里:能救(A)~6、够不到(B+C)~15;D 是另一条没号的路(兮兮宝贝),归"能救"。</p>
+  </div>
+  <div class="key a">
+    <div class="kh">🟡 重点:wrong_user 大头是"搜不到本人",不是"误判"</div>
+    <p style="margin:0">全天 ~15/21 是<b>本人根本搜不到</b>(本通道结构天花板,救不了);只有 ~6 是"搜得到却误判"(已修)。<br>
+    💡 活证据:<code>heshufuderen97</code> 上午搜不到被记 wrong_user,<mark>过几小时系统自己重试就发出去了</mark>——印证"重试能救"。</p>
+  </div>
+
+  <!-- 4 冷缓存 -->
+  <h2 id="cold">④ D 类隐藏根因:冷缓存(以兮兮宝贝为例)</h2>
+  <p class="mut" style="margin-top:-2px">↑ 这就是第③节的 <span class="tag tA">D 类</span> ——和 A/B/C(都有号、用号搜)不同,D 是<b>压根没号、退回昵称搜</b>才撞的,所以单列。</p>
+  <div class="card">
+    <p>当天唯一"<b>搜得到本人却仍失败</b>"的特例 <b>兮兮宝贝</b>,暴露了一条结构性失败链:</p>
+    <table>
+      <tr><td>新评论刚进(10min 窗口内)</td><td>→</td><td>缓存里<b>还没这人的抖音号</b>(没被预查过)</td><td>→</td><td>退回<b>按昵称搜</b></td><td>→</td><td><b>撞同名</b></td><td>→</td><td>wrong_user</td></tr>
+    </table>
+    <p class="mut">即:越是"新鲜、够时效"的评论,越可能因为<b>缓存没预热到</b>而没号、退化成撞名搜。这和"进料端"是同一根:都卡在"新料来不及处理"。</p>
+  </div>
+
+  <!-- 5 卡点 -->
+  <h2 id="block">⑤ 根本卡点(为什么这么多搜不到)</h2>
+  <div class="block r"><div class="ic">🔒</div><div class="t"><b>卡点① 云电脑用抖音 PC 客户端,没有网址栏</b><br>手机端能用专属链接(sec_uid)<b>直接打开本人主页</b>,百发百中;PC 客户端只能搜索框打字搜,搜不到就没别的路。</div></div>
+  <div class="block r"><div class="ic">🎯</div><div class="t"><b>卡点② 抖音搜索是黑盒,搜号不保证出本人</b><br>同形态号有的搜得到有的搜不到,无法预判。原因混合:用户<b>改了号</b>、号是系统默认号<b>本就不可搜</b>(7 个里 4 个纯数字默认号、2 个关了"号被搜索")、或召回偏差。</div></div>
+  <div class="block r"><div class="ic">🔢</div><div class="t"><b>卡点③ 短数字号会撞号</b><br>号太短(如 8 位 <code>84554044</code>),抖音按"包含"匹配 → 返回号里含这串的<b>别人</b>。</div></div>
+  <div class="block r"><div class="ic">❄️</div><div class="t"><b>卡点④ 冷缓存:新评论没号 → 撞名搜</b><br>刚来的评论还没被预查抖音号 → 退回按昵称搜 → 撞同名(兮兮宝贝那条)。</div></div>
+  <div class="block r"><div class="ic">⏱️</div><div class="t"><b>卡点⑤ 没作品/私密号 + 页面没加载好 → 误判"不是主页"</b><br>系统靠"有作品宫格"认主页,潜水/私密号没作品、或残留没清,被当成非主页误拦——<b>这类其实是本人(A 类),能救</b>。</div></div>
+  <div class="block g"><div class="ic">✅</div><div class="t"><b>已具备:网格扫描(SCAN_N)已开启</b><br>只要有抖音号,能在多条相似结果里精确挑出本人,不发错。</div></div>
+
+  <!-- 6 进料端 -->
+  <h2 id="feed">⑥ 比发送更大的瓶颈:进料端(采集)</h2>
+  <div class="card">
+    <p>24 小时 97 条高意向评论,<b>按"从评论出现到被采集"的延迟</b>分布:</p>
+    <table>
+      <tr><td><span class="tag tG">≤10 分钟</span></td><td>33/97 <b>(34%)</b></td><td>够得上发送时效</td></tr>
+      <tr><td><span class="tag tR">>24 小时</span></td><td>39/97 <b>(40%)</b></td><td>抓到就已过期</td></tr>
+    </table>
+    <p style="margin:8px 0 0"><b>采集中位延迟 = <mark>185 分钟(约 3 小时)</mark></b>。</p>
+    <p style="margin:6px 0 0;color:var(--tx2)">缓存预热覆盖目前只有 <mark>7%(44/615)</mark> 有号 → 大量评论派单时无号 → 撞名 / wrong_user。</p>
+  </div>
+  <div class="key r">
+    <div class="kh">🔴 重点:不是发不出去,是大部分料抓到时就已经过期</div>
+    <p style="margin:0">死磕发送通道(wrong_user)只能救个位数;<b>真正的杠杆在"采集提速 + 缓存预热"</b>——让评论在还新鲜、本人还在的时候就带号派出去。</p>
+  </div>
+
+  <!-- 7 已做的 -->
+  <h2 id="done">⑦ 已经做了什么</h2>
+  <div class="block g"><div class="ic">✅</div><div class="t"><b>修 A 类:没认出主页时重试一次再判</b>(PR #375)<br>判"非主页"时<b>重新搜一次、等页面加载好再核对</b>,而不是直接放弃。<b>不放宽核对标准、不会发错人</b>,只给页面第二次机会。救 A 类(搜得到却误判)。</div></div>
+  <div class="block g"><div class="ic">✅</div><div class="t"><b>装计数器:每条失败记 A/B/C 哪类</b>(PR #376)<br>以前库里只写笼统"wrong_user",现在带细节,<b>攒一周能算出三类各占多少</b>,用数据决定下一步。</div></div>
+  <div class="block b"><div class="ic">🛠️</div><div class="t"><b>缓存预热脚本(FIX 2)</b> — 每 5 分钟批量预查待派单池的抖音号,让派单时就有号。验证 60 个号 <b>100% 命中、0 失败</b>;成本几乎为零(不烧 token),用采集号 cookie 风险低。<span class="mut">局限:只解"搜得到但冷缓存"的,解不了"本就搜不到"的。</span></div></div>
+
+  <!-- 8 优化优先级 -->
+  <h2 id="opt">⑧ 未来优化(按杠杆从大到小)</h2>
+  <div class="rank"><div class="m">🥇</div><div><b>提高采集频率</b> <span class="tag tR">杠杆最大</span><br>让评论在 10 分钟内被抓到、还新鲜就派出去。直接砍掉"40% 抓到就过期"这个大头。</div></div>
+  <div class="rank"><div class="m">🥈</div><div><b>扩大缓存预热覆盖</b> <span class="tag tA">中</span><br>现在只 7%(44/615)有号 → 拉到高覆盖,新评论派单时就带号,少撞名、少 wrong_user。</div></div>
+  <div class="rank"><div class="m">🥉</div><div><b>提升号源可达性</b> <span class="tag tB">换通道</span><br>"搜不到本人"的(B+C),转手机端(iPhone/安卓)用 sec_uid 专属链接直达;或终极方案云电脑改"浏览器版抖音"(有网址栏)绕开搜索框。量大才做。</div></div>
+  <div class="rank"><div class="m">🏅</div><div><b>补转化指标追踪</b> <span class="tag tB">观测</span><br>把"发出→回复→加微"的转化打通,才知道每个环节真实损耗。</div></div>
+  <div class="rank"><div class="m">＋</div><div><b>短号防撞守卫</b> <span class="tag tB">小改·零风险</span><br>号太短(必撞别人)时直接跳过不发,省空跑、不发到别人页。</div></div>
+
+  <!-- 下一步 -->
+  <div class="key b" style="margin-top:24px">
+    <div class="kh">🔵 下一步建议</div>
+    <ul style="margin:4px 0 0">
+      <li>合并 #375 + #376 同步到各运营云电脑 → A 类自动救回 + 开始攒 B/C 占比数据。</li>
+      <li><b>把重心挪到进料端</b>:提采集频率 + 扩缓存预热覆盖(7%→高),这才是砍 wrong_user/超时的主杠杆。</li>
+      <li>"搜不到本人"的量化后,占比大就上手机端通道;顺手加短号防撞(零风险)。</li>
+    </ul>
+  </div>
+
+  <footer>
+    Akke · 云电脑发私信通道 · wrong_user 完整分析 · 2026-06-16<br>
+    合并来源:野荞当日报告(大盘/冷缓存/进料端/杠杆) + 全天 21 条逐条人工核验(三类分类/PR #375·#376)。<br>
+    数据源:dispatch_queue · douyin_user_handles · 实时反查 · 当天发送记录。占比待 #376 攒一周复核。
+  </footer>
+
+</div>
+</body>
+</html>
