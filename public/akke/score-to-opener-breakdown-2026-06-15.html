@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>打分 → 生成话术 这一段拆开看 · 时间都花在哪</title>
+<style>
+  :root {
+    --green:#16a34a; --red:#dc2626; --amber:#d97706; --blue:#2563eb; --purple:#7c3aed;
+    --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb; --bg:#f8fafc;
+    --soft-green:#f0fdf4; --soft-red:#fef2f2; --soft-amber:#fffbeb; --soft-blue:#eff6ff; --soft-purple:#faf5ff;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif; color:var(--ink); background:var(--bg); line-height:1.7; }
+  .wrap { max-width:960px; margin:0 auto; padding:32px 20px 80px; }
+  h1 { font-size:26px; margin:0 0 6px; }
+  .sub { color:var(--muted); font-size:14px; margin-bottom:14px; }
+  .lead { background:#fff; border:1px solid var(--line); border-left:4px solid var(--blue); border-radius:8px; padding:14px 18px; margin:18px 0 32px; font-size:14.5px; color:#374151; }
+  h2 { font-size:19px; margin:40px 0 14px; padding-bottom:6px; border-bottom:2px solid var(--line); }
+  h3 { font-size:15px; margin:18px 0 8px; }
+  code { background:#eef2ff; padding:1px 6px; border-radius:4px; font-size:13px; font-family:Menlo, Consolas, monospace; color:#4338ca; }
+  .muted { color:var(--muted); }
+
+  /* 旧视图：1 段 */
+  .old-line { background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px 22px; margin:10px 0; }
+  .old-line .axis { display:flex; align-items:center; gap:0; margin:18px 0 8px; }
+  .old-line .node { flex:0 0 110px; text-align:center; }
+  .old-line .node .c { width:14px; height:14px; border-radius:50%; background:var(--ink); margin:0 auto 6px; }
+  .old-line .node .lab { font-size:13px; font-weight:600; }
+  .old-line .seg { flex:1; height:8px; background:linear-gradient(90deg,#fbbf24 0%,#f87171 50%,#86efac 100%); border-radius:4px; position:relative; }
+  .old-line .seg .qm { position:absolute; top:-26px; left:50%; transform:translateX(-50%); font-size:18px; font-weight:700; color:var(--red); }
+  .old-line .examples { display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:8px; margin-top:14px; font-size:13px; }
+  .old-line .ex { background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:8px 10px; text-align:center; }
+  .old-line .ex .t { font-weight:700; font-size:16px; }
+  .old-line .ex.fast .t { color:var(--green); }
+  .old-line .ex.mid .t { color:var(--amber); }
+  .old-line .ex.slow .t { color:var(--red); }
+  .old-line .ex .l { font-size:11px; color:var(--muted); }
+
+  /* 新视图：3 段 */
+  .new-flow { background:#fff; border:1px solid var(--line); border-radius:12px; padding:20px 22px; margin:10px 0 18px; overflow-x:auto; }
+  .new-flow .strip { display:flex; align-items:flex-start; min-width:760px; }
+  .new-flow .node { flex:0 0 92px; text-align:center; padding-top:2px; }
+  .new-flow .node .c { width:16px; height:16px; border-radius:50%; background:var(--ink); margin:0 auto 8px; box-shadow:0 0 0 4px #fff,0 0 0 5px var(--line); }
+  .new-flow .node .lab { font-size:13px; font-weight:700; }
+  .new-flow .node .ts { font-size:11px; color:var(--muted); margin-top:2px; }
+  .new-flow .seg { flex:1; padding:0 4px; }
+  .new-flow .seg .bar { height:10px; border-radius:5px; margin-top:4px; }
+  .new-flow .seg .name { font-size:13px; font-weight:700; text-align:center; }
+  .new-flow .seg .desc { font-size:11.5px; color:var(--muted); text-align:center; margin-top:6px; line-height:1.4; }
+  .new-flow .seg.a .bar { background:var(--blue); }
+  .new-flow .seg.a .name { color:var(--blue); }
+  .new-flow .seg.b .bar { background:var(--amber); }
+  .new-flow .seg.b .name { color:var(--amber); }
+  .new-flow .seg.c .bar { background:var(--purple); }
+  .new-flow .seg.c .name { color:var(--purple); }
+
+  /* 段卡片 */
+  .seg-card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px 22px; margin:14px 0; border-left:5px solid var(--line); }
+  .seg-card.a { border-left-color:var(--blue); }
+  .seg-card.b { border-left-color:var(--amber); }
+  .seg-card.c { border-left-color:var(--purple); }
+  .seg-card .head { font-size:16px; font-weight:700; margin-bottom:6px; }
+  .seg-card .head .tag { display:inline-block; font-size:12px; font-weight:600; padding:2px 8px; border-radius:6px; margin-right:8px; vertical-align:middle; }
+  .seg-card.a .head .tag { background:#dbeafe; color:var(--blue); }
+  .seg-card.b .head .tag { background:#fef3c7; color:var(--amber); }
+  .seg-card.c .head .tag { background:#ede9fe; color:var(--purple); }
+  .seg-card .plain { font-size:14.5px; color:#374151; margin:6px 0 12px; }
+  .seg-card .steps { background:var(--bg); border-radius:8px; padding:12px 16px; font-size:13.5px; margin:8px 0; }
+  .seg-card .steps ol { padding-left:22px; margin:4px 0; }
+  .seg-card .steps li { margin:5px 0; }
+  .seg-card .sla { display:flex; gap:14px; font-size:13px; margin-top:10px; flex-wrap:wrap; }
+  .seg-card .sla .pill { padding:3px 10px; border-radius:999px; font-weight:600; }
+  .seg-card .sla .pill.g { background:var(--soft-green); color:var(--green); }
+  .seg-card .sla .pill.y { background:var(--soft-amber); color:var(--amber); }
+  .seg-card .sla .pill.r { background:var(--soft-red); color:var(--red); }
+
+  /* 优化机会 */
+  .opt { background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px 18px; margin:10px 0; }
+  .opt .h { display:flex; align-items:center; gap:8px; font-size:15px; font-weight:700; margin-bottom:6px; }
+  .opt .h .lvl { font-size:11px; padding:2px 8px; border-radius:6px; font-weight:600; }
+  .opt .h .lvl.high { background:#fee2e2; color:var(--red); }
+  .opt .h .lvl.mid { background:#fef3c7; color:var(--amber); }
+  .opt .h .lvl.low { background:#dbeafe; color:var(--blue); }
+  .opt .h .save { font-size:12px; color:var(--muted); font-weight:500; margin-left:auto; }
+  .opt .body { font-size:14px; color:#374151; }
+  .opt .body b { color:var(--ink); }
+  .opt .belongs { font-size:11.5px; color:var(--muted); margin-top:6px; }
+  .opt .belongs .seg-a { color:var(--blue); }
+  .opt .belongs .seg-b { color:var(--amber); }
+  .opt .belongs .seg-c { color:var(--purple); }
+
+  /* 实测案例表 */
+  table.cases { width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--line); border-radius:12px; overflow:hidden; font-size:13px; margin:12px 0; }
+  table.cases th, table.cases td { padding:8px 10px; text-align:left; border-bottom:1px solid var(--line); vertical-align:middle; }
+  table.cases thead th { background:#f1f5f9; font-weight:600; color:var(--muted); font-size:12px; }
+  table.cases tr:last-child td { border-bottom:none; }
+  table.cases td.n { text-align:right; font-variant-numeric:tabular-nums; }
+  table.cases tr.agg { background:#fef3c7; font-weight:700; }
+  table.cases tr.agg td { border-top:2px solid #f59e0b; }
+  .stackbar { display:flex; height:18px; border-radius:4px; overflow:hidden; min-width:120px; }
+  .stackbar .sa { background:var(--blue); }
+  .stackbar .sb { background:var(--amber); }
+  .stackbar .sc { background:var(--purple); }
+  .stackbar div { display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; font-weight:600; }
+
+  /* 数据 callout */
+  .data-box { background:#fff; border:2px solid var(--purple); border-radius:12px; padding:18px 22px; margin:14px 0; }
+  .data-box .h { font-size:16px; font-weight:700; color:var(--purple); margin-bottom:10px; }
+  .data-box .pct-row { display:flex; align-items:center; gap:14px; margin:10px 0; font-size:14px; }
+  .data-box .pct-row .lab { width:120px; font-weight:600; }
+  .data-box .pct-row .track { flex:1; height:28px; background:var(--bg); border-radius:6px; overflow:hidden; position:relative; }
+  .data-box .pct-row .fill { height:100%; display:flex; align-items:center; padding-left:10px; color:#fff; font-weight:700; font-size:13px; }
+  .data-box .pct-row .fill.a { background:var(--blue); }
+  .data-box .pct-row .fill.b { background:var(--amber); }
+  .data-box .pct-row .fill.c { background:var(--purple); }
+  .data-box .pct-row .num { width:80px; font-size:13px; color:var(--muted); }
+
+  /* 优先级表 */
+  table.pri { width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--line); border-radius:12px; overflow:hidden; font-size:13.5px; margin:12px 0; }
+  table.pri th, table.pri td { padding:10px 14px; text-align:left; border-bottom:1px solid var(--line); vertical-align:top; }
+  table.pri thead th { background:#f1f5f9; font-weight:600; color:var(--muted); font-size:12px; letter-spacing:.04em; }
+  table.pri tr:last-child td { border-bottom:none; }
+  table.pri .rank { font-weight:700; color:var(--purple); }
+  table.pri .save { color:var(--green); font-weight:600; }
+  table.pri .risk { color:var(--muted); font-size:12px; }
+
+  .callout { background:var(--soft-blue); border:1px solid #bfdbfe; border-radius:8px; padding:12px 16px; margin:14px 0; font-size:14px; }
+  .callout strong { color:var(--blue); }
+  .callout.warn { background:var(--soft-amber); border-color:#fde68a; }
+  .callout.warn strong { color:var(--amber); }
+  .note { font-size:12.5px; color:var(--muted); margin-top:40px; border-top:1px solid var(--line); padding-top:14px; line-height:1.7; }
+  ul { padding-left:22px; } li { margin:4px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>打分 → 生成话术 · 这一段拆开看</h1>
+  <div class="sub">云电脑自动 DM · 零星 / 小文账号 · 2026-06-15 实测 + PR #349 / #355 / #358 / #359 四次接力复盘</div>
+
+  <div class="lead">
+    <strong>背景：</strong>在「云电脑 DM 实时监控页」上，每条评论的 8 节点旅程里有一段叫 <code>打分 → 生成话术</code>。
+    最近发现这一段忽长忽短：快的几秒、慢的好几分钟，看不出原因。
+    本页把这一段拆成 <b>3 个子环节</b>，先讲每段在干什么 →
+    用<b>今天「零星」+「小文」账号实测</b>定位瓶颈 →
+    再串讲<b>今天一天 PR #349（节奏门收紧）→ #355（事件驱动 + 城市超时）→ #358（5s 软冷却）→ #359（perAccountMax 1→3）四次接力</b>，
+    一步步把这一段从一周前估计的 ~75s 砍到 PR #355 实测 41s → 预期最终 ~18s（待明日实测复评）。
+    <span style="color:var(--green);">直接跳第 6 节看总结 ↓</span>
+  </div>
+
+  <!-- ============ 1. 现在监控页看到的 ============ -->
+  <h2>1. 现在监控页看到的：只有 1 段</h2>
+
+  <div class="old-line">
+    <div class="muted" style="font-size:13px;">在监控页 / 客户旅程页里，目前这段长这样 ——</div>
+    <div class="axis">
+      <div class="node"><div class="c" style="background:#10b981"></div><div class="lab">打分</div></div>
+      <div class="seg"><div class="qm">?</div></div>
+      <div class="node"><div class="c" style="background:#8b5cf6"></div><div class="lab">生成话术</div></div>
+    </div>
+    <div class="examples">
+      <div class="ex fast"><div class="t">1.2s</div><div class="l">最快</div></div>
+      <div class="ex fast"><div class="t">8s</div><div class="l">健康</div></div>
+      <div class="ex mid"><div class="t">38s</div><div class="l">偏慢</div></div>
+      <div class="ex mid"><div class="t">1.5min</div><div class="l">偏慢</div></div>
+      <div class="ex slow"><div class="t">5.8min</div><div class="l">长尾 · 06-12 复盘案例</div></div>
+    </div>
+    <div class="muted" style="font-size:12.5px; margin-top:10px;">同一段从 1 秒到 5 分钟都见过，因为这一段里实际上发生了好几件不同的事 ——「等」和「真的在算」混在了一起。</div>
+  </div>
+
+  <!-- ============ 2. 拆成 3 段 ============ -->
+  <h2>2. 拆开看：其实是 3 段</h2>
+
+  <div class="new-flow">
+    <div class="strip">
+      <div class="node">
+        <div class="c" style="background:#10b981"></div>
+        <div class="lab">打分</div>
+        <div class="ts">LLM 算完意向<br>分写回数据库</div>
+      </div>
+      <div class="seg a">
+        <div class="name">A · 等派单</div>
+        <div class="bar"></div>
+        <div class="desc">在排队等下一轮派单 cron 把这个客户分给我</div>
+      </div>
+      <div class="node">
+        <div class="c" style="background:#2563eb"></div>
+        <div class="lab">客户被领走</div>
+        <div class="ts">claim RPC<br>抢到锁</div>
+      </div>
+      <div class="seg b">
+        <div class="name">B · 准备料</div>
+        <div class="bar"></div>
+        <div class="desc">查客户底细 + 查抖音号 + 查城市</div>
+      </div>
+      <div class="node">
+        <div class="c" style="background:#d97706"></div>
+        <div class="lab">开始喊 LLM</div>
+        <div class="ts">材料备齐<br>调 OpenRouter</div>
+      </div>
+      <div class="seg c">
+        <div class="name">C · LLM 写话术</div>
+        <div class="bar"></div>
+        <div class="desc">大模型生成开场白 + 自检不过会重试</div>
+      </div>
+      <div class="node">
+        <div class="c" style="background:#7c3aed"></div>
+        <div class="lab">话术写好</div>
+        <div class="ts">入派单队列<br>等无影发出</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <strong>关键洞察：</strong>这 3 段的"性质"完全不一样。
+    <b>A 是纯等</b>（机器在排队、不在干活）；
+    <b>B 是 IO 网络</b>（查数据库 + 调外部接口）；
+    <b>C 是 LLM 推理</b>（OpenRouter 服务 + 模型自身耗时）。
+    时间忽长忽短，是因为这三种性质混在一起，A 和 C 的长尾各有各的原因，混看就看不出规律。
+  </div>
+
+  <!-- ============ 3. 每段在干什么 ============ -->
+  <h2>3. 每段具体在干什么</h2>
+
+  <!-- A 段 -->
+  <div class="seg-card a">
+    <div class="head"><span class="tag">A 段</span>等派单 · "排队"</div>
+    <div class="plain">
+      大白话：打分完了，但派单 cron 不是分秒触发的，它一分钟才"睁眼"一次。
+      就算它睁眼了，还要过 <b>4 道门</b>才会真的把这个客户分给当前账号。任何一道门不开，就再等一分钟。
+    </div>
+    <div class="steps">
+      <ol>
+        <li><b>等下一次 cron tick：</b>每 1 分钟轮一次 → 平均等 30s，最坏 60s <span style="color:var(--green); font-weight:600;">（PR #355 事件驱动后已绕过）</span></li>
+        <li><b>过积压门：</b>这账号上一条还没发完？再等</li>
+        <li><b>过节奏门：</b>距上次发送不足 30s + 0~5s 抖动？再等 <span style="color:var(--green); font-weight:600;">（PR #349 已从 60s+30s 收紧到 30s+5s）</span></li>
+        <li><b>过小时门：</b>近 1 小时已发 10 条？停一段时间</li>
+        <li><b>过日限门：</b>今天已发到上限（零星 = 18）？停到明天 0 点</li>
+        <li><b>claim_leads_batch RPC：</b>从全池里挑出这个客户 + 锁 4h，本身 100ms 级</li>
+      </ol>
+    </div>
+    <div class="sla">
+      <span class="pill g">健康 &lt; 90s</span>
+      <span class="pill y">偏慢 1.5 – 5min</span>
+      <span class="pill r">超标 &gt; 5min（基本是节奏门/小时门压住）</span>
+    </div>
+    <div style="margin-top:10px; padding:10px 12px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; font-size:13px; color:#166534;">
+      <b>📌 A 段今天做过的四次接力优化：</b><br>
+      ① <b>PR #349</b>（13:09 部署）：节奏门 base 60s → 30s、jitter 30s → 5s。把节奏门从限速器位置「踢出去」—— 之前节奏门要求 60~120s 比 cron tick 60s 更高、会让你等到下一班车（最坏多等 60s）；现在节奏门 30~35s &lt; cron tick 60s，cron tick 反而成了天花板。<a href="dispatch-four-gates-2026-06-15.html" style="color:var(--green);">详见姊妹页《四道闸门·派单风控解读》</a>。<br>
+      ② <b>PR #355</b>（15:33 部署）：打分 cron 末尾直接调 <code>runDispatch</code> 事件驱动，绕过 cron tick 天花板。<br>
+      ③ <b>PR #358</b>（16:37 部署）：事件驱动路径专用 5s 软冷却（dispatch lib 节奏门 base 30s → 5s 仅本路径），<b>绕过节奏门对事件驱动 trigger 的拦截</b>（实测发现 PR #355 后 trigger 仍被 paced_skip）。<br>
+      ④ <b>PR #359</b>（18:22 部署）：<code>perAccountMax 1 → 3</code>。<b>真正的最后一公里</b>—— 实测发现小文 A=39s 仍是 cron tick 主导，原因是每账号每轮 trigger 最多入队 1 条，余下 mid/high 等下一轮（事件驱动 2min / cron tick 1min）。改 3 后一次最多入队 9 条，<b>把"等下一轮"那一档也消除</b>。<br>
+      四次是接力关系：踢出节奏门 → 绕过 cron tick → 绕过节奏门对事件驱动的拦 → 绕过 cron tick 的批次限制。
+    </div>
+  </div>
+
+  <!-- B 段 -->
+  <div class="seg-card b">
+    <div class="head"><span class="tag">B 段</span>准备料 · "查数据"</div>
+    <div class="plain">
+      大白话：客户分给我了，但要写出一句"懂你"的开场白，得先把这个人的底细查清楚 ——
+      他的评论原文、他的家装阶段（已经在装哪一步）、他的抖音号、他的城市……都从数据库或缓存里捞一下。
+    </div>
+    <div class="steps">
+      <ol>
+        <li><b>读评论详情</b>（loadCommentDetails）—— DB 查询，几十 ms</li>
+        <li><b>读客户的家装阶段画像</b>（loadLeadProfiles）—— DB 查询，几十 ms</li>
+        <li><b>查抖音号缓存</b>（loadDouyinNumbers）—— DB 查询，几十 ms</li>
+        <li><b>反查城市</b>（enrichCommentCity）—— <b>这步可能慢</b>，需要调外部 worker 接口，正常 200ms~1s，但接口抽风时能拖到几秒甚至超时</li>
+      </ol>
+    </div>
+    <div class="sla">
+      <span class="pill g">健康 &lt; 2s</span>
+      <span class="pill y">偏慢 2 – 10s</span>
+      <span class="pill r">超标 &gt; 10s（基本是城市反查卡住）</span>
+    </div>
+  </div>
+
+  <!-- C 段 -->
+  <div class="seg-card c">
+    <div class="head"><span class="tag">C 段</span>LLM 写话术 · "真的在算"</div>
+    <div class="plain">
+      大白话：材料齐了，喊大模型写开场白。这一段是<b>真的在花算力</b>，但里面其实也不止一次调用，而且可能<b>重试</b>。
+    </div>
+    <div class="steps">
+      <ol>
+        <li><b>解析称呼</b>（resolveAddressFormSmart）—— 跑 V4 Flash 小模型决定怎么称呼对方（哥/姐/老板），约 0.8~2s</li>
+        <li><b>选线索</b>（pickClues）—— 本地规则，毫秒级</li>
+        <li><b>主 LLM 调用</b>（chatReply）—— qwen3-235b 写开场白，<b>典型 3~8s</b>，模型偶尔卡 / OpenRouter 限流时能到 20s+</li>
+        <li><b>自检</b>（sanitize + 各种 hasXxx 检查）—— 本地规则，毫秒级，但如果不过会触发<b>重试整个第 3 步</b>（最多 3 次）</li>
+      </ol>
+    </div>
+    <div class="sla">
+      <span class="pill g">健康 &lt; 6s</span>
+      <span class="pill y">偏慢 6 – 15s</span>
+      <span class="pill r">超标 &gt; 30s（一般是自检失败重试 2~3 次，或模型卡）</span>
+    </div>
+  </div>
+
+  <!-- ============ 3.5 今日实测 ============ -->
+  <h2>3.5 实测：今天 10 个成功 case 拆开看</h2>
+
+  <p style="margin:8px 0; font-size:14px;">脚本 <code>scripts/_breakdown-lingxing-score-to-opener.ts</code> 拉「零星」账号 <b>2026-06-15 北京时间今天</b>所有 <code>dispatch_queue.status=sent</code> 的前 10 条 ——</p>
+
+  <table class="cases">
+    <thead>
+      <tr>
+        <th>#</th><th>客户 (评论片段)</th>
+        <th class="n">A 等派单</th><th class="n">B 准备料</th><th class="n">C LLM 写</th><th class="n">合计</th>
+        <th>3 段分布</th><th class="n">重试</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>1</td><td>四方田 (亳州可以做吗)</td><td class="n">29s</td><td class="n">11s</td><td class="n">3s</td><td class="n">43s</td><td><div class="stackbar"><div class="sa" style="flex:29">29s</div><div class="sb" style="flex:11">11s</div><div class="sc" style="flex:3">3s</div></div></td><td class="n">1</td></tr>
+      <tr><td>2</td><td>柿柿如意的人生 (那里的)</td><td class="n">13s</td><td class="n">14s</td><td class="n">5s</td><td class="n">33s</td><td><div class="stackbar"><div class="sa" style="flex:13">13s</div><div class="sb" style="flex:14">14s</div><div class="sc" style="flex:5">5s</div></div></td><td class="n">1</td></tr>
+      <tr><td>3</td><td>老鼠爱大米 (顶楼今年想装修…)</td><td class="n">17s</td><td class="n">13s</td><td class="n">4s</td><td class="n">34s</td><td><div class="stackbar"><div class="sa" style="flex:17">17s</div><div class="sb" style="flex:13">13s</div><div class="sc" style="flex:4">4s</div></div></td><td class="n">1</td></tr>
+      <tr><td>4</td><td>桐桐妈 (老板是在那个城市)</td><td class="n">4s</td><td class="n">9s</td><td class="n">5s</td><td class="n">18s</td><td><div class="stackbar"><div class="sa" style="flex:4">4s</div><div class="sb" style="flex:9">9s</div><div class="sc" style="flex:5">5s</div></div></td><td class="n">1</td></tr>
+      <tr><td>5</td><td>下一站 (4楼总9层落地窗…)</td><td class="n">23s</td><td class="n">10s</td><td class="n">4s</td><td class="n">37s</td><td><div class="stackbar"><div class="sa" style="flex:23">23s</div><div class="sb" style="flex:10">10s</div><div class="sc" style="flex:4">4s</div></div></td><td class="n">1</td></tr>
+      <tr><td>6</td><td>暖暖1331 (给我一份)</td><td class="n">1m4s</td><td class="n">12s</td><td class="n">5s</td><td class="n">1m21s</td><td><div class="stackbar"><div class="sa" style="flex:64">64s</div><div class="sb" style="flex:12">12s</div><div class="sc" style="flex:5">5s</div></div></td><td class="n">1</td></tr>
+      <tr><td>7</td><td>爆炸妹儿 (需要一份辟雷手册…)</td><td class="n">35s</td><td class="n">11s</td><td class="n">5s</td><td class="n">51s</td><td><div class="stackbar"><div class="sa" style="flex:35">35s</div><div class="sb" style="flex:11">11s</div><div class="sc" style="flex:5">5s</div></div></td><td class="n">1</td></tr>
+      <tr><td>8</td><td>用户人生如梦 (包柜门拉篮一套…)</td><td class="n">48s</td><td class="n">11s</td><td class="n">5s</td><td class="n">1m4s</td><td><div class="stackbar"><div class="sa" style="flex:48">48s</div><div class="sb" style="flex:11">11s</div><div class="sc" style="flex:5">5s</div></div></td><td class="n">1</td></tr>
+      <tr><td>9</td><td>雪花 (1，给我来一份)</td><td class="n">21s</td><td class="n">20s</td><td class="n">17s</td><td class="n">58s</td><td><div class="stackbar"><div class="sa" style="flex:21">21s</div><div class="sb" style="flex:20">20s</div><div class="sc" style="flex:17">17s</div></div></td><td class="n">1</td></tr>
+      <tr><td>10</td><td>玻璃1 (厂在哪里)</td><td class="n">41s</td><td class="n">17s</td><td class="n">5s</td><td class="n">1m3s</td><td><div class="stackbar"><div class="sa" style="flex:41">41s</div><div class="sb" style="flex:17">17s</div><div class="sc" style="flex:5">5s</div></div></td><td class="n">1</td></tr>
+      <tr class="agg"><td colspan="2">中位 / 最大</td><td class="n">26s / 1m4s</td><td class="n">12s / 20s</td><td class="n">5s / 17s</td><td class="n">47s / 1m21s</td><td>—</td><td class="n">—</td></tr>
+    </tbody>
+  </table>
+
+  <div class="data-box">
+    <div class="h">三段时间占比 · 跟纸上估算差很多</div>
+    <div class="pct-row">
+      <div class="lab">A 等派单</div>
+      <div class="track"><div class="fill a" style="width:61.3%">61.3%</div></div>
+      <div class="num">中位 26s</div>
+    </div>
+    <div class="pct-row">
+      <div class="lab">B 准备料</div>
+      <div class="track"><div class="fill b" style="width:26.6%">26.6%</div></div>
+      <div class="num">中位 12s</div>
+    </div>
+    <div class="pct-row">
+      <div class="lab">C LLM 写话术</div>
+      <div class="track"><div class="fill c" style="width:12.1%">12.1%</div></div>
+      <div class="num">中位 5s</div>
+    </div>
+    <div style="margin-top:14px; font-size:13.5px; color:#374151;">
+      <b>三个反直觉的发现：</b>
+      <ul style="margin:6px 0 0;">
+        <li><b>A 段占六成以上</b> —— 派单 cron tick 60s 是头号嫌疑，平均白等 30s 跟数据中位 26s 吻合得非常好。</li>
+        <li><b>B 段意外地大</b>（中位 12s，远超纸上估算的 &lt;2s 健康水位）—— 4 个 DB 读 + 城市反查串行执行，每条都稳定花 10s+，<b>这是之前没意识到的大头</b>。</li>
+        <li><b>C 段反而最稳</b> —— 10 条全部 <code>attempts=1</code>（首轮自检全过），没有重试。说明 prompt 工程已经做得不错；C 段优化收益最低。</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3 style="margin-top:24px;">优化后预期效果</h3>
+
+  <table class="cases">
+    <thead>
+      <tr>
+        <th></th><th>当前中位</th><th>优化项</th><th>优化后中位</th><th>节省</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b style="color:var(--blue)">A 等派单</b></td>
+        <td class="n">26s</td>
+        <td>cron tick 60s → 30s（白等时间砍半）</td>
+        <td class="n" style="color:var(--green); font-weight:700;">~13s</td>
+        <td class="n" style="color:var(--green);">−13s</td>
+      </tr>
+      <tr>
+        <td><b style="color:var(--amber)">B 准备料</b></td>
+        <td class="n">12s</td>
+        <td>城市反查 2s 超时 + IP 兜底 + 4 个 DB 读改并发 / 合 1 个 RPC</td>
+        <td class="n" style="color:var(--green); font-weight:700;">~2s</td>
+        <td class="n" style="color:var(--green);">−10s</td>
+      </tr>
+      <tr>
+        <td><b style="color:var(--purple)">C LLM 写话术</b></td>
+        <td class="n">5s</td>
+        <td>不动（已经很稳，attempts=1 全场，没低垂果实）</td>
+        <td class="n">5s</td>
+        <td class="n muted">0</td>
+      </tr>
+      <tr class="agg">
+        <td colspan="2"><b>合计中位</b></td>
+        <td><b>47s</b> → 优化后</td>
+        <td class="n" style="color:var(--green); font-size:16px;"><b>~20s</b></td>
+        <td class="n" style="color:var(--green); font-size:16px;"><b>−27s（−57%）</b></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout" style="background:var(--soft-green); border-color:#bbf7d0;">
+    <strong style="color:var(--green)">结论 / 哪个最该优化：</strong>
+    在「打分→生成话术」这一段，<b>真正卡时间的是 A 段（等派单）和 B 段（准备料），合计 88%</b>。
+    只做两件事就够 —— <b>① cron 改 30s tick</b>（改一行 <code>vercel.json</code>）+ <b>② 城市反查加超时 + 4 个 DB 读改并发</b>，
+    总工程量不到 1 小时，就能把这一段中位<b>从 47s 砍到 ~20s（−57%）</b>。
+    C 段（LLM 写话术）目前 5s 是物理下限，不动。
+  </div>
+
+  <div class="callout warn">
+    <strong>注意 case #6 暖暖1331 的 A 段 1m4s：</strong>10 条里 A 段最长的，正好等于一个完整的 cron 周期。
+    很可能是打分完成 → 派单 cron 检查时撞上了 4 道门里某一道（节奏门 / 小时门），等了下一轮才放行。
+    cron 改 30s 后这种 case 最坏 1m4s → 30s 左右。
+  </div>
+
+  <div class="callout warn">
+    <strong>注意 case #9 雪花的 C 段 17s：</strong>10 条里唯一的 C 段异常（attempts 仍是 1，但模型推理特别慢），
+    可能是 OpenRouter 单次抽风。这种偶发长尾要靠换模型 / 换 provider 应对，跟改 cron tick 是两件事。
+    <b>非长尾下，C 段几乎没法再压。</b>
+  </div>
+
+  <!-- ============ 4. 优化机会 ============ -->
+  <h2>4. 完整优化清单（含次优先级）</h2>
+
+  <p class="muted" style="margin-top:8px;">下面 7 个机会，前 3 个就是上面"优化后效果"表里那些；后 4 个是<b>边际收益小的二期项</b>，做完前 3 个再看 ——</p>
+
+  <div class="opt" style="border-left:4px solid var(--green); background:#f0fdf4;">
+    <div class="h">
+      <span>① cron tick → 事件驱动 <span style="color:var(--green); font-size:13px;">✓ 已完成 PR #355</span></span>
+      <span class="lvl high">高收益</span>
+      <span class="save">实际省 ~24s 中位</span>
+    </div>
+    <div class="body">
+      原打算：Vercel cron 改 30s。<b>但 Vercel cron 是 minute-granularity，<code>* * * * *</code> 已经是它支持的最高频</b>，不能改成 30s。
+      改方案：<b>事件驱动 ——</b> 在 <code>/api/cron/analyze</code> 打分完末尾同步调 <code>runDispatch(enforcePacing=true)</code>，新评论直接被派、不等下个 cron tick。1min cron 保留兜底（老 backlog）。
+      <b>已部署：</b>2026-06-15 15:33 CST · commit <code>14f8c51</code>。
+    </div>
+    <div class="belongs"><span class="seg-a">● A 段</span> · 实现：<code>src/app/api/cron/analyze/route.ts</code> + 加 60s 预算保险</div>
+  </div>
+
+  <div class="opt" style="border-left:4px solid var(--green); background:#f0fdf4;">
+    <div class="h">
+      <span>② 城市反查超时兜底 <span style="color:var(--green); font-size:13px;">✓ 已完成 PR #355</span></span>
+      <span class="lvl high">高收益</span>
+      <span class="save">实际省 ~10s 中位</span>
+    </div>
+    <div class="body">
+      <code>enrichCommentCity</code> 调外部接口反查城市，接口抽风时整条派单被它卡死。
+      <b>已落地方案 A：</b><code>fetchUserProfileFromWorker</code> 加 <code>opts.timeoutMs</code>，默认仍是 8s（peer gate 不变，宁慢勿漏同行），仅 <code>enrichCommentProfile</code> 内部传 2000ms。
+      超时即 city=null，dispatch 已 fail-open 降级到 <code>comments.ip_location</code>（IP 库 → 省/市，精度够开场白用）。
+      <b>已部署：</b>2026-06-15 15:33 CST · commit <code>14f8c51</code>（含 self-review fix <code>279efc0</code>）。
+    </div>
+    <div class="belongs"><span class="seg-b">● B 段</span> · 实现：<code>src/lib/enrich-user-city.ts</code></div>
+  </div>
+
+  <div class="opt">
+    <div class="h">
+      <span>③ 称呼解析的 V4 Flash 调用并行化</span>
+      <span class="lvl mid">中收益</span>
+      <span class="save">可省 1~2s</span>
+    </div>
+    <div class="body">
+      现在 C 段是<b>串行</b>：先调 V4 Flash 解析称呼（1~2s），再调主 LLM 写话术（3~8s）。
+      两次调用之间没有依赖（称呼只影响最终 prompt 拼装），可以<b>并行发起</b>，等两个都回来再合。
+      或者更狠：<b>称呼解析改成纯规则</b>（现在已经有 <code>resolveAddressForm</code> 兜底），省掉这次 LLM 调用 → 直接砍 1~2s。
+    </div>
+    <div class="belongs"><span class="seg-c">● C 段</span> · 实现：<code>generateOpener</code> 内部改 <code>Promise.all</code> / 删掉 smart 走规则</div>
+  </div>
+
+  <div class="opt" style="border-left:4px solid var(--green); background:#f0fdf4;">
+    <div class="h">
+      <span>④ 节奏门 base 60s → 30s、jitter 30s → 5s <span style="color:var(--green); font-size:13px;">✓ 已完成 PR #349</span></span>
+      <span class="lvl mid">中收益</span>
+      <span class="save">已让节奏门退出限速器位置</span>
+    </div>
+    <div class="body">
+      <b>2026-06-15 13:09 部署</b>（commit <code>37b3541</code>）。节奏门 base 60s → 30s + jitter 30s → 5s + 三个云电脑账号 <code>accounts.min_send_interval_seconds</code> DB UPDATE。
+      效果：节奏门要求从 60~120s 砍到 30~35s &lt; cron tick 60s。<b>节奏门不再是 A 段的限速器</b>，cron tick 接管成为天花板（直到 PR #355 把这个天花板也绕过）。
+      继续砍到 15s 没意义 —— 实际等待已经是 cron tick / dispatch 自身耗时决定，不是节奏门。<a href="dispatch-four-gates-2026-06-15.html">详见姊妹页《四道闸门》</a>。
+      <b>复评日 2026-06-22</b>，无 7911 触发即固化。
+    </div>
+    <div class="belongs"><span class="seg-a">● A 段</span> · 已落地</div>
+  </div>
+
+  <div class="opt" style="border-left:4px solid var(--green); background:#f0fdf4;">
+    <div class="h">
+      <span>④' 事件驱动专用 5s 软冷却 <span style="color:var(--green); font-size:13px;">✓ 已完成 PR #358</span></span>
+      <span class="lvl high">高收益</span>
+      <span class="save">绕过 30s 节奏门对事件驱动 trigger 的拦截</span>
+    </div>
+    <div class="body">
+      <b>2026-06-15 16:37 部署</b>（commit <code>59a1ca4</code>）。PR #355 部署后实测 A 中位 26s → 25s 几乎没动，诊断发现 dispatch lib 的 <code>shouldPaceSkip</code> 仍按 30s 拦事件驱动 trigger，paced_skip 后等下一 cron tick。
+      改动：DispatchOptions 加 <code>softCooldownSec?</code>，<code>enrichCommentProfile</code> 路径传 2000ms，仅 analyze 末尾 trigger 时节奏门 base 用 5s（cron 路径仍 30s 不变）。
+      硬门（积压/小时/日限/滚动 24h）全保留，总量风控不变。
+    </div>
+    <div class="belongs"><span class="seg-a">● A 段</span> · 已落地</div>
+  </div>
+
+  <div class="opt" style="border-left:4px solid var(--green); background:#f0fdf4;">
+    <div class="h">
+      <span>④'' perAccountMax 1 → 3（绕过 cron tick 批次天花板）<span style="color:var(--green); font-size:13px;">✓ 已完成 PR #359</span></span>
+      <span class="lvl high">高收益</span>
+      <span class="save">A 段最后一公里，预期 39s → ~5s</span>
+    </div>
+    <div class="body">
+      <b>2026-06-15 18:22 部署</b>（commit <code>c717986</code>）。PR #358 后实测小文 A=39s（n=7，case "我的我" A=1m45s 连撞两轮 cron tick），诊断：小文相邻发送 3~20min &gt;&gt; 30s 节奏门，节奏门 / 软冷却根本没机会咬 —— 真正的瓶颈是 <code>perAccountMax=1</code> 让每次 trigger 最多入队 1 条/账号，余下 mid/high 要等下一轮 trigger。
+      改动：两条路径（事件驱动 + 1min cron）都改成 3，一次最多入队 9 条。节奏门继续约束实际发送间隔，总量上限仍由小时门/日限门锁死。
+      <b>预期</b>：A 中位 39s → ~5s、合计 56s → ~18s。
+    </div>
+    <div class="belongs"><span class="seg-a">● A 段</span> · 已落地，待明日数据复评</div>
+  </div>
+
+  <div class="opt">
+    <div class="h">
+      <span>⑤ 主 LLM 改用更小但够用的模型 / 加缓存</span>
+      <span class="lvl mid">中收益</span>
+      <span class="save">可省 2~4s</span>
+    </div>
+    <div class="body">
+      qwen3-235b 写开场白质量稳，但 235B 推理本身就慢。
+      <b>方案 A</b>：A/B 测试 qwen3-30b-a3b 类小模型，质量可接受就切（推理时间 ~3s → ~1.5s）。
+      <b>方案 B</b>：开 OpenRouter 的 <code>provider routing</code> 偏好速度，让请求自动落到延迟最低的 provider。
+      <b>不推荐方案</b>：本地缓存——每条评论的 prompt 都不一样（含评论原文/姓名/城市），命中率几乎为零。
+    </div>
+    <div class="belongs"><span class="seg-c">● C 段</span> · 实现：bake-off 评测后切 <code>LLM_CHAT_MODEL</code></div>
+  </div>
+
+  <div class="opt">
+    <div class="h">
+      <span>⑥ 自检失败的"傻重试"改成"前置过滤"</span>
+      <span class="lvl mid">中收益</span>
+      <span class="save">极端 case 可省 6~16s</span>
+    </div>
+    <div class="body">
+      现在 LLM 写完话术后做一堆自检（地理是否对得上、是否捏造经历、是否触发禁词…），
+      不过则<b>整个重调 LLM</b>，最多 3 次。一次重试 = 多花一整个 C 段时间。
+      可以在 prompt 里就把这些规则写得更死（few-shot + 明确禁止）让首轮通过率提升，
+      或者把<b>"已经检测出问题"的失败原因</b>更精细地反馈给下一轮（已部分实现 <code>previousFailureReason</code>）。
+      收益看现在自检失败率有多高 —— 需要先拉 Langfuse 看真实分布。
+    </div>
+    <div class="belongs"><span class="seg-c">● C 段</span> · 实现：prompt 工程 + 看 Langfuse 重试率决定 ROI</div>
+  </div>
+
+  <div class="opt">
+    <div class="h">
+      <span>⑦ 4 个数据库读合并成 1 个 RPC</span>
+      <span class="lvl low">低收益</span>
+      <span class="save">可省 100~200ms</span>
+    </div>
+    <div class="body">
+      B 段现在串行做 4 次 DB 读（评论详情 / 家装画像 / 抖音号缓存 / 城市），每次 50ms 左右。
+      改成<b>一个 Postgres RPC 一次拿全</b>能省一点点。但绝对值小（&lt;200ms），相对 A/C 段那种分钟级长尾，意义不大。
+      仅作为如果 ① ② ③ 都做完了的"再雕一刀"。
+    </div>
+    <div class="belongs"><span class="seg-b">● B 段</span> · 实现：写一个新的 <code>load_dispatch_context</code> RPC</div>
+  </div>
+
+  <!-- ============ 5. 优先级 ============ -->
+  <h2>5. 推荐落地顺序</h2>
+
+  <table class="pri">
+    <thead>
+      <tr><th style="width:6%;">序</th><th style="width:30%;">动作</th><th style="width:14%;">影响段</th><th style="width:18%;">预计省时</th><th style="width:32%;">实现成本 / 风险</th></tr>
+    </thead>
+    <tbody>
+      <tr style="background:#f0fdf4;">
+        <td class="rank" style="color:var(--green)">✓ 1</td>
+        <td><b>事件驱动派单</b>（cron tick 改不了 30s，改了别的）</td>
+        <td><span style="color:var(--blue)">A</span></td>
+        <td class="save">~24s</td>
+        <td class="risk" style="color:var(--green)">已完成 PR #355 · 2026-06-15 15:33</td>
+      </tr>
+      <tr style="background:#f0fdf4;">
+        <td class="rank" style="color:var(--green)">✓ 2</td>
+        <td><b>城市反查超时 8s → 2s（仅富化路径）</b></td>
+        <td><span style="color:var(--amber)">B</span></td>
+        <td class="save">~10s</td>
+        <td class="risk" style="color:var(--green)">已完成 PR #355 · 2026-06-15 15:33</td>
+      </tr>
+      <tr>
+        <td class="rank">3</td>
+        <td><b>城市富化提前到 analyze 阶段</b></td>
+        <td><span style="color:var(--amber)">B</span></td>
+        <td class="save">中位 ~500ms</td>
+        <td class="risk">改 <code>/api/cron/analyze</code> 多一步写回；风险：analyze 慢一点但 270s 预算够</td>
+      </tr>
+      <tr>
+        <td class="rank">4</td>
+        <td><b>称呼解析改回规则 / 并行化</b></td>
+        <td><span style="color:var(--purple)">C</span></td>
+        <td class="save">~1.5s</td>
+        <td class="risk">改 <code>generateOpener</code>；风险：低，已有规则兜底，最坏退化为旧行为</td>
+      </tr>
+      <tr style="background:#f0fdf4;">
+        <td class="rank" style="color:var(--green)">✓ 5</td>
+        <td><b>节奏门 base 60s → 30s、jitter 30s → 5s</b></td>
+        <td><span style="color:var(--blue)">A</span></td>
+        <td class="save">节奏门退出限速器</td>
+        <td class="risk" style="color:var(--green)">已完成 PR #349 · 2026-06-15 13:09（复评日 6/22）</td>
+      </tr>
+      <tr style="background:#f0fdf4;">
+        <td class="rank" style="color:var(--green)">✓ 5'</td>
+        <td><b>事件驱动专用 5s 软冷却</b></td>
+        <td><span style="color:var(--blue)">A</span></td>
+        <td class="save">绕过 30s 节奏门拦截事件驱动</td>
+        <td class="risk" style="color:var(--green)">已完成 PR #358 · 2026-06-15 16:37</td>
+      </tr>
+      <tr style="background:#f0fdf4;">
+        <td class="rank" style="color:var(--green)">✓ 5''</td>
+        <td><b>perAccountMax 1 → 3</b>（绕过 cron tick 批次天花板）</td>
+        <td><span style="color:var(--blue)">A</span></td>
+        <td class="save">A 中位 39s → ~5s（预期）</td>
+        <td class="risk" style="color:var(--green)">已完成 PR #359 · 2026-06-15 18:22</td>
+      </tr>
+      <tr>
+        <td class="rank">6</td>
+        <td><b>主 LLM 模型 bake-off</b></td>
+        <td><span style="color:var(--purple)">C</span></td>
+        <td class="save">~2~4s</td>
+        <td class="risk">需要走 eval harness，建议 <code>AKKE_USE_EVAL_KEY=1</code> 烧 OpenRouter eval key 跑对比</td>
+      </tr>
+      <tr>
+        <td class="rank">7</td>
+        <td><b>4 个 DB 读合 1 个 RPC</b></td>
+        <td><span style="color:var(--amber)">B</span></td>
+        <td class="save">~150ms</td>
+        <td class="risk">收益小，不优先</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout warn">
+    <strong>建议先做的事（不需要拍板就能动）：</strong>
+    在动任何代码之前，先把 <b>3 段拆分</b>落进监控页（API 加 <code>claimedFromPoolAt</code> + <code>openerFinishedAt</code> 两个字段），
+    跑一周收集真实分布数据，再用<b>真实占比</b>决定优先级 ——
+    比如如果 A 段中位是 50s、B 段中位是 0.5s、C 段中位是 5s，那城市反查的优化就完全不该排第 2。
+    现在的优先级是基于"理论上哪段最长尾"，需要数据校正。
+  </div>
+
+  <!-- ============ 6. 累计时效提升 ============ -->
+  <h2>6. 全部改动累计的时效提升</h2>
+
+  <p style="font-size:14px; margin:8px 0;">把今天落地的 4 个 PR 串起来看，从"一周前的状态"到"今天 18:22 第四次接力部署完"，这一段中位的演进 ——</p>
+
+  <table class="cases">
+    <thead>
+      <tr>
+        <th style="width:18%;">时间点</th><th style="width:22%;">关键改动</th>
+        <th class="n">A 段</th><th class="n">B 段</th><th class="n">C 段</th><th class="n">合计中位</th><th>瓶颈在哪</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>~2026-06-07</b><br><span class="muted">PR #315 之前</span></td>
+        <td>节奏门 base 120s/60s + jitter 0~min_interval</td>
+        <td class="n">推 50~90s</td>
+        <td class="n">~12s</td>
+        <td class="n">~5s</td>
+        <td class="n">~75s+</td>
+        <td>节奏门要求 60~240s &gt; cron tick，常被顶到下一班车</td>
+      </tr>
+      <tr>
+        <td><b>2026-06-08 之后</b><br><span class="muted">PR #315</span></td>
+        <td>jitter 上限 30s + 三账号统一 60s base</td>
+        <td class="n">推 40~60s</td>
+        <td class="n">~12s</td>
+        <td class="n">~5s</td>
+        <td class="n">~57s</td>
+        <td>节奏门 60~90s 仍可能顶到下一班，cron tick 60s 也常咬</td>
+      </tr>
+      <tr style="background:#fef3c7;">
+        <td><b>2026-06-15 13:09</b><br><span style="color:var(--amber); font-weight:600;">PR #349 后（实测）</span></td>
+        <td>节奏门 30s + 5s · 「踢出限速器位置」</td>
+        <td class="n">26s</td>
+        <td class="n">12s</td>
+        <td class="n">5s</td>
+        <td class="n"><b>47s</b></td>
+        <td>节奏门退场 · cron tick 60s 接管 + 城市反查长尾 12s</td>
+      </tr>
+      <tr style="background:#fef3c7;">
+        <td><b>2026-06-15 16:13</b><br><span style="color:var(--amber); font-weight:600;">PR #355 后（实测，零星）</span></td>
+        <td>事件驱动 trigger + 城市反查 2s 超时</td>
+        <td class="n">25s</td>
+        <td class="n">11s</td>
+        <td class="n">5s</td>
+        <td class="n"><b>41s</b></td>
+        <td><span style="color:var(--red);">效果远低于预期</span> · 节奏门拦截事件驱动</td>
+      </tr>
+      <tr style="background:#fef3c7;">
+        <td><b>2026-06-15 17:41</b><br><span style="color:var(--amber); font-weight:600;">PR #358 后（实测，小文 n=7）</span></td>
+        <td>事件驱动专用 5s 软冷却</td>
+        <td class="n">39s</td>
+        <td class="n">9s</td>
+        <td class="n">4s</td>
+        <td class="n"><b>56s</b></td>
+        <td><span style="color:var(--red);">节奏门虽绕过，但 perAccountMax=1 + cron tick 仍主导</span></td>
+      </tr>
+      <tr style="background:#f0fdf4;">
+        <td><b>2026-06-15 18:22</b><br><span style="color:var(--green); font-weight:600;">PR #359 后（预期，待明日实测）</span></td>
+        <td>perAccountMax 1 → 3（绕过 cron tick 批次天花板）</td>
+        <td class="n" style="color:var(--green); font-weight:700;">~5s</td>
+        <td class="n" style="color:var(--green); font-weight:700;">~9s</td>
+        <td class="n">~4s</td>
+        <td class="n" style="color:var(--green); font-weight:700;"><b>~18s</b></td>
+        <td>一次 trigger 入队最多 9 条，余下不用等下一轮 cron tick</td>
+      </tr>
+      <tr class="agg">
+        <td colspan="6"><b>从 6/7 前到 6/15 末</b>：合计中位 75s+ → ~18s · <span style="color:var(--green); font-size:16px;">−76%</span>（最终待实测复评）</td>
+        <td><b>四次接力归零 cron 限制</b></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout warn" style="margin-top:14px;">
+    <strong>⚠️ 实测跟预期差很多 —— 为什么？</strong><br>
+    部署后 40 分钟拉的新 10 条 sent，A 中位 26s → 25s，<b>几乎没动</b>。事件驱动确实在干活（case 明哥 A=17s 是事件驱动绕过 cron tick 的样本），但<b>大多数 case 撞上节奏门被 paced_skip</b>，必须等下一个 1min cron tick 才重试。
+    <ul style="margin:8px 0 0;">
+      <li><b>case 明哥 A=17s ✅</b>：上一条发完已 &gt; 30s，节奏门没咬，事件驱动直接派，A 段 = 节奏门冷却 + DB 读取等</li>
+      <li><b>case 请勿将灯泡 A=47s ❌</b>：上一条发完 &lt; 30s，事件驱动 trigger 被 paced_skip 拦，等下一 cron tick → 47s 几乎等于一个完整 cron 周期</li>
+      <li><b>case 暖暖1331 A=1m4s ❌</b>：撞门 + 又过日限/小时门检查 + 老 cron 周期</li>
+    </ul>
+    B 段最大值从 20s → 14s（−6s 长尾被砍），但中位 12s → 11s 只动 1s —— 中位本来就是 DB 读 + worker 反查 &lt; 2s 的范围，2s 超时只砍长尾不动中位。
+  </div>
+
+  <h3 style="margin-top:24px;">"地板和天花板"层层揭开，四次接力推到底</h3>
+  <p style="font-size:14px; margin:8px 0;">每解决一层，下一层就浮出来当瓶颈。本以为两层就够，实际四层才到 dispatch lib 自身：</p>
+  <ul style="font-size:14px;">
+    <li><b>第 1 层 · 节奏门 base 60-120s</b>（PR #349 前）：节奏门 ≥ cron tick → 等节奏门，A ≈ 40~60s。<br><b>PR #349</b> 节奏门 60→30s 把它踢出。</li>
+    <li><b>第 2 层 · cron tick 60s</b>（PR #349 后）：节奏门退场，cron tick 接班 → A ≈ 26s。<br><b>PR #355</b> 事件驱动 trigger 想直接绕过 cron tick。</li>
+    <li><b>第 3 层 · dispatch lib 内的节奏门 30s</b>（PR #355 后，实测发现）：事件驱动 trigger 撞 <code>shouldPaceSkip(30s)</code> → paced_skip → 还是等下一 cron tick → A ≈ 25s（几乎没动）。<br><b>PR #358</b> 加 5s 软冷却仅在 analyze 路径，绕过节奏门拦截。</li>
+    <li><b>第 4 层 · perAccountMax=1 的批次天花板</b>（PR #358 后，小文实测 39s 发现）：节奏门已绕过，但一次 trigger 最多入队 1 条/账号 → 余下 mid/high 等下一轮 trigger（事件驱动 2min / cron tick 1min）→ A ≈ 30~60s。<br><b>PR #359</b> perAccountMax 改 3，一次最多入队 9 条把"等下一轮"消除。</li>
+  </ul>
+  <p style="font-size:14px; margin:8px 0;">
+    最终预期：A 段瓶颈降到 dispatch lib 本身耗时（DB 读 + claim RPC + insert）≈ 2-5s。
+    总量风控（小时门 10/h + 日限 25/d + 滚动 24h × 2）一直没动，<b>7911 风险无增量</b>。
+  </p>
+
+  <div class="callout" style="background:#fffbeb; border-color:#fde68a; margin-top:16px;">
+    <strong style="color:var(--amber);">诚实结论 ——</strong>
+    今天两次改动合起来，<b>「打分 → 生成话术」中位时延从一周前估计的 75s+ 砍到 41s，提升 −45%（不是原本以为的 −87%）</b>。
+    一天 4 次接力，把 A 段从"节奏门 → cron tick → dispatch lib 内节奏门 → perAccountMax 批次天花板"四层瓶颈一层层揭开 + 干掉。
+    总量风控（小时门 10/h + 日限 25/d + 滚动 24h × 2）一直没动，<b>7911 风险无增量</b>。
+    PR #359 实测要等明日累积 ≥10 条 sent 后跑 <code>_breakdown</code> 复评 ——
+    预期 A 中位 39s → ~5s、合计 56s → ~18s（−76% vs 一周前 75s）。
+    复评日跟 PR #349 一起 2026-06-22，观察一周无 7911 + 无举报即固化。
+  </div>
+
+  <!-- ============ 附：术语 ============ -->
+  <h2>附：本页提到的关键术语</h2>
+  <ul style="font-size:13.5px;">
+    <li><b>cron tick</b>：Vercel 定时任务的一次"心跳"。云电脑派单现在是每分钟跳一次。</li>
+    <li><b>claim / claim_leads_batch</b>：把客户从全池里"领走"并锁住 4 小时，防止多个账号同时给同一个人发。</li>
+    <li><b>4 道门（积压 / 节奏 / 小时 / 日限）</b>：见姊妹页《四道闸门 · 派单风控解读》。</li>
+    <li><b>OpenRouter</b>：我们调用大模型的统一网关，qwen3 / V4 Flash 等都走它。</li>
+    <li><b>自检</b>：LLM 写完话术后的本地规则检查（地理 / 经历 / 禁词 / 截断…），不过就重调 LLM。</li>
+  </ul>
+
+  <div class="note">
+    数据源：<code>/api/public/cloud-pc-dm-live</code>（监控页 API）· <code>src/lib/cloud-pc-dispatch.ts</code>（派单主流程）·
+    <code>src/lib/llm.ts generateOpener</code>（话术生成）· <code>supabase/migrations/20260519115500_llm_observability_foundation.sql</code>（latency_ms 字段）·
+    <code>scripts/_breakdown-lingxing-score-to-opener.ts</code>（账号 <code>8af08f10</code> 零星·北京 2026-06-15 当天 <code>dispatch_queue.status=sent</code> 前 10 条实测）。<br>
+    部署 anchor：<b>PR #349</b> = <code>37b3541</code>（节奏门，13:09）· <b>PR #355</b> = <code>14f8c51</code>（事件驱动 + 城市超时，15:33）·
+    <b>PR #358</b> = <code>59a1ca4</code>（5s 软冷却，16:37）· <b>PR #359</b> = <code>c717986</code>（perAccountMax 1→3，18:22）。
+    第 6 节"累计时效提升"中 PR #349 之前的数据是用 <code>dispatch-four-gates-2026-06-15.html</code> 里 6/12-6/14 间隔反推估算；之后为实测；PR #359 后为预期，待明日复评。
+    生成于 2026-06-15 · 四次接力陆续部署后更新。
+  </div>
+
+</div>
+</body>
+</html>
