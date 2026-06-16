@@ -48,7 +48,25 @@
   .sum-send-title{font-size:12px;font-weight:700;margin-bottom:8px}
   .sum-send-row{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;padding:3px 0} .sum-send-row b{font-size:16px;font-weight:700}
   .sum-send-row.ok{color:var(--green)} .sum-send-row.bad{color:var(--red)}
+  .sum-send-head{display:flex;justify-content:space-between;font-size:10px;color:var(--faint);padding-bottom:4px;border-bottom:1px solid var(--line);margin-bottom:4px}
+  .sum-send-row .ssr-label{flex:1;font-weight:600} .sum-send-row .ssr-num{min-width:52px;text-align:right;color:var(--muted)} .sum-send-row .ssr-num b{font-size:15px;color:var(--ink)} .sum-send-row .ssr-rate{min-width:42px;text-align:right;font-weight:700}
+  .sum-send-row.hi .ssr-label{color:var(--red)} .sum-send-row.hi .ssr-rate{color:var(--red)}
+  .sum-send-row.mid .ssr-label{color:var(--yellow)} .sum-send-row.mid .ssr-rate{color:var(--yellow)}
+  .sum-send-row.low .ssr-label{color:var(--blue)} .sum-send-row.low .ssr-rate{color:var(--blue)}
   .sum-send-foot{font-size:11px;color:var(--faint);margin-top:6px;border-top:1px solid var(--line);padding-top:6px}
+
+  .hm-filters{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:10px;font-size:12px;color:var(--muted)}
+  .hm-filters label{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+  .hm-filters select{font-size:12px;padding:4px 8px;border:1px solid var(--line);border-radius:7px;background:#fff;font-family:inherit;color:var(--ink);cursor:pointer}
+  .hm-filters .f-count{margin-left:auto;font-size:11.5px;color:var(--faint);font-weight:500}
+  table.hm{border-collapse:collapse;width:100%;font-size:11.5px;min-width:560px}
+  table.hm th{background:#fafbfd;color:var(--muted);font-weight:600;padding:7px 8px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+  table.hm td{padding:6px 8px;border-bottom:1px solid #f0f3f8;vertical-align:top}
+  table.hm tr:last-child td{border-bottom:0}
+  table.hm td.hm-c{white-space:normal;line-height:1.45;min-width:240px;color:var(--ink)} table.hm td.hm-c .off{color:var(--faint);font-style:italic}
+  table.hm td.hm-i,table.hm td.hm-t,table.hm td.hm-s,table.hm td.hm-v{white-space:nowrap}
+  table.hm td.hm-t{font-variant-numeric:tabular-nums;color:var(--muted)}
+  .q{color:var(--yellow);font-weight:600} .nosend{color:var(--faint)}
 
   .case-filters{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:10px;font-size:12px;color:var(--muted)}
   .case-filters label{display:inline-flex;align-items:center;gap:6px;font-weight:600}
@@ -185,18 +203,21 @@
     }
     // 注入后：初始化筛选计数 + 重新绑定指派勾选
     filterCases();
+    filterHm();
     applyAssignmentsLocal();
     loadAssignments();
   }
 
-  // ── 案例表筛选（意向 / 渠道，纯前端显示隐藏行）──
+  // ── 案例表筛选（意向 / 渠道 / 判定·卡点，纯前端显示隐藏行）──
   function filterCases(){
-    var fi=document.getElementById("f-intent"),fc=document.getElementById("f-channel");
+    var fi=document.getElementById("f-intent"),fc=document.getElementById("f-channel"),fb=document.getElementById("f-blocker");
     if(!fi||!fc)return;
-    var wi=fi.value,wc=fc.value,shown=0,total=0;
+    var wi=fi.value,wc=fc.value,wb=fb?fb.value:"",shown=0,total=0;
     document.querySelectorAll("table.cases tbody tr").forEach(function(tr){
       total++;
-      var ok=(!wi||tr.dataset.intent===wi)&&(!wc||tr.dataset.channel===wc);
+      var b=tr.dataset.blocker;
+      var okB=!wb||(wb==="ok"?b==="ok":wb==="__blocked"?b!=="ok":b===wb);
+      var ok=(!wi||tr.dataset.intent===wi)&&(!wc||tr.dataset.channel===wc)&&okB;
       tr.style.display=ok?"":"none";
       if(ok)shown++;
     });
@@ -204,6 +225,22 @@
     if(cnt)cnt.textContent="显示 "+shown+" / 共 "+total+" 条";
   }
   window.filterCases=filterCases;
+
+  // ── 高+中意向清单筛选（意向 / 发送状态）──
+  function filterHm(){
+    var fi=document.getElementById("hm-intent"),fs=document.getElementById("hm-send");
+    if(!fi||!fs)return;
+    var wi=fi.value,ws=fs.value,shown=0,total=0;
+    document.querySelectorAll("table.hm tbody tr").forEach(function(tr){
+      total++;
+      var ok=(!wi||tr.dataset.intent===wi)&&(!ws||tr.dataset.send===ws);
+      tr.style.display=ok?"":"none";
+      if(ok)shown++;
+    });
+    var cnt=document.getElementById("hm-count");
+    if(cnt)cnt.textContent="显示 "+shown+" / 共 "+total+" 条";
+  }
+  window.filterHm=filterHm;
 
   function load(date){
     curDate = date;
