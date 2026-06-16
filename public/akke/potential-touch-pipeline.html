@@ -312,7 +312,7 @@ tar -xf rtb.tgz</code></pre>
   <table>
     <thead><tr><th>列</th><th>码</th><th>意思</th></tr></thead>
     <tbody>
-      <tr><td class="step">点赞</td><td><span class="pill yes">liked</span></td><td>爱心验证已变红 ✅</td></tr>
+      <tr><td class="step">点赞</td><td><span class="pill yes">liked</span></td><td>爱心验证已变红 ✅ <span style="color:var(--faint)">（前置幂等检查曾有单帧假阳性＝没点却记 liked，2026-06-16 已改双采确认修复，见下「升级」box）</span></td></tr>
       <tr><td></td><td><span class="pill semi">like_unverified</span></td><td>点了但没验到变红（可能点空）</td></tr>
       <tr><td></td><td>like_skip</td><td>没找到空心爱心（可能已经赞过）</td></tr>
       <tr><td class="step">评论1/评论2</td><td><span class="pill yes">sent</span></td><td>评论验证已出现在评论区 ✅</td></tr>
@@ -325,6 +325,23 @@ tar -xf rtb.tgz</code></pre>
   <div class="gate" style="background:linear-gradient(180deg,#fff3e0,#fff);border-color:#f0d9b3;margin-top:12px">
     <h2>查到的根因（2026-06-15）：评论「假失败」偏高</h2>
     <p>无影 <code>.env</code> <b>没开</b> <code>AKKE_COMMENT_VERIFY_LENIENT</code> / <code>AKKE_COMMENT_TRUST_SEND</code> → 在用最严格 VL 验证，而验证<b>常误判</b> → <code>send_unverified</code> 被假阴性灌水、成功率虚低。<b>处置</b>：① 云电脑加 <code>AKKE_COMMENT_VERIFY_LENIENT=1</code>（宽松验证、减误判）；② 跑时别碰鼠标、保持抖音前台（治 <code>focus_fail</code>）；③ 失败的人没标 touched、下次再逮到会重触、不丢。</p>
+  </div>
+
+  <div class="gate" style="margin-top:12px">
+    <h2>升级（2026-06-16）：点赞「假阳性」根因 + 双采修复 · 两个数据缺口</h2>
+    <p><b>问题点（这次查到的）</b></p>
+    <ul style="margin:6px 0 10px;padding-left:20px;font-size:13px;color:var(--muted)">
+      <li style="margin:4px 0"><b>点赞「假阳性」（柴油案）</b>：被记 <code>liked</code> 实际<b>根本没点</b>。根因＝点赞<b>前置幂等检查</b> <code>_is_liked()</code> 单帧 VL 误判「爱心已红」→ <b>直接返回 liked、压根没点击</b>。这是以往 <code>send_unverified</code> 假阴性的<b>反方向</b>——假成功，比假失败更危险（掩盖真没触达）。</li>
+      <li style="margin:4px 0"><b>20–60min 边缘视频拿不到数据</b>：队列 <code>realtime-touch-queue.jsonl</code> <b>只落盘 ≤20min 过闸项</b>，&gt;20min 超时项仅打日志、<b>且不记 aweme_id</b> → 边缘档无法量化 / 回看 / 上页。</li>
+      <li style="margin:4px 0"><b>逐次触达明细缺</b>：<code>second_touch_state</code> 只存 <code>touch_count</code>，没记每次触了哪条视频 / 结果；<code>comment_log</code> 在无影<b>未全量回写 DB</b> → 「第 N 次触的啥」短期补不全。</li>
+    </ul>
+    <p><b>升级点</b></p>
+    <ul style="margin:6px 0 0;padding-left:20px;font-size:13px;color:var(--muted)">
+      <li style="margin:4px 0"><span class="pill yes">已修</span> <b>点赞双采确认</b>：新增 <code>_is_liked_confirmed()</code>（<b>连采两帧、都判红才信已赞</b>，否则继续定位空心爱心去点）+ <code>_is_liked()</code> prompt 收紧（只认心形<b>图标自身</b>填红，严禁把下方红色点赞数 / 角标当已赞，拿不准回 null）。前置检查改用双采版 → 单帧抖动不再跳过点击。<span style="color:var(--faint)">main <code>ab8fb101</code>，无影 <code>git pull</code> 生效。</span></li>
+      <li style="margin:4px 0"><span class="pill yes">已升级</span> 无影 <code>.env</code> 开 <code>AKKE_COMMENT_VERIFY_LENIENT=1</code>：减评论假阴性（<b>仍真验、只放宽比对时机</b>）。<b>别开 <code>AKKE_COMMENT_TRUST_SEND</code></b>——点了就算、完全不验，会把柴油这种真失败也刷成成功、掩盖问题。</li>
+      <li style="margin:4px 0"><span class="pill semi">待做</span> watch 脚本把<b>超时项也落盘</b>（带 <code>gate:expired</code> + aweme_id）→ 20–60min 档才有数据可量。</li>
+      <li style="margin:4px 0"><span class="pill semi">待做</span> <code>comment_log → DB</code> 回写（#360 <code>complete</code> 端点切 <code>--api-base</code>）→ 按用户逐次明细补全。</li>
+    </ul>
   </div>
 
   <!-- ============ 快问快答：推演/吞吐/回传 ============ -->
@@ -345,13 +362,14 @@ tar -xf rtb.tgz</code></pre>
   <ul class="status">
     <li><span class="ok">✅ 三连首次在真视频落地</span>：2026-06-14 一筑号实测，监控→入队→身份门→点赞→评论1→评论2→<b>验证闸</b>全链路跑通，第一条真视频<b>点赞 + 评论都验证成功</b>。执行链全部打通。</li>
     <li><span class="ok">✅ 真发验证闸有效</span>：点赞验爱心变红、评论验气泡出现，验不过记 <code>unverified</code> 不假报——6/12 那批"已点发送"假阳性被它挡住、不再误入库。</li>
+    <li><span class="bad">⚠️ 点赞验证有过假阳性（已修 6/16）</span>：柴油案被记 <code>liked</code> 实际没点——根因是<b>点赞前置幂等检查</b> <code>_is_liked()</code> 单帧 VL 误判「已红」就跳过点击。<b>2026-06-16 已修</b>：双采确认（两帧都判红才信已赞）+ prompt 收紧。教训：VL 验证<b>两个方向都会误判</b>（假阴性 + 假阳性），别无脑信任、更别开 <code>TRUST_SEND</code>。</li>
     <li><span class="ok">✅ 关注覆盖够用</span>：「覆盖率 12%」已确认是误判（关注流只露近期发视频的人），盲关 200 人计划已否决；wrong_user 用按抖音号反查定点修。</li>
     <li><span class="ok">✅ 评论1 JIT + 评论2 照发不挡空</span>：评论1 现场看视频正文 qwen3 生成干净反应（空正文退「赞赞赞」）；评论2 逐字搬首触原文、带促销词照发、0 人被闸挡空。</li>
     <li><span class="bad">⚠️ 真 7×24 无人值守未解</span>：无影<b>平台层会空闲挂起</b>（实测 9.5h 空白，powercfg 管不到）；现阶段靠「保持无影在线 + 双窗口自重启常驻」的半自动，治本待保活 / EDS 远程命令 + 按需唤醒。</li>
     <li><b>一句话：</b>执行链<b>已全部打通、真视频已落地</b>；剩的是把无影"空闲挂起"解掉、做到真常驻不靠人盯。</li>
   </ul>
 
-  <p class="foot">Akke · 潜在触达流程 + 复刻 SOP + 常态运维 · 口径随实现演进，以代码为准 · 2026-06-14</p>
+  <p class="foot">Akke · 潜在触达流程 + 复刻 SOP + 常态运维 · 口径随实现演进，以代码为准 · 2026-06-16</p>
 </div>
 </body>
 </html>
