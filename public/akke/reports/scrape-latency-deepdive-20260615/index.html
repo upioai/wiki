@@ -278,6 +278,28 @@
 <p style="margin-top:14px"><b>🎫 怎么分等级跑？</b>＝给每个活贴一张「号码牌」（priority），worker 严格<b>从小号往大号领</b>：<code>0</code> 号最优先 → <code>1</code> → <code>3</code> → <code>5</code> 最次。贴几号的规则＝<b>越急、越快、越该趁鲜的贴越小号</b>（高意向注入=0、常规快活=1、慢整号=3、tier-0 普通号=5）。同一号牌内部先到先得。完整对照见下面 C 节。</p>
 </div>
 
+<h4>A3 · 机制变更逐条（B-3 同精度：改了哪个文件 / 哪个参数 / 阈值多少）</h4>
+<p class="mut">A2 是大白话，这节是给工程视角的精确版——对照 B-3「视频快车道机制」看，就知道在它基础上动了哪几刀。</p>
+<h4 style="color:var(--bad)">🥚 Leg B 破鸡生蛋 · #363（<code>src/app/api/cron/scrape-hot/route.ts → runVideoFastLane</code>）</h4>
+<ul>
+<li><b>改前</b>：候选集<b>只有一种</b> = 按「近 <code>WINDOW_H=48h</code> 内、被 ≤<code>FRESH_CATCH_MIN=60min</code> 新鲜抓到的评论条数」排序取 top <code>MAX=100</code>，全部 <code>pri=1</code>（即 B-3 描述的那套）。冷视频从没被 60min 新鲜抓到过 → 永远进不了这个集。</li>
+<li><b>改后</b>：<b>新增第二个候选集「高意向注入」</b> = 额外扫「近 <code>HIGH_INTENT_HOURS=6h</code> 内 <code>intent_label ∈ {高意向,中意向}</code> 的评论」对应的视频，<b>不要求过 60min fresh-catch 门槛</b>强行并入；给 <code>priority=0</code>（插在常规 pri=1 之前），且 top 100 截断时<b>置顶不被截</b>。排序逻辑 = <code>topIds = [高意向视频(pri=0)…, fresh-catch 产出降序(pri=1)…].slice(0, 100)</code>。</li>
+<li><b>开关</b>：<code>HOT_FAST_LANE_HIGH_INTENT_HOURS=6</code>（设 0 即关闭注入、退回纯 fresh-catch）。</li>
+</ul>
+<h4 style="color:var(--bad)">🚗 Leg C 快慢分道 · #363（<code>runTier1SourceEnqueue</code>）</h4>
+<ul>
+<li><b>改前</b>：tier-1 整号活 <code>scrape_source</code> 入队 <code>priority=1</code>，和单视频快活 <code>scrape_video</code>（也 pri=1）<b>挤同一条道</b>。</li>
+<li><b>改后</b>：tier-1 整号活 <code>priority 1 → 3</code>（与 rescan-recent-videos 同档）。claim RPC 按 priority ASC → 单视频快活(pri=0/1)永远先领，慢整号退到 pri=3、但仍排在 tier-0(pri=5)前。</li>
+<li>同批改频：<code>vercel.json</code> scrape-hot 闹钟 <code>*/2 → */3</code>（⑦ 已验 cron 非瓶颈，回 */3 反少 33% 空跑洪水、减 pri 队列积压）。</li>
+</ul>
+<h4 style="color:var(--warn)">🛑 Leg C 空跑指数退避 · #366（migration + worker + 选视频端）</h4>
+<ul>
+<li><b>新增字段</b>：migration <code>20260616114802</code> 给 <code>videos</code> 加 <code>empty_streak INT DEFAULT 0</code>（连续抓 0 新的次数）+ <code>next_fast_lane_at TIMESTAMPTZ</code>（推到几点才允许再进快车道）+ partial index（只索引退避中的行）。</li>
+<li><b>worker 记账</b>（<code>worker/services/queue.py → _run_scrape_video</code>）：<b>仅对</b> <code>payload.hot_fast_lane &amp;&amp; !high_intent</code> 的活，抓完按 <code>new_comments_inserted</code> 判——0 新 → <code>empty_streak++</code>，连续 ≥<code>3</code> 起退、间隔 = <code>min(30, 9×2^(streak−3))</code> 分钟（<b>9→18→30 封顶</b>）；抓到新评论 → <code>empty_streak=0, next_fast_lane_at=NULL</code>，立刻恢复勤抓。全程 try-except 软失败、不影响抓取主流程。</li>
+<li><b>选视频端</b>（<code>runVideoFastLane</code>）：在 top 100 截断<b>之前</b>，把 <code>next_fast_lane_at &gt; now</code> 的常规 fresh-catch 视频过滤掉——<b>pri=0 高意向注入不读此列、永不退避</b>（破鸡生蛋的活不能压）；退避查询若失败（如 migration 暂未落）则当无退避、绝不阻塞 enqueue。</li>
+<li><b>开关</b>：<code>HOT_FAST_LANE_BACKOFF=0</code> 整体关 / <code>FAST_LANE_BACKOFF_START_STREAK=3</code> / <code>FAST_LANE_BACKOFF_BASE_MIN=9</code> / <code>FAST_LANE_BACKOFF_CAP_MIN=30</code>。</li>
+</ul>
+
 <h3>B · 成效实测（同 UTC 时段隔天对比 06-15 vs 06-16 04:00–12:25，控时段混淆）</h3>
 <div class="kx"><b>先看懂这三个数（median / p90 / p99 怎么读）</b>：把所有活的等待时间从快到慢排成一队——<br>· <b>median（中位数）</b>＝站正中间那个，一半比他快、一半比他慢 ＝「<b>典型情况</b>」。<br>· <b>p90</b>＝排在 90% 位置那个，只有最慢的 <b>10%</b> 比他还慢 ＝「<b>尾巴（较差）</b>」。<br>· <b>p99</b>＝排在 99% 位置，只有最惨的 <b>1%</b> 比他更慢 ＝「<b>极端最差</b>」。<br><b>为啥不用平均？</b>平均会被个别超长的极值拉偏；分位数才看得清真实分布。例：下表 median=0 但 p90=295 秒——意思是<b>多数活秒级领走、但有整整一成的活要等近 5 分钟</b>，这"一成的尾巴"才是体感最差、最该治的。</div>
 <h4>✅ Leg C 快慢分道：实锤成功</h4>
