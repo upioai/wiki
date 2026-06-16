@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>云电脑 DM · wrong_user 分析与卡点 · 小文（野荞） · 2026-06-16</title>
+<style>
+  :root{
+    --bg:#f6f8fb; --card:#fff; --card2:#f1f4f9; --line:#e3e8f0;
+    --txt:#1f2633; --mut:#667085; --acc:#2563eb; --good:#16a34a; --warn:#c2780a; --bad:#dc2626;
+    --chip:#eef2f8; --purple:#7c3aed;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif;
+    line-height:1.65;font-size:15px}
+  .wrap{max-width:1000px;margin:0 auto;padding:36px 22px 80px}
+  header.hero{padding:30px 28px;border-radius:18px;
+    background:linear-gradient(135deg,#fdeaea,#fff4f4 60%);border:1px solid #f6d6d6;margin-bottom:26px}
+  .hero h1{margin:0 0 8px;font-size:25px;line-height:1.3}
+  .hero .sub{color:var(--mut);font-size:14.5px;max-width:780px}
+  .hero .meta{margin-top:16px;display:flex;flex-wrap:wrap;gap:10px}
+  .pill{background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 13px;font-size:13px;color:var(--mut)}
+  .pill b{color:var(--txt)}
+  h2.sec{font-size:13px;letter-spacing:2px;color:var(--acc);text-transform:uppercase;margin:40px 0 14px;
+    display:flex;align-items:center;gap:10px}
+  h2.sec .n{display:inline-flex;width:24px;height:24px;border-radius:7px;background:var(--acc);color:#fff;
+    align-items:center;justify-content:center;font-size:13px;font-weight:700}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin-bottom:14px}
+  .lead{color:var(--mut);font-size:14px;margin:-2px 0 14px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{text-align:left;padding:9px 11px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--mut);font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+  .tag{font-size:11.5px;display:inline-block;padding:2px 8px;border-radius:999px;white-space:nowrap}
+  .t-good{background:rgba(22,163,74,.12);color:var(--good);border:1px solid rgba(22,163,74,.3)}
+  .t-bad{background:rgba(220,38,38,.10);color:var(--bad);border:1px solid rgba(220,38,38,.28)}
+  .t-warn{background:rgba(194,120,10,.12);color:var(--warn);border:1px solid rgba(194,120,10,.3)}
+  code{background:var(--card2);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px;
+    font-family:ui-monospace,Menlo,monospace}
+  .num{font-family:ui-monospace,Menlo,monospace;font-size:12.5px}
+  .flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:8px;margin:6px 0}
+  .step{flex:1;min-width:120px;background:var(--card2);border:1px solid var(--line);border-radius:11px;padding:11px 12px}
+  .step.bad{border-color:#f3c9c9;background:#fdf2f2}
+  .step .t{font-weight:600;font-size:13px;margin-bottom:3px}
+  .step .d{color:var(--mut);font-size:11.5px}
+  .arrow{align-self:center;color:var(--mut);font-size:16px}
+  .evi{background:#0f172a;border-radius:10px;padding:13px 15px;color:#dbe2f0;font-family:ui-monospace,Menlo,monospace;
+    font-size:12.5px;line-height:1.8;margin:8px 0}
+  .evi .hl{color:#fca5a5}
+  .evi .ok{color:#86efac}
+  .note{background:rgba(37,99,235,.06);border:1px solid rgba(37,99,235,.22);border-radius:10px;padding:11px 14px;
+    font-size:13.5px;color:#28324a;margin:10px 0}
+  .warnbox{background:rgba(194,120,10,.08);border:1px solid rgba(194,120,10,.28);border-radius:10px;padding:11px 14px;
+    font-size:13.5px;margin:10px 0}
+  .warnbox b{color:var(--warn)}
+  .fix{background:rgba(22,163,74,.06);border:1px solid rgba(22,163,74,.25);border-radius:12px;padding:16px 18px;margin-bottom:12px}
+  .fix h3{margin:0 0 6px;font-size:16px;display:flex;align-items:center;gap:8px}
+  .fix .badge{font-size:11px;background:var(--good);color:#fff;border-radius:6px;padding:2px 7px}
+  pre.code{background:#0f172a;border-radius:10px;padding:12px 14px;overflow-x:auto;
+    font-family:ui-monospace,Menlo,monospace;font-size:12.5px;line-height:1.7;color:#dbe2f0;margin:8px 0}
+  .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:4px 0 8px}
+  @media(max-width:720px){.kpi{grid-template-columns:repeat(2,1fr)}}
+  .kpi .b{background:var(--card2);border:1px solid var(--line);border-radius:11px;padding:12px;text-align:center}
+  .kpi .v{font-size:22px;font-weight:700}
+  .kpi .l{color:var(--mut);font-size:12px;margin-top:2px}
+  .muted{color:var(--mut)}
+  footer{margin-top:36px;color:var(--mut);font-size:12px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <h1>云电脑 DM · wrong_user 分析与卡点</h1>
+    <div class="sub">账号「小文（野荞）」2026-06-16 当日。严格 10min 时效通道（评论发表 ≤10min → 触达），无影云电脑 GUI 搜人发私信。本报告拆解今日 7 例 wrong_user（搜到/点到错人被身份门拦下、未发出）的根因与卡点。</div>
+    <div class="meta">
+      <span class="pill">账号 <b>小文（野荞）</b></span>
+      <span class="pill">日期 <b>2026-06-16</b></span>
+      <span class="pill">通道 <b>无影云电脑 · 严格 10min</b></span>
+      <span class="pill">wrong_user <b style="color:var(--bad)">7 例</b></span>
+    </div>
+  </header>
+
+  <h2 class="sec"><span class="n">0</span>当日大盘</h2>
+  <div class="card">
+    <div class="kpi">
+      <div class="b"><div class="v" style="color:var(--good)">25</div><div class="l">成功发出</div></div>
+      <div class="b"><div class="v" style="color:var(--warn)">15</div><div class="l">skipped 合计</div></div>
+      <div class="b"><div class="v" style="color:var(--bad)">7</div><div class="l">wrong_user</div></div>
+      <div class="b"><div class="v">6 / 2</div><div class="l">超10min过期 / 拒收</div></div>
+    </div>
+    <div class="lead" style="margin-bottom:0">skipped 15 例拆分：<b>wrong_user 7</b>（搜错人，本报告重点）+ <b>超10min过期 6</b>（10min 时效闸正常过期老单，符合预期）+ <b>拒收 2</b>（对方隐私拦截，平台机制）。</div>
+  </div>
+
+  <h2 class="sec"><span class="n">1</span>7 例 wrong_user 明细</h2>
+  <div class="card">
+    <table>
+      <tr><th>北京时间</th><th>作者</th><th>地区</th><th>评论</th><th>抖音号</th><th>能否被搜到</th></tr>
+      <tr><td>21:36</td><td>@做自己的太阳🌻</td><td>浙江</td><td>正准备装修，90平多少钱</td><td class="num">914822202</td><td><span class="tag t-bad">纯数字默认ID·搜不了</span></td></tr>
+      <tr><td>21:23</td><td>兮兮宝贝</td><td>江苏</td><td>多少钱装好</td><td class="num">hankexin0925</td><td><span class="tag t-good">能搜到本人·可救</span></td></tr>
+      <tr><td>17:36</td><td>🕊八方来财</td><td>江苏</td><td>麻烦给我一份</td><td class="num">lt93.12</td><td><span class="tag t-warn">关了按号搜·搜不到</span></td></tr>
+      <tr><td>15:38</td><td>大🐮</td><td>江苏</td><td>我想做一米的</td><td class="num">ying0177</td><td><span class="tag t-warn">关了按号搜·搜不到</span></td></tr>
+      <tr><td>12:42</td><td>🌞ㅤ</td><td>上海</td><td>30w预算求优秀设计师</td><td class="num">52936778392</td><td><span class="tag t-bad">纯数字默认ID·搜不了</span></td></tr>
+      <tr><td>12:21</td><td>花开四季</td><td>江苏</td><td>可以附加一份你的攻略不</td><td class="num">975832114</td><td><span class="tag t-bad">纯数字默认ID·搜不了</span></td></tr>
+      <tr><td>09:39</td><td>一条小鲤鱼</td><td>广东</td><td>15层通铺木纹砖，全屋定制</td><td class="num">2139675380</td><td><span class="tag t-bad">纯数字默认ID·搜不了</span></td></tr>
+    </table>
+    <div class="note">实时反查已验证：以上 7 个抖音号与共享缓存<b>完全一致、没有过期</b>——号是对的，问题不在号准不准。</div>
+  </div>
+
+  <h2 class="sec"><span class="n">2</span>核心案例：兮兮宝贝（能搜到却 wrong_user）</h2>
+  <div class="card">
+    <div class="lead">7 例里只有兮兮宝贝是「抖音号能搜到本人」的，却依然 wrong_user。查时间戳拿到铁证：</div>
+    <div class="evi">
+缓存写入(fetched_at): <span class="hl">21:21</span><br>
+派单创建(created):    <span class="hl">21:21</span>   ← 同一分钟<br>
+派单时带的号:          <span class="hl">无</span>       ← 关键<br>
+完成: 21:23 <span class="hl">wrong_user</span>
+    </div>
+    <div class="warnbox" style="margin-top:12px"><b>结构性根因（一句话）：</b><br>
+    1️⃣ 兮兮宝贝是 <b>21:21 刚冒出来的新鲜评论</b>——你要的严格 10min SLA 派的就是这种「刚发的」。<br>
+    2️⃣ 这种<b>新用户我们从没反查过 → 共享缓存是冷的（没号）→ 派单时 <code>号:无</code></b>。<br>
+    → 没号只能退回昵称搜「兮兮宝贝」→ 撞同名 → wrong_user。<b>越追新鲜，派的越是没预热过的新用户，越容易冷缓存撞名</b>——这是 10min SLA 与「号已就绪」的天然张力。</div>
+    <div class="lead" style="margin:14px 0 6px"><b>失败链条：</b></div>
+    <div class="flow">
+      <div class="step"><div class="t">① 21:21 新鲜评论</div><div class="d">刚发表、进 10min 窗口</div></div>
+      <div class="arrow">→</div>
+      <div class="step bad"><div class="t">② 缓存冷·无号</div><div class="d">这新用户从没反查过，派单 <code>号:无</code>（号同一分钟才写入，太晚）</div></div>
+      <div class="arrow">→</div>
+      <div class="step bad"><div class="t">③ 退回昵称搜</div><div class="d">没号 → 只能按「兮兮宝贝」搜，撞一堆同名</div></div>
+      <div class="arrow">→</div>
+      <div class="step bad"><div class="t">④ wrong_user</div><div class="d">昵称搜无法按号锁定本人 → 身份门拦下</div></div>
+    </div>
+    <div class="note">本机<b>网格扫描已开</b>（<code>AKKE_SEARCH_SCAN_N</code>）：若派单<b>带了号</b>，搜 <code>hankexin0925</code> 出 2 个结果（兮兮宝贝 0925 + 撞脸 Han.❤ 0529）时能按号精确挑本人。可惜这次<b>根本没号</b>，退回昵称搜，网格扫描也无号可比 → 仍撞名。所以兮兮宝贝的死因是<b>冷缓存 / 派单无号</b>，不是扫描没开。</div>
+  </div>
+
+  <h2 class="sec"><span class="n">3</span>卡点（根因）</h2>
+
+  <div class="card">
+    <div style="font-weight:700;margin-bottom:4px;color:var(--bad)">🔴 卡点一：7 例里 6 例「物理上按抖音号搜不到」（绝对主因）</div>
+    <div class="lead" style="margin-bottom:8px">运营手动实测：7 个抖音号<b>有 6 个搜不到本人</b>。其中 <b>4 个只有纯数字默认 ID</b>（用户没设自定义抖音号，搜索框天生搜不了），<b>2 个（lt93.12 / ying0177）关掉了「允许通过抖音号搜索到我」</b>。这 6 个无影的「搜人式发送」<b>物理上够不到</b> —— 不是工具 bug，是这些用户自身搜不到。即使缓存预热好、把号带上，无影按号搜照样空。<b>这是今日 wrong_user 的绝对大头。</b></div>
+
+    <div style="font-weight:700;margin:14px 0 4px;color:var(--bad)">🔴 卡点二：唯一可搜的兮兮宝贝 —— 冷缓存导致派单无号</div>
+    <div class="lead" style="margin-bottom:8px">10min 严格时效派的是<b>刚冒头、从没反查过</b>的新用户 → 共享缓存冷（无号）→ 派单 <code>号:无</code>（号同一分钟才写入、太晚）→ agent 退回昵称搜「兮兮宝贝」撞名。「时效」和「号已就绪」天然打架。<b>这一类才是预热缓存能救的。</b></div>
+
+    <div style="font-weight:700;margin:14px 0 4px;color:var(--good)">✅ 不是卡点：网格扫描已开</div>
+    <div class="lead" style="margin-bottom:8px">本机 <code>AKKE_SEARCH_SCAN_N</code> 已启用，撞脸号（0925 vs 0529）只要派单带了号就能按号精确挑本人。此项已具备，无需动作。</div>
+
+    <div style="font-weight:700;margin:14px 0 4px;color:var(--mut)">⚪ 旁注：本机重查的 SSL timeout 不算 agent 卡点</div>
+    <div class="lead" style="margin-bottom:0">本报告在 mac 上重查时遇到 SSL handshake timeout，那是<b>本机网络</b>问题、重试即过，不代表无影 agent。况且对上面 6 个「搜不到」的用户，反查到号也没用（搜不到），所以反查稳定性不是本案重点。</div>
+  </div>
+
+  <h2 class="sec"><span class="n">4</span>解法</h2>
+
+  <div class="fix" style="background:rgba(124,58,237,.05);border-color:rgba(124,58,237,.25)">
+    <h3><span class="badge" style="background:var(--purple)">FIX 1 · 最关键</span>搜不到的用户（6/7）→ 给无影加「主页链接直达」路径（治卡点一）</h3>
+    <div class="lead">今日 wrong_user 大头是<b>搜不到的用户（纯数字号 / 关了按号搜）</b>，无影现有「搜人式发送」物理够不到。唯一可靠路径 = sec_uid 主页链接（永久有效）：<code>https://www.douyin.com/user/&lt;sec_uid&gt;</code>，打开主页 → 点私信。<br>短期：运营手动点链接触达；长期：给无影脚本加「按 sec_uid URL 跳主页 → 点私信」新路径，绕开搜索框（功能改造，<b>待评估无影抖音端能否粘 URL 跳主页</b>）。</div>
+  </div>
+
+  <div class="fix">
+    <h3><span class="badge">FIX 2</span>持续预热缓存（治卡点二）</h3>
+    <div class="lead">针对「可搜但缓存冷」那类（如兮兮宝贝）：本机国内 IP 每几分钟跑一次，把「待派单池」新评论<b>提前反查好号写进共享缓存</b>；进 10min 窗口被派时缓存已热、派单直接带号 → 按号搜不撞名。全 org 受益。</div>
+    <pre class="code">python enrich-pending-pool.py --minutes 120   # 每 5 分钟一轮，只补号不发消息</pre>
+  </div>
+
+  <div class="fix">
+    <h3><span class="badge" style="background:var(--good)">已具备</span>网格扫描 —— 本机已开，无需动作</h3>
+    <div class="lead"><code>AKKE_SEARCH_SCAN_N</code> 已启用。只要派单带号，撞脸号能按号精确挑本人。FIX 2 把号补上后，此项自动发挥作用。</div>
+  </div>
+
+  <div class="note"><b>立即能救：仅兮兮宝贝（hankexin0925）1 个</b> —— 带号重派一次，agent 按号搜（网格扫描已开）即可正常发出。其余 <b>6 个搜不到的</b>无影端搜索式发送物理够不到（无影抖音客户端<b>不支持粘链接跳主页</b>，FIX 1 此路不通）。<br><b>本质结论：</b>今日 wrong_user 七成以上不是工具能直接修的，而是用户搜不到 —— 提升整体「可达率」要靠扩大「有真抖音号且允许搜索」的号源占比。</div>
+
+  <h2 class="sec"><span class="n">5</span>更大的瓶颈：进料端（采集延迟）</h2>
+  <div class="card">
+    <div class="lead">wrong_user 只是发送端的损耗。把视角拉到整条漏斗，<b>真正限制产出的是进料端</b>——大部分高意向抓到时就已经过期。</div>
+    <div class="lead" style="margin:6px 0">近 24h 97 条高意向的<b>采集延迟（评论发表 → 入库）</b>分布：</div>
+    <table>
+      <tr><th>采集延迟</th><th>条数</th><th>占比</th><th>能否进 10min SLA</th></tr>
+      <tr><td>≤10min</td><td>33</td><td>34%</td><td><span class="tag t-good">✅ 唯一够格被派</span></td></tr>
+      <tr><td>10–60min</td><td>13</td><td>13%</td><td><span class="tag t-bad">❌ 已过窗</span></td></tr>
+      <tr><td>1–6h</td><td>4</td><td>4%</td><td><span class="tag t-bad">❌</span></td></tr>
+      <tr><td>6–24h</td><td>8</td><td>8%</td><td><span class="tag t-bad">❌</span></td></tr>
+      <tr><td>&gt;24h</td><td>39</td><td>40%</td><td><span class="tag t-bad">❌ 发表超 24h 才抓到</span></td></tr>
+    </table>
+    <div class="warnbox" style="margin-top:12px"><b>中位采集延迟 = 185 分钟（~3 小时）。只有 34% 的高意向在 10min 内被抓到</b>，40% 是发表超 24h 才入库。也就是说：<b>不是发不出去，是大部分料抓到时就已经过期</b>——10min SLA 的产出天花板由采集速度决定，不是发送能力。</div>
+  </div>
+
+  <h2 class="sec"><span class="n">6</span>优化空间（按杠杆排）</h2>
+  <div class="card">
+    <div style="font-weight:700;margin-bottom:4px">🥇 杠杆一：采集提频（最大空间）</div>
+    <div class="lead" style="margin-bottom:8px">把 ≤10min 那档从 34% 往上拉 = 唯一能在不破坏 SLA 前提下放大可发量的办法。对<b>高产/活跃号源的视频提高采集频率</b>，缩短"评论发表→入库"；对只产 &gt;24h 老评论的源降权。</div>
+    <div style="font-weight:700;margin:12px 0 4px">🥈 杠杆二：缓存预热覆盖率（进行中）</div>
+    <div class="lead" style="margin-bottom:8px">615 待派单只有 44 有号（覆盖率 7%）。常驻预热拉到近 100%，清掉"可搜部分"的冷缓存→撞名。<b>已验证反查命中率 100%</b>（见下）。</div>
+    <div style="font-weight:700;margin:12px 0 4px">🥉 杠杆三：号源可达率（治本但慢）</div>
+    <div class="lead" style="margin-bottom:8px">今天 6/7 wrong_user 是用户本身搜不到（纯数字号/关搜索）。给每个号源算"可达率"（评论者里有真抖音号且允许搜索的占比），<b>优先挖可达率高的号源</b>，从源头少踩搜不到的人。</div>
+    <div style="font-weight:700;margin:12px 0 4px">🏅 杠杆四：转化端（目前盲区）</div>
+    <div class="lead" style="margin-bottom:0">今天发 25 条、<b>用户回复 0</b>。口径应从"发了几条"扩到"回复率/加微率"，否则发得多不转化也白搭。opener 文案 bug（如"昵称已重置"当称呼）属这一层。</div>
+  </div>
+  <div class="note"><b>小结：</b>瓶颈<b>不在发送端</b>（agent/无影/配额都够），而在<b>进料端</b>——采集太慢（料过期）+ 缓存太冷（缺号）+ 号源人群搜不到。</div>
+
+  <h2 class="sec"><span class="n">7</span>FIX 2 验证 + 常驻预热的代价/成本/影响</h2>
+  <div class="card">
+    <div class="lead"><b>验证结果（2026-06-16 本机实跑一批 60）：</b></div>
+    <div class="evi">
+本批反查 60 → 命中号 <span class="ok">60</span> / 确定无号 0 / 瞬时失败 0  （命中率 <span class="ok">100%</span>）<br>
+已写缓存 60 行（缓存 44 → 104）<br>
+说明：反查本身完全可靠，之前的 SSL timeout 是本机网络偶发，重试即过。
+    </div>
+    <div class="lead" style="margin:14px 0 6px"><b>若设成「每 5 分钟常驻预热」，代价/成本/影响：</b></div>
+    <table>
+      <tr><th>维度</th><th>评估</th></tr>
+      <tr><td>LLM / Token 成本</td><td><span class="tag t-good">零</span> 纯反查，不调 LLM，不烧 OpenRouter 额度</td></tr>
+      <tr><td>本机资源</td><td><span class="tag t-good">极低</span> 每 5min 一个 python 批，CPU/内存可忽略</td></tr>
+      <tr><td>稳态调用量</td><td><span class="tag t-good">自限</span> 脚本<b>跳过已缓存</b>的，稳态只查新进的高/中意向（约每小时十几条）；初始 615 backlog 约 10 批清完后即低负载</td></tr>
+      <tr><td>抖音接口风险</td><td><span class="tag t-warn">低-中 · 主要是限流非封号</span> 反查只<b>读主页（读 ≠ 写，风险比发 DM 低一个量级）</b>，稳态量低+带 sleep、像正常浏览，账号几乎不会被封、顶多限流（接口返空 body）</td></tr>
+      <tr><td>cookie 该用谁</td><td><span class="tag t-bad">隐患</span> 本次借的是<b>饭粒（在用的发送号）</b>cookie，等于让发送号同时背读+写足迹、略抬风控概率。<b>应改用采集专用号</b>（fanny / 小胡 / 采集号 这类只读不发的）的 cookie，把风险与发送号隔离</td></tr>
+      <tr><td>单机依赖</td><td><span class="tag t-warn">脆</span> 必须本机国内 IP 跑（Fly 东京被封）。<b>mac 休眠/关机 → 预热停 → 缓存重新变冷</b>。不是高可用</td></tr>
+      <tr><td>cookie 失效</td><td><span class="tag t-warn">需监控</span> cookie 15–30 天过期；过期后反查静默失败、缓存停更，需有告警</td></tr>
+      <tr><td>覆盖局限</td><td><span class="tag t-bad">治标有限</span> 只救"可搜"那部分；对 6/7 那种<b>用户本身搜不到</b>的，预热到号也没用（搜不到）</td></tr>
+    </table>
+    <div class="note" style="margin-top:12px"><b>结论：</b>常驻预热<b>几乎零成本、值得开</b>，但要配 ① <b>改用采集专用号</b>的 cookie（别用在发的号，隔离风控）② 监控接口是否返空 body（=限流/cookie 失效）+ 到期换号 ③ 接受单机依赖（mac 关机即失效）④ 清楚它只解决"可搜但冷缓存"那部分，<b>不解决"用户搜不到"的大头</b>（那要靠杠杆一采集提频 + 杠杆三号源可达率）。<br><b>关于"监控 cookie 有没有风险"：</b>监控本身没风险；真正的风险点是「用在发的号去反查」——换成采集号 cookie 就基本规避了。读操作低风险，账号不会因反查被封，顶多限流。</div>
+  </div>
+
+  <footer>
+    生成于 2026-06-16 · 账号 小文（野荞）· 数据源 dispatch_queue / douyin_user_handles / 实时反查校验<br>
+    关联：反查 v2（派单带号 + enrich 硬门）· 网格扫描更新（PR #342/#343）· 严格 10min 时效 SLA
+  </footer>
+
+</div>
+</body>
+</html>
