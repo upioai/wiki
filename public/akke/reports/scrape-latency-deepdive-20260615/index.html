@@ -51,7 +51,7 @@
 <div class="tl big">
 <b>一句话结论。</b> 高意向评论从「用户发出」到「进我们库」，慢不在抖音、不在抓取动作本身，而在两段等待：<b>Leg B 等到有人来抓这条视频</b>（冷视频几十分钟到几小时）+ <b>Leg C 活派出去后在队列里排队</b>（中位 ~4.6 分钟）。再往上追，<b>近 4 成高意向评论走 ≥30 分钟慢路，其中 97% 是「冷视频」</b>；而冷视频之所以多，是因为 <b>tier-1 优质号「只升不降」攒到 176 个、其中 74% 是不产高意向的僵尸，挤爆抓取产能、把 1019 个 tier-0 号饿死</b>。最值钱的一刀：给 tier-1 加降级。
 </div>
-<p class="toc">导读：<b>①</b> 起点案例 · <b>②</b> 全链路五段拆解（含机制+成因，最详细）· <b>③</b> 拐点实证 · <b>④</b> 慢路损失多大 · <b>⑤</b> 总根因（僵尸 tier-1）· <b>⑥</b> 提升点 · <b>⑦</b> 数据快照 · <b>⑧</b> 平行战线：关注流抓新视频（两探针）· <b>⑨</b> 四个追问（BC 极限 / 快车道 100 条 / DM·RC 回传 / PR360）</p>
+<p class="toc">导读：<b>①</b> 起点案例 · <b>②</b> 全链路五段拆解（含机制+成因，最详细）· <b>③</b> 拐点实证 · <b>④</b> 慢路损失多大 · <b>⑤</b> 总根因（僵尸 tier-1）· <b>⑥</b> 提升点 · <b>⑦</b> 数据快照（含 cron 3→2 复核）· <b>⑧</b> 队列三问（Leg B 入队 / BC 极限 / 快车道 100 条）</p>
 
 <h2>① 起点：从你发来的一条视频挖起</h2>
 <p>输入是一条抖音视频链接 <code>douyin.com/video/7648553920499141739</code>。反查得到：</p>
@@ -59,10 +59,11 @@
 <tr><th>项</th><th>值</th></tr>
 <tr><td>账号</td><td>歆笛的装修日记（知识号）</td></tr>
 <tr><td>分层</td><td><span class="pill g">Tier-1 优质号</span></td></tr>
-<tr><td>累计评论 / 高意向</td><td class="n">184 / 15</td></tr>
+<tr><td>累计评论 / 高意向</td><td class="n">184 / 15 <span class="mut">（整号 29 条视频累计；非单条视频）</span></td></tr>
 <tr><td>近 7 天高意向</td><td class="n">11 条（全压在近 7 天，是个正在爆量的号）</td></tr>
 <tr><td>高意向触达状态</td><td><span class="bad">15 条里 13 条还没触达</span>（analyzed）</td></tr>
 </table>
+<div class="kx"><b>口径说明（2026-06-16 复核）</b>：184 / 15 / 13 是<b>账号「歆笛的装修日记」整号</b>口径（现查 206 / 15 / 13，184→206 是评论自然增长）。链接那条单视频本身只有 108 评论 / 11 高意向。下表 15 条高意向 = 整号 29 条视频的累计，不是单条视频的。</div>
 <p>逐条看这 15 条的「发言→抓到」延迟，发现一个反常：同样是 Tier-1，有的 <span class="good">1 分钟</span>抓到，有的 <span class="warn">29–48 分钟</span>，还有的拖到 <span class="bad">几天</span>。这就是整条调查的起点。</p>
 <table>
 <tr><th>#</th><th>用户</th><th>发言</th><th>抓到</th><th>延迟</th><th>评论摘要（意向分）</th></tr>
@@ -207,26 +208,12 @@
 
 <h2>⑦ 今日已动 + 数据快照</h2>
 <p><b>今日改动（PR #346，已上线）</b>：scrape-hot 闹钟 <code>*/3 → */2</code> + 源节流 <code>45 → 30 分</code>。但实测发现 cron 不是瓶颈（真瓶颈是 Leg B/C），所以原计划第二步 <code>*/1</code> 已取消。</p>
+<div class="kx warn"><b>「3 分改 2 分有用吗 / 要不要改回去」（2026-06-16 实测复核）</b>：<b>用处很小，可以改回 */3，甚至略有好处</b>。实查近 24h <code>scrape_video</code> 快活 88,455 条，其中 <b>77% 复扫 0 新评论（空跑）</b>；快车道每 2 分钟灌 ~67 条（dedup 后）。<code>*/3→*/2</code> 把这股空跑洪水抬高了 50%，而它灌的全是 <code>pri=1</code> 活——正是堵 Leg C 的那条队。所以：<b>改回 */3 反而少 33% 空跑、减轻 pri=1 积压，只换来热视频复扫间隔从 ~2 分变 ~3 分（次要）</b>。真正起作用的是同批的源节流 <code>45→30</code>（让 tier-1 更早可重抓），不是 cron tick。<b>结论：tick 是二阶旋钮，回 */3 没坏处；真问题仍是 P0-a 降级 + P0-c 队列双层优先级。</b></div>
 <p>
 <span class="tag">cron tick=2分 ✓</span><span class="tag">Leg C 中位 276s / p99 327s</span><span class="tag">Leg D 中位 4.9s</span><span class="tag">快车道命中率 18%</span><span class="tag">worker 8 slot · ~270 整号/h</span><span class="tag">tier-1 176(僵尸130)</span><span class="tag">tier-0 1019</span><span class="tag">慢路 37%(近2天)</span><span class="tag">冷视频 97%</span>
 </p>
 
-<h2>⑧ 平行战线：关注流抓 day-0 新视频（两个探针）</h2>
-<div class="sub" style="margin:-6px 0 18px">补记 2026-06-16 · 与上文同属「时效」，但治的是另一条管线</div>
-<p>前七节治的是<b>评论</b>从发出到进库的延迟。还有一条平行战线——<b>视频</b>本身的发现时效。B-4「冷视频鸡生蛋」的根子是<b>我们太晚才知道有新视频</b>；一条绕开它的路 = 盯目标号的<b>关注流（follow/feed）</b>，作者一发就抓 day-0 新视频（潜在触达正靠它）。为量化这条路多快、能不能替代慢路，起跑两个探针。</p>
-<div class="card">
-<p><span class="step">探针①</span> <b>feedlag · 量「视频发布 → 进关注流」的延迟</b> <span class="pill g">已跑通</span></p>
-<p>这是关注流路的<b>延迟地板</b>。无影上每 15s 拉 follow/feed、记每条新视频首见 age，攒几小时出真实分布，替掉现在 n=4 的拍脑袋（今早实样：和为贵 <span class="warn">15.5 分</span>、质感 <span class="good">1.9 分</span>）。<b>只读不发、~4 req/min、不抢 GUI</b>，与监控/消费同机并存安全。<span class="mut">脚本 <code>_probe_feedlag_wuying.py</code>；待傍晚 17–21 发布高峰攒肥样本。</span></p>
-<p style="margin-top:16px"><span class="step">探针②</span> <b>req/min · 量「直盯主页 post-list」换路的安全速率</b> <span class="pill w">缓跑</span></p>
-<p>另一条更快的路——不等关注流、直接挨个盯本人主页视频列表（一发当场有）。但盯几百人 = 高请求量（200 人/3min ≈ 67 req/min，关注流才 ~8/min），<b>可能触发抖音限速、伤生产号</b>，得先探单号安全 req/min。两个前提没满足前跑了白测：</p>
-<ul>
-<li><b>前提 1</b>：先等探针① 证明关注流确实太慢，才有动机换路；</li>
-<li><b>前提 2（拦路虎）</b>：web <code>post_api</code>（按号查视频列表）有 <b>~7 天可见悬崖</b>——直拉看不到今天/昨天的新视频（5 个号实测最新全 6.8–9.3 天，登录态和匿名同结果，是接口面本身），只有<b>国内 IP + DOM 渲染主页</b>才看得见新鲜。所以得先定换路走 DOM 还是 post_api，否则测的是死路。</li>
-</ul>
-</div>
-<div class="kx"><b>一句话</b>：探针① 量「现有关注流路有多慢」，探针② 量「换条快路安不安全」。两个拼起来才知道该不该把潜在触达从关注流改成直盯主页、能压到多快。<b>当前进度</b>：① 已修两个脚本 bug（中文内嵌引号 + 缺 <code>--cookie</code> 参数）并跑通，待傍晚高峰取样；② 缓跑，等前提满足。</div>
-
-<h2>⑨ 四个追问（2026-06-16 补，均查代码 / 生产库坐实）</h2>
+<h2>⑧ 队列三问：Leg B 入的什么队 / BC 推到极限 / 快车道 100 条（2026-06-16 补，均查代码 / 生产库坐实）</h2>
 
 <h3>Q0 · 先澄清「Leg B 入的是什么队」</h3>
 <p>Leg B 的"入队" = 把这条视频 / 号写成一行 <code>scrape_jobs</code>（<b>Postgres 表</b>，不是 Redis / 内存队列）。两类行：</p>
@@ -257,18 +244,7 @@
 <div class="leg" style="border:none"><div class="lt">治理后</div><div class="lb">P0-c/d 把慢整号活移出 pri=1、给带新评论的活插队，100 条快活不再被整号活堵</div><div class="lv good">逼近 1 分钟</div></div>
 </div>
 
-<h3>Q3 · 云电脑 DM / RC 数据如何回传 ＝ 全自动云端闭环、<span class="good">不碰 mac</span></h3>
-<p>同一个 <code>wuying_poll_agent.py</code> 跑三条支线，都在<b>云电脑本机</b>调 complete RPC 直写 Supabase（受控 scoped JWT，urllib 直打 <code>/rest/v1/rpc/</code>）：</p>
-<table>
-<tr><th>通道</th><th>回传链</th></tr>
-<tr><td>DM</td><td><code>claim_dispatch</code> → <code>douyin_dm.py</code> → <code>sent_log</code> → <code>complete_dispatch</code></td></tr>
-<tr><td>RC</td><td><code>claim_rc_dispatch</code> → <code>douyin_rc_reply_grounded.py</code> → <code>rc_reply_log</code> → <code>complete_rc_dispatch</code>（写 outreach_events + 消费 lead_claim）</td></tr>
-</table>
-<div class="kx good"><code>sent_log</code> / <code>rc_reply_log</code> 是云电脑<b>本地 CSV</b>（脚本 cwd），由同一台机同一个 agent 解析后调 RPC——<b>没有任何摆渡回 mac 的环节</b>。</div>
-
-<h3>Q4 · 更新的 PR #360 能自动回传吗 ＝ 机制就位，<span class="warn">还差两步才真自动</span></h3>
-<p>PR #360 给<b>路 B 二次触达</b>新加 <code>/api/internal/pt/{pool,claim,complete}</code> 三端点：无影每轮 GET 拉池子+评论2表、发前 POST <code>claim</code> 原子领号（防跨通道重复触达）、发后 POST <code>complete</code> 实时回写（推 touch_count、写 e2e 两列供 journeys 渲染）——目标是替掉路 B 旧的 <code>comment_log → mac → mark-second-touch.ts</code> 摆渡。</p>
-<div class="kx warn"><b>但还没真自动，缺两件（PR 自己写明）</b>：① 无影那套路 B <code>_*</code> 消费脚本（gitignored）要单独改成调这三端点 + 无影实测——<b>不在本 PR</b>；② Vercel 必须配 <code>PT_ENDPOINT_SECRET</code>，否则端点 fail-closed 返回 500。<br><b>现状</b>：端点已上线，但路 B 仍走 comment_log 摆渡，直到无影脚本切过去 + env 配好。<span class="mut">（DM/RC 那条 dispatch-queue 路本就自动回传；二触原挂 <code>/api/cron/second-touch-dispatch</code>，#360 已停该 cron，二触今后只走路 B 这套。）</span></div>
+<div class="kx"><b>另两问搬家了</b>：「云电脑 DM/RC 数据如何回传」「PR #360 能否自动回传」「关注流抓 day-0 新视频两探针」属于<b>触达/潜在触达管线</b>、不属于评论抓取时效，已移到 <a href="/akke/journeys-fanny#pt" style="color:var(--acc)">用户旅程 · 潜在触达页</a>（<code>journeys-fanny#pt</code>）的「技术机制」区。</div>
 
 <div class="foot">
 方法注记：所有数字为 2026-06-15 当日直查生产库（comments / scrape_jobs / source_accounts）+ worker 活体 <code>/queue/stats</code> + Lark 采集快照卡。诚实边界：① 每日 tier 数变化库里无历史表、不可严格重建，本页用当前快照近似；② Leg C 的「8 槽悖论」已于 23:00 实查坐实＝不是闲置，是 pri=1 队列常年积压 ~100 条 + 慢整号活占槽 + poison 活（见 Leg C）；fly machines API 因 deploy token 无读权限未取到机器数，但 running 常态 8 + 78/分吞吐，有效并发 ~8；③ 僵尸判定用 7 天 / 高意向≥5（对齐升级线）。<br>

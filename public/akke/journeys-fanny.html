@@ -497,6 +497,41 @@
       <div class="guard" style="margin-top:12px;font-size:13px;color:var(--text-dim)"><b>读出来的结论</b>：62 条里真装修 lead 内容只有 <b style="color:#5eead4">@尹 / 小玉</b> 两个号，且当天发的是老视频或无关内容（小玉发足球）；噪音 4 大户（39度风/掌上雨衣/雨霖麻麻/QC）占 <b style="color:var(--warn)">61%</b>。≤20min 的 5 条新鲜视频 <b style="color:var(--warn)">0 条是装修</b> → 放大产量前要先洗池子（剔雨衣厂/宠物/食品/旅游）。</div>
     </div>
 
+    <h2 style="margin-top:6px">⚙️ 技术机制 · 数据怎么回传 + day-0 新视频探针</h2>
+    <div class="card teal">
+      <div class="t">从「评论抓取时效」深度调查搬过来的三块（2026-06-16）</div>
+      下面三块属于<b>触达 / 潜在触达管线</b>，原在<a href="/akke/reports/scrape-latency-deepdive-20260615" target="_blank" rel="noopener" style="color:var(--accent,#4ea1ff)">评论抓取时效·深度调查</a>，按归属移到这里。均查代码 / 生产库坐实。
+    </div>
+
+    <div class="card">
+      <div class="t">① 云电脑 DM / RC 数据如何回传 ＝ 全自动云端闭环、<b>不碰 mac</b></div>
+      同一个 <code>wuying_poll_agent.py</code> 跑三条支线，都在<b>云电脑本机</b>调 complete RPC 直写 Supabase（受控 scoped JWT，urllib 直打 <code>/rest/v1/rpc/</code>）：
+      <ul>
+        <li><b>DM</b>：<code>claim_dispatch</code> → <code>douyin_dm.py</code> → <code>sent_log</code> → <code>complete_dispatch</code></li>
+        <li><b>RC</b>：<code>claim_rc_dispatch</code> → <code>douyin_rc_reply_grounded.py</code> → <code>rc_reply_log</code> → <code>complete_rc_dispatch</code>（写 outreach_events + 消费 lead_claim）</li>
+      </ul>
+      <code>sent_log</code> / <code>rc_reply_log</code> 是云电脑<b>本地 CSV</b>（脚本 cwd），同一台机同一个 agent 解析后调 RPC——<b>没有任何摆渡回 mac 的环节</b>。
+    </div>
+
+    <div class="card guard">
+      <div class="t">② 更新的 PR #360 能自动回传吗 ＝ 机制就位，<b>还差两步才真自动</b></div>
+      PR #360 给<b>路 B 二次触达</b>新加 <code>/api/internal/pt/{pool,claim,complete}</code> 三端点：无影每轮 GET 拉池子+评论2表、发前 POST <code>claim</code> 原子领号（防跨通道重复触达）、发后 POST <code>complete</code> 实时回写（推 touch_count、写 e2e 两列供本页徽章渲染）——目标是替掉路 B 旧的 <code>comment_log → mac → mark-second-touch.ts</code> 摆渡。
+      <div style="margin-top:8px"><b>但还没真自动，缺两件（PR 自己写明）</b>：<br>
+      · ① 无影那套路 B <code>_*</code> 消费脚本（gitignored）要单独改成调这三端点 + 无影实测——<b>不在本 PR</b>；<br>
+      · ② Vercel 必须配 <code>PT_ENDPOINT_SECRET</code>，否则端点 fail-closed 返回 500。<br>
+      <b>现状</b>：端点已上线，但路 B 仍走 comment_log 摆渡，直到无影脚本切过去 + env 配好。（DM/RC 那条 dispatch-queue 路本就自动回传；二触原挂 <code>/api/cron/second-touch-dispatch</code>，#360 已停该 cron，二触今后只走路 B 这套。）</div>
+    </div>
+
+    <div class="card">
+      <div class="t">③ 平行战线 · 关注流抓 day-0 新视频（两个探针）</div>
+      治时效的另一条管线 ——「冷视频鸡生蛋」的根子是<b>我们太晚才知道有新视频</b>；绕开它的路 = 盯目标号的<b>关注流（follow/feed）</b>，作者一发就抓 day-0 新视频（潜在触达正靠它）。为量化这条路多快、能不能替代慢路，起跑两个探针：
+      <ul>
+        <li><b>探针① feedlag（已跑通）</b>：量「视频发布 → 进关注流」的延迟 = 关注流路的<b>延迟地板</b>。无影上每 15s 拉 follow/feed、记每条新视频首见 age，攒几小时出真实分布，替掉 n=4 拍脑袋（实样：和为贵 15.5 分、质感 1.9 分）。只读不发、~4 req/min、不抢 GUI，与监控/消费同机并存安全。脚本 <code>_probe_feedlag_wuying.py</code>，待傍晚 17–21 高峰攒肥样本。</li>
+        <li><b>探针② post-list req/min（缓跑）</b>：换路——不等关注流、直盯本人主页视频列表（一发当场有）。但盯几百人 = 高请求量（200 人/3min ≈ 67 req/min，关注流才 ~8/min），可能触发限速伤号。两个前提没满足前跑了白测：(a) 先等探针① 证明关注流确实太慢；(b) web <code>post_api</code> 有 ~7 天可见悬崖（直拉看不到今/昨天新视频，登录态=匿名同结果），只有国内 IP + DOM 渲染主页看得见新鲜，得先定换路走 DOM 还是 post_api。</li>
+      </ul>
+      <span style="color:var(--text-muted);font-size:12px">一句话：① 量「现有关注流路有多慢」，② 量「换条快路安不安全」，拼起来才知道该不该把潜在触达从关注流改成直盯主页、能压到多快。</span>
+    </div>
+
     <h2 id="ptCountTitle">盯防名单</h2>
     <div class="legend">
       <b>读法</b>
