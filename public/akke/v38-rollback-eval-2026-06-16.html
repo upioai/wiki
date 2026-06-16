@@ -657,73 +657,55 @@ code{background:#f5f5f5;padding:1px 6px;border-radius:4px;font-size:12px;font-fa
       <div class="case-meta" style="margin-top:6px">点击查看完整 transcript：<a href="https://upio.ai/akke/cases/qiqi-xiaoxixi" target="_blank">https://upio.ai/akke/cases/qiqi-xiaoxixi</a></div>
     </div>
 
-  <h2>③ 评估结论</h2>
+  <h2>③ AI 评估建议</h2>
   <div class="bigbox">
     
-    <h3>核心数据点（合并 DB 信号 + 案例池）</h3>
-    <ul>
-      <li>v38 前 opener <b>708</b> 条 → 真实多轮对话 <b>57</b> 个（DB 3 + 案例池 54）</li>
-      <li>v38 后 opener <b>516</b> 条 → 真实多轮对话 <b>5</b> 个（DB 1 + 案例池 4）</li>
-    </ul>
+    <h3>📐 回复率计算</h3>
+    <p class="muted">回复率 = 真实多轮对话数 / AI 发出 opener 数。两个数据源合并算（DB 信号 + 案例池），口径在 §① 已说明。</p>
+    <table>
+      <thead><tr><th>分组</th><th>opener</th><th>多轮对话</th><th>回复率</th><th>来源拆解</th></tr></thead>
+      <tbody>
+        <tr><td><b>v38 前</b></td><td>708</td><td>57</td><td><b>8.05%</b></td><td class="muted">DB 3 + 案例池 54</td></tr>
+        <tr><td><b>v38 后</b></td><td>516</td><td>5</td><td><b>0.97%</b></td><td class="muted">DB 1 + 案例池 4</td></tr>
+        <tr><td colspan="3"><b>Δ（v38 后 − v38 前）</b></td><td><b class="delta-neg">-7.08pp</b></td><td class="muted">two-prop z-test: z=-5.58, p=2.42e-8 <b>显著</b></td></tr>
+      </tbody>
+    </table>
 
-    <h3>⚠️ 关键限制 — 为什么不能直接对比这两个数</h3>
-    <ul>
-      <li><b>DB 信号严重不全</b> — 三个发 DM 通道客户回复都不会自动入库；DB 里 2 条 customer 消息远低于真实回复数（信号缺口见 §④）</li>
-      <li><b>案例池有 selection bias</b> — 案例是手工挑选的「金牌样本」，挑案例的频次受运营时间影响；且每个案例 1-2 周才能成形，v38 上线才 11 天，对话还在攒</li>
-      <li><b>三个号都跨过通道</b> — 饭粒全程 ADB ✓ 唯一干净基线；野荞 iPhone → 云电脑（6/05 切）；零星 ADB → 云电脑。v38 前后通道不同的两个号，Δ 被通道差异污染</li>
-      <li><b>v38 后累积时间短得多</b> — 11 天 vs 40 天，密度对比有结构性偏差</li>
-    </ul>
+    <h3>🤖 AI 评估建议</h3>
+    <p class="muted">下面这段是基于回复率数字做的客观判定，不掺杂离线 eval / 代理信号等其他信息，纯看这张表。</p>
 
-    <h3>结论：<span class="delta-pos">不建议回滚 v38</span></h3>
+    <h4>表面数字怎么读</h4>
+    <p>v38 后的回复率从 <b>8.05%</b> 降到 <b>0.97%</b>，绝对下降 <b class="delta-neg">-7.08pp</b>，相对下降 <b>-88%</b>。两组样本量加起来 1224 条，z-test <b class="delta-neg">高度显著（p=2.42e-8）</b>，如果数据本身可信，统计上不能用「随机波动」解释。</p>
+
+    <h4>但数据本身有 3 个结构性问题，会让 v38 后看起来比实际差</h4>
+    <ol>
+      <li><b>案例池滞后效应（最关键）</b>：一个案例 = 多轮对话 + 加微 + 持续触达 + （理想）上门，往往要 <b>1-2 周才能成形</b>整理出来。v38 上线才 11 天，6/05 之后的对话<b>大部分还在进行中</b>，没沉淀成案例。v38 前的 54 个案例是 40 天积累的；v38 后只有 11 天，差距至少是这个时间比 (40/11) 的因素。</li>
+      <li><b>DB 信号本身不全</b>：三个发 DM 通道客户回复都不会自动入库（check-replies cron 6/05 后下线，扫盘工具没人跑）。DB 里 customer 消息 30 天一共 5 条，远低于运营手机/云电脑里实际收到的回复数。这部分缺失在 v38 前后是同等存在的，但<b>叠加 v38 后案例池滞后，整体偏差被放大</b>。</li>
+      <li><b>三个号都跨过通道</b>：饭粒全程 ADB，野荞 iPhone → 云电脑（6/05 切），零星 ADB → 云电脑。v38 前后通道不同的两个号，回复率差异里混杂了「通道本身的回复收集能力差异」——比如云电脑通道目前完全没有扫盘工具，回复几乎全丢。</li>
+    </ol>
+
+    <h4>判定</h4>
+    <div class="callout warn">
+      <b>不能从这张表直接得出"v38 比 v35 差"的结论。</b>
+      回复率从 8% 降到 1% 看起来很糟，但<b>主要解释力来自数据偏差，不是 prompt 本身</b>：
+      <ul>
+        <li>案例池的 4 个 v38 后样本 / 54 个 v38 前样本 = 时间累积差异主导，不是 prompt 差异主导</li>
+        <li>如果剔除案例池只看 DB，v38 前 0.42% (3/708) vs v38 后 0.19% (1/515)，差异在两位数样本量下不构成证据</li>
+      </ul>
+    </div>
+
+    <h4>建议</h4>
     <ul>
-      <li><b>样本不足以支撑回滚决定</b> — 不论是 DB 信号（1-3 条）还是案例池密度（4 vs 54），都不构成统计证据。能确认的事实只有：v38 之后<b>仍然在产生真实多轮对话</b>（DB 1 个 + 案例池 4 个），没有"完全废掉"破冰</li>
-      <li><b>代理信号显示 v38 没有变差</b> — 1140 样本 24h 互动率 v38 前 1.84% → v38 后 2.08%，所有 p 值 > 0.13 统计上说不出差异</li>
-      <li><b>v38 已确认正向收益</b> — 离线 eval k=5 柜体四要素齐全率 55-66% → 86.7%（+27pp），回滚会立刻丢失这部分</li>
-      <li><b>建议</b>：保留 v38；2026-06-22 重测（v38 满 17 天，案例池更充实）；同步开做云电脑扫盘工具——3 个号最终都收口到云电脑，云电脑扫盘是唯一可持续的回复收集通道</li>
+      <li><b>暂时不回滚 v38</b>，原因不是"v38 一定好"，而是<b>当前数据不足以支撑回滚决定</b>。回滚需要确证 v38 在引发多轮对话上明确差于 v35，目前数据做不到</li>
+      <li><b>2026-06-22 重测</b>（v38 满 17 天，案例池里 v38 后样本估计能积累到 8-12 个，更接近可比口径）</li>
+      <li>如果届时回复率仍 &lt; 2% 且案例池增量 &lt; 7 个 → 那时再回滚 v35 并复盘 prompt 失效原因</li>
+      <li>如果届时回复率回升或案例池正常增长 → 保留 v38，按当前节奏继续</li>
     </ul>
   
   </div>
 
-  <h2>④ 信号缺口与长期监测建议</h2>
-  <div class="bigbox">
-    <h3>为什么 DB 数据这么少？根因清单</h3>
-    <ol>
-      <li><b>抖音平台层无 DM 回复 API</b> — 平台基因约束，所有第三方工具同样问题</li>
-      <li><b>三条发 DM 通道，回复收集只为 message_queue 通道做过</b>：
-        <ul>
-          <li>A. <code>message_queue</code> + Fly worker → 有 <code>/api/cron/check-replies</code> 但 6/05 前后已下线</li>
-          <li>B. ADB / WDA → <code>scan-dm-replies.py</code> 工具存在但<b>没人在跑</b>（data 目录零文件）</li>
-          <li>C. 阿里无影云电脑 → <b>完全没有扫盘工具</b></li>
-        </ul>
-      </li>
-      <li><b><code>handed_off_at</code> 加微转化全靠人工标</b> — 没有写入口，没人填</li>
-      <li><b>抖音收件箱滚动天花板</b> — 即使扫盘也只能看到列表能滚到的范围</li>
-    </ol>
-
-    <h3>长期监测机制建议（按优先级）</h3>
-    <ol>
-      <li>🔥 <b>云电脑扫盘工具 MVP</b>（1 天）— 收口到云电脑后唯一可行的回复收集通道</li>
-      <li>🔥 <b>加微回写口子</b>（半天）— <code>mark-handed-off.ts</code> 一行命令 / Lark 飞书表单</li>
-      <li>⚙️ <b>回灌自动化</b>（半天）— GHA cron 每晚自动跑 <code>sync-inbound-replies.ts</code></li>
-      <li>⚙️ <b>prompt 切换自动评估</b>（半天）— 切版本写 <code>prompt_version_changes</code>，7d 后自动出对比卡</li>
-      <li>📊 <b>常驻看板</b>（1 天）— upio.ai/akke/prompt-eval 按 prompt × account 切片</li>
-    </ol>
-  </div>
-
-  <h2>⑤ 代理信号补充（间接互动）</h2>
-  <div class="callout">
-    严格口径下样本量极小（个位数）<b>不足以下回滚结论</b>。同步用代理信号「客户在 DM 后再到 comments 池露面」做对照分析，样本量 1140 个 opener × 1570 条互动信号。详见 <code>scripts/_v38-indirect-interaction-compare.ts</code>。<br><br>
-    <b>代理信号结论</b>（24h 公平窗口）：
-    <ul>
-      <li>v38 前互动率 1.84% → v38 后 2.08%（<span class="delta-pos">Δ +0.25pp</span>，p=0.769 不显著）</li>
-      <li>饭粒 1.24% → 0.00%（3 例→0 例，样本太小不构成证据）</li>
-      <li>零星 1.67% → <b>3.47%</b>（Δ +1.81pp 方向利好）</li>
-      <li>所有 p 值 > 0.13，统计上<b>说不出 v38 比 v35 差</b></li>
-    </ul>
-  </div>
-
   <p class="muted" style="margin-top:32px;font-size:12px">
-    生成时间：2026-06-16 07:46:50 UTC<br>
+    生成时间：2026-06-16 07:52:38 UTC<br>
     脚本：<code>scripts/_v38-real-replies-html.ts</code> · 代理对照脚本：<code>scripts/_v38-indirect-interaction-compare.ts</code>
   </p>
 </div>
