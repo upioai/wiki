@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>云电脑 DM · wrong_user 排查与修复方案 · 2026-06-16</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#181b22; --card2:#1f232c; --line:#2a2f3a;
+    --tx:#e7e9ee; --tx2:#9aa3b2; --tx3:#6b7280;
+    --a:#f0a500; --a-bg:#3a2e10; --b:#ef4444; --b-bg:#3a1414;
+    --ok:#22c55e; --ok-bg:#10301c; --blue:#3b82f6; --blue-bg:#11233f;
+    --code:#0c0e12;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--tx);
+    font:15px/1.7 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif;}
+  .wrap{max-width:920px;margin:0 auto;padding:32px 20px 80px}
+  h1{font-size:26px;margin:0 0 6px;letter-spacing:.3px}
+  .sub{color:var(--tx2);font-size:14px;margin-bottom:28px}
+  h2{font-size:19px;margin:38px 0 14px;padding-left:11px;border-left:4px solid var(--a)}
+  h3{font-size:16px;margin:22px 0 8px}
+  p{margin:8px 0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:14px 0}
+  .hl{background:linear-gradient(135deg,#1d2230,#181b22);border:1px solid #313a4d;border-radius:12px;padding:20px 22px;margin:18px 0}
+  .hl .big{font-size:34px;font-weight:700;color:var(--a);line-height:1.1}
+  .badge{display:inline-block;font-size:12px;font-weight:600;padding:2px 9px;border-radius:20px;vertical-align:middle}
+  .bA{background:var(--a-bg);color:var(--a);border:1px solid #5a4a1a}
+  .bB{background:var(--b-bg);color:var(--b);border:1px solid #5a2020}
+  .bOk{background:var(--ok-bg);color:var(--ok);border:1px solid #1d5536}
+  .bDrop{background:#2a2a2a;color:#888;border:1px solid #3a3a3a;text-decoration:line-through}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--tx2);font-weight:600;font-size:12.5px;text-transform:uppercase;letter-spacing:.4px}
+  tr:last-child td{border-bottom:none}
+  code{background:var(--code);color:#e0c98a;padding:1.5px 6px;border-radius:5px;font:13px/1.5 "SF Mono",Menlo,Consolas,monospace}
+  pre{background:var(--code);border:1px solid var(--line);border-radius:9px;padding:14px 16px;overflow:auto;
+    font:12.5px/1.6 "SF Mono",Menlo,Consolas,monospace;color:#cdd3dc}
+  .pill{display:inline-block;min-width:22px;text-align:center;font-weight:700;border-radius:6px;padding:1px 8px;margin-right:8px}
+  .p1{background:var(--ok-bg);color:var(--ok)} .p2{background:var(--blue-bg);color:var(--blue)}
+  .p3{background:var(--a-bg);color:var(--a)} .p4{background:var(--b-bg);color:var(--b)}
+  ul{margin:8px 0;padding-left:22px} li{margin:5px 0}
+  .warn{border-left:3px solid var(--a);background:var(--a-bg);padding:10px 14px;border-radius:0 8px 8px 0;margin:12px 0;font-size:14px}
+  .no{border-left:3px solid var(--b);background:var(--b-bg);padding:10px 14px;border-radius:0 8px 8px 0;margin:12px 0;font-size:14px}
+  .yes{border-left:3px solid var(--ok);background:var(--ok-bg);padding:10px 14px;border-radius:0 8px 8px 0;margin:12px 0;font-size:14px}
+  .mut{color:var(--tx3)}
+  .flow{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}
+  .step{background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13px;flex:1;min-width:120px}
+  .arrow{color:var(--tx3);align-self:center}
+  .kv{display:grid;grid-template-columns:130px 1fr;gap:4px 14px;font-size:13.5px;margin:8px 0}
+  .kv .k{color:var(--tx2)}
+  footer{margin-top:50px;padding-top:18px;border-top:1px solid var(--line);color:var(--tx3);font-size:12.5px}
+  .tag{font-size:11.5px;color:var(--tx3);font-family:"SF Mono",Menlo,monospace}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>云电脑 DM · <code style="font-size:22px">wrong_user</code> 排查与修复方案</h1>
+  <div class="sub">阿里无影云电脑发私信通道 · 单日样本 10 条 wrong_user · 2026-06-16 · <span class="mut">脚本 <code>worker/scripts/wuying-dm/douyin_dm_grounded.py</code></span></div>
+
+  <!-- 头条 -->
+  <div class="hl">
+    <div class="big">≈ 33% 派单卡在身份门</div>
+    <p style="margin-top:10px">本质上 <b>没有一条发错人、也没一条真发出去</b>——全是身份门（OCR 核身）正确拦截。但代价是大量派单空转 + lead 丢失。10 条里 <span class="badge bA">组 A 能救 3 条</span> <span class="badge bB">组 B 够不到 ~7 条</span>。</p>
+    <p style="margin:8px 0 0;font-size:13.5px"><span class="badge bOk">人工核验</span> 本结论<b>非自动推断</b>——这 10 条已在云电脑端<b>逐个手搜抖音号、一条条人工审核</b>确认（搜得到/搜不到、本人排第几条、是否私密），见下方第 2 节证据表。</p>
+    <p style="margin:6px 0 0;color:var(--tx2)"><b>一句话定调：</b>修复只能捞回少数（组 A 是会被误杀的真 lead）；多数（组 B）是本发送通道结构上够不到的 lead，只能止损 + 往上游/换通道想。</p>
+  </div>
+
+  <!-- 机制 -->
+  <h2>1 · 失败是怎么产生的（机制）</h2>
+  <div class="card">
+    <p>云电脑发私信前，<code>process()</code> 走这条链路寻址 + 核身，任一步不过即判 <code>wrong_user</code> 并跳过、<b>根本不发</b>：</p>
+    <div class="flow">
+      <div class="step">① 搜索框输入<br><b>抖音号</b></div>
+      <div class="arrow">→</div>
+      <div class="step">② 点「用户」tab<br>点结果头像</div>
+      <div class="arrow">→</div>
+      <div class="step">③ OCR 截图核身<br>是主页？昵称/号对？</div>
+      <div class="arrow">→</div>
+      <div class="step">④ 过 → 私信<br>不过 → <b>wrong_user</b></div>
+    </div>
+    <p class="mut" style="font-size:13px">核身两道门（<code>ocr_verify()</code>）：① 当前页是不是个人主页（有关注/私信按钮+粉丝数+作品宫格）；② 昵称匹配 <b>或</b> 抖音号精确一致（号唯一，比昵称稳）。已开 <code>AKKE_SEARCH_SCAN_N=5</code> 深扫前 5 条结果。</p>
+  </div>
+
+  <!-- 两组 -->
+  <h2>2 · 排查结论：两个独立 bug，不是一个</h2>
+  <p>云电脑端逐个手搜 10 个号验证后，干净劈成两组：</p>
+
+  <div class="card">
+    <h3><span class="badge bA">组 A</span> 搜得到、却点不进主页（3 条 · 可救）</h3>
+    <p>本人就在搜索<b>第 1 条、号精确命中</b>，却被记 <code>(非主页)</code>。问题 100% 不在搜索，在「点第一条 → 落主页」那一步。发生在不同时间（00:37 / 08:49 / 09:02），是<b>间歇性</b>。</p>
+    <table>
+      <tr><th>抖音号</th><th>用户名称</th><th>手搜结果</th><th>失败原因</th></tr>
+      <tr><td><code>833997494</code></td><td>来地球玩的</td><td>第 1 条精确命中</td><td>点完没进主页（加载竞速/tab 没切）</td></tr>
+      <tr><td><code>69540571321a</code></td><td>泥彩哪</td><td>第 1 条精确命中</td><td>同上，间歇性</td></tr>
+      <tr><td><code>x.g.z.6688</code></td><td>许公子</td><td>第 1 条命中 · <b>私密账号</b></td><td>私密号无作品宫格 → <code>is_profile=False</code> 误判</td></tr>
+    </table>
+    <p class="yes"><b>关键证据：</b>大量 <code>sent</code> 成功条目走同一条 <code>C_FIRST</code> 点击路径 → 第一条结果坐标本身是准的（否则全军覆没）→ 组 A 的失败是<b>间歇性</b>，<b>重试正是对的工具</b>（不是坐标问题）。</p>
+  </div>
+
+  <div class="card">
+    <h3><span class="badge bB">组 B</span> 根本搜不到本人（~7 条 · 本通道无解）</h3>
+    <p>号搜出号段相近的<b>别人</b>，用昵称也搜不到。根因：账号<b>改了号 / 注销 / 私密</b>，或存的是不可搜的 <code>short_id</code>。深扫 5 条也救不了——本人不在结果里。</p>
+    <table>
+      <tr><th>抖音号</th><th>用户名称</th><th>OCR 实际搜到</th></tr>
+      <tr><td><code>41780494807</code></td><td>疯人院尼克</td><td>王灿讲系统 ｜号:41780<b>494791</b></td></tr>
+      <tr><td><code>54457438150</code></td><td>咩咩的土豆子</td><td>用户9832… ｜号:38310000030</td></tr>
+      <tr><td><code>1077767305</code></td><td>如人饮水，冷暖自知</td><td>愿你遇良人 ｜号:1077767<b>335</b></td></tr>
+      <tr><td><code>zhaoliang.666</code></td><td>@陪读爸爸·带俩娃</td><td>纵横四海 ｜号:zhaoliang<b>6666</b>（昵称也搜不到）</td></tr>
+      <tr><td><code>13936266666l</code></td><td>战武66666</td><td>荷包陈甸甸 ｜号:13730761452L</td></tr>
+      <tr><td><code>1214949699</code></td><td>董家有女</td><td>(非主页)</td></tr>
+      <tr><td colspan="3" class="mut">…等</td></tr>
+    </table>
+  </div>
+
+  <!-- 根因 -->
+  <h2>3 · 根因定位（代码事实）</h2>
+  <div class="card">
+    <div class="kv">
+      <div class="k">寻址只靠号</div><div><code>resolve_douyin_numbers.py:112</code>：<code>number = unique_id || short_id</code>。没设自定义号的用户退回 <code>short_id</code>（内部数字 ID，<b>搜索框按设计不可搜</b>），合并后丢失了「是否可搜」信息。</div>
+      <div class="k">组 A 跳错</div><div><code>process()</code> 扫描循环：<code>ocr_verify</code> 不匹配就 <code>i++</code> 跳下一条。本人在第 1 条只是瞬时没进主页 → 跳到第 2–5 条全是别人 → <code>wrong_user</code>。</div>
+      <div class="k">私密误判</div><div><code>ocr_verify()</code> 的 VL prompt 要求「有作品宫格」才算主页 → 私密号没宫格 → 判非主页。</div>
+      <div class="k">已有止损</div><div><code>complete_dispatch</code> v2（migration <code>20260609195201</code>）：<code>wrong_user→skipped</code>，同一 comment <b>累计失败 ≥3 次</b> → <code>comment.status='skipped'</code> 永久排除。所以组 B <b>不是无限重派，是每条烧 ≤3 次后停</b>。</div>
+    </div>
+  </div>
+
+  <!-- 两种损失 -->
+  <div class="card">
+    <h3>为什么 A1 是唯一「捞回真 lead」的改动</h3>
+    <table>
+      <tr><th>失败组</th><th>本质</th><th>修复价值</th></tr>
+      <tr><td><span class="badge bA">组 A</span></td><td>本来能联系上的 lead 被<b>误杀丢了</b>（可恢复）</td><td><b>真增量</b> · 捞回 lead</td></tr>
+      <tr><td><span class="badge bB">组 B</span></td><td>lead 反正<b>够不到</b>，3 次后 suppress</td><td>仅省算力 · lead 仍丢</td></tr>
+    </table>
+  </div>
+
+  <!-- 方案 -->
+  <h2>4 · 修复方案（重排后）</h2>
+  <table>
+    <tr><th>顺序</th><th>改动</th><th>性质</th><th>风险 / 路径</th></tr>
+    <tr><td><span class="pill p1">1</span></td><td><b>A1</b> · <code>(非主页)</code> 重试同一条结果</td><td>捞回真 lead（组 A）</td><td>低 · worker 脚本失败分支</td></tr>
+    <tr><td><span class="pill p2">2</span></td><td><b>主动跳过 short_id-only</b>（enrich:unique_id 空就不派）</td><td>0 成本灭掉组 B 可预判子集</td><td>低 · 先验证</td></tr>
+    <tr><td><span class="pill p3">3</span></td><td><b>B2</b> · 给组 B 打 <code>unreachable_search</code> tag 量真实规模</td><td>看清 33% 里多少不可救</td><td>低 · 纯标记</td></tr>
+    <tr><td><span class="pill p4">4</span></td><td><b>B1</b> · 反应式 1-shot suppress（改名/注销的）</td><td>省算力（3 次→1 次）</td><td>中 · <b>含 migration 走 PR</b></td></tr>
+    <tr><td><span class="badge bDrop">放弃</span></td><td><b>A2</b> · 私密账号放宽 is_profile</td><td>1 条 · 私密大概率不可私信</td><td>—</td></tr>
+  </table>
+
+  <h3><span class="pill p1">1</span> A1 · <code>(非主页)</code> 重试同一条结果 <span class="badge bA">救组 A</span></h3>
+  <div class="card">
+    <div class="kv">
+      <div class="k">文件</div><div><code>douyin_dm_grounded.py</code> → <code>process()</code> 扫描循环（~734–758）</div>
+      <div class="k">现状</div><div>不匹配就 <code>i++</code> 跳下一条结果。</div>
+      <div class="k">改</div><div><code>seen</code> 以 <code>(非主页)</code> 开头时（= 没落到主页，不是「认错人」）→ <b>重点同一条 + 加长等待 + 重新截图核身</b>，重试 K 次（如 2）后才跳下一条；on-profile 但号不符才 <code>i++</code>。顺带把点完第一条到截图的 settle 等待（现 <code>wait=2.0</code>）调大。</div>
+      <div class="k">救</div><div><code>833997494</code> / <code>69540571321a</code></div>
+      <div class="k">风险</div><div><b>低</b>。只在失败分支加重试，happy path 一字不动；代价是失败条目耗时变长。</div>
+    </div>
+  </div>
+
+  <h3><span class="pill p2">2</span> 主动跳过 short_id-only <span class="badge bB">灭组 B 可预判子集</span></h3>
+  <div class="card">
+    <p>enrich 调的 profile 接口里 <code>unique_id</code> 与 <code>short_id</code> 是<b>分开返回</b>的（line 112 合并才丢了信息）。<code>unique_id</code> 为空、只有 <code>short_id</code> 的 lead = <b>可证明搜索框永远够不到</b> → 在 enrich 阶段 <b>0 成本、零误杀</b>地跳过，比 B1「烧 1 次再 suppress」更早更省。</p>
+    <p class="mut" style="font-size:13px">改名/注销的自定义号（如 <code>zhaoliang.666</code>）预判不了 → 留给反应层。即<b>主动层（short_id）+ 反应层（strikes）互补</b>，不是二选一。</p>
+    <div class="warn"><b>前提验证：</b>先在云电脑（国内 IP）拿几个已知 short_id 号验证「<code>unique_id</code> 空 ⇒ 真搜不到」，再依赖它改派单。</div>
+  </div>
+
+  <h3><span class="pill p3">3</span> B2 · 量组 B 真实规模 <span class="badge bOk">先有数</span></h3>
+  <div class="card">
+    <p><code>wuying_poll_agent.py</code> 把组 B 这类失败的 <code>p_error_message</code> 落成 <code>unreachable_search</code>（区别于组 A 瞬时失败），就能 <code>COUNT</code> 出组 B 多大、33% 是否代表性。纯标记、不改行为。</p>
+    <div class="warn">所有结论都建立在「10 条样本」上 —— <b>强烈建议先做 B2 量一周真实分布</b>，确认组 A:B 比例后，再决定 ②/④ 投不投。<b>别在一天的样本上压注 migration。</b></div>
+  </div>
+
+  <h3><span class="pill p4">4</span> B1 · 反应式 1-shot suppress <span class="badge bB">省算力</span></h3>
+  <div class="card">
+    <p>当 <code>process()</code> 扫完全部 5 条、看到的<b>全是 on-profile 的别人</b>（号都不符 = 确定本人不在结果里）→ poll agent 打 <code>unreachable_search</code> → 新 migration 让 <code>complete_dispatch</code> 对该 error <b>1 次即抑制</b>（类比现有 <code>rejected</code> 的 1-shot）。组 B 从烧 3 次降到 1 次。</p>
+    <div class="warn">判定要分清：「全是 <code>(非主页)</code>」可能瞬时，别 1-shot；「全是别人的真主页」才确定搜不到、可 1-shot。需 <code>process()</code> 回传细分原因。</div>
+    <div class="no"><b>高危路径：</b><code>supabase/migrations/**</code> → 必须开分支 <code>gh pr create</code>、CI 绿 + claude-review 过再合，<b>不直推 main</b>。</div>
+  </div>
+
+  <!-- 不做 -->
+  <h2>5 · 明确不做（及原因）</h2>
+  <div class="card">
+    <div class="no"><b>A2 私密放宽</b> —— 只 1 条，且卡在「私密号能不能私信」这个大概率 NO 的前提，期望收益太低，放弃。</div>
+    <div class="no"><b>sec_uid 直开主页</b>（<code>douyin.com/user/&lt;sec_uid&gt;</code>）—— PC 客户端没地址栏，已排除。</div>
+    <div class="no"><b>enrich 阶段一刀切按 short_id 全量预判</b> —— 已证伪：<code>zhaoliang.666</code> 是自定义号样式却也搜不到（注销/改名）。只跳可证明的 short_id 子集，其余反应式处理。</div>
+  </div>
+
+  <!-- 操作 -->
+  <h2>6 · 操作步骤（按顺序）</h2>
+  <div class="card">
+    <h3>实施前要确认的 3 件事</h3>
+    <ul>
+      <li><b>组 B 实际规模</b>（先做 B2 量一周）→ 决定 B1 那个 migration 值不值得动。</li>
+      <li><b><code>unique_id</code> 空 ⇒ 真搜不到</b>（云电脑验几个已知 short_id 号）→ 决定主动跳过②能不能依赖。</li>
+      <li><b>重试 K + 加长等待对单条耗时的影响</b>（组 B 不可达条目会被重试拖慢，正好用 B1 提速抵消）。</li>
+    </ul>
+    <h3>落地顺序</h3>
+    <ol style="padding-left:22px">
+      <li><b>先落 A1 + B2</b>（都低风险、worker 脚本直改）：A1 捞回组 A 真 lead；B2 量真实分布。</li>
+      <li>A1 改完按 <code>worker/scripts/wuying-dm/更新到最新版-同步同事.md</code> 流程同步到云电脑，<b>先小批 dry-run 观察</b>再放量。</li>
+      <li>B2 跑满一周拿到数 → 评估 ②（主动跳过）和 ④（B1 migration）是否投。</li>
+      <li>②/④ 一旦动，<code>supabase/migrations/**</code> 走 PR，其余 worker 脚本小 fix 可直推。</li>
+    </ol>
+  </div>
+
+  <!-- 战略 -->
+  <h2>7 · 战略另案（今天不做，但要记一笔）</h2>
+  <div class="hl">
+    <p><b>本通道有结构天花板。</b>组 B 的 lead <b>不是坏 lead</b>——人家在视频下评论过，我们有 sec_uid 和 comment。够不到只是因为 <b>PC 客户端只能靠搜索框按号寻址</b>。</p>
+    <p style="margin-top:8px">真正能覆盖全部的是 <b>从评论/视频里点进 TA 的主页</b>（iPhone / ADB 通道能做），而不是搜号。这是本通道的上限，要彻底解决 wrong_user 得换寻址方式，属于另案。</p>
+  </div>
+
+  <footer>
+    Akke · 云电脑 DM 通道排查 · 2026-06-16 · 样本 = 单账号单日 10 条 wrong_user，结论待 B2 一周数据复核<br>
+    相关：<span class="tag">douyin_dm_grounded.py · wuying_poll_agent.py · resolve_douyin_numbers.py · migration 20260609195201 · feedback_douyin_dm_status_code_silent_drop</span>
+  </footer>
+
+</div>
+</body>
+</html>
