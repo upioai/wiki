@@ -197,7 +197,7 @@
 <div class="kx warn"><b>「74% 僵尸」要分两个口径看（2026-06-16 复核）</b>：上表按「近7天高意向 &lt;5」砍 = 132 个（75%）；但这 132 里 ~106 个<b>仍在产中意向或 1–4 条高意向 lead</b>，是「不够 tier-1 的格」、不是「死号」。真正<b>近7天连一条高/中都没产</b>的只有 <b>27 个（15%）</b>。<b>降级该砍哪批是策略选择</b>：砍 27（保守，只清真死号）／砍 132（激进，腾产能最多但会误降还在产 mid lead 的号）。<b>6-16 已先砍保守那 27 个</b>（见 ⑦），active tier-1 176→149；要不要进一步砍到 ~46 看 mid lead 价值再定。</div>
 
 <h2>⑥ 提升点（按性价比排）</h2>
-<div class="kx good"><b>2026-06-16 状态：P0-a/b/c/d 全部落地</b>（详细成效见 ⑨）。P0-a 手动砍 27 + #365 自动降级；P0-b/c = #363 破鸡生蛋 + 快慢分道；#366 空跑退避；P0-d 已清 poison。<b>Leg C 实锤 -61~75% 尾延迟；但新发现端到端 38% 慢尾另有真因（老视频覆盖盲区），下一刀见 ⑨-E。</b></div>
+<div class="kx good"><b>2026-06-16 状态：P0-a/b/c/d 全部落地</b>（详细成效见 ⑨）。P0-a 手动砍 27 + #365 自动降级；P0-b/c = #363 破鸡生蛋 + 快慢分道；#366 空跑退避；P0-d 已清 poison。<b>Leg C 实锤 -61~75% 尾延迟；但新发现端到端 38% 慢尾另有真因（老视频覆盖盲区），下一刀见 ⑨-F。</b></div>
 <div class="card">
 <p><span class="pill g">P0-a</span> <b>给 tier-1 加降级（断总根因）</b>。<span class="good">6-16 已先砍 27 个真死号（高+中=0），176→149。</span>下一步可按 mid lead 价值决定是否继续砍到 ~46（130 僵尸口径）。真正治本还需把"降级"做成<b>自动逻辑</b>（对称 auto-tier1），否则又会只升不降攒回去。<span class="mut">——单这一刀解大半。</span></p>
 <p><span class="pill g">P0-b</span> <b>破鸡生蛋（治 Leg B 冷视频）</b>。任何视频一冒高意向评论，立刻临时拉它进快车道，别等它自己够 60 分钟门槛。<span class="mut">——治那 97% 冷视频。</span></p>
@@ -253,59 +253,54 @@
 <h2>⑨ 2026-06-16 实施进展 · 成效复盘 · 新发现的真尾巴（B/C 落地后）</h2>
 <p>⑥ 列的 P0 提升点今天<b>全部落地</b>（多个 PR 已合并部署）。但实测下来：<b>Leg C 是确定赢家、Leg B 喜忧参半、而"评论拉取还是很久"的真尾巴另有其因——不是排队、是老视频覆盖盲区</b>。逐项说清。</p>
 
-<h3>A · 今天 Leg B / Leg C 具体做了什么</h3>
+<h3>A · 先搞清两块地基：队列里有哪几类「活」+ 它们怎么排队跑（看 B/C 必须先懂这个）</h3>
+<p class="mut">今天一共动了 4 刀：<b>#363</b>（Leg B 破鸡生蛋 + Leg C 快慢分道）、<b>#366</b>（Leg C 空跑退避）、<b>#365</b>（tier-1 自动降级，治总根因，对应 ⑤/⑥ 的 P0-a）、清 1 个卡死墓碑活（P0-d）。下面先讲地基，再逐刀讲 B、C。</p>
+
+<h4>地基① · 队列里就三类「活」（下面反复提到）</h4>
 <table>
-<tr><th>对应</th><th>PR</th><th>做了什么</th></tr>
-<tr><td class="pill g">P0-a 降级</td><td>#365 + 手动</td><td>手动砍 27 个真死号（176→149）；<b>#365 加对称 auto-demote</b>（折进 auto-tier1 cron，近7天高+中≤0 自动降回 tier-0，写 change_log，已合并部署）</td></tr>
-<tr><td class="pill g">P0-b 破鸡生蛋（Leg B）</td><td>#363</td><td>快车道额外强纳「近 6h 冒过高/中意向评论」的视频，给 <code>pri=0</code> 插最前注入，不等它够 60min 新鲜门槛</td></tr>
-<tr><td class="pill g">P0-c 快慢分道（Leg C）</td><td>#363 + #366</td><td>#363：tier-1 整号活 <code>pri 1→3</code>，别堵 5.8s 单视频快活；#366：<b>空跑指数退避</b>（连续抓 0 新评论的视频拉长复扫间隔，videos 加 <code>empty_streak/next_fast_lane_at</code>）</td></tr>
-<tr><td class="pill g">P0-d 清 poison</td><td>6-16</td><td>删掉那个 59h 重试到顶卡死的 <code>scrape_source</code> 墓碑活（源已删的孤儿）</td></tr>
+<tr><th>活的类型</th><th>抓什么</th><th>快慢</th></tr>
+<tr><td><b>单视频快活</b><br><code>scrape_video</code></td><td>只抓<b>一条指定视频</b>底下的评论，且是增量（只取比上次新的）</td><td class="good">快 · ~5 秒/条</td></tr>
+<tr><td><b>慢整号活</b><br><code>scrape_source</code></td><td>抓<b>一整个号</b>：先去主页捞最近 ≤20 条视频，再逐条把每条的评论都抓一遍</td><td class="bad">慢 · 中位 23 秒、最慢 211 秒</td></tr>
+<tr><td><b>高意向注入活</b><br><span class="mut">(#363 新增)</span></td><td>本质也是单视频快活，但因「这视频近期冒过高意向」被特批插队（机制见 B）</td><td class="good">快 · ~5 秒/条</td></tr>
 </table>
 
-<h4>A2 · 大白话：Leg B / Leg C 今天改动前怎么跑、改动后怎么跑、怎么分等级跑</h4>
-<div class="tl">
-<p><b>🥚 Leg B 破鸡生蛋（治"等多久才有人来抓这条视频"）</b></p>
-<ul>
-<li><b>改动前：</b>一条视频要先进「快车道」才会被频繁单独复扫，门槛是——<b>它的评论得在 60 分钟内被我们新鲜抓到过一次</b>。可冷视频（老视频 / 不活跃号底下的视频）只能等「整号慢路」几十分钟~几小时来扫一遍，<b>永远赶不上 60 分钟</b> → 永远进不了快车道 → 它上面新冒的高意向评论第一条几乎必然慢。这就是「鸡生蛋」：要被快抓得先进快车道，要进快车道得先被快抓。</li>
-<li><b>改动后（#363）：</b>不再死等门槛。只要一条视频<b>近 6 小时内冒过高/中意向评论</b>，立刻把它抱上快车道、还插在最前面（<code>pri=0</code>）优先抓。<b>「破鸡生蛋」= 直接抱它上车，不等它自己够 60 分钟的格。</b></li>
-</ul>
-<p style="margin-top:14px"><b>🚗 Leg C 快慢分道（治"活派出去后在队列里排多久"）</b></p>
-<ul>
-<li><b>改动前：</b>worker 一个个领活干。原来「整号活」（去一个号主页捞 ≤20 条视频逐条抓，<b>慢，20 秒~3 分钟</b>）和「单视频快活」（<b>5 秒</b>）排在<b>同一条队</b>（<code>pri=1</code>）。前面卡一个慢整号，后面所有快活全得干等。</li>
-<li><b>改动后 #363：</b>把慢的整号活<b>降一档（<code>pri=1→3</code>）</b>，让 5 秒的快活先走、别被慢活堵在后面。</li>
-<li><b>改动后 #366：</b>加「<b>空跑退避</b>」——一条视频<b>连抓 3 次都 0 条新评论</b>，就把它下次复扫往后推（9→18→30 分钟），别一直白扫它；一旦又冒出新评论<b>立刻清零、恢复勤抓</b>。（靠 videos 表新加的 <code>empty_streak</code>=连续空跑几次、<code>next_fast_lane_at</code>=推到几点才再抓 两个字段记账。）</li>
-</ul>
-<p style="margin-top:14px"><b>📌 先分清队列里两类「活」（上面反复提到的）：</b></p>
-<ul>
-<li><b>单视频快活（<code>scrape_video</code>）</b>＝只抓「<b>一条指定视频</b>」底下的评论，且是增量（只取比上次新的）。<b>快——通常 ~5 秒一条</b>。视频快车道挑出来要复扫的就是这种。</li>
-<li><b>慢整号活（<code>scrape_source</code>）</b>＝抓「<b>一整个号</b>」：先去它主页捞最近 ≤20 条视频，再<b>逐条</b>把每条视频的评论都抓一遍。<b>重、慢——中位 23 秒、最慢 211 秒</b>（要连着抓好多条视频）。tier-1/tier-0 的「号源轮抓」派的就是这种。</li>
-</ul>
-<p style="margin-top:14px"><b>🎫 这两类活（加上高意向注入）怎么分等级跑？</b>＝给每个活贴一张「号码牌」（priority），worker 严格<b>从小号往大号领</b>：<code>0</code> 号最优先 → <code>1</code> → <code>3</code> → <code>5</code> 最次。贴几号的规则＝<b>越急、越快、越该趁鲜的贴越小号</b>：<b>高意向注入=0</b>（最该趁鲜）、<b>常规单视频快活=1</b>（快、先放走）、<b>慢整号活=3</b>（慢、让到快活后面，这就是 #363 从 1 降下来的）、<b>tier-0 普通号轮抓=5</b>（量大不急、垫底）。同一号牌内部先到先得。完整对照见下面 C 节。</p>
-</div>
+<h4>地基② · 这些活怎么排队跑（pri 优先级 = 号码牌）</h4>
+<p>每个活贴一张「号码牌」<code>priority</code>，worker <b>严格从小号往大号领</b>，同号牌内先到先得。越急、越快、越该趁鲜的，贴越小号：</p>
+<table>
+<tr><th>号码牌</th><th>谁贴这号（入队来源）</th><th>含义</th></tr>
+<tr><td class="n good"><code>0</code></td><td>高意向注入(#363) · vip-rescan · UI「抓这条」</td><td>最优先，最该趁鲜抢</td></tr>
+<tr><td class="n"><code>1</code></td><td>常规单视频快活（fresh-catch 快车道）</td><td>快，先放走</td></tr>
+<tr><td class="n warn"><code>3</code></td><td>tier-1 慢整号活（#363 从 1 降下来）· rescan-recent</td><td>慢，让到快活后面</td></tr>
+<tr><td class="n bad"><code>5</code></td><td>tier-0 每小时轮抓 · lead 资料（吃默认值）</td><td>最次，量大不急</td></tr>
+</table>
+<div class="kx"><b>怎么定的 / 怎么跑的</b>：没有配置表、运营不可调——priority 是<b>散在 7 个入队点的硬编码</b>（列 <code>DEFAULT 5</code>），要改得改代码走 PR。worker（~30s/轮）调认领 RPC，核心 = <code>WHERE pending AND scheduled_at≤now AND attempts&lt;3 ORDER BY priority ASC, scheduled_at ASC FOR UPDATE SKIP LOCKED</code>（严格 pri 小→大、同级先到先得、并发安全）。领到即开抓；卡死(&gt;8min)被扫回重排；attempts 到 3 被排除＝永久 pending 墓碑（P0-d 清的就是它）。<br><b>⚠️ 关键副作用</b>：纯抢占、<b>pri 之间没有防饿死</b>——pri=5 只在 0/1/3 全空时才轮到 → 能积压 12 小时；tier-1 一胀大就把低 pri 饿死（这是 ⑤ 总根因的机制）。</div>
 
-<h4>A3 · 机制变更逐条（B-3 同精度：改了哪个文件 / 哪个参数 / 阈值多少）</h4>
-<p class="mut">A2 是大白话，这节是给工程视角的精确版——对照 B-3「视频快车道机制」看，就知道在它基础上动了哪几刀。</p>
-<h4 style="color:var(--bad)">🥚 Leg B 破鸡生蛋 · #363（<code>src/app/api/cron/scrape-hot/route.ts → runVideoFastLane</code>）</h4>
+<h3>B · Leg B 破鸡生蛋（#363）：治「冷视频上的高意向评论，第一条几乎必慢」</h3>
+<p><b>【问题】</b>一条视频要先进「快车道」才会被频繁单独复扫；而进快车道的门槛是——<b>它的评论得在 60 分钟内被我们新鲜抓到过一次</b>。可冷视频（老视频 / 不活跃号底下的）只能等慢整号活几十分钟~几小时扫一遍，<b>永远赶不上 60 分钟</b> → 永远进不了快车道 → 它上面新冒的高意向评论第一条几乎必慢。死循环：<b>要被快抓得先进快车道，要进快车道得先被快抓（「鸡生蛋」）</b>。</p>
+<div class="kx mut"><b>↑ 拗口的词跟一下：</b>「快车道」＝每 2~3 分钟挑一批「正在冒新评论的 top 100 视频」单独复扫的机制（详见 B-3）；「60 分钟门槛」＝只有被我们在评论冒出 1 小时内抓到过的视频才算"够格"上这条快车道。</div>
+<p><b>【改动】</b>不再死等门槛。只要一条视频<b>近 6 小时内冒过高/中意向评论</b>，就直接把它塞进快车道、还插在最前面（<code>pri=0</code>）优先抓——<b>「破鸡生蛋」= 直接抱它上车，不等它自己够 60 分钟的格。</b></p>
+<details><summary style="color:var(--mut);cursor:pointer;margin:6px 0">▸ 工程精确版（改了哪个文件 / 参数 / 阈值）</summary>
 <ul>
-<li><b>改前</b>：候选集<b>只有一种</b> = 按「近 <code>WINDOW_H=48h</code> 内、被 ≤<code>FRESH_CATCH_MIN=60min</code> 新鲜抓到的评论条数」排序取 top <code>MAX=100</code>，全部 <code>pri=1</code>（即 B-3 描述的那套）。冷视频从没被 60min 新鲜抓到过 → 永远进不了这个集。</li>
-<li><b>改后</b>：<b>新增第二个候选集「高意向注入」</b> = 额外扫「近 <code>HIGH_INTENT_HOURS=6h</code> 内 <code>intent_label ∈ {高意向,中意向}</code> 的评论」对应的视频，<b>不要求过 60min fresh-catch 门槛</b>强行并入；给 <code>priority=0</code>（插在常规 pri=1 之前），且 top 100 截断时<b>置顶不被截</b>。排序逻辑 = <code>topIds = [高意向视频(pri=0)…, fresh-catch 产出降序(pri=1)…].slice(0, 100)</code>。</li>
-<li><b>开关</b>：<code>HOT_FAST_LANE_HIGH_INTENT_HOURS=6</code>（设 0 即关闭注入、退回纯 fresh-catch）。</li>
+<li>文件：<code>src/app/api/cron/scrape-hot/route.ts → runVideoFastLane</code>。</li>
+<li><b>改前</b>：候选集只有一种 = 「近 <code>WINDOW_H=48h</code> 内、被 ≤<code>FRESH_CATCH_MIN=60min</code> 新鲜抓到的评论数」top <code>MAX=100</code>，全 <code>pri=1</code>（即 B-3 那套）。</li>
+<li><b>改后</b>：新增「高意向注入集」=「近 <code>HIGH_INTENT_HOURS=6h</code> 内 <code>intent_label∈{高,中}</code> 的评论」对应视频，<b>免 60min 门槛</b>并入、<code>priority=0</code>、截断时置顶不被截。开关 <code>HOT_FAST_LANE_HIGH_INTENT_HOURS=6</code>（=0 关）。</li>
 </ul>
-<h4 style="color:var(--bad)">🚗 Leg C 快慢分道 · #363（<code>runTier1SourceEnqueue</code>）</h4>
-<ul>
-<li><b>改前</b>：tier-1 整号活 <code>scrape_source</code> 入队 <code>priority=1</code>，和单视频快活 <code>scrape_video</code>（也 pri=1）<b>挤同一条道</b>。</li>
-<li><b>改后</b>：tier-1 整号活 <code>priority 1 → 3</code>（与 rescan-recent-videos 同档）。claim RPC 按 priority ASC → 单视频快活(pri=0/1)永远先领，慢整号退到 pri=3、但仍排在 tier-0(pri=5)前。</li>
-<li>同批改频：<code>vercel.json</code> scrape-hot 闹钟 <code>*/2 → */3</code>（⑦ 已验 cron 非瓶颈，回 */3 反少 33% 空跑洪水、减 pri 队列积压）。</li>
-</ul>
-<h4 style="color:var(--warn)">🛑 Leg C 空跑指数退避 · #366（migration + worker + 选视频端）</h4>
-<ul>
-<li><b>新增字段</b>：migration <code>20260616114802</code> 给 <code>videos</code> 加 <code>empty_streak INT DEFAULT 0</code>（连续抓 0 新的次数）+ <code>next_fast_lane_at TIMESTAMPTZ</code>（推到几点才允许再进快车道）+ partial index（只索引退避中的行）。</li>
-<li><b>worker 记账</b>（<code>worker/services/queue.py → _run_scrape_video</code>）：<b>仅对</b> <code>payload.hot_fast_lane &amp;&amp; !high_intent</code> 的活，抓完按 <code>new_comments_inserted</code> 判——0 新 → <code>empty_streak++</code>，连续 ≥<code>3</code> 起退、间隔 = <code>min(30, 9×2^(streak−3))</code> 分钟（<b>9→18→30 封顶</b>）；抓到新评论 → <code>empty_streak=0, next_fast_lane_at=NULL</code>，立刻恢复勤抓。全程 try-except 软失败、不影响抓取主流程。</li>
-<li><b>选视频端</b>（<code>runVideoFastLane</code>）：在 top 100 截断<b>之前</b>，把 <code>next_fast_lane_at &gt; now</code> 的常规 fresh-catch 视频过滤掉——<b>pri=0 高意向注入不读此列、永不退避</b>（破鸡生蛋的活不能压）；退避查询若失败（如 migration 暂未落）则当无退避、绝不阻塞 enqueue。</li>
-<li><b>开关</b>：<code>HOT_FAST_LANE_BACKOFF=0</code> 整体关 / <code>FAST_LANE_BACKOFF_START_STREAK=3</code> / <code>FAST_LANE_BACKOFF_BASE_MIN=9</code> / <code>FAST_LANE_BACKOFF_CAP_MIN=30</code>。</li>
-</ul>
+</details>
 
-<h3>B · 成效实测（同 UTC 时段隔天对比 06-15 vs 06-16 04:00–12:25，控时段混淆）</h3>
+<h3>C · Leg C 快慢分道 + 空跑退避（#363 + #366）：治「活派进队列后排太久 + 反复空扫」</h3>
+<p><b>【问题①·排队】</b>活派进队列后 worker 一个个领。原来<b>慢整号活（23~211 秒）和单视频快活（5 秒）挤在同一条号牌道（都 <code>pri=1</code>）</b>——前面卡一个慢整号，后面快活全得干等，实测排队中位 ~4.6 分钟。</p>
+<p><b>【改动① · #363 快慢分道】</b>把慢整号活<b>降一档（<code>pri 1→3</code>）</b>，让 5 秒的快活先走、别被慢活堵。<span class="good">实测尾延迟 p90 −61%、p99 −75%（见 D）。</span></p>
+<p style="margin-top:10px"><b>【问题②·空扫】</b>很多视频被反复复扫却抓不到新评论（实测近 24h 复扫 88,455 条、<b>77% 抓 0 新</b>），白占 pri=1 的位置、加重排队。</p>
+<p><b>【改动② · #366 空跑退避】</b>一条视频<b>连抓 3 次都 0 条新评论</b>，就把它下次复扫往后推（<b>9→18→30 分钟封顶</b>）；一旦又冒新评论<b>立刻清零、恢复勤抓</b>。</p>
+<div class="kx mut"><b>↑ 拗口的词跟一下：</b>「退避」＝越扫越没货就越少去扫它、省得空跑；靠 videos 表新加两列记账：<code>empty_streak</code>=连续抓 0 新几次、<code>next_fast_lane_at</code>=推到几点才允许再进快车道。</div>
+<details><summary style="color:var(--mut);cursor:pointer;margin:6px 0">▸ 工程精确版（文件 / 参数 / 阈值）</summary>
+<ul>
+<li><b>#363</b>（<code>runTier1SourceEnqueue</code>）：tier-1 整号活 <code>priority 1→3</code>；同批 <code>vercel.json</code> cron <code>*/2→*/3</code>（⑦ 已验 cron 非瓶颈、回 */3 反少 33% 空跑）。</li>
+<li><b>#366</b>：migration <code>20260616114802</code> 给 <code>videos</code> 加 <code>empty_streak</code>/<code>next_fast_lane_at</code>+partial index；worker <code>_run_scrape_video</code> 仅对 <code>hot_fast_lane &amp;&amp; !high_intent</code> 的活按 <code>new_comments_inserted</code> 记账、退避间隔 <code>min(30, 9×2^(streak−3))</code>；选视频端 <code>runVideoFastLane</code> 在截断前过滤 <code>next_fast_lane_at&gt;now</code>（<b>pri=0 注入不退避</b>）。开关 <code>HOT_FAST_LANE_BACKOFF</code> / <code>FAST_LANE_BACKOFF_START_STREAK=3</code> / <code>_BASE_MIN=9</code> / <code>_CAP_MIN=30</code>。</li>
+</ul>
+</details>
+
+<h3>D · 成效实测（同 UTC 时段隔天对比 06-15 vs 06-16 04:00–12:25，控时段混淆）</h3>
 <div class="kx"><b>先看懂这三个数（median / p90 / p99 怎么读）</b>：把所有活的等待时间从快到慢排成一队——<br>· <b>median（中位数）</b>＝站正中间那个，一半比他快、一半比他慢 ＝「<b>典型情况</b>」。<br>· <b>p90</b>＝排在 90% 位置那个，只有最慢的 <b>10%</b> 比他还慢 ＝「<b>尾巴（较差）</b>」。<br>· <b>p99</b>＝排在 99% 位置，只有最惨的 <b>1%</b> 比他更慢 ＝「<b>极端最差</b>」。<br><b>为啥不用平均？</b>平均会被个别超长的极值拉偏；分位数才看得清真实分布。例：下表 median=0 但 p90=295 秒——意思是<b>多数活秒级领走、但有整整一成的活要等近 5 分钟</b>，这"一成的尾巴"才是体感最差、最该治的。</div>
 <h4>✅ Leg C 快慢分道：实锤成功</h4>
 <table>
@@ -333,17 +328,7 @@
 </table>
 <div class="kx warn"><b>诚实边界（别过度解读这 +15%）</b>：高+中从 <b>115→132（+15%）</b>、其中高意向近翻倍（<b>18→34</b>）；<b>但高+中占比基本没变（11.6% ↔ 11.5%）</b>——说明这 +15% 主要是<b>当天入库评论总量本身多了 16%</b>（评论需求波动）顺带带上来的，<b>单日对比无法把「B/C 机制提升」和「当天评论更多/更高意向」干净分开</b>。高意向 +89% 值得继续盯，但单日样本不下结论。要稳结论得<b>多日同时段累积</b>再看趋势。</div>
 
-<h3>C · pri 优先级体系完整说明（有哪些档 / 如何制定 / 如何运行）</h3>
-<table>
-<tr><th>pri</th><th>谁入队（cron / 来源）</th><th>语义</th></tr>
-<tr><td class="n"><code>0</code></td><td>scrape-hot 高意向注入(#363) · vip-video-rescan · UI「抓这条」手动 API</td><td>最优先 —— 要趁鲜抢的活</td></tr>
-<tr><td class="n"><code>1</code></td><td>scrape-hot 常规 fresh-catch 单视频</td><td>快车道常规活</td></tr>
-<tr><td class="n"><code>3</code></td><td>scrape-hot tier-1 整号活(#363 从 1 降) · rescan-recent-videos</td><td>慢活，让到快活后面</td></tr>
-<tr><td class="n"><code>5</code></td><td>scrape 每小时 tier-0 · hot-video-rotation · scrape_lead_profile(默认值)</td><td>最次 —— 量大不急</td></tr>
-</table>
-<div class="kx"><b>如何制定</b>：没有配置表、运营不可调——priority 是<b>散在 7 个入队点的硬编码字面量</b>，列 <code>priority INT DEFAULT 5</code>。要改某类活优先级 = 改那行代码走 PR。设计原则：执行快的排前、慢的让后、要趁鲜的插最前。<br><b>如何运行</b>：worker 轮询器（~30s/轮）调原子认领 RPC <code>claim_pending_scrape_jobs_batch</code>，核心 SQL = <code>WHERE status='pending' AND scheduled_at&lt;=NOW() AND attempts&lt;3 ORDER BY priority ASC, scheduled_at ASC FOR UPDATE SKIP LOCKED</code> → <b>严格 pri 小→大、同级 FIFO、SKIP LOCKED 并发安全</b>。领到即 running+started_at+attempts++；卡死(running&gt;8min)被 reclaim 扫回 pending(+1 attempt)；attempts 到 3 被 RPC 排除 = 永久 pending 墓碑（P0-d 清的就是这个）。<br><b>关键</b>：纯抢占、<b>pri 间无防饿死</b> → pri=5(tier-0) 只在 pri 0/1/3 全空时才被领 → 能积压 12h。tier-1 一胀大就把低 pri 饿死。</div>
-
-<h3 class="bad">D · 新发现：评论拉取还是很久的真尾巴 —— 不是排队，是「老视频覆盖盲区」</h3>
+<h3 class="bad">E · 新发现：评论拉取还是很久的真尾巴 —— 不是排队，是「老视频覆盖盲区」</h3>
 <p>端到端「高意向评论 <code>comment_time</code> → 入库」实测（近 36h，n=124）：<b>median 34 分（典型还行），但 &gt;1h 占 47%、&gt;6h 占 42%、&gt;12h 占 38%</b>——这条重尾就是日报里那批标 <code>expired_at_claim</code> 被跳过没触达的 lead。按 source tier 拆开，<b>真因和直觉相反</b>：</p>
 <table>
 <tr><th>source tier</th><th>n</th><th>&gt;6h 慢尾占比</th><th>median 时延</th></tr>
@@ -354,7 +339,7 @@
 <div class="kx"><b>样本量诚实说明</b>：这是「近 36h」<b>滑动窗口快照</b>（隔几小时重测会 ±2分/±2% 自然漂移，结构稳定）。⚠️ <b>tier-0(n=6)、无源(n=8) 样本太小，那两行的百分比只能当方向参考、别当硬结论</b>；统计上扎实的只有 <b>tier-1(n=110) 的 40–42% &gt;6h 慢尾</b>。即「慢尾主要压在 tier-1 老视频」这个结论可靠，但「tier-0 比 tier-1 快」需更大样本再坐实（方向上成立）。</div>
 <div class="kx bad"><b>慢尾压根不在 pri=5 那条 12h 积压道上</b>（tier-0 中位才 4 分）。42% 的慢尾全在 <b>tier-1 的老视频</b>（龄 6–11 天、时延 6h~7 天）。根因：tier-1 整号活只重扫该号<b>最近 ≤20 条视频</b>，一条视频过几天就被挤出"最近 20"、从此不再被定期重扫；但它底下还在冒新评论，这些评论<b>进不了任何快车道</b>（快车道要求"该视频 48h 内已有评论入库"，老视频没有）→ 鸡生蛋升级版。直到某次慢节奏重扫终于扫到，增量一次性把积压几小时~几天的评论全捞回。<b>漏洞在"过去那段没扫"，不在排队、也不在窗口往回看多久。</b></div>
 
-<h3>E · 解决方案（验证过的方向 + 反例）</h3>
+<h3>F · 解决方案（验证过的方向 + 反例）</h3>
 <table>
 <tr><th>方案</th><th>实测判决</th></tr>
 <tr><td class="pill b">① 把快车道 48h 窗口调大到 72h/96h</td><td><b>别做</b>。模拟：池子涨 25%(72h)~46%(96h)、全是冷下去的视频多半被退避挡掉；而对慢尾 52 条<b>只多救 1 条</b>（72h 救 1、96h 救 0）。方向错——窗口控的是"往回看多久"，不是"过去那段有没有扫"。</td></tr>
