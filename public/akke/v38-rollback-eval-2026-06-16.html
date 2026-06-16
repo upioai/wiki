@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>破冰提示词 v38 回滚评估 · 真实回复案例统计</title>
+<style>
+:root{--ink:#1a1a1a;--muted:#666;--faint:#999;--line:#e6e6e6;--paper:#fff;--bg:#fafafa;--blue:#2563eb;--green:#16a34a;--orange:#ea580c;--red:#dc2626;--purple:#9333ea}
+*{box-sizing:border-box}
+body{font:14px/1.7 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:var(--ink);background:var(--bg);margin:0;padding:0}
+.container{max-width:1100px;margin:0 auto;padding:32px 24px}
+h1{font-size:26px;font-weight:700;letter-spacing:-.5px;margin:0 0 6px}
+h2{font-size:19px;font-weight:600;margin:32px 0 12px;padding-bottom:8px;border-bottom:2px solid var(--ink)}
+h3{font-size:15px;font-weight:600;margin:20px 0 8px;color:var(--ink)}
+p,li{color:#333}
+.subtitle{color:var(--muted);font-size:13px;margin-bottom:24px}
+.callout{background:#fff7ed;border-left:4px solid var(--orange);padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;font-size:13px}
+.callout.warn{background:#fef2f2;border-left-color:var(--red)}
+.callout.good{background:#f0fdf4;border-left-color:var(--green)}
+.kpi-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:16px 0 24px}
+.kpi{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:16px;position:relative;overflow:hidden}
+.kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--blue)}
+.kpi.pre::before{background:var(--orange)}
+.kpi.post::before{background:var(--green)}
+.kpi-label{font-size:12px;color:var(--muted);margin-bottom:6px}
+.kpi-value{font-size:26px;font-weight:700;line-height:1}
+.kpi-sub{margin-top:6px;font-size:12px;color:var(--faint)}
+table{width:100%;border-collapse:collapse;background:var(--paper);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:10px 0 20px;font-size:13px}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line)}
+th{background:#f5f5f5;font-weight:600;color:var(--muted);font-size:12px}
+tr:last-child td{border-bottom:none}
+.case{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
+.case-header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+.case-meta{font-size:12px;color:var(--muted)}
+.badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600}
+.badge.pre{background:#fff7ed;color:var(--orange)}
+.badge.post{background:#f0fdf4;color:var(--green)}
+.badge.handoff{background:#faf5ff;color:var(--purple)}
+.badge.reply{background:#eff6ff;color:var(--blue)}
+.badge.followup{background:#fef9c3;color:#a16207}
+.msg{padding:8px 12px;border-radius:8px;margin:6px 0;font-size:13px;line-height:1.6}
+.msg.ai{background:#eff6ff;border-left:3px solid var(--blue)}
+.msg.customer{background:#f0fdf4;border-left:3px solid var(--green)}
+.msg-meta{font-size:11px;color:var(--faint);margin-bottom:3px}
+.msg-content{white-space:pre-wrap;word-break:break-word}
+.muted{color:var(--muted)}
+.delta-pos{color:var(--green);font-weight:600}
+.delta-neg{color:var(--red);font-weight:600}
+.bigbox{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:20px;margin:14px 0}
+.empty{color:var(--faint);font-style:italic;text-align:center;padding:24px}
+code{background:#f5f5f5;padding:1px 6px;border-radius:4px;font-size:12px;font-family:ui-monospace,Consolas,monospace}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>破冰提示词 v38 回滚评估</h1>
+  <div class="subtitle">分界点：2026-06-05 16:48 CST（commit <code>114eef0</code> · Langfuse <code>dm.ice_break.system</code> version 35 → 38）· 数据窗口：5/22 ~ 6/16 · 账号：饭粒 / 野荞 / 零星</div>
+
+  <div class="callout warn">
+    <b>⚠️ 数据完整度声明 — 读结论前必看</b><br>
+    DB 里的「客户回复」<code>messages.role='customer'</code> <b>严重不完整</b>。原因：ADB / WDA / 云电脑三个 DM 出口里，只有早期 message_queue 通道走 <code>/api/cron/check-replies</code> 自动回灌，而该 cron <b>6/05 前后已下线</b>。ADB / WDA / 云电脑通道客户回复 <b>根本不进 DB</b> 需要靠运营机器手动扫盘 + 回灌（目前都没在跑）。<br>
+    → 因此本页面只展示「DB 里能看到的真实回复案例」，绝对数量极少（个位数到十位数），<b>不代表实际收到的回复量</b>。<br>
+    → 间接互动信号（客户在 DM 后再到 comments 池露面）作为对照见后文「代理信号补充」段。
+  </div>
+
+  <h2>① 严格口径：DB 里有真实回复 / 进展的会话数</h2>
+  <p class="muted">下面这些数字是<b>当前数据库里能直接观察到的真实事实</b>。「有进展」= 该 conversation 至少有一条以下信号：客户回复 messages / last_inbound_at 已回写 / 加微 handed_off_at 已写 / AI 给同人续发跟进。</p>
+
+  <div class="kpi-row">
+    <div class="kpi pre"><div class="kpi-label">v38 前 · AI 发出 opener</div><div class="kpi-value">708</div><div class="kpi-sub">同 conv 视为 1 个 opener（去重）</div></div>
+    <div class="kpi post"><div class="kpi-label">v38 后 · AI 发出 opener</div><div class="kpi-value">515</div><div class="kpi-sub">同 conv 视为 1 个 opener（去重）</div></div>
+    <div class="kpi pre"><div class="kpi-label">v38 前 · 有进展的会话</div><div class="kpi-value">33</div><div class="kpi-sub">4.66%</div></div>
+    <div class="kpi post"><div class="kpi-label">v38 后 · 有进展的会话</div><div class="kpi-value">19</div><div class="kpi-sub">3.69%</div></div>
+  </div>
+
+  <h3>四类信号分别命中数</h3>
+  <table>
+    <thead><tr><th>信号</th><th>v38 前命中</th><th>v38 后命中</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>messages.role='customer'</code></td><td>1</td><td>1</td><td>客户回复实际入站（check-replies cron 写）</td></tr>
+      <tr><td><code>conversations.last_inbound_at</code></td><td>3</td><td>1</td><td>扫盘回灌字段（6/11 起 sync-inbound-replies 写）</td></tr>
+      <tr><td><code>conversations.handed_off_at</code></td><td>0</td><td>0</td><td>加微转化（目前无人写）</td></tr>
+      <tr><td>AI 给同人续发跟进</td><td>31</td><td>19</td><td>opener 之后 AI 又发了消息（弱信号）</td></tr>
+    </tbody>
+  </table>
+
+  <h3>按账号 × v38 前后分组的 opener 数</h3>
+  <table>
+    <thead><tr><th>账号</th><th>通道</th><th>v38 前 opener</th><th>v38 后 opener</th></tr></thead>
+    <tbody>
+      <tr><td><b>野荞</b></td><td class="muted">iPhone → 云电脑（6/05 切）</td><td>226</td><td>179</td></tr><tr><td><b>零星</b></td><td class="muted">云电脑全程</td><td>240</td><td>188</td></tr><tr><td><b>饭粒</b></td><td class="muted">Android ADB 全程</td><td>242</td><td>148</td></tr>
+    </tbody>
+  </table>
+
+  <h2>② 真实回复案例逐个展示</h2>
+  
+  <p class="muted">共 52 个有进展的会话（v38 前 33 个 · v38 后 19 个）。每个案例展示 opener 内容 + 后续真实信号。</p>
+
+  <h3>v38 后 (19 个)</h3><div class="case">
+    <div class="case-header">
+      <div>
+        <b>杏子</b> <span class="case-meta">· 零星 · 2026-06-12 21:51 CST · stage=ice_break</span>
+        <div class="case-meta" style="margin-top:4px">扫盘预览：我加装的割段，想用煤气</div>
+      </div>
+      <div><span class="badge post">v38</span> <span class="badge reply">客户回复 ×1</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-12 21:51 CST</div><div class="msg-content">你好，杏子，看你问推拉门系统，这类细节我们做全屋定制特别看重。原价868一平，样板房专供价568一平全包板材五金安装，用兔宝宝/千年舟ENF级板+悍高/海蒂诗五金，一个小区只锁一套名额。方便给个 v 我让设计师加你，你准备先动哪一组？</div></div><div class="msg customer"><div class="msg-meta">客户 · 2026-06-12 22:38 CST</div><div class="msg-content">我加装的割段，想用煤气</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-12 22:39 CST</div><div class="msg-content">明白了，厨房加隔断开通煤气这种我们做得特别多，燃气公司验收要求隔断到顶、能完全封闭，一般做玻璃推拉门最合适，封得严还不挡采光。不过具体得看你洞口尺寸和现场情况才能定方案，你方便发个 v 给我吗？我让设计师加你，你把现场拍两张照片发他，直接给你出图带报价，比在这儿打字说得清楚</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>安哥仔</b> <span class="case-meta">· 野荞 · 2026-06-10 09:45 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge post">v38</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-10 09:45 CST</div><div class="msg-content">你好，安哥。刷到你套内70平问面漆用量的评论，广东区域可以量尺出图，面漆用量按项目报 量过房才能拉清单 给个 v 我让设计师加你，你家几室几厅？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-10 09:46 CST</div><div class="msg-content">你好，安哥仔，刷到你问70平面漆用量的评论，刮灰师傅这期视频讲的平整度标准就直接关联到漆用量。硬装这部分按项目报 量过房才能给你拉清单 给个v 我让设计师加你？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>ゝ褪色的记忆</b> <span class="case-meta">· 饭粒 · 2026-06-09 14:51 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge post">v38</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-09 14:51 CST</div><div class="msg-content">你好，记忆，你问的蜂窝大板我们装修时也能做，原价868一平，样板房专供价568一平全包板材五金安装，一个小区只锁一套，方便给个 v 我让设计师加你，准备先动哪一组？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-09 15:01 CST</div><div class="msg-content">你好，ゝ褪色的记忆，评论里说的蜂窝大板整装确实最近问的人多。视频里业主被要求刮灰这种活，其实板材选对封边盯紧才能少返工。原价868一平的全屋定制，现在样板房专供价568一平全包，兔宝宝板材海蒂诗五金ENF级环保，你准备先动哪一组柜子？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>悦悦辰辰（双胞胎日常）</b> <span class="case-meta">· 饭粒 · 2026-06-09 14:51 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge post">v38</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-09 14:51 CST</div><div class="msg-content">你好，悦悦辰辰（双胞胎日常）哥，刷到你说129平准备装修，预算有限咱们能省则省。原价868一平，样板房专供价568一平全包板材五金柜门安装，用的兔宝宝/千年舟ENF级板+悍高/海蒂诗五金，一个小区就锁一套，方便给个 v 我让设计师加你，你最在意 板材/五金/收纳/颜值/防潮 哪个</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-09 15:01 CST</div><div class="msg-content">你好，悦悦辰辰（双胞胎日常）哥，视频里讲的30万预算装出120平质感那套方案挺适合你家，原价868一平的全屋定制样板房专供价568一平全包，兔宝宝板材悍高五金ENF级环保，你这小区只征集一套样板房，方便给个v我让设计师加你，抢到锁价？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>容容不老</b> <span class="case-meta">· 饭粒 · 2026-06-07 16:03 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge post">v38</span> <span class="badge followup">AI 续发 ×2</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-07 16:03 CST</div><div class="msg-content">你好，容容！78平做双眼皮吊顶确实需要谨慎，但专业设计能优化视觉空间。我们样板房专供价568元/投影㎡全包，比零售价868省300，用兔宝宝板材+悍高五金，小区限量一套。你这面积基础造价大概2万出头，加造型配置系数再算。方便给个v吗，我让设计师加你？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-07 16:10 CST</div><div class="msg-content">你好，容容。刷到你78平米户型问双眼皮造型，小空间建议简化顶面设计，视觉更敞亮。我们样板房专供价568一平全包板材五金，兔宝宝ENF级环保，一个小区只锁一套价。你家是精装还是毛坯？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-07 20:24 CST</div><div class="msg-content">容容不老，78平米双眼皮吊顶这种做法常见能做，我们这做过不少类似户型。全屋定制原价868一平，样板房专供价568全包板材五金柜门安装，板材是兔宝宝ENF级环保，每个小区样板房只征集一套抢到就锁价。你家是平层还是复式呀？具体方案私信给你拉清单？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>梓（zǐ）翕（xī）</b> <span class="case-meta">· 饭粒 · 2026-06-07 15:59 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge post">v38</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-07 15:59 CST</div><div class="msg-content">你好，梓翕，刷到你在问全屋板材选择 榻榻米用兔宝宝/莫干山/千年舟都行 全屋定制原价868一平 样板房专供价568全包 ENF级环保板材小区限量一套 你方便给个v吗 我让设计师加你？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-07 20:24 CST</div><div class="msg-content">梓翕，刷到你问榻榻米选板材这种需求，新疆气候干我们做过类似方案。全屋定制原价868/㎡现在做样板房直降300，568全包板材五金柜门安装，用兔宝宝千年舟ENF级多层板加悍高五金，每个小区只锁一套名额。你家户型是小户型还是改善型呀？具体配置私信给你拉清单？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>倪敏</b> <span class="case-meta">· 野荞 · 2026-06-06 20:04 CST · stage=expired</span>
+        
+      </div>
+      <div><span class="badge post">v38</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-06 20:04 CST</div><div class="msg-content">你好，倪敏姐，新房布局设计收费可先按房产证平方算，大平层样板房专供价568一平全包板材五金，原价868一平现在每㎡省300，小区限量一套，你家几平准备改哪些空间？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-07 11:25 CST</div><div class="msg-content">你好，倪敏姐。刷到你说想重新设计新房布局，我们样板房专供价568一平全包，原价868一平能省300，用兔宝宝板材ENF级环保，全小区只做一套。你家几室几厅？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>.困、</b> <span class="case-meta">· 饭粒 · 2026-06-06 11:39 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge post">v38</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-06 11:39 CST</div><div class="msg-content">你好，困、视频里讲的五金和报价这两个坑要盯紧，定制柜子这些最容易被宰。原价868一平 样板房专供价568一平 板材五金柜门安装全包 兔宝宝千年舟板材悍高海蒂诗五金ENF级环保 你这个小区样板房只征集一套 抢到锁价 你家面积大概多少</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-06 12:06 CST</div><div class="msg-content">你好，困困，刷到你正准备装修的评论，想提醒下避坑重点，像板材封边和五金选材这些门店常藏套路。最近我们有样板房专供价568一平全包，兔宝宝板材+悍高五金，你家是几室几厅？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>🌸    素 格</b> <span class="case-meta">· 饭粒 · 2026-06-06 10:34 CST · stage=expired</span>
+        
+      </div>
+      <div><span class="badge post">v38</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-06 10:34 CST</div><div class="msg-content">你好，素格，刷到你 136 平黑白极简自装视频 想问下你家是新房还是翻新。原价868一平的样板房专供价568一平全包，兔宝宝板材悍高五金ENF级环保，一个小区只做一套。你家面积多大，准备先动哪几间柜子？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-06 12:06 CST</div><div class="msg-content">你好，素格，刷到你 136 平黑白极简自装视频 想问下你家是新房还是翻新。原价868一平的样板房专供价568一平全包，兔宝宝板材悍高五金ENF级环保，一个小区只做一套。你家面积多大，准备先动哪几间柜子？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>冰❤️🔒爱</b> <span class="case-meta">· 饭粒 · 2026-06-06 10:34 CST · stage=expired</span>
+        
+      </div>
+      <div><span class="badge post">v38</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-06 10:34 CST</div><div class="msg-content">你好，冰爱，刷到你求合同模板的留言，装修阶段这步客户常踩材料单价和售后条款。全屋定制按项目报价 量过房才能拉清单 给个 v 我让设计师加你？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-06 12:06 CST</div><div class="msg-content">你好，冰爱，刷到你求合同模板的留言，装修阶段这步客户常踩材料单价和售后条款。全屋定制按项目报价 量过房才能拉清单 给个 v 我让设计师加你？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>美好时光</b> <span class="case-meta">· 饭粒 · 2026-06-06 10:34 CST · stage=expired</span>
+        
+      </div>
+      <div><span class="badge post">v38</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-06 10:34 CST</div><div class="msg-content">你好，美好时光姐，视频里讲的石英石台面整体橱柜这活儿我能接，石家庄能做 量尺设计能上门。原价868一平的柜子 样板房专供价568一平全包 兔宝宝板材悍高五金ENF级环保 一个小区只做一套。你家是石家庄的吧？现在装到哪步了？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-06 12:06 CST</div><div class="msg-content">你好，美好时光姐，视频里讲的石英石台面整体橱柜这活儿我能接，石家庄能做 量尺设计能上门。原价868一平的柜子 样板房专供价568一平全包 兔宝宝板材悍高五金ENF级环保 一个小区只做一套。你家是石家庄的吧？现在装到哪步了？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>软糖🍬🍬</b> <span class="case-meta">· 饭粒 · 2026-06-06 10:34 CST · stage=expired</span>
+        
+      </div>
+      <div><span class="badge post">v38</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-06 10:34 CST</div><div class="msg-content">你好，软糖姐，刷到你150平意式轻奢视频想提醒下，这种大户型柜体配色建议低饱和度做层次。原价868一平柜体，样板房专供价568一平全包兔宝宝板材海蒂诗五金ENF级，一个小区限量一套。方便给个v我让设计师加你，准备先动哪一组柜子？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-06 12:06 CST</div><div class="msg-content">你好，软糖姐，刷到你150平意式轻奢视频想提醒下，这种大户型柜体配色建议低饱和度做层次。原价868一平柜体，样板房专供价568一平全包兔宝宝板材海蒂诗五金ENF级，一个小区限量一套。方便给个v我让设计师加你，准备先动哪一组柜子？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>健康是福</b> <span class="case-meta">· 饭粒 · 2026-06-06 10:34 CST · stage=expired</span>
+        
+      </div>
+      <div><span class="badge post">v38</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-06 10:34 CST</div><div class="msg-content">你好，健康是福，刷到你116平奶油风视频，全屋定制原价868一平，样板房专供价568一平全包兔宝宝板材+悍高五金，ENF级环保，小区限量一套。方便给个v我让设计师加你？你家几室几厅？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-06 12:06 CST</div><div class="msg-content">你好，健康是福，刷到你116平奶油风视频，全屋定制原价868一平，样板房专供价568一平全包兔宝宝板材+悍高五金，ENF级环保，小区限量一套。方便给个v我让设计师加你？你家几室几厅？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>桂K</b> <span class="case-meta">· 饭粒 · 2026-06-06 10:34 CST · stage=expired</span>
+        
+      </div>
+      <div><span class="badge post">v38</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-06 10:34 CST</div><div class="msg-content">你好，桂，视频里讲的厨房动线规划对40方空间最实用。原价868一平的全屋定制，现在样板房专供价568一平全包，用兔宝宝板材+悍高五金，一个小区只做一套。你家厨房是长条形还是方正户型？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-06 12:06 CST</div><div class="msg-content">你好，桂，视频里讲的厨房动线规划对40方空间最实用。原价868一平的全屋定制，现在样板房专供价568一平全包，用兔宝宝板材+悍高五金，一个小区只做一套。你家厨房是长条形还是方正户型？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>445010216</b> <span class="case-meta">· 饭粒 · 2026-06-06 10:34 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge post">v38</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-06 10:34 CST</div><div class="msg-content">你好，这事儿确实坑，成都客户最近问全屋柜体的多，原价868一平的样板房专供价现在568一平全包，兔宝宝板材+悍高五金+ENF级环保，一个小区限量一套，你方便给个 v 我让设计师加你，防潮这块你最在意吧？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-06 12:06 CST</div><div class="msg-content">你好，这事儿确实坑，成都客户最近问全屋柜体的多，原价868一平的样板房专供价现在568一平全包，兔宝宝板材+悍高五金+ENF级环保，一个小区限量一套，你方便给个 v 我让设计师加你，防潮这块你最在意吧？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>天佑哥</b> <span class="case-meta">· 饭粒 · 2026-06-06 10:34 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge post">v38</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-06 10:34 CST</div><div class="msg-content">你好，天佑哥，刷到你对装修流程感兴趣，刮腻子阶段确实要盯紧板材环保性。原价868一平的定制柜，现在样板房专供价568一平全包，用兔宝宝或千年舟板材配悍高五金，ENF级环保且一个小区只做一套，方便给个v吗？我让设计师加你，准备先动哪一组柜子？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-06 12:06 CST</div><div class="msg-content">你好，天佑哥，刷到你对装修流程感兴趣，刮腻子阶段确实要盯紧板材环保性。原价868一平的定制柜，现在样板房专供价568一平全包，用兔宝宝或千年舟板材配悍高五金，ENF级环保且一个小区只做一套，方便给个v吗？我让设计师加你，准备先动哪一组柜子？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>在水一方</b> <span class="case-meta">· 饭粒 · 2026-06-06 10:34 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge post">v38</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-06 10:34 CST</div><div class="msg-content">你好，一方，刷到你问武汉全屋定制的视频 最近武汉客户问得挺多，样板房专供价568一平全包板材五金安装，你方便给个 v 我让设计师加你？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-06 12:06 CST</div><div class="msg-content">你好，一方，刷到你问武汉全屋定制的视频 最近武汉客户问得挺多，样板房专供价568一平全包板材五金安装，你方便给个 v 我让设计师加你？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>三木十木</b> <span class="case-meta">· 饭粒 · 2026-06-06 10:34 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge post">v38</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-06 10:34 CST</div><div class="msg-content">你好，三木，500平大宅定制得重点规划动线和收纳分区。原价868一平的实木多层板柜体，样板房专供价568一平全包板材+悍高五金+瀤漆门板，成都这边刚落地的绿城项目同款工艺。给个v吗？我让设计师加你发套实景图参考。</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-06 12:06 CST</div><div class="msg-content">你好，三木，500平大宅定制得重点规划动线和收纳分区。原价868一平的实木多层板柜体，样板房专供价568一平全包板材+悍高五金+烤漆门板，成都这边刚落地的绿城项目同款工艺。给个v吗？我让设计师加你发套实景图参考。</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>小袁子</b> <span class="case-meta">· 饭粒 · 2026-06-06 10:34 CST · stage=expired</span>
+        
+      </div>
+      <div><span class="badge post">v38</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-06 10:34 CST</div><div class="msg-content">你好，小袁子，评论里说的德阳橱柜安装这步客户常踩封边细节，视频里第二个避坑方法正合适。原价868一平的样板房专供价568一平全包，兔宝宝板材+悍高五金+ENF级环保，一个小区只做一套。你家十月份拿房是精装交房吗？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-06 12:06 CST</div><div class="msg-content">你好，小袁子，评论里说的德阳橱柜安装这步客户常踩封边细节，视频里第二个避坑方法正合适。原价868一平的样板房专供价568一平全包，兔宝宝板材+悍高五金+ENF级环保，一个小区只做一套。你家十月份拿房是精装交房吗？</div></div>
+  </div>
+  <h3>v38 前 (33 个)</h3><div class="case">
+    <div class="case-header">
+      <div>
+        <b>Louis小林君</b> <span class="case-meta">· 饭粒 · 2026-06-05 02:46 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×2</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-05 02:46 CST</div><div class="msg-content">你好，小林，304不锈钢衣柜零售价868一平 样板房专供价568一平 板材五金柜门安装全包 兔宝宝千年舟板材悍高海蒂诗五金ENF级环保 你这个小区样板房只征集一套 抢到锁价 你最在意板材还是防潮？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-05 03:19 CST</div><div class="msg-content">你好，小林，304不锈钢衣柜零售价868一平 样板房专供价568一平 板材五金柜门安装全包 兔宝宝千年舟板材悍高海蒂诗五金ENF级环保 你这个小区样板房只征集一套 抢到锁价 你最在意板材还是防潮？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-05 07:26 CST</div><div class="msg-content">你好，小林，304不锈钢衣柜零售价868一平 样板房专供价568一平 板材五金柜门安装全包 兔宝宝千年舟板材悍高海蒂诗五金ENF级环保 你这个小区样板房只征集一套 抢到锁价 你最在意板材还是防潮？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>香奈儿</b> <span class="case-meta">· 饭粒 · 2026-06-05 02:46 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×2</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-05 02:46 CST</div><div class="msg-content">你好，香奈儿，视频里龙湖御府这套宋氏美学完工效果确实耐看，141平按专供价568一平算，板材五金柜门安装全包，兔宝宝千年舟板材悍高海蒂诗五金ENF级环保，你这个小区样板房只征集一套抢到锁价，准备先动哪一组柜子？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-05 03:19 CST</div><div class="msg-content">你好，香奈儿，视频里龙湖御府这套宋氏美学完工效果确实耐看，141平按专供价568一平算，板材五金柜门安装全包，兔宝宝千年舟板材悍高海蒂诗五金ENF级环保，你这个小区样板房只征集一套抢到锁价，准备先动哪一组柜子？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-05 07:26 CST</div><div class="msg-content">你好，香奈儿，视频里龙湖御府这套宋氏美学完工效果确实耐看，141平按专供价568一平算，板材五金柜门安装全包，兔宝宝千年舟板材悍高海蒂诗五金ENF级环保，你这个小区样板房只征集一套抢到锁价，准备先动哪一组柜子？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>巨蟹座🍰</b> <span class="case-meta">· 饭粒 · 2026-06-05 02:46 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×2</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-05 02:46 CST</div><div class="msg-content">你好，巨蟹座，全屋定制零售价868一平 样板房专供价568一平 板材五金柜门安装全包 兔宝宝千年舟板材悍高海蒂诗五金ENF级环保 你这个小区样板房只征集一套 抢到锁价 你家70平准备先动哪一绀</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-05 03:19 CST</div><div class="msg-content">你好，巨蟹座，全屋定制零售价868一平 样板房专供价568一平 板材五金柜门安装全包 兔宝宝千年舟板材悍高海蒂诗五金ENF级环保 你这个小区样板房只征集一套 抢到锁价 你家70平准备先动哪一绀</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-05 07:26 CST</div><div class="msg-content">你好，巨蟹座，全屋定制零售价868一平 样板房专供价568一平 板材五金柜门安装全包 兔宝宝千年舟板材悍高海蒂诗五金ENF级环保 你这个小区样板房只征集一套 抢到锁价 你家70平准备先动哪一绀</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>小女人军</b> <span class="case-meta">· 饭粒 · 2026-06-05 02:46 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×2</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-05 02:46 CST</div><div class="msg-content">你好，小女人军哥，翻新最怕拆改损伤承重墙。三门峡简装案例里有个100平老房改造，零售价868一平样板房专供568含板材五金安装全包。板材用兔宝宝/千年舟悍高五金ENF级环保，你这个小区只征集一套抢到锁价。准备先动哪一组柜子？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-05 03:19 CST</div><div class="msg-content">你好，小女人军哥，翻新最怕拆改损伤承重墙。三门峡简装案例里有个100平老房改造，零售价868一平样板房专供568含板材五金安装全包。板材用兔宝宝/千年舟悍高五金ENF级环保，你这个小区只征集一套抢到锁价。准备先动哪一组柜子？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-05 07:26 CST</div><div class="msg-content">你好，小女人军哥，翻新最怕拆改损伤承重墙。三门峡简装案例里有个100平老房改造，零售价868一平样板房专供568含板材五金安装全包。板材用兔宝宝/千年舟悍高五金ENF级环保，你这个小区只征集一套抢到锁价。准备先动哪一组柜子？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>用户3746666922000</b> <span class="case-meta">· 饭粒 · 2026-06-05 02:46 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×2</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-05 02:46 CST</div><div class="msg-content">你好，哈哈这条挺多人催，油工那步墙面处理得盯紧点，你这条写着就要装修了，现在是毛坯还是精装？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-05 03:19 CST</div><div class="msg-content">你好，哈哈这条挺多人催，油工那步墙面处理得盯紧点，你这条写着就要装修了，现在是毛坯还是精装？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-05 07:26 CST</div><div class="msg-content">你好，哈哈这条挺多人催，油工那步墙面处理得盯紧点，你这条写着就要装修了，现在是毛坯还是精装？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>桃子🍭</b> <span class="case-meta">· 饭粒 · 2026-06-05 02:46 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×2</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-05 02:46 CST</div><div class="msg-content">你好，桃子。视频里讲的内行避坑经验对你旧房翻新最实用，能重新规划水电位和柜体布局。你方便发个微信号过来吗 我让设计师加你，价格上能再让一档。</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-05 03:19 CST</div><div class="msg-content">你好，桃子。视频里讲的内行避坑经验对你旧房翻新最实用，能重新规划水电位和柜体布局。你方便发个微信号过来吗 我让设计师加你，价格上能再让一档。</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-05 07:26 CST</div><div class="msg-content">你好，桃子。视频里讲的内行避坑经验对你旧房翻新最实用，能重新规划水电位和柜体布局。你方便发个微信号过来吗 我让设计师加你，价格上能再让一档。</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>风遇山止</b> <span class="case-meta">· 饭粒 · 2026-06-05 02:46 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×2</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-05 02:46 CST</div><div class="msg-content">你好，风遇山止，视频里卧室挂衣区尺寸和床头柜高度那两个点最实用，马上要装修的话建议先定柜体结构，你家户型是常规三房还是特殊布局</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-05 03:19 CST</div><div class="msg-content">你好，风遇山止，视频里卧室挂衣区尺寸和床头柜高度那两个点最实用，马上要装修的话建议先定柜体结构，你家户型是常规三房还是特殊布局</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-05 07:26 CST</div><div class="msg-content">你好，风遇山止，视频里卧室挂衣区尺寸和床头柜高度那两个点最实用，马上要装修的话建议先定柜体结构，你家户型是常规三房还是特殊布局</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>蒙娜丽莎的微笑🌱</b> <span class="case-meta">· 饭粒 · 2026-06-05 02:46 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×2</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-05 02:46 CST</div><div class="msg-content">你好，蒙娜丽莎的微笑姐，视频里小卧室顶天立地柜的布局思路正适合你，拆墙改空间得先确认不是承重墙，你家是精装交房还是毛坯状态？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-05 03:19 CST</div><div class="msg-content">你好，蒙娜丽莎的微笑姐，视频里小卧室顶天立地柜的布局思路正适合你，拆墙改空间得先确认不是承重墙，你家是精装交房还是毛坯状态？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-05 07:26 CST</div><div class="msg-content">你好，蒙娜丽莎的微笑姐，视频里小卧室顶天立地柜的布局思路正适合你，拆墙改空间得先确认不是承重墙，你家是精装交房还是毛坯状态？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>平凡ham5</b> <span class="case-meta">· 饭粒 · 2026-06-02 22:05 CST · stage=ice_break</span>
+        <div class="case-meta" style="margin-top:4px">扫盘预览：平凡ham5,按项目报，加微信发你具体方案昨天 22:05</div>
+      </div>
+      <div><span class="badge pre">v35</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-02 22:05 CST</div><div class="msg-content">你好，平凡，304不锈钢保险柜防潮耐用，按项目报，加微信发你具体方案。</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>炫动薄荷</b> <span class="case-meta">· 零星 · 2026-06-02 11:15 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-02 11:15 CST</div><div class="msg-content">你好，薄荷。刷到你留评的装修合同避坑视频，全屋定制284一平按房产证面积算，标配100㎡约2.8万/高配3.4万/豪配4万，ENF级板材环保检验不合格全额赔付。</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-02 15:07 CST</div><div class="msg-content">你好，薄荷。刷到你在老王评论区说装修怕漏项，刚好视频里讲的合同陷阱我们有专门的避坑方案，按房产证面积284一平算，现在活动期还能再让一档优惠，你家几室几厅？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>诀别书.</b> <span class="case-meta">· 饭粒 · 2026-06-01 17:22 CST · stage=ice_break</span>
+        <div class="case-meta" style="margin-top:4px">扫盘预览：诀别书.,嗯嗯，已经加啦昨天 21:58</div>
+      </div>
+      <div><span class="badge pre">v35</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-01 17:22 CST</div><div class="msg-content">你好，诀别。刷到你硬装9w视频 河南这边装修常踩瓷砖空鼓和防水层厚度 我帮你算过几套 硬装按项目报 清水房还是精装房改</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>永相随</b> <span class="case-meta">· 零星 · 2026-06-01 14:38 CST · stage=expired</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-01 14:38 CST</div><div class="msg-content">你好，永相随，视频里讲的新房开工清单确实少备一样都停工。全屋柜体按房产证面积算284一平，设计量尺免费，五金封边都含在报价里。你最在意 板材环保还是五金耐用</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-01 18:25 CST</div><div class="msg-content">你好，永相随，视频里讲的新房开工清单确实少备一样都停工。全屋柜体按房产证面积算284一平，设计量尺免费，五金封边都含在报价里。你最在意 板材环保还是五金耐用</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>甜的很正经</b> <span class="case-meta">· 零星 · 2026-06-01 14:34 CST · stage=expired</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-01 14:34 CST</div><div class="msg-content">你好，甜的很正经姐。260平毛坯全屋定制，按房产证面积284一平算，标配约7.4万，高配9.6万，豪配11.8万。现在交定金锁优惠，用兔宝宝ENF级多层板，环保检验不合格全额赔付。准备先动哪一组柜子？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-01 18:25 CST</div><div class="msg-content">你好，甜的很正经姐。260平毛坯全屋定制，按房产证面积284一平算，标配约7.4万，高配9.6万，豪配11.8万。现在交定金锁优惠，用兔宝宝ENF级多层板，环保检验不合格全额赔付。准备先动哪一组柜子？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>燕赵布衣</b> <span class="case-meta">· 零星 · 2026-06-01 14:32 CST · stage=expired</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-01 14:32 CST</div><div class="msg-content">你好，燕赵布衣姐。刷到你视频里装修刮腻子的痛点 我们全屋定制含墙面处理。微信 Homedz3791 加我备注下抖音号，价格上能再让一档。</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-01 18:25 CST</div><div class="msg-content">你好，燕赵布衣姐。刷到你视频里装修刮腻子的痛点 我们全屋定制含墙面处理。微信 Homedz3791 加我备注下抖音号，价格上能再让一档。</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>🐅双双姐</b> <span class="case-meta">· 零星 · 2026-06-01 14:28 CST · stage=expired</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-01 14:28 CST</div><div class="msg-content">你好，双双姐，按平方算284一平 算下来明白，现在活动期价格优惠 你家面积大概多少</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-01 18:25 CST</div><div class="msg-content">你好，双双姐，按平方算284一平 算下来明白，现在活动期价格优惠 你家面积大概多少</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>一瓶水两边倒</b> <span class="case-meta">· 零星 · 2026-06-01 13:23 CST · stage=expired</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-01 13:23 CST</div><div class="msg-content">你好，一瓶水两边倒，郑州这边全屋定制能做，工厂直供橱柜衣柜这些我们都落地过。刷到你评论的橱柜视频，想问下你家新房是精装还是毛坯？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-01 18:25 CST</div><div class="msg-content">你好，一瓶水两边倒，郑州这边全屋定制能做，工厂直供橱柜衣柜这些我们都落地过。刷到你评论的橱柜视频，想问下你家新房是精装还是毛坯？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>路兮</b> <span class="case-meta">· 零星 · 2026-06-01 13:21 CST · stage=expired</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-01 13:21 CST</div><div class="msg-content">你好，路兮。看到你分享意式轻奢案例挺惊艳的，你家120㎡硬装落地大概3.4万起（284一平×房产证面积），标配3.7万/高配4.1万/豪配4.4万，实际方案会根据空间结构调整。你这边几室几厅，打算先从哪类柜体开始做？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-01 18:25 CST</div><div class="msg-content">你好，路兮。看到你分享意式轻奢案例挺惊艳的，你家120㎡硬装落地大概3.4万起（284一平×房产证面积），标配3.7万/高配4.1万/豪配4.4万，实际方案会根据空间结构调整。你这边几室几厅，打算先从哪类柜体开始做？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>才哥在长沙</b> <span class="case-meta">· 零星 · 2026-06-01 13:19 CST · stage=expired</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-01 13:19 CST</div><div class="msg-content">你好，才哥在长沙。刷到你视频里这款橱柜，台面一体无挡水设计工艺很稳。长沙户型常踩水电预留，你家准备做几室几厅的柜体？现在活动期价格优惠，本月排单还剩几席。</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-01 18:25 CST</div><div class="msg-content">你好，才哥在长沙。刷到你视频里这款橱柜，台面一体无挡水设计工艺很稳。长沙户型常踩水电预留，你家准备做几室几厅的柜体？现在活动期价格优惠，本月排单还剩几席。</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>付成</b> <span class="case-meta">· 零星 · 2026-06-01 13:17 CST · stage=expired</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-01 13:17 CST</div><div class="msg-content">你好，付成。刷到你油工流程视频注意到墙面处理细节，昆明小街这边可以做全屋柜体和硬装配套，我们有固定门店。你家房产证面积大概多少？按284一平算，标配5万起配活动优惠。</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-01 18:25 CST</div><div class="msg-content">你好，付成。刷到你油工流程视频注意到墙面处理细节，昆明小街这边可以做全屋柜体和硬装配套，我们有固定门店。你家房产证面积大概多少？按284一平算，标配5万起配活动优惠。</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>生活在远方</b> <span class="case-meta">· 零星 · 2026-06-01 13:15 CST · stage=expired</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-01 13:15 CST</div><div class="msg-content">你好，远方。刷到你橱柜视频 想问下你家是新房还是翻新。巩义我们有固定门店 可以下单生产 柜体支持上门安装。现在活动期价格优惠 你家准备先动哪一组柜子？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-01 18:25 CST</div><div class="msg-content">你好，远方。刷到你橱柜视频 想问下你家是新房还是翻新。巩义我们有固定门店 可以下单生产 柜体支持上门安装。现在活动期价格优惠 你家准备先动哪一组柜子？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>李怡</b> <span class="case-meta">· 野荞 · 2026-06-01 12:49 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-01 12:49 CST</div><div class="msg-content">你好，李怡姐。刷到你评论里说装修合同增效漏项这块，你家是毛坯还是翻新？我这边整理过几套避坑清单，可以发你参考，现在交定金还能锁本月排单名额。</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-01 14:50 CST</div><div class="msg-content">你好，李怡姐，刷到你关注装修合同陷阱视频，这种增效漏项坑我当设计师时真见过。全屋定制284一平能算明白，合同里工艺细节和五金品牌必须写死，我帮你扣报价单细节。</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>生命的厚度</b> <span class="case-meta">· 野荞 · 2026-06-01 12:47 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-01 12:47 CST</div><div class="msg-content">你好，生命的厚度。刷到你问不锈钢橱柜视频 问下渭南这边能做全屋装修。微信 Homedz3791 加我备注下抖音号，价格上能再让一档。</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-01 14:19 CST</div><div class="msg-content">你好，厚度。刷到你评论问渭南不锈钢橱柜，我们全国都能做。+v Homedz3791 加我备注下抖音号，价格上能再让一档。</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>刘琳</b> <span class="case-meta">· 野荞 · 2026-06-01 12:43 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-06-01 12:43 CST</div><div class="msg-content">你好，刘琳姐。刷到你历时十个月的Dream House视频，意式轻奢风格太戳我了！80㎡标配约22720元，高配28400元，豪配34080元，实际以方案为准。现在活动期价格优惠，准备先动哪一组柜子？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-01 14:50 CST</div><div class="msg-content">你好，刘琳姐。刷到你89平意式轻奢案例 很适合小户型参考。你家80平全屋柜体按284一平算，标配约2.3万起步，实际看方案配置。现在活动期价格还能再让一档，准备先动哪组柜子？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>Rry</b> <span class="case-meta">· 零星 · 2026-05-31 15:57 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-05-31 15:57 CST</div><div class="msg-content">你好，评论区不少人在问这个。邯郸老破小需求量大，我们的硬装防水和柜体定制都能做，现在活动期价格优惠，你家是收房阶段还是已经开始装修了？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-05-31 16:19 CST</div><div class="msg-content">你好，评论区不少人在问这个。看到你问老破小翻新，这类户型我们做过不少，邯郸本地翻新现在活动期价格优惠。你目前是毛坯阶段还是已经装修过？面积大概多少平？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>杨鸿</b> <span class="case-meta">· 饭粒 · 2026-05-31 12:17 CST · stage=decision</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge reply">客户回复 ×1</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-05-31 12:17 CST</div><div class="msg-content">你好，杨鸿。刷到你安康柏樾城完工视频，全屋柜体搭配很显大空间。楼层和尺寸按项目报，加 v 发你方案，你家几室几厅？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-05-31 12:19 CST</div><div class="msg-content">安康柏樾城小高125三室我们做过好几套了，加个 v 发你实拍图和对应方案，这边抖音图压得糊看不清细节，方便说下几厅，我好找相似度高的案例给你参考</div></div><div class="msg customer"><div class="msg-meta">客户 · 2026-05-31 12:29 CST</div><div class="msg-content">15353354733</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>涅磐重生</b> <span class="case-meta">· 饭粒 · 2026-05-30 22:46 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-05-30 22:46 CST</div><div class="msg-content">你好，涅磐，136平硬装12万落地的黑白极简风清单我整理好了，按项目报，加 v发你案例和选品清单，你家几室几厅？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-06-08 09:31 CST</div><div class="msg-content">我微信：Homedz3791，备注「抖音」就行，户型我已经排进方案里了，加上我直接把清单和户型方案发你</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>楊六郎</b> <span class="case-meta">· 饭粒 · 2026-05-30 11:37 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-05-30 11:37 CST</div><div class="msg-content">你好，楊六。运输安装都包，工期2周，板材10年五金5年，现在活动期价格优惠。</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-05-31 17:26 CST</div><div class="msg-content">你好，楊六。看你在打招呼，是想先问下预算范围，还是已经有具体的柜子需求了？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>雪无痕</b> <span class="case-meta">· 野荞 · 2026-05-29 16:46 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×2</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-05-29 16:46 CST</div><div class="msg-content">你好，雪无痕。校长视频里说的封边和环保指标确实是性价比的真分水岭，对比时一定盯这两点。全屋柜体我们供应链直供兔宝宝莫干山ENF级板材，PUR封边热熔强度比普通PVC高2倍，568一投影平方包板材五金。</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-05-30 11:11 CST</div><div class="msg-content">你好，雪无痕姐。刷到你点赞校长视频，性价比装修确实得盯住材料和工艺。准备先动哪一组柜子？你家面积大概多少方便说吗？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-05-30 12:08 CST</div><div class="msg-content">你好，雪无痕姐。刷到你点赞校长视频，性价比装修确实得盯住材料和工艺。准备先动哪一组柜子？你家面积大概多少方便说吗？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>拼搏</b> <span class="case-meta">· 零星 · 2026-05-28 20:51 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-05-28 20:51 CST</div><div class="msg-content">你好，拼搏。视频里油工流程这几点说得很到位，全屋柜体5万起含板材五金安装，现在活动期价格优惠，你家几室几厅？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-05-28 20:51 CST</div><div class="msg-content">你好 拼搏，全屋柜体一站做（鞋柜+衣柜+橱柜+电视柜）3万能起手。你家多大户型？现在装到哪步了？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>红钻</b> <span class="case-meta">· 饭粒 · 2026-05-27 15:04 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-05-27 15:04 CST</div><div class="msg-content">你好，红钻。刷到你视频里10个实用设计都踩过坑吧？全屋定制568一投影，143平按5万预算包板材五金安装，本月活动期排单还剩几席，你家几室几厅？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-05-27 15:13 CST</div><div class="msg-content">你好，红钻。视频里10个实用设计能避坑，143平全屋定制能做，全屋柜体5万起步现在活动期价格优惠，你家几室几厅？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>🍀颖🍀</b> <span class="case-meta">· 零星 · 2026-05-27 15:01 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×2</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-05-27 15:01 CST</div><div class="msg-content">你好，颖。刚刷到你关注的装修公司内幕视频。建面63平旧改全包按投影面积算568一平，标配加10%配置系数，本月活动期排单还剩几席。现在交定金锁优惠？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-05-27 16:29 CST</div><div class="msg-content">你好，颖。刚刷到你关注的装修公司内幕视频。建面63平旧改全包按投影面积算568一平，标配加10%配置系数，本月活动期排单还剩几席。现在交定金锁优惠？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-05-27 16:36 CST</div><div class="msg-content">你好，颖。刚刷到你关注的装修公司内幕视频。建面63平旧改全包按投影面积算568一平，标配加10%配置系数，本月活动期排单还剩几席。现在交定金锁优惠？</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>未知客户</b> <span class="case-meta">· 零星 · 2026-05-27 14:39 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×2</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-05-27 14:39 CST</div><div class="msg-content">你好，思念。你这130平刚交房的设计需求，全屋柜体5万起步，含水电防水吊顶配套，加 v量房后拉清单，你家几室几厅？</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-05-27 14:59 CST</div><div class="msg-content">你好，思念。视频里德州三居的柜体布局和灯光搭配能迁移到你家。130㎡全屋柜体按投影算5万出头，本月活动期排单还剩几席，配色和风格方案发微信给你看。</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-05-27 16:27 CST</div><div class="msg-content">你好，思念。视频里德州三居的柜体布局和灯光搭配能迁移到你家。130㎡全屋柜体按投影算5万出头，本月活动期排单还剩几席，配色和风格方案发微信给你看。</div></div>
+  </div><div class="case">
+    <div class="case-header">
+      <div>
+        <b>心有灵犀风云</b> <span class="case-meta">· 零星 · 2026-05-25 19:01 CST · stage=ice_break</span>
+        
+      </div>
+      <div><span class="badge pre">v35</span> <span class="badge followup">AI 续发 ×1</span></div>
+    </div>
+    <div class="msg ai"><div class="msg-meta">我方 · 2026-05-25 19:01 CST</div><div class="msg-content">你好，风云。视频里说装修合同要加9个条款确实关键。辽宁最近问全屋柜体的多，合同这块得把板材ENF级无醛、五金品牌、投影面积算法都写明白。现在活动期价格优惠，能帮你直接对接品牌方签电子合同，省了中间商差价。</div></div><div class="msg ai"><div class="msg-meta">我方 · 2026-05-25 19:02 CST</div><div class="msg-content">你好，风云。视频里说装修合同要加9个条款确实关键。辽宁最近问全屋柜体的多，合同这块得把板材ENF级无醛、五金品牌、投影面积算法都写明白。现在活动期价格优惠，能帮你直接对接品牌方签电子合同，省了中间商差价。</div></div>
+  </div>
+
+  <h2>③ 评估结论</h2>
+  <div class="bigbox">
+    
+    <h3>核心数据点</h3>
+    <ul>
+      <li>v38 前 opener 708 条 → DB 真实进展 33 条（4.66%），其中真实客户回复 1 条</li>
+      <li>v38 后 opener 515 条 → DB 真实进展 19 条（3.69%），其中真实客户回复 1 条</li>
+    </ul>
+
+    <h3>结论：<span class="delta-pos">不建议回滚 v38</span></h3>
+    <ul>
+      <li><b>严格口径样本量太小，不能下回滚结论</b> — DB 里真实回复数据缺失（信号缺口见 §④），<b>不论数字看起来多差都不构成统计证据</b></li>
+      <li><b>代理信号（1140 样本）显示 v38 没有变差</b>，零星甚至有 +1.81pp 提升趋势，所有 p 值 > 0.13</li>
+      <li><b>v38 已确认收益</b> — 离线 eval k=5 柜体四要素齐全率 55-66% → 86.7%（+27pp），回滚会立刻丢失这部分</li>
+      <li><b>建议</b>：保留 v38；2026-06-22 重测（v38 满 17 天，所有样本 7d 观察期足够后去除偏差）；同步开做云电脑扫盘工具补真实回复信号</li>
+    </ul>
+  
+  </div>
+
+  <h2>④ 信号缺口与长期监测建议</h2>
+  <div class="bigbox">
+    <h3>为什么 DB 数据这么少？根因清单</h3>
+    <ol>
+      <li><b>抖音平台层无 DM 回复 API</b> — 平台基因约束，所有第三方工具同样问题</li>
+      <li><b>三条发 DM 通道，回复收集只为 message_queue 通道做过</b>：
+        <ul>
+          <li>A. <code>message_queue</code> + Fly worker → 有 <code>/api/cron/check-replies</code> 但 6/05 前后已下线</li>
+          <li>B. ADB / WDA → <code>scan-dm-replies.py</code> 工具存在但<b>没人在跑</b>（data 目录零文件）</li>
+          <li>C. 阿里无影云电脑 → <b>完全没有扫盘工具</b></li>
+        </ul>
+      </li>
+      <li><b><code>handed_off_at</code> 加微转化全靠人工标</b> — 没有写入口，没人填</li>
+      <li><b>抖音收件箱滚动天花板</b> — 即使扫盘也只能看到列表能滚到的范围</li>
+    </ol>
+
+    <h3>长期监测机制建议（按优先级）</h3>
+    <ol>
+      <li>🔥 <b>云电脑扫盘工具 MVP</b>（1 天）— 收口到云电脑后唯一可行的回复收集通道</li>
+      <li>🔥 <b>加微回写口子</b>（半天）— <code>mark-handed-off.ts</code> 一行命令 / Lark 飞书表单</li>
+      <li>⚙️ <b>回灌自动化</b>（半天）— GHA cron 每晚自动跑 <code>sync-inbound-replies.ts</code></li>
+      <li>⚙️ <b>prompt 切换自动评估</b>（半天）— 切版本写 <code>prompt_version_changes</code>，7d 后自动出对比卡</li>
+      <li>📊 <b>常驻看板</b>（1 天）— upio.ai/akke/prompt-eval 按 prompt × account 切片</li>
+    </ol>
+  </div>
+
+  <h2>⑤ 代理信号补充（间接互动）</h2>
+  <div class="callout">
+    严格口径下样本量极小（个位数）<b>不足以下回滚结论</b>。同步用代理信号「客户在 DM 后再到 comments 池露面」做对照分析，样本量 1140 个 opener × 1570 条互动信号。详见 <code>scripts/_v38-indirect-interaction-compare.ts</code>。<br><br>
+    <b>代理信号结论</b>（24h 公平窗口）：
+    <ul>
+      <li>v38 前互动率 1.84% → v38 后 2.08%（<span class="delta-pos">Δ +0.25pp</span>，p=0.769 不显著）</li>
+      <li>饭粒 1.24% → 0.00%（3 例→0 例，样本太小不构成证据）</li>
+      <li>零星 1.67% → <b>3.47%</b>（Δ +1.81pp 方向利好）</li>
+      <li>所有 p 值 > 0.13，统计上<b>说不出 v38 比 v35 差</b></li>
+    </ul>
+  </div>
+
+  <p class="muted" style="margin-top:32px;font-size:12px">
+    生成时间：2026-06-16 07:07:24 UTC<br>
+    脚本：<code>scripts/_v38-real-replies-html.ts</code> · 代理对照脚本：<code>scripts/_v38-indirect-interaction-compare.ts</code>
+  </p>
+</div>
+</body></html>
