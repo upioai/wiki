@@ -228,9 +228,21 @@ ol li,ul li{margin:6px 0;font-size:14px}
 降出 tier1 的号 → 可选自动取关（保持名单干净），不取关也不影响新鲜度
 </div>
 
+<h3>「谁来对账」「怎么自动」——具体落地</h3>
+<p><b>谁来对账：一个 Vercel 定时任务（cron），代码自动跑，没有人参与。</b>它就是套用 Akke 现成的「Vercel cron 入队 → worker 轮询消费」骨架（跟现在 <code>/api/cron/scrape</code> 写任务、worker 拉任务一模一样），不是新发明。落地就三个零件：</p>
+
+<table>
+<tr><th>零件</th><th>是什么</th><th>做什么</th></tr>
+<tr><td><b>① 对账 cron</b><br>（Vercel，每天 1 次）</td><td>新增一条定时路由<br><code>/api/cron/collector-follow-reconcile</code></td><td>读「当前该关注集合」= <code>source_accounts</code> 里 <code>tier=1 且 is_active</code> 的号；读「已关注集合」= <code>followed_by_collector_at</code> 非空的号；两者<b>差集</b>（该关注但还没关注的）→ 写进关注队列（用现成的去重插入原语，重复自动跳过）</td></tr>
+<tr><td><b>② 状态 + 队列</b></td><td><code>source_accounts</code> 加一列 <code>followed_by_collector_at</code>；新建一张 <code>collector_follow_queue</code></td><td>记「小胡到底关注了谁」+「待关注名单」，让对账有据可依、能断点续</td></tr>
+<tr><td><b>③ 无影关注 worker</b></td><td>复用现成的 <code>wuying_poll_agent.py</code>（它已经串行跑 DM/RC/二触），<b>加一条「关注」支线</b>（同款开关 <code>AKKE_COLLECTOR_FOLLOW_ENABLED</code>）</td><td>从队列取 pending、每天 ~30 个限速 → 跑 <code>_follow_grounded.py</code> 点关注 → 成功就回写 <code>followed_by_collector_at=now()</code>、队列行标完成；失败次数+1</td></tr>
+</table>
+
+<p>跑起来就是一个闭环：<b>tier1 升了新号（auto-promote 自动干）→ 次日对账 cron 发现差集、自动入队 → 无影 worker 限速关上、回写状态 → 关注流轮询自动逮它的新视频。</b>没有任何一步需要人去维护名单。（顺带：tier 只升不降，所以关注名单基本只增、极少取关，更省心。）</p>
+
 <div class="callout key">
 <b>结论</b>
-全程不用人手维护关注名单：新号升 tier1 → 次日对账自动入队 → 无影限速关上 → 关注流自动逮它的新视频。唯一的人工 / 环境依赖是「<b>无影得开着 + 接受 ~30 个/天 的铺号速度</b>」。代价是新升级的号有 ~1 天的「上架延迟」（升级当天可能还没被小胡关注上、要等对账+限速排到它），但相比原来那道 7 天墙，已经好太多。
+「次日对账自动入队」里的「对账」= <b>Vercel cron 这段代码</b>，每天定时自己跑，不是人。全程不用人手维护关注名单。唯一的人工 / 环境依赖是「<b>无影得开着 + 接受 ~30 个/天 的铺号速度</b>」。代价是新升级的号有 ~1 天「上架延迟」（升级当天可能还没被小胡关注上、要等对账 + 限速排到它），但相比原来那道 7 天墙，已经好太多。
 </div>
 
 <div class="callout bad">
