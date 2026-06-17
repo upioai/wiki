@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>破冰提示词优化 · 把回复率拉到 10%+ — 2026-06-17</title>
+<style>
+  :root {
+    --bg: #fafafa;
+    --card: #ffffff;
+    --ink: #1f2329;
+    --ink-2: #4e5969;
+    --muted: #86909c;
+    --border: #e5e6eb;
+    --accent: #1664ff;
+    --danger: #f53f3f;
+    --warn: #ff7d00;
+    --ok: #00b42a;
+    --bg-soft: #f7f8fa;
+    --code-bg: #f5f5f7;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.75;
+    font-size: 15px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 36px 24px 80px; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 20px; margin-bottom: 28px; }
+  h1 { margin: 0 0 8px; font-size: 26px; font-weight: 600; letter-spacing: -0.2px; }
+  header .meta { color: var(--muted); font-size: 13px; }
+  header .meta span + span::before { content: " · "; margin: 0 4px; }
+  h2 {
+    font-size: 20px;
+    margin: 44px 0 14px;
+    padding-left: 12px;
+    border-left: 3px solid var(--accent);
+  }
+  h3 { margin: 20px 0 8px; font-size: 16px; color: var(--ink-2); }
+
+  .goal {
+    background: linear-gradient(135deg, #f0f7ff 0%, #e8f4ff 100%);
+    border: 1px solid #c9deff;
+    border-radius: 10px;
+    padding: 18px 22px;
+    margin-bottom: 24px;
+  }
+  .goal h3 { margin: 0 0 6px; color: var(--accent); font-size: 16px; }
+  .goal p { margin: 4px 0; color: var(--ink-2); }
+  .goal strong { color: var(--ink); }
+
+  table.std {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    font-size: 14px;
+    margin: 14px 0 22px;
+  }
+  table.std th, table.std td {
+    text-align: left;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  table.std th {
+    background: var(--bg-soft);
+    color: var(--ink-2);
+    font-weight: 600;
+    font-size: 13px;
+  }
+  table.std tr:last-child td { border-bottom: none; }
+  table.std .col-left { width: 140px; font-weight: 600; color: var(--ink); }
+  table.std code {
+    background: var(--code-bg);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+    color: var(--ink-2);
+  }
+
+  .pill {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    margin-right: 4px;
+  }
+  .pill.p0 { background: #ffece8; color: var(--danger); }
+  .pill.p1 { background: #fff7e8; color: var(--warn); }
+  .pill.p2 { background: #e8f0ff; color: var(--accent); }
+  .pill.keep { background: #e8f7e8; color: var(--ok); }
+  .pill.lo { background: #f0f2f5; color: var(--muted); }
+  .pill.win { background: #e8f7e8; color: var(--ok); font-weight: 600; }
+  .pill.bad { background: #ffece8; color: var(--danger); }
+
+  .conclusion {
+    background: linear-gradient(90deg, #fff7e8 0%, #fff 100%);
+    border-left: 4px solid var(--warn);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin: 12px 0 18px;
+    color: var(--ink);
+  }
+  .conclusion strong { color: var(--warn); }
+
+  .rollback-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 22px;
+    margin-bottom: 18px;
+  }
+  .rollback-card .step {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 8px 0;
+  }
+  .rollback-card .step + .step { border-top: 1px solid var(--border); }
+  .rollback-card .dot {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--ok);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    margin-top: 2px;
+  }
+  .rollback-card .step-body { flex: 1; min-width: 0; }
+  .rollback-card .step-title { font-weight: 600; color: var(--ink); margin-bottom: 2px; }
+  .rollback-card .step-desc { color: var(--ink-2); font-size: 13.5px; }
+  .rollback-card .step-desc code {
+    background: var(--code-bg);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 12.5px;
+  }
+
+  .branch-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 22px;
+    margin-bottom: 14px;
+  }
+  .branch-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .branch-title {
+    font-size: 15.5px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .branch-title .code {
+    color: var(--muted);
+    font-weight: 400;
+    font-size: 13px;
+    margin-left: 8px;
+  }
+  .branch-meta {
+    flex-shrink: 0;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .branch-meta .ratio {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    font-size: 13px;
+    margin-right: 6px;
+  }
+  .branch-card .row {
+    margin: 8px 0;
+    color: var(--ink-2);
+    font-size: 13.5px;
+  }
+  .branch-card .row strong {
+    display: inline-block;
+    color: var(--ink);
+    min-width: 110px;
+    font-weight: 600;
+  }
+  .branch-card .opt {
+    background: linear-gradient(90deg, #e8f7e8 0%, #fff 100%);
+    border-left: 3px solid var(--ok);
+    padding: 10px 14px;
+    border-radius: 4px;
+    margin-top: 8px;
+  }
+  .branch-card .opt strong { color: var(--ok); }
+  .branch-card .reply {
+    background: var(--code-bg);
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin-top: 6px;
+    font-family: "PingFang SC", "Microsoft YaHei", monospace;
+    font-size: 13px;
+    color: var(--ink);
+    line-height: 1.6;
+  }
+  .branch-card.keep { border-left: 4px solid var(--ok); }
+  .branch-card.p0 { border-left: 4px solid var(--danger); }
+  .branch-card.p1 { border-left: 4px solid var(--warn); }
+  .branch-card.p2 { border-left: 4px solid var(--accent); }
+
+  .summary {
+    background: linear-gradient(135deg, #e8f7e8 0%, #f0fff0 100%);
+    border: 1px solid #b0e8b0;
+    border-radius: 10px;
+    padding: 18px 22px;
+    margin: 18px 0 12px;
+  }
+  .summary p { margin: 6px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>破冰提示词优化 · 把回复率拉到 10%+</h1>
+    <div class="meta">
+      <span>Owner: 夏夏</span>
+      <span>2026-06-17</span>
+      <span>v42 已上线 · 3 天观察期</span>
+    </div>
+  </header>
+
+  <div class="goal">
+    <h3>目标</h3>
+    <p>把破冰招呼（DM 第一条）的客户回复率拉到 <strong>≥ 10%</strong>。</p>
+  </div>
+
+  <!-- ====== 一、两大版本差异 ====== -->
+  <h2>一、两大版本差异 · v38（含四要素）vs v41</h2>
+
+  <h3>1.1 架构差异</h3>
+  <table class="std">
+    <thead>
+      <tr>
+        <th class="col-left">维度</th>
+        <th>v38 — 三要素一锅端</th>
+        <th>v41 — 4 步分支</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="col-left">主架构</td>
+        <td>要素一 师出有名 + 要素二 产品优势（价格四要素）+ 要素三 联系方式钩</td>
+        <td>① 招呼 + ② 聊视频 + ③ 聊地域 + ④ 答评论</td>
+      </tr>
+      <tr>
+        <td class="col-left">价格口径</td>
+        <td>一次说完：<strong>零售 868 / 样板房专供 568 全包 / 兔宝宝+千年舟+悍高+海蒂诗+ENF / 小区限量一套</strong></td>
+        <td>不报价格，只挑钩；客户问了才走 (A1)-(H) 分支给单点</td>
+      </tr>
+      <tr>
+        <td class="col-left">联系方式</td>
+        <td>「<strong>给个 v</strong>」黑话 + 强制反问钩收口（末字必须 ？）</td>
+        <td>「<strong>加微信</strong>」3 字，仅 (H) 硬装/软装 + (W) 联系方式豁免才出现</td>
+      </tr>
+      <tr>
+        <td class="col-left">字数</td>
+        <td>三要素齐全 ≤ 135 字</td>
+        <td>一律 ≤ 80 字</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>1.2 哪版更容易拿到回复 → v41</h3>
+  <table class="std">
+    <thead>
+      <tr>
+        <th class="col-left">看点</th>
+        <th>v38</th>
+        <th>v41</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="col-left">客户首次看到的信息量</td>
+        <td>868 + 568 + 品牌串 + 限量一套，<strong>4 个锚点同时砸</strong></td>
+        <td>1 个钩子 + 1 个反问</td>
+      </tr>
+      <tr>
+        <td class="col-left">客户心理</td>
+        <td>一上来就被报价压住，防御性强</td>
+        <td>只挑钩留悬念，客户更容易顺手回一句</td>
+      </tr>
+      <tr>
+        <td class="col-left">模型生成稳定性</td>
+        <td>≤135 字塞 3 要素 + 4 数字，模型抓不齐易兜底</td>
+        <td>≤80 字单分支，模型生成轻松、文案自然</td>
+      </tr>
+      <tr>
+        <td class="col-left">长链路价值</td>
+        <td>破冰就把底牌全亮了，nurture 阶段没料</td>
+        <td>破冰留钩 → nurture 客户问价时再放四要素，节奏分两段</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="conclusion">
+    <strong>结论：</strong>v41 在破冰阶段更容易拿到回复。把"四要素"从破冰拿掉、放到后续对话当客户主动追价时再讲清楚，是更合理的节奏。
+  </div>
+
+  <!-- ====== 二、回滚状态 ====== -->
+  <h2>二、回滚到 v41 · 已上线 + 后续对话铺四要素（已部署）</h2>
+
+  <div class="rollback-card">
+    <div class="step">
+      <div class="dot">✓</div>
+      <div class="step-body">
+        <div class="step-title">破冰回滚 v41 已生效</div>
+        <div class="step-desc"><code>dm.ice_break.system</code> production label = v41（Langfuse 实测确认）</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="dot">✓</div>
+      <div class="step-body">
+        <div class="step-title">后续对话四要素已部署</div>
+        <div class="step-desc">
+          <code>dm.nurture.system</code> 在客户问价时由 <code>buildPricingPrompt</code> 渲染 4 段铺垫：
+          ① 品质背书（品牌 + 型号）→ ② 市场零售价锚点（868）→ ③ 装企供货价对比 → ④ 限时活动价 + 截止 + 名额（568 / 小区限量一套）
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="dot">✓</div>
+      <div class="step-body">
+        <div class="step-title">链路自动衔接</div>
+        <div class="step-desc">客户从 v41 破冰被挑钩 → 回复进 nurture → 第一次问价格 → 四要素自动注入，无需再改代码。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== 三、评论分类聚合 ====== -->
+  <h2>三、评论分类聚合 · 当前 v41 分支回复 + 后续优化建议</h2>
+  <p style="color: var(--muted); font-size: 13.5px;">样本：近 14 天高 / 中意向评论 <strong>482 条</strong>。</p>
+
+  <h3>3.1 实测分布（按占比排序，多类目可重叠）</h3>
+  <table class="std">
+    <thead>
+      <tr>
+        <th class="col-left">类</th>
+        <th style="width: 100px;">占比</th>
+        <th>关键识别词</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td class="col-left">C9 要清单 / 资料 / 链接</td><td><strong>16.2%</strong></td><td>888 / 来一份 / 清单 / 手册 / 攻略 / 链接 / 效果图</td></tr>
+      <tr><td class="col-left">C1 总价 / 全屋报价</td><td><strong>13.7%</strong></td><td>多少钱 / 装修花了 / 做下来 / 这套多少（不含一平/一米）</td></tr>
+      <tr><td class="col-left">C5 地域 / 上门</td><td><strong>12.3%</strong></td><td>{地名} + 能做 / 来不 / 有没有</td></tr>
+      <tr><td class="col-left">C8 尺寸 / 工艺</td><td>8.5%</td><td>多深 / 几米 / 几公分 / 尺寸 / 多宽</td></tr>
+      <tr><td class="col-left">C7 颜色 / 材质 / 型号</td><td>7.9%</td><td>什么颜色 / 什么板 / 莫干山 / 兔宝宝 / 胡桃</td></tr>
+      <tr><td class="col-left">C11 主动求装修</td><td>5.4%</td><td>来我家 / 给我装 / 准备装修 / 师傅有空</td></tr>
+      <tr><td class="col-left">C2 单价</td><td>4.4%</td><td>一平 / 一米 / 一公分 / 每平</td></tr>
+      <tr><td class="col-left">C10 联系方式直问</td><td>4.2%</td><td>怎么联系 / 加 v / 微信 / 在吗</td></tr>
+      <tr><td class="col-left">C6 户型 / 设计需求</td><td>3.1%</td><td>N 平 + 怎么设计 / 怎么搞 / 能做吗</td></tr>
+      <tr><td class="col-left">C4 比价 / 嫌贵</td><td>2.3%</td><td>太贵 / 便宜的 N / 公道吗</td></tr>
+      <tr><td class="col-left">C12 自装党</td><td>1.5%</td><td>自装 / 腻子粉 / 砂浆 / 工费</td></tr>
+    </tbody>
+  </table>
+
+  <h3>3.2 当前 v41 分支回复 + 后续优化建议</h3>
+  <p style="color: var(--ink-2); font-size: 13.5px;">
+    <strong>原则：</strong>破冰只挑钩留悬念，所有具体价格数字（568/868/品牌串/小区限量一套）留到 nurture 阶段；<strong>破冰不报固定金额（去 5 万兜底）</strong>，统一按面积逻辑——客户没报面积就反问要面积，报了就走 284/㎡ 单价口径。
+  </p>
+
+  <!-- C1 总价 -->
+  <div class="branch-card p0">
+    <div class="branch-head">
+      <div class="branch-title">C1 总价 / 全屋报价 <span class="code">触发：多少钱 / 做下来 / 装这套 / 花了多少</span></div>
+      <div class="branch-meta"><span class="ratio">13.7%</span><span class="pill p0">P0</span></div>
+    </div>
+    <div class="row"><strong>当前 v41 分支：</strong>(A1) 总价 — 无面积时单一最低锚定「全屋柜体 90-160 ㎡ → 5 万」</div>
+    <div class="row"><strong>当前回复示例：</strong>「…全屋柜体 90-160 ㎡ 全包 5 万起 关键看你家是几室几厅 ？」</div>
+    <div class="opt">
+      <strong>优化建议：</strong>去掉 5 万兜底，破冰不报固定金额。客户没报面积 → 直接反问要面积（拉客户进入 (A4) 284 一平路径），把价格留到 nurture。
+    </div>
+    <div class="reply">你好，{称呼}，{视频钩 1 句} 全屋按平方算 284 一平 全包板材+五金+柜门+安装 你家面积大概多少 ？</div>
+  </div>
+
+  <!-- C2 单价 -->
+  <div class="branch-card p2">
+    <div class="branch-head">
+      <div class="branch-title">C2 单价 <span class="code">触发：一平 / 一米 / 一公分 / 每平</span></div>
+      <div class="branch-meta"><span class="ratio">4.4%</span><span class="pill p2">P2</span></div>
+    </div>
+    <div class="row"><strong>当前 v41 分支：</strong>(A4) 元/平方 — "按平方算 284 一平 算下来明白"</div>
+    <div class="opt">
+      <strong>优化建议：</strong>(A4) 现有逻辑已对，补全"全包范围（板材+五金+柜门+安装）"减少客户后续追问；反问钩从「几室几厅」换「面积大概多少」（单价分支客户更愿答面积）。
+    </div>
+    <div class="reply">你好，{称呼}，{视频钩} 按平方算 284 一平 全包板材+五金+柜门+安装 你家面积大概多少 ？</div>
+  </div>
+
+  <!-- C4 比价 -->
+  <div class="branch-card p2">
+    <div class="branch-head">
+      <div class="branch-title">C4 比价 / 嫌贵 <span class="code">触发：贵 / 便宜的 N / 公道吗 / 划算</span></div>
+      <div class="branch-meta"><span class="ratio">2.3%</span><span class="pill p2">P2</span></div>
+    </div>
+    <div class="row"><strong>当前 v41 分支：</strong>散落，无专属分支，常掉到 (B) 预算类或 (A1) 兜底</div>
+    <div class="opt">
+      <strong>优化建议：</strong>新增 (Q) 比价分支 — 先承认低价存在（"工程尾货/板材简配"），再用「全包差异化」拉回锚点，反问户型。
+    </div>
+    <div class="reply">你好，{称呼}，{客户原价词}的可能是工程尾货或板材简配 我们样板房征集每㎡省 300 全包板材+五金+柜门+安装 你家几室几厅 ？</div>
+  </div>
+
+  <!-- C5 地域 -->
+  <div class="branch-card p0">
+    <div class="branch-head">
+      <div class="branch-title">C5 地域 / 上门 <span class="code">触发：{地名} + 能做 / 来不 / 有没有</span></div>
+      <div class="branch-meta"><span class="ratio">12.3%</span><span class="pill p0">P0</span></div>
+    </div>
+    <div class="row"><strong>当前 v41 分支：</strong>(C) 区域 — 先肯定「{地名}可以做 / 有固定门店 / 量尺设计能上门」</div>
+    <div class="row"><strong>当前回复示例：</strong>「你好，{称呼}，{地名}可以做 …量尺设计能上门 准备先动哪一组柜子 ？」</div>
+    <div class="opt">
+      <strong>优化建议：</strong>保留"{地名}可以做"先行，<strong>反问钩从「先动哪一组」改成「几室几厅」</strong>（实测样本里客户更愿答户型而不是装修动线）。
+    </div>
+    <div class="reply">你好，{称呼}，{地名}可以做 量尺设计能上门——{视频钩 1 句} 你家几室几厅 ？</div>
+  </div>
+
+  <!-- C6 户型 -->
+  <div class="branch-card p2">
+    <div class="branch-head">
+      <div class="branch-title">C6 户型 / 设计需求 <span class="code">触发：N 平 / N 室 + 怎么设计 / 怎么搞 / 能做吗</span></div>
+      <div class="branch-meta"><span class="ratio">3.1%</span><span class="pill p2">P2</span></div>
+    </div>
+    <div class="row"><strong>当前 v41 分支：</strong>(A1) + (D) 方案混搭 — 容易直接报 5 万兜底 + 通用方向判断</div>
+    <div class="opt">
+      <strong>优化建议：</strong>拆出 (M) 设计需求分支 — 复述客户面积/户型 + 给方向判断（动线/客餐厅打通），不报金额，反问装修阶段。
+    </div>
+    <div class="reply">你好，{称呼}，{N 平/N 室}这种户型先看动线 客厅与餐厅打通 还是分区 给个 v 让设计师对照你家出方案 你家装到哪一步 ？</div>
+  </div>
+
+  <!-- C7 颜色材质 -->
+  <div class="branch-card p1">
+    <div class="branch-head">
+      <div class="branch-title">C7 颜色 / 材质 / 型号 <span class="code">触发：颜色 / 什么板 / 什么牌子 / 莫干山 / 兔宝宝 / 胡桃 / ENF</span></div>
+      <div class="branch-meta"><span class="ratio">7.9%</span><span class="pill p1">P1</span></div>
+    </div>
+    <div class="row"><strong>当前 v41 分支：</strong>(H) 硬装/软装报价/选品 — "按项目报 + 加微信"</div>
+    <div class="opt">
+      <strong>优化建议：</strong>(H) 偏向"报价"，颜色/材质问的是产品问题不是报价问题。新增 (S) 选品分支 — 先答字面（颜色/板材是哪个）+ 板材分级泛指（ENF 级 兔宝宝/千年舟）+ 反问装修阶段，<strong>不抛"加微信"</strong>（避免触防御）。
+    </div>
+    <div class="reply">你好，{称呼}，{客户原物件}用的 {柜体颜色或板材}—— 板材都是 ENF 级 兔宝宝/千年舟 看你家整体风格搭就好 你家装到哪一步 ？</div>
+  </div>
+
+  <!-- C8 尺寸 -->
+  <div class="branch-card p1">
+    <div class="branch-head">
+      <div class="branch-title">C8 尺寸 / 工艺 <span class="code">触发：多深 / 多宽 / 多高 / 几米 / 几公分 / 尺寸 / 开间 / 进深</span></div>
+      <div class="branch-meta"><span class="ratio">8.5%</span><span class="pill p1">P1</span></div>
+    </div>
+    <div class="row"><strong>当前 v41 分支：</strong>散落 (D)/(E) — 经常"得看户型"敷衍或硬转柜体</div>
+    <div class="opt">
+      <strong>优化建议：</strong>新增 (D2) 尺寸分支 — 先给标准尺寸（柜深 60 / 衣柜 240 高 / 餐边柜 900 高 / 鞋柜 35 深）作锚点 + 反问面积让差距能算出来。
+    </div>
+    <div class="reply">你好，{称呼}，{客户问的物件}标准做 {X cm} 实际看你家进深定 你家面积大概多少 ？</div>
+  </div>
+
+  <!-- C9 要清单 -->
+  <div class="branch-card p0">
+    <div class="branch-head">
+      <div class="branch-title">C9 要清单 / 资料 / 链接 · 占比最高 <span class="code">触发：888 / 来一份 / 清单 / 手册 / 攻略 / 链接 / 效果图</span></div>
+      <div class="branch-meta"><span class="ratio">16.2%</span><span class="pill p0">P0</span></div>
+    </div>
+    <div class="row"><strong>当前 v41 分支：</strong><strong style="color:var(--danger)">无专属分支</strong>，散到 (D)/(E)/(W) — 经常给空话「私信我看下」或直接走 (W) 简化路径丢钩</div>
+    <div class="row"><strong>当前回复示例：</strong>很多情况只回「好的私信你」，无内容、无反问钩，回复率最低</div>
+    <div class="opt">
+      <strong>优化建议：</strong>新增 (R) 资料钩分支 — 直接答应（实拍 + 户型清单可发）+ 用「抖音图压糊」当借口要客户微信 + 反问户型同时<strong>筛真假意向</strong>（真客户答户型；抄作业型沉默）。
+    </div>
+    <div class="reply">你好，{称呼}，{视频钩 1 句} 实拍+户型清单可以发——抖音图压糊了 你方便发个微信号过来吗 我让设计师按你家面积给你发清楚 你家几室几厅 ？</div>
+  </div>
+
+  <!-- C10 联系方式 -->
+  <div class="branch-card keep">
+    <div class="branch-head">
+      <div class="branch-title">C10 联系方式直问 <span class="code">触发：怎么联系 / 加 v / 加微 / 微信 / 在吗</span></div>
+      <div class="branch-meta"><span class="ratio">4.2%</span><span class="pill keep">保持</span></div>
+    </div>
+    <div class="row"><strong>当前 v41 分支：</strong>(W) 联系方式豁免 — 简化路径 50-70 字</div>
+    <div class="opt">
+      <strong>优化建议：</strong>沿用现状不动，(W) 路径已最优；只需定期 review 软话术池别老用同一句（轮替「价格再让一档 / 排单优先安排 / 新活动第一时间发你」）。
+    </div>
+    <div class="reply">你好，{称呼}。{视频钩 10-25 字} 你方便发个微信号过来吗 我让设计师加你 有活动优惠会再给你算一档。</div>
+  </div>
+
+  <!-- C11 主动求装修 -->
+  <div class="branch-card p1">
+    <div class="branch-head">
+      <div class="branch-title">C11 主动求装修 <span class="code">触发：来我家 / 给我装 / 找你装 / 准备装修了 / 师傅有空 / 急</span></div>
+      <div class="branch-meta"><span class="ratio">5.4%</span><span class="pill p1">P1</span></div>
+    </div>
+    <div class="row"><strong>当前 v41 分支：</strong>散落 (E) 经验分享 — 经常没有承接其装修紧迫感，直接报价</div>
+    <div class="opt">
+      <strong>优化建议：</strong>新增 (U) 主动求装分支 — 先承接装修阶段的踩雷点（铺垫专业感）+ "量尺设计能上门"承诺 + 反问装修阶段，<strong>不报金额</strong>。
+    </div>
+    <div class="reply">你好，{称呼}，{装修阶段相关词}这步客户最容易踩 {对应踩雷点} 量尺设计能上门 你家装到哪一步 ？</div>
+  </div>
+
+  <!-- C12 自装党 -->
+  <div class="branch-card keep">
+    <div class="branch-head">
+      <div class="branch-title">C12 自装党 <span class="code">触发：自装 / 腻子粉 / 砂浆 / 工费 / 包工不包料</span></div>
+      <div class="branch-meta"><span class="ratio">1.5%</span><span class="pill keep">保持</span></div>
+    </div>
+    <div class="row"><strong>当前 v41 分支：</strong>(G) 双无装修信号 — 短句答字面 ≤ 30 字</div>
+    <div class="opt">
+      <strong>优化建议：</strong>沿用现状，这批客户不是装修业务客户，硬推柜体会被骂，保持 (G) 短答即可。
+    </div>
+  </div>
+
+  <h3 style="margin-top: 28px;">3.3 落地优先级</h3>
+  <table class="std">
+    <thead>
+      <tr>
+        <th class="col-left">优先级</th>
+        <th>类</th>
+        <th style="width:80px;">占比</th>
+        <th>为何先动</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="col-left"><span class="pill p0">P0</span></td>
+        <td>C1 总价 / C9 要清单 / C5 地域</td>
+        <td><strong>42%</strong></td>
+        <td>占比最大，C1 报 5 万要去、C9 无专属分支、C5 反问钩要换</td>
+      </tr>
+      <tr>
+        <td class="col-left"><span class="pill p1">P1</span></td>
+        <td>C7 颜色材质 / C8 尺寸 / C11 主动求装</td>
+        <td>22%</td>
+        <td>当前 v41 散落，要拆出独立分支</td>
+      </tr>
+      <tr>
+        <td class="col-left"><span class="pill p2">P2</span></td>
+        <td>C4 比价 / C6 户型 / C2 单价</td>
+        <td>10%</td>
+        <td>占比小或已基本正确，措辞微调</td>
+      </tr>
+      <tr>
+        <td class="col-left"><span class="pill keep">保持</span></td>
+        <td>C10 联系方式 / C12 自装党</td>
+        <td>6%</td>
+        <td>已最优，不动</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ====== 四、落地结果 ====== -->
+  <h2>四、落地结果</h2>
+  <div class="summary">
+    <p>v42 按三-3.2 的优化建议（C1 总价 / C5 地域 / C9 资料钩 等分支）实现优化落地。</p>
+    <p><strong>后续观察：</strong>跑 3 天真实回复率，命中 ≥ 10% 收口本轮，未命中走 P1（C7 / C8 / C11）继续拆分支。</p>
+  </div>
+
+</div>
+</body>
+</html>
