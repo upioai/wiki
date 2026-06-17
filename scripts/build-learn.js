@@ -32,6 +32,7 @@ const CATEGORIES = [
       { slug: 'fde',              title: 'FDE 前线部署工程师',  desc: 'Anthropic 的 FDE 角色解读。' },
       { slug: 'ai-harness',       title: 'AI Harness 精要',     desc: 'Agent harness 框架要点。' },
       { slug: 'fable5',           title: 'Claude Fable 5',      desc: '新模型能力介绍。' },
+      { slug: 'scheduling-terms', title: 'Cron / Routine / Schedule 辨析', desc: '定时·事件·常驻：一堆易混的自动化机制怎么选。' },
     ],
   },
   {
