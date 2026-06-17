@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>云电脑【浏览器 Edge】视觉定位发 DM · 0→1 操作 / 卡点 / 优化空间 · 2026-06-17</title>
+<title>云电脑【浏览器 Edge】视觉定位发 DM · 案例/原理/批量统计/Bad Case/下一步 · 2026-06-17</title>
 <style>
   :root{
     --bg:#f6f8fb; --card:#ffffff; --card2:#f1f4f9; --line:#e3e8f0;
@@ -72,6 +72,11 @@
   .phase ul{margin:6px 0 0;padding-left:18px;font-size:13px}
   .phase li{margin-bottom:6px}
   .src{color:var(--mut);font-size:11px;font-style:italic}
+  .chat{max-width:560px}
+  .bubble{border-radius:12px;padding:9px 13px;margin:7px 0;font-size:13.5px;line-height:1.55;max-width:80%}
+  .bubble.them{background:#fff;border:1px solid var(--line)}
+  .bubble.me{background:#dbeafe;border:1px solid #bfdbfe;margin-left:auto}
+  .who{font-size:11px;color:var(--mut);margin:2px 4px}
   mark{background:#ffe680;color:inherit;padding:0 4px;border-radius:3px;font-weight:700;box-decoration-break:clone;-webkit-box-decoration-break:clone}
 </style>
 </head>
@@ -80,131 +85,160 @@
 
   <header class="hero">
     <h1>云电脑【浏览器 Edge】视觉定位发 DM · 0→1</h1>
-    <div class="sub">在阿里无影云电脑上，用 <b>Edge 浏览器（抖音网页版）</b> + <b>Qwen 视觉定位（grounded）</b>
-      自动发私信。不碰 DOM、走真鼠标点击 → <b>天然绕开 Playwright 反自动化检测</b>；复用 PC 客户端版整套机器，
-      只重写「导航 / 点私信 / 面板身份门」三段。本页 = 0→1 完整操作 + 当天踩的卡点 + 待优化空间。</div>
+    <div class="sub">阿里无影云电脑上，用 <b>Edge 浏览器（抖音网页版）</b> + <b>Qwen 视觉定位（grounded）</b> 自动发私信。
+      不碰 DOM、走真鼠标点击 → <b>天然绕开 Playwright 反自动化检测</b>；复用 PC 客户端版整套机器，只重写
+      「URL 直达导航 / 点私信 / 面板身份门」。本页 = ① 第一个案例 · ② 0→1 原理图 · ③ 批量统计 + Bad Case + 优化进展 · ④ 下一步待办。</div>
     <div class="hero meta">
       <span class="pill">日期 <b>2026-06-17</b></span>
-      <span class="pill">账号 <b>有大有小 (shawsnk)</b></span>
-      <span class="pill">通道 <b>第 4 条</b>（此前：PC 客户端 / ADB / WDA）</span>
-      <span class="pill">spike <b>✅ 真发出 1 条</b></span>
-      <span class="pill">脚本 <b>douyin_dm_web_grounded.py</b></span>
+      <span class="pill">账号 <b>有大有小 (shawsnk) · 9535e31c</b></span>
+      <span class="pill">通道 <b>第 4 条</b>（此前 PC 客户端 / ADB / WDA）</span>
+      <span class="pill">今日发出 <b>手动 3 + 自动 6</b></span>
+      <span class="pill">实时页 <b><a href="https://upio.ai/akke/cloudpc-dm-live-youdayouxiao">cloudpc-dm-live-youdayouxiao</a></b></span>
     </div>
   </header>
 
   <!-- ─────────── 结论卡 ─────────── -->
   <div class="kv">
-    <div class="mini good"><div class="h">通道验证</div><div class="b">PASS</div><div class="s">nav→私信→发→气泡核对全通</div></div>
-    <div class="mini"><div class="h">校准坐标</div><div class="b">865,602</div><div class="s">输入框；发送↑ 964,602</div></div>
-    <div class="mini warn"><div class="h">头号卡点</div><div class="b">IME</div><div class="s">URL 被中文输入法吞→搜狗</div></div>
-    <div class="mini"><div class="h">分辨率/缩放</div><div class="b">2560×1600</div><div class="s">DPI 125%，已 DPI-aware</div></div>
+    <div class="mini good"><div class="h">通道验证</div><div class="b">PASS</div><div class="s">手动单条 3/3 全通</div></div>
+    <div class="mini good"><div class="h">自动派单</div><div class="b">跑通</div><div class="s">dispatch→agent→发 自动6条</div></div>
+    <div class="mini bad"><div class="h">10min SLA</div><div class="b">未达标</div><div class="s">全部 🔴，墙在采集 S1</div></div>
+    <div class="mini warn"><div class="h">头号待办</div><div class="b">S1 采集</div><div class="s">评论被抓到时已 >10min</div></div>
   </div>
+  <div class="warn-box"><b>一句话结论：</b>浏览器视觉定位通道<mark>手动 100% 通、自动派单也跑通了</mark>；但<mark>「评论→触达 ≤10min」没达标，根因不在发送（2.4–6.4min 很快），而在采集延迟 S1（评论被抓到时已 14–45min 前发的，从源头就超 10min）</mark>。</div>
 
-  <!-- ─────────── 1. 架构与选型 ─────────── -->
-  <h2 class="sec"><span class="n">1</span> 为什么是「浏览器 + 视觉定位」</h2>
-  <div class="lead">三条路里选 C。关键判断：手工浏览器能发 DM ⇒ web 私信入口存在 ⇒ 自动化可行；视觉定位绕开 Playwright 反检测。</div>
+  <!-- ════════ ① 第一个案例 ════════ -->
+  <h2 class="sec"><span class="n">1</span> 第一个案例 · 来地球玩的（首条完整流程跑通）</h2>
+  <div class="lead">从 claim 到发出全链路闭环：身份门 → 关注 → 点赞最新作品 → 关弹层退回主页 → 私信面板 → 填文案 → 发送 → 气泡核对 → 永久去重。</div>
   <div class="card">
-    <table>
-      <tr><th>路线</th><th>做法</th><th>工作量</th><th>结论</th></tr>
-      <tr><td><b>A · PC 客户端 grounded</b></td><td>装抖音 PC 客户端 + 现成 <code>wuying_poll_agent.py</code></td><td>零写</td><td>已投产，但要放弃浏览器</td></tr>
-      <tr><td><b>B · 浏览器 Playwright</b></td><td>DOM 驱动 web 私信</td><td>大（+反检测调试）</td><td><span class="badge b-todo">弃</span> navigator.webdriver/指纹易被拦</td></tr>
-      <tr><td><b>C · 浏览器视觉定位</b> ✅</td><td>截图→Qwen VL 找元素→真鼠标点</td><td>中（搬骨架+重标坐标）</td><td><span class="badge b-done">选定</span> 保住浏览器 + 绕反检测 + 复用机器</td></tr>
-    </table>
-    <div class="note"><b>复用 PC 版（<code>douyin_dm_grounded.py</code>）：</b> Qwen VL 调用 / 截图 / <code>SendInput</code> 中文键入 / 主页身份 OCR / 气泡核对 / CSV 契约。
-      <b>重写三段：</b> ① 导航（地址栏直达 <code>douyin.com/user/&lt;sec_uid&gt;</code>，省搜索+双因子撞名）② 视觉点「私信」灰按钮 ③ 面板身份门（OCR 浮层顶昵称，防全局私信箱没切干净发错人）。</div>
-  </div>
-
-  <!-- ─────────── 2. 0→1 操作流 ─────────── -->
-  <h2 class="sec"><span class="n">2</span> 0→1 操作流程</h2>
-  <div class="lead">分工：<b>mac（有工具链）</b>建号 + claim + 备料 + mark；<b>云电脑 Edge（只有浏览器）</b>校准 + 发。别在云电脑装 pnpm（密钥下放降级）。</div>
-  <div class="card">
-    <div class="flow">
-      <div class="step new"><div class="t">① 建 messaging 行</div><div class="d">有大有小 9535e31c · manual · 日限10</div></div>
-      <div class="arrow">→</div>
-      <div class="step"><div class="t">② 双通道核查</div><div class="d">engagement 6644a013 空壳没跑 → 风险0</div></div>
-      <div class="arrow">→</div>
-      <div class="step"><div class="t">③ fork 脚本</div><div class="d">douyin_dm_web_grounded.py</div></div>
-      <div class="arrow">→</div>
-      <div class="step"><div class="t">④ 云电脑环境</div><div class="d">下脚本+deps+OPENROUTER_KEY</div></div>
-      <div class="arrow">→</div>
-      <div class="step hot"><div class="t">⑤ 校准坐标</div><div class="d">--calibrate → .env</div></div>
-      <div class="arrow">→</div>
-      <div class="step"><div class="t">⑥ mac 备料</div><div class="d">claim→补opener→CSV→paste.rs</div></div>
-      <div class="arrow">→</div>
-      <div class="step new"><div class="t">⑦ spike 发</div><div class="d">--max=1 --confirm → 气泡核对 → mark</div></div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+      <span class="pill">客户 <b>来地球玩的</b></span>
+      <span class="pill">sec_uid <b>MS4wLjABAAAAXbHB…</b></span>
+      <span class="pill">意向 <b>高意向</b></span>
+      <span class="pill">结果 <b style="color:var(--good)">✅ 气泡核对发出 + 去重</b></span>
     </div>
-  </div>
-  <div class="card">
-    <b style="font-size:13px">关键命令</b>
-<pre><span class="c"># —— mac：建号 / claim（账号覆盖，dotenv override=false 故命令行临时设的 AKKE_ACCOUNT_ID 会赢）——</span>
-AKKE_ACCOUNT_ID=9535e31c-... pnpm tsx scripts/claim-leads.ts --limit=2
-<span class="c"># 缺 opener 用生产 generateOpener 补 + 排 CSV（_build-web-contacts.ts），paste.rs 传云电脑</span>
-
-<span class="c"># —— 云电脑 Edge（PowerShell）：下载 / 校准 / spike ——</span>
-curl.exe -s https://paste.rs/XXXX -o douyin_dm_web_grounded.py   <span class="c"># 一律 curl.exe，别 iwr（中文转码坏）</span>
-python douyin_dm_web_grounded.py --calibrate                     <span class="c"># 先手动开一个私信浮层</span>
-python douyin_dm_web_grounded.py contacts.csv --max=1 --confirm  <span class="c"># 每条发送前等回车</span>
-
-<span class="c"># —— mac：发完立即 mark-contacted（消费claim+建conversation+永久去重）——</span>
-AKKE_ACCOUNT_ID=9535e31c-... pnpm tsx scripts/mark-contacted.ts \
-  --comment-id=&lt;id&gt; --douyin-user=&lt;sec_uid&gt; --content="&lt;刚发的文案&gt;"</pre>
-    <div class="note"><b>身份/去重澄清（建号时差点踩）：</b> <code>shawsnk</code> = 「有大有小」(<code>6644a013</code> engagement，sec_uid <code>95ca3ce6…</code>)，
-      <mark>不是</mark>「零星」(<code>8af08f10</code>，另一 sec_uid)。系统 <code>douyin_id</code> 存的是 sec_uid 哈希、不是登录名 → 防重靠 sec_uid。
-      新建的是 <b>messaging</b> 行 <code>9535e31c</code>（type=messaging / channel_pref=manual），对采集抓取零影响（采集只认 <code>type='scraping'</code>）。</div>
+    <div class="chat">
+      <div class="who">客户评论（视频下）</div>
+      <div class="bubble them">预算 20 万装全屋够不够…（高意向，全屋定制需求）</div>
+      <div class="who">有大有小 → 私信（脚本自动发出）</div>
+      <div class="bubble me">你好，来地球玩的。预算20万够，全屋装修常见配置都包得住。你家是新房还是翻新？</div>
+    </div>
+    <div class="note" style="margin-top:14px"><b>脚本实跑日志（节选）：</b>
+<pre>[OCR主页] match=True conf=0.98 seen='来地球玩的'
+[关注] followed
+click[第一个作品] → click[点赞♡] → click[视频关闭X]
+[点赞] <mark>第1次关弹层后已回【来地球玩的】主页</mark>   <span class="c"># 关键：点弹层X回主页，不是Alt+左退错人</span>
+[私信] 面板打开 → 输入框(2214,963) → 发送↑(2467,963)
+<mark>✅ 已确认气泡发出</mark>
+mark-contacted: claim=consumed · conv✅ · msg✅       <span class="c"># 永久去重</span></pre></div>
+    <div class="good-box">同日另有 <b>做自己的太阳</b>（首条 spike，纯私信）、<b>舍得</b>（28万全屋）两条手动单条同样 100% 发出，证明<mark>脚本本体在「机器晾空、单进程」下稳定可靠</mark>。</div>
   </div>
 
-  <!-- ─────────── 3. 卡点 ─────────── -->
-  <h2 class="sec"><span class="n">3</span> 遇到的卡点（按出现顺序）</h2>
-  <div class="lead">7 个，全部已解。头号是 IME 吞 URL；最隐蔽是 dotenvx 横幅污染 JSON。</div>
+  <!-- ════════ ② 0→1 原理图 ════════ -->
+  <h2 class="sec"><span class="n">2</span> 0→1 逻辑原理图</h2>
+  <div class="lead">两层：宏观自动派单管线（评论→去重 8 跳）+ 微观 web 发送流程（脚本在 Edge 里逐步点）。</div>
+
   <div class="card">
-    <table>
-      <tr><th>#</th><th>现象</th><th>根因</th><th>修法</th></tr>
-      <tr><td>1</td><td>云电脑 <code>pnpm</code> 不存在</td><td>这台只有浏览器+python，无 node 工具链</td><td>claim/mark 留 mac，云电脑只发（且避免 service key 下放）</td></tr>
-      <tr><td>2</td><td><code>.env</code> 搜不到 ANTHROPIC_API_KEY</td><td>实为 <code>OPENROUTER_API_KEY</code></td><td>脚本两者都认 + 默认 OpenRouter base/Qwen VL，无需补</td></tr>
-      <tr><td>3</td><td>claim JSON 解析报 <code>Unexpected token ◇</code></td><td><span class="badge b-prog">隐蔽</span> dotenvx <code>◇ injected env</code> 横幅打到 stdout，且含 <code>[www.dotenvx.com]</code> 骗过「首个 <code>[</code>」</td><td>按<b>行首是 <code>[</code></b> 的那行定位真数组</td></tr>
-      <tr><td>4</td><td>claim 出 0 条带 opener</td><td>这俩 lead 无云端预生成话术</td><td>生产 <code>generateOpener</code> 补；1/2 <code>self_check_failed</code> 空话术 → 跳过不发</td></tr>
-      <tr><td>5</td><td><b>URL 跳成「搜狗搜索」发不出</b></td><td><span class="badge b-todo">头号</span> 中文 IME 拦/吞 <code>typewrite</code> 的 URL → 残缺串被当搜索词</td><td><b><code>SendInput</code> unicode 注入 URL 绕开 IME</b>（PC 版打中文同款机制）+ 非主页自动重导航 ×3</td></tr>
-      <tr><td>6</td><td>私信面板首次 verify 假阴性</td><td>面板还在渲染就核对 → 误判没开</td><td>改「先多等 2.5s + 复核，<b>真没开才再点</b>」——面板已开时再点私信部分主页会 toggle 关掉</td></tr>
-      <tr><td>7</td><td>125% 缩放坐标/截图风险</td><td>DPI 混合像素易错位、截图降采样糊</td><td><code>SetProcessDpiAwareness</code> → 截图清晰 + 坐标同物理像素自洽（读到满血 2560×1600）</td></tr>
+    <b style="font-size:13px">宏观 · 自动派单管线（cron 全分钟级）</b>
+    <div class="flow" style="margin-top:10px">
+      <div class="step"><div class="t">①评论</div><div class="d">用户在视频下评论</div></div><div class="arrow">→</div>
+      <div class="step hot"><div class="t">②采集 S1</div><div class="d">scrape-hot 每3min<br>→ comments 入库</div><div class="ms">14–45min ⚠</div></div><div class="arrow">→</div>
+      <div class="step"><div class="t">③分析</div><div class="d">analyze 每2min<br>意向+opener</div></div><div class="arrow">→</div>
+      <div class="step"><div class="t">④派单</div><div class="d">cloud-pc-dispatch<br>每1min</div></div><div class="arrow">→</div>
+      <div class="step"><div class="t">⑤队列</div><div class="d">dispatch_queue<br>(公告板)</div></div><div class="arrow">→</div>
+      <div class="step"><div class="t">⑥抢锁</div><div class="d">wuying_poll_agent<br>每15s claim</div></div><div class="arrow">→</div>
+      <div class="step new"><div class="t">⑦发送 S3</div><div class="d">web 脚本 GUI<br>关注+点赞+私信</div><div class="ms">2.4–6.4min ✅</div></div><div class="arrow">→</div>
+      <div class="step new"><div class="t">⑧去重</div><div class="d">complete_dispatch<br>→ mark_lead_contacted</div></div>
+    </div>
+    <div class="note" style="margin-top:10px"><b>公告板模型（无直连）：</b>Vercel cron 写 <code>dispatch_queue</code>，云电脑 agent 主动 60/15s 来「抢排班单」<code>claim_dispatch</code>，没有任何节点持有云电脑的直连。<mark>派单 cron 已是分钟级，不是瓶颈</mark>。</div>
+  </div>
+
+  <div class="card">
+    <b style="font-size:13px">微观 · web 发送脚本流程（<code>douyin_dm_web_grounded.py</code>，Edge 里逐步点）</b>
+    <div class="flow" style="margin-top:10px">
+      <div class="step"><div class="t">URL 直达</div><div class="d">Ctrl+L 地址栏<br>douyin.com/user/&lt;sec_uid&gt;</div></div><div class="arrow">→</div>
+      <div class="step"><div class="t">主页身份门</div><div class="d"><mark>信任 sec_uid</mark><br>落主页即认本人</div></div><div class="arrow">→</div>
+      <div class="step"><div class="t">关注</div><div class="d">视觉锁红「关注」</div></div><div class="arrow">→</div>
+      <div class="step"><div class="t">点赞</div><div class="d">开作品→点♡→<br><mark>点弹层X回主页</mark></div></div><div class="arrow">→</div>
+      <div class="step"><div class="t">私信面板</div><div class="d">视觉锁「私信」<br>+面板身份门</div></div><div class="arrow">→</div>
+      <div class="step"><div class="t">填+发</div><div class="d"><mark>SendInput</mark>键入<br>固定坐标发送↑</div></div><div class="arrow">→</div>
+      <div class="step new"><div class="t">气泡核对</div><div class="d">对话区出现本文案<br>=真发出</div></div>
+    </div>
+    <div class="note" style="margin-top:10px">与抖音号搜索通道（其他云电脑）<b>完全隔离</b>：本机走独立脚本 + 独立 <code>.env</code>（<code>AKKE_DM_SCRIPT=web</code> / <code>HANDLE_RESOLVE=0</code>），<mark>URL 直达 sec_uid 天然定位本人，不需要抖音号搜索</mark>，改这台不碰别人。</div>
+  </div>
+
+  <!-- ════════ ③ 批量统计 + Bad Case + 优化进展 ════════ -->
+  <h2 class="sec"><span class="n">3</span> 批量化执行 · 统计 / Bad Case / 优化进展</h2>
+
+  <div class="kv">
+    <div class="mini good"><div class="h">手动单条</div><div class="b">3/3</div><div class="s">100% 发出</div></div>
+    <div class="mini good"><div class="h">自动 sent</div><div class="b">6</div><div class="s">dispatch_queue 通道</div></div>
+    <div class="mini warn"><div class="h">skipped</div><div class="b">4</div><div class="s">多为 wrong_user(已修)</div></div>
+    <div class="mini bad"><div class="h">failed</div><div class="b">1</div><div class="s">dm_panel_failed</div></div>
+  </div>
+
+  <div class="card">
+    <b style="font-size:13px">时效拆解（自动 5 条抽样，分钟）—— 真凶不在发送</b>
+    <table style="margin-top:8px">
+      <tr><th>客户</th><th>评论→抓取 S1</th><th>抓取→派单 S2</th><th>派单→发出 S3</th><th>评论→发出 e2e</th></tr>
+      <tr><td>于逸武</td><td><mark>24.8</mark></td><td>185.5</td><td>2.4</td><td>🔴 212.7</td></tr>
+      <tr><td>喃喃自语</td><td><mark>41.4</mark></td><td>304.4</td><td>3.7</td><td>🔴 349.6</td></tr>
+      <tr><td>仙女德纲</td><td><mark>280</mark></td><td>254</td><td>6.4</td><td>🔴 540.4</td></tr>
+      <tr><td>ღX小敏吖</td><td><mark>45.9</mark></td><td>193.5</td><td>4.2</td><td>🔴 243.6</td></tr>
+      <tr><td>✨时来运转</td><td><mark>14.5</mark></td><td>3.4</td><td>4.3</td><td>🔴 22.2</td></tr>
+    </table>
+    <div class="warn-box" style="margin-top:10px"><b>读法：</b>
+      <b>S3 发送 2.4–6.4min，已达标</b>（GUI 关注+点赞+私信全程很快）。
+      <b>S2</b> 老库存堆积 185–304min —— 派单在捞几小时前的存货，<mark>已用 fresh_window=15min 挡掉（只派近 15min 抓到的新鲜单、不发老库存）</mark>。
+      <b>S1 采集 14–45min 是真正的墙</b>：<mark>评论被我们抓到时，本身就已经 14–45 分钟前发的了 → 在第一次看见它的那刻就超过 10min，派单/发送再快也救不回</mark>。最快那条（时来运转）派+发只 7.7min，仍因 S1=14.5 而 e2e 22min。</div>
+  </div>
+
+  <div class="card">
+    <b style="font-size:13px">Bad Case 全清单（当天，按出现顺序）· 根因 / 优化 / 进展</b>
+    <table style="margin-top:8px">
+      <tr><th>#</th><th>现象</th><th>根因</th><th>优化方式</th><th>进展</th></tr>
+      <tr><td>1</td><td>URL 跳成「搜狗搜索」发不出</td><td>中文 IME 拦/吞 typewrite 的 URL</td><td><mark>SendInput unicode 注入绕开 IME</mark> + 非主页自动重导航</td><td><span class="badge b-done">已修</span></td></tr>
+      <tr><td>2</td><td>点完作品 Alt+左退到上一个用户</td><td>web 点作品是 modal 浮层，浏览器后退走历史</td><td>改<mark>点视频弹层右上角「关闭X」</mark>（量坐标）关弹层回主页</td><td><span class="badge b-done">已修</span></td></tr>
+      <tr><td>3</td><td>wrong_user 误杀本人</td><td>派单带旧昵称 + URL 通道照搬了抖音号通道的「昵称精确匹配」，用户改名即失配</td><td><mark>trust-secuid：URL 唯一锁人，落到主页即发，不强求昵称匹配</mark></td><td><span class="badge b-done">已修上线</span></td></tr>
+      <tr><td>4</td><td>dm_panel_failed 私信面板没开</td><td>操作机器时<mark>屏幕焦点被抢</mark> + 面板渲染时序</td><td>先等+复核才再点（防 toggle 关掉）+ 无人值守晾空机器</td><td><span class="badge b-prog">部分</span></td></tr>
+      <tr><td>5</td><td>镜像旧 agent 抢窗口、搜抖音号→Bing</td><td>镜像 <code>bootstrap.bat</code> 登录自启旧 agent（抖音号搜索版），与 web agent 抢 Edge</td><td>杀光 python + <mark>确认只跑单个 web agent</mark></td><td><span class="badge b-done">已解</span></td></tr>
+      <tr><td>6</td><td>监控永远显示 0 / 心跳❌（假象）</td><td>监控脚本 select 了不存在的 <code>updated_at</code> 列 → 查询静默失败</td><td>改用 <code>completed_at</code> + 暴露查询错误</td><td><span class="badge b-done">已修</span></td></tr>
+      <tr><td>7</td><td><mark>10min SLA 全部 🔴 超标</mark></td><td>S1 采集延迟 14–45min，评论被抓到时已 >10min</td><td>fresh_window=15 挡老库存（治 S2）<b>+ 真钥匙=采集提频砍 S1</b></td><td><span class="badge b-prog">进行中</span></td></tr>
     </table>
   </div>
-  <div class="good-box"><b>spike 终局：</b> <code>[OCR主页] match=True conf=0.98</code> → 视觉点私信 → 输入框 (2214,963)/发送↑ (2467,963) 命中 →
-    <code>✅ 已确认气泡发出</code> → mark-contacted <code>claim=consumed / conv✅ / msg✅</code>。<b>闭环成立。</b></div>
 
-  <!-- ─────────── 4. 优化空间 ─────────── -->
-  <h2 class="sec"><span class="n">4</span> 需要优化的空间</h2>
+  <!-- ════════ ④ 下一步待办 ════════ -->
+  <h2 class="sec"><span class="n">4</span> 下一步待做的优化列表</h2>
   <div class="roadmap">
     <div class="phase now">
-      <span class="tag">NOW · 扩量验稳</span>
+      <span class="tag">NOW · 10min 唯一钥匙</span>
       <ul>
-        <li>手动批：mac claim N → CSV → 云电脑 <code>--max=N</code>（去 <code>--confirm</code> 自动串发，脚本自带 30–90s 随机间隔 + 日限 10 暖机）</li>
-        <li>发完拉回 <code>sent_log_*.csv</code>，把 <code>status=sent</code> 的<b>批量 mark-contacted</b>（当前逐条手动）</li>
-        <li>跑几十条看稳定性 + 有无 <b>7911</b> 静默限频迹象</li>
+        <li><mark><b>S1 采集提频</b></mark>：把高意向 lead 的号源提到热门 tier + scrape-hot 覆盖，<mark>把「评论→抓取」从 14–45min 砍到 ~2min</mark>。这是 10min SLA 唯一杠杆，光调派单到不了。</li>
+        <li>验证：砍 S1 后，时来运转那类「派+发 7.7min」的单就能压进 10min。</li>
       </ul>
     </div>
     <div class="phase next">
-      <span class="tag">NEXT · 自驱 + 验真</span>
+      <span class="tag">NEXT · 稳健性</span>
       <ul>
-        <li>接 <code>wuying_poll_agent.py</code> 调 web 版（替 PC 版），<code>9535e31c</code> channel 切自动派单走 dispatch_queue</li>
-        <li><b>7911 验真</b>：GUI 路径测不到 status_code（本地照样有气泡）→ 只能靠回复率/对方已读侧证</li>
-        <li>「私信」按钮纯视觉 → 加固定坐标兜底校准（视觉偶飘）</li>
+        <li><b>agent 空闲心跳</b>：让 agent 每轮写时间戳，监控能区分「空闲活着」vs「死了」（现在空闲=没单可抢，心跳指标会假❌）。</li>
+        <li><b>dm_panel_failed 无人值守成功率</b>观察 + 必要时加 GUI 重试。</li>
+        <li><b>镜像清理</b>：把 bootstrap 自启的旧 agent 从镜像里清掉/改成 web 配置，避免新克隆机再踩「双 agent 抢窗口」。</li>
       </ul>
     </div>
     <div class="phase later">
-      <span class="tag">LATER · 守纪律 + 抗变</span>
+      <span class="tag">LATER</span>
       <ul>
-        <li><b>同物理号双通道纪律</b>：别启动 engagement 行 <code>6644a013</code>（RC/点赞），否则同号 RC+DM 高频 → 7911</li>
-        <li>web 改版 A/B 监控：布局变了固定坐标要复校（视觉能扛大部分）</li>
-        <li>commit <code>douyin_dm_web_grounded.py</code> 进 git（worker/ 非高危；触发一次无害 Fly 部署）</li>
+        <li><b>fresh_window 调优</b>：观察 15min 窗口的发送量 vs SLA 平衡（窗口太紧=空转，太松=超时）。</li>
+        <li><b>7911 验真</b>：GUI 测不到静默限频，靠回复率/对方已读侧证。</li>
+        <li><b>commit + 镜像固化</b> web 脚本 + poll agent 改动。</li>
       </ul>
     </div>
   </div>
 
-  <div class="warn-box" style="margin-top:18px"><b>两条必须守的红线：</b>
-    ① <b>「气泡发出」≠ 送达</b>——7911 静默丢弃本地仍有气泡，真量以人工核对私信列表/回复为准。
-    ② <b>同物理号「有大有小」别同时跑 engagement 与 DM</b>——两条线无共享 1h 活跃门，叠加高频触发风控。</div>
+  <div class="warn-box" style="margin-top:18px"><b>两条红线：</b>
+    ①「气泡发出」≠ 送达（7911 静默丢弃本地仍有气泡，真量以人工核对私信列表为准）。
+    ② 同物理号「有大有小」别同时跑 engagement（反评）与 DM，无共享 1h 活跃门，叠加高频触发风控。</div>
 
-  <p class="src">源稿：docs/runbooks/cloudpc-browser-dm-0to1-2026-06-17.html · 脚本：worker/scripts/wuying-dm/douyin_dm_web_grounded.py（fork 自 douyin_dm_grounded.py）· 关联记忆：project_akke_cloud_pc_dm_poc.md</p>
+  <p class="src">源稿：docs/runbooks/cloudpc-browser-dm-0to1-2026-06-17.html · 脚本：worker/scripts/wuying-dm/douyin_dm_web_grounded.py（fork 自 douyin_dm_grounded.py）· 实时页：upio.ai/akke/cloudpc-dm-live-youdayouxiao · 关联记忆：project_akke_cloud_pc_dm_poc.md</p>
 
 </div>
 </body>
