@@ -205,6 +205,11 @@
 
   <!-- ── 潜在触达 板块 ── -->
   <div id="boardPt" class="pt hide">
+    <div class="segmented tabs" id="ptSubSel" style="margin-bottom:16px">
+      <button data-ptsub="daily" class="active">📅 by day 情况</button>
+      <button data-ptsub="review">📋 复盘</button>
+    </div>
+    <div id="ptReview" class="hide">
     <h2>📋 每日复盘 · 经验 · 根因 · 纠错（06-15 → 06-17）</h2>
     <div class="card">
       <b>一句话</b>：检测端三天一直有货（每天 15–18 条 ≤20min 新鲜视频），<b>瓶颈从来不是供给、是执行层</b>。三天在"逐个拆墙"——卡死→focus→搜索坐标，每修一堵露下一堵；06-17 傍晚把 focus+搜索两堵拆通（搜索实测 match=True），是最接近破冰的状态。
@@ -234,6 +239,7 @@
       <div style="margin-top:10px;font-size:12.5px;color:var(--text-dim)"><b>⚠️ wrong_user 不是一种病（06-16 与 06-17 都有、根因不同）</b>：① <b>未知客户型</b>=没真昵称搜空（库里占位）；② <b>落非主页型</b>(06-16 那条)=搜到了但落到非个人主页；③ <b>@xiexie坐标型</b>(06-17)=重启后搜索框点空、昵称没输进去。**别把三者当同一个修。**</div>
       <div style="margin-top:8px;font-size:12.5px;color:var(--text-muted)"><b>会不会再犯</b>：卡死/focus 上了永久护栏（不会）；<b>坐标类</b>（搜索/点赞/返回）每次重启/换机可能挪→靠「<code>_capture_pos.py</code> 重测 + <code>--confirm</code> 主动验」流程兜，是 GUI 自动化固有维护成本；平台挂起/未知客户=接受或待做。</div>
     </div>
+    </div><!-- /#ptReview -->
 
     <h2>怎么玩</h2>
     <div class="card teal">
@@ -832,7 +838,7 @@ if(["dm","rc","pt"].includes(hc)) currentChan = hc;
 const META = {
   dm: { label:"私信", h1:"用户旅程", sub:"饭粒 <b>私信（DM）首触</b>端到端旅程：视频发布 → 评论 → 抓取 → 打分 → 生成话术 → 派单 → 私信发出 → 回复。涵盖云电脑自动 + 人工 ADB/WDA 全部 DM 通道。", dist:"端到端分布（评论 → 私信发出）" },
   rc: { label:"反评", h1:"用户旅程", sub:"饭粒 <b>反向评论（RC）首触</b>端到端旅程：视频发布 → 评论 → 抓取 → 打分 → 生成话术 → 派单 → 在 ta 视频下回评 → ta 回评。", dist:"端到端分布（评论 → 反评发出）" },
-  pt: { label:"潜在触达", h1:"用户旅程", sub:"饭粒：私信 / 反评发出后没回的高意向用户，不放弃 —— 盯着 ta 的新视频持续软触达。<b>目标：每天都让 ta 看到我们的身影，发送量足时一天一条、连发一周（最多 7 次）。</b>" },
+  pt: { label:"潜在触达", h1:"潜在触达用户旅程", sub:"<b>定义</b>：私信 / 反评首触后【<b>1 天内没回 · 原评论高意向 · 非商家/同行</b>】的用户，不放弃——盯 ta 关注流新视频，一发就【<b>点赞 + 评论1(评视频) + 评论2(顺产品)</b>】软触达；每人每天 ≤1 次、累计 ≤7 次、对方一回复即停。" },
 };
 
 function esc(s){ return (s==null?"":String(s)).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
@@ -1026,6 +1032,17 @@ function render(payload){
 }
 
 function setStatus(ok, text){ $("statusDot").className="dot"+(ok?"":" err"); $("updatedAt").textContent=text; }
+
+// 潜在触达内部子标签：📅 by day 情况 / 📋 复盘（遍历 boardPt 子元素切换，不动 DM/RC）
+let currentPtSub = "daily";
+function applyPtSub(){
+  const isR = currentPtSub === "review";
+  const bp = $("boardPt");
+  if(bp){ [...bp.children].forEach(c=>{ if(c.id==="ptSubSel"||c.id==="ptReview") return; c.classList.toggle("hide", isR); }); }
+  const pr = $("ptReview"); if(pr) pr.classList.toggle("hide", !isR);
+  const ps = $("ptSubSel"); if(ps) [...ps.children].forEach(b=>b.classList.toggle("active", b.dataset.ptsub===currentPtSub));
+}
+(function(){ const ps=$("ptSubSel"); if(ps){ ps.addEventListener("click", e=>{ const b=e.target.closest("button"); if(!b) return; currentPtSub=b.dataset.ptsub; applyPtSub(); }); applyPtSub(); } })();
 
 async function load(){
   try{
