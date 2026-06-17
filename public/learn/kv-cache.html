@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>一文看懂 KVCache —— 以及它怎么帮 Akke 省钱省时间</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2230; --border:#2a3240;
+    --txt:#e6edf3; --muted:#9aa7b4; --accent:#7c8cff; --accent2:#4dd6c0;
+    --warn:#ffb454; --good:#56d364; --bad:#ff7b72; --code:#0a0e14;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{
+    margin:0; background:var(--bg); color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",Segoe UI,sans-serif;
+    line-height:1.7; font-size:15.5px;
+  }
+  .wrap{max-width:860px; margin:0 auto; padding:48px 40px 80px}
+  header{
+    border-bottom:1px solid var(--border); padding-bottom:24px; margin-bottom:34px;
+  }
+  h1{
+    font-size:27px; line-height:1.35; margin:0 0 14px;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+  }
+  .lede{
+    color:var(--muted); font-size:14.5px; background:var(--panel);
+    border:1px solid var(--border); border-left:3px solid var(--accent);
+    border-radius:8px; padding:14px 18px; margin-top:8px;
+  }
+  .lede b{color:var(--txt)}
+  h2{
+    font-size:20px; margin:42px 0 14px; padding-top:6px;
+    display:flex; align-items:center; gap:10px;
+  }
+  h2 .num{
+    flex:0 0 auto; width:30px; height:30px; border-radius:8px;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    color:#0d1117; font-size:15px; font-weight:700;
+    display:inline-flex; align-items:center; justify-content:center;
+  }
+  h3{font-size:16.5px; margin:26px 0 10px; color:var(--accent2)}
+  p{margin:12px 0}
+  .one-liner{
+    background:linear-gradient(135deg,rgba(124,140,255,.14),rgba(77,214,192,.10));
+    border:1px solid var(--border); border-radius:10px; padding:18px 22px;
+    font-size:16px; margin:18px 0;
+  }
+  .one-liner b{color:var(--accent2)}
+  code,.mono{
+    font-family:"SF Mono",Menlo,Consolas,monospace; font-size:13px;
+  }
+  pre{
+    background:var(--code); border:1px solid var(--border); border-radius:8px;
+    padding:14px 16px; overflow-x:auto; font-size:12.8px; line-height:1.55;
+    color:#c9d4e3;
+  }
+  .hl{color:var(--accent2)} .dim{color:var(--muted)}
+  table{border-collapse:collapse; width:100%; margin:16px 0; font-size:14px}
+  th,td{border:1px solid var(--border); padding:9px 13px; text-align:left}
+  th{background:var(--panel2); color:var(--txt); font-weight:600}
+  td{background:var(--panel)}
+  blockquote{
+    margin:18px 0; padding:14px 18px; background:var(--panel);
+    border-left:3px solid var(--accent2); border-radius:6px; color:var(--txt);
+  }
+  blockquote b{color:var(--accent2)}
+  .callout{
+    border-radius:10px; padding:16px 20px; margin:18px 0; border:1px solid var(--border);
+  }
+  .callout.warn{background:rgba(255,180,84,.08); border-color:rgba(255,180,84,.35)}
+  .callout.good{background:rgba(86,211,100,.07); border-color:rgba(86,211,100,.30)}
+  .callout .tag{font-weight:700; font-size:13px; letter-spacing:.4px; text-transform:uppercase}
+  .callout.warn .tag{color:var(--warn)} .callout.good .tag{color:var(--good)}
+  .lane{
+    background:var(--panel); border:1px solid var(--border); border-radius:12px;
+    padding:4px 22px 18px; margin:20px 0;
+  }
+  .lane h3{margin-top:18px}
+  .lane .chip{
+    display:inline-block; font-size:12px; font-weight:700; padding:3px 10px;
+    border-radius:20px; margin:16px 0 0;
+  }
+  .lane.a .chip{background:rgba(124,140,255,.18); color:var(--accent)}
+  .lane.b .chip{background:rgba(77,214,192,.16); color:var(--accent2)}
+  ol,ul{padding-left:22px} li{margin:7px 0}
+  hr{border:none; border-top:1px solid var(--border); margin:36px 0}
+  footer{margin-top:46px; padding-top:18px; border-top:1px solid var(--border); color:var(--muted); font-size:13px}
+  .summary{counter-reset:s}
+  .summary li{margin:11px 0}
+  @media print{
+    body{font-size:11pt} .wrap{padding:0 8mm} h2{page-break-after:avoid}
+    pre,table,.lane,.one-liner,.callout{page-break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>一文看懂 KVCache<br>—— 以及它怎么帮 Akke 省钱省时间</h1>
+  <div class="lede">
+    面向非算法同学的通俗讲解。读完你能回答三件事：
+    ① 大模型为什么慢、为什么贵；② <b>KVCache 到底缓存了什么、凭什么能加速</b>；
+    ③ 在 Akke 的「意向分析」和「自动养客对话」里，我们能怎么用它省真金白银。
+  </div>
+</header>
+
+<h2><span class="num">1</span>先记住一句话</h2>
+<div class="one-liner">
+  <b>KVCache（KV 缓存）</b> = 把模型读过的每一个字算出来的"中间笔记"存起来，
+  后面接着生成时直接翻笔记，<b>不再从头重算</b>。
+</div>
+<p>它不改变模型说<i>什么</i>，只改变模型说得<b>多快</b>、算得<b>多便宜</b>。对 Akke 这种「一天上万次 LLM 调用」的业务，这是直接和成本表挂钩的东西。</p>
+
+<h2><span class="num">2</span>大模型是怎么"说话"的：一个字一个字往外蹦</h2>
+<p>大模型（DeepSeek、GPT、Claude 都一样）生成文字是 <b>自回归（autoregressive）</b> 的——一次只吐一个 token（约等于一个字/词），然后把这个新字接到后面，再预测下一个：</p>
+<pre>输入：  这个客户  意向
+第1步： 这个客户 意向 <span class="hl">→ 很</span>
+第2步： 这个客户 意向很 <span class="hl">→ 高</span>
+第3步： 这个客户 意向很高 <span class="hl">→ ，</span>
+...</pre>
+<p>关键点：<b>每预测下一个字，模型都要"回头看"前面所有的字</b>。这就是问题的根源。</p>
+
+<h2><span class="num">3</span>没有 KVCache 会有多浪费</h2>
+<p>模型理解每个字时，会把它转换成两样东西，叫 <b>Key（K）</b> 和 <b>Value（V）</b>——你可以粗暴理解成"这个字的<b>索引标签</b> + <b>内容摘要</b>"。预测下一个字时，新字要去和<b>前面每一个字的 K/V</b> 比对一遍，才知道该说什么。</p>
+<p>如果不缓存，会发生这种事：</p>
+<table>
+  <tr><th>生成第几个字</th><th>要重新计算的字数</th></tr>
+  <tr><td>第 1 个</td><td>算 1 个字的 K/V</td></tr>
+  <tr><td>第 2 个</td><td>把前 2 个字的 K/V <b>全部重算</b></td></tr>
+  <tr><td>第 3 个</td><td>把前 3 个字的 K/V <b>全部重算</b></td></tr>
+  <tr><td>第 100 个</td><td>把前 100 个字的 K/V <b>全部重算</b></td></tr>
+</table>
+<p>前面那些字根本没变，K/V 也不会变，却被一遍遍重算。生成 N 个字，计算量是 <b>N² 量级</b>——回复越长越离谱。这就是纯粹的重复劳动。</p>
+
+<h2><span class="num">4</span>KVCache 干的事：算一次，存起来，反复用</h2>
+<p>既然每个字的 K/V 算出来就不再变，那就<b>第一次算完直接存进显存</b>。下一个字只需要：</p>
+<ol>
+  <li>计算<b>自己</b>这一个新字的 K/V（1 个字的活）；</li>
+  <li>去缓存里取出前面所有字现成的 K/V，直接比对。</li>
+</ol>
+<p>于是每生成一个字的计算量从「重算前面全部」降成「只算新的 1 个」。<b>N² 的重复劳动 → N 的线性工作量。</b></p>
+<blockquote>
+  <b>一句话比喻：</b><br>
+  不做笔记的人，每翻到新一页都要把前面整本书重读一遍才敢往下看；<br>
+  做了笔记（KVCache）的人，翻到新一页只读这一页，前面的内容瞄一眼笔记就行。<br>
+  <span class="dim">读得越厚，差距越大。</span>
+</blockquote>
+
+<h2><span class="num">5</span>天下没有免费的午餐：KVCache 吃显存</h2>
+<p>笔记得有地方放。KVCache 存在 GPU 显存里，<b>上下文越长、缓存越大</b>。它的大小大致正比于：</p>
+<pre>缓存大小 ≈ 上下文token数 × 模型层数 × 维度 × 2(K和V)</pre>
+<p>实际后果，对工程有两个直接含义：</p>
+<ul>
+  <li><b>上下文不是越长越好</b>：把整段聊天历史、几十条评论全塞进去，KVCache 会撑爆显存，要么报错要么被迫截断。</li>
+  <li><b>省显存 = 省钱 / 能扛更多并发</b>：业界很多优化（PagedAttention / vLLM、量化缓存等）本质都是"让同一张卡塞下更多 KVCache"，从而单卡服务更多用户。</li>
+</ul>
+<div class="callout warn">
+  <span class="tag">取舍</span>
+  <p style="margin:8px 0 0"><b>KVCache 用显存换速度。</b> Akke 自己不部署模型（走 OpenRouter / DeepSeek 托管），这部分由供应商承担——但它决定了<b>长上下文为什么更贵、更慢</b>，这点会传导到我们的账单。</p>
+</div>
+
+<h2><span class="num">6</span>划重点：和 Akke 的两条 LLM 链路怎么挂钩</h2>
+<p>Akke 的 AI 主要花在两处：<b>① 海量评论的意向分析</b>、<b>② 对高意向客户的多轮自动养客对话</b>。KVCache 在这两处的价值完全不同，要分开看。</p>
+
+<div class="lane a">
+  <span class="chip">链路 A · 意向分析（高频、短、前缀高度重复）→ 用 Prompt Caching 省钱</span>
+  <p>每天 6000+ 抓取任务，意向分析要被调用成千上万次。每一次的 prompt 长这样：</p>
+  <pre>[系统提示词：你是全屋定制行业的获客分析助手，判断意向等级...]   <span class="dim">← 每次都一样</span>
+[few-shot 示例：几条标注好的样例评论]                          <span class="dim">← 每次都一样</span>
+[本次要分析的评论正文]                                         <span class="hl">← 只有这里在变</span></pre>
+  <p>前面那一大段「系统提示词 + few-shot 示例」<b>每次调用一字不差地重复</b>。模型为它算的 KVCache 也完全一样——却被每次调用从头重算一遍，纯纯浪费。</p>
+  <p><b>Prompt Caching（提示词缓存）就是把 KVCache 产品化</b>：供应商把这段固定前缀的 KVCache 在它那边存住，下次同样的前缀直接命中缓存，<b>不重算、按大幅折扣计费</b>。DeepSeek、OpenRouter 这类都支持（DeepSeek 称之为上下文硬盘缓存）。</p>
+  <blockquote>
+    举个<b>示意性</b>例子（具体折扣以当前官方定价为准，需上线前核对）：<br>
+    一条 prompt 假设 1000 token 是固定前缀、50 token 是变动的评论。
+    <ul style="margin:8px 0 0">
+      <li><b>不命中缓存：</b>每次都为 1050 token 付"全价输入费"。</li>
+      <li><b>命中缓存：</b>1000 token 的固定前缀只按缓存价（通常是零头），只有 50 token 付全价。</li>
+    </ul>
+    当这条链路一天跑上万次，省下的就是<b>前缀部分约 95% 的输入成本</b>。
+  </blockquote>
+  <div class="callout good">
+    <span class="tag">给 Akke 的可落地动作</span>
+    <ol style="margin:8px 0 0">
+      <li><b>把固定内容前置、变动内容后置</b>——系统提示词、few-shot、行业知识放最前面，待分析评论放最后。缓存命中要求"前缀逐字一致"，顺序错了就缓存失效。</li>
+      <li><b>别在固定前缀里塞动态值</b>（时间戳、随机 id、本次 source 名等），一塞进去前缀就变了，缓存全部失效。</li>
+      <li><b>在 Langfuse 里盯 <span class="mono">cache_hit</span> 相关指标</b>，确认 OpenRouter/DeepSeek 的缓存真生效、是真省了，而不是没开。</li>
+    </ol>
+  </div>
+</div>
+
+<div class="lane b">
+  <span class="chip">链路 B · 自动养客多轮对话（长、有状态）→ KVCache 让每轮更快更省</span>
+  <p>养客是和客户<b>多轮聊</b>，对话历史越聊越长。每生成一句回复，模型都要"回看"全部历史。</p>
+  <ul>
+    <li><b>好处：</b>在单次生成内，KVCache 让长历史的回复也能线性速度吐字，不会越聊越卡到不可用。</li>
+    <li><b>代价：</b>历史越长，KVCache 越大、单次调用越贵越慢。</li>
+    <li><b>工程取舍：</b>不要无脑把全量聊天记录每轮都重发。可以<b>滚动摘要</b>（把早期对话压缩成一段摘要）+ 只保留最近几轮原文，既控制上下文长度、又能吃到前缀缓存。</li>
+  </ul>
+</div>
+
+<h2><span class="num">7</span>三句话总结</h2>
+<ol class="summary">
+  <li><b>KVCache 是给模型生成提速的"中间笔记"</b>：算过的字的 K/V 存起来复用，把 N² 的重复劳动降成 N。</li>
+  <li><b>它用显存换速度</b>：所以上下文不是越长越好，长上下文更慢更贵。</li>
+  <li><b>对 Akke，最值钱的用法是 Prompt Caching</b>：把意向分析的固定前缀缓存住，海量调用能省下前缀部分的绝大部分输入成本——前提是<b>固定内容前置、别掺动态值</b>。</li>
+</ol>
+
+<hr>
+
+<h3>名词小抄</h3>
+<table>
+  <tr><th>名词</th><th>大白话</th></tr>
+  <tr><td>token</td><td>模型眼里的一个"字/词单位"</td></tr>
+  <tr><td>自回归生成</td><td>一次吐一个 token，循环往复</td></tr>
+  <tr><td>K / V（Key/Value）</td><td>每个 token 的"索引标签 / 内容摘要"，比对用</td></tr>
+  <tr><td>KVCache</td><td>把算过的 K/V 存起来复用的缓存</td></tr>
+  <tr><td>Prompt Caching</td><td>KVCache 的产品化：缓存固定前缀，命中后按折扣计费</td></tr>
+  <tr><td>上下文（context）</td><td>这次喂给模型的全部输入文字</td></tr>
+  <tr><td>显存</td><td>GPU 的内存，KVCache 住在这里</td></tr>
+</table>
+
+<footer>
+  文档用途：Akke 团队 LLM 成本 / 性能科普。涉及具体折扣比例、缓存计费规则，上线前请以 DeepSeek / OpenRouter 当前官方定价为准复核。<br>
+  整理日期：2026-06-08
+</footer>
+
+</div>
+</body>
+</html>

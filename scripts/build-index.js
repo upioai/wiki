@@ -198,6 +198,40 @@ const html = `<!DOCTYPE html>
       background: var(--accent-soft);
       color: var(--accent);
     }
+    .learn-card {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      background: linear-gradient(135deg, var(--accent-soft) 0%, var(--bg-elevated) 60%);
+      border: 1px solid var(--border-strong);
+      border-radius: 12px;
+      padding: 22px 24px;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.2s ease, transform 0.15s ease;
+    }
+    .learn-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+    .learn-card__icon {
+      font-size: 30px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .learn-card__body h3 {
+      margin: 0 0 6px;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.005em;
+    }
+    .learn-card__body p {
+      margin: 0;
+      font-size: 13.5px;
+      color: var(--text-dim);
+      line-height: 1.55;
+    }
     footer {
       margin-top: 32px;
       padding-top: 24px;
@@ -226,6 +260,17 @@ const html = `<!DOCTYPE html>
       <div class="projects">
 ${projectCards}
       </div>
+    </section>
+
+    <section>
+      <h2>知识分享</h2>
+      <a class="learn-card" href="/learn">
+        <span class="learn-card__icon">📚</span>
+        <div class="learn-card__body">
+          <h3>AI · 大模型 · 工程化讲解合集</h3>
+          <p>团队内部多次技术分享的沉淀：大模型基础、Agent / AI 工程、工具入门。点击进入知识分享中心 →</p>
+        </div>
+      </a>
     </section>
 
     <section>

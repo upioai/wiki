@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scaling Law · 缩放定律 — upio.ai 知识分享</title>
+<meta name="description" content="给非技术伙伴的 Scaling Law 科普：AI 模型为什么投入越多就可预测地越强 —— 参数 × 数据 × 算力三要素、核心曲线、对工程实践与行业竞争的启示。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700;800&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+
+<style>
+:root {
+  --bg: #0a0d14; --bg-elevated: #131720; --bg-deep: #1a1f2b;
+  --border: #232936; --border-strong: #2f3646;
+  --text: #e8eaef; --text-dim: #9ba3b4; --text-muted: #6b7384;
+  --accent:   #8b5cf6; --accent-soft:   rgba(139, 92, 246, 0.15); --accent-strong: rgba(139, 92, 246, 0.35);
+  --accent-2: #60a5fa; --accent-2-soft: rgba(96, 165, 250, 0.13);
+  --accent-3: #34d399; --accent-3-soft: rgba(52, 211, 153, 0.14);
+  --warning:  #fbbf24; --warning-soft:  rgba(251, 191, 36, 0.14);
+  --danger:   #f87171; --danger-soft:   rgba(248, 113, 113, 0.14);
+  --font-display: 'Instrument Serif', 'Source Han Serif SC', Georgia, serif;
+  --font-ui:      'Inter Tight', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; padding: 0;
+  background: var(--bg); color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 15.5px; line-height: 1.7;
+  font-feature-settings: 'cv11', 'ss01', 'tnum';
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ──────────── Breadcrumb bar ──────────── */
+.crumb-bar {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(10, 13, 20, 0.82);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border-bottom: 1px solid var(--border);
+}
+.crumb-inner {
+  max-width: 1000px; margin: 0 auto;
+  padding: 11px 24px;
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--text-muted); letter-spacing: 0.04em;
+}
+.crumb-inner a { color: var(--text-dim); text-decoration: none; transition: color .2s; }
+.crumb-inner a:hover { color: var(--accent); }
+.crumb-inner .sep { margin: 0 8px; color: var(--border-strong); }
+.crumb-inner .cur { color: var(--text-dim); }
+
+/* ──────────── Layout ──────────── */
+.container { max-width: 920px; margin: 0 auto; padding: 52px 24px 100px; }
+
+/* ──────────── Hero ──────────── */
+header.hero { padding: 4px 0 38px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.tag {
+  display: inline-block; padding: 4px 12px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent);
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  margin-bottom: 18px;
+}
+h1 {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 60px; font-weight: 400;
+  margin: 0 0 18px; letter-spacing: -0.02em; line-height: 1.06;
+  background: linear-gradient(135deg, #f4f5f8 30%, var(--accent) 72%, var(--accent-2) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.subtitle {
+  font-size: 17px; color: var(--text-dim);
+  margin: 0 0 26px; max-width: 740px; line-height: 1.6;
+}
+.subtitle strong { color: var(--text); font-weight: 600; }
+.hero-meta {
+  display: flex; gap: 26px; flex-wrap: wrap;
+  font-family: var(--font-mono); font-size: 12px; color: var(--text-muted);
+}
+.hero-meta strong { color: var(--text-dim); font-weight: 500; }
+
+/* ──────────── Section head ──────────── */
+.section-head {
+  display: flex; gap: 22px; align-items: baseline;
+  padding-top: 30px; margin-top: 52px;
+  border-top: 1px solid var(--border);
+}
+.section-head .num {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 72px; line-height: 1; font-weight: 400;
+  color: var(--accent); flex-shrink: 0;
+}
+.section-head .meta { flex: 1; padding-top: 14px; }
+.section-head h2 {
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--text-muted); letter-spacing: 0.14em;
+  text-transform: uppercase; margin: 0 0 6px; font-weight: 700;
+}
+.section-head .lede {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 29px; line-height: 1.25; color: var(--text);
+}
+section { margin-bottom: 22px; }
+section > p { margin: 14px 0; color: var(--text-dim); }
+section > p strong { color: var(--text); font-weight: 600; }
+h3 {
+  font-family: var(--font-ui); font-size: 19px; font-weight: 600;
+  color: var(--text); margin: 34px 0 12px; letter-spacing: -0.01em;
+}
+code {
+  background: var(--bg-deep); padding: 1px 6px; border-radius: 4px;
+  font-size: 0.86em; color: #c4b5fd; font-family: var(--font-mono);
+}
+a { color: var(--accent-2); text-decoration: none; transition: color .2s; }
+a:hover { color: var(--accent); }
+
+/* ──────────── Formula block ──────────── */
+.formula {
+  background: var(--bg-deep); border: 1px solid var(--border);
+  border-radius: 12px; padding: 26px 24px;
+  margin: 22px 0; text-align: center;
+  font-family: var(--font-mono);
+  overflow-x: auto;
+}
+.formula .fx-main {
+  font-size: 22px; font-weight: 700; color: var(--text);
+  line-height: 1.5; letter-spacing: 0.01em;
+}
+.formula .fx-main .v-n { color: var(--accent); }
+.formula .fx-main .v-d { color: var(--accent-2); }
+.formula .fx-main .v-c { color: var(--accent-3); }
+.formula .fx-main .op { color: var(--text-muted); margin: 0 8px; }
+.formula .fx-note {
+  font-size: 12px; color: var(--text-muted);
+  margin-top: 14px; letter-spacing: 0.02em; line-height: 1.6;
+}
+.formula .fx-secondary {
+  font-size: 15px; color: var(--text-dim); margin-top: 4px;
+}
+
+/* ──────────── Engine / variable cards ──────────── */
+.engines { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 20px 0 18px; }
+@media (max-width: 720px) { .engines { grid-template-columns: 1fr; } }
+.engine {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 14px; padding: 20px 20px 18px;
+  position: relative; overflow: hidden;
+  transition: border-color .2s, transform .2s;
+}
+.engine::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+}
+.engine.e-n::before { background: var(--accent); }
+.engine.e-d::before { background: var(--accent-2); }
+.engine.e-c::before { background: var(--accent-3); }
+.engine:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+.engine .e-sym {
+  font-family: var(--font-mono); font-size: 30px; font-weight: 800;
+  line-height: 1; margin-bottom: 4px;
+}
+.engine.e-n .e-sym { color: var(--accent); }
+.engine.e-d .e-sym { color: var(--accent-2); }
+.engine.e-c .e-sym { color: var(--accent-3); }
+.engine .e-name {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-muted); margin-bottom: 12px;
+}
+.engine .e-title { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+.engine .e-sub { font-size: 13.5px; color: var(--text-dim); line-height: 1.6; }
+.engine .e-metaphor {
+  font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);
+  margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border);
+}
+
+/* ──────────── Callout ──────────── */
+.callout { border-radius: 10px; padding: 14px 18px; margin: 18px 0; font-size: 14px; line-height: 1.7; }
+.callout.info    { background: var(--accent-2-soft); border-left: 3px solid var(--accent-2); color: var(--text-dim); }
+.callout.info strong    { color: var(--accent-2); }
+.callout.warn    { background: var(--warning-soft); border-left: 3px solid var(--warning); color: var(--text-dim); }
+.callout.warn strong    { color: var(--warning); }
+.callout.success { background: var(--accent-3-soft); border-left: 3px solid var(--accent-3); color: var(--text-dim); }
+.callout.success strong { color: var(--accent-3); }
+.callout.purple  { background: var(--accent-soft); border-left: 3px solid var(--accent); color: var(--text-dim); }
+.callout.purple strong  { color: var(--accent); }
+
+/* ──────────── Sparkline / curve ──────────── */
+.curve-card {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 12px; padding: 22px 24px 18px; margin: 20px 0;
+}
+.curve-card .ps-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-bottom: 16px; flex-wrap: wrap; gap: 12px;
+}
+.curve-card .ps-label {
+  font-family: var(--font-mono); font-size: 10.5px;
+  color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em;
+}
+.curve-card .ps-trend {
+  font-family: var(--font-mono); font-size: 12px; color: var(--accent); font-weight: 600;
+}
+.curve-card svg { width: 100%; height: 200px; display: block; }
+.curve-card .ps-path { stroke-dasharray: 900; stroke-dashoffset: 900; }
+.curve-card.in-view .ps-path { animation: drawSpark 1.8s cubic-bezier(.65,0,.35,1) forwards; }
+@keyframes drawSpark { to { stroke-dashoffset: 0; } }
+.curve-card .ps-caption { font-size: 12.5px; color: var(--text-muted); margin-top: 10px; line-height: 1.6; }
+
+/* ──────────── Reason list (numbered) ──────────── */
+.reasons { display: flex; flex-direction: column; gap: 12px; margin: 18px 0 22px; }
+.reason {
+  display: grid; grid-template-columns: 48px 1fr; gap: 18px;
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px 20px 16px 16px;
+  transition: border-color .2s, transform .2s;
+}
+.reason:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+.reason .r-num {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 40px; line-height: 1; color: var(--accent);
+  text-align: center; padding-top: 2px;
+}
+.reason .r-title { font-size: 15.5px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.reason .r-body { font-size: 14px; color: var(--text-dim); line-height: 1.65; }
+
+/* ──────────── KPI-style impact cards ──────────── */
+.impacts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 18px 0; }
+@media (max-width: 720px) { .impacts { grid-template-columns: 1fr; } }
+.impact {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 14px; padding: 18px 20px 16px;
+  position: relative; overflow: hidden;
+  transition: border-color .2s, transform .2s;
+}
+.impact::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+.impact.i-green::before  { background: var(--accent-3); }
+.impact.i-purple::before { background: var(--accent); }
+.impact.i-amber::before  { background: var(--warning); }
+.impact:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+.impact .i-label {
+  font-family: var(--font-mono); font-size: 10.5px;
+  color: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.impact .i-head { font-size: 16px; font-weight: 600; margin-bottom: 8px; line-height: 1.3; }
+.impact.i-green  .i-head { color: var(--accent-3); }
+.impact.i-purple .i-head { color: var(--accent); }
+.impact.i-amber  .i-head { color: var(--warning); }
+.impact .i-body { font-size: 13px; color: var(--text-dim); line-height: 1.6; }
+
+/* ──────────── Punchline ──────────── */
+.punchline {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 28px; line-height: 1.4; color: var(--text);
+  text-align: center; margin: 40px auto 8px; max-width: 720px;
+  padding: 28px 24px;
+  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+}
+.punchline .hl {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  font-weight: 400;
+}
+
+/* ──────────── Footer ──────────── */
+footer {
+  text-align: center; padding: 56px 0 0;
+  font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted);
+  letter-spacing: 0.06em; line-height: 1.8;
+}
+
+/* ──────────── Scroll reveal ──────────── */
+.reveal { opacity: 0; filter: blur(6px); transform: translateY(12px);
+  transition: opacity .6s ease-out, filter .6s ease-out, transform .6s ease-out; }
+.reveal.in-view { opacity: 1; filter: blur(0); transform: translateY(0); }
+
+@media (max-width: 560px) {
+  h1 { font-size: 44px; }
+  .section-head { gap: 14px; }
+  .section-head .num { font-size: 52px; }
+  .section-head .lede { font-size: 23px; }
+  .punchline { font-size: 22px; }
+  .formula .fx-main { font-size: 17px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .reveal { opacity: 1 !important; filter: none !important; transform: none !important; }
+  .curve-card .ps-path { stroke-dashoffset: 0 !important; }
+}
+</style>
+</head>
+
+<body>
+
+<nav class="crumb-bar">
+  <div class="crumb-inner">
+    <a href="/">upio.ai</a><span class="sep">/</span><a href="/learn">知识分享</a><span class="sep">/</span><span class="cur">Scaling Law</span>
+  </div>
+</nav>
+
+<div class="container">
+
+  <header class="hero">
+    <span class="tag">大模型基础</span>
+    <h1>Scaling Law · 缩放定律</h1>
+    <p class="subtitle">AI 模型变强不靠运气 —— 它遵循一条<strong>可以画在纸上、可以提前算账</strong>的曲线。投入越多，模型可预测地越强。这一条规律，就是过去几年所有 AI 公司不计成本抢 GPU 的底层逻辑。</p>
+    <div class="hero-meta">
+      <span><strong>篇幅</strong> 5 章 · 约 6 分钟</span>
+      <span><strong>受众</strong> 不需要技术背景</span>
+      <span><strong>主线</strong> 是什么 · 三要素 · 曲线 · 为什么重要 · 天花板</span>
+    </div>
+  </header>
+
+  <!-- ════════════ 01 ════════════ -->
+  <div class="section-head reveal" id="what">
+    <span class="num">01</span>
+    <div class="meta">
+      <h2>SECTION ONE · WHAT</h2>
+      <div class="lede">什么是 Scaling Law</div>
+    </div>
+  </div>
+
+  <section>
+    <p>Scaling Law（缩放定律 / 规模定律）讲的是一件朴素却深刻的事：<strong>给大模型投入更多的"料"，它的能力会按一条平滑、可预测的曲线提升</strong> —— 而不是忽好忽坏、碰运气。</p>
+    <p>过去我们直觉上以为"模型好不好"很玄。Scaling Law 给出的答案是：它不是玄学，<strong>这是一条可以画在纸上的曲线</strong>。当你把"投入"放在横轴、"模型损失（越低越好）"放在纵轴，画出来的点会乖乖落在一条规律的线上。</p>
+
+    <div class="formula">
+      <div class="fx-main">模型能力 <span class="op">≈</span> f ( <span class="v-n">参数量 N</span> <span class="op">×</span> <span class="v-d">训练数据 D</span> <span class="op">×</span> <span class="v-c">算力 C</span> )</div>
+      <div class="fx-note">能力是参数、数据、算力三者共同决定的函数 —— 它们要按比例一起放大，缺一不可</div>
+    </div>
+
+    <div class="callout purple">
+      <strong>一句话直觉 ·</strong> 这就是为什么所有 AI 公司都在不计成本地抢 GPU —— 因为他们知道，投入和回报之间有一条曲线，不是赌博。
+    </div>
+  </section>
+
+  <!-- ════════════ 02 ════════════ -->
+  <div class="section-head reveal" id="engines">
+    <span class="num">02</span>
+    <div class="meta">
+      <h2>SECTION TWO · THE VARIABLES</h2>
+      <div class="lede">三个发动机：参数 × 数据 × 算力</div>
+    </div>
+  </div>
+
+  <section>
+    <p>那条曲线背后，有三个变量在共同发力。把它们想成模型的<strong>三个发动机</strong> —— 三个都要一起 scale（放大），只推一个推不动。</p>
+
+    <div class="engines reveal">
+      <div class="engine e-n">
+        <div class="e-sym">N</div>
+        <div class="e-name">参数量 · Params</div>
+        <div class="e-title">模型有多少"神经元"</div>
+        <div class="e-sub">决定它的"脑容量"—— 能记住和组合多少模式。</div>
+        <div class="e-metaphor">类比：做菜用的「锅」有多大</div>
+      </div>
+      <div class="engine e-d">
+        <div class="e-sym">D</div>
+        <div class="e-name">数据量 · Data</div>
+        <div class="e-title">喂了多少高质量文本</div>
+        <div class="e-sub">决定它"读过多少书"—— 见识的广度与深度。</div>
+        <div class="e-metaphor">类比：下锅的「食材」有多丰富</div>
+      </div>
+      <div class="engine e-c">
+        <div class="e-sym">C</div>
+        <div class="e-name">算力 · Compute</div>
+        <div class="e-title">用了多少 GPU 小时</div>
+        <div class="e-sub">决定它"练了多久"—— 把数据真正吃透的程度。</div>
+        <div class="e-metaphor">类比：烹饪的「火候」够不够</div>
+      </div>
+    </div>
+
+    <div class="callout warn">
+      <strong>关键 ·</strong> 三者必须按比例一起升级。只堆 GPU 但数据不够，或反过来数据很多却没算力训练，都练不出好模型 —— 木桶效应，短板决定上限。
+    </div>
+
+    <h3>一个生活类比：像做菜</h3>
+    <p>食材（数据）× 锅（参数）× 火候（算力），三者按比例升级，味道才会<strong>可预测地变好</strong>。食材再好，锅太小装不下；锅再大，火候不到也做不熟。这就是为什么每一代大模型，这三样东西<strong>大约都同时放大 100–1000 倍</strong>。</p>
+  </section>
+
+  <!-- ════════════ 03 ════════════ -->
+  <div class="section-head reveal" id="curve">
+    <span class="num">03</span>
+    <div class="meta">
+      <h2>SECTION THREE · THE CURVE</h2>
+      <div class="lede">核心规律与那条曲线</div>
+    </div>
+  </div>
+
+  <section>
+    <p>Scaling Law 之所以重要，是因为它把"投入 → 回报"的关系写成了<strong>可以画出来、可以外推的曲线</strong>。在对数坐标下，模型的损失（错误率）随投入下降，近似呈一条直线 —— 也就是常见的幂律形式：</p>
+
+    <div class="formula">
+      <div class="fx-secondary">损失 <span class="op">∝</span> <span class="v-n">N</span><sup style="font-size:.7em">−α</sup> &nbsp;·&nbsp; 损失 <span class="op">∝</span> <span class="v-d">D</span><sup style="font-size:.7em">−β</sup> &nbsp;·&nbsp; 损失 <span class="op">∝</span> <span class="v-c">C</span><sup style="font-size:.7em">−γ</sup></div>
+      <div class="fx-note">L ∝ N<sup>−α</sup> 读作：损失 L 随参数量 N 增大而幂律下降。数据 D、算力 C 同理。<br>含义：每把投入翻一个数量级，错误就稳定地下降一截 —— 趋势可预测、可外推。</div>
+    </div>
+
+    <div class="curve-card reveal" id="curveCard">
+      <div class="ps-head">
+        <div class="ps-label">投入 → 损失（越低越好）· 对数坐标示意</div>
+        <div class="ps-trend">投入↑ · 损失平滑↓</div>
+      </div>
+      <svg viewBox="0 0 720 200" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="curveStroke" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#60a5fa"/>
+            <stop offset="100%" stop-color="#8b5cf6"/>
+          </linearGradient>
+          <linearGradient id="curveFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.16"/>
+            <stop offset="100%" stop-color="#8b5cf6" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <!-- grid -->
+        <line x1="40" y1="20" x2="40" y2="172" stroke="#232936" stroke-width="1"/>
+        <line x1="40" y1="172" x2="700" y2="172" stroke="#232936" stroke-width="1"/>
+        <line x1="40" y1="58"  x2="700" y2="58"  stroke="#1a1f2b" stroke-width="1" stroke-dasharray="3 4"/>
+        <line x1="40" y1="115" x2="700" y2="115" stroke="#1a1f2b" stroke-width="1" stroke-dasharray="3 4"/>
+        <!-- area -->
+        <path d="M 40,40 C 180,70 300,120 440,148 C 540,166 620,170 700,171 L 700,172 L 40,172 Z" fill="url(#curveFill)"/>
+        <!-- the curve: high loss → low loss, diminishing -->
+        <path class="ps-path" d="M 40,40 C 180,70 300,120 440,148 C 540,166 620,170 700,171"
+              fill="none" stroke="url(#curveStroke)" stroke-width="3" stroke-linecap="round"/>
+        <!-- axis labels -->
+        <text x="34" y="44"  text-anchor="end" fill="#6b7384" font-family="JetBrains Mono, monospace" font-size="10">高</text>
+        <text x="34" y="174" text-anchor="end" fill="#6b7384" font-family="JetBrains Mono, monospace" font-size="10">低</text>
+        <text x="18" y="100" text-anchor="middle" fill="#6b7384" font-family="JetBrains Mono, monospace" font-size="10" transform="rotate(-90 18 100)">损失 L</text>
+        <text x="40"  y="190" text-anchor="start"  fill="#6b7384" font-family="JetBrains Mono, monospace" font-size="10">小</text>
+        <text x="700" y="190" text-anchor="end"    fill="#6b7384" font-family="JetBrains Mono, monospace" font-size="10">大 →  投入（参数 / 数据 / 算力）</text>
+      </svg>
+      <div class="ps-caption">投入越多，损失越低、能力越强；但曲线会<strong style="color:var(--text-dim)">逐渐变平</strong> —— 同样幅度的提升，需要越来越大的投入。这正是后面"天花板"问题的伏笔。</div>
+    </div>
+
+    <div class="callout info">
+      <strong>注 ·</strong> 这里的损失曲线是示意图，用来传达趋势直觉，不是真实测量值。真实研究（如 OpenAI 2020、DeepMind Chinchilla 2022）测出的正是这一类平滑幂律关系。
+    </div>
+  </section>
+
+  <!-- ════════════ 04 ════════════ -->
+  <div class="section-head reveal" id="why">
+    <span class="num">04</span>
+    <div class="meta">
+      <h2>SECTION FOUR · WHY IT MATTERS</h2>
+      <div class="lede">它为什么重要：大力出奇迹的底气</div>
+    </div>
+  </div>
+
+  <section>
+    <p>为什么所有大公司都在抢 GPU、敢一次砸几十亿建数据中心？因为 Scaling Law 把"花钱"从赌博变成了<strong>可以算账的工程问题</strong>。</p>
+
+    <div class="reasons reveal">
+      <div class="reason">
+        <div class="r-num">1</div>
+        <div>
+          <div class="r-title">预算可以"算账"</div>
+          <div class="r-body">投 10× 算力，能力能提升多少 —— 有曲线可查。这是大公司敢于一次砸几十亿建数据中心的底气：他们是按曲线下注，不是凭直觉。</div>
+        </div>
+      </div>
+      <div class="reason">
+        <div class="r-num">2</div>
+        <div>
+          <div class="r-title">解释了"大力出奇迹"</div>
+          <div class="r-body">GPT-4、Claude、Gemini 的强大并不是偶然 —— 它们都是沿着同一条 Scaling 曲线一路 scale 上去的结果。规模上去了，能力自然涌现。</div>
+        </div>
+      </div>
+      <div class="reason">
+        <div class="r-num">3</div>
+        <div>
+          <div class="r-title">AI 不再是赌博，是工程</div>
+          <div class="r-body">投 N 倍算力 → 能力提升多少有公式可算。研发从"试试看能不能行"，变成"按计划把投入推上去"，确定性大幅提升。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout success">
+      <strong>所以 ·</strong> Meta / OpenAI / Anthropic / xAI 砸数百亿建数据中心，不是在豪赌，而是在沿着一条已知的曲线下注。这就是过去几年算力军备竞赛的根本原因。
+    </div>
+
+    <div class="callout warn" style="margin-top:14px;">
+      <strong>注 ·</strong> 公开提到的各代模型参数量、数据量多为业界估算值。关键看趋势 —— <strong>每代约放大 100–1000 倍</strong>，而非追究某个精确数字。
+    </div>
+  </section>
+
+  <!-- ════════════ 05 ════════════ -->
+  <div class="section-head reveal" id="ceiling">
+    <span class="num">05</span>
+    <div class="meta">
+      <h2>SECTION FIVE · THE CEILING</h2>
+      <div class="lede">天花板与未来 5 年</div>
+    </div>
+  </div>
+
+  <section>
+    <p>看懂了 Scaling Law，就看懂了未来 5 年的竞争主线。但同一条曲线也带来一个坏消息：<strong>单纯堆规模的路，正在逼近天花板</strong>。</p>
+
+    <div class="impacts reveal">
+      <div class="impact i-green">
+        <div class="i-label">仍然成立</div>
+        <div class="i-head">能力可预测</div>
+        <div class="i-body">投 N 倍算力 → 能力提升多少有公式可算。AI 研发不再是赌博，是工程问题。这一条短期内不会变。</div>
+      </div>
+      <div class="impact i-purple">
+        <div class="i-label">现实驱动</div>
+        <div class="i-head">巨头烧钱有理由</div>
+        <div class="i-body">Meta / OpenAI / Anthropic / xAI 砸数百亿建数据中心，是按曲线下注，不是凭直觉 —— 这是当下行业格局的成因。</div>
+      </div>
+      <div class="impact i-amber">
+        <div class="i-label">正在逼近</div>
+        <div class="i-head">天花板在靠近</div>
+        <div class="i-body">高质量数据快被用完，电力和芯片成本指数上涨。继续单纯堆规模，回报越来越贵。</div>
+      </div>
+    </div>
+
+    <p>于是行业正在寻找新范式 —— 下一波竞争的关键词，从"规模"转向"<strong>效率</strong>"：</p>
+    <div class="callout info">
+      <strong>推理时计算（test-time compute）·</strong> 让模型在回答前"多想一会儿"，用推理换能力，而非一味堆训练规模。<br>
+      <strong>合成数据 ·</strong> 高质量真实数据快用完，用模型生成数据来继续喂养模型。<br>
+      <strong>Agent ·</strong> 让模型学会调用工具、多步规划，把同样的底座用出更高的实际产出。
+    </div>
+
+    <div class="punchline">
+      谁先把 <span class="hl">规模 × 效率 × 数据</span> 同时做对，谁就赢。
+    </div>
+  </section>
+
+  <footer>
+    整理自团队内部 Scaling Law 分享 · upio.ai 知识分享<br>
+    源材料：《Scaling Law 图解版》《Scaling Law 简介》内部 PPT
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) { e.target.classList.add('in-view'); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.18, rootMargin: '0px 0px -8% 0px' });
+  document.querySelectorAll('.reveal, #curveCard').forEach(function (el) { io.observe(el); });
+})();
+</script>
+
+</body>
+</html>

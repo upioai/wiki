@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>递归自我改进 通俗讲解 —— 2026 年 OpenAI 与 Anthropic 都在押注、也都在警惕的事</title>
+<style>
+  :root{
+    --bg:#faf7f2; --paper:#fffdf9; --ink:#1d1b18; --muted:#6b655c; --line:#e6ddd0;
+    --oa:#10a37f;        /* OpenAI 绿 */
+    --oa-bg:rgba(16,163,127,.08);
+    --an:#cc785c;        /* Anthropic 陶土 */
+    --an-bg:rgba(204,120,92,.09);
+    --warn:#b4690e; --warn-bg:rgba(180,105,14,.08);
+    --code:#2b2722;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{
+    margin:0; background:var(--bg); color:var(--ink); line-height:1.72; font-size:15.5px;
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",Segoe UI,sans-serif;
+  }
+  .wrap{max-width:880px; margin:0 auto; padding:50px 44px 80px}
+  header{border-bottom:2px solid var(--ink); padding-bottom:22px; margin-bottom:32px}
+  .kicker{font-size:12.5px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); margin-bottom:12px}
+  h1{font-size:28px; line-height:1.3; margin:0; font-weight:760; letter-spacing:-.3px}
+  h1 small{display:block; font-size:16px; font-weight:500; color:var(--muted); margin-top:10px; letter-spacing:0}
+  .lede{
+    font-size:14.5px; color:var(--muted); background:var(--paper); border:1px solid var(--line);
+    border-left:3px solid var(--ink); border-radius:8px; padding:14px 18px; margin-top:20px;
+  }
+  .lede b{color:var(--ink)}
+  h2{font-size:21px; margin:44px 0 14px; display:flex; align-items:center; gap:11px; letter-spacing:-.2px}
+  h2 .num{flex:0 0 auto; width:30px; height:30px; border-radius:50%; background:var(--ink); color:var(--bg);
+    font-size:15px; font-weight:700; display:inline-flex; align-items:center; justify-content:center}
+  h3{font-size:16.5px; margin:24px 0 8px}
+  p{margin:12px 0}
+  .one-liner{background:var(--paper); border:1px solid var(--line); border-radius:10px;
+    padding:18px 22px; font-size:16.5px; margin:18px 0; box-shadow:0 1px 0 rgba(0,0,0,.02)}
+  .one-liner b{border-bottom:2px solid var(--an)}
+  code,.mono{font-family:"SF Mono",Menlo,Consolas,monospace; font-size:12.8px;
+    background:rgba(0,0,0,.05); padding:1px 5px; border-radius:4px}
+  pre{background:var(--code); color:#e8e0d4; border-radius:9px; padding:16px 18px; overflow-x:auto;
+    font-size:12.8px; line-height:1.6; font-family:"SF Mono",Menlo,Consolas,monospace}
+  pre .oa{color:#5fe3bd} pre .an{color:#f0a98c} pre .dim{color:#9a9182}
+  .flywheel{display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:center;
+    background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:18px; margin:18px 0; font-size:13.5px}
+  .flywheel .node{background:#fff; border:1.5px solid var(--ink); border-radius:8px; padding:8px 13px; font-weight:600}
+  .flywheel .arrow{color:var(--an); font-weight:700; font-size:18px}
+  .flywheel .loop{flex-basis:100%; text-align:center; color:var(--an); font-weight:700; margin-top:4px}
+  table{border-collapse:collapse; width:100%; margin:16px 0; font-size:13.8px}
+  th,td{border:1px solid var(--line); padding:9px 13px; text-align:left; vertical-align:top}
+  th{background:#f1ece2; font-weight:660}
+  td{background:var(--paper)}
+  .two{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:18px 0}
+  .camp{border:1px solid var(--line); border-radius:12px; padding:2px 20px 18px; background:var(--paper)}
+  .camp .badge{display:inline-block; font-size:12px; font-weight:700; letter-spacing:.5px; padding:4px 12px;
+    border-radius:0 0 8px 8px; color:#fff; margin-bottom:6px}
+  .camp.oa{border-top:3px solid var(--oa)} .camp.oa .badge{background:var(--oa)}
+  .camp.an{border-top:3px solid var(--an)} .camp.an .badge{background:var(--an)}
+  .camp h4{margin:14px 0 6px; font-size:14.5px}
+  .camp ul{padding-left:18px; margin:6px 0} .camp li{margin:6px 0; font-size:13.6px}
+  .stat{display:flex; gap:14px; flex-wrap:wrap; margin:16px 0}
+  .stat .s{flex:1 1 150px; background:var(--an-bg); border:1px solid var(--line); border-radius:10px; padding:13px 15px}
+  .stat .s .big{font-size:23px; font-weight:760; color:var(--an); line-height:1.1}
+  .stat .s .lbl{font-size:12.5px; color:var(--muted); margin-top:5px}
+  blockquote{margin:18px 0; padding:14px 18px; background:var(--paper); border-left:3px solid var(--muted); border-radius:6px}
+  .callout{border-radius:10px; padding:15px 19px; margin:18px 0; border:1px solid var(--line); font-size:14.3px}
+  .callout.warn{background:var(--warn-bg); border-color:rgba(180,105,14,.3)}
+  .callout .tag{font-weight:700; font-size:12.5px; letter-spacing:.5px; text-transform:uppercase; color:var(--warn)}
+  ol,ul{padding-left:22px} li{margin:7px 0}
+  hr{border:none; border-top:1px solid var(--line); margin:38px 0}
+  .src{font-size:12.5px; color:var(--muted)} .src a{color:var(--an)} .src li{margin:4px 0}
+  footer{margin-top:44px; padding-top:18px; border-top:1px solid var(--line); color:var(--muted); font-size:12.5px}
+  @media print{body{font-size:11pt} .wrap{padding:0 8mm}
+    h2{page-break-after:avoid} pre,table,.camp,.one-liner,.callout,.stat,.flywheel{page-break-inside:avoid}}
+  @media(max-width:680px){.two{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">前沿简报 · 通俗讲解</div>
+  <h1>递归自我改进（Recursive Self-Improvement）
+    <small>2026 年，OpenAI 在押注它、Anthropic 在警惕它——为什么这个词突然成了行业头号话题</small>
+  </h1>
+  <div class="lede">
+    读完你能搞懂三件事：① <b>「AI 改进 AI」到底是什么循环</b>，凭什么可能"失控"；
+    ② 这已经不是科幻——2026 年有哪些<b>真实数据信号</b>；
+    ③ OpenAI 和 Anthropic 两大阵营，<b>一个踩油门、一个踩刹车</b>，分别在说什么、做什么。
+  </div>
+</header>
+
+<h2><span class="num">1</span>先记住一句话</h2>
+<div class="one-liner">
+  <b>递归自我改进</b> = 让 AI 去做"造更强 AI"这件事本身；造出的更强 AI 再去造下一代……
+  一旦这个循环<b>不再需要人类介入</b>、而且<b>越转越快</b>，就是大家担心（或期待）的那个临界点。
+</div>
+<p>"递归"二字的重点是：改进的<b>对象</b>正是改进者<b>自己的下一代</b>。和"AI 帮你写代码"不同——这里 AI 改进的是<b>制造 AI 的能力</b>，于是每一轮的成果都会反过来加速下一轮。</p>
+
+<h2><span class="num">2</span>把这个"飞轮"拆开看</h2>
+<p>现代 AI 研究的工作，本质是一堆可以被 AI 接手的任务：写训练代码、生成数据、跑实验评测、red-team 找漏洞、判断"下一步该往哪个方向调"。当 AI 把这些环节一个个接管，就形成一个自我加速的飞轮：</p>
+<div class="flywheel">
+  <span class="node">更强的 AI</span>
+  <span class="arrow">→</span>
+  <span class="node">帮人类做 AI 研究<br><span style="font-weight:400;color:#6b655c">写代码/跑实验/调方向</span></span>
+  <span class="arrow">→</span>
+  <span class="node">更快造出<br>下一代 AI</span>
+  <span class="arrow">↩</span>
+  <span class="loop">↑ 每转一圈，这个循环本身就更快一点</span>
+</div>
+<p>关键不在"AI 很能干"，而在<b>正反馈</b>：成果喂回起点。普通工具用得越多，你（人）成长；递归自我改进里，用得越多，<b>AI 自己</b>成长，而且可能比人理解和监管的速度更快。</p>
+
+<h2><span class="num">3</span>两个必懂的关键词</h2>
+<table>
+  <tr><th>关键词</th><th>大白话</th></tr>
+  <tr><td><b>智能爆炸</b><br>(Intelligence Explosion)</td><td>飞轮一旦转起来可能<b>指数式</b>加速——半个多世纪前数学家 I.J. Good 就预言："第一台超智能机器是人类需要做的最后一项发明。"</td></tr>
+  <tr><td><b>起飞速度</b><br>(Takeoff Speed)</td><td><b>快起飞</b>：几天/几周内 AI 能力暴冲，人类来不及反应；<b>慢起飞</b>：几年里平滑爬升，有时间观察纠偏。两大阵营的分歧很大程度就是"会多快"。</td></tr>
+</table>
+
+<h2><span class="num">4</span>这已经不是科幻：2026 年的真实信号</h2>
+<p>为什么 2026 年这个词突然刷屏？因为"AI 加速 AI 研发"开始有了<b>可量化的证据</b>。最受关注的一组数字来自 Anthropic 自己的工程实践（截至 2026 年 5–6 月）：</p>
+<div class="stat">
+  <div class="s"><div class="big">&gt;80%</div><div class="lbl">合并进 Anthropic 自家代码库的代码，由 Claude 编写</div></div>
+  <div class="s"><div class="big">~8×</div><div class="lbl">工程师单季度交付代码量，相比 2021–2025 提升</div></div>
+  <div class="s"><div class="big">52×</div><div class="lbl">某代码优化任务上 Claude 拿到的加速比（熟练人类约 4×）</div></div>
+</div>
+<p>更说明问题的是 <b>"任务时长地平线"（task horizon）</b>——AI 能可靠独立完成的任务有多长，大约<b>每 4 个月翻一倍</b>：</p>
+<pre>2024年3月  <span class="dim">4 分钟</span>  的任务   ┐
+2025年3月  <span class="dim">90 分钟</span> 的任务   ├─ 每~4个月翻倍
+2026年3月  <span class="an">12 小时</span> 的任务   ┘
+2027年(预测) <span class="an">一整周</span> 的自主任务  ← 若趋势延续</pre>
+<p>研究基准也在饱和：SWE-bench（真实代码修复）两年内从个位数刷到接近满分；CORE-Bench（复现科研结果）15 个月从 20% 刷到饱和。Anthropic 判断：<b>最快到 2027 年初</b>，AI 就可能大幅加速顶尖研究团队的工作。这正是"飞轮已经开始转"的意思。</p>
+<p class="src" style="margin-top:6px">注：以上为各公司自报 / 媒体报道数据（证据等级 A–B），口径和测试条件各异，看趋势而非抠绝对值。</p>
+
+<h2><span class="num">5</span>两大阵营：一个踩油门，一个踩刹车</h2>
+<p>同一件事，OpenAI 和 Anthropic 的姿态形成了 2026 年最鲜明的对照。</p>
+<div class="two">
+  <div class="camp oa">
+    <span class="badge">OpenAI · 加速派</span>
+    <h4>核心动作：把"自动 AI 研究员"当头号工程</h4>
+    <ul>
+      <li><b>路线图</b>（首席科学家 Jakub Pachocki）：2026 年 9 月前做出"自主 AI 研究<b>实习生</b>"——能独立啃下"人要花几天"的任务；2028 年做出完全体的多智能体自动研究系统。</li>
+      <li><b>Sam Altman</b>：博客《温和的奇点》称当前系统已是"递归自我改进的<b>幼虫形态</b>（larval）"，自我强化循环已悄然启动。</li>
+      <li><b>但也在备防</b>：OpenAI 公开招聘"递归自我改进 Preparedness 研究员"，专门研究如何防止模型在训练中<b>不受控地自我改进</b>；2026 年 6 月赴美国国会，筹备相关监督政策框架。</li>
+    </ul>
+  </div>
+  <div class="camp an">
+    <span class="badge">Anthropic · 警惕派</span>
+    <h4>核心动作：一边推进，一边喊"给世界留个刹车"</h4>
+    <ul>
+      <li><b>2026 年 6 月 4 日</b>文章《当 AI 开始制造自己》（Marina Favaro & Jack Clark）：明确说"<b>世界应该有能力去减速或临时暂停</b>前沿 AI 开发"。</li>
+      <li><b>不是单方面停</b>：他们认为可信的减速需要多国、多家头部实验室<b>在相同条件下共同停、且能互相核查</b>——"如果这种机制存在，我们预计自己会减速或暂停"。</li>
+      <li><b>制度护栏</b>：RSP（负责任扩展政策）+ ASL 安全等级——能力越界就触发更强管控（2025 年 5 月已启用 ASL-3 防护）。Jack Clark 估计 AI 实现自我改进的概率"2028 年底约 60%"。</li>
+    </ul>
+  </div>
+</div>
+<blockquote>
+  <b>一句话对照：</b>OpenAI 说"这是我们要<b>主动造</b>的东西，顺便准备好刹车"；
+  Anthropic 说"这东西可能<b>自己来得比谁都快</b>，所以请先把全行业的刹车装好"。
+  两边其实都承认飞轮在转——分歧在<b>该多用力踩油门 vs 多早装刹车</b>。
+</blockquote>
+<p class="src">补充：Anthropic CEO Dario Amodei 在《Machines of Loving Grace》里描述过同一个循环——"用 AI 造下一代模型并给它提速，形成闭环"，并预测未来 12 个月 AI 可能"写掉几乎所有代码"。</p>
+
+<h2><span class="num">6</span>到底在担心什么？为什么又说"并非必然"</h2>
+<h3>担心的三层</h3>
+<ol>
+  <li><b>对齐被放大</b>：今天模型里偶发的"想歪了/目标没对齐"，如果由它去设计下一代，<b>偏差会被一代代复利累积</b>，越往后越难纠。</li>
+  <li><b>人类掉出环路</b>：当 AI 一周能干完人类一周的活、还看不懂它怎么干的，"人工 code review"会从把关变成<b>瓶颈</b>，监管事实上失效。</li>
+  <li><b>速度差</b>：快起飞情景下，能力暴涨发生在"开会讨论怎么办"之前——这正是 Anthropic 想预先装"可验证暂停机制"的原因。</li>
+</ol>
+<div class="callout warn">
+  <span class="tag">但要泼盆冷水</span>
+  <p style="margin:8px 0 0">Anthropic 自己也强调：<b>"递归自我改进并非不可避免。"</b> 飞轮可能卡在某个环节（真正原创的科研判断、物理实验、算力/能源天花板），不一定走向失控的指数爆炸。当前更确定的是"AI 显著<b>加速</b>了 AI 研发"，而非"AI 已能<b>独立</b>造出更强的自己"。把它当成<b>正在升温、值得严肃对待的趋势</b>，而不是已经发生的事实。</p>
+</div>
+
+<h2><span class="num">7</span>三句话总结</h2>
+<ol>
+  <li><b>递归自我改进</b> = AI 改进"造 AI 的能力"，成果喂回起点形成自我加速飞轮；失控担忧来自这个<b>正反馈</b>，不是"AI 单纯很强"。</li>
+  <li><b>2026 已有真实信号</b>：Claude 写了 Anthropic 八成代码、任务时长每 4 个月翻倍——飞轮在转，但还没甩开人类。</li>
+  <li><b>两大阵营对照</b>：OpenAI 主动造"自动 AI 研究员"（2026 实习生→2028 完全体）并备防；Anthropic 6 月公开呼吁给全行业留"可验证的减速/暂停"选项。油门与刹车，是 2026 年 AI 叙事的主轴。</li>
+</ol>
+
+<hr>
+
+<h3>名词小抄</h3>
+<table>
+  <tr><th>名词</th><th>大白话</th></tr>
+  <tr><td>递归自我改进 (RSI)</td><td>AI 自主设计、造出更强的下一代自己</td></tr>
+  <tr><td>智能爆炸</td><td>飞轮转起来后能力指数式暴涨</td></tr>
+  <tr><td>起飞速度 (Takeoff)</td><td>能力暴冲是几周（快）还是几年（慢）</td></tr>
+  <tr><td>自动 AI 研究员</td><td>OpenAI 在造的、能独立做 AI 研究任务的系统</td></tr>
+  <tr><td>任务时长地平线</td><td>AI 能可靠独立完成的任务有多长（在快速变长）</td></tr>
+  <tr><td>对齐 (Alignment)</td><td>让 AI 的目标和人类意图一致；RSI 会放大没对齐的部分</td></tr>
+  <tr><td>RSP / ASL</td><td>Anthropic 的安全分级：能力越界就触发更强管控</td></tr>
+</table>
+
+<h3 class="src">参考来源（均为 2026 年公开资料，引用具体数字/时间线前建议回看原文）</h3>
+<ul class="src">
+  <li>Anthropic《When AI builds itself》(2026-06-04, Favaro & Clark) — <a href="https://www.anthropic.com/institute/recursive-self-improvement">anthropic.com/institute/recursive-self-improvement</a></li>
+  <li>MIT Technology Review《OpenAI is throwing everything into building a fully automated researcher》(2026-03-20) — <a href="https://www.technologyreview.com/2026/03/20/1134438/openai-is-throwing-everything-into-building-a-fully-automated-researcher/">technologyreview.com</a></li>
+  <li>Sam Altman《The Gentle Singularity》— <a href="https://blog.samaltman.com/the-gentle-singularity">blog.samaltman.com/the-gentle-singularity</a></li>
+  <li>OpenAI 招聘《Researcher, Recursive Self-Improvement Preparedness》— <a href="https://openai.com/careers/researcher-recursive-self-improvement-preparedness-san-francisco/">openai.com/careers</a></li>
+  <li>Dario Amodei《Machines of Loving Grace》— <a href="https://darioamodei.com/essay/machines-of-loving-grace">darioamodei.com</a></li>
+  <li>Anthropic Responsible Scaling Policy — <a href="https://www.anthropic.com/responsible-scaling-policy">anthropic.com/responsible-scaling-policy</a></li>
+  <li>Fortune / Scientific American / Tom's Hardware 对 6/4 文章的报道（二手，证据等级 B）</li>
+</ul>
+
+<footer>
+  文档用途：团队 AI 前沿动态科普。文中时间线与预测（2027/2028 等）为各公司公开陈述与判断，<b>非既成事实</b>；具体数字口径不一，引用前请回看一手来源。<br>
+  整理日期：2026-06-08 · 基于截至当日的公开资料
+</footer>
+
+</div>
+</body>
+</html>

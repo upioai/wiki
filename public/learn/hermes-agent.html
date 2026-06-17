@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hermes 讲解 · Agent 框架知识分享</title>
+<style>
+  :root{
+    --bg:#0e1117; --panel:#161b26; --panel2:#1c2230; --line:#2a3346;
+    --ink:#e8ecf4; --mut:#9aa6bd; --dim:#6b7689;
+    --indigo:#7c8cff; --indigo-d:#5566e0;
+    --green:#48d089; --amber:#f5b14c; --red:#ff6b7a; --cyan:#4fd1e0;
+    --radius:16px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:-apple-system,"SF Pro SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    background:radial-gradient(1200px 700px at 70% -10%, #1a2236 0%, var(--bg) 55%);
+    color:var(--ink); line-height:1.65; -webkit-font-smoothing:antialiased;
+    padding:48px 24px 80px;
+  }
+  .wrap{max-width:1040px;margin:0 auto}
+
+  /* hero */
+  .hero{margin-bottom:40px}
+  .kicker{display:inline-flex;align-items:center;gap:8px;font-size:13px;letter-spacing:.16em;
+    color:var(--indigo);text-transform:uppercase;font-weight:600;margin-bottom:14px}
+  .kicker::before{content:"";width:26px;height:2px;background:var(--indigo);border-radius:2px}
+  h1{font-size:42px;line-height:1.18;font-weight:800;letter-spacing:-.5px}
+  h1 .g{background:linear-gradient(100deg,var(--indigo),var(--cyan));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{margin-top:16px;font-size:17px;color:var(--mut);max-width:760px}
+  .meta{margin-top:20px;display:flex;gap:10px;flex-wrap:wrap}
+  .chip{font-size:12.5px;color:var(--mut);background:var(--panel);border:1px solid var(--line);
+    padding:5px 12px;border-radius:999px}
+  .chip b{color:var(--ink);font-weight:600}
+
+  /* sections */
+  section{margin-top:44px}
+  .sec-h{display:flex;align-items:baseline;gap:14px;margin-bottom:20px}
+  .sec-n{font-size:13px;font-weight:700;color:var(--indigo);font-variant-numeric:tabular-nums;
+    border:1px solid var(--indigo);border-radius:8px;padding:3px 9px;flex:none}
+  h2{font-size:25px;font-weight:750;letter-spacing:-.3px}
+  .sub{color:var(--mut);font-size:15px;margin-top:-10px;margin-bottom:20px;margin-left:48px}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:26px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  @media(max-width:720px){.grid2,.grid3{grid-template-columns:1fr}h1{font-size:32px}}
+
+  /* the loop diagram */
+  .loop-wrap{display:flex;align-items:center;gap:28px;flex-wrap:wrap;justify-content:center}
+  .loop-note{flex:1;min-width:240px}
+  .loop-note h3{font-size:16px;margin-bottom:8px}
+  .loop-note p{color:var(--mut);font-size:14.5px}
+  .loop-legend{margin-top:14px;display:flex;flex-direction:column;gap:9px}
+  .lg{display:flex;gap:10px;align-items:flex-start;font-size:14px}
+  .dot{width:11px;height:11px;border-radius:50%;margin-top:6px;flex:none}
+
+  /* layer stack */
+  .stack{display:flex;flex-direction:column;gap:10px}
+  .layer{display:grid;grid-template-columns:150px 1fr;gap:16px;align-items:center;
+    background:var(--panel2);border:1px solid var(--line);border-left:4px solid var(--indigo);
+    border-radius:12px;padding:15px 18px}
+  .layer .ttl{font-weight:700;font-size:15px}
+  .layer .ttl small{display:block;color:var(--dim);font-weight:500;font-size:12px;margin-top:3px}
+  .layer .desc{color:var(--mut);font-size:14px}
+  .layer .desc code{background:#0c1019;color:var(--cyan);padding:1px 7px;border-radius:6px;
+    font-size:12.5px;border:1px solid var(--line)}
+  .layer.l1{border-left-color:var(--cyan)} .layer.l2{border-left-color:var(--indigo)}
+  .layer.l3{border-left-color:#b88cff} .layer.l4{border-left-color:var(--amber)}
+  .layer.l5{border-left-color:var(--green)}
+
+  /* comparison */
+  .vs{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .vs .card{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:20px}
+  .vs .card.bad{border-top:3px solid var(--dim)}
+  .vs .card.good{border-top:3px solid var(--green)}
+  .vs h4{font-size:15px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .vs ul{list-style:none;display:flex;flex-direction:column;gap:9px}
+  .vs li{font-size:14px;color:var(--mut);padding-left:22px;position:relative}
+  .vs li::before{position:absolute;left:0;top:0}
+  .vs .bad li::before{content:"–";color:var(--dim);font-weight:700}
+  .vs .good li::before{content:"✓";color:var(--green);font-weight:700}
+
+  /* autonomy spectrum */
+  .spec{display:flex;flex-direction:column;gap:14px}
+  .band{display:grid;grid-template-columns:120px 1fr;gap:18px;align-items:center;
+    border-radius:12px;padding:16px 18px;border:1px solid var(--line)}
+  .band.g{background:linear-gradient(90deg,rgba(72,208,137,.12),transparent)}
+  .band.a{background:linear-gradient(90deg,rgba(245,177,76,.12),transparent)}
+  .band.r{background:linear-gradient(90deg,rgba(255,107,122,.12),transparent)}
+  .band .lvl{font-weight:800;font-size:16px;display:flex;align-items:center;gap:8px}
+  .band.g .lvl{color:var(--green)} .band.a .lvl{color:var(--amber)} .band.r .lvl{color:var(--red)}
+  .band .ex{color:var(--mut);font-size:14px}
+  .band .ex b{color:var(--ink);font-weight:600}
+
+  /* akke patrol flow */
+  .flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
+  .step{flex:1;min-width:140px;background:var(--panel2);border:1px solid var(--line);
+    border-radius:12px;padding:16px;position:relative;margin:6px}
+  .step .num{font-size:12px;color:var(--indigo);font-weight:700}
+  .step .st{font-weight:700;font-size:14.5px;margin:5px 0}
+  .step .sd{color:var(--mut);font-size:12.5px}
+  .arrow{display:flex;align-items:center;color:var(--dim);font-size:20px;padding:0 2px}
+  @media(max-width:720px){.arrow{display:none}}
+
+  .checks{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:16px}
+  @media(max-width:720px){.checks{grid-template-columns:1fr 1fr}}
+  .chk{background:#0c1019;border:1px solid var(--line);border-radius:10px;padding:12px;text-align:center}
+  .chk .ic{font-size:18px}
+  .chk .cn{font-size:12.5px;color:var(--mut);margin-top:6px}
+
+  .outcome{display:flex;gap:14px;margin-top:18px;flex-wrap:wrap}
+  .oc{flex:1;min-width:240px;border-radius:12px;padding:16px 18px;border:1px solid var(--line);font-size:14px}
+  .oc.silent{background:rgba(72,208,137,.08)} .oc.alert{background:rgba(255,107,122,.08)}
+  .oc b{display:block;margin-bottom:4px}
+  .oc.silent b{color:var(--green)} .oc.alert b{color:var(--red)}
+
+  /* takeaways */
+  .keys{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:720px){.keys{grid-template-columns:1fr}}
+  .key{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:18px}
+  .key .ki{font-size:22px}
+  .key h4{font-size:15px;margin:8px 0 5px}
+  .key p{color:var(--mut);font-size:13.5px}
+
+  .foot{margin-top:54px;padding-top:20px;border-top:1px solid var(--line);
+    color:var(--dim);font-size:12.5px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+  .tag{color:var(--indigo)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HERO -->
+  <header class="hero">
+    <div class="kicker">团队知识分享 · Agent 框架</div>
+    <h1>Hermes 是一个 <span class="g">AI Agent</span>,<br>不是一个聊天机器人,也不是一堆脚本</h1>
+    <p class="lede">这份讲解用我们自己的 Hermes 当例子,把「Agent 框架」拆成可理解的几层——
+      它如何<b style="color:var(--ink)">感知 → 思考 → 行动</b>、如何在「自主」与「需人确认」之间划红线,
+      以及它现在如何当 <b style="color:var(--ink)">Akke 获客平台</b>的运维副驾。看完你应该能回答:
+      <i>我们要不要、以及怎么把别的业务也交给 Agent?</i></p>
+    <div class="meta">
+      <span class="chip">案例:<b> Hermes v0.9.0</b></span>
+      <span class="chip">大脑:<b> qwen3-235b（262K context）</b></span>
+      <span class="chip">接入:<b> Telegram + Lark 双网关</b></span>
+      <span class="chip">落地:<b> Akke 抖音智能获客</b></span>
+    </div>
+  </header>
+
+  <!-- 1. WHAT IS AN AGENT -->
+  <section>
+    <div class="sec-h"><span class="sec-n">01</span><h2>Agent 的本质:一个会自己转圈的循环</h2></div>
+    <p class="sub">普通程序是「输入→输出」一条直线;Agent 是一个持续运转的闭环——它能观察环境、决定下一步、动手执行,再看结果决定要不要继续。</p>
+    <div class="panel">
+      <div class="loop-wrap">
+        <svg width="300" height="300" viewBox="0 0 300 300" aria-label="Agent 循环图">
+          <defs>
+            <marker id="ah" markerWidth="10" markerHeight="10" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" fill="#7c8cff"/>
+            </marker>
+          </defs>
+          <!-- arc arrows between four nodes -->
+          <circle cx="150" cy="150" r="92" fill="none" stroke="#2a3346" stroke-width="2" stroke-dasharray="4 6"/>
+          <!-- four nodes -->
+          <g font-size="13" font-weight="700" text-anchor="middle">
+            <circle cx="150" cy="42" r="34" fill="#1c2230" stroke="#4fd1e0" stroke-width="2"/>
+            <text x="150" y="40" fill="#4fd1e0">感知</text>
+            <text x="150" y="56" fill="#9aa6bd" font-size="10" font-weight="500">Perceive</text>
+
+            <circle cx="258" cy="150" r="34" fill="#1c2230" stroke="#7c8cff" stroke-width="2"/>
+            <text x="258" y="148" fill="#7c8cff">决策</text>
+            <text x="258" y="164" fill="#9aa6bd" font-size="10" font-weight="500">Reason</text>
+
+            <circle cx="150" cy="258" r="34" fill="#1c2230" stroke="#f5b14c" stroke-width="2"/>
+            <text x="150" y="256" fill="#f5b14c">行动</text>
+            <text x="150" y="272" fill="#9aa6bd" font-size="10" font-weight="500">Act</text>
+
+            <circle cx="42" cy="150" r="34" fill="#1c2230" stroke="#48d089" stroke-width="2"/>
+            <text x="42" y="148" fill="#48d089">反馈</text>
+            <text x="42" y="164" fill="#9aa6bd" font-size="10" font-weight="500">Observe</text>
+          </g>
+          <!-- directional arcs -->
+          <path d="M182,58 A92,92 0 0,1 242,118" fill="none" stroke="#7c8cff" stroke-width="2.5" marker-end="url(#ah)"/>
+          <path d="M242,182 A92,92 0 0,1 182,242" fill="none" stroke="#7c8cff" stroke-width="2.5" marker-end="url(#ah)"/>
+          <path d="M118,242 A92,92 0 0,1 58,182" fill="none" stroke="#7c8cff" stroke-width="2.5" marker-end="url(#ah)"/>
+          <path d="M58,118 A92,92 0 0,1 118,58" fill="none" stroke="#7c8cff" stroke-width="2.5" marker-end="url(#ah)"/>
+        </svg>
+        <div class="loop-note">
+          <h3>这四步,Hermes 每一圈都在跑</h3>
+          <p>它不是被动等你发消息才动。装上 launchd 自启后,它常驻运行,既能响应你的对话,也能按自己的节奏主动巡检。</p>
+          <div class="loop-legend">
+            <div class="lg"><span class="dot" style="background:var(--cyan)"></span><span><b>感知</b> — 收 Telegram/Lark 消息、读 cron 触发、跑健康检查拿状态</span></div>
+            <div class="lg"><span class="dot" style="background:var(--indigo)"></span><span><b>决策</b> — LLM（qwen3-235b）结合 SOUL.md 上下文判断该做什么</span></div>
+            <div class="lg"><span class="dot" style="background:var(--amber)"></span><span><b>行动</b> — 调工具:读代码、跑脚本、起草 PR、发 Lark 卡片</span></div>
+            <div class="lg"><span class="dot" style="background:var(--green)"></span><span><b>反馈</b> — 看执行结果,决定收尾、重试、还是上报给人</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. AGENT VS NOT -->
+  <section>
+    <div class="sec-h"><span class="sec-n">02</span><h2>它和「机器人 / 脚本」差在哪</h2></div>
+    <p class="sub">关键区别是<b>自主性</b>和<b>工具调用</b>:Agent 自己决定调哪些工具、调几次、何时停,而不是人把每一步都写死。</p>
+    <div class="vs">
+      <div class="card bad">
+        <h4>🤖 传统聊天机器人 / 定时脚本</h4>
+        <ul>
+          <li>规则写死,if-else 穷举,新情况就抓瞎</li>
+          <li>只在被调用那一刻执行,跑完就结束</li>
+          <li>不会自己选工具,流程是人编排好的直线</li>
+          <li>无上下文记忆,每次都从零开始</li>
+        </ul>
+      </div>
+      <div class="card good">
+        <h4>🧠 Agent（Hermes）</h4>
+        <ul>
+          <li>LLM 当大脑,遇到没见过的情况能自己推理</li>
+          <li>常驻运行 + 主动巡检,不需要人每次戳一下</li>
+          <li>自主决定调哪个工具、调几次、拿到结果再决定下一步</li>
+          <li>SOUL.md 提供长期身份/业务上下文,有记忆</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. ARCHITECTURE LAYERS -->
+  <section>
+    <div class="sec-h"><span class="sec-n">03</span><h2>拆开看:一个 Agent 框架的五层</h2></div>
+    <p class="sub">任何 Agent 框架基本都是这五层。下面每一层都标了 Hermes 里对应的真实零件——这套结构是可复用的,换个业务照搬即可。</p>
+    <div class="panel">
+      <div class="stack">
+        <div class="layer l1">
+          <div class="ttl">① 网关层<small>Gateway / 感知入口</small></div>
+          <div class="desc">多平台统一接入:<code>Telegram</code> + <code>Lark(WebSocket 长连接)</code>。检测到平台凭据 env 即自动启用,免公网 URL。这是 Agent 的「耳朵和嘴」。</div>
+        </div>
+        <div class="layer l2">
+          <div class="ttl">② 大脑层<small>LLM / 推理引擎</small></div>
+          <div class="desc">模型 <code>qwen3-235b-a22b-2507</code>（开源、262K context）。负责理解意图、规划步骤、决定调用工具——Agent 框架对模型只有一个硬要求:<b>context 够大（64K+）</b>。</div>
+        </div>
+        <div class="layer l3">
+          <div class="ttl">③ 灵魂层<small>SOUL.md / 上下文与人设</small></div>
+          <div class="desc">一份长期记忆文件:写明它是谁、负责哪些项目（Akke 等）、红线规则。这是把「通用模型」变成「我们专属副驾」的关键。</div>
+        </div>
+        <div class="layer l4">
+          <div class="ttl">④ 工具层<small>Tools / 行动能力</small></div>
+          <div class="desc">能读代码、跑脚本、调 <code>gh / vercel / fly / supabase</code>、发 Lark 卡片、起草 PR。工具越多,Agent 能干的事越多——但每个工具都要配权限边界。</div>
+        </div>
+        <div class="layer l5">
+          <div class="ttl">⑤ 安全层<small>门禁 + 红线</small></div>
+          <div class="desc">陌生人私聊先发<b>配对码</b>,owner 批准才进 allowlist;关键动作走<b>红线协议</b>（见下一节）。Agent 越强,这一层越不能省。</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. AUTONOMY SPECTRUM -->
+  <section>
+    <div class="sec-h"><span class="sec-n">04</span><h2>核心概念:自治光谱（人在环里）</h2></div>
+    <p class="sub">Agent 不是「全自动」或「全手动」的二选一,而是一条光谱。我们给 Hermes 接管 Akke 时,按<b>破坏力</b>把动作分三档——这是让人放心把业务交给 Agent 的关键设计。</p>
+    <div class="panel">
+      <div class="spec">
+        <div class="band g">
+          <div class="lvl">🟢 自主</div>
+          <div class="ex"><b>只读 / 诊断 / 起草</b> — 读代码、跑健康检查、查日志、起草 PR。无破坏力,Agent 直接做,不打扰人。</div>
+        </div>
+        <div class="band a">
+          <div class="lvl">🟡 静默</div>
+          <div class="ex"><b>健康即沉默</b> — 巡检一切正常时,结果标 <b>[SILENT]</b> 不推送。只有异常才升级到人。少打扰 = 真正可用。</div>
+        </div>
+        <div class="band r">
+          <div class="lvl">🔴 需 ack</div>
+          <div class="ex"><b>部署 / migration / 改 env / force-push / 删数据 / 花钱</b> — 这些必须先在 Lark 拿到 owner 明确确认才允许动手。</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. AKKE LANDING -->
+  <section>
+    <div class="sec-h"><span class="sec-n">05</span><h2>落到 Akke:一个真实的 Agent 循环</h2></div>
+    <p class="sub">Hermes 每 2 小时对 Akke 做一次主动巡检。这就是上面「感知→决策→行动→反馈」循环的真实跑法。</p>
+    <div class="panel">
+      <div class="flow">
+        <div class="step"><div class="num">触发</div><div class="st">⏰ 每 2h Cron</div><div class="sd">launchd 常驻,定时唤醒巡检任务,无需人介入</div></div>
+        <div class="arrow">→</div>
+        <div class="step"><div class="num">感知</div><div class="st">🩺 跑健康脚本</div><div class="sd">确定性 TS 脚本采集 5 项指标,api/status 重试 3 次防冷启假阳</div></div>
+        <div class="arrow">→</div>
+        <div class="step"><div class="num">决策</div><div class="st">🧠 判断健康度</div><div class="sd">全绿?异常?哪一项掉了?该不该惊动 Gloom</div></div>
+        <div class="arrow">→</div>
+        <div class="step"><div class="num">行动</div><div class="st">📨 静默 or 上报</div><div class="sd">正常 [SILENT];异常推 Lark DM 给 owner</div></div>
+      </div>
+
+      <div class="checks">
+        <div class="chk"><div class="ic">🌐</div><div class="cn">api/status<br>服务存活</div></div>
+        <div class="chk"><div class="ic">🔄</div><div class="cn">采集<br>新鲜度</div></div>
+        <div class="chk"><div class="ic">⚙️</div><div class="cn">jobs<br>队列</div></div>
+        <div class="chk"><div class="ic">👥</div><div class="cn">lead 池<br>水位</div></div>
+        <div class="chk"><div class="ic">💰</div><div class="cn">OpenRouter<br>余额</div></div>
+      </div>
+
+      <div class="outcome">
+        <div class="oc silent"><b>✅ 健康 → 沉默</b>正常就什么都不发。Agent 的价值不是刷存在感,而是「没消息就是好消息」,把人的注意力留给真问题。</div>
+        <div class="oc alert"><b>🚨 异常 → 上报</b>任一指标掉线,立刻推 Lark 私信给 owner,附上下文。需要部署/改 env 修复时,走 🔴 红线等人 ack。</div>
+      </div>
+    </div>
+    <p class="sub" style="margin-top:18px;margin-left:0">为什么用「确定性脚本」采指标、而不是让 LLM 自己瞎查? —— <b>能用代码确定回答的判断,就不要丢给模型</b>。
+      巡检的「采数」是确定性的(代码),「要不要惊动人」才是判断(LLM)。这是 Agent 设计里省钱又可靠的分工原则。</p>
+  </section>
+
+  <!-- 6. TAKEAWAYS -->
+  <section>
+    <div class="sec-h"><span class="sec-n">06</span><h2>给团队的几条要点</h2></div>
+    <div class="keys">
+      <div class="key"><div class="ki">🔁</div><h4>Agent = 会自己转圈的循环</h4><p>感知→决策→行动→反馈。能主动跑,不只是被动答话,这是它和机器人最本质的区别。</p></div>
+      <div class="key"><div class="ki">🧩</div><h4>五层结构可复用</h4><p>网关 / 大脑 / 灵魂 / 工具 / 安全。想把新业务交给 Agent,照这五层填零件即可。</p></div>
+      <div class="key"><div class="ki">🚦</div><h4>自治要分档,人留在环里</h4><p>只读自主、健康静默、危险动作需 ack。没有红线的 Agent 不敢放生产。</p></div>
+      <div class="key"><div class="ki">⚖️</div><h4>确定性归代码,判断归模型</h4><p>采数、路由、状态码用代码;分类、起草、要不要上报才用 LLM。省钱且可靠。</p></div>
+    </div>
+  </section>
+
+  <div class="foot">
+    <span>Hermes v0.9.0 · qwen3-235b · Telegram + Lark · 接管 Akke 巡检每 2h</span>
+    <span class="tag">团队内部知识分享 · 2026-06-16</span>
+  </div>
+
+</div>
+</body>
+</html>

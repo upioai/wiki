@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Attention Is All You Need · 3 张幻灯片</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..900,0..100;1,9..144,300..900,0..100&family=Newsreader:ital,wght@0,200..800;1,200..800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper: #F2EDE0;
+  --paper-deep: #E8E1D0;
+  --ink: #14141F;
+  --ink-soft: #3A3A4A;
+  --muted: #8A8576;
+  --accent: #D63838;
+  --accent-deep: #A82828;
+  --hairline: rgba(20, 20, 31, 0.12);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Newsreader', Georgia, serif;
+  font-feature-settings: "ss01", "ss02";
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image:
+    radial-gradient(ellipse at top left, rgba(214, 56, 56, 0.05) 0%, transparent 55%),
+    radial-gradient(ellipse at bottom right, rgba(20, 20, 31, 0.06) 0%, transparent 55%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  pointer-events: none;
+  opacity: 0.55;
+  z-index: 2;
+  mix-blend-mode: multiply;
+}
+
+.deck {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  z-index: 3;
+}
+
+.slide {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(40px, 6vh, 80px) clamp(48px, 8vw, 120px);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(20px);
+  transition: opacity 0.7s cubic-bezier(.22,.61,.36,1), transform 0.7s cubic-bezier(.22,.61,.36,1);
+}
+
+.slide.active {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--hairline);
+  padding-bottom: 14px;
+  margin-bottom: clamp(20px, 4vh, 50px);
+}
+
+.meta .dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: var(--accent);
+  border-radius: 50%;
+  margin: 0 8px;
+  vertical-align: middle;
+}
+
+/* ===== SLIDE 1 ===== */
+.s1 .body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 60px;
+  align-items: center;
+}
+
+.s1 .left h1 {
+  font-family: 'Fraunces', serif;
+  font-weight: 400;
+  font-size: clamp(56px, 9vw, 140px);
+  line-height: 0.92;
+  letter-spacing: -0.03em;
+  font-variation-settings: "opsz" 144, "SOFT" 50;
+}
+
+.s1 .left h1 .accent {
+  font-style: italic;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.s1 .left h1 .small {
+  display: block;
+  font-size: 0.32em;
+  font-style: italic;
+  color: var(--ink-soft);
+  margin-top: 0.5em;
+  font-weight: 300;
+  line-height: 1.3;
+  font-variation-settings: "opsz" 36;
+}
+
+.s1 .left .lede {
+  margin-top: 36px;
+  font-size: clamp(15px, 1.3vw, 19px);
+  line-height: 1.6;
+  color: var(--ink-soft);
+  max-width: 30em;
+}
+
+.s1 .right {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+  align-items: flex-start;
+  border-left: 1px solid var(--hairline);
+  padding-left: 50px;
+  align-self: stretch;
+  justify-content: center;
+}
+
+.s1 .factcard {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.s1 .factcard .v {
+  display: block;
+  font-family: 'Fraunces', serif;
+  font-size: clamp(26px, 2.6vw, 40px);
+  color: var(--ink);
+  text-transform: none;
+  letter-spacing: -0.02em;
+  margin-top: 6px;
+  font-weight: 400;
+  font-variation-settings: "opsz" 60;
+}
+
+.s1 .factcard .v em {
+  color: var(--accent);
+  font-style: italic;
+}
+
+.s1 .authors {
+  font-family: 'Newsreader', serif;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+.s1 .stamp {
+  position: absolute;
+  top: clamp(80px, 12vh, 130px);
+  right: clamp(48px, 8vw, 120px);
+  border: 2px solid var(--accent);
+  color: var(--accent);
+  padding: 8px 14px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  transform: rotate(4deg);
+  font-weight: 500;
+  background: var(--paper);
+  z-index: 4;
+}
+
+/* ===== SLIDE 2 ===== */
+.s2 h2, .s3 h2 {
+  font-family: 'Fraunces', serif;
+  font-weight: 400;
+  font-size: clamp(36px, 5vw, 64px);
+  letter-spacing: -0.02em;
+  margin-bottom: 10px;
+  font-variation-settings: "opsz" 144;
+  line-height: 1.05;
+}
+
+.s2 h2 em, .s3 h2 em {
+  color: var(--accent);
+  font-style: italic;
+  font-weight: 500;
+}
+
+.s2 .sub, .s3 .sub {
+  font-size: clamp(14px, 1.1vw, 17px);
+  color: var(--muted);
+  margin-bottom: clamp(20px, 3.5vh, 36px);
+  font-style: italic;
+  font-family: 'Newsreader', serif;
+}
+
+.s2 .compare {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 56px 1fr;
+  gap: 0;
+  align-items: stretch;
+}
+
+.s2 .col {
+  display: flex;
+  flex-direction: column;
+  padding: 20px 28px 20px 0;
+}
+
+.s2 .col.after { padding: 20px 0 20px 28px; }
+
+.s2 .col h3 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+
+.s2 .col .label {
+  font-family: 'Fraunces', serif;
+  font-weight: 400;
+  font-style: italic;
+  font-size: clamp(26px, 2.8vw, 38px);
+  line-height: 1.05;
+  margin-bottom: 22px;
+  letter-spacing: -0.01em;
+  font-variation-settings: "opsz" 96;
+}
+
+.s2 .col.after .label { color: var(--accent); }
+
+.s2 .col p {
+  font-size: clamp(14px, 1.05vw, 16.5px);
+  line-height: 1.6;
+  color: var(--ink-soft);
+  max-width: 28em;
+  margin-bottom: 14px;
+}
+
+.s2 .col p em {
+  color: var(--accent);
+  font-style: italic;
+  font-weight: 500;
+}
+
+.s2 .col .viz {
+  margin-top: auto;
+  padding-top: 20px;
+}
+
+.s2 .divider {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.s2 .divider::before {
+  content: "";
+  position: absolute;
+  top: 30px;
+  bottom: 30px;
+  left: 50%;
+  width: 1px;
+  background: var(--hairline);
+}
+
+.s2 .divider .arrow {
+  background: var(--paper);
+  width: 44px;
+  height: 44px;
+  border: 1.5px solid var(--accent);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 16px;
+  position: relative;
+  z-index: 1;
+}
+
+.diagram-rnn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.diagram-rnn .row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.diagram-rnn .box {
+  border: 1px solid var(--hairline);
+  background: var(--paper-deep);
+  padding: 6px 10px;
+  border-radius: 2px;
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-size: 14px;
+}
+.diagram-rnn .arrow {
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+}
+.diagram-rnn .note {
+  margin-top: 10px;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ===== SLIDE 3 ===== */
+.s3 .body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 60px;
+  align-items: start;
+}
+
+.s3 .tree { position: relative; }
+
+.s3 .root {
+  font-family: 'Fraunces', serif;
+  font-size: clamp(20px, 1.8vw, 26px);
+  letter-spacing: -0.01em;
+  padding: 10px 16px;
+  border: 2px solid var(--accent);
+  background: var(--paper);
+  display: inline-block;
+  color: var(--accent);
+  margin-bottom: 26px;
+  font-style: italic;
+  font-variation-settings: "opsz" 72;
+}
+
+.s3 .branch {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.s3 .node {
+  border: 1px solid var(--hairline);
+  background: var(--paper-deep);
+  padding: 12px 14px;
+  border-radius: 2px;
+  transition: transform 0.25s ease, border-color 0.25s ease;
+}
+.s3 .node:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+}
+.s3 .node .name {
+  font-family: 'Fraunces', serif;
+  font-size: clamp(15px, 1.3vw, 18px);
+  letter-spacing: -0.01em;
+  margin-bottom: 4px;
+  font-variation-settings: "opsz" 36;
+}
+.s3 .node .meta-sm {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.s3 .node .who {
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  margin-top: 6px;
+  font-style: italic;
+}
+
+.s3 .now {
+  margin-top: 20px;
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-size: clamp(15px, 1.2vw, 18px);
+  line-height: 1.45;
+  color: var(--ink-soft);
+  border-left: 3px solid var(--accent);
+  padding-left: 14px;
+  max-width: 30em;
+  font-variation-settings: "opsz" 36;
+}
+
+.s3 .right {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  height: 100%;
+}
+
+.s3 .bigstat {
+  font-family: 'Fraunces', serif;
+  font-size: clamp(54px, 7vw, 110px);
+  font-weight: 300;
+  line-height: 0.88;
+  letter-spacing: -0.04em;
+  color: var(--accent);
+  font-variation-settings: "opsz" 144;
+}
+.s3 .bigstat .unit {
+  font-size: 0.22em;
+  color: var(--ink-soft);
+  font-style: italic;
+  font-weight: 400;
+  display: block;
+  margin-top: 12px;
+  letter-spacing: 0;
+  font-variation-settings: "opsz" 36;
+}
+
+.s3 .pull {
+  font-family: 'Newsreader', serif;
+  font-size: clamp(14px, 1.1vw, 17px);
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+
+.s3 .pull em {
+  color: var(--accent);
+  font-style: italic;
+  font-weight: 500;
+}
+
+.s3 .signoff {
+  margin-top: auto;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  border-top: 1px solid var(--hairline);
+  padding-top: 12px;
+}
+
+/* ===== Nav ===== */
+.nav {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  z-index: 10;
+}
+
+.nav .pill {
+  width: 26px;
+  height: 5px;
+  background: rgba(20, 20, 31, 0.14);
+  border-radius: 3px;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  transition: background 0.3s, width 0.3s;
+}
+.nav .pill.active {
+  background: var(--accent);
+  width: 44px;
+}
+
+.hint {
+  position: fixed;
+  bottom: 24px;
+  right: 28px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  z-index: 10;
+}
+.hint kbd {
+  display: inline-block;
+  border: 1px solid var(--hairline);
+  padding: 2px 6px;
+  border-radius: 2px;
+  margin: 0 2px;
+  background: var(--paper);
+  font-size: 9px;
+  color: var(--ink-soft);
+}
+
+.brand {
+  position: fixed;
+  top: 24px;
+  left: 28px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  z-index: 10;
+}
+.brand .mark {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  background: var(--accent);
+  margin-right: 8px;
+  vertical-align: middle;
+  transform: rotate(45deg);
+}
+
+.slide.active .anim {
+  opacity: 0;
+  animation: rise 0.9s cubic-bezier(.22,.61,.36,1) forwards;
+}
+.slide.active .anim:nth-of-type(1) { animation-delay: 0.05s; }
+.slide.active .anim:nth-of-type(2) { animation-delay: 0.18s; }
+.slide.active .anim:nth-of-type(3) { animation-delay: 0.32s; }
+.slide.active .anim:nth-of-type(4) { animation-delay: 0.46s; }
+.slide.active .anim:nth-of-type(5) { animation-delay: 0.6s; }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 900px) {
+  .s1 .body, .s3 .body { grid-template-columns: 1fr; gap: 32px; }
+  .s1 .right { border-left: none; border-top: 1px solid var(--hairline); padding-left: 0; padding-top: 28px; }
+  .s2 .compare { grid-template-columns: 1fr; }
+  .s2 .divider { padding: 14px 0; }
+  .s2 .divider::before { display: none; }
+  .s2 .col, .s2 .col.after { padding: 14px 0; }
+  .s3 .branch { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="brand"><span class="mark"></span>FOUNDATIONAL · PAPERS · NO.01</div>
+
+<div class="deck">
+
+  <!-- ============ SLIDE 1 ============ -->
+  <section class="slide s1 active" data-i="0">
+    <div class="stamp">2017 · NeurIPS</div>
+    <div class="meta anim">
+      <span>01 / 03 <span class="dot"></span> THE PAPER</span>
+      <span>Vaswani et al. <span class="dot"></span> Google Brain</span>
+    </div>
+    <div class="body">
+      <div class="left anim">
+        <h1>
+          Attention<br>
+          <span class="accent">is all</span><br>
+          you need.
+          <span class="small">—— 一篇 8 页的论文，重写了机器学习此后十年的剧本。</span>
+        </h1>
+        <p class="lede">
+          在它之前，机器靠"按顺序读"理解语言；在它之后，机器学会了"同时看见全部"。
+          ChatGPT、Claude、Gemini——你今天用过的每一个 AI，骨子里都是它。
+        </p>
+      </div>
+      <div class="right anim">
+        <div class="factcard">
+          被引次数（截至 2026）
+          <span class="v"><em>150,000+</em></span>
+        </div>
+        <div class="factcard">
+          发表场合
+          <span class="v">NeurIPS · 2017</span>
+        </div>
+        <div class="factcard">
+          它给出的架构
+          <span class="v"><em>Transformer</em></span>
+        </div>
+        <div class="authors">
+          A. Vaswani · N. Shazeer · N. Parmar · J. Uszkoreit<br>
+          L. Jones · A. N. Gomez · Ł. Kaiser · I. Polosukhin
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SLIDE 2 ============ -->
+  <section class="slide s2" data-i="1">
+    <div class="meta anim">
+      <span>02 / 03 <span class="dot"></span> THE IDEA</span>
+      <span>它到底做了什么</span>
+    </div>
+    <h2 class="anim">那么，<em>这篇论文做了什么</em>？</h2>
+    <p class="sub anim">把"逐字阅读"换成"全文同时审视"——就这一念之差。</p>
+
+    <div class="compare anim">
+
+      <div class="col before">
+        <h3>BEFORE · 2017 之前</h3>
+        <div class="label">像念课文，<br>一个字一个字。</div>
+        <p>
+          旧模型（RNN / LSTM）必须按顺序读句子：先读第一个词，再读第二个……
+          读到第 50 个词时，第 1 个词的印象早就模糊了，长句子常常"忘了开头说什么"。
+        </p>
+        <p>而且不能并行计算，训练速度被死死卡住。</p>
+        <div class="viz">
+          <div class="diagram-rnn">
+            <div class="row">
+              <span class="box">我</span><span class="arrow">→</span>
+              <span class="box">爱</span><span class="arrow">→</span>
+              <span class="box">北京</span><span class="arrow">→</span>
+              <span class="box">天安门</span>
+            </div>
+            <div class="note">↓ 越往后，开头越模糊</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"><div class="arrow">→</div></div>
+
+      <div class="col after">
+        <h3>AFTER · Self-Attention</h3>
+        <div class="label">像看整张<br>地图。</div>
+        <p>
+          Transformer 让每个词同时"看见"全文的每一个词，并自己决定该
+          <em>注意</em>谁、忽略谁。代词"它"指的是谁，动词的宾语在哪——一步到位。
+        </p>
+        <p>所有词并行计算，训练快几十倍，越大反而越聪明。</p>
+        <div class="viz">
+          <svg viewBox="0 0 340 130" style="width:100%;max-width:340px;height:auto" aria-label="self-attention diagram">
+            <defs>
+              <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#D63838"/>
+              </marker>
+            </defs>
+            <g font-family="Fraunces, serif" font-style="italic" font-size="15" fill="#14141F">
+              <rect x="10"  y="16" width="62" height="30" fill="#E8E1D0" stroke="#14141F22"/>
+              <text x="41"  y="36" text-anchor="middle">小猫</text>
+              <rect x="92"  y="16" width="62" height="30" fill="#E8E1D0" stroke="#14141F22"/>
+              <text x="123" y="36" text-anchor="middle">追</text>
+              <rect x="174" y="16" width="62" height="30" fill="#E8E1D0" stroke="#14141F22"/>
+              <text x="205" y="36" text-anchor="middle">老鼠</text>
+              <rect x="256" y="16" width="62" height="30" fill="#E8E1D0" stroke="#14141F22"/>
+              <text x="287" y="36" text-anchor="middle">它</text>
+            </g>
+            <g stroke="#D63838" fill="none" stroke-linecap="round">
+              <path d="M287 56 Q 245 105 205 56" stroke-width="1.6" opacity="0.85" marker-end="url(#ah)"/>
+              <path d="M287 56 Q 200 115 123 56" stroke-width="1.2" opacity="0.35" marker-end="url(#ah)"/>
+              <path d="M287 56 Q 160 120 41  56" stroke-width="1" opacity="0.2" marker-end="url(#ah)"/>
+            </g>
+            <text x="170" y="125" text-anchor="middle" font-family="JetBrains Mono" font-size="9.5" fill="#8A8576" letter-spacing="1">"它"自动注意到 "老鼠"——指代消解一步搞定</text>
+          </svg>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ SLIDE 3 ============ -->
+  <section class="slide s3" data-i="2">
+    <div class="meta anim">
+      <span>03 / 03 <span class="dot"></span> THE AFTERMATH</span>
+      <span>从一篇论文到一整个时代</span>
+    </div>
+    <h2 class="anim">然后，<em>一切都长在它上面</em>。</h2>
+    <p class="sub anim">2018 之后，几乎所有 AI 突破都是 Transformer 的孩子。</p>
+
+    <div class="body">
+
+      <div class="tree anim">
+        <div class="root">Transformer · 2017</div>
+        <div class="branch">
+          <div class="node">
+            <div class="name">BERT</div>
+            <div class="meta-sm">2018 · 编码器</div>
+            <div class="who">Google · 让搜索看懂句子</div>
+          </div>
+          <div class="node">
+            <div class="name">GPT 系列</div>
+            <div class="meta-sm">2018+ · 解码器</div>
+            <div class="who">OpenAI · 催生 ChatGPT</div>
+          </div>
+          <div class="node">
+            <div class="name">T5</div>
+            <div class="meta-sm">2019 · 编+解</div>
+            <div class="who">Google · 万物皆翻译</div>
+          </div>
+        </div>
+        <div class="branch">
+          <div class="node">
+            <div class="name">Claude</div>
+            <div class="meta-sm">2023+ · LLM</div>
+            <div class="who">Anthropic · 你正在用的这个</div>
+          </div>
+          <div class="node">
+            <div class="name">Gemini</div>
+            <div class="meta-sm">2023+ · 多模态</div>
+            <div class="who">Google DeepMind</div>
+          </div>
+          <div class="node">
+            <div class="name">AlphaFold 2</div>
+            <div class="meta-sm">2020 · 蛋白质</div>
+            <div class="who">DeepMind · 助攻诺奖</div>
+          </div>
+        </div>
+        <p class="now">
+          就连"看图"（Vision Transformer）、"折叠蛋白质"、"写代码"，
+          底层都是同一套 Attention 在跑。
+        </p>
+      </div>
+
+      <div class="right anim">
+        <div class="bigstat">
+          ≈8 页
+          <span class="unit">改写了之后的十年</span>
+        </div>
+        <p class="pull">
+          这是这篇论文最浪漫的地方——没有炫目的实验台、没有上千 GPU 的肌肉秀，
+          只是把一个聪明到近乎"显然"的想法写得足够清楚：
+        </p>
+        <p class="pull" style="font-family:'Fraunces',serif;font-style:italic;font-size:clamp(18px,1.5vw,22px);color:var(--ink);font-variation-settings:'opsz' 48">
+          "<em>Attention</em>，就够了。"
+        </p>
+        <p class="pull" style="color:var(--muted);font-size:13px;font-style:italic">
+          —— 而你此刻读到的这段中文，
+          就是被一台 Transformer 生成的。
+        </p>
+        <div class="signoff">
+          完 · FIN <span style="color:var(--accent)">●</span>&nbsp;&nbsp;按 ← 回看
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</div>
+
+<div class="nav">
+  <button class="pill active" data-go="0" aria-label="第 1 页"></button>
+  <button class="pill" data-go="1" aria-label="第 2 页"></button>
+  <button class="pill" data-go="2" aria-label="第 3 页"></button>
+</div>
+
+<div class="hint">
+  <kbd>←</kbd> <kbd>→</kbd> 或 <kbd>Space</kbd> 翻页
+</div>
+
+<script>
+const slides = [...document.querySelectorAll('.slide')];
+const pills  = [...document.querySelectorAll('.pill')];
+let i = 0;
+
+function go(n) {
+  i = Math.max(0, Math.min(slides.length - 1, n));
+  slides.forEach((s, k) => s.classList.toggle('active', k === i));
+  pills.forEach((p, k) => p.classList.toggle('active', k === i));
+  // restart entrance animations
+  const active = slides[i];
+  active.querySelectorAll('.anim').forEach(el => {
+    el.style.animation = 'none';
+    void el.offsetWidth;
+    el.style.animation = '';
+  });
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); go(i + 1); }
+  else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); go(i - 1); }
+  else if (e.key === 'Home') go(0);
+  else if (e.key === 'End') go(slides.length - 1);
+});
+
+pills.forEach(p => p.addEventListener('click', (e) => { e.stopPropagation(); go(+p.dataset.go); }));
+
+// click left/right thirds to navigate
+document.addEventListener('click', (e) => {
+  if (e.target.closest('.nav') || e.target.closest('.hint') || e.target.closest('button')) return;
+  const x = e.clientX / window.innerWidth;
+  if (x > 0.72) go(i + 1);
+  else if (x < 0.28) go(i - 1);
+});
+</script>
+</body>
+</html>
