@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>潜在触达「路B」复刻教程 · Akke</title>
+<style>
+  :root{--bg:#0f1115;--card:#171a21;--border:#262b36;--text:#e6e9ef;--dim:#aeb6c2;--muted:#7b8493;
+    --teal:#2dd4bf;--green:#34d399;--red:#f87171;--orange:#fbbf24;--blue:#60a5fa;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.7 -apple-system,"PingFang SC",Segoe UI,Roboto,sans-serif}
+  .wrap{max-width:900px;margin:0 auto;padding:28px 18px 80px}
+  h1{font-size:24px;margin:0 0 4px} .sub{color:var(--muted);font-size:13px;margin-bottom:22px}
+  h2{font-size:18px;margin:30px 0 10px;padding-top:8px;border-top:1px solid var(--border)}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin:12px 0}
+  code{background:#0b0d11;border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:12.5px;color:var(--teal);font-family:ui-monospace,Menlo,Consolas,monospace}
+  pre{background:#0b0d11;border:1px solid var(--border);border-radius:8px;padding:11px 13px;overflow-x:auto;font-size:12.5px;color:var(--dim);font-family:ui-monospace,Menlo,Consolas,monospace}
+  table{width:100%;border-collapse:collapse;font-size:13px;color:var(--dim);margin:6px 0}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--border);vertical-align:top}
+  th{color:var(--muted)}
+  .t{color:var(--teal);font-weight:600;margin-bottom:6px}
+  .warn{color:var(--orange)} .bad{color:var(--red)} .ok{color:var(--green)}
+  ol,ul{padding-left:22px;margin:6px 0} li{margin:4px 0}
+  .pill{display:inline-block;font-size:11px;padding:1px 7px;border-radius:10px;border:1px solid var(--border);color:var(--muted)}
+  .lead{font-size:11px;color:var(--muted);margin-top:6px}
+</style>
+</head>
+<body><div class="wrap">
+
+<h1>潜在触达「路B」复刻教程</h1>
+<div class="sub">给同事 · 事无巨细 + 雷点 ｜ 最后更新 2026-06-17 ｜ 源文件 <code>docs/runbooks/potential-touch-route-b-replicate.md</code></div>
+
+<div class="card">
+当前在跑的<b>路B</b>：无影云电脑一台机常驻「实时监控 + GUI 三连」——对<b>你账号</b>已 DM/RC 过、≥1 天没回的高/中意向 lead，一发新视频就自动<b>点赞 + 评论1(评视频) + 评论2(搬DM)</b>。老的派单二触 cron 已停，别再用。
+</div>
+
+<h2>0 · 先搞懂架构（不懂这个，排障全是瞎猜）</h2>
+<p>两个 Python 进程，同机各开一个窗口常驻：</p>
+<table>
+<tr><th>进程</th><th>干什么</th><th>靠什么</th><th>脆不脆</th></tr>
+<tr><td><b>监控 watch</b><br><code>_realtime_touch_watch_wuying.py</code></td><td>调抖音<b>网络接口</b>盯关注流，逮 lead 新视频→写本地队列</td><td>网络 API，<b>不碰屏幕</b></td><td class="ok">稳</td></tr>
+<tr><td><b>消费 consume</b><br><code>_realtime_touch_consume_wuying.py</code></td><td>tail 队列→查话术表→调 <b>GUI 执行器</b>在抖音 PC 上点赞+评论</td><td>鼠标键盘+屏幕+焦点</td><td class="bad">脆</td></tr>
+</table>
+<p><b>GUI 执行器</b> = <code>douyin_comment_grounded.py</code>，像真人一样移鼠标/打字/点按钮/截屏验证（点赞评论抖音没接口，只能扮真人）。<b>它脆就脆在屏幕/焦点/坐标一变就出错。</b><br>
+<b>回写</b>：本地表模式下触达写本地 <code>comment_log_YYYYMMDD.csv</code>，需<b>摆渡回 mac 跑 <code>mark-second-touch.ts</code> 入库</b>（端点直连回写还没做，见雷点④+roadmap）。</p>
+
+<h2>1 · 前置 · 机器与账号</h2>
+<ul>
+<li><b>无影云电脑</b>（个人版即可），<b>抖音 PC 客户端已登录你的 messaging 账号</b>（跟你 <code>AKKE_ACCOUNT_ID</code> 绑定那个）。</li>
+<li><b>分辨率锁 2560×1600</b>（坐标按这个标定，换分辨率全点歪）。</li>
+<li><b>输入法切英文</b>（中文输入法会把评论打成拼音/吞字）。</li>
+<li><b>关 OS 休眠</b>（PowerShell 跑一次，幂等）：</li>
+</ul>
+<pre>powercfg /change standby-timeout-ac 0
+powercfg /change monitor-timeout-ac 0
+powercfg /change disk-timeout-ac 0
+powercfg /change hibernate-timeout-ac 0</pre>
+<ul><li><b>账号参数</b>（找 PM 一次性下发）：<code>AKKE_ACCOUNT_ID</code>（你的 messaging 账号 UUID）+ <code>AKKE_ORG_ID</code>。</li></ul>
+
+<h2 class="bad">1.5 · 🔴 头号前置 · 关注覆盖（不做这个，监控逮不到任何人）</h2>
+<div class="card">
+<b>监控盯的是你账号的「关注流」——只有你账号关注了的人，他发新视频才会出现、才被逮到。</b> 池子里的人如果你没关注，他发一百条你也逮不到。
+<ul>
+<li><b>复刻第一步永远是：把你池子里的人，用你的账号关注一遍。</b></li>
+<li><b class="warn">关注【写】动作被抖音反爬挡死</b>：raw API 吃 403、Playwright 喂空白页——别试。<b>唯一通路 = 无影 GUI 原生点关注</b>：<code>_follow_grounded.py</code>（搜人→OCR 身份门→点关注→校验），<b>日限 30/批</b>防风控、<code>followed.json</code> 跨天去重、连续 5 失败早停。分多天关完。</li>
+<li><b>覆盖率别用 <code>account_follows</code> 表测</b>（只收脚本点的关注，手动/自然关的永不进表 → 报 0% 是假的）。</li>
+<li>老号（500+ 关注）大概率够、不用盲关；<b>但同事新号关注覆盖往往不足，必须先补关</b>，否则监控空转。</li>
+</ul>
+</div>
+
+<h2>2 · mac 端的料 · 你<span class="warn">自己账号</span>的池子（每人一套，不通用）</h2>
+<p>潜在触达对象 = <b>你自己账号 DM/RC 触达过、≥1 天没回、高/中意向</b>的人。所以<b>池子、话术表、关注 全是你账号下的、跟别人不通用</b>——同事 A 的池子对同事 B 没用。</p>
+<p>生成涉及 <code>second-touch-worklist.ts</code>（按你的 <code>AKKE_ACCOUNT_ID</code> 出名单）+ <code>_gen-realtime-touch-table.py</code> + 转换，<b>目前由 fanny/PM 用你的账号跑、生成好给你摆渡</b>。你拿到 3 份你账号专属文件：</p>
+<table>
+<tr><th>文件</th><th>内容</th></tr>
+<tr><td><code>special-follow.json</code></td><td>监控池（你账号 DM/RC 过·≥1天没回·高/中意向 sec_uid 名单）</td></tr>
+<tr><td><code>realtime-touch-table.json</code></td><td>评论2话术表（每个 sec_uid → 搬你当初发 ta 的 DM 原文）</td></tr>
+<tr><td><code>dy_cookie.txt</code></td><td>你抖音账号的 cookie（监控调接口用）</td></tr>
+</table>
+<p class="warn">⚠️ 换池必须同步重生成话术表（雷点⑪）。只换池子不换话术表 → 评论2 退空。</p>
+
+<h2>3 · 无影端文件清单 <span class="lead">全放 <code>C:\akke-wuying\wuying-dm\</code></span></h2>
+<p><b>脚本 4 个</b>（gitignore，走摆渡）：<code>_realtime_touch_watch_wuying.py</code> · <code>_realtime_touch_consume_wuying.py</code>（<b>必须带 300s 超时版</b>，雷点③）· <code>douyin_comment_grounded.py</code>（<b>必须认 douyin 标题版</b>，雷点①）· <code>douyin_dm_grounded.py</code><br>
+<b>数据 3 个</b>（§2 摆渡来）：<code>special-follow.json</code> · <code>realtime-touch-table.json</code> · <code>dy_cookie.txt</code><br>
+<b>配置</b>：<code>.env</code>（见 §4）</p>
+
+<h2>4 · <code>.env</code> 必备项（无影本机）</h2>
+<pre>SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SCOPED_JWT=...           # role=wuying_worker 受控 JWT，回写直连 Supabase 用
+AKKE_ACCOUNT_ID=&lt;你的账号 UUID&gt;
+AKKE_ORG_ID=&lt;org UUID&gt;
+AKKE_COMMENT_VERIFY_LENIENT=1     # 减评论假失败，必开（雷点⑩）
+AKKE_C_HOME=... AKKE_C_SEARCH=... AKKE_C_USERTAB=... AKKE_C_FIRST=...
+AKKE_C_LIKE=... AKKE_C_BACK=... # 坐标按 2560×1600 本机实测，换机重测（雷点⑫）</pre>
+
+<h2>5 · 启动 · 两个窗口（PowerShell）</h2>
+<p><b>监控窗口：</b></p>
+<pre>cd C:\akke-wuying\wuying-dm
+python _realtime_touch_watch_wuying.py --max-age-min 20 --pool special-follow.json</pre>
+<ul>
+<li class="warn">⚠️ <code>--pool</code> 必须显式带（默认找中文名 <code>special-follow-饭粒.json</code>，你的叫 <code>special-follow.json</code>，不带就报「lead 池不存在」，雷点②）。</li>
+<li>✅ banner 应是 <code>… lead池 NNN … 触达闸 发布&lt;=20min</code>，NNN 两三百。</li>
+</ul>
+<p><b>消费窗口（另开一个）：</b></p>
+<pre>cd C:\akke-wuying\wuying-dm
+python _realtime_touch_consume_wuying.py</pre>
+<ul>
+<li>✅ banner 应是 <code>… 本地表模式(无DB) … 自动发</code>。</li>
+<li class="bad">❌ 不要加 <code>--api-base</code>（端点模式连不上 Vercel，雷点④）。</li>
+</ul>
+<p class="warn">摆位：抖音 PC 前台最大化，两个 PowerShell 窗口拖副屏/最小化、别盖在抖音上（雷点⑦）。</p>
+
+<h2>6 · 验真发（消费日志/返回0 都不可信）</h2>
+<ol>
+<li><code>comment_log_YYYYMMDD.csv</code> 的 <code>status</code> 列 = <code>sent</code> 才真发；<code>send_unverified</code>/<code>focus_fail</code>/<code>wrong_user</code>/<code>no_msg2</code> 都不算。</li>
+<li><code>executor-runs.log</code>（执行器分阶段落盘）= 看到「♥ 已点赞」+「✅ 评论已验证」才对；一堆「重夺焦点 3 次仍非抖音」= focus_fail（雷点①）。</li>
+<li><b>铁证（人工）</b>：你账号看抖音「喜欢」列表有没有那条视频 + 另一个号/无痕看评论区有没有你的气泡。</li>
+<li><b>入库</b>：comment_log 摆渡回 mac，跑 <code>pnpm tsx scripts/mark-second-touch.ts --from-comment-log</code>（<b>一份只跑一次，非幂等</b>）。</li>
+</ol>
+
+<h2 class="bad">7 · 🔴 雷点清单（全是踩出来的血泪）</h2>
+<div class="card">
+<p><b>① 窗口标题 <code>douyin</code> vs <code>抖音</code> → 整条 focus_fail</b><br>抖音 PC 标题重启后可能从中文「抖音」变英文「douyin」。执行器只认 <code>'抖音'</code> 会判「前台不是抖音」→ 全跳过。用认两个的版本。验：<code>findstr /C:"douyin' in t" douyin_comment_grounded.py</code>。</p>
+<p><b>② 监控池文件名不匹配 → 「lead 池不存在」</b><br>watch 默认找 <code>special-follow-饭粒.json</code>，你的叫 <code>special-follow.json</code> → 启动必须 <code>--pool special-follow.json</code>。<code>dir special-follow*</code> 看实际名。</p>
+<p><b>③ 执行器无超时 → 一条卡死冻全天</b><br>旧版调执行器没超时，一次 GUI 卡住无限等（实测冻 10 小时、全天 0 真发）。用带 <code>AKKE_EXEC_TIMEOUT_SEC</code>（300s）的版本：超时自动 kill+跳过+落盘 <code>executor-runs.log</code>。</p>
+<p><b>④ 端点模式 <code>--api-base</code> 不能用（机房连不上 Vercel）</b><br>无影到 <code>akke.vercel.app</code> 不通（HTTP 000）。开了不但拉池子每轮失败、<b>领号也失败→把触达全跳过</b>（比本地表模式更糟）。只用本地表模式。</p>
+<p><b>⑤ PowerShell 粘贴长命令/长 URL 会被换行截断</b><br>长行常被塞换行 → <code>curl: (2) no URL specified</code>。对策：一行一行单独贴；下大文件用 <b>paste.rs 短链</b>。</p>
+<p><b>⑥ 摆渡铁律</b><br>一律 <code>curl.exe</code>（带 .exe）写原始字节；别用 <code>iwr</code>/裸 <code>curl</code>（= Invoke-WebRequest，UTF-8 中文会转码弄坏）。下行用 gist <b>raw 直链</b>或 paste.rs 短链；上行 <code>curl.exe -s --data-binary "@文件" https://paste.rs</code>。每次核字节数；paste.rs ~384KB 截断、偶尔 500（重试）。</p>
+<p><b>⑦ 抖音必须真前台 + 触达期间别碰无影桌面</b><br>执行器全程控鼠标键盘，你一动就抢前台→点歪/漏字/focus_fail。</p>
+<p><b>⑧ wrong_user：无昵称的「未知客户」搜不到</b><br>客户没真昵称（显示「未知客户」）时拿它当搜索词搜不到→落「(非主页)」。只能用抖音号搜（身份门 #342），目前会跳过。</p>
+<p><b>⑨ 平台层深夜挂起 powercfg 管不到</b><br>powercfg 只关 Windows 层；无影平台层在你断开远程桌面后挂起整台 VM（个人版无解）。深夜发布仅 1.8%，<b>接受白天档</b>，保傍晚 17–21 高峰（占全天 45%）。</p>
+<p><b>⑩ VL 验证双向误判：开 LENIENT，别开 TRUST_SEND</b><br>VL 既有假阴也有<b>假阳</b>。<code>AKKE_COMMENT_VERIFY_LENIENT=1</code> 仍真验证、减假阴——开它。<code>AKKE_COMMENT_TRUST_SEND=1</code> 点了就算、会把真失败刷成功——<b>绝不开</b>。</p>
+<p><b>⑪ 换监控池 = 必须重生成话术表</b><br>监控池和话术表是两个文件；只换池子不重生成 → 评论2 退空（<code>no_msg2</code>）。看话术表 <code>LastWriteTime</code> 是否晚于最近换池。</p>
+<p><b>⑫ 坐标按本机分辨率实测，换机重测</b><br><code>AKKE_C_*</code> 是 2560×1600 标定的，换机/换分辨率用 <code>_capture_pos.py</code> 重测。</p>
+</div>
+
+<h2>8 · 已知未完成（roadmap，别当 bug 报）</h2>
+<ul>
+<li><b>focus_fail 修复</b>（雷点①）2026-06-17 刚上，待第一条真发盖章。</li>
+<li><b>wrong_user 无昵称</b>（雷点⑧）待做：用抖音号搜。</li>
+<li><b>回写自动化 / 免摆渡（Phase 5）</b> 待做：无影连不上 Vercel，正解是消费端<b>直连 Supabase</b>（用 <code>SUPABASE_SCOPED_JWT</code> 调 <code>claim_second_touch</code>/<code>mark_second_touch</code> RPC，像 DM/RC 那样）——需先补 migration 把这俩 RPC 授权给 <code>wuying_worker</code> 角色 + 改脚本。真发跑通后再做。</li>
+</ul>
+
+<div class="sub" style="margin-top:30px">相关：项目记忆 <code>docs/claude-memory/project_akke_potential_touch_route_b.md</code> ｜ 对外复盘墙 <a href="https://upio.ai/akke/journeys-fanny#pt" style="color:var(--blue)">journeys-fanny#pt</a></div>
+
+</div></body></html>
