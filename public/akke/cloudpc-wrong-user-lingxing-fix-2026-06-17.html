@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>云电脑DM · 零星 wrong_user 卡点与修复 · 2026-06-17</title>
+<style>
+  :root{--bg:#0f1115;--card:#181b22;--ink:#e7ebf0;--mut:#9aa4b2;--line:#2a2f3a;
+        --red:#ff6b6b;--amber:#ffb454;--green:#5cd6a0;--blue:#6db3ff;--code:#11141a;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.7 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;}
+  .wrap{max-width:980px;margin:0 auto;padding:32px 20px 80px;}
+  h1{font-size:26px;margin:0 0 4px;}
+  h2{font-size:20px;margin:38px 0 12px;padding-top:14px;border-top:1px solid var(--line);}
+  h3{font-size:16px;margin:22px 0 8px;color:var(--blue);}
+  .sub{color:var(--mut);margin:0 0 22px;font-size:14px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:14px 0;}
+  .lead{background:linear-gradient(180deg,#1c2230,#181b22);border-left:4px solid var(--blue);}
+  table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13.5px;}
+  th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top;}
+  th{background:#1c2029;color:var(--mut);font-weight:600;}
+  code{background:#222732;padding:1px 6px;border-radius:5px;font-family:"SF Mono",Consolas,monospace;font-size:13px;}
+  .badge{display:inline-block;padding:1px 9px;border-radius:20px;font-size:12px;font-weight:700;margin-right:6px;}
+  .b-red{background:rgba(255,107,107,.16);color:var(--red);}
+  .b-amber{background:rgba(255,180,84,.16);color:var(--amber);}
+  .b-green{background:rgba(92,214,160,.16);color:var(--green);}
+  .b-blue{background:rgba(109,179,255,.16);color:var(--blue);}
+  .codewrap{position:relative;margin:12px 0;}
+  pre{background:var(--code);border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow:auto;
+      font-family:"SF Mono",Consolas,monospace;font-size:12.5px;line-height:1.55;color:#cdd6e0;margin:0;}
+  pre .del{color:#ff8b8b;} pre .add{color:#7ee2af;} pre .cmt{color:#7f8a99;} pre .key{color:#ffb454;}
+  .copybtn{position:absolute;top:8px;right:8px;background:#283042;color:#cdd6e0;border:1px solid var(--line);
+           border-radius:7px;padding:4px 11px;font-size:12px;cursor:pointer;}
+  .copybtn:active{background:#3a4252;} .copybtn.done{background:rgba(92,214,160,.2);color:var(--green);}
+  .note{font-size:13px;color:var(--mut);}
+  .step{counter-reset:none;}
+  .who{font-size:12px;font-weight:700;letter-spacing:.5px;padding:2px 10px;border-radius:6px;}
+  .who-pm{background:rgba(109,179,255,.16);color:var(--blue);}
+  .who-op{background:rgba(255,180,84,.16);color:var(--amber);}
+  ul{margin:8px 0;padding-left:22px;} li{margin:4px 0;}
+  .kill{opacity:.6;text-decoration:line-through;}
+  .toc a{color:var(--blue);text-decoration:none;margin-right:14px;font-size:13.5px;}
+  .hl{color:var(--amber);font-weight:600;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>云电脑 DM · 零星 <code>wrong_user</code> 卡点与修复</h1>
+  <p class="sub">2026-06-17 · 数据源：零星本地 <code>sent_log</code>（13 条逐条）+ <code>douyin_dm_grounded.py</code> 代码核对 · 通道：阿里无影云电脑发私信</p>
+
+  <div class="card toc">
+    <a href="#sum">摘要</a><a href="#kapian">一、卡点</a><a href="#fix">二、解决方法</a>
+    <a href="#ops">三、操作步骤（可复制）</a><a href="#todo">四、撤回与待办</a>
+  </div>
+
+  <div class="card lead" id="sum">
+    <p style="margin:0 0 8px"><b>一句话</b>：零星已更新到 #375，仍掉 13 条 <code>wrong_user</code>。逐条抠完发现 <b>#375 重试救不了</b>——真因是<span class="hl">三个代码级卡点</span>叠加，不是没更新。</p>
+    <p style="margin:0">能确定救回的只有 <span class="hl">3 条</span>（号读到且一致、被 <code>on_prof</code> 闸误杀）；其余 8 条<b>本地日志判不了</b>（被"网格过扫"写失真），得先加观测才能定。<b>结论：先上零风险观测补丁，号兜底护栏待观测确认再发。</b></p>
+  </div>
+
+  <h2 id="kapian">一、卡点</h2>
+
+  <h3>1.1 零星 13 条逐条归类（抠死 seen 串之后）</h3>
+  <div class="card">
+  <table>
+    <tr><th>seen 实际内容</th><th>证明了什么</th><th>条数</th><th>判定</th></tr>
+    <tr><td><code>(非主页)|号:&lt;与目标一致&gt;</code></td><td>号读到且<b>一致</b>，但 VL 判非主页</td><td>3</td><td><span class="badge b-green">能救</span>被 559 闸误杀</td></tr>
+    <tr><td><code>(非主页)</code> <b>空昵称空号</b></td><td>VL <b>啥都没读到</b> → 屏上没主页头部</td><td>6</td><td><span class="badge b-amber">判不了</span>点空/搜不到/过扫</td></tr>
+    <tr><td><code>(非主页)</code> <b>conf 0.00</b></td><td>页面全空白</td><td>2</td><td><span class="badge b-amber">判不了</span>白屏/点空</td></tr>
+    <tr><td><code>&lt;别人名&gt;|号:&lt;不一致&gt;</code></td><td>搜到近号的<b>别人</b></td><td>2</td><td><span class="badge b-red">救不了</span>真 B 类·正确拦截</td></tr>
+  </table>
+  <p class="note">救回的 3 条：<code>年年有鱼</code>(99244157) / <code>🌈我要做人间清醒</code>(1027836359·页面显示"小星") / <code>喵花花酱</code>(1793479211)。真 B 类 2 条：<code>洋泡泡</code>(目标…590 搜出"张张助理"…520) / <code>🌈。。</code>(目标…392 搜出"平平淡淡"…327)。</p>
+  </div>
+
+  <h3>1.2 三个确认的代码级卡点</h3>
+
+  <div class="card">
+    <p><span class="badge b-red">卡点①</span><b>实时昵称投递不可靠（最上游）</b></p>
+    <p style="margin:6px 0"><code>🌈我要做人间清醒</code> 这行 CSV 的 <code>nickname</code> 列<b>还是 DB 旧名</b>（opener 也用的旧名），页面却显示"小星" → 说明 <code>resolve_handles</code> 这次<b>没返回实时昵称</b>，身份门拿旧名比页面"小星" → 失配。<span class="hl">只要实时昵称送到，这条根本不会进 wrong_user。</span>号兜底只是补丁，这才是大头。</p>
+    <p class="note">poll agent 287-295 / 500-506：<code>nick = fresh_nick.get(sec) or DB昵称</code>。<code>fresh_nick</code> 空 = resolve 瞬时失败或该号反查不到昵称。</p>
+  </div>
+
+  <div class="card">
+    <p><span class="badge b-amber">卡点②</span><b><code>on_prof</code> 闸误杀号-match（<code>douyin_dm_grounded.py:559</code>）</b></p>
+    <p style="margin:6px 0">抖音号精确兜底被锁在 <code>and on_prof</code> 后面：VL 把"无作品/稀疏主页"误判 <code>is_profile=False</code> 时，哪怕<b>正确的号已读到</b>，兜底也不触发 → <code>return (on_prof and matched)</code> = False → wrong_user。<b>这就是那 3 条的死因。</b></p>
+    <p class="note">⚠️ 修它有回归面：抖音"用户"<b>搜索结果列表卡片也显示"抖音号:"</b>。若点击没进主页、停在列表，VL 判非主页（对的）却可能读到一致的号 → 盲信号会在列表页强发。<b>所以号兜底必须带"确认主页头部在屏"的护栏，不能盲信。</b></p>
+  </div>
+
+  <div class="card">
+    <p><span class="badge b-amber">卡点③</span><b>网格过扫无空槽守卫（<code>douyin_dm_grounded.py:772</code>）</b></p>
+    <p style="margin:6px 0"><code>for i in range(scan_n)</code> 盲点第 i 槽坐标、<b>不校验这一槽有没有结果</b>。号搜结果数 &lt; <code>SCAN_N</code> 时多出的槽点进<b>空白区</b> → 记成 bare <code>(非主页)</code>；而 seen 只留<b>最后一槽</b> → 会<b>掩盖</b>"第一槽其实是近号别人(B类)"。<span class="hl">这导致那 6 条 bare 无法从日志分类。</span></p>
+  </div>
+
+  <h3>1.3 判不了、缺证据的地方</h3>
+  <div class="card">
+    <p style="margin:0 0 6px">6 条 bare + 2 条白屏的<b>真实归类，本地判不了</b>，取决于两个看不到的东西：</p>
+    <ul>
+      <li>零星 <code>.env</code> 有没有开 <code>AKKE_SEARCH_SCAN_N</code>：开了(=5)→ 可能过扫掩盖；没开(=1)→ 就是第一条非主页/点空。</li>
+      <li>现场 <code>screenshots/_prof.png</code>：那一刻屏上到底是主页 / 列表 / 视频页 / 白屏。</li>
+    </ul>
+    <p class="note" style="margin:6px 0 0">没这两样，对这 8 条的任何"修法"都是猜 → 所以<b>先观测，别先改逻辑</b>。</p>
+  </div>
+
+  <h2 id="fix">二、解决方法（分阶段）</h2>
+  <div class="card">
+    <table>
+      <tr><th>阶段</th><th>做什么</th><th>救几条</th><th>风险</th></tr>
+      <tr><td><span class="badge b-green">第一步·现在</span></td><td><b>观测补丁</b>：每槽 seen 全留 + wrong_user 存截图</td><td>0（只为定位）</td><td>零·不改判定</td></tr>
+      <tr><td><span class="badge b-blue">第二步·观测后</span></td><td><b>号兜底带护栏</b>（修卡点②）</td><td>3（+部分 bare）</td><td>低·有护栏</td></tr>
+      <tr><td><span class="badge b-blue">并行排查</span></td><td>查 <code>resolve_handles</code> 实时昵称命中率（卡点①）</td><td>潜在大头</td><td>零·只验证</td></tr>
+      <tr><td><span class="kill">Fix B</span></td><td><span class="kill">改 prompt 去掉"作品宫格"判据</span></td><td>≈0</td><td><b>撤回·数据不支持</b></td></tr>
+    </table>
+  </div>
+
+  <h2 id="ops">三、操作步骤（可复制）</h2>
+  <p class="note">分工：<span class="who who-pm">本机操作员</span> = 有 Akke 仓库的人（PM / 野荞），改脚本 + 重新 host 链接。 <span class="who who-op">无影操作员</span> = 零星，云电脑上下载 + 重启。</p>
+
+  <h3>3.A <span class="who who-pm">本机操作员</span> — 第一步：观测补丁（现在就做·零风险）</h3>
+  <p class="note">在 <code>worker/scripts/wuying-dm/douyin_dm_grounded.py</code> 的扫描循环里改两处。改 ① 让每槽轨迹都进 <code>sent_log</code>（治卡点③的失真）；改 ② wrong_user 时留底截图。<b>都不碰任何判定逻辑。</b></p>
+
+  <p><b>改 ① — 累积每槽 seen（约 777 行）</b></p>
+  <div class="codewrap"><button class="copybtn">复制</button><pre><span class="cmt"># 找到这一行（原样）：</span>
+<span class="del">            c['_ocr_seen'] = seen   # 落 sent_log：wrong_user 时事后能分清「改名误杀」vs「真错人」</span>
+<span class="cmt"># 替换为：</span>
+<span class="add">            c.setdefault('_ocr_trace', []).append('第%d槽#%d:%s(conf%.2f)' % (i + 1, attempt + 1, seen, conf))</span>
+<span class="add">            c['_ocr_seen'] = ' || '.join(c['_ocr_trace'])   # 全扫描轨迹进 sent_log，不只最后一槽（治过扫失真）</span></pre></div>
+
+  <p><b>改 ② — wrong_user 存截图（约 784-786 行）</b></p>
+  <div class="codewrap"><button class="copybtn">复制</button><pre><span class="cmt"># 找到这三行（原样）：</span>
+<span class="del">    if not m or conf < MIN_CONF:</span>
+<span class="del">        print('  [跳过] 前%d条都不是本人 → 不发' % scan_n)</span>
+<span class="del">        return 'wrong_user', conf</span>
+<span class="cmt"># 替换为：</span>
+<span class="add">    if not m or conf < MIN_CONF:</span>
+<span class="add">        print('  [跳过] 前%d条都不是本人 → 不发' % scan_n)</span>
+<span class="add">        try:   # 留底最后一张身份门截图，便于把那 6 条 bare 分清是主页/列表/白屏</span>
+<span class="add">            import shutil</span>
+<span class="add">            _tag = (str(c.get('_comment_id') or nick) or 'x').replace('/', '_')[:24]</span>
+<span class="add">            shutil.copy(os.path.join('screenshots', '_prof.png'),</span>
+<span class="add">                        os.path.join('screenshots', 'wronguser_%s.png' % _tag))</span>
+<span class="add">        except Exception:</span>
+<span class="add">            pass</span>
+<span class="add">        return 'wrong_user', conf</span></pre></div>
+
+  <p><b>改完重新 host（链接是临时的，发给零星）</b></p>
+  <div class="codewrap"><button class="copybtn">复制</button><pre><span class="key">cd</span> worker/scripts/wuying-dm
+<span class="cmt"># 打印新字节数 + paste.rs 链接（字节数必变，旧的 58682 作废，用打印出来的新值）</span>
+<span class="key">echo</span> "douyin_dm_grounded.py $(wc -c &lt;douyin_dm_grounded.py) $(curl -s --data-binary @douyin_dm_grounded.py https://paste.rs)"</pre></div>
+  <p class="note">把打印出来的 <b>新字节数 + 链接</b> 发给零星，替换 3.B 里的占位。</p>
+
+  <h3>3.B <span class="who who-op">无影操作员（零星）</span> — 下载观测补丁 + 重启</h3>
+  <div class="codewrap"><button class="copybtn">复制</button><pre><span class="cmt"># 1) 找到跑 wuying_poll_agent.py 的黑窗口 → Ctrl+C 停掉</span>
+<span class="key">cd</span> C:\akke-wuying\wuying-dm
+<span class="cmt"># 2) 下载新脚本（链接由本机操作员发）</span>
+Invoke-WebRequest -Uri "&lt;本机操作员发的链接&gt;" -OutFile douyin_dm_grounded.py
+<span class="cmt"># 3) 校验字节数（对不上重下；值用本机操作员发的新数字，不是 58682）</span>
+(Get-Item douyin_dm_grounded.py).Length     <span class="cmt"># 应 &lt;新字节数&gt;</span>
+<span class="cmt"># 4) 重启（这窗口保持开着别关）</span>
+py wuying_poll_agent.py</pre></div>
+  <p class="note">跑一两批后，把 <code>C:\akke-wuying\wuying-dm\screenshots\wronguser_*.png</code> 这些图、以及当天 <code>sent_log_*.csv</code> 回传给本机操作员。<b>另外报一句：<code>.env</code> 里有没有 <code>AKKE_SEARCH_SCAN_N</code> 这行（<code>notepad .env</code> 看）。</b></p>
+
+  <h3>3.C <span class="who who-pm">本机操作员</span> — 第二步：号兜底带护栏（<span class="hl">观测确认后再发</span>）</h3>
+  <p class="note">等 3.B 回传截图确认"那几条 bare 确实是无作品主页被误判"、且护栏行为符合预期，再改这处。<b>现在先别发。</b></p>
+  <div class="codewrap"><button class="copybtn">复制</button><pre><span class="cmt"># douyin_dm_grounded.py 约 559-564，把原来的：</span>
+<span class="del">        if expected_number and on_prof and not (matched and conf >= 0.95):</span>
+<span class="del">            if seen_no and _norm_no(seen_no) == _norm_no(expected_number):</span>
+<span class="del">                print('  [OCR] 昵称比对未过但抖音号一致(%s) → 判定本人' % seen_no)</span>
+<span class="del">                matched, conf = True, max(conf, 0.99)</span>
+<span class="cmt"># 替换为（号一致才看，但 on_prof=False 时加"头部关注按钮在屏"护栏，排除列表/白屏误读号）：</span>
+<span class="add">        if expected_number and seen_no and _norm_no(seen_no) == _norm_no(expected_number):</span>
+<span class="add">            if on_prof:</span>
+<span class="add">                matched, conf = True, max(conf, 0.99)</span>
+<span class="add">            elif _is_followed() is not None:   # 关注按钮读得到=确在个人主页头部(非列表/视频/白屏)</span>
+<span class="add">                print('  [OCR] VL判非主页但号一致(%s)且头部关注键在屏 → 判本人(救无作品主页误判)' % seen_no)</span>
+<span class="add">                matched, on_prof, conf = True, True, max(conf, 0.99)</span>
+<span class="add">            else:</span>
+<span class="add">                print('  [OCR] 号一致(%s)但非主页且头部键读不到 → 不放行(疑似列表/白屏)' % seen_no)</span></pre></div>
+  <p class="note">改完同 3.A 重新 host → 零星同 3.B 重下重启。<b>负向铁律</b>：上线后抽查零星私信列表 vs 目标，确认 <code>洋泡泡 / 🌈。。</code> 那类<b>号不一致的仍没被发出去</b>。评论/二触通道（<code>douyin_comment_grounded.py</code> 复用 <code>dm.ocr_verify</code>）顺带受益，同样盯一两批。</p>
+
+  <h2 id="todo">四、撤回与待办</h2>
+  <div class="card">
+    <ul>
+      <li><span class="badge b-red">撤回</span>上一轮的 <b>Fix B（改主页 prompt 去作品判据）</b>——6 条 bare 的昵称和号都读不到，屏上根本没主页头部，去作品判据救不了它们，数据不支持。</li>
+      <li><span class="badge b-amber">待办</span>查 <b>卡点①</b>：本机跑 <code>resolve_handles</code> 验证那几个 sec_uid 到底返不返回实时昵称（命中率低才是大头）。</li>
+      <li><span class="badge b-amber">待办</span>观测回传后，用截图把 6 条 bare 分清 C 类（搜不到）/ 点空 / 过扫掩盖的 B 类，再决定要不要给<b>卡点③</b>加空槽守卫。</li>
+      <li><span class="badge b-blue">注</span>这些是<b>云电脑本地脚本</b>，走"改文件 → 重新 host → 同事重下"，不是 Fly 部署。改发送门判定逻辑（3.C）<b>建议走 PR</b> 过 claude-review，观测补丁（3.A）可直推。</li>
+    </ul>
+  </div>
+
+  <p class="sub" style="margin-top:30px">Akke · 云电脑发私信通道 · 零星 wrong_user 卡点与修复 · 2026-06-17 · 不执行版（评估 + 可复制操作步骤）</p>
+
+</div>
+<script>
+document.querySelectorAll('.copybtn').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    var pre=btn.parentElement.querySelector('pre');
+    var adds=pre.querySelectorAll('.add');
+    // diff 块：只复制【替换后】的新代码行（.add）；命令块：复制整段
+    var text=adds.length
+      ? Array.prototype.map.call(adds,function(s){return s.innerText;}).join('\n')
+      : pre.innerText;
+    navigator.clipboard.writeText(text).then(function(){
+      btn.textContent='已复制';btn.classList.add('done');
+      setTimeout(function(){btn.textContent='复制';btn.classList.remove('done');},1500);
+    });
+  });
+});
+</script>
+</body>
+</html>
