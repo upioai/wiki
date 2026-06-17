@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>云电脑三通道并行方案 · 可实施性评估</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#1a1d24; --card2:#222631; --ink:#e8eaed; --mut:#9aa0aa;
+    --line:#2c313c; --accent:#4f9cf9; --good:#3fbf7f; --mid:#f0b429; --bad:#ef5b5b;
+    --gui:#7c5cff; --api:#1fb6a8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif;
+    line-height:1.75;font-size:15px}
+  .wrap{max-width:920px;margin:0 auto;padding:40px 22px 80px}
+  h1{font-size:27px;margin:0 0 6px;letter-spacing:.5px}
+  .sub{color:var(--mut);font-size:14px;margin-bottom:28px}
+  h2{font-size:20px;margin:42px 0 14px;padding-left:11px;border-left:4px solid var(--accent)}
+  h3{font-size:16px;margin:24px 0 10px;color:#cfd4dc}
+  p{margin:10px 0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:16px 0}
+  .lead{background:linear-gradient(135deg,#1c2330,#181b22);border:1px solid #2c3a52;border-radius:12px;padding:20px;margin:18px 0}
+  .lead b{color:var(--accent)}
+  code{background:#11141a;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:13px;color:#ffd9a0}
+  pre{background:#0b0d12;border:1px solid var(--line);border-radius:10px;padding:16px;overflow:auto;
+    font-family:"SF Mono",Menlo,Consolas,monospace;font-size:12.5px;line-height:1.65;color:#cdd3dc}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px}
+  th,td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top}
+  th{background:var(--card2);color:#cfd4dc;font-weight:600}
+  td.c,th.c{text-align:center;white-space:nowrap}
+  .pill{display:inline-block;padding:1px 9px;border-radius:20px;font-size:12px;font-weight:600}
+  .p-good{background:rgba(63,191,127,.16);color:var(--good)}
+  .p-mid{background:rgba(240,180,41,.16);color:var(--mid)}
+  .p-bad{background:rgba(239,91,91,.16);color:var(--bad)}
+  .p-gui{background:rgba(124,92,255,.18);color:#b6a3ff}
+  .p-api{background:rgba(31,182,168,.18);color:#6fe0d4}
+  .diagram{background:#0b0d12;border:1px solid var(--line);border-radius:10px;padding:18px;margin:16px 0;
+    font-family:"SF Mono",Menlo,Consolas,monospace;font-size:12px;line-height:1.7;white-space:pre;overflow:auto;color:#aeb6c2}
+  .lane{display:flex;gap:14px;flex-wrap:wrap;margin:16px 0}
+  .lane > div{flex:1;min-width:260px;border-radius:11px;padding:15px 17px}
+  .lane-gui{background:rgba(124,92,255,.08);border:1px solid #4b3da0}
+  .lane-api{background:rgba(31,182,168,.08);border:1px solid #1a7d75}
+  .lane h4{margin:0 0 8px;font-size:15px}
+  ul{margin:8px 0;padding-left:22px}
+  li{margin:5px 0}
+  .score{display:flex;align-items:center;gap:14px;margin:18px 0;background:var(--card);border:1px solid var(--line);
+    border-radius:12px;padding:18px 22px}
+  .score .big{font-size:44px;font-weight:800;line-height:1}
+  .bar{height:9px;border-radius:6px;background:#11141a;overflow:hidden;margin-top:5px}
+  .bar > span{display:block;height:100%}
+  .kbox{border-left:3px solid;padding:10px 14px;margin:10px 0;border-radius:0 8px 8px 0;background:var(--card2)}
+  .kbox.g{border-color:var(--good)} .kbox.m{border-color:var(--mid)} .kbox.b{border-color:var(--bad)}
+  .foot{color:var(--mut);font-size:12.5px;margin-top:40px;border-top:1px solid var(--line);padding-top:16px}
+  .tag{font-size:11px;color:var(--mut);border:1px solid var(--line);border-radius:5px;padding:1px 7px;margin-left:6px}
+  .gate{background:rgba(239,91,91,.07);border:1px solid #6e3030;border-radius:10px;padding:14px 18px;margin:16px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>云电脑三通道并行方案 · 可实施性评估</h1>
+  <div class="sub">一台无影云电脑 · 一个抖音号(野荞) · DM 一触 / RC 楼中回复 / 二触三连 &nbsp;|&nbsp; 2026-06-17</div>
+
+  <div class="lead">
+    <b>一句话结论:</b> 一台机一个号做不到"两条 GUI 同时点屏幕"(物理铁律),但能做到
+    <b>「1 条 GUI 车道发 DM + N 条 API 车道发评论」同机同号同一秒并发</b>。
+    核心是把 RC / 二触 从"占窗口 1–2 分钟的 GUI 操作"改成"不碰桌面的签名 HTTP 请求"。
+    技术链路 90% 已存在(读评论的签名机制在生产跑),唯一真门槛 = <b>评论发布接口要自己签 + 必须先小流量验证不封号</b>。
+  </div>
+
+  <h2>1. 约束与目标</h2>
+  <div class="card">
+    <table>
+      <tr><th class="c">维度</th><th>锁定值</th></tr>
+      <tr><td class="c">硬件</td><td>1 台阿里无影云电脑(国内 IP)</td></tr>
+      <tr><td class="c">账号</td><td>1 个抖音号(野荞)</td></tr>
+      <tr><td class="c">通道</td><td>DM 一触 · RC 楼中回复 · 二触(点赞+评论1+评论2)</td></tr>
+      <tr><td class="c">目标</td><td><b>三通道并行</b> —— 不接受"二选一手动切换"、不加机、不加号</td></tr>
+    </table>
+  </div>
+
+  <h2>2. 物理铁律:两条 GUI 永远不能并行(已验证)</h2>
+  <p>执行器全程用 <code>pyautogui</code>(<code>douyin_dm_grounded.py</code> 实证):光标 / 截屏 / 键盘焦点都是<b>桌面会话单例</b>。</p>
+  <div class="diagram">          一台无影 = 一个桌面会话
+   ┌──────────────────────────────────────────┐
+   │  🖱️ 一个光标   🖥️ 一块屏幕   ⌨️ 一个焦点    │
+   └──────────────────────────────────────────┘
+        DM执行器想点(300,400)   二触执行器想点(800,200)
+                  └──► 抢同一个光标 ◄──┘
+                  💥 互相打断 · 点错 · 字打错窗口
+
+  ⇒ GUI 动作 = 桌面独占,同一瞬间只能一个。这条绕不过。</div>
+  <p>而且每条 GUI 发送是<b>大块占用</b>:DM ≈ 40 秒,RC ≈ 1 分钟,二触三连 ≈ 1–2 分钟。塞不进彼此的缝里。</p>
+
+  <h2>3. 破局点:只有"发送那一下"需要桌面</h2>
+  <div class="diagram">  一条任务的生命周期(以 DM 为例):
+
+  ① claim ─► ② 抖音号反查 ─► ③ LLM备料 ─► ④ 发送 ─► ⑤ 回写
+   查DB        打主页接口        生成话术      点屏幕     写DB
+   不碰桌面     不碰桌面         不碰桌面    ★独占桌面★   不碰桌面
+  └────────── 80% 时间可并行 ──────────┘  └ 唯一串行 ┘</div>
+  <p>关键洞察:<b>RC 和二触的"发送"本质是 HTTP POST(评论 / 点赞),连桌面都不需要</b>。把它们移出桌面,就和 GUI 发 DM 不再争抢。</p>
+
+  <h2>4. 核心架构:GUI 车道 + API 车道 同机并行</h2>
+  <div class="diagram">              一台无影(国内IP) · 一个号(野荞)
+  ┌─────────────────────────────────────────────────────────┐
+  │  车道A:GUI(独占桌面)        车道B:签名API(不碰桌面)     │
+  │  ┌────────────────┐          ┌─────────────────────────┐ │
+  │  │ DM 一触         │          │ RC 楼中回复 (httpx POST) │ │
+  │  │ pyautogui 发私信 │   同时   │ 二触=点赞+评论1+评论2    │ │
+  │  │ (收件箱只能GUI) │  ◄────►  │  (digg + comment×2 API) │ │
+  │  └───────┬────────┘          └────────────┬────────────┘ │
+  │     14:00:03 打DM            14:00:03 POST评论            │
+  │          └──────── 字面同一秒在发 ────────┘              │
+  │  共享:claim 4h锁(去重) + 独立日预算桶(DM桶/评论桶)      │
+  └─────────────────────────────────────────────────────────┘</div>
+
+  <div class="lane">
+    <div class="lane-gui">
+      <h4><span class="pill p-gui">车道 A · GUI</span> 专跑 DM</h4>
+      <ul>
+        <li>私信收件箱 UI 只有 GUI 能可靠操作 → 留在桌面</li>
+        <li>沿用现有 <code>douyin_dm_grounded.py</code>,逻辑不动</li>
+        <li>独占光标 / 屏幕 / 焦点,一次发一条</li>
+      </ul>
+    </div>
+    <div class="lane-api">
+      <h4><span class="pill p-api">车道 B · API</span> 跑 RC + 二触</h4>
+      <ul>
+        <li>评论 = <code>comment/publish</code>,点赞 = <code>commit/item/digg</code></li>
+        <li>签名 <code>httpx</code> POST,不碰桌面,几百毫秒一条</li>
+        <li>车道内 RC / 二触 用 async 还能互相并行</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>5. 「httpx 发评论」怎么操作</h2>
+  <p>抖音读评论现在<b>已经</b>用签名 httpx 在跑(<code>comment_api.py</code>)。发评论 = 把同一套签名机制从 GET 换成 POST,只差三处:</p>
+  <table>
+    <tr><th></th><th>读(现有 GET)</th><th>发(要做 POST)</th></tr>
+    <tr><td class="c">方法</td><td>GET</td><td><span class="pill p-mid">POST</span></td></tr>
+    <tr><td class="c">参数</td><td>aweme_id</td><td>aweme_id + <b>text 正文</b> [+ reply_id 给RC]</td></tr>
+    <tr><td class="c">cookie</td><td>匿名 ttwid 够</td><td><b>野荞登录态</b> cookie(sessionid)</td></tr>
+    <tr><td class="c">签名 a_bogus</td><td colspan="2" class="c"><span class="pill p-good">完全复用 ABogusManager.model_2_endpoint</span></td></tr>
+    <tr><td class="c">验证</td><td>status_code==0</td><td>status_code==0 + 返回新评论 cid</td></tr>
+  </table>
+  <pre>async def publish_comment(aweme_id, text, login_cookie, reply_id=None):
+    from f2.apps.douyin.utils import ABogusManager
+    params = _common_browser_params(aweme_id)   # 复用!设备指纹 + 新 msToken
+    params["text"] = text                       # 评论正文
+    if reply_id: params["reply_id"] = reply_id  # RC 楼中回复才带
+    endpoint = ABogusManager.model_2_endpoint(  # 签名,与读评论同一函数
+        _USER_AGENT, ".../aweme/v1/web/comment/publish/", params)
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.post(endpoint,
+            headers={"User-Agent": _USER_AGENT, "Referer": "https://www.douyin.com/"},
+            cookies=login_cookie)               # ★ 登录态(非匿名)
+    return r.json().get("status_code") == 0     # 0 = 发成功</pre>
+  <p class="sub">对比:GUI 发评论 = 搜人→开视频→暂停→点赞→点评论框→打字→发送(1–2 分钟占窗口);httpx 发评论 = 拼参数→签名→POST(几百毫秒,桌面全程空着)。</p>
+
+  <h2>6. 落地三步(每步独立验收)</h2>
+
+  <div class="gate">
+    <b>⛔ 第 1 步是总开关(gate):</b> 发布接口验不通 / 被风控 → 整个并行方案不成立,只能退回 GUI 串行轮转。先验证,再投入。
+  </div>
+
+  <h3>第 1 步 · 探针验证 <span class="tag">1 天</span></h3>
+  <p>写 <code>_probe-comment-publish.py</code>:用野荞 web cookie + f2 签名,手动实发 1–2 条评论 / 1 个点赞,看返回 <code>status_code==0</code> 且账号无异常(无验证码、无限流、无封禁)。</p>
+
+  <h3>第 2 步 · 建 API 车道 <span class="tag">2–3 天</span></h3>
+  <ul>
+    <li><code>comment_api.py</code> 补 <code>publish_comment</code> / <code>digg_item</code> 两个签名 POST</li>
+    <li>二触:digg 点赞 + 评论1(LLM 评视频)+ 评论2(搬 DM 正文,过 <code>DM_VIOLATION_RE</code> 违规闸)全走 API</li>
+    <li>RC:楼中回复走 publish(带 <code>parent_cid</code> / <code>reply_id</code>)</li>
+  </ul>
+
+  <h3>第 3 步 · 双车道同机并发 <span class="tag">1–2 天</span></h3>
+  <ul>
+    <li>poll agent 拆成两个独立 loop(或两进程):loopA = GUI 发 DM(现有不动);loopB = async 发 RC+二触</li>
+    <li>共用 <code>claim</code> 4h 锁去重;各记各的日预算桶</li>
+  </ul>
+
+  <h2>7. 卡点与风险</h2>
+  <div class="kbox b"><b>🔴 没有现成发送接口</b> — <code>comment_api.py</code> 现在只会读。发评论 / 点赞要自己加签名 POST。<br><span class="sub">解:第 2 步开发,技术可行(签名机制已封装在 f2)。</span></div>
+  <div class="kbox m"><b>🟡 缺登录态 cookie</b> — 无影上野荞通常只 GUI 登录、没导 web cookie。API 发评论必须用他自己的 sessionid。<br><span class="sub">解:用 Cookie-Editor 导一次(onboarding 现成流程),15–30 天换一次。</span></div>
+  <div class="kbox b"><b>🔴 封号风险未知</b> — 发布类接口反爬比读取严,自动评论可能触发风控。<br><span class="sub">解:第 1 步小流量探针硬 gate,通过才放量。</span></div>
+  <div class="kbox m"><b>🟡 二触评论2 违规闸</b> — DM 含微信/报价/促销词的(恰是高意向那批),搬到公开评论区会被 <code>DM_VIOLATION_RE</code> 砍掉,只剩评论1。<br><span class="sub">解:已有逻辑,接受;高意向触达仍以 DM 为主。</span></div>
+  <div class="kbox g"><b>🟢 重复发送</b> — claim 按 (org_id, douyin_user_id) 锁 4h,跨车道也锁;DM 池(新人)与二触池(已DM未回)天然分离。<br><span class="sub">不会对同一人同时发两条。</span></div>
+
+  <h2>8. 可实施性评估</h2>
+
+  <div class="score">
+    <div>
+      <div class="big" style="color:var(--mid)">70<span style="font-size:20px;color:var(--mut)">/100</span></div>
+    </div>
+    <div style="flex:1">
+      <b>总体:可实施,但有一个硬 gate。</b><br>
+      <span class="sub">技术链路成熟(签名机制已在生产),工作量小(约 4–6 人天);成败完全押在第 1 步探针——发布接口能否签通且不被风控。这是不确定性的全部来源。</span>
+      <div class="bar"><span style="width:70%;background:var(--mid)"></span></div>
+    </div>
+  </div>
+
+  <table>
+    <tr><th>评估维度</th><th class="c">评分</th><th>说明</th></tr>
+    <tr><td>技术可行性(签名/POST)</td><td class="c"><span class="pill p-good">高</span></td><td>a_bogus / msToken 签名已封装且生产验证;POST 是标准操作</td></tr>
+    <tr><td>代码改动量</td><td class="c"><span class="pill p-good">小</span></td><td>复用 90% 现有链路;新增约 4–6 人天</td></tr>
+    <tr><td>架构契合度</td><td class="c"><span class="pill p-good">高</span></td><td>无影是国内 IP(API 能签通,东京被封才走 GUI);claim 去重 / 预算桶现成</td></tr>
+    <tr><td>发布接口可行性</td><td class="c"><span class="pill p-mid">未知</span></td><td>端点确切契约(text 放 query/body、a_bogus 是否签 body)需探针实测</td></tr>
+    <tr><td>封号风险</td><td class="c"><span class="pill p-bad">需验证</span></td><td>发布类反爬严;自动评论可能被风控 → 第 1 步硬 gate</td></tr>
+    <tr><td>运维复杂度</td><td class="c"><span class="pill p-mid">中</span></td><td>多一份 web cookie 要定期换;双 loop 比单 loop 略复杂</td></tr>
+  </table>
+
+  <div class="card">
+    <h3 style="margin-top:0">两种结局</h3>
+    <p><span class="pill p-good">探针通过</span> → 投 4–6 人天建双车道,得到一台机一个号的<b>真物理并行</b>:DM 走 GUI、RC/二触 走 API,同一秒并发,且评论桶与 DM 桶分别填,当天总触达更多。</p>
+    <p><span class="pill p-bad">探针失败</span>(发不通 / 被风控)→ 并行方案到此为止。退回方案 B:<b>单桌面自动轮转调度器</b>(DM/二触/RC 按配额自动轮流发,窗口够用,一天三通道全跑完),仍解决"二选一手动切换"的痛点,只是不是物理并行。</p>
+  </div>
+
+  <h2>9. 建议下一步</h2>
+  <div class="lead">
+    先写 <b><code>_probe-comment-publish.py</code></b> 实发 1–2 条评论验证 —— 它是整个方案的总开关。
+    <b>低成本(1 天)、决定性</b>:发得通且不封,后面 4–6 人天才值得投;发不通,立刻省下后面全部工作量、改走轮转调度器。
+  </div>
+
+  <div class="foot">
+    评估基于源码实证:<code>worker/services/comment_api.py</code>(签名读取链路)、
+    <code>worker/scripts/wuying-dm/douyin_dm_grounded.py</code>(pyautogui 桌面单例)、
+    <code>wuying_poll_agent.py</code>(现 A→B→C 串行轮询)、
+    <code>scripts/gen-second-touch-comments.py</code>(二触评论2=搬DM正文+违规闸)。
+    本文档为方案设计,未改动任何生产代码。
+  </div>
+
+</div>
+</body>
+</html>
