@@ -385,16 +385,32 @@
 
 <h3 id="s9c">C · Leg C 快慢分道 + 空跑退避（#363 + #366）：治「活派进队列后排太久 + 反复空扫」</h3>
 <p><b>【问题①·排队】</b>活派进队列后 worker 一个个领。原来<b>慢整号活（23~211 秒）和单视频快活（5 秒）挤在同一条号牌道（都 <code>pri=1</code>）</b>——前面卡一个慢整号，后面快活全得干等，实测排队中位 ~4.6 分钟。</p>
-<p><b>【改动① · #363 快慢分道】</b>把慢整号活<b>降一档（<code>pri 1→3</code>）</b>，让 5 秒的快活先走、别被慢活堵。<span class="good">实测典型延迟 median −67%（见 D）</span><span class="warn">；但极端尾巴 p99 反被注入洪水拖坏，需配注入去重。</span></p>
+<p><b>【改动① · #363 快慢分道】</b>把慢整号活<b>降一档（<code>pri 1→3</code>）</b>，让 5 秒的快活先走、别被慢活堵。<span class="good">实测典型延迟 median −67%（见 D）</span><span class="warn">；但极端尾巴 p99 反被注入洪水拖坏 → 已由 #381「注入去重」补上（见下方改动③）。</span></p>
 <p style="margin-top:10px"><b>【问题②·空扫】</b>很多视频被反复复扫却抓不到新评论（实测近 24h 复扫 88,455 条、<b>77% 抓 0 新</b>），白占 pri=1 的位置、加重排队。</p>
 <p><b>【改动② · #366 空跑退避】</b>一条视频<b>连抓 3 次都 0 条新评论</b>，就把它下次复扫往后推（<b>9→18→30 分钟封顶</b>）；一旦又冒新评论<b>立刻清零、恢复勤抓</b>。</p>
 <div class="kx mut"><b>↑ 拗口的词跟一下：</b>「退避」＝越扫越没货就越少去扫它、省得空跑；靠 videos 表新加两列记账：<code>empty_streak</code>=连续抓 0 新几次、<code>next_fast_lane_at</code>=推到几点才允许再进快车道。</div>
 <details><summary style="color:var(--mut);cursor:pointer;margin:6px 0">▸ 工程精确版（文件 / 参数 / 阈值）</summary>
 <ul>
 <li><b>#363</b>（<code>runTier1SourceEnqueue</code>）：tier-1 整号活 <code>priority 1→3</code>；同批 <code>vercel.json</code> cron <code>*/2→*/3</code>（⑦ 已验 cron 非瓶颈、回 */3 反少 33% 空跑）。</li>
-<li><b>#366</b>：migration <code>20260616114802</code> 给 <code>videos</code> 加 <code>empty_streak</code>/<code>next_fast_lane_at</code>+partial index；worker <code>_run_scrape_video</code> 仅对 <code>hot_fast_lane &amp;&amp; !high_intent</code> 的活按 <code>new_comments_inserted</code> 记账、退避间隔 <code>min(30, 9×2^(streak−3))</code>；选视频端 <code>runVideoFastLane</code> 在截断前过滤 <code>next_fast_lane_at&gt;now</code>（<b>pri=0 注入不退避</b>）。开关 <code>HOT_FAST_LANE_BACKOFF</code> / <code>FAST_LANE_BACKOFF_START_STREAK=3</code> / <code>_BASE_MIN=9</code> / <code>_CAP_MIN=30</code>。</li>
+<li><b>#366</b>：migration <code>20260616114802</code> 给 <code>videos</code> 加 <code>empty_streak</code>/<code>next_fast_lane_at</code>+partial index；worker <code>_run_scrape_video</code> 仅对 <code>hot_fast_lane &amp;&amp; !high_intent</code> 的活按 <code>new_comments_inserted</code> 记账、退避间隔 <code>min(30, 9×2^(streak−3))</code>；选视频端 <code>runVideoFastLane</code> 在截断前过滤 <code>next_fast_lane_at&gt;now</code>（<b>pri=0 注入原不退避；2026-06-17 #381 已去掉此豁免、注入也退避，见改动③</b>）。开关 <code>HOT_FAST_LANE_BACKOFF</code> / <code>FAST_LANE_BACKOFF_START_STREAK=3</code> / <code>_BASE_MIN=9</code> / <code>_CAP_MIN=30</code>。</li>
 </ul>
 </details>
+
+<h4 class="good" style="margin-top:18px">改动③ · #381 注入去重（2026-06-17）：把 pri=0 高意向注入也纳入退避 —— 治 D 段那座「注入洪水」</h4>
+<p><b>【为什么要补】</b>#366 退避当初<b>故意放过 pri=0 高意向注入</b>（怕压住破鸡生蛋该抢的活）。但全天复核（见 D）坐实这个豁免错了：同一条高意向视频每 2~3 分钟被重注一次、<b>单视频 ~80 次/6h、100% 抓 0 新</b>，在 <code>pri=1</code> 前又垒一座 <code>pri=0</code> 大山，把极端尾巴 <b>p99 从 20 分钟拖到 80 分钟（×4）</b>。</p>
+<p><b>【改动】</b>去掉那条豁免，让高意向注入<b>跟普通快活一样退避</b>——注意是「自适应」，不是粗暴的「摘过一次就再也不去」。</p>
+<div class="kx mut"><b>↑ 果园比方接上 B 段：</b>原来"这棵树冒过高意向果"就<b>每 3 分钟去摘一趟、不管摘不摘得到</b>；现在它跟普通树同一个规矩——<b>连去 3 趟都空手才拉长间隔（9→18→30 分钟封顶），一旦又结新果立刻清零、恢复勤摘</b>。关键：退避记在<b>每棵树上</b>（<code>videos.empty_streak</code>），<b>任何一条路</b>摘到这树的新果都清零 → <b>真在不断结果的好树永不空手、永不退避、频率一点不降；被拉长的只有"冒过一波后安静下来"的树</b>（注入空跑的正是这批）。所以它<b>不会把"我们关注的活跃视频"抓慢</b>。</div>
+<h4>📊 数据依据 · 上线后头 25 分钟时间线（部署 06-17 03:48Z，直查 <code>scrape_jobs</code> / <code>videos</code>）</h4>
+<div class="kx warn"><b>测量方法 · 诚实说明</b>：下面是上线即时的 <b>leading indicator</b>（注入创建率 + worker 槽占用 + tier-0 积压），<b>不是</b> D 段那种全天 24h 的 p99 终判——<b>p99 是 24h 滚动尾巴指标，25 分钟动不了，要等下一个完整全天窗口再复核</b>。（自查纠错：首测因分页查询没加稳定排序，一度误读成"创建率瞬间归零"；给查询加 <code>.order</code> 重测后修正为下面的<b>渐进衰减</b>——这条曲线才和"连 3 次空扫才起退避≈9 分钟"的机制自洽。）</div>
+<table>
+<tr><th>时刻</th><th>pri=0 注入创建率（每 10min）</th><th>worker 运行槽（瞬时）</th><th>tier-0（pri=5）积压</th></tr>
+<tr><td>部署前 ~03:43Z</td><td class="n bad">~180（≈18/min 持续灌，对得上全天 26995）</td><td class="bad">pri=0 霸占 6/11 槽</td><td class="n">353 个 · 最老 13.0h</td></tr>
+<tr><td>+12min（04:00Z 桶）</td><td class="n warn">65（−64%）</td><td class="mut">—</td><td class="n">352 · 12.8h</td></tr>
+<tr><td>+22min（04:10Z 桶）</td><td class="n good">~22（−87%，仍在降）</td><td class="good">pri=0 = 0；pri=5 拿 10/16 槽（62%）</td><td class="n">350 · 12.7h</td></tr>
+</table>
+<div class="kx good"><b>大白话读这张表</b>：① <b>注入洪水正按设计退潮</b>——创建率从 ~180/10min 渐进降到 ~22（−87%）、还在往下（每棵高意向树陆续连摘 3 次空手后进退避）。② <b>worker 产能腾出来了</b>——部署前 pri=0 霸占 6/11 个运行槽全耗在空扫上，现在 pri=0 清零、<b>被饿的 tier-0（pri=5）拿到 10/16 槽（62%）</b>。③ <b>注入也退避坐实</b>——退避中视频从 +12min 的 425 涨到 +25min 的 438，新增的正是高意向视频（<code>empty_streak=3/4</code> 那两档在涨）。</div>
+<div class="kx warn"><b>诚实边界 · 别过度解读</b>：<b>tier-0 积压"深度"还没排空</b>（仍 350 个、最老 12.7h）——这是<b>存量</b>在被啃（最老龄 13.0→12.7h 已掉头往下），不是 25 分钟能清的；它现在拿到多数 worker 槽，<b>预计未来几小时积压曲线才看得出降</b>。<b>p99 改善要等下一个全天窗口复核</b>。这一步只证明<b>机制按设计在转、方向对</b>，没证明 p99 已修好。</div>
+<div class="kx mut">部署锚点：squash <code>16bcfc233</code> / Fly worker <code>v306</code>（已 /health 探活）。改动：<code>scrape-hot/route.ts</code>（hiIds 纳入 <code>next_fast_lane_at</code> 退避过滤）+ <code>worker/queue.py</code>（去掉 <code>high_intent</code> 豁免）。无 migration。急停开关 <code>HOT_FAST_LANE_BACKOFF=0</code>（全关退避）。</div>
 
 <h3 id="s9d">D · 成效实测（全天 24h 对比：部署前 06-15 04:00→06-16 04:00 vs 部署后 06-16 04:00→06-17 04:00）</h3>
 <div class="kx warn"><b>⚠️ 口径已升级：从"8.5h 低峰窗口"换成"全天 24h"——更诚实，但结论也跟着变了。</b>原先用 04:00–12:25 那 8.5 小时对比，毛病是那段正好是<b>低峰</b>（北京下午），把前后都美化成"median 0 秒、p90/p99 全绿"。换成完整 24h（含高峰）后：<b>median 改善依旧实锤，但尾巴 p90/p99 的故事翻了</b>。两边各 24h、都按 <code>scheduled_at</code> 落在窗口内、<code>started_at</code> 非空（已认领）统计。</div>
@@ -407,7 +423,7 @@
 <tr><td class="mut">变化</td><td class="good">−67%</td><td class="warn">+6%（基本持平）</td><td class="bad">+292%（恶化近 4 倍）</td></tr>
 </table>
 <div class="kx warn"><b>大白话读这张表</b>：<b>典型情况（median）从 3.8 分压到 1.2 分（−67%）——快慢分道确实让大多数快活先走了。</b>优先级分布坐实：部署前有 <b>6355 个整号活</b>混在 <code>pri=1</code> 跟快视频抢道，部署后整号活搬到 <code>pri=3</code>（3160）、<code>pri=1</code> 里的整号只剩 <b>112</b>。<b>但 p90 基本没动、p99 反而从 20 分钟炸到 80 分钟。</b>为啥？看同一份数据的另一个数：<b>pri=0 高意向注入活从全天 905 个暴涨到 26995 个（30 倍）</b>——破鸡生蛋的注入洪水（每 tick 重注，见下）在 <code>pri=1</code> 前面又垒了一座 <code>pri=0</code> 大山，<b>典型活照样快，但挤在洪水里的那 1% 倒霉蛋等得比以前更久。</b><br><span class="mut">（注：p99 里可能掺了少量 zombie 活被重排、<code>started_at</code> 取最后一次认领造成的虚高；但方向——"尾巴没改善、注入洪水是主因"——跟全部其它证据一致。）</span></div>
-<div class="kx bad"><b>结论变了，得敞开说</b>：原版 D 写"p90 −61%、p99 −75% 全绿"，那是 8.5h 低峰窗口的假象。<b>全天真相 = 快慢分道把"典型延迟"砍了 2/3（真赢），但破鸡生蛋的注入洪水把"极端尾巴"拖坏了（p99 ×4）。</b>这跟下面 Leg B 那段"注入洪水制造空跑"是<b>同一个病的两面</b>——都指向同一个补丁：<b>注入去重</b>。</div>
+<div class="kx bad"><b>结论变了，得敞开说</b>：原版 D 写"p90 −61%、p99 −75% 全绿"，那是 8.5h 低峰窗口的假象。<b>全天真相 = 快慢分道把"典型延迟"砍了 2/3（真赢），但破鸡生蛋的注入洪水把"极端尾巴"拖坏了（p99 ×4）。</b>这跟下面 Leg B 那段"注入洪水制造空跑"是<b>同一个病的两面</b>——都指向同一个补丁：<b>注入去重</b>。<span class="good">（✅ 已落地 #381，2026-06-17；机制 + 上线 25 分钟实测见上方 C 段「改动③」）</span></div>
 <p style="margin-top:20px"><b>上面那座 <code>pri=0</code> 注入洪水（全天 26995 个）到底在忙什么？这正是 Leg B 破鸡生蛋（#363，机制见上面 B 段）拧巴的地方——它把"延迟"压了下去，却顺手制造了一大堆"空跑"。</b>放大看部署后头 8.5 小时（06-16 04:00–12:25）这个切片，从一个反常数字「9039」入手一步步拆（这 8.5h 的 9039 个注入，就是全天 26995 个的前小半段）：</p>
 <h4 class="warn">⚠️ Leg B 破鸡生蛋：在跑，但有效率问题（大白话拆给你看）</h4>
 <ul>
@@ -416,7 +432,7 @@
 <li><b>为什么 80 次抓下来，新评论命中率 = 0.0%？</b>我们怎么知道这视频「有高意向」？得<b>先把那条评论抓到 + 打过分</b>才知道。所以等注入去抓它的时候，那条高意向评论<b>早就在库里了</b>；而这是增量复扫（只抓比上次新的），自然一条新的都抓不到。＝<b>反复抓同 112 个视频、每次都 0 新 ＝ 纯空跑。</b></li>
 <li>这 9039 个空跑把<b>整体空跑率从 75.7% 抬到 88.7%</b>——<b>不是 #366 退避坏了</b>（#366 故意放过 pri=0、怕压住破鸡生蛋该抢的活），是破鸡生蛋<b>自己制造的新空跑</b>，得靠「<b>注入去重</b>」（同一视频注入过就别每 tick 重注）来补。</li>
 </ul>
-<div class="kx warn"><b>#366 退避引擎确认在转</b>（videos <code>empty_streak≥3</code> 已 313 个、当前退避中 245 个），但它<b>按设计放过 pri=0</b>，所以治不到 Leg B 这股注入空跑。<b>Leg B 把"延迟问题"换成了"空跑问题"。</b></div>
+<div class="kx warn"><b>#366 退避引擎确认在转</b>（videos <code>empty_streak≥3</code> 已 313 个、当前退避中 245 个），但它<b>按设计放过 pri=0</b>，所以治不到 Leg B 这股注入空跑。<b>Leg B 把"延迟问题"换成了"空跑问题"。</b><span class="good">（#381 已把 pri=0 注入纳入退避来治这股空跑，见上方 C 段改动③）</span></div>
 
 <h4>📥 机制前后 · 实际拉到的高/中意向评论数（全天 24h 对比）</h4>
 <table>
