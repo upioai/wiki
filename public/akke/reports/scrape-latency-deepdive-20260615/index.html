@@ -335,8 +335,13 @@
 </table>
 <div class="kx"><b>B 和 C 怎么关联？一前一后两道关：</b><br>· <b>Leg B 管"这条视频<u>该不该</u>被抓"</b> —— 把该趁鲜抓的（含冷视频、刚冒高意向的）<b>塞进</b>快车道这个队列。<br>· <b>Leg C 管"塞进来的活<u>排不排得动</u>"</b> —— 队列里谁先跑（快慢分道）、别反复空扫白占位（退避）。<br>一句话：<b>B 把活送进队列，C 决定它在队列里跑得顺不顺。</b>B 一旦送太多（如注入洪水），就会把 C 的队列堵了 —— 这正是 #381 要补的接缝。</div>
 
-<h3 id="s9a">A · 两块地基：队列里有哪几类「活」+ 它们怎么排队跑（看 B/C 必须先懂这个）</h3>
-<p class="mut">下面是<b>纯现状</b>（系统现在怎么转）：先讲地基，再逐项讲 B、C 两组改动的来龙去脉。改动编号一律见上方 A0 一览表。</p>
+<h3 id="s9a">A · 两块地基：队列里有哪几类「活」+ 它们怎么排队跑</h3>
+<div class="kx"><b>先说清两个容易混的事，免得往下读拧巴：</b>
+<p style="margin:8px 0 0"><b>1）「Leg」是什么？</b>＝一条评论从"被发出"到"我们抓进库"，中间分好几段路（② 段把它拆成五段）。本段只关心其中相邻两段：</p>
+<p style="margin:6px 0 0">· <b>Leg B = 「派活」那段</b>：评论已经存在了，但系统还没派出一个活去抓它（"菜做好了，没人来端"）。</p>
+<p style="margin:4px 0 0">· <b>Leg C = 「排队执行」那段</b>：活已经派进队列了，等 worker 领走真正去抓（"菜端到打饭窗口，等阿姨打饭"）。</p>
+<p style="margin:8px 0 0"><b>2）「地基①②」不等于「Leg B / C」。</b>地基是<b>底盘</b>（系统本来就这么转）；Leg B / C 是<b>在底盘上做的改动招式</b>。下面先讲底盘，再讲招式。</p></div>
+<p class="mut">以下「地基」是<b>纯现状</b>（系统现在怎么转，不含本轮改动）；改动一律见上方 A0 一览表。</p>
 
 <div class="tl">
 <b>🍎 嫌底下黑话多？先用「果园摘果」一个比方把整套 B/C 讲通，后面的词都能对上号</b>（这张讲"机制怎么转"；想看"五段各自在哪堵"翻 ② 段「🍚 食堂打饭」，两张互补）：
@@ -380,6 +385,15 @@
 · <code>pri=3</code> tier-1 慢整号：执行<b>中位 23 秒、最慢 211 秒/个</b>；让到快活后面，实测 pending 最老 ~9 分。<br>
 · <code>pri=5</code> tier-0 每小时 + lead 资料：<b>只在上面三档全空时才轮到</b> → 实测能积压到 <b>12 小时</b>没人抓（就是 ⑤ 总根因里被饿死那批）。<br>
 <span class="mut">（"lead 资料" = 上表 <code>scrape_lead_profile</code>：识别出一个潜在客户后，系统顺手排一条活去抓这个用户的主页/视频补全画像，它没单独设优先级，就吃了默认 <code>pri=5</code>。）</span></div>
+<div class="kx"><b>这套 pri 是 6-16 改动前就有的吗？—— 机制本就有，但 #363 动了两处</b>（这就是 Leg B / C 落在 pri 上的地方）：
+<table style="margin:10px 0 0">
+<tr><th>号码牌</th><th>6-16 改动前</th><th>现在（#363 后）</th></tr>
+<tr><td class="n good"><code>0</code></td><td>vip-rescan、UI 手动</td><td>+ <b>高意向注入</b> ← 新增</td></tr>
+<tr><td class="n"><code>1</code></td><td>常规快活 <b>＋ tier-1 整号活（挤同一道）</b></td><td>只剩常规快活</td></tr>
+<tr><td class="n warn"><code>3</code></td><td><span class="mut">基本空着</span></td><td><b>tier-1 整号活</b>（从 1 降来）、rescan-recent</td></tr>
+<tr><td class="n bad"><code>5</code></td><td>tier-0 轮抓、lead 资料</td><td>不变</td></tr>
+</table>
+<p style="margin:8px 0 0"><b>就两处变化：</b>① <b>tier-1 整号活：pri 1 → 3</b>（原来和快活挤 pri=1 同一道、堵快活，这就是 Leg C 快慢分道）；② <b>新增 pri=0 高意向注入</b>（原来没有，这就是 Leg B 破鸡生蛋）。其余不变。</p></div>
 <div class="kx"><b>怎么定的 / 怎么跑的</b>：没有配置表、运营不可调——priority 是<b>散在 7 个入队点的硬编码</b>（列 <code>DEFAULT 5</code>），要改得改代码走 PR。worker（~30s/轮）调认领 RPC，核心 = <code>WHERE pending AND scheduled_at≤now AND attempts&lt;3 ORDER BY priority ASC, scheduled_at ASC FOR UPDATE SKIP LOCKED</code>（严格 pri 小→大、同级先到先得、并发安全）。领到即开抓；卡死(&gt;8min)被扫回重排；attempts 到 3 被排除＝永久 pending 墓碑（P0-d 清的就是它）。<br><b>⚠️ 关键副作用</b>：纯抢占、<b>pri 之间没有防饿死</b>——pri=5 只在 0/1/3 全空时才轮到 → 能积压 12 小时；tier-1 一胀大就把低 pri 饿死（这是 ⑤ 总根因的机制）。</div>
 
 <h3 id="s9b">B · Leg B 破鸡生蛋（#363）：治「冷视频上的高意向评论，第一条几乎必慢」</h3>
