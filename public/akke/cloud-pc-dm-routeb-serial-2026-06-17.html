@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>云电脑 DM × route-B 串行共存 · 0→1 部署复盘 · 小文(野荞) · 2026-06-17</title>
+<style>
+  :root{--g:#1a7f37;--m:#bf8700;--b:#cf222e;--ink:#1f2328;--mut:#656d76;--line:#d8dee4;--bg:#f6f8fa;--card:#fff;--ac:#0969da}
+  *{box-sizing:border-box}
+  body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif;color:var(--ink);line-height:1.65;margin:0;background:var(--bg)}
+  .wrap{max-width:980px;margin:0 auto;padding:32px 20px 80px}
+  h1{font-size:25px;margin:0 0 6px;line-height:1.3}
+  .sub{color:var(--mut);font-size:14px;margin-bottom:8px}
+  .lead{background:#ddf4ff;border:1px solid #b6e3ff;border-radius:10px;padding:14px 18px;margin:18px 0 28px;font-size:15px}
+  h2{font-size:19px;margin:38px 0 12px;padding-bottom:8px;border-bottom:2px solid var(--ink)}
+  h3{font-size:16px;margin:22px 0 8px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 20px;margin:12px 0}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin:10px 0}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:var(--bg);font-weight:600}
+  code{background:var(--bg);padding:1px 5px;border-radius:4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+  .badge{display:inline-block;padding:1px 8px;border-radius:20px;font-size:12px;font-weight:600;color:#fff;white-space:nowrap}
+  .ok{background:var(--g)}.mid{background:var(--m)}.bad{background:var(--b)}.wait{background:var(--mut)}
+  ol,ul{padding-left:22px}li{margin:5px 0}
+  .step{display:flex;gap:14px;margin:10px 0;align-items:flex-start}
+  .num{flex:0 0 28px;height:28px;border-radius:50%;background:var(--ac);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
+  .flow{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:#0d1117;color:#e6edf3;border-radius:10px;padding:16px 18px;white-space:pre;overflow-x:auto;line-height:1.5}
+  .mut{color:var(--mut)}.warn{color:var(--b);font-weight:600}
+  .kpi{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}
+  .kpi div{flex:1;min-width:130px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .kpi b{display:block;font-size:22px}.kpi span{font-size:12px;color:var(--mut)}
+  .tag{font-size:11px;color:var(--mut);border:1px solid var(--line);border-radius:5px;padding:0 5px}
+  mark{background:#fff19a;padding:1px 4px;border-radius:3px;color:var(--ink);font-weight:600;box-shadow:0 0 0 1px #f3d34a inset}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>云电脑 DM × route-B 实时潜在触达 · 0→1 部署与串行共存复盘</h1>
+<div class="sub">账号：小文（野荞）<code>81cc9678</code> · 阿里无影云电脑 · 2026-06-17</div>
+<div class="lead">
+今天把「route-B 实时潜在触达」从零部署到小文这台无影，并设计实现了 <mark>DM ∥ route-B 单窗口串行共存（窗口锁 · DM 优先抢占）</mark>。
+route-B 已单独常驻跑通、<mark>窗口锁已部署并通过并发测试</mark>。
+<br><span class="warn">口径声明：</span><span class="mut">route-B 今天才上线、尚未跑批量，本文「统计」分两类——「实测」= 今天真跑出来的（关注覆盖 / watch 扫描样本 / 锁并发测试 / 2 条手动触达）；「推算」= 按参数估的容量，非批量战果。</span>
+</div>
+
+<h2>0 · 一句话架构</h2>
+<div class="card">
+<b>route-B（实时潜在触达）= 事件驱动</b>：盯住「本号已关注、DM 过 ≥1 天没回的高/中意向 lead」，<b>谁发了一条 ≤20min 的新视频</b>，就到他视频下做<b>三连：点赞 + 评论1（无影本地 qwen3 看视频现场生成）+ 评论2（逐字搬当初发他的 DM 原文）</b>。
+<br><mark>它不主动挨个发，只在对方发 ≤20min 新视频那一刻顺势触达</mark>——这是和「批量二触（已停用）」的本质区别。
+</div>
+
+<h2>1 · 0→1 部署全流程（小文无影）</h2>
+
+<div class="step"><div class="num">1</div><div><b>确认现状</b>：小文 = 野荞 messaging 账号，<code>channel_pref=cloud_pc</code>；route-B <b>未部署</b>，机器在跑 DM 自动发。</div></div>
+<div class="step"><div class="num">2</div><div><b>取脚本</b>（gitignored、不在仓库）：fanny 用 <code>gh gist</code> 摆渡 7 个脚本 <code>_realtime_touch_watch/consume</code>、<code>_jit_comment1</code>、<code>_probe_follow_feed</code>、<code>_follow_grounded</code>、<code>_capture_pos</code>、<code>_start-realtime-touch.bat</code> + 评论执行器 <code>douyin_comment_grounded.py</code>（必须「认 douyin 标题」版，否则全 focus_fail）。无影用 <code>curl.exe</code> 下 raw 直链（<code>iwr</code> 会损坏中文）。</div></div>
+<div class="step"><div class="num">3</div><div><b>数据文件</b>：fanny 已按小文账号生成 <code>special-follow.json</code>（监控名单 168 高意向）+ <code>realtime-touch-table.json</code>（评论2话术表）。消费走<b>本地表模式</b>（start.bat 不带 <code>--api-base</code>）。</div></div>
+<div class="step"><div class="num">4</div><div><b>cookie</b> <code>dy_cookie.txt</code>：mac 被 Shadowrocket TUN 劫持抖音（<code>ERR_PROXY_CONNECTION_FAILED</code>，浏览器层绕不过）→ 改在<b>无影上跑 Playwright</b>（<code>channel="msedge"</code> 用系统 Edge 免下内核），扫码后 <code>context.cookies()</code> 抓到含 HttpOnly <code>sessionid</code> 的 <b>58 个 cookie / 6031 字节</b>。</div></div>
+<div class="step"><div class="num">5</div><div><b>.env 关键配置</b>：<code>AKKE_COMMENT_VERIFY_LENIENT=1</code>（防评论误判→重复狂发，6/13 这台栽过）；<code>fresh_window_minutes=10</code>（DM 只发 ≤10min 评论，<b>已查库确认</b>）；<b>注释掉 <code>AKKE_C_LIKE</code></b> → 点赞改走 VL（见 bad case #2）。<span class="mut tag">start.bat 本身不设任何 env，配置全在 .env，各脚本自己 load_dotenv</span></div></div>
+<div class="step"><div class="num">6</div><div><b>手动验证 2 条</b>（见下「案例」）→ 证明三连执行链在小文这台跑通。</div></div>
+<div class="step"><div class="num">7</div><div><b>route-B 单独常驻</b>：双击 <code>_start-realtime-touch.bat</code> 起 watch + consume 两窗口。watch banner 实测：<code>cookie 6031字节 | lead池 168 | 每60s拉3页 | 触达闸≤20min</code>。</div></div>
+<div class="step"><div class="num">8</div><div><b>窗口锁（Phase 2）</b>：新建 <code>wuying_window_lock.py</code> + 改两个执行器，实现 DM ∥ route-B 串行共存。<code>AKKE_WINDOW_LOCK=1</code> 只小文开。mac 并发测试 PASS、小文实测 <code>ENABLED True / IMPORT_OK</code>。</div></div>
+
+<h3>案例 · 手动触达 2 条</h3>
+<table>
+<tr><th>对象</th><th>结果</th><th>说明</th></tr>
+<tr><td><b>夜半不怕打更人</b><br><span class="mut">真装修 lead「下周五开始装修」</span></td><td><span class="badge ok">点赞✓ 评论1✓</span></td><td>搜人→身份门 <code>conf 0.98</code>→暂停→<b>点赞验证爱心已红</b>→<b>评论1 已验证出现在评论区</b>。评论2 因发完评论1 前台被切到 PowerShell、安全闸正确<b>跳过不硬打</b>（避免漏进终端）。</td></tr>
+<tr><td><b>空间向量</b><br><span class="mut">真装修 lead「房子准备装修」</span></td><td><span class="badge mid">主页无视频</span></td><td>手动选目标的盲点——该号主页没作品，没视频可评。<b>真实 route-B 由 watch 逮「刚发的新视频」触发、天然有视频，不会遇到</b>。</td></tr>
+</table>
+
+<h2>2 · DM × route-B 串行共存逻辑（窗口锁）</h2>
+<div class="card">
+<b>问题</b>：一台无影只有<b>一个抖音前台窗口</b>。DM（<code>wuying_poll_agent → douyin_dm_grounded</code>）和 route-B（<code>_realtime_touch_consume → douyin_comment_grounded</code>）是<b>两个独立进程</b>，都用全局的 <code>SetForegroundWindow</code>/<code>SendInput</code> 驱动这个窗口，并发会互抢焦点、混键入（发出串字）。原来只能「二选一」人肉避免。
+</div>
+<div class="card">
+<b>方案 = 抢占式分时（非真并行）</b>，一把共享文件锁 + DM 占用标记：
+<div class="flow">.douyin-win.lock    ← 谁操作窗口前抢、完事释放（互斥）
+.douyin-dm-want     ← DM 一个发送批期间置上（route-B 据此让位）
+
+DM   端：with dm_batch():               # 置 .dm-want = "我在忙"
+           for 每条:  with window_turn('dm'):  发私信   # 贪婪抢 = 优先
+route-B 端：for 每个三连: with window_turn('rb'):  发三连
+                          ↑ 抢锁前先等 .dm-want 清除 = DM 在等就让位</div>
+<ul>
+<li><mark>DM 优先</mark>：DM 一有单就贪婪抢锁，route-B 不开新三连；</li>
+<li><mark>route-B 条目级让位</mark>：route-B 每发完一个三连释放锁，下一个三连前若 DM 在忙就等；</li>
+<li><mark>DM 最坏等 ~2.4min</mark>：若 DM 热单到达时 route-B 正在三连中途（三连不可打断、否则发串字），DM 等这一个三连发完即上；</li>
+<li><b>DM 空窗</b>（无单）：route-B 自由跑、填空窗；</li>
+<li><code>AKKE_WINDOW_LOCK=1</code> 才生效，<mark>只小文开，同事机器无 flag = 全 no-op、行为零变化</mark>；崩溃残留按 mtime&gt;5min 抢占兜底。</li>
+</ul>
+<b>时效口径（今天定死）</b>：<span class="badge ok">DM ≤10min</span>（<code>fresh_window_minutes=10</code>，派单层选 lead）· <span class="badge ok">route-B ≤20min</span>（<code>--max-age-min 20</code>，不动）。<mark>锁不改「选哪些 lead」，只影响个别发送动作晚 ≤2.4min</mark>。
+</div>
+
+<h2>3 · 容量与统计数据</h2>
+<div class="kpi">
+<div><b>168</b><span>监控池(高意向)<br><span class="tag">实测</span></span></div>
+<div><b>~94%</b><span>单窗口日空闲率<br><span class="tag">推算</span></span></div>
+<div><b>30 / 10min</b><span>DM 日限 / 新鲜窗口<br><span class="tag">实测·查库</span></span></div>
+<div><b>20min / 20条</b><span>route-B 触达闸 / 日限<br><span class="tag">实测·默认</span></span></div>
+</div>
+<table>
+<tr><th>指标</th><th>值</th><th>来源</th></tr>
+<tr><td>候选池</td><td>worklist 280（高 168 / 中 112）；pool 端点返回 166 带 comment2；监控名单 168</td><td><span class="tag">实测</span></td></tr>
+<tr><td>关注覆盖</td><td>watch 实时 feed 满屏 ★（命中池成员）= <mark>现有关注已覆盖，无需补关注</mark>（<code>account_follows</code> 表 =0 是坏 KPI，别信）</td><td><span class="tag">实测</span></td></tr>
+<tr><td>窗口占用</td><td>DM 30条×~60s≈30min + route-B 20人×~2.4min≈48min ≈ <b>78min / 1440min</b> → 空闲 ~94%</td><td><span class="tag">推算</span></td></tr>
+<tr><td>三连端到端</td><td>~2.4–3min/人（点赞+评论1+评论2，含固定 sleep 地板 + VL 检测）</td><td><span class="tag">实测·记忆</span></td></tr>
+<tr><td>watch 扫描样本</td><td>5min 内每轮 lead 新视频 4–6 条，<b>全 &gt;20min（历史回灌/老视频）→ 可触达 0</b>；feed 噪音多（防水补漏/烤串/土菜/床垫等商家号刷屏）</td><td><span class="tag">实测</span></td></tr>
+<tr><td>锁并发测试</td><td>mac 模拟：route-B 想发(0.05s) 一直等到 DM 整批 2 条发完(0.91s) 才轮到(1.06s)，<b>零重叠、DM 优先</b> PASS</td><td><span class="tag">实测</span></td></tr>
+<tr><td>批量触达战果</td><td><span class="warn">暂无</span>——route-B 今天刚上线，尚未产生有机触达；真装修 lead 少发新鲜视频，预期触达稀疏</td><td><span class="tag">待跑批</span></td></tr>
+</table>
+
+<h2>4 · Bad cases · 优化方式 · 进展</h2>
+<table>
+<tr><th>#</th><th>Bad case</th><th>根因</th><th>优化方式</th><th>进展</th></tr>
+<tr><td>1</td><td>mac 抓不到抖音 cookie，<code>ERR_PROXY_CONNECTION_FAILED</code></td><td>mac Shadowrocket TUN 模式 fake-IP 劫持抖音域名，浏览器层绕不过</td><td>改在无影（无 VPN、国内 IP）跑 Playwright，<code>channel="msedge"</code> 用系统 Edge 免下内核</td><td><span class="badge ok">已解决</span></td></tr>
+<tr><td>2</td><td>点赞点空、爱心不红（<code>like_unverified</code>）</td><td>固定坐标 <code>AKKE_C_LIKE=977,511</code> 是饭粒机的、跨机点歪</td><td>.env 注释掉 <code>AKKE_C_LIKE</code> → 执行器走 VL 自动定位空心爱心（暂停键也是 VL 找的，证明可用）</td><td><span class="badge ok">已解决·实测点赞验证红</span></td></tr>
+<tr><td>3</td><td>评论2 没发出（被跳过）</td><td>发完评论1 后前台被切到 PowerShell（手碰/焦点抢占），执行器安全闸不硬打</td><td>安全闸行为正确（防漏进终端）；<b>无人值守不碰机器即不会发生</b></td><td><span class="badge mid">靠不碰规避</span></td></tr>
+<tr><td>4</td><td>选到主页无视频的目标（空间向量）</td><td>手动选目标的盲点</td><td>真 route-B 由 watch 逮「刚发的新视频」触发、天然有视频</td><td><span class="badge ok">生产不影响</span></td></tr>
+<tr><td>5</td><td>DM 和 route-B 抢同一抖音窗口（只能二选一）</td><td>单窗口 + 全局 <code>SetForegroundWindow</code>/<code>SendInput</code></td><td>窗口锁：DM 优先、route-B 条目级让位（env-gated 只小文）</td><td><span class="badge ok">已建+并发测试 PASS+部署</span></td></tr>
+<tr><td>6</td><td>真实触达量预期低</td><td>关注流被商家/无关号污染（61% 来自 4 个噪音号）+ 真装修 lead 极少发新鲜装修视频</td><td>special-follow 生成加噪音过滤（剔防水/床垫/烤串/食品/旅游/宠物类）</td><td><span class="badge wait">待做</span></td></tr>
+<tr><td>7</td><td>评论2 公开发会限号</td><td>搬 DM 原文常含「价格 868/568 + 加 v」红线词（DM 私域 OK、公开评论违规）</td><td>消费端「公开评论违规闸」跳过脏的（那些 lead 只发 like+评论1）；后续做公开版话术改写</td><td><span class="badge mid">有闸·话术待改写</span></td></tr>
+<tr><td>8</td><td>文件摆渡频繁失败</td><td>paste.rs 500/截断、gh API EOF、无影 RDP 粘贴折断长行/长 URL</td><td>统一 <code>gh gist</code> raw 直链 + <code>curl.exe</code>；长 URL 拆短变量拼；长 PowerShell 命令逐行短敲</td><td><span class="badge ok">已稳定（workaround）</span></td></tr>
+<tr><td>9</td><td>本地表模式无发前去重，曾狂发</td><td>consume 不连 DB、无原子 claim，靠事后 mark-second-touch 回写</td><td>短期 <code>VERIFY_LENIENT=1</code> 缓解误判；长期切端点模式（<code>--api-base</code>）发前 claim 去重 + 自动 e2e 回写</td><td><span class="badge mid">缓解·端点待切</span></td></tr>
+<tr><td>10</td><td>无影重启后 route-B 不回来</td><td><code>_start-realtime-touch.bat</code> 无开机自启（仅双击 + 崩溃自重启）</td><td>当前手动双击（锁未上前反而安全=手动控二选一）；锁已上线后可加自启、两条共存</td><td><span class="badge mid">现状手动·可加自启</span></td></tr>
+</table>
+
+<h2>5 · 下一步待做优化列表</h2>
+<ol>
+<li><b>实战观察共存</b>：DM ∥ route-B 挂几天，看真实撞车率 / DM 实际等待分布（验证 ≤2.4min 假设）。</li>
+<li><b>PR 归档</b>：窗口锁模块 + DM 执行器改动（env-gated 只小文生效）走 PR；评论执行器仓库版（28384）与部署版（fanny 28984）<b>漂移</b>，PR 里一并对齐或单列说明。</li>
+<li><b>洗池</b>（bad case #6）：<code>special-follow</code> 生成加昵称/内容噪音过滤，剔商家号（防水/床垫/烤串/食品/旅游/宠物），提升真 lead 占比。</li>
+<li><b>评论2 公开版话术</b>（bad case #7）：去价格/微信红线词，做一套「公开评论安全版」comment2；脏的退化为只发 like+评论1。</li>
+<li><b>切端点模式</b>（bad case #9）：consume 加 <code>--api-base</code> + .env 给 <code>PT_ENDPOINT_SECRET</code>/<code>AKKE_ACCOUNT_ID</code>（注意 consume 不 load_dotenv，须进程 env），换来发前 claim 去重防狂发 + 自动 e2e 回写。</li>
+<li><b>评论2 焦点抢占</b>（bad case #3）：无人值守期约定别动无影 GUI；或加发送前前台二次确认。</li>
+<li><b>route-B 开机自启</b>（bad case #10）：锁已保护，可把 <code>_start-realtime-touch.bat</code> 快捷方式丢 <code>shell:startup</code>，两条共存自启。</li>
+<li><b>回写流程</b>：本地表模式触达后，定期把 <code>comment_log</code> 拷回 mac 跑 <code>mark-second-touch.ts --from-comment-log</code> 写回 <code>second_touch_state</code>（节奏阶梯：每人每天≤1、累计 7 次出库）。</li>
+<li><b>（可选）DM 等待优化</b>：当前 ≤2.4min 是单窗口物理下限，无法再压（三连不可中途打断）。如需 DM 绝对零等待，只能回到二选一。</li>
+</ol>
+
+<div class="sub" style="margin-top:40px;border-top:1px solid var(--line);padding-top:14px">
+小文（野荞）<code>81cc9678</code> · 2026-06-17 · DM ≤10min / route-B ≤20min · 窗口锁 <code>AKKE_WINDOW_LOCK=1</code>（仅小文）
+</div>
+
+</div>
+</body>
+</html>
