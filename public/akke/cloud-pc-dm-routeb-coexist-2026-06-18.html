@@ -48,7 +48,7 @@
 <h1>云电脑 DM ∥ route-B 实时潜在触达 · 串行共存 0→1 复盘</h1>
 <div class="sub">账号：小文（野荞）<code>81cc9678</code> · 阿里无影云电脑 · 2026-06-18</div>
 <div class="lead">
-一台无影、一个抖音号，让 <mark>DM(一触私信) 和 route-B(实时潜在触达三连) 同机共存</mark>——不做真并行，做 <mark>抢占式分时：DM 优先、route-B 让位</mark>，靠一把窗口锁串行、互不抢窗发串字。今天端到端跑通：DM 已真发、route-B 首条有机触达已落地，过程中挖出并修掉 3 个硬 bug。
+一台无影、一个抖音号，让 <mark>DM(一触私信) 和 route-B(实时潜在触达三连) 同机共存</mark>——不做真并行，做 <mark>抢占式分时：DM 优先、route-B 让位</mark>，靠一把窗口锁串行、互不抢窗发串字。今天端到端跑通：DM 已真发、route-B 首条有机触达已落地，过程中挖出并修掉 3 个硬 bug。<mark>2026-06-18 实测确认：链路端到端打通、两个修复（点对视频 + 红线拦截）已生产验证通过（见米奇妙妙屋案例）。</mark>
 <br><span class="warn">口径声明：</span><span class="mut">「实测」=今天真跑出来的；「推算」=按参数估的容量。批量战果尚处早期，不夸大。</span>
 </div>
 
@@ -64,7 +64,19 @@
 <tr><td>评论1(JIT)</td><td><span class="badge ok">sent</span></td><td>"通风小半年，绿萝都养死了两盆…"</td></tr>
 <tr><td>评论2(搬DM)</td><td><span class="badge ok">sent</span></td><td>"…橱柜做到82…原价868一平，专供价568…给个 v…"</td></tr>
 </table>
-<mark>三连完整发出、无人值守下评论2 也成功</mark>（证明评论2 跳过只是「有人碰机器抢焦点」、无人值守不复现）——管线端到端通了。<b>但这条同时暴露两个 bug</b>（见下 bad case #2/#3）：<mark>评论1 照的是「置顶视频」不是新视频</mark>（绿萝/通风跟装修无关）、<mark>评论2 把价格+微信红线词公开发了</mark>（限号风险）。两个当天修掉。
+<mark>三连完整发出、无人值守下评论2 也成功</mark>（证明评论2 跳过只是「有人碰机器抢焦点」、无人值守不复现）——管线端到端通了。<b>但这条同时暴露两个 bug</b>（见下 bad case #2/#3）：<mark>评论1 照的是「置顶视频」不是新视频</mark>（绿萝/通风跟装修无关）、<mark>评论2 把价格+微信红线词公开发了</mark>（限号风险）。两个当天修掉，<mark>并已在下方「米奇妙妙屋」案例生产验证生效</mark>。
+</div>
+
+<h3>route-B 修复验证 — <b>米奇妙妙屋</b>（2026-06-18 19:41 生产实测）</h3>
+<div class="card">
+<mark>PR#421 两个修复在生产验证通过 ✅</mark>。route-B 逮到一条 19min 新鲜视频（床垫内容）→ 三连，comment_log 实录：
+<table>
+<tr><th>修复点</th><th>结果</th></tr>
+<tr><td>点对视频（跳置顶）</td><td><span class="badge ok">✅ 通过</span> 评论1 "这床垫看着就稳稳的舒服…" = 照<b>那条床垫新视频</b>生成（不再点到置顶无关视频，对比好运无敌"绿萝/通风"）</td></tr>
+<tr><td>红线词拦截</td><td><span class="badge ok">✅ 通过</span> 评论2 含 "868/568一平 + 给v" → <code>skip_redline</code>、<b>没公开发</b>（只发点赞+评论1）</td></tr>
+<tr><td>点赞 / 身份门</td><td><span class="badge ok">✅</span> liked / conf 0.98</td></tr>
+</table>
+⚠️ 但对象 <b>米奇妙妙屋是床垫营销噪音号、非装修客户</b> → 触达执行完全正确、价值却低（bad #9 池子污染）→ 下一步 <mark>洗池</mark> 是 route-B 出真效果的关键。同时这条与 DM(sent=3) 并发、靠窗口锁串行没撞 = <mark>DM ∥ route-B 共存实证</mark>。
 </div>
 
 <h3>DM 首发 — 解除「派单静音」后立刻出活</h3>
@@ -103,16 +115,16 @@
 <h2>3 · 批量化执行的统计数据</h2>
 <div class="kpi">
 <div><b>168</b><span>监控池(高意向)<br><span class="tag">实测</span></span></div>
-<div><b>1 / 1</b><span>近6h DM sent / skipped<br><span class="tag">实测</span></span></div>
-<div><b>1</b><span>route-B 首条三连<br><span class="tag">实测</span></span></div>
+<div><b>3 / 5</b><span>DM sent / skipped(fw=10下~37%过)<br><span class="tag">实测</span></span></div>
+<div><b>2</b><span>route-B 触达(累计·修复后)<br><span class="tag">实测</span></span></div>
 <div><b>~94%</b><span>单窗口日空闲率<br><span class="tag">推算</span></span></div>
 </div>
 <table>
 <tr><th>指标</th><th>值</th><th>来源</th></tr>
 <tr><td>DM 时效 / 日限 / 间隔</td><td>≤10min(fresh_window) · 30/日 · 30s</td><td><span class="tag">实测·查库</span></td></tr>
 <tr><td>route-B 触达闸 / 端到端</td><td>≤20min · 三连 ~2.4–3min/人</td><td><span class="tag">实测</span></td></tr>
-<tr><td>DM 实发（解除暂停后近6h）</td><td><b>sent 1</b>（新鲜≤10min）/ skipped 1（超时自动作废）</td><td><span class="tag">实测</span></td></tr>
-<tr><td>route-B 实触（今日）</td><td>1 条（好运无敌，三连完整 sent）</td><td><span class="tag">实测</span></td></tr>
+<tr><td>DM 实发（解除暂停后）</td><td><b>sent 3</b>（新鲜≤10min）/ skipped 5（fw=10 太紧、单常在发送途中过期被杀，~37% 能发出）</td><td><span class="tag">实测</span></td></tr>
+<tr><td>route-B 实触（今日）</td><td>2 条（好运无敌；米奇妙妙屋=修复后点对视频+红线拦截 已验证）</td><td><span class="tag">实测</span></td></tr>
 <tr><td>关注覆盖</td><td>watch feed 满屏 ★ = 现有关注已覆盖、<mark>无需补关注</mark>（account_follows=0 是坏 KPI）</td><td><span class="tag">实测</span></td></tr>
 <tr><td>窗口锁并发测试(mac)</td><td>route-B 等到 DM 整批发完才动、<mark>零重叠 + DM 优先 PASS</mark></td><td><span class="tag">实测</span></td></tr>
 <tr><td>窗口占用</td><td>DM ~30min/d + route-B ~50min/d ≈ 80min/1440 → 空闲 ~94%</td><td><span class="tag">推算</span></td></tr>
@@ -123,8 +135,8 @@
 <table>
 <tr><th>#</th><th>Bad case</th><th>根因</th><th>优化方式</th><th>进展</th></tr>
 <tr><td>1</td><td><mark>DM 一条没发（派单被静音）</mark></td><td><code>dispatch_paused_until=2030</code> 永久暂停（疑似为 web-DM 迁移设的）</td><td>解除：设 <code>null</code>，cron 恢复自动派单</td><td><span class="badge ok">已解除·DM 立刻出活</span></td></tr>
-<tr><td>2</td><td><mark>route-B 点错视频（点到置顶）</mark></td><td>open_first_video 点"最左上"=置顶视频；小文 .env 还有 AKKE_C_WORK_FIRST 固定坐标死点第1格</td><td>VL prompt 改为跳过置顶、点第一个非置顶(最新)；注释固定坐标</td><td><span class="badge ok">已修 PR#421</span></td></tr>
-<tr><td>3</td><td><mark>评论2 红线词公开发（限号）</mark></td><td>评论2 逐字搬 DM 原文，常含价格/加微信；违规闸原没扫评论2</td><td>新增 has_redline()，评论2 命中价格/微信则跳过、只发点赞+评论1</td><td><span class="badge mid">已止血 PR#421·待出公开安全版话术</span></td></tr>
+<tr><td>2</td><td><mark>route-B 点错视频（点到置顶）</mark></td><td>open_first_video 点"最左上"=置顶视频；小文 .env 还有 AKKE_C_WORK_FIRST 固定坐标死点第1格</td><td>VL prompt 改为跳过置顶、点第一个非置顶(最新)；注释固定坐标</td><td><span class="badge ok">已修+生产验证✅ PR#421</span></td></tr>
+<tr><td>3</td><td><mark>评论2 红线词公开发（限号）</mark></td><td>评论2 逐字搬 DM 原文，常含价格/加微信；违规闸原没扫评论2</td><td>新增 has_redline()，评论2 命中价格/微信则跳过、只发点赞+评论1</td><td><span class="badge mid">已止血+生产验证✅·待公开安全版话术</span></td></tr>
 <tr><td>4</td><td>DM 量结构性偏低</td><td>fw=10 vs 采集延迟~18min：评论处理完早超 10min、过不了新鲜闸</td><td>放宽 fw(破≤10min口径) 或 提速采集管线；当前接受低量</td><td><span class="badge wait">权衡待定</span></td></tr>
 <tr><td>5</td><td>DM/route-B 抢同一抖音窗口（原只能二选一）</td><td>单窗口 + 全局 SetForegroundWindow/SendInput</td><td>窗口锁：DM 优先、route-B 条目级让位（env-gated 只小文）</td><td><span class="badge ok">已建+测试+部署 PR#415</span></td></tr>
 <tr><td>6</td><td>评论2 偶发被跳过</td><td>发完评论1 前台被切到 PowerShell（人碰机器）</td><td>安全闸正确不硬打；无人值守不碰即不复现（好运无敌已验证发出）</td><td><span class="badge mid">无人值守规避</span></td></tr>
