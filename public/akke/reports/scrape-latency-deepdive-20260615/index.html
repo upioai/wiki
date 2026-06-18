@@ -490,12 +490,16 @@
 <h4 class="warn">Leg C 快慢分道：中位大赢、尾巴没赢（全天口径下的翻车点）</h4>
 <table>
 <tr><th>scrape_video 入队→被认领等待</th><th>median</th><th>p90（最慢 10%）</th><th>p99（最惨 1%）</th></tr>
-<tr><td>部署前 06-15 全天 <span class="mut">(n=25404)</span></td><td class="n">226.4s</td><td class="n">468.9s</td><td class="n">1219.6s</td></tr>
-<tr><td>部署后 06-16 全天 <span class="mut">(n=45668)</span></td><td class="n good">74.9s</td><td class="n">498.7s</td><td class="n bad">4777.3s</td></tr>
-<tr><td class="mut">变化</td><td class="good">−67%</td><td class="warn">+6%（基本持平）</td><td class="bad">+292%（恶化近 4 倍）</td></tr>
+<tr><td>① 06-15 部署前 <span class="mut">(n=26544)</span></td><td class="n">233.7s</td><td class="n">454s</td><td class="n">1151s</td></tr>
+<tr><td>② 06-16 注入洪水峰·<b>#381 前</b> <span class="mut">(n=51170)</span></td><td class="n good">75.5s</td><td class="n">486s</td><td class="n bad">4596s</td></tr>
+<tr><td>③ 06-17→18 <b>#381 后</b> ~21h <span class="mut">(n=27269)</span></td><td class="n good">57.8s</td><td class="n bad">1138s</td><td class="n warn">2191s</td></tr>
 </table>
 <div class="kx warn"><b>大白话读这张表</b>：<b>典型情况（median）从 3.8 分压到 1.2 分（−67%）——快慢分道确实让大多数快活先走了。</b>优先级分布坐实：部署前有 <b>6355 个整号活</b>混在 <code>pri=1</code> 跟快视频抢道，部署后整号活搬到 <code>pri=3</code>（3160）、<code>pri=1</code> 里的整号只剩 <b>112</b>。<b>但 p90 基本没动、p99 反而从 20 分钟炸到 80 分钟。</b>为啥？看同一份数据的另一个数：<b>pri=0 高意向注入活从全天 905 个暴涨到 26995 个（30 倍）</b>——破鸡生蛋的注入洪水（每 tick 重注，见下）在 <code>pri=1</code> 前面又垒了一座 <code>pri=0</code> 大山，<b>典型活照样快，但挤在洪水里的那 1% 倒霉蛋等得比以前更久。</b><br><span class="mut">（注：p99 里可能掺了少量 zombie 活被重排、<code>started_at</code> 取最后一次认领造成的虚高；但方向——"尾巴没改善、注入洪水是主因"——跟全部其它证据一致。）</span></div>
-<div class="kx bad"><b>结论变了，得敞开说</b>：原版 D 写"p90 −61%、p99 −75% 全绿"，那是 8.5h 低峰窗口的假象。<b>全天真相 = 快慢分道把"典型延迟"砍了 2/3（真赢），但破鸡生蛋的注入洪水把"极端尾巴"拖坏了（p99 ×4）。</b>这跟下面 Leg B 那段"注入洪水制造空跑"是<b>同一个病的两面</b>——都指向同一个补丁：<b>注入去重</b>。<span class="good">（✅ 已落地 #381，2026-06-17；机制 + 上线 25 分钟实测见上方 C 段「改动③」）</span></div>
+<div class="kx bad"><b>三窗连看（含 #381 后的全天复核，诚实版）</b>：
+<p style="margin:6px 0 0">· <b>①→②（#363 快慢分道）</b>：median −67%（典型大赢）；但注入洪水把 p99 从 ~19 分钟炸到 ~77 分钟（尾巴翻车）。</p>
+<p style="margin:4px 0 0">· <b>②→③（#381 注入去重，6-17 上线）</b>：洪水退了（活数 51170→27269）、median 史上最好（57.8s）、<b>p99 从洪水峰 4596 砍到 2191（−52%）</b>、高+中 leads 回到 446（占比 8.3%）。</p>
+<p style="margin:6px 0 0"><b>⚠️ 但尾巴还没回到基线</b>：p99 仍 ~2× 基线（2191 vs 1151）、p90 反而 454→1138 变差。<b>最可能的残余原因 = 早停 bug</b>——#381 退避更狠了，而那 33%「假空」（真评论被漏，见下方 🔬）被退避推给最慢的全量轮、拖长了尾巴。</p>
+<p style="margin:6px 0 0"><b>→ #413 早停修复已于 2026-06-18 合并部署</b>，正是治这条尾巴；效果待下一个全天窗口复核（届时再更新本表）。</p></div>
 <h4 class="warn">这座注入洪水到底是什么（部署后 8.5h 切片实测，06-16 04:00–12:25）</h4>
 <p>这段窗口里，<code>pri=0</code> 高意向注入活<b>跑完 9039 个</b>（= <code>scrape_jobs</code> 表中 priority=0、标 high_intent、在此窗口完成的单视频活条数；全天口径为 26995 个）。但这 9039 个活<b>只摊在 112 个不同视频上 —— 平均每条被重复抓 80.7 次</b>（<code>9039 ÷ 112 ≈ 80.7</code>）。三点说清这洪水的性质：</p>
 <ul>
@@ -508,11 +512,12 @@
 <h4>📥 机制前后 · 实际拉到的高/中意向评论数（全天 24h 对比）</h4>
 <table>
 <tr><th>窗口</th><th>入库评论总数</th><th>高意向</th><th>中意向</th><th>高+中</th><th>高+中占比</th></tr>
-<tr><td>部署前 06-15 全天</td><td class="n">4080</td><td class="n">74</td><td class="n">265</td><td class="n">339</td><td class="n">8.3%</td></tr>
-<tr><td>部署后 06-16 全天</td><td class="n">5291</td><td class="n good">93</td><td class="n">280</td><td class="n good">373</td><td class="n">7.0%</td></tr>
-<tr><td class="mut">变化</td><td class="n">+30%</td><td class="n good">+26%</td><td class="n">+6%</td><td class="n">+10%</td><td class="n bad">8.3%→7.0%</td></tr>
+<tr><td>① 06-15 全天 <span class="mut">(部署前)</span></td><td class="n">4080</td><td class="n">74</td><td class="n">265</td><td class="n">339</td><td class="n">8.3%</td></tr>
+<tr><td>② 06-16 全天 <span class="mut">(#381前)</span></td><td class="n">5291</td><td class="n good">93</td><td class="n">280</td><td class="n good">373</td><td class="n">7.0%</td></tr>
+<tr><td>③ 06-17 全天 <b>(#381后)</b></td><td class="n">5361</td><td class="n good">97</td><td class="n">349</td><td class="n good">446</td><td class="n good">8.3%</td></tr>
+<tr><td class="mut">①→③ 变化</td><td class="n">+31%</td><td class="n good">+31%</td><td class="n good">+32%</td><td class="n good">+32%</td><td class="n">8.3%→8.3%</td></tr>
 </table>
-<div class="kx warn"><b>诚实边界（全天口径更冷静）</b>：高+中从 <b>339→373（+10%）</b>、高意向 <b>74→93（+26%）</b>。但<b>当天入库评论总量本身涨了 30%</b>，而高+中占比反而从 <b>8.3% 掉到 7.0%</b>——说明这 +10% 基本是"评论盘子变大"顺带带上来的，<b>机制本身没把"高意向命中率"提上去</b>。⚠️ 这同时<b>修正了原版的过度解读</b>：原先 8.5h 窗口看到"高意向 +89%、近翻倍"，全天一摊只剩 <b>+26%</b> 且占比下降——<b>那个"翻倍"是低峰小样本的噪声、不成立</b>。要看 B/C 机制真效果，得多日累积 + 剔除评论总量波动。</div>
+<div class="kx warn"><b>诚实边界（全天口径更冷静）</b>：高+中从 <b>339→373（+10%）</b>、高意向 <b>74→93（+26%）</b>。但<b>当天入库评论总量本身涨了 30%</b>，而高+中占比反而从 <b>8.3% 掉到 7.0%</b>——说明这 +10% 基本是"评论盘子变大"顺带带上来的，<b>机制本身没把"高意向命中率"提上去</b>。⚠️ 这同时<b>修正了原版的过度解读</b>：原先 8.5h 窗口看到"高意向 +89%、近翻倍"，全天一摊只剩 <b>+26%</b> 且占比下降——<b>那个"翻倍"是低峰小样本的噪声、不成立</b>。要看 B/C 机制真效果，得多日累积 + 剔除评论总量波动。<br><b>更新（③ 06-17 / #381 后）</b>：高+中 回到 <b>446</b>、占比也回到 <b>8.3%</b>（vs 基线 +32%）——06-16 占比掉到 7.0% 是<b>注入洪水期的暂时现象</b>，#381 退潮后就回来了。但仍需多日看稳态。</div>
 
 <h3 class="bad" id="s9e">E · 新发现：评论拉取还是很久的真尾巴 —— 不是排队，是「老视频覆盖盲区」</h3>
 <p>端到端「高意向评论 <code>comment_time</code> → 入库」实测（近 36h，n=124）：<b>median 34 分（典型还行），但 &gt;1h 占 47%、&gt;6h 占 42%、&gt;12h 占 38%</b>——这条重尾就是日报里那批标 <code>expired_at_claim</code> 被跳过没触达的 lead。按 source tier 拆开，<b>真因和直觉相反</b>：</p>
