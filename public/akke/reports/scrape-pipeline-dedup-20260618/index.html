@@ -1,0 +1,296 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Akke 评论采集 → 写库 全流程 · 逐步与查重 2026-06-18</title>
+<style>
+  body{font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;color:#222;max-width:940px;margin:0 auto;padding:24px 18px;background:#fafafa}
+  h1{font-size:25px;margin:0 0 4px}
+  h2{font-size:19px;margin:30px 0 8px;padding-top:12px;border-top:2px solid #eee}
+  h3{font-size:16px;margin:20px 0 6px;color:#1a4d7a}
+  .sub{color:#888;font-size:13px;margin-bottom:8px}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.06);border-radius:6px;overflow:hidden;margin:6px 0 14px}
+  th,td{padding:7px 9px;text-align:left;border-bottom:1px solid #f0f0f0;vertical-align:top}
+  th{background:#f7f7f7;font-weight:600}
+  .row-hl{background:#fffbe6}
+  code{background:#f3f3f3;padding:1px 5px;border-radius:3px;font-size:12px;color:#c0392b}
+  .hint{color:#666;font-size:13px;margin:4px 0 10px}
+  .foot{margin-top:36px;color:#aaa;font-size:12px;border-top:1px solid #eee;padding-top:10px}
+  .tabs{display:flex;gap:8px;margin:14px 0 18px;position:sticky;top:0;background:#fafafa;padding:10px 0;z-index:9}
+  .tab{padding:8px 18px;border-radius:20px;border:1.5px solid #ccc;background:#fff;cursor:pointer;font-size:14px;font-weight:600;color:#555;user-select:none}
+  .tab.on{background:#1a4d7a;color:#fff;border-color:#1a4d7a}
+  .view{display:none}.view.on{display:block}
+  .flow{background:#fff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);padding:6px 0;margin:10px 0 18px}
+  .step{display:flex;gap:12px;padding:11px 16px;border-bottom:1px solid #f2f2f2;align-items:flex-start}
+  .step:last-child{border-bottom:none}
+  .step .n{flex:0 0 30px;height:30px;border-radius:50%;background:#1a4d7a;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px}
+  .step .body{flex:1}
+  .step .ttl{font-weight:700;font-size:14.5px;margin-bottom:2px}
+  .step .meta{font-size:12.5px;color:#777;margin:2px 0}
+  .badge{display:inline-block;font-size:11px;padding:1px 7px;border-radius:10px;margin:1px 4px 1px 0;font-weight:600}
+  .b-freq{background:#eaf3fb;color:#1a6db5}
+  .b-time{background:#eafaf0;color:#1e8a52}
+  .b-dedup{background:#fdecea;color:#c0392b}
+  .b-none{background:#f0f0f0;color:#888}
+  .callout{background:#fff8e1;border-left:4px solid #f0ad4e;padding:9px 13px;border-radius:0 6px 6px 0;margin:10px 0;font-size:13.5px}
+  .callout.red{background:#fdecea;border-left-color:#e74c3c}
+  .gloss{background:#fff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);padding:10px 16px;margin:6px 0 16px;font-size:13px}
+  .gloss b{color:#1a4d7a}
+  .key{color:#c0392b;font-weight:700}
+  ul{margin:6px 0 12px;padding-left:22px}li{margin:3px 0}
+</style></head><body>
+
+<h1>Akke 评论采集 → 写库 全流程（逐步 + 每步查重）</h1>
+<div class="sub">2026-06-18（北京时区）· 一条买家评论从抖音被抓回、到落进 Akke 数据库，每一步在哪查重、多久一次、花多久 · 代码坐实</div>
+
+<div class="tabs">
+  <div class="tab on" onclick="sw('sum')">📋 汇总版</div>
+  <div class="tab" onclick="sw('det')">🔬 事无巨细详细版</div>
+</div>
+
+<!-- ================= 汇总版 ================= -->
+<div id="sum" class="view on">
+
+<div class="gloss">
+<b>一句话：</b>整条链是好几个「闹钟」（cron 定时任务）首尾接力、彼此不对齐，所以端到端时间 = 每一环等待时间叠加，不是某一环的频率。<br>
+<b>查重一共 4 层：</b>工单级、视频级、评论级、触达级 —— 其中<span class="key">只有「视频级」是真·数据库唯一约束</span>，评论级全靠代码比对。
+</div>
+
+<h2>8 步全流程一屏看</h2>
+<div class="flow">
+  <div class="step"><div class="n">0</div><div class="body">
+    <div class="ttl">派活 · 给每个号源生成抓取工单</div>
+    <div class="meta">Vercel cron 写 <code>scrape_jobs</code> 表，status=pending</div>
+    <span class="badge b-freq">全量 每小时</span><span class="badge b-freq">热号 每 3 分钟</span>
+    <span class="badge b-time">几秒</span><span class="badge b-dedup">查重① 5 分钟内已抓跳过</span>
+  </div></div>
+  <div class="step"><div class="n">1</div><div class="body">
+    <div class="ttl">worker 领工单 · poller 轮询</div>
+    <div class="meta">原子认领 pending → running，按 pri 优先级排序</div>
+    <span class="badge b-freq">每 30 秒</span><span class="badge b-time">入队→开抓 中位 1.4 分</span>
+    <span class="badge b-dedup">查重 原子 claim 防重领</span>
+  </div></div>
+  <div class="step"><div class="n">2</div><div class="body">
+    <div class="ttl">发现视频 · 这个号最近发了哪些</div>
+    <div class="meta">f2 签名 API 拉作品列表，失败降级 Playwright 滚页</div>
+    <span class="badge b-time">几秒 ~ 30 秒</span>
+    <span class="badge b-dedup key">查重② videos.url 数据库 UNIQUE（唯一真约束）→ upsert</span>
+  </div></div>
+  <div class="step"><div class="n">3</div><div class="body">
+    <div class="ttl">拉评论原文 · 翻页 + 楼中楼</div>
+    <div class="meta">默认只要近 7 天评论；带回 cid / 正文 / 昵称 / 用户 ID</div>
+    <span class="badge b-time">每视频 2~10 秒</span><span class="badge b-none">本层不去重</span>
+  </div></div>
+  <div class="step"><div class="n">4</div><div class="body">
+    <div class="ttl">写库前建查重表（内存）</div>
+    <div class="meta">查该视频 DB 已有评论 → 建 (正文,昵称) 配对表</div>
+    <span class="badge b-time">毫秒</span><span class="badge b-dedup">准备 查重主键 = (content, author)</span>
+  </div></div>
+  <div class="step"><div class="n">5</div><div class="body">
+    <div class="ttl">内容过滤 · 标 skipped 省钱（非去重）</div>
+    <div class="meta">竞品广告 / 同行噪音 → status=skipped 不送 LLM</div>
+    <span class="badge b-time">毫秒</span><span class="badge b-none">过滤 ≠ 去重</span>
+  </div></div>
+  <div class="step"><div class="n">6</div><div class="body">
+    <div class="ttl">Phase 1 写顶层评论</div>
+    <div class="meta">insert（非 upsert），插完补 cid→UUID 映射</div>
+    <span class="badge b-time">一次批量 insert</span>
+    <span class="badge b-dedup key">查重③ 代码比 (content,author)：DB 已存 + 同批已见</span>
+  </div></div>
+  <div class="step"><div class="n">7</div><div class="body">
+    <div class="ttl">Phase 2 写楼中楼 · 挂父评论</div>
+    <div class="meta">找不到顶层父就 skip 不孤悬</div>
+    <span class="badge b-time">一次批量 insert</span>
+    <span class="badge b-dedup key">查重④ 同 (content,author) + parent 反查</span>
+  </div></div>
+</div>
+
+<h2>4 层查重 · 一张表记牢</h2>
+<table>
+<thead><tr><th>层</th><th>在哪</th><th>查重 key</th><th>约束类型</th><th>insert / upsert</th></tr></thead>
+<tbody>
+<tr><td>工单级</td><td>第 0/1 步</td><td>5 分钟内同视频 + 原子 claim</td><td>机制</td><td>—</td></tr>
+<tr class="row-hl"><td>视频级</td><td>第 2 步</td><td><code>videos.url</code></td><td class="key">数据库 UNIQUE（唯一真约束）</td><td>upsert</td></tr>
+<tr><td>评论·顶层</td><td>第 6 步</td><td><code>(content, author)</code></td><td>纯应用层代码</td><td>insert</td></tr>
+<tr><td>评论·楼中楼</td><td>第 7 步</td><td><code>(content, author)</code> + parent_cid 反查</td><td>纯应用层代码</td><td>insert</td></tr>
+</tbody></table>
+
+<div class="callout red"><b>最该记住：</b><code>comments</code> 表本身<span class="key">没有数据库唯一约束</span>。评论去重完全压在 worker 那段 <code>(content, author)</code> 内存比对上。绕过这段代码直接写库，DB 拦不住。<code>douyin_cid</code>（抖音原生评论 ID）入库了，但<b>没拿来做唯一键</b>，只用于楼中楼找父评论。</div>
+
+<h2>端到端要多久</h2>
+<table>
+<thead><tr><th>场景</th><th>时间</th><th>说明</th></tr></thead>
+<tbody>
+<tr class="row-hl"><td>Tier-1 好号 最快</td><td><b>~9 分钟</b></td><td>采集5 + 打分2 + 派单2 + 领单1（各闸不对齐叠加）</td></tr>
+<tr><td>全量普通号</td><td>~1 小时起</td><td>tier-0 走每小时 cron</td></tr>
+<tr><td>高意向慢尾</td><td>中位 34 分，但 >6h 占 42%</td><td>老视频覆盖盲区，已上 cold-intent 回扫止血</td></tr>
+</tbody></table>
+
+<div class="callout">想看每个英文词的中文注释、tier/pri 等级分值表、每步代码位置、6 天延迟根因 → 点上方 <b>🔬 事无巨细详细版</b>。</div>
+
+</div>
+
+<!-- ================= 详细版 ================= -->
+<div id="det" class="view">
+
+<h2>先打底：英文词中文注释</h2>
+<div class="gloss">
+<b>cron</b>（克朗）= 定时任务，按时间表自动跑；<code>*/3 * * * *</code> 这种叫 cron 表达式。<br>
+<b>scrape</b>（斯克瑞普）= 抓取 / 采集，把抖音评论扒回来。<br>
+<b>worker</b>（沃克）= 跑在 Fly.io 云上的 Python 后台程序，专管抓取。<br>
+<b>poller</b>（破勒）= 轮询器，worker 里一直转的循环，每隔几十秒看一眼有没有活。<br>
+<b>tier</b>（提尔）= 号源<b>分层</b>等级（这个号值不值钱）。<br>
+<b>pri / priority</b>（普赖 / 普赖奥瑞提）= 抓取工单的<b>优先级</b>分值（谁先被抓）。<br>
+<b>dedup</b>（迪迪普，de-duplicate）= 去重 / 查重。<br>
+<b>upsert</b> = update + insert，存在就更新、不存在才插，不重复。<br>
+<b>UUID</b> = 数据库里每行的唯一主键字符串。<b>cid</b> = 抖音原生评论 ID。<b>sec_uid</b> = 抖音用户唯一 ID。
+</div>
+
+<h2>第 0 步 · 派活：给每个号源生成抓取工单</h2>
+<table>
+<tbody>
+<tr><th>谁干</th><td>Vercel（韦赛尔，跑前端和定时任务的云平台）上的 cron</td></tr>
+<tr><th>全量派活</th><td><code>/api/cron/scrape</code> · <code>10 * * * *</code> = 每小时的第 10 分跑（每小时 1 次）</td></tr>
+<tr><th>热号派活</th><td><code>/api/cron/scrape-hot</code> · <code>*/3 * * * *</code> = 每 3 分钟一次（只派 Tier-1 优质号）</td></tr>
+<tr><th>干啥</th><td>每个 active（活跃）源账号写一行 <code>scrape_jobs</code>（抓取工单表），status=<code>pending</code>（待办）</td></tr>
+<tr><th>耗时</th><td>几秒，纯写库</td></tr>
+</tbody></table>
+
+<h3>这里分 tier 等级（号源分层，只有 2 级）</h3>
+<table>
+<thead><tr><th>tier</th><th>含义</th><th>走哪个 cron</th><th>默认 pri</th><th>速度</th></tr></thead>
+<tbody>
+<tr><td><b>tier=0</b></td><td>默认普通号源（约 1019 个长尾号）</td><td>scrape 每小时</td><td>pri=5 慢道</td><td>慢</td></tr>
+<tr class="row-hl"><td><b>tier=1</b></td><td>优质好号（约 176 个；近 3 天高意向 ≥5 自动升，只升不降）</td><td>scrape-hot 每 3 分钟</td><td>pri=1 快道</td><td>快</td></tr>
+</tbody></table>
+<div class="hint">升 tier1 两条路：① 运营手工标；② <code>auto-tier1</code> cron（<code>0 1 * * *</code> 每天凌晨 1 点）自动升。每次升档写一行 <code>source_tier_change_log</code> 留痕。</div>
+<div class="callout"><b>查重①（工单级）</b>：<code>SCRAPE_SKIP_RECENT_MINUTES</code>（最近多少分钟内不重抓，野荞机器上已从 30 调到 <b>5</b>）跳过 5 分钟内已抓过的视频，防白抓。</div>
+
+<h2>第 1 步 · worker 领工单：poller 每 30 秒抢一次</h2>
+<table>
+<tbody>
+<tr><th>谁干</th><td>Fly.io（弗莱，东京机）上的 <code>worker/services/queue.py</code></td></tr>
+<tr><th>频率</th><td><code>POLL_INTERVAL_SECONDS = 30</code> = 每 30 秒转一圈（空队列睡 30 秒，有活立刻干）</td></tr>
+<tr><th>怎么领</th><td>调数据库函数 <code>claim_pending_scrape_jobs_batch</code>（原子批量认领），pending → <code>running</code>，<code>attempts</code>（尝试次数）+1</td></tr>
+<tr><th>重试上限</th><td><code>MAX_ATTEMPTS = 3</code> = 抓 3 次失败就排除（变「墓碑」永久 pending）</td></tr>
+<tr><th>实测延迟</th><td>入队 → 开抓 <b>中位 1.4 分钟</b>（worker 有大余量，每小时空转约 50 分钟）</td></tr>
+</tbody></table>
+
+<h3>pri 优先级体系（查代码坐实，无配置表，硬编码 7 个入队点）</h3>
+<table>
+<thead><tr><th>pri</th><th>哪种活</th><th>含义</th></tr></thead>
+<tbody>
+<tr><td><b>0</b> 最急</td><td>高意向注入(#363) / VIP 视频复扫 / UI 手动「立即抓」</td><td>插队最前</td></tr>
+<tr><td><b>1</b></td><td>常规单视频 fresh-catch（新鲜捕捞）</td><td>快</td></tr>
+<tr><td><b>3</b></td><td>tier-1 整号活 / rescan-recent / cold-intent 回扫</td><td>中</td></tr>
+<tr><td><b>5</b> 最慢</td><td>tier-0 每小时（默认值 <code>priority INT DEFAULT 5</code>）/ hot-rotation</td><td>慢</td></tr>
+</tbody></table>
+<div class="hint">领单排序 <code>ORDER BY priority ASC, scheduled_at ASC</code>（pri 数字小的先，同 pri 先到先抓）。</div>
+<div class="callout red"><b>已知坑（pri 防饿死）</b>：原来严格抢占 → 只要 pri=1 源源不断，<b>pri=5 的 tier-0 会被饿死</b>。6/11 出过 P1 事故：普通号连续 <b>27 小时</b>一条没抓到。修法 migration <code>20260615144043</code> 加 <b>aging（等久升档）</b>：每等 6 小时有效优先级升 1 级，等满 24 小时追平 pri=1 但永不超过。</div>
+
+<h2>第 2 步 · 发现视频：这个号最近发了哪些</h2>
+<table>
+<tbody>
+<tr><th>函数</th><td><code>worker/services/discoverer.py</code> → <code>discover_videos_from_profile()</code></td></tr>
+<tr><th>快路径</th><td>f2（抖音 API 签名库）签名调 <code>fetch_user_posts()</code>（拉作品列表），快</td></tr>
+<tr><th>慢降级</th><td>快路径失败才启 Playwright（普雷赖特，浏览器自动化）滚 DOM（页面元素）收视频卡</td></tr>
+<tr><th>抓几条</th><td>默认每号最近 ~20 条；tier1 好号抓到第 11–20 条仍贡献约 26% 高意向</td></tr>
+<tr><th>写库</th><td><code>_persist_discovered_videos()</code>：先查 DB 已有 url → 过滤新的 → <code>videos.upsert(rows, on_conflict="url")</code></td></tr>
+<tr><th>耗时</th><td>快路径几秒；Playwright 降级每号约 10–30 秒</td></tr>
+</tbody></table>
+<div class="callout"><b>查重②（视频级，全链唯一一处真·数据库约束）</b>：<code>videos.url</code> 在 <code>001_initial_schema.sql</code> 上有 <span class="key">UNIQUE</span>（唯一）约束。同一视频 url 撞了走 upsert，只刷新 <code>scraped_at</code>（抓取时间）。</div>
+
+<h2>第 3 步 · 拉评论原文：翻页 + 楼中楼</h2>
+<table>
+<tbody>
+<tr><th>函数</th><td><code>worker/services/comment_api.py</code> → <code>fetch_comments()</code></td></tr>
+<tr><th>怎么拉</th><td>f2 签名调抖音 web 评论 API，循环翻页（cursor 游标分页）</td></tr>
+<tr><th>时间窗</th><td>默认只要<b>近 7 天</b>评论（cutoff 截止线丢老评论，这是<b>过滤不是去重</b>）</td></tr>
+<tr><th>楼中楼</th><td>顶层评论有子回复的，再调 <code>_fetch_replies()</code> 拉嵌套</td></tr>
+<tr><th>带回字段</th><td><code>cid</code>（原生评论 ID）/ <code>parent_cid</code>（父评论 cid）/ content（正文）/ author（昵称）/ <code>douyin_user_id</code>（sec_uid）/ ip_location（IP 属地）</td></tr>
+<tr><th>耗时</th><td>每视频约 2–10 秒（看评论数与翻页轮数）</td></tr>
+<tr><th>去重</th><td><b>本层不去重</b>，纯拿数据</td></tr>
+</tbody></table>
+<div class="callout red"><b>6/13 最大发现</b>：抖音发视频接口本身有 <b>~6 天延迟</b>，导致 99% 评论一抓回来就已超 7 天窗、过期。这是端到端慢尾真因之一（不是排队问题）。</div>
+
+<h2>第 4 步 · 写库前在内存里建查重表</h2>
+<p>进 <code>worker/services/scraper.py</code> → <code>scrape_video_comments()</code> 后，查该 video_id 下 DB 已有评论，建两张内存表：</p>
+<ul>
+<li><span class="key"><code>existing_by_ca = {(content, author): id}</code></span> ← <b>这就是查重主键</b>：用「评论正文 + 昵称」两字段配对。</li>
+<li><code>cid_to_uuid = {douyin_cid: id}</code> ← <b>不是用来去重的</b>，是给楼中楼找顶层父评论的 UUID（数据库主键）用。</li>
+</ul>
+
+<h2>第 5 步 · 内容过滤：标 skipped 省 LLM 钱（不是去重）</h2>
+<p>每条过 <code>_shape_row()</code> 跑两个判定：</p>
+<ul>
+<li><code>is_competitor_ad()</code>（是不是竞品广告）→ <code>status=skipped</code>（跳过），<code>intent_label=无关</code>，不送 LLM。</li>
+<li><code>is_low_value_noise()</code>（低价值噪音：同行昵称 / 全 emoji / @AI 调用）→ 同样 skipped。</li>
+<li>正常评论 → <code>status=pending</code>，留给打分。</li>
+</ul>
+<div class="hint">背景：7 天窗数据里「无关」占 57%，主要是这类噪音，先砍掉省钱。</div>
+
+<h2>第 6 步 · Phase 1 写顶层评论：查重落地</h2>
+<table>
+<tbody>
+<tr><th>怎么查重</th><td>每条算 <code>key=(content, author)</code>，命中 <code>existing_by_ca</code>（DB 已有）<b>或</b> <code>seen_in_batch</code>（本批已见）就跳过</td></tr>
+<tr><th>写库</th><td>城市富化后 <code>comments.insert(top_rows)</code> —— 是 <b>insert 不是 upsert</b></td></tr>
+<tr><th>插完</th><td>把新行 <code>douyin_cid → id</code> 补进 <code>cid_to_uuid</code>，给 Phase 2 用</td></tr>
+</tbody></table>
+<div class="callout"><b>查重③（评论·顶层）</b>：<span class="key">纯应用层代码</span>，<code>(content, author)</code> 双重比对 —— 既比 DB 已存、也比同批翻页重叠。<br><b>为什么要 seen_in_batch（本批已见集合）</b>：f2 翻页 cursor + 顶层/嵌套返回会重叠，2026-05-20 实测有 <b>13.5%</b> 入库行是同毫秒完全相同的重复，靠这个集合挡住。</div>
+
+<h2>第 7 步 · Phase 2 写楼中楼：同款查重 + 挂父评论</h2>
+<table>
+<tbody>
+<tr><th>查重</th><td>同 <code>(content, author)</code> 比对（DB + seen_in_batch）</td></tr>
+<tr><th>挂父</th><td><code>parent_uuid = cid_to_uuid.get(parent_cid)</code>，找不到顶层父就 <b>skip 不孤悬</b></td></tr>
+<tr><th>写库</th><td><code>comments.insert(nested_rows)</code>，带 <code>parent_comment_id</code>（父评论外键）</td></tr>
+</tbody></table>
+<div class="callout"><b>查重④（评论·楼中楼）</b>：同 <code>(content, author)</code> 应用层逻辑 + parent_cid 反查兜底。至此评论落库，<code>status=pending</code>，等下游打分。</div>
+
+<h2>下游（采集之外，顺带看清全链时间）</h2>
+<table>
+<thead><tr><th>段</th><th>cron / 机制</th><th>频率</th><th>干啥</th></tr></thead>
+<tbody>
+<tr><td>②打分 analyze</td><td><code>/api/cron/analyze</code></td><td><code>*/2</code> 每 2 分钟</td><td>给新评论打意向分（高/中/低/无关），高/中意向生成草稿</td></tr>
+<tr><td>③派单 dispatch</td><td><code>/api/cron/cloud-pc-dispatch</code></td><td><code>* * * * *</code> 每分钟</td><td>喂 DM 队列给云电脑 agent</td></tr>
+<tr><td>库存补单</td><td><code>/api/cron/feed-backlog</code></td><td>每 2 小时</td><td>喂未触达高意向库存</td></tr>
+<tr><td>云电脑领单</td><td><code>wuying_poll_agent.py</code></td><td>60 秒</td><td>领队列 → GUI 自动发</td></tr>
+</tbody></table>
+
+<h3>端到端实测时间</h3>
+<table>
+<thead><tr><th>场景</th><th>时间</th><th>说明</th></tr></thead>
+<tbody>
+<tr class="row-hl"><td>Tier-1 好号 最快</td><td><b>~9 分钟</b></td><td>采集5 + 打分2 + 派单2 + 领单1（各闸不对齐叠加）</td></tr>
+<tr><td>全量普通号</td><td>~1 小时起</td><td>tier-0 走每小时 cron</td></tr>
+<tr><td>高意向慢尾</td><td>中位 34 分，>1h 占 47% / >6h 占 42% / >12h 占 38%</td><td>就是日报里标 <code>expired_at_claim</code>（领单时已过期）被跳过那批</td></tr>
+</tbody></table>
+<div class="hint">慢尾真因 = <b>老视频覆盖盲区</b>（tier-1 只重扫最近 ≤20 条视频，老视频被挤出就不再定期扫），已上 <code>cold-intent-rescan</code>（<code>*/20</code> 每 20 分钟回扫近 14 天仍冒意向的老视频）止血。</div>
+
+<h2>触达层还有第二套查重（和采集无关，别混）</h2>
+<table>
+<thead><tr><th>查重点</th><th>key</th><th>机制</th></tr></thead>
+<tbody>
+<tr><td>lead 锁</td><td><code>(org_id, douyin_user_id)</code></td><td><code>lead_claims</code> 表锁 4 小时，防多人重复 claim 同一用户</td></tr>
+<tr><td>派单在途</td><td><code>(org_id, douyin_user_id)</code> where status in (pending,claimed)</td><td><code>dispatch_queue</code> 唯一索引，撞了报 <b>23505</b>（PG 唯一冲突码）→ 标 dedup</td></tr>
+<tr><td>消息幂等</td><td><code>(conversation_id, content, role=ai, status=sent)</code> 15 分钟内</td><td><code>mark_lead_contacted</code> RPC，重复调不双发</td></tr>
+</tbody></table>
+
+<div class="callout red"><b>一句话总览查重在哪：</b><br>
+1. <b>工单级</b>：5 分钟内不重抓 + 原子 claim 防重领。<br>
+2. <b>视频级</b>：<code>videos.url</code> 数据库 UNIQUE（唯一真约束）→ upsert。<br>
+3. <b>评论级（顶层+楼中楼）</b>：<span class="key">纯代码 (content, author) 配对</span>，DB 比 + 同批比。<b>comments 表本身没有数据库唯一约束</b> —— 最该记住的一点。<br>
+4. <b>触达级</b>：lead_claims + dispatch_queue(23505) + 消息 15 分钟幂等，三重。</div>
+
+</div>
+
+<div class="foot">Akke · 评论采集 → 写库全流程与查重 · 2026-06-18 · 代码坐实（vercel.json / queue.py / scraper.py / comment_api.py / discoverer.py / supabase migrations）。频率与等级随代码漂移，引用前以仓内为准。</div>
+
+<script>
+function sw(id){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+  event.target.classList.add('on');
+  window.scrollTo(0,0);
+}
+</script>
+</body></html>
