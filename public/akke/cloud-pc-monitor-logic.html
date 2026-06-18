@@ -104,7 +104,8 @@
         <div style="font-size:13.5px;color:var(--muted);margin-top:4px">
           ① 先写兜底日志 <code>cloudpc-alerts.log</code><br>
           ② POST 到 <b>Lark 群机器人 webhook</b>（绕开应用 API 配额）<br>
-          ③ 带账号名，哪台出事推哪台
+          ③ 带账号名，哪台出事推哪台<br>
+          ④ <b>真问题（🔴/🟠）@ 负责人</b>，确保不漏；恢复/自检不 @
         </div>
       </div>
     </div>
@@ -192,6 +193,58 @@
   </div>
   <div style="font-size:13px;color:var(--muted);margin-top:-4px">
     加 / 撤一台：改包装脚本里的 <code>CLOUDPC_MONITOR_ACCOUNTS</code>（逗号分隔账号 id）即可，无需改代码。
+  </div>
+
+  <h2>同事怎么部署到自己的云电脑（自助安装）</h2>
+  <div class="card">
+    <div style="font-size:14px;margin-bottom:12px">
+      每个同事<b>在自己机器上装一套</b>，各自监控各自那台云电脑、出问题 @ 自己。完整命令见仓库 runbook
+      <code>docs/runbooks/cloudpc-monitor-setup.md</code>，这里是速览。
+    </div>
+
+    <div style="font-size:13.5px;color:var(--text);font-weight:600;margin-bottom:6px">前提（缺一不可）</div>
+    <ul class="clean" style="margin-bottom:14px">
+      <li>本机已装 <b>Hermes</b> 且能跑（<code>hermes gateway status</code> 正常、已连 Lark）</li>
+      <li>本机有 <b>Akke 仓</b>，<code>.env.local</code> 里有你自己的 <code>AKKE_ACCOUNT_ID</code>（PM 下发、绑你那台云电脑发送号）</li>
+      <li><code>node</code> + <code>pnpm</code> 可用</li>
+    </ul>
+
+    <div class="flow">
+      <div class="step"><div class="dot">1</div><div class="body">
+        <div class="t">拉取检测脚本（随仓走，不用自己写）</div>
+        <div class="d"><code>cd &lt;你的 Akke 仓&gt; &amp;&amp; git pull</code> —— 拿到 <code>scripts/cloudpc-monitor-tick.ts</code>。</div>
+      </div></div>
+      <div class="arrow">▼</div>
+      <div class="step"><div class="dot">2</div><div class="body">
+        <div class="t">在 Akke <code>.env.local</code> 加配置</div>
+        <div class="d">
+          <code>CLOUDPC_ALERT_LARK_WEBHOOK=&lt;找 PM 要群 webhook&gt;</code><br>
+          <code>CLOUDPC_ALERT_AT_OPENID=&lt;你的 Lark open_id&gt;</code> —— 出问题 @ 你（不填则不 @）<br>
+          只监控自己一台：<b>不用</b>填账号，脚本默认用 <code>AKKE_ACCOUNT_ID</code>；多台才填 <code>CLOUDPC_MONITOR_ACCOUNTS=id1,id2</code>
+        </div>
+      </div></div>
+      <div class="arrow">▼</div>
+      <div class="step"><div class="dot">3</div><div class="body">
+        <div class="t">建包装脚本</div>
+        <div class="d">
+          <b>mac/Linux</b>：<code>~/.hermes/scripts/cloudpc-monitor.sh</code>（补 node/pnpm 路径 + cd 到 Akke 仓 + 跑 <code>pnpm tsx scripts/cloudpc-monitor-tick.ts</code>）<br>
+          <b>Windows</b>：写成 <code>cloudpc-monitor.py</code>（Hermes cron 对非 .sh 走 Python，跨平台更稳）。模板见 runbook。
+        </div>
+      </div></div>
+      <div class="arrow">▼</div>
+      <div class="step"><div class="dot">4</div><div class="body">
+        <div class="t">注册定时任务</div>
+        <div class="d"><code>hermes cron create "*/10 9-21 * * *" --name cloudpc-monitor --no-agent --script cloudpc-monitor.sh --deliver local</code></div>
+      </div></div>
+      <div class="arrow">▼</div>
+      <div class="step"><div class="dot">5</div><div class="body">
+        <div class="t">自检一次</div>
+        <div class="d"><code>pnpm tsx scripts/cloudpc-monitor-tick.ts --force-test</code> → 去 Lark 群看有没有收到「🧪 自检」。收到=装好了。</div>
+      </div></div>
+    </div>
+    <div style="margin-top:10px;font-size:13px;color:var(--muted)">
+      装完就只管用：健康全程安静，出问题自动 @ 你。要暂停 <code>hermes cron pause &lt;jobid&gt;</code>。
+    </div>
   </div>
 
   <h2>关键组件 & 常用命令</h2>
