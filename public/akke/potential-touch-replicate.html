@@ -44,6 +44,18 @@
 <p><b>GUI 执行器</b> = <code>douyin_comment_grounded.py</code>，像真人一样移鼠标/打字/点按钮/截屏验证（点赞评论抖音没接口，只能扮真人）。<b>它脆就脆在屏幕/焦点/坐标一变就出错。</b><br>
 <b>回写</b>：本地表模式下触达写本地 <code>comment_log_YYYYMMDD.csv</code>，需<b>摆渡回 mac 跑 <code>mark-second-touch.ts</code> 入库</b>（端点直连回写还没做，见雷点④+roadmap）。</p>
 
+<h2>0.5 · 潜在触达的人(sec_uid)哪来的 + 两个 id 别混（常被问）</h2>
+<p><b>sec_uid 不是单独「抓」的——评论采集就随评论入库了。</b>每条评论入库时，评论者的 <code>douyin_user_id</code>(=sec_uid)一起写进 <code>comments</code> 表，全站 sec_uid 都来自这。潜在触达<b>不另外抓 id</b>，只是 <code>second-touch-worklist.ts</code> 从已有 sec_uid 里<b>按规则筛名单</b>（DM 过 + ≥N 天没回 + 高/中意向 + 未 stopped + next_eligible 到期）。</p>
+<p><b class="warn">两个 id 别混（排障关键）</b>：</p>
+<table>
+<tr><th>id</th><th>是什么</th><th>哪来的</th><th>能搜人?</th></tr>
+<tr><td><code>sec_uid</code><br>(<code>douyin_user_id</code>, <code>MS4w…</code>)</td><td>抖音内部稳定 id</td><td>✅ 评论采集就有、一路带到队列</td><td class="bad">❌ 搜索框打不进去</td></tr>
+<tr><td><b>抖音号</b><br>(<code>unique_id</code>, 如 2091195012)</td><td>人看的账号号</td><td>❌ comments 没存、要现场反查</td><td class="ok">✅ 搜它最准·不撞名</td></tr>
+</table>
+<p><b>enrich 接在消费端补这一步</b>：消费拿到 sec_uid → <code>resolve_number(sec)</code> 现场反查出抖音号 → 填进搜索词按号精确核身（治撞名 + 未知客户无昵称，雷点⑧）；反查失败回退昵称搜、不挡发。一条龙：</p>
+<pre>评论采集 → comments.sec_uid → worklist 筛名单 → special-follow.json(secUid列表)
+→ 监控逮新视频(队列带 sec_uid) → 消费 enrich: sec_uid→抖音号 → 按号搜对人</pre>
+
 <h2>1 · 前置 · 机器与账号</h2>
 <ul>
 <li><b>无影云电脑</b>（个人版即可），<b>抖音 PC 客户端已登录你的 messaging 账号</b>（跟你 <code>AKKE_ACCOUNT_ID</code> 绑定那个）。</li>
