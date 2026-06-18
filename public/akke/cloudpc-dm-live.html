@@ -117,6 +117,7 @@
   .datenav button { background:var(--bg-elevated); border:1px solid var(--border-strong); color:var(--text-dim); border-radius:8px; padding:6px 13px; font-size:13px; font-family:inherit; cursor:pointer; }
   .datenav button:hover:not(:disabled) { border-color:var(--accent); color:var(--text); }
   .datenav button:disabled { opacity:.38; cursor:not-allowed; }
+  .datenav button.active { background:var(--accent-soft); border-color:var(--accent); color:#c4b5fd; font-weight:600; }
   .datenav .cur { font-size:14px; font-weight:600; color:var(--text); font-variant-numeric:tabular-nums; }
   .datenav input[type=date] { background:var(--bg-elevated); border:1px solid var(--border-strong); color:var(--text); border-radius:8px; padding:5px 10px; font-family:inherit; font-size:13px; color-scheme:dark; }
   .datenav .live-badge { font-size:12px; color:var(--ok); }
@@ -189,18 +190,17 @@ function apiUrl(){ return API_BASE + (isToday() ? "" : "&date=" + viewDate) + "&
 function goDate(ds){ if(ds > TODAY) ds = TODAY; viewDate = ds;
   const u = new URL(location.href); if(isToday()) u.searchParams.delete("date"); else u.searchParams.set("date", viewDate);
   history.replaceState(null, "", u); renderDateNav(); load(); }
-function renderDateNav(){ const nav = $("dateNav"); if(!nav) return; const t = isToday();
-  nav.innerHTML =
-    '<button id="dPrev">← 前一天</button>' +
-    '<span class="cur">' + viewDate + '</span>' +
-    '<button id="dNext"' + (t?" disabled":"") + '>后一天 →</button>' +
-    '<button id="dToday"' + (t?" disabled":"") + '>回到今日</button>' +
-    '<input type="date" id="dPick" max="' + TODAY + '" value="' + viewDate + '">' +
-    (t ? '<span class="live-badge">● 实时 · 每 60s 刷新</span>'
-       : '<span class="hist-badge">■ 历史快照 · ' + viewDate + '（北京整日，不再自动刷新）</span>');
-  $("dPrev").onclick = () => goDate(addDays(viewDate, -1));
-  $("dNext").onclick = () => { if(!isToday()) goDate(addDays(viewDate, 1)); };
-  $("dToday").onclick = () => { if(!isToday()) goDate(TODAY); };
+function renderDateNav(){ const nav = $("dateNav"); if(!nav) return;
+  const labels = ["今天","昨天","前天"];   // 最近 4 天快捷：今天 / 昨天 / 前天 / 第4天(MM-DD)
+  let html = "";
+  for(let i=0;i<4;i++){ const d = addDays(TODAY, -i);
+    html += '<button class="day' + (d===viewDate?" active":"") + '" data-d="' + d + '">'
+          + (labels[i] ? labels[i]+" " : "") + d.slice(5) + '</button>'; }
+  html += '<input type="date" id="dPick" max="' + TODAY + '" value="' + viewDate + '" title="更早的日期">';
+  html += isToday() ? '<span class="live-badge">● 实时 · 每 60s 刷新</span>'
+                    : '<span class="hist-badge">■ 历史快照 · ' + viewDate + '（北京整日，不再自动刷新）</span>';
+  nav.innerHTML = html;
+  nav.querySelectorAll("button.day").forEach(b => { b.onclick = () => goDate(b.dataset.d); });
   $("dPick").onchange = (e) => { if(/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) goDate(e.target.value); };
 }
 

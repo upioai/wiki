@@ -44,7 +44,8 @@
 
   h2 { font-size:12px; font-weight:600; color:var(--text-muted); letter-spacing:.12em; text-transform:uppercase; margin:34px 0 14px; }
 
-  .kpis { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; }
+  .kpis { display:grid; grid-template-columns:repeat(7,1fr); gap:10px; }
+  @media(max-width:1080px){ .kpis{ grid-template-columns:repeat(4,1fr);} }
   @media(max-width:900px){ .kpis{ grid-template-columns:repeat(3,1fr);} }
   @media(max-width:560px){ .kpis{ grid-template-columns:repeat(2,1fr);} }
   .kpi { background:var(--bg-elevated); border:1px solid var(--border); border-radius:12px; padding:14px 15px; }
@@ -112,7 +113,15 @@
   code { background:var(--bg-deep); padding:1px 6px; border-radius:4px; font-size:.86em; color:#c4b5fd; font-family:"SF Mono",Menlo,Consolas,monospace; }
   .privacy { margin-top:14px; padding:12px 16px; border-radius:10px; background:rgba(251,191,36,.08); border:1px solid rgba(251,191,36,.25); color:#fcd34d; font-size:12.5px; }
   .err-banner { display:none; background:rgba(248,113,113,.1); border:1px solid rgba(248,113,113,.3); color:#fca5a5; border-radius:10px; padding:12px 16px; font-size:14px; margin-bottom:20px; }
-.dtbtn{padding:6px 15px;border:1px solid #d0d7e2;background:#fff;border-radius:8px;cursor:pointer;font-size:13px;color:#667085}.dtbtn.active{background:#2563eb;color:#fff;border-color:#2563eb;font-weight:600}
+  .datenav { display:flex; align-items:center; gap:9px; flex-wrap:wrap; margin-bottom:18px; }
+  .datenav button { background:var(--bg-elevated); border:1px solid var(--border-strong); color:var(--text-dim); border-radius:8px; padding:6px 13px; font-size:13px; font-family:inherit; cursor:pointer; }
+  .datenav button:hover:not(:disabled) { border-color:var(--accent); color:var(--text); }
+  .datenav button:disabled { opacity:.38; cursor:not-allowed; }
+  .datenav button.active { background:var(--accent-soft); border-color:var(--accent); color:#c4b5fd; font-weight:600; }
+  .datenav .cur { font-size:14px; font-weight:600; color:var(--text); font-variant-numeric:tabular-nums; }
+  .datenav input[type=date] { background:var(--bg-elevated); border:1px solid var(--border-strong); color:var(--text); border-radius:8px; padding:5px 10px; font-family:inherit; font-size:13px; color-scheme:dark; }
+  .datenav .live-badge { font-size:12px; color:var(--ok); }
+  .datenav .hist-badge { font-size:12px; color:var(--warn); }
 </style>
 </head>
 <body>
@@ -127,8 +136,9 @@
 
   <div class="err-banner" id="errBanner"></div>
 
-  <div style="margin:14px 0 4px;display:flex;gap:8px;align-items:center"><button id="btnToday" class="dtbtn active" onclick="setView(null)">今日实时</button><button id="btnYst" class="dtbtn" onclick="setView(String.fromCharCode(89))">昨天</button></div>
-  <h2><span id="viewTitle">今日概览</span> <span id="dateLab" style="letter-spacing:0;color:var(--text-muted)"></span></h2>
+  <div class="datenav" id="dateNav"></div>
+
+  <h2>今日概览 <span id="dateLab" style="letter-spacing:0;color:var(--text-muted)"></span></h2>
   <div class="kpis" id="kpis"></div>
 
   <h2>端到端分布（评论 → 发出）</h2>
@@ -148,7 +158,7 @@
   <div class="notes">
     <b>口径说明</b>
     <ul>
-      <li><b>只看这一个账号</b>：有大有小 <code>9535e31c</code>，云电脑（无影）自动化通道 <code>dispatch_queue</code> 一触私信。二触（评论区唤回）、反评、其他运营账号、人工 ADB/WDA 发送都<b>不在</b>本页。</li>
+      <li><b>只看这一个账号</b>：有大有小<code>9535e31c</code>，云电脑（无影）自动化通道 <code>dispatch_queue</code> 一触私信。二触（评论区唤回）、反评、其他运营账号、人工 ADB/WDA 发送都<b>不在</b>本页。</li>
       <li><b>8 节点时间轴</b>：<b>视频发布</b>=<code>videos.published_at</code>（常缺，置灰）；<b>评论</b>=<code>comments.comment_time</code>（抖音未回传时缺，不计入达标率）；<b>抓取</b>=<code>comments.created_at</code>（爬虫入库）；<b>打分</b>=<code>comments.analyzed_at</code>（06-11 前历史行 NULL）；<b>生成话术</b>=<code>llm_call_provenance</code> 按评论回链取最早；<b>派单</b>=<code>dispatch_queue.created_at</code>；<b>触达</b>=<code>completed_at</code>（仅 <code>status=sent</code> 点亮，无影 GUI 真发出）；<b>回复</b>=<code>messages.role=customer</code> 最早一条。</li>
       <li><b>段颜色</b>只热「我们能控的段」，阈值各段不同（口径与<a href="/akke/journeys.html">客户旅程页</a>一致）：评论→抓取🟢&lt;3h、抓取→打分🟢&lt;15m、打分→生成话术🟢&lt;3h、生成话术→派单🟢&lt;10m、派单→触达🟢&lt;30m；视频→评论、触达→回复 = 客户行为，灰。</li>
       <li><b>端到端</b> = 评论 → 发出，目标 ≤10min（🟢达标 / 🟡10–30min / 🔴&gt;30min，右上徽章）。<b>通道内</b> = 派单 → 发出（抢锁+GUI 串发，我们 100% 可控的段）。<code>pending/claimed</code> 进行中行：派单→触达段显示「已等 X」（蓝色脉冲）。</li>
@@ -162,11 +172,37 @@
 </div>
 
 <script>
-const ACCOUNT_ID = "9535e31c-bced-4cf6-93d1-0f8699df4cb0"; // 有大有小 cloud_pc
-const API = "https://akke.vercel.app/api/public/cloud-pc-dm-live?account=" + ACCOUNT_ID;
-let viewDate=null; // null=今日实时；YYYY-MM-DD=历史日(昨天)
+const ACCOUNT_ID = "9535e31c-bced-4cf6-93d1-0f8699df4cb0"; // 有大有小
+const API_BASE = "https://akke.vercel.app/api/public/cloud-pc-dm-live?account=" + ACCOUNT_ID;
 const TARGET_MIN = 10;
 const $ = (id) => document.getElementById(id);
+
+// ── 历史日查看（?date=YYYY-MM-DD）：日界滚动后仍可回看当天发送记录，不丢历史 ──
+function pad2(n){ return String(n).padStart(2,"0"); }
+function bjToday(){ const d=new Date(Date.now()+8*3600000); return d.getUTCFullYear()+"-"+pad2(d.getUTCMonth()+1)+"-"+pad2(d.getUTCDate()); }
+function addDays(ds, n){ const [y,m,d]=ds.split("-").map(Number); const t=new Date(Date.UTC(y,m-1,d)); t.setUTCDate(t.getUTCDate()+n);
+  return t.getUTCFullYear()+"-"+pad2(t.getUTCMonth()+1)+"-"+pad2(t.getUTCDate()); }
+const TODAY = bjToday();
+const _qd = new URLSearchParams(location.search).get("date") || "";
+let viewDate = (/^\d{4}-\d{2}-\d{2}$/.test(_qd) && _qd <= TODAY) ? _qd : TODAY;
+function isToday(){ return viewDate === TODAY; }
+function apiUrl(){ return API_BASE + (isToday() ? "" : "&date=" + viewDate) + "&_t=" + Date.now(); }
+function goDate(ds){ if(ds > TODAY) ds = TODAY; viewDate = ds;
+  const u = new URL(location.href); if(isToday()) u.searchParams.delete("date"); else u.searchParams.set("date", viewDate);
+  history.replaceState(null, "", u); renderDateNav(); load(); }
+function renderDateNav(){ const nav = $("dateNav"); if(!nav) return;
+  const labels = ["今天","昨天","前天"];   // 最近 4 天快捷：今天 / 昨天 / 前天 / 第4天(MM-DD)
+  let html = "";
+  for(let i=0;i<4;i++){ const d = addDays(TODAY, -i);
+    html += '<button class="day' + (d===viewDate?" active":"") + '" data-d="' + d + '">'
+          + (labels[i] ? labels[i]+" " : "") + d.slice(5) + '</button>'; }
+  html += '<input type="date" id="dPick" max="' + TODAY + '" value="' + viewDate + '" title="更早的日期">';
+  html += isToday() ? '<span class="live-badge">● 实时 · 每 60s 刷新</span>'
+                    : '<span class="hist-badge">■ 历史快照 · ' + viewDate + '（北京整日，不再自动刷新）</span>';
+  nav.innerHTML = html;
+  nav.querySelectorAll("button.day").forEach(b => { b.onclick = () => goDate(b.dataset.d); });
+  $("dPick").onchange = (e) => { if(/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) goDate(e.target.value); };
+}
 
 function esc(s){ return (s==null?"":String(s)).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
 function fmtTs(iso){ if(!iso) return "未知"; const d=new Date(iso); if(isNaN(d)) return "未知";
@@ -356,9 +392,12 @@ function render(p){
   const within = e2es.filter(ms=>ms<=TARGET_MIN*60000).length;
   const rate = e2es.length ? Math.round(within/e2es.length*100) : null;
   const med = median(e2es), medChan = median(chans);
+  const highSent = sent.filter(r=>r.intentLabel==="高意向").length;
+  const highRate = sent.length ? Math.round(highSent/sent.length*100) : null;
 
   $("kpis").innerHTML =
     kpi("今日已发", sent.length + `<span style="font-size:14px;color:var(--text-muted)"> / ${p.account?.dailyLimit||"–"}</span>`, "", "日限") +
+    kpi("高意向占比", highRate==null?"—":highRate+"%", highRate==null?"dim":highRate>=50?"ok":"", `${highSent}/${sent.length} 已发为高意向`) +
     kpi("≤10min 达标率", rate==null?"—":rate+"%", rate==null?"dim":rate>=80?"ok":rate>=50?"warn":"bad", `${within}/${e2es.length} 条（有评论时间的）`) +
     kpi("端到端中位", med==null?"—":fmtMin(med), med==null?"dim":med<=TARGET_MIN*60000?"ok":med<=30*60000?"warn":"bad", "评论 → 发出") +
     kpi("通道内中位", medChan==null?"—":fmtMin(medChan), medChan==null?"dim":medChan<=5*60000?"ok":medChan<=TARGET_MIN*60000?"warn":"bad", "派单 → 发出") +
@@ -409,14 +448,16 @@ function setStatus(ok, text){ $("statusDot").className="dot"+(ok?"":" err"); $("
 
 async function load(){
   try{
-    const res = await fetch(API + (viewDate?"&date="+viewDate:"") + "&_t=" + Date.now(), {cache:"no-store"});
+    const res = await fetch(apiUrl(), {cache:"no-store"});
     if(!res.ok) throw new Error("HTTP "+res.status);
     const payload = await res.json();
     if(payload.error) throw new Error(payload.error);
     render(payload);
     const t = new Date(payload.generatedAt);
     const p=(n)=>String(n).padStart(2,"0");
-    setStatus(true, (payload.stale?"⚠ 降级缓存 · ":"实时 · ")+`更新于 ${p(t.getHours())}:${p(t.getMinutes())}:${p(t.getSeconds())}`);
+    setStatus(true, isToday()
+      ? (payload.stale?"⚠ 降级缓存 · ":"实时 · ")+`更新于 ${p(t.getHours())}:${p(t.getMinutes())}:${p(t.getSeconds())}`
+      : "历史快照 · "+viewDate+"（北京整日）");
     $("errBanner").style.display="none";
   }catch(e){
     setStatus(false, "数据获取失败");
@@ -424,9 +465,9 @@ async function load(){
   }
 }
 
-function setView(d){ if(d===String.fromCharCode(89)){const y=new Date(Date.now()+8*3600e3-24*3600e3);viewDate=y.toISOString().slice(0,10);}else{viewDate=null;} document.getElementById(String.fromCharCode(98)+"tnToday").classList.toggle("active",!viewDate); document.getElementById("btnYst").classList.toggle("active",!!viewDate); document.getElementById("viewTitle").textContent=viewDate?("昨天 "+viewDate):"今日概览"; load(); }
+renderDateNav();
 load();
-setInterval(function(){ if(!viewDate) load(); }, 60000);
+setInterval(()=>{ if(isToday()) load(); }, 60000);
 </script>
 </body>
 </html>
