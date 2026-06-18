@@ -29,6 +29,17 @@
   .kpi b{display:block;font-size:22px}.kpi span{font-size:12px;color:var(--mut)}
   .tag{font-size:11px;color:var(--mut);border:1px solid var(--line);border-radius:5px;padding:0 5px}
   mark{background:#fff19a;padding:1px 4px;border-radius:3px;color:var(--ink);font-weight:600;box-shadow:0 0 0 1px #f3d34a inset}
+  .bx{border:2px solid var(--line);border-radius:12px;padding:12px 16px;margin:10px 0;background:#fff}
+  .bx .t{font-size:15px;font-weight:700;margin-bottom:4px}
+  .bx .d{font-size:14px;color:#333}
+  .bx .n{display:inline-block;width:26px;height:26px;line-height:26px;text-align:center;border-radius:50%;background:var(--ac);color:#fff;font-weight:700;margin-right:8px;font-size:14px}
+  .two{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0}
+  .two .bx{flex:1;min-width:240px;margin:0}
+  .dm{border-color:#0969da;background:#f0f7ff}
+  .rb{border-color:#1a7f37;background:#f1fbf3}
+  .arw{text-align:center;font-size:20px;color:var(--mut);margin:4px 0}
+  .win{border:3px solid #cf222e;background:#fff5f5;border-radius:12px;padding:14px 16px;text-align:center;font-size:16px;font-weight:700;margin:10px 0}
+  .res{border:2px solid var(--g);background:#eafaef;border-radius:12px;padding:12px 16px;font-size:14px;margin:10px 0}
 </style>
 </head>
 <body>
@@ -67,25 +78,27 @@
 <mark>结论：DM 之前 0 发纯是被 2030 暂停挡的，不是没供给；解除后新鲜单立刻能发。</mark>而且连手动强塞的超时单都被 fw=10 自动作废——<mark>≤10min 口径是自动硬守住的</mark>。
 </div>
 
-<h2>2 · 0→1 逻辑原理图（抢占式分时窗口锁）</h2>
-<div class="flow">  一台无影 · 唯一抖音前台窗口（SetForegroundWindow/SendInput 全局，并发=抢焦点+混键入）
-  ┌────────────────────────────────────────────────────────────────┐
-  │  DM 进程   wuying_poll_agent.py → douyin_dm_grounded.py          │
-  │    每 1s 查 dispatch_queue；有【评论≤10min】高/中意向单 → 发私信  │
-  │                                                                  │
-  │  route-B 进程   _realtime_touch_watch + consume → comment_grounded│
-  │    盯关注流；关注的人发【≤20min 新视频】→ 点赞+评论1(JIT)+评论2   │
-  └───────────────────────────┬──────────────────────────────────────┘
-                              ▼   共享窗口锁（仅小文 AKKE_WINDOW_LOCK=1）
-        .douyin-win.lock  ← 操作窗口前抢、完事放（互斥）
-        .douyin-dm-want   ← DM 一批期间置上 = "我在忙"
-   ┌──────────────────────────────────────────────────────────┐
-   │ DM   ：dm_batch() 置 .dm-want + 每条 window_turn('dm') 贪婪抢 = 优先 │
-   │ route-B：每三连 window_turn('rb')，抢锁前先等 .dm-want 清 = 让位     │
-   │ ⇒ DM 一有单，route-B 当前三连发完(最坏~2.4min)立即让位；DM 空窗时 route-B 自由跑 │
-   └──────────────────────────────────────────────────────────┘
-  时效：DM ≤10min(fresh_window) · route-B ≤20min(--max-age-min) · 都自动守、超时自动作废
-  崩溃兜底：锁标记 mtime>5min 视为死进程残留、可抢占；未设 flag 的同事机=全 no-op</div>
+<h2>2 · 一张图看懂：DM 和 route-B 怎么共用一个抖音（窗口锁）</h2>
+<div class="card" style="background:#fffdf5;border-color:#f3d34a">
+<b>先打个比方 🧒</b>：把抖音窗口想成<mark>家里唯一一台电视 📺</mark>。DM 和 route-B 是两个想看电视的人——<mark>同时抢遥控器，画面就乱了</mark>（私信和评论的字会混在一起发出去）。所以定个规矩：<mark>一次只准一个人用，而且 DM 是 VIP、优先</mark>。下面一步一个框看它们怎么排队：
+</div>
+
+<div class="win">📺 第 1 步 · 只有一个抖音窗口<br><span style="font-weight:400;font-size:13px;color:#666">全家就这一台"电视"，谁用谁独占，不能两个人同时按遥控器</span></div>
+<div class="arw">⬇ 有两个人都想用它 ⬇</div>
+<div class="two">
+  <div class="bx dm"><div class="t">📨 DM（发私信的人）</div><div class="d">每 1 秒瞄一眼：有没有「刚冒出来（评论 ≤10 分钟）的高意向私信单」？<br><b>有 → 我要用电视去发私信</b></div></div>
+  <div class="bx rb"><div class="t">💬 route-B（发评论的人）</div><div class="d">一直盯着：我关注的人有没有「刚发（≤20 分钟）的新视频」？<br><b>发了 → 我要用电视去点赞+评论</b></div></div>
+</div>
+<div class="arw">⬇ 两个都想用，靠下面的规矩排队 ⬇</div>
+
+<div class="bx"><div class="t"><span class="n">2</span>🎫 先抢"唯一一张门票"</div><div class="d">谁想用电视，先去拿那张<b>唯一的门票</b>（一个锁文件），用完再放回去。门票只有一张 → <mark>同一时刻只有一个人能用，永远不打架</mark>。</div></div>
+<div class="bx dm"><div class="t"><span class="n">3</span>👑 DM 是 VIP，永远优先</div><div class="d">DM 一有单，就立个牌子「我要用！」。route-B 看到牌子 → <mark>把手上这一条评论做完（最多约 2.4 分钟）就让开</mark>，不跟 DM 抢。（中途不能打断、否则字会乱，所以最多等它做完一条。）</div></div>
+<div class="bx rb"><div class="t"><span class="n">4</span>🆓 DM 没事时，route-B 随便用</div><div class="d">DM 没单 → 牌子收起来 → <mark>route-B 自由用电视去评论</mark>，把 DM 的空闲时间填上（这台电视一天其实 94% 时间都空着）。</div></div>
+<div class="arw">⬇ 结果 ⬇</div>
+<div class="res">✅ <b>永远只有一个人在用抖音</b>（不乱码、不发串字）；<b>DM 想发随时插队、最优先</b>；<b>route-B 趁 DM 没事时填空</b>。
+<br>这就是「<mark>抢占式分时</mark>」——不是两个人同时看电视，而是<b>排队轮流、VIP 优先</b>。
+<div style="margin-top:8px;font-size:12.5px;color:#666">时效规矩：DM 只发评论 ≤10 分钟的私信单 · route-B 只评 ≤20 分钟的新视频，超时的都自动作废 · 这套规矩只在小文这台机器开，别人机器完全不受影响。</div>
+</div>
 
 <h2>3 · 批量化执行的统计数据</h2>
 <div class="kpi">
