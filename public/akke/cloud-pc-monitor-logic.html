@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>云电脑监控 · 操作逻辑</title>
+<style>
+  :root{
+    --bg:#0f1117; --card:#1a1d27; --card2:#222634; --line:#2e3342;
+    --text:#e6e8ef; --muted:#9aa0b0; --accent:#5b8cff; --green:#3fb950;
+    --red:#f85149; --orange:#f0883e; --yellow:#d29922;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--bg);color:var(--text);line-height:1.6;padding:32px 18px;max-width:920px;margin:0 auto}
+  h1{font-size:26px;margin-bottom:6px}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:26px}
+  h2{font-size:17px;margin:30px 0 14px;padding-left:10px;border-left:3px solid var(--accent)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:14px}
+  .lead{background:linear-gradient(135deg,#1c2030,#181b26);border:1px solid var(--line);
+    border-radius:12px;padding:18px 20px;font-size:15px}
+  .lead b{color:var(--accent)}
+  /* flow */
+  .flow{display:flex;flex-direction:column;gap:0}
+  .step{display:flex;align-items:flex-start;gap:14px;position:relative;padding-bottom:8px}
+  .dot{flex:0 0 34px;height:34px;border-radius:50%;background:var(--card2);border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;font-size:15px;z-index:1}
+  .step .body{flex:1;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:6px}
+  .step .body .t{font-weight:600;font-size:14px}
+  .step .body .d{color:var(--muted);font-size:13px;margin-top:3px}
+  .arrow{margin-left:16px;color:var(--line);font-size:18px;line-height:1;height:14px}
+  code{background:#0c0e14;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px;
+    font-family:"SF Mono",Menlo,Consolas,monospace;color:#a9c7ff}
+  /* branch */
+  .branch{display:flex;gap:12px;margin-top:8px;flex-wrap:wrap}
+  .branch>div{flex:1;min-width:240px;border-radius:10px;padding:13px 15px;border:1px solid var(--line)}
+  .ok{background:rgba(63,185,80,.08);border-color:rgba(63,185,80,.4)}
+  .alert{background:rgba(248,81,73,.07);border-color:rgba(248,81,73,.4)}
+  .ok .h{color:var(--green);font-weight:700}
+  .alert .h{color:var(--red);font-weight:700}
+  .pill{display:inline-block;font-size:12px;padding:1px 8px;border-radius:20px;margin-right:6px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:4px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-weight:600;font-size:12.5px}
+  .badge{font-size:12px;padding:1px 8px;border-radius:6px;white-space:nowrap;font-weight:600}
+  .b-red{background:rgba(248,81,73,.15);color:#ff8a82}
+  .b-orange{background:rgba(240,136,62,.15);color:#ffb375}
+  .b-grey{background:rgba(154,160,176,.15);color:#bcc1cd}
+  .b-green{background:rgba(63,185,80,.15);color:#76d489}
+  ul.clean{list-style:none;padding:0}
+  ul.clean li{padding:7px 0 7px 24px;position:relative;font-size:14px;border-bottom:1px solid var(--line)}
+  ul.clean li:last-child{border-bottom:0}
+  ul.clean li:before{content:"✓";position:absolute;left:0;color:var(--green);font-weight:700}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:640px){.grid2{grid-template-columns:1fr}}
+  .kv{font-size:13.5px}.kv .k{color:var(--muted)}
+  .foot{color:var(--muted);font-size:12.5px;margin-top:28px;text-align:center}
+  .tag{display:inline-block;background:var(--card2);border:1px solid var(--line);border-radius:6px;
+    padding:2px 9px;font-size:12px;color:var(--muted);margin:2px 4px 2px 0}
+</style>
+</head>
+<body>
+
+  <h1>🖥️ 云电脑监控 · 操作逻辑</h1>
+  <div class="sub">无影云电脑「自驱发私信」通道的健康哨兵 · 由本机 Hermes 定时驱动 · 2026-06-18</div>
+
+  <div class="lead">
+    一句话：<b>每 10 分钟自动体检一次两台云电脑在不在正常发私信</b>，
+    全部正常时<b>绝对安静</b>，只有真出问题（账号被禁 / 没在发 / 卡单）才往 Lark 群推一条告警。
+    检测全是确定性代码，<b>不调用大模型、不花钱</b>。
+  </div>
+
+  <h2>一次巡检的完整流程（每 10 分钟跑一遍）</h2>
+  <div class="card flow">
+    <div class="step"><div class="dot">⏰</div><div class="body">
+      <div class="t">Hermes cron 定时触发</div>
+      <div class="d">任务 <code>cloudpc-monitor</code>，节奏 <code>*/10 9-21 * * *</code>（北京活跃时段每 10min）。<code>--no-agent</code> 纯看门狗模式 —— 不进大模型循环。</div>
+    </div></div>
+    <div class="arrow">▼</div>
+    <div class="step"><div class="dot">📜</div><div class="body">
+      <div class="t">运行包装脚本 <code>cloudpc-monitor.sh</code></div>
+      <div class="d">注入账号清单 + Lark webhook，调起检测器 <code>cloudpc-monitor-tick.ts</code>。</div>
+    </div></div>
+    <div class="arrow">▼</div>
+    <div class="step"><div class="dot">🔍</div><div class="body">
+      <div class="t">检测器逐账号直查数据库</div>
+      <div class="d">对每台云电脑读：账号状态 / 是否开自动 / 队列(pending·claimed) / 今日已发 / 最近发送时间。<b>只读，不改库、不发抖音。</b></div>
+    </div></div>
+    <div class="arrow">▼</div>
+    <div class="step"><div class="dot">⚖️</div><div class="body">
+      <div class="t">套确定性规则判定（含跨周期状态）</div>
+      <div class="d">和上一轮快照比对，按优先级判断是否命中告警（见下表）。状态按账号分别记在 <code>~/.hermes/state/cloudpc-monitor.json</code>。</div>
+    </div></div>
+    <div class="arrow">▼</div>
+    <div class="branch">
+      <div class="ok">
+        <div class="h">✅ 全部健康</div>
+        <div style="font-size:13.5px;color:var(--muted);margin-top:4px">
+          脚本输出为空 → cron 静默 → <b>群里一个字都不发</b>。这是绝大多数情况。
+        </div>
+      </div>
+      <div class="alert">
+        <div class="h">⚠️ 命中告警</div>
+        <div style="font-size:13.5px;color:var(--muted);margin-top:4px">
+          ① 先写兜底日志 <code>cloudpc-alerts.log</code><br>
+          ② POST 到 <b>Lark 群机器人 webhook</b>（绕开应用 API 配额）<br>
+          ③ 带账号名，哪台出事推哪台
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>什么会告警 / 什么不会</h2>
+  <div class="card">
+    <table>
+      <tr><th>情况</th><th>级别</th><th>判定逻辑</th></tr>
+      <tr><td>账号被禁 / 冷却</td><td><span class="badge b-red">🔴 告警</span></td><td>账号 status ≠ active</td></tr>
+      <tr><td>没开自动发送</td><td><span class="badge b-red">🔴 告警</span></td><td>channel_pref ≠ cloud_pc</td></tr>
+      <tr><td>卡单</td><td><span class="badge b-red">🔴 告警</span></td><td>claimed&gt;0 连续 ≥2 轮（~20min）领了单却不发出</td></tr>
+      <tr><td>停摆</td><td><span class="badge b-orange">🟠 告警</span></td><td>有积压但 ≥3 轮（~30min）没新发出、且没到日限</td></tr>
+      <tr><td>当日预算打满</td><td><span class="badge b-grey">不报</span></td><td>今日已发 = 日限：正常完成，不是故障</td></tr>
+      <tr><td>小时上限 / 24h 兜底节流</td><td><span class="badge b-grey">不报</span></td><td>正常限速，不是故障</td></tr>
+      <tr><td>池子空（没 lead 可发）</td><td><span class="badge b-grey">不报</span></td><td>无积压、无可发，正常</td></tr>
+      <tr><td>从异常恢复正常</td><td><span class="badge b-green">✅ 一条</span></td><td>上一轮还在告警、这一轮好了 → 推一条「已恢复」闭环（仅一次）</td></tr>
+    </table>
+  </div>
+
+  <h2>四条设计原则（为什么这么做）</h2>
+  <div class="card">
+    <ul class="clean">
+      <li><b>检测交给确定性代码，不交给大模型</b> —— 阈值/卡单判断都是死规则，稳定可复现，也不会乱报。</li>
+      <li><b>健康时绝对安静</b> —— 脚本只在出问题时才输出，正常那一跑悄无声息，群里不刷屏。</li>
+      <li><b>只告警、不自动处置</b> —— 发送 agent 跑在无影 GUI 上、本机够不到，强行自动修风险大，所以只通知你来定夺。</li>
+      <li><b>双保险 + 防刷屏</b> —— 先写本地日志再推 Lark（推失败也留痕）；同一问题 2 小时内不重复推。</li>
+    </ul>
+  </div>
+
+  <h2>跳验证 / 异常时：能检测吗？怎么办？</h2>
+  <div class="card">
+    <table>
+      <tr><th>问题</th><th>回答</th></tr>
+      <tr><td>能直接看到验证弹窗吗？</td><td><span class="badge b-red">不能</span> 监控在本机、看不到无影屏幕；抖音跳验证也不往库里写「验证/captcha」标记。</td></tr>
+      <tr><td>能间接发现吗？</td><td><span class="badge b-green">能</span> 验证挡住发送 → 单子卡 claimed / 没新发出 → <b>卡单·停摆规则 ~20–30min 内报</b>；同时可能冒一批 <code>failed: unverified</code>（点了发送没出气泡）。</td></tr>
+      <tr><td>告警能说清是跳验证吗？</td><td><span class="badge b-orange">不能精确分</span> 只会报「没在发，多半无影没开/抖音没前台/卡住」，跳验证是其中一种可能，需人去无影确认。</td></tr>
+    </table>
+    <div style="margin-top:12px;font-size:13.5px;color:var(--muted)">
+      <b style="color:var(--text)">三个盲区：</b>
+      ① 滞后 ~20–30min，非实时；② 队列空时没有「卡住」信号 → 那一刻跳验证不报；③ 看不到屏，分不清验证 / 无影崩 / 掉登录。
+    </div>
+    <div style="margin-top:12px;padding:12px 14px;background:rgba(91,140,255,.08);border:1px solid rgba(91,140,255,.35);border-radius:10px;font-size:14px">
+      <b style="color:var(--accent)">跳验证了怎么办：</b>验证只能<b>人去无影 GUI 上手动过</b>（拖滑块/点验证）——监控解不了（设计就是只告警不自动处置，因为本机够不到无影屏）。
+      闭环：<b>监控报「没在发」 → 你远程进无影过验证 → 恢复后监控自动推「已恢复」</b>。
+    </div>
+  </div>
+
+  <h2>能不能接无影 API 把监控做强？（接入调查）</h2>
+  <div class="card">
+    <div style="font-size:14px;margin-bottom:10px">结论先行：<b style="color:var(--red)">当前是个人版（EDSP），无任何官方 OpenAPI</b> —— 查状态 / 重启 / 在桌面内执行命令都不行。三条可选路径：</div>
+    <table>
+      <tr><th>路径</th><th>可行性</th><th>说明</th></tr>
+      <tr><td>个人版自身 OpenAPI</td><td><span class="badge b-red">无</span></td><td>OpenAPI 是<b>企业版独有</b>；个人版只能客户端用，没有任何编程接口。</td></tr>
+      <tr><td>升级企业版（EDS）</td><td><span class="badge b-green">完整 API</span></td><td>解锁全套管控 OpenAPI（见下）。代价：换版本、计费不同、抖音环境要重新登录养号。</td></tr>
+      <tr><td>无影 AgentBay（MCP/SDK）</td><td><span class="badge b-orange">换架构</span></td><td>阿里给 AI agent 的云沙箱，可程序化驱动，但是它自己开的环境、<b>不是控你现有个人版桌面</b>。大改造，另需评估抖音风控。</td></tr>
+    </table>
+    <div style="margin-top:14px;font-size:13.5px"><b>升企业版能解锁什么（对监控最有用）：</b></div>
+    <ul class="clean" style="margin-top:4px">
+      <li><b>RunCommand</b> —— 在云电脑里跑 PowerShell/Bat。<b style="color:var(--accent)">金钥匙</b>：可程序化截图判 captcha、重启 DM agent、自愈。</li>
+      <li><b>DescribeDesktops / DescribeDesktopSessions</b> —— 直接查「桌面在不在跑 / 会话状态」，不用只靠 DB 反推。</li>
+      <li><b>RebootDesktops / StartDesktops / WakeupDesktops</b> —— 远程重启唤醒，<b>能突破当前「只告警不处置」</b>，卡死自动拉起。</li>
+    </ul>
+    <div style="margin-top:14px;padding:12px 14px;background:rgba(63,185,80,.08);border:1px solid rgba(63,185,80,.4);border-radius:10px;font-size:14px">
+      <b style="color:var(--green)">💡 但大概率不必为「检测 captcha」换版本：</b>
+      最省的路<b>不碰无影 API</b> —— 桌面内的 GUI agent（<code>douyin_dm_grounded.py</code>）本就有截图+VL 能力，让它发送失败时<b>判一下是不是 captcha 中间页、命中就写个 DB 状态（如 <code>failed: captcha</code>）</b>，监控再加一条规则，就能精确报「🔴 跳验证了」。几十行、不换版本、不接任何 API。
+    </div>
+    <div style="margin-top:12px;font-size:13px;color:var(--muted)">
+      <b style="color:var(--text)">推荐：</b>① 只要 captcha 被检测 → 改桌面内 agent 写状态 + 监控加规则（性价比最高）；
+      ② 要远程重启/自愈/桌面级状态 → 才值得评估升<b>企业版</b>用 RunCommand；
+      ③ AgentBay → 大改造，短期不建议。
+    </div>
+  </div>
+
+  <h2>当前监控对象</h2>
+  <div class="card grid2">
+    <div style="background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:14px">
+      <div class="kv"><b>第一台</b> · 小文（野荞）</div>
+      <div class="kv" style="margin-top:4px"><span class="k">日限</span> 30 条 &nbsp; <span class="k">状态</span> ✅ 监控中</div>
+    </div>
+    <div style="background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:14px">
+      <div class="kv"><b>第二台</b> · 文哥</div>
+      <div class="kv" style="margin-top:4px"><span class="k">日限</span> 20 条 &nbsp; <span class="k">状态</span> ✅ 监控中</div>
+    </div>
+  </div>
+  <div style="font-size:13px;color:var(--muted);margin-top:-4px">
+    加 / 撤一台：改包装脚本里的 <code>CLOUDPC_MONITOR_ACCOUNTS</code>（逗号分隔账号 id）即可，无需改代码。
+  </div>
+
+  <h2>关键组件 & 常用命令</h2>
+  <div class="card">
+    <div style="margin-bottom:12px">
+      <span class="tag">⏰ 调度：Hermes cron · <code>cloudpc-monitor</code></span>
+      <span class="tag">📜 包装：<code>~/.hermes/scripts/cloudpc-monitor.sh</code></span>
+      <span class="tag">🔍 检测：<code>scripts/cloudpc-monitor-tick.ts</code></span>
+      <span class="tag">📤 投递：Lark 群机器人 webhook</span>
+      <span class="tag">📝 日志：<code>~/.hermes/logs/cloudpc-alerts.log</code></span>
+    </div>
+    <table>
+      <tr><th>操作</th><th>命令</th></tr>
+      <tr><td>看监控任务</td><td><code>hermes cron list</code></td></tr>
+      <tr><td>暂停 / 恢复</td><td><code>hermes cron pause / resume c76f5b459b0e</code></td></tr>
+      <tr><td>看告警留痕</td><td><code>tail -f ~/.hermes/logs/cloudpc-alerts.log</code></td></tr>
+      <tr><td>手动自检（推两条到群）</td><td><code>pnpm tsx scripts/cloudpc-monitor-tick.ts --force-test</code></td></tr>
+      <tr><td>改阈值 / 时段</td><td>编辑 <code>cloudpc-monitor-tick.ts</code> 顶部常量</td></tr>
+    </table>
+  </div>
+
+  <div class="foot">云电脑自驱通道健康哨兵 · 本机 Hermes 驱动 · 只看不发抖音 · 健康即静默</div>
+
+</body>
+</html>
