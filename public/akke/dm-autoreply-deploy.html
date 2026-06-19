@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DM 私信自动回复 · 无影部署指南</title>
+<style>
+  :root{
+    --bg:#0b0d12;--panel:#141821;--deep:#1a1f2b;--bd:#242a38;--bd2:#2f3646;
+    --tx:#e4e7ed;--dim:#9ba3b4;--mut:#6b7384;--acc:#8b5cf6;--accs:rgba(139,92,246,.14);
+    --ok:#34d399;--oks:rgba(52,211,153,.12);--warn:#f87171;--warns:rgba(248,113,113,.10);
+    --hl:#fde047;--hls:rgba(253,224,71,.12);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--tx);font-size:15px;line-height:1.75;
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:840px;margin:0 auto;padding:42px 22px 100px}
+  h1{font-size:30px;font-weight:800;margin:0 0 6px;letter-spacing:-.02em}
+  .sub{color:var(--dim);font-size:13.5px;margin-bottom:6px}
+  .sub a{color:var(--acc);text-decoration:none}
+  .tldr{background:var(--accs);border:1px solid rgba(139,92,246,.3);border-radius:12px;padding:14px 18px;margin:18px 0 8px;font-size:14px;color:var(--dim)}
+  .tldr b{color:var(--tx)}
+  .pre{background:rgba(96,165,250,.08);border:1px solid rgba(96,165,250,.3);border-radius:10px;padding:12px 16px;margin:14px 0;font-size:14px;color:var(--dim)}
+  .pre b{color:#60a5fa}
+  h2{font-size:20px;font-weight:800;margin:38px 0 4px}
+  .step{background:var(--panel);border:1px solid var(--bd);border-radius:12px;padding:16px 20px;margin:14px 0}
+  .step .sh{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .step .num{flex:0 0 26px;height:26px;border-radius:50%;background:var(--acc);color:#fff;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center}
+  .step .st{font-size:16px;font-weight:700}
+  p{margin:8px 0}
+  code{background:var(--deep);padding:1px 6px;border-radius:4px;font-size:13px;color:#c4b5fd;font-family:"SF Mono",Menlo,Consolas,monospace}
+  pre{background:#0d1017;border:1px solid var(--bd);border-radius:8px;padding:12px 14px;overflow-x:auto;font-size:13px;line-height:1.6;color:#cdd3df;font-family:"SF Mono",Menlo,Consolas,monospace}
+  .warn{background:var(--warns);border-left:3px solid var(--warn);border-radius:6px;padding:9px 14px;margin:9px 0;font-size:13.5px;color:#fca5a5}
+  .warn b{color:#fecaca}
+  .ok{background:var(--oks);border-left:3px solid var(--ok);border-radius:6px;padding:9px 14px;margin:9px 0;font-size:13.5px;color:#86efac}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin:8px 0}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--bd);vertical-align:top}
+  th{color:var(--mut);font-weight:600;font-size:12px;text-transform:uppercase}
+  td b.red{color:var(--warn)}
+  mark{background:var(--hls);color:var(--hl);padding:0 4px;border-radius:3px;font-weight:600}
+  footer{margin-top:50px;padding-top:20px;border-top:1px solid var(--bd);color:var(--mut);font-size:12.5px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>DM 私信自动回复 · 无影部署指南</h1>
+  <div class="sub">同事照着做 · 约 10 分钟 · 原理见 <a href="/akke/dm-autoreply-0to1">0→1 复盘</a></div>
+
+  <div class="tldr">
+    <b>一句话</b>：下 3 个文件 → 量私信图标坐标 → <code>.env</code> 加 3 行(先 capture) → 重启 agent(<b>没有 start.bat</b>，重启机器或杀进程重跑) → 看日志有 <code>=== capture</code> → 稳了改 both。
+  </div>
+
+  <div class="pre">
+    <b>前提</b>：这台无影<b>已经在跑 DM 首触</b>（有 <code>wuying_poll_agent.py</code> 黑窗口在滚动）。自动回复是叠加在上面，不是新装一套。云端开关 PM 已配好，你不用管。
+  </div>
+
+  <h2>步骤</h2>
+
+  <div class="step">
+    <div class="sh"><span class="num">1</span><span class="st">下载 3 个最新脚本</span></div>
+    <p>进工作目录 <code>C:\akke-wuying\wuying-dm</code>。向 PM 要这 3 个文件的最新 paste.rs 链接，PowerShell 下载：</p>
+    <pre>iwr &lt;poll_agent链接&gt;  -OutFile wuying_poll_agent.py  -UseBasicParsing
+iwr &lt;autoreply链接&gt;   -OutFile douyin_dm_autoreply.py -UseBasicParsing
+iwr &lt;inbox_uia链接&gt;   -OutFile douyin_inbox_uia.py    -UseBasicParsing</pre>
+    <div class="warn"><b>⚠️ 一行一行粘、单独回车</b>。三行一起粘 PowerShell 会用 <code>&gt;&gt;</code> 连成一条 → 报「缺少参数」、文件没下到。</div>
+    <div class="warn"><b>⚠️ 别用 update.bat</b> 下这 3 个（它清单里没有、且私有库直连会 404）。只走 PM 的 paste.rs 链接（链接临时，过期找 PM 重发）。</div>
+  </div>
+
+  <div class="step">
+    <div class="sh"><span class="num">2</span><span class="st">量「私信」图标坐标</span></div>
+    <p>让脚本能自己点开私信列表。PowerShell 跑下面这条读鼠标位置：</p>
+    <pre>Add-Type -AssemblyName System.Windows.Forms; 1..15 | %{ Start-Sleep -Milliseconds 700; $p=[System.Windows.Forms.Cursor]::Position; "$($p.X),$($p.Y)" }</pre>
+    <p>跑起来后<b>把鼠标停在抖音顶栏「私信」图标上</b>，记下打印的 <code>X,Y</code>，Ctrl+C 停。归一化(脚本用 0~1000 比例)：</p>
+    <pre>nx = round(X ÷ 屏幕宽 × 1000)
+ny = round(Y ÷ 屏幕高 × 1000)</pre>
+    <div class="warn"><b>⚠️ 屏幕宽高用这台机的实际分辨率</b>（常见 2560×1600）。例：私信在 (2100,80) @2560×1600 → <code>nx=820, ny=50</code>。<mark>每台机分辨率可能不同，各量各的，别抄别人的坐标。</mark></div>
+  </div>
+
+  <div class="step">
+    <div class="sh"><span class="num">3</span><span class="st">改 .env（同目录 <code>.env</code>）</span></div>
+    <p>加这 3 行：</p>
+    <pre>AKKE_DM_AUTOREPLY_CAPTURE=1
+AKKE_C_DM_INBOX=&lt;上一步的 nx,ny&gt;
+AKKE_DM_AUTOREPLY_MODE=capture</pre>
+    <div class="warn"><b>⚠️ 先用 <code>capture</code></b>（只自动抓、不自动发），跑顺了再改 <code>both</code>。<mark>both 才会真发消息，别一上来就 both。</mark></div>
+    <div class="warn"><b>⚠️ 改 .env 后必须重启 agent</b> 才生效（脚本启动只读一次 env，热改无效）。</div>
+  </div>
+
+  <div class="step">
+    <div class="sh"><span class="num">4</span><span class="st">重启 agent</span></div>
+    <div class="warn"><b>⚠️ 本机没有 start.bat / 双击启动那套</b>（agent 是开机自启）。重启二选一：</div>
+    <p><b>（推荐）直接重启这台云电脑</b> —— 开机自动重跑 agent + 读最新 .env。</p>
+    <p><b>（或）</b>关掉 agent 黑窗口 → PowerShell：</p>
+    <pre>Get-Process py,python | Stop-Process -Force
+py wuying_poll_agent.py</pre>
+    <div class="warn"><b>⚠️ 别只关黑窗口不杀进程</b>——可能有幽灵旧 agent 在后台抢单。用 <code>Stop-Process</code> 杀透，或直接重启机器最干净。</div>
+  </div>
+
+  <div class="step">
+    <div class="sh"><span class="num">5</span><span class="st">验证 + 转全自动</span></div>
+    <p>看 agent 黑窗口日志，每轮(约60s)应出现：</p>
+    <pre>=== capture: 列表 N 行, 已发记录 M 人 ===</pre>
+    <div class="ok">✅ 有这行 + 偶尔 <code>[inbound] xxx: 客户的话</code> = 正常在抓回复。</div>
+    <p><code>列表 0 行</code> = 抖音没停私信列表 / 坐标没量对 → 回步骤 2。没这行 = flag 没设或没重启 → 回步骤 3/4。</p>
+    <div class="ok"><b>capture 验稳后</b>（跑半天、能抓真回复、不抓错）→ 把 <code>.env</code> 的 <code>AKKE_DM_AUTOREPLY_MODE</code> 改成 <code>both</code>（或删掉，默认 both）→ 重启 agent → <mark>全自动捕获 + 发送</mark>。</div>
+  </div>
+
+  <h2>常见问题速查</h2>
+  <table>
+    <tr><th>现象</th><th>原因 / 处置</th></tr>
+    <tr><td><code>列表 0 行</code></td><td>抖音没在私信列表，或 <code>AKKE_C_DM_INBOX</code> 坐标不对 → 重量坐标（步骤2）</td></tr>
+    <tr><td>日志没 <code>=== capture</code></td><td>flag 没设 / agent 没重启 → 步骤 3+4</td></tr>
+    <tr><td><b class="red">发错人（同名）</b></td><td>该客户没缓存到抖音号、回退按昵称搜了 → 找 PM 看号反查覆盖；<mark>别手动硬发</mark></td></tr>
+    <tr><td>改了 .env 没生效</td><td>agent 没重启 → 必重启</td></tr>
+    <tr><td>下载报「缺少参数」</td><td>多行命令被 <code>&gt;&gt;</code> 连断 → 一行一行粘</td></tr>
+    <tr><td>满屏乱码</td><td>编码问题，停下找 PM，别继续跑</td></tr>
+  </table>
+
+  <p style="margin-top:20px;color:var(--dim);font-size:13.5px">运行后每自动发一条，Lark 群机器人会推回执卡片（回复内容 / 客户抖音号 / 哪个号发的）。出 <code>[err]</code> 或不推回执 → 截图发 PM。</p>
+
+  <footer>Akke · DM 私信自动回复部署指南 · 2026-06-19</footer>
+</div>
+</body>
+</html>
