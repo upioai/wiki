@@ -185,6 +185,7 @@
 </tbody></table>
 <div class="hint">领单排序 <code>ORDER BY priority ASC, scheduled_at ASC</code>（pri 数字小的先，同 pri 先到先抓）。</div>
 <div class="callout red"><b>已知坑（pri 防饿死）</b>：原来严格抢占 → 只要 pri=1 源源不断，<b>pri=5 的 tier-0 会被饿死</b>。6/11 出过 P1 事故：普通号连续 <b>27 小时</b>一条没抓到。修法 migration <code>20260615144043</code> 加 <b>aging（等久升档）</b>：每等 6 小时有效优先级升 1 级，等满 24 小时追平 pri=1 但永不超过。</div>
+<div class="callout red"><b>⚠️ 同一个坑又复发（2026-06-19 实测，更隐蔽）</b>：#413 早停修复上线后，快道 <code>pri=1</code> 量暴涨 <b>+59%</b>（视频不再被判空 → 不再退避 → 每 tick 更多候选入队），把<b>低优先级 <code>scrape_video</code>（含 cold-intent 老视频回扫 pri=3）挤到队尾饿死</b> —— 6-18→19 全天 p99 领单等待飙到 <b>6202 秒</b>（史上最差）。aging 最终能把它们捞上来，但要先等数小时，<b>这段等待就是这条尾巴</b>。aging 是「等久了再救」，挡不住「一开始就被插队」。<b>真解 = pri 防饿死配额（每批 worker 槽给 <code>pri≥3</code> 留位），待做。</b></div>
 
 <h2>第 2 步 · 发现视频：这个号最近发了哪些</h2>
 <table>
@@ -264,6 +265,7 @@
 <tr><td>高意向慢尾</td><td>中位 34 分，>1h 占 47% / >6h 占 42% / >12h 占 38%</td><td>就是日报里标 <code>expired_at_claim</code>（领单时已过期）被跳过那批</td></tr>
 </tbody></table>
 <div class="hint">慢尾真因 = <b>老视频覆盖盲区</b>（tier-1 只重扫最近 ≤20 条视频，老视频被挤出就不再定期扫），已上 <code>cold-intent-rescan</code>（<code>*/20</code> 每 20 分钟回扫近 14 天仍冒意向的老视频）止血。</div>
+<div class="callout red"><b>⚠️ 2026-06-19 终判更正</b>：这个「止血」在<b>排队层面被抵消了</b>。cold-intent 回扫是 <code>pri=3</code> 低优先级，#413 早停修复让快道 <code>pri=1</code> 洪水 +59%，把它挤到队尾饿死——回扫工单是发出去了，却排数小时才被领走。所以慢尾要真治，除了「找回老视频」（cold-intent 做的），还得「别让它在队列里被快道插队饿死」＝ pri 防饿死配额。详见 <a href="/akke/reports/scrape-latency-deepdive-20260615#s9d">时效深挖页 ④ 终判</a>。</div>
 
 <h2>触达层还有第二套查重（和采集无关，别混）</h2>
 <table>
