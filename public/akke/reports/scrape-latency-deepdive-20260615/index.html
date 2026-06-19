@@ -508,6 +508,12 @@
 <p style="margin:8px 0 0"><b>为什么修了完整性、尾巴反炸？（证据链坐实）</b>：#413 让快道几乎不再判空 → 视频不再累积空跑 → 不再被退避 → 快道 <code>pri=1</code> 量 <b>+59%</b>（13105→20858，100% 是快车道）。这股高优先级洪水把<b>低优先级 <code>scrape_video</code>（cold-intent 老视频回扫 pri=3 等）挤到队尾饿死</b>——尾巴那 1% 的活全是 <code>pri≥2</code>（<code>pri=0/1</code> 一个都没有），得等数小时靠 aging 才浮上来。时段上也对得上：尾巴全集中在北京白天/晚上（高负载），深夜零负载零尾巴。<b>结论：尾巴是被快道挤死的低优先级活，不是快道本身。</b></p>
 <p style="margin:8px 0 0"><b>所以 B 方案（<code>max_comments</code> 50→150）坐死不做</b>：它治的是「截断型」完整性（老评论被埋到前 50 名外），却会让每个快道活抓更多页、更慢、排空更慢 → 低优先级饿得更死 → 尾巴<b>更糟</b>。拿错药治错病。</p>
 <p style="margin:8px 0 0"><b>真正的旋钮 = pri 防饿死</b>（每批 worker 槽给 <code>pri≥3</code> 留配额 / 强化 aging）。讽刺的是：cold-intent 老视频回扫（专门救完整性慢尾的②方案）自己卡在队尾，被③的快道洪水在排队层面抵消了。这条要动 worker 领单逻辑（高危），单开 PR 专门做、不糊。</p></div>
+<div class="kx good"><b>✅ 2026-06-19 复诊（pri 防饿死降级 · 留观，不开 PR）</b>
+<p style="margin:8px 0 0">上面 #413 终判把 6202s 尾巴归到「cold-intent <code>pri=3</code> 被快道洪水挤死、真解＝pri 防饿死配额」。6-19 复跑 36h（覆盖 6-18→19、按 pri 段拆 <code>scrape_video</code>）把这个判断<b>收窄了</b>：</p>
+<p style="margin:8px 0 0">· <b>cold-intent <code>pri=3</code>：全部认领</b>，claim-wait <b>p50 27m / p99 1.9h / max 2.0h、0 条超 6h</b>、pending 仅 15 条且都没等满 1h。那条 6202s≈1.7h 的尾巴是真的（本窗口 p99 1.9h 正印证它），但<b>封顶在 2.0h，正好踩在 cold-intent 自己「激进追平 ≤2h」的设计容差里，没有超出 2h 的长尾</b>。</p>
+<p style="margin:8px 0 0">· <b>tier-0 <code>pri=5</code>：已被 aging 压到 p99 1.1h / max 13.4h（仅 8 条，0.01%）、pending 最老 6.8h</b>——不再是早先的 12h / 27h 积压。aging（migration <code>20260615144043</code>）在起作用。</p>
+<p style="margin:8px 0 0">· <b>leads 没掉</b>：高+中意向入库近 7 天稳在 <b>370–463/天</b>，所谓「446→380」落在日间方差内，不是这条尾巴的连带伤。</p>
+<p style="margin:8px 0 0"><b>结论：pri 防饿死配额（动 worker 领单逻辑、高危 PR）当前没有一个真实坏掉的指标支撑，从「该上了」降级为「留观」。</b>真要再压这条 1.7h 尾，对症且便宜的杠杆是 env <code>COLD_INTENT_RESCAN_INTERVAL_MIN</code>(120→60) / <code>COLD_INTENT_RESCAN_MAX</code>（纯 fly secret、不改码、不开 PR），而不是先写 RPC。</p></div>
 <h4 class="warn">这座注入洪水到底是什么（部署后 8.5h 切片实测，06-16 04:00–12:25）</h4>
 <p>这段窗口里，<code>pri=0</code> 高意向注入活<b>跑完 9039 个</b>（= <code>scrape_jobs</code> 表中 priority=0、标 high_intent、在此窗口完成的单视频活条数；全天口径为 26995 个）。但这 9039 个活<b>只摊在 112 个不同视频上 —— 平均每条被重复抓 80.7 次</b>（<code>9039 ÷ 112 ≈ 80.7</code>）。三点说清这洪水的性质：</p>
 <ul>
@@ -560,12 +566,12 @@
 </div>
 
 <div class="card">
-<p style="font-size:16px"><span class="pill w">④</span> <b>pri 防饿死（治另一个病：tier-0 被饿死、积压 12 小时）</b> &nbsp;→&nbsp; <b class="bad">没做 · 已变急，该上了</b></p>
+<p style="font-size:16px"><span class="pill w">④</span> <b>pri 防饿死（治另一个病：tier-0 被饿死、积压 12 小时）</b> &nbsp;→&nbsp; <b class="good">6-19 复诊降级 · 留观（暂不做）</b></p>
 <p><b>什么意思</b>：worker 严格"小号牌先领"，<code>pri=5</code> 的 tier-0 活只在前面全空时才轮到 → 能积压 12 小时没人碰。两个治法：<b>aging</b>（一个活等太久就自动升号牌往前插）或<b>配额</b>（每批留 X% 名额给 pri≥5，不让它彻底饿死）。<br>
-<b>为什么变急</b>：② 那条 cold-intent 走 <code>pri=3</code> 上线后，又往 tier-0 头上压了一层——6-17 快照实锤 pri3 积压 96→384、tier-0 最老活仍卡 12 小时。所以 ④ 从"以后再说"提到了"该上了"；要是 ④ 一时上不了，就得先把 ② 的 <code>COLD_INTENT_RESCAN_MAX</code> 调小、给 tier-0 泄压。</p>
+<b>为什么变急</b>：② 那条 cold-intent 走 <code>pri=3</code> 上线后，又往 tier-0 头上压了一层——6-17 快照实锤 pri3 积压 96→384、tier-0 最老活仍卡 12 小时。所以 ④ 从"以后再说"提到了"该上了"；要是 ④ 一时上不了，就得先把 ② 的 <code>COLD_INTENT_RESCAN_MAX</code> 调小、给 tier-0 泄压。<br><b class="good">✅ 6-19 复诊更正</b>：以上是 6-17 快照。6-19 复跑 36h 实测——tier-0 已被 aging 压到 <b>p99 1.1h / max 13.4h（8 条）</b>、cold-intent <code>pri=3</code> <b>max 2.0h / 0 条超 6h</b>、pending 仅 15 条，积压基本治住。<b>④ 从「该上了」降级为「留观」，pri RPC 暂不做</b>——详见上方 D 段 6-19 复诊框。</p>
 </div>
 
-<div class="kx good"><b>一句话推进结论</b>：Leg C 把典型延迟砍了 2/3（median −67%）、但极端尾巴(p99)被破鸡生蛋注入洪水拖坏 → 头号补丁是<b>注入去重</b>；真尾巴的下一刀 = <b>② 已上线在跑（65% 空跑率、最对症）＋ ④ pri 防饿死该提上来</b>，而<b>不是</b>去改那个 48h 窗口。</div>
+<div class="kx good"><b>一句话推进结论</b>：Leg C 把典型延迟砍了 2/3（median −67%）、但极端尾巴(p99)被破鸡生蛋注入洪水拖坏 → 头号补丁是<b>注入去重</b>；真尾巴的下一刀 = <b>② 已上线在跑（65% 空跑率、最对症）＋ ④ pri 防饿死经 6-19 复诊降级为留观（尾巴在 ≤2h 容差内、tier-0 已不卡 12h、leads 没掉）</b>，而<b>不是</b>去改那个 48h 窗口、也不急着写 pri RPC。</div>
 
 <div class="foot">
 方法注记：所有数字为 2026-06-15 当日直查生产库（comments / scrape_jobs / source_accounts）+ worker 活体 <code>/queue/stats</code> + Lark 采集快照卡。诚实边界：① 每日 tier 数变化库里无历史表、不可严格重建，本页用当前快照近似；② Leg C 的「8 槽悖论」已于 23:00 实查坐实＝不是闲置，是 pri=1 队列常年积压 ~100 条 + 慢整号活占槽 + poison 活（见 Leg C）；fly machines API 因 deploy token 无读权限未取到机器数，但 running 常态 8 + 78/分吞吐，有效并发 ~8；③ 僵尸判定用 7 天 / 高意向≥5（对齐升级线）。<br>
