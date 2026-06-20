@@ -69,6 +69,12 @@
 <a href="#s9d">　D · 成效实测</a>
 <a href="#s9e">　E · 真尾巴</a>
 <a href="#s9f">　F · 解决方案</a>
+<div class="date">2026-06-20 · 5 天回顾</div>
+<a href="#s10">⑩ 架构订正 + 5天复盘</a>
+<a href="#s10a">　A · 一处硬错订正</a>
+<a href="#s10b">　B · claim 不再纯优先级</a>
+<a href="#s10c">　C · 6-19 快照对账</a>
+<a href="#s10d">　D · 5天PR时间线</a>
 </nav>
 <div class="wrap">
 
@@ -573,9 +579,57 @@
 
 <div class="kx good"><b>一句话推进结论</b>：Leg C 把典型延迟砍了 2/3（median −67%）、但极端尾巴(p99)被破鸡生蛋注入洪水拖坏 → 头号补丁是<b>注入去重</b>；真尾巴的下一刀 = <b>② 已上线在跑（65% 空跑率、最对症）＋ ④ pri 防饿死经 6-19 复诊降级为留观（尾巴在 ≤2h 容差内、tier-0 已不卡 12h、leads 没掉）</b>，而<b>不是</b>去改那个 48h 窗口、也不急着写 pri RPC。</div>
 
+<h2 id="s10">⑩ 5 天回顾：架构订正 + 每刀 PR 复盘（2026-06-20）</h2>
+<div class="tl big">
+<b>这一节干两件事。</b> ① 把一份在内部流传的「抓取流程梳理」里的<b>一处硬错</b>纠回来（它把已淘汰的旧 worker 架构当成现状，会带歪"堵在哪"的判断）；② 把 <b>6-15 → 6-19 这 5 天每一刀改动</b>按「<b>为什么动 → 动了什么 → 效果</b>」串成时间线——这 5 天基本就是一条主线：<b>「评论抓得越快越好」→ 加速 → 加速踩到副作用（饿死 / 注入洪水 / 漏抓）→ 一刀刀回补</b>。
+</div>
+
+<h3 id="s10a">A · 一处硬错：worker 早就不是「一批一起回」了</h3>
+<div class="kx bad"><b>错的说法</b>：「<code>_run_job</code> 用 <code>asyncio.gather</code> 一次并发抢 3 个活，一批一起返回；只要 3 个执行槽被慢整号活占满，新抢回来的快活就在槽外干等」。<br>
+<b>实际代码（<code>worker/services/queue.py</code>）</b>：早已改成 <b>task-per-slot（每槽独立循环）</b>——<code>_poller_loop</code> 起 N 个互不相干的 <code>_slot_worker</code>，每个槽自己跑「抢 1 个 → 干完 → 再抢 1 个」，<b>没有"一批一起回"的栅栏</b>。<code>_run_job</code> 只跑<b>一个</b>活，外面套 <code>asyncio.wait_for(deadline=1500s)</code> 兜死活。<code>gather</code> 只出现在<b>一个整号活内部</b>并发抓它那几条视频时（信号量=2）。</div>
+<p><b>为什么这个订正重要</b>：旧 gather 架构下，"一个慢活拖死整批"是真的（p99 曾到 1253s）——这正是当时改架构的原因。但<b>现在不成立了</b>：一个慢整号活只占<b>它自己那一个槽</b>，兄弟槽照样不停抢快活。真正会堵，只发生在「所有槽<b>同时</b>被慢整号活占满」那一刻，新来的快活才得等空槽。</p>
+<div class="kx good"><b>所以「堵在 Leg C」的真因要精确说</b>：不是"慢活冻结整批"，而是 <b>① pri=1 快道里常年积压上百条</b>（快车道每 tick 灌一大批，新活按同级先到先得排后面）＋ <b>② 慢整号活混在同条道里、零星占满槽</b>。<b>#363 的「快慢分道」（tier-1 整号 pri 1→3）就是对②的根治</b>——把慢活降到快活之下，保证只要有槽空出来永远先领快活，把"全槽被慢活占满"的概率压到最低。<b>订正后结论不变（仍该分道），但机制叙事得对，别再说"gather 一批一起冻住"。</b></div>
+<table>
+<tr><th>项</th><th>常被说错</th><th>实际（现状）</th></tr>
+<tr><td>poller 架构</td><td>gather 一批抢、一起回</td><td><b>task-per-slot</b>：每槽独立 claim-run 循环</td></tr>
+<tr><td>名义并发</td><td>3</td><td><b>6</b>（<code>fly scale count=2</code> × <code>WORKER_CONCURRENCY=3</code>，代码默认值才是 3；洪水下 Fly 还会临时多起机器）</td></tr>
+<tr><td>单活兜底</td><td>（没提）</td><td>wall-clock <b>25 分（1500s）</b> 超时强杀 + 重启浏览器；僵尸 <b>8 分</b>打回 pending</td></tr>
+<tr><td>claim 排序</td><td>纯 <code>priority ASC</code></td><td><b>priority 减 aging 提权</b>（见 B）</td></tr>
+</table>
+
+<h3 id="s10b">B · claim 已经不是「纯小号牌先领」——6-15 上了 aging 安全网（#357）</h3>
+<p>另一处常被漏掉的现状：worker 抢活的 <code>claim_pending_scrape_jobs_batch</code> 早已不是严格 <code>priority ASC</code>。6-15 的 <b>#357</b> 给它加了一层 <b>aging 公平性安全网</b>，专治 ⑤/⑨ 反复出现的 tier-0 被饿死：</p>
+<div class="kx"><b>机制（人话）</b>：一个活<b>等得越久，"有效号牌"越往前提</b>，但封顶只追平 tier-1（<code>pri=1</code>）、<b>不越级抢热源新鲜度</b>。公式 <code>effective = priority − LEAST(等待小时 / 6, priority−1)</code>，env <code>QUEUE_CLAIM_AGING_HOURS=6</code> 可热调免发 migration。<br><b>刻意设保守</b>：tier-0（pri=5）要饿满 <b>~24 小时（4×6h）</b>才追平 tier-1，所以它<b>只兜底"饿超一天的长尾号"，不和同事当天的加速决策（#346/#363）对冲</b>。</div>
+<div class="kx good"><b>6-19 实测它在按预期工作</b>：tier-0 最老 pending 压到 <b>13h（&lt;24h，安全网还没满档触发，符合设计）</b>、pending 仅 278 条——对比 5 月那次 52k / 11.5k 积压、#357 上线前"150 条最老等 17-19h、每号 4.7 天才转一圈"，已经健康得多。<b>这就是 ⑨-F 那条「④ pri 防饿死从『该上了』降级为『留观』」的底气：aging 安全网先把急性饿死按住了，pri RPC 暂不写。</b></div>
+
+<h3 id="s10c">C · 6-19 数据快照对账（数字看自动快照页，这里只给结论）</h3>
+<p>会随时间漂的数字（时延分布 / 空跑率 / pri 积压）以<a href="https://upio.ai/akke/reports/scrape-latency-20260619" style="color:var(--acc)">自动数据快照页</a>为准。三个 headline 结论：</p>
+<table>
+<tr><th>段</th><th>6-19 快照</th><th>怎么读</th></tr>
+<tr><td><b>① 时延</b>（评论→入库，高/中意向）</td><td>全部<b>中位 29 分</b>，但均值 34h、<b>&gt;6h 慢尾 35%</b>（最慢 165h）</td><td><span class="good">一半 ~29 分内抓到（健康）</span>；尾巴被「老·常青钓点」拖爆——正是 ⑨-E 那条 38% 真尾巴，#377 在追但没追平。</td></tr>
+<tr><td><b>② 空跑率</b></td><td>fast-lane 常规 <b>95%</b> / 高意向注入 88% / cold-intent <b>99%</b> / vip-rescan 99%</td><td><span class="warn">退避（#366/#381）省的是"再入次数"，<b>绝对空跑率仍极高</b></span>——lookback 窗口里大量"冒过一波就安静"的视频。这是当前最大、尚未根治的浪费（B 方案待灰度）。⚠️ cold-intent 99% 比 6-17 的 65% 命中恶化，钓点在枯，口径该收。</td></tr>
+<tr><td><b>③ pri 积压</b>（合计 717）</td><td>pri=1 pending 39 / 最老 3min；pri=3 400 / 57min；<b>pri=5（tier-0）278 / 最老 13h</b>；pri=0 秒清</td><td><span class="good">高优先档（0/1）基本秒清</span>；唯一真积压在 tier-0，正是 aging 安全网兜底那条尾巴（见 B）。</td></tr>
+</table>
+<div class="kx warn"><b>口径修正记一笔（#328…6-19）</b>：② 段空跑率之前会被 <code>scrape_video_comments</code> 自插的「台账行」（<code>result={}</code>、计数记在恒 0 的 <code>comments_found</code> 列）撑成假 100%。6-19 已剔除台账行 + 改行拉取避开 count 全表扫超时——所以现在 88–99% 是<b>真实</b>空跑率，不是口径假象。</div>
+
+<h3 id="s10d">D · 最近 5 天每一刀 PR：为什么动 · 动了什么 · 效果</h3>
+<div class="card">
+<div class="leg"><div class="lt"><span class="step">#346</span></div><div class="lb"><b>提速阶梯第 1 步</b>（6-15）· <span class="mut">为什么</span>：运营要「越快越好」，延迟硬地板 = scrape-hot tick 频率 + 冷视频源节流。<br><span class="mut">动了什么</span>：cron <code>*/3→*/2</code>（活跃视频最坏 3→2 分）+ 源节流 <code>45→30 分</code>，卡在反爬红线 ~67 req/min/号 之下（本步 ~40/min/号）。</div><div class="lv good">延迟下压<br>失败率 ~0%</div></div>
+<div class="leg"><div class="lt bad"><span class="step">#357</span></div><div class="lb"><b>aging 公平性安全网</b>（6-15）· <span class="mut">为什么</span>：纯 <code>priority ASC</code> 让 tier-1 垄断产能，tier-0 24h 只完成 227 个、150 条 pending 最老等 17-19h、每号 4.7 天一圈——纯优先级饿死。<br><span class="mut">动了什么</span>：claim RPC 加 aging 提权（见 B），等满 ~24h 追平 tier-1、env 可热调。</div><div class="lv good">tier-0 防归零<br>不抢热源</div></div>
+<div class="leg"><div class="lt"><span class="step">#363</span></div><div class="lb"><b>破鸡生蛋 + 快慢分道</b>（6-16）· <span class="mut">为什么</span>：① 冷的高意向视频赶不上 60min 门槛永进不了快道；② tier-1 慢整号活（中位 23s）和 5.8s 快活挤同条 <code>pri=1</code> 道、前面卡慢的后面全等。<br><span class="mut">动了什么</span>：① 近 6h 冒高/中意向的视频强行 <code>pri=0</code> 插队；② <b>tier-1 整号 pri 1→3</b>；③ cron <code>*/2→*/3</code> 砍空跑。</div><div class="lv good">median −67%<br>(226→75s)</div></div>
+<div class="leg"><div class="lt"><span class="step">#366</span></div><div class="lb"><b>快车道空跑指数退避</b>（6-16）· <span class="mut">为什么</span>：近 24h 88,455 条复扫、77% 抓 0 新——安静视频被每 3min 反复白扫、占槽堵队列。<br><span class="mut">动了什么</span>：视频连抓 3 次 0 新 → 间隔 ×2 封顶 30min（9→18→30），抓到新评论立即清零；加 <code>videos.empty_streak/next_fast_lane_at</code> 列。</div><div class="lv good">省 ~77%<br>无效复扫</div></div>
+<div class="leg"><div class="lt cold"><span class="step">#377</span></div><div class="lb"><b>cold-intent-rescan 老钓点回扫</b>（6-16）· <span class="mut">为什么</span>：真尾巴 = 老视频覆盖盲区（曾产意向的存活视频 2874 个全部 &gt;4d，所有快道/VIP 都覆盖不到）。<br><span class="mut">动了什么</span>：新 cron <code>*/20</code> 专选「近 14d 还在冒意向的活钓点」，<code>pri=3</code>、每视频 120min 限频、MAX=300/轮。<b>= ⑨-F 方案②。</b></div><div class="lv cold">6-17 命中 35%<br>(最对症)</div></div>
+<div class="leg"><div class="lt bad"><span class="step">#381</span></div><div class="lb"><b>高意向注入纳入退避</b>（6-17）· <span class="mut">为什么</span>：#363 的破鸡生蛋（pri=0 注入）洪水把 p99 从 20min 拖到 80min（×4）——112 个老视频 ×~80 次重注入/6h、抓新率 <b>0.0%</b>。<br><span class="mut">动了什么</span>：去掉 #366 对 pri=0 的退避豁免，让注入空跑也记 <code>empty_streak</code>、也受退避过滤。</div><div class="lv good">pri=0 量大降<br>p99 回落</div></div>
+<div class="leg"><div class="lt bad"><span class="step">#413</span></div><div class="lb"><b>增量早退漏新评论（33% 假空）</b>（6-18）· <span class="mut">为什么</span>：运营反馈「中高意向 leads 变少」。抖音 web <code>comment/list</code> <b>默认按热度排（非时间倒序）</b>，热老评论聚成一页触发增量早退、漏掉深处新 lead，晚 50~553min 才补到。<br><span class="mut">动了什么</span>：早退条件从「1 页全老即停」改为「<b>连续 2 页全老才停</b>」，代价仅多翻 ~1 页（env 可调）。</div><div class="lv good">找回被漏<br>的 lead</div></div>
+<div class="leg" style="border:none"><div class="lt"><span class="step">#328…</span></div><div class="lb"><b>报告工具修口径</b>（6-19）· <span class="mut">为什么</span>：② 空跑率被台账行撑成假 100% + count 全表扫超时。<br><span class="mut">动了什么</span>：剔除台账行（恒 0 的 <code>comments_found</code> 列）+ 改行拉取。<span class="mut">配套 61c1a44c：报告生成器自动化 + <code>/update-scrape-report</code> skill。</span></div><div class="lv good">②段数字<br>变可信</div></div>
+</div>
+<div class="kx"><b>建议对账（给那份内部梳理）</b>：① <b>升 f2</b> 仍有效——但 <code>f2==0.0.1.7</code> 硬 pin <code>httpx==0.27.2</code>，升级必须协调 httpx 兼容，且只剩 3 个采集号逼近 24h 封号红线，dev 灰度务必盯每号 API 量。② <b>「解耦 pri 与 tier / 新建 pri=2」大半已落地</b>：快慢分道（#363，tier-1 整号已 pri=3）+ 老视频视频级回扫（#377，cold-intent pri=3）都做了，现有 0/1/3/5 四档已把快慢分开，不必再新建 pri=2。③ <b>查 RPC 装没装不必连库</b>：③ 段能跑出按 pri 分桶就是 RPC 在线的证据（否则 fallback legacy 单活路径、跑不出分桶）。</div>
+<div class="kx good"><b>一句话现状（6-20）</b>：5 天把「加速 → 副作用 → 回补」这条主线基本跑完——<b>median 砍 2/3、p99 注入洪水已治、漏抓 lead 已修、tier-0 饿死已被 aging 按住</b>。<b>仍开口的两件事</b>：① ② 段 88–99% 的<b>绝对空跑率</b>（退避只省再入次数、没降绝对值，B 方案待灰度）；② ① 段被老钓点拖出的 <b>35% &gt;6h 慢尾</b>（#377 在追，但 cold-intent 6-19 已 99% 空跑、命中从 65% 掉到 1%，钓点在枯、口径要收）。</div>
+
 <div class="foot">
 方法注记：所有数字为 2026-06-15 当日直查生产库（comments / scrape_jobs / source_accounts）+ worker 活体 <code>/queue/stats</code> + Lark 采集快照卡。诚实边界：① 每日 tier 数变化库里无历史表、不可严格重建，本页用当前快照近似；② Leg C 的「8 槽悖论」已于 23:00 实查坐实＝不是闲置，是 pri=1 队列常年积压 ~100 条 + 慢整号活占槽 + poison 活（见 Leg C）；fly machines API 因 deploy token 无读权限未取到机器数，但 running 常态 8 + 78/分吞吐，有效并发 ~8；③ 僵尸判定用 7 天 / 高意向≥5（对齐升级线）。<br>
-Akke 内部调查 · Claude Code 协助 · 2026-06-15
+⑩ 段（架构订正 + 5 天 PR 复盘）为 2026-06-20 追加，数字取自 6-19 自动数据快照 + <code>worker/services/queue.py</code> 现状代码 + 各 PR body。<br>
+Akke 内部调查 · Claude Code 协助 · 2026-06-15（⑩ 2026-06-20 续）
 </div>
 
 </div>
