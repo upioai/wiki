@@ -80,7 +80,7 @@
 <div class="wrap">
 
   <h1>DM 私信自动回复 · 0→1 复盘</h1>
-  <div class="sub">抖音私信双向闭环 · 无影云电脑通道 · 数据快照 2026-06-19</div>
+  <div class="sub">抖音私信双向闭环 · 无影云电脑通道 · 数据快照 2026-06-19（2026-06-20 补：节流/第二步点击/gist摆渡）· 部署见 <a href="/akke/dm-autoreply-deploy">部署指南</a></div>
   <div class="chips">
     <span class="chip c-ok">端到端实机验通</span>
     <span class="chip c-acc">全自动直发 + 护栏改写</span>
@@ -195,9 +195,29 @@
         <td><span class="st prog">临时绕过·待根治</span></td>
       </tr>
       <tr>
-        <td><span class="bad">迁移 / 工程坑</span>：RLS policy <code>=ANY(set-returning)</code> 致迁移失败；capture 窗口不在私信列表读 0 行</td>
-        <td>policy 改 <code>IN (SELECT …)</code>；capture 加自导航到私信收件箱(AKKE_C_DM_INBOX)</td>
+        <td><span class="bad">迁移 / 工程坑</span>：RLS policy <code>=ANY(set-returning)</code> 致迁移失败</td>
+        <td>policy 改 <code>IN (SELECT …)</code></td>
         <td><span class="st done">已修</span></td>
+      </tr>
+      <tr>
+        <td><span class="bad">坐标占位符没填</span>：<code>.env</code> 出厂带 <code>AKKE_C_DM_INBOX=&lt;nx&gt;,&lt;ny&gt;</code> 没换真值 → 解析失败=不导航 → 扫到推荐 feed（视频标题）当回复</td>
+        <td>量真实「全局私信图标」千分比坐标(右上角，非用户主页那个发送私信键)填进去；<code>_cappos.py</code> 一量即出</td>
+        <td><span class="st done">已修·已验(2026-06-20)</span></td>
+      </tr>
+      <tr>
+        <td><span class="bad">点私信仍读 0 行</span>：抖音点开私信只是空框，会话列表不渲染 → UIA 读 <code>列表 0 行</code></td>
+        <td><code>_goto_dm_inbox</code> 加<strong>第二下点击</strong> <code>AKKE_C_DM_FIRST</code>(第一个会话)撑开列表；只读捕获、仅标已读不发送</td>
+        <td><span class="st done">已修(PR #439)·待实机验</span></td>
+      </tr>
+      <tr>
+        <td><span class="bad">每轮都扫占窗口</span>：capture 每个 loop 都去扫私信、长时间占抖音前台，抢 DM/route-B 的发送窗口</td>
+        <td>节流 <code>AKKE_DM_AUTOREPLY_INTERVAL</code>(默认 12h=每天 2 次)：启动先扫一次、之后每 12h 一次</td>
+        <td><span class="st done">已修·已上线(PR #438)</span></td>
+      </tr>
+      <tr>
+        <td><span class="bad">脚本下不到无影</span>：<code>raw.githubusercontent.com</code> 被机房连接重置、<code>iwr</code> 撞旧 TLS、<code>update.bat</code> 常缺</td>
+        <td>改走 <code>gist.githubusercontent.com</code> raw(不同域、没被墙)+ <code>curl.exe</code>；长链拆<strong>短变量</strong>避 PowerShell <code>&gt;&gt;</code> 折行</td>
+        <td><span class="st done">已修·已验(2026-06-20)</span></td>
       </tr>
     </table>
   </section>
@@ -233,7 +253,7 @@
       </div>
       <div class="ti">
         <div class="ico">○</div>
-        <div class="body"><b>各机校准 AKKE_C_DM_INBOX + 转化漏斗</b><div class="d">每台云电脑量私信图标坐标；铺量后补回复率/加微率统计，量化双向闭环价值。</div></div>
+        <div class="body"><b>各机校准两坐标 + 转化漏斗</b><div class="d">每台云电脑量<code>AKKE_C_DM_INBOX</code>(私信图标)+<code>AKKE_C_DM_FIRST</code>(第一个会话，撑开列表)；部署照 <a href="/akke/dm-autoreply-deploy" style="color:var(--acc)">部署指南</a>。铺量后补回复率/加微率统计，量化双向闭环价值。</div></div>
       </div>
     </div>
     <div class="note">🟡 = 本周重点（直接卡"能不能安全铺量"）；○ = 增量优化。</div>
