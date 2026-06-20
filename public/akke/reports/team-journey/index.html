@@ -141,6 +141,12 @@
   .datebar button:hover{background:#f1f4f9} .datebar button:disabled{opacity:.4;cursor:not-allowed}
   .datebar input[type=date]{font-size:13px;padding:5px 10px;border:1px solid var(--line);border-radius:8px;font-family:inherit}
   .datebar .dphint{font-size:11px;color:var(--faint)}
+  .mode-tabs{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .mode-tabs button{border:0;border-radius:0;padding:6px 14px;background:#fff;font-weight:600}
+  .mode-tabs button.active{background:var(--blue);color:#fff}
+  .mode-tabs button.active:hover{background:var(--blue)}
+  .db-controls{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .db-controls .tilde{color:var(--faint);font-size:13px}
   .liveflag{font-size:11px;color:var(--green);font-weight:600;background:var(--green-s);border-radius:999px;padding:3px 10px}
 
   .footnote{color:var(--muted);font-size:11.5px;margin-top:6px;padding:12px 14px;background:#fafbfd;border-radius:8px;border-left:3px solid var(--line)}
@@ -153,13 +159,25 @@
     <h1 class="title">三人旅程汇总复盘 · 饭粒 / 野荞 / 夏夏</h1>
     <div class="subtitle" id="sub">加载中…</div>
     <div class="datebar">
-      <button id="prevb" onclick="goDay(-1)">◀ 前一天</button>
-      <input type="date" id="dp" onchange="goDate(this.value)" />
-      <button id="nextb" onclick="goDay(1)">后一天 ▶</button>
-      <button id="todayb" onclick="goToday()">今天</button>
-      <button onclick="reload()">↻ 立即刷新</button>
-      <span class="liveflag" id="liveflag" style="display:none">🟢 每 30 分钟自动刷新</span>
-      <span class="dphint">今天的数据每 30 分钟自动刷新一次（每次刷新都是当下最新；想立刻看点 ↻立即刷新）；可往回切看昨天/前天</span>
+      <div class="mode-tabs">
+        <button id="mode-day" class="active" onclick="setMode('day')">单日</button>
+        <button id="mode-range" onclick="setMode('range')">区间</button>
+      </div>
+      <span id="day-controls" class="db-controls">
+        <button id="prevb" onclick="goDay(-1)">◀ 前一天</button>
+        <input type="date" id="dp" onchange="goDate(this.value)" />
+        <button id="nextb" onclick="goDay(1)">后一天 ▶</button>
+        <button id="todayb" onclick="goToday()">今天</button>
+        <button onclick="reload()">↻ 立即刷新</button>
+        <span class="liveflag" id="liveflag" style="display:none">🟢 每 30 分钟自动刷新</span>
+      </span>
+      <span id="range-controls" class="db-controls" style="display:none">
+        起 <input type="date" id="rf" />
+        <span class="tilde">~</span>
+        止 <input type="date" id="rt" />
+        <button onclick="applyRange()">查看区间</button>
+      </span>
+      <span class="dphint" id="dphint">今天的数据每 30 分钟自动刷新一次（每次刷新都是当下最新；想立刻看点 ↻立即刷新）；可往回切看昨天/前天</span>
     </div>
   </div>
   <div id="app"><div class="empty">加载中…</div></div>
@@ -170,8 +188,19 @@
   var ASG_API = "https://akke.vercel.app/api/public/team-journey-assignments";
   var REFRESH_MS = 30 * 60 * 1000; // 30min
   var timer = null;
-  var curDate = "";   // 当前查看日期 YYYY-MM-DD
+  var curMode = "day";    // "day" | "range"
+  var curDate = "";   // 当前查看日期 YYYY-MM-DD（单日模式）
+  var curFrom = "", curTo = "";  // 区间模式起止日
   var curIsToday = false;
+
+  var DATA_START = "2026-06-11"; // 数据起点（之前没有）
+
+  // 区间显示用：6/1–6/5（5天）
+  function fmtRangeLabel(from, to){
+    function md(d){ var p=d.split("-"); return p[1].replace(/^0/,"")+"/"+p[2].replace(/^0/,""); }
+    var n = Math.round((new Date(to+"T00:00:00+08:00") - new Date(from+"T00:00:00+08:00"))/86400000) + 1;
+    return md(from) + "–" + md(to) + "（" + n + "天）";
+  }
 
   function bjtToday(){
     var d = new Date(Date.now() + 8*3600000);
@@ -194,7 +223,7 @@
     var nb = document.getElementById("nextb");
     var pb = document.getElementById("prevb");
     if(nb) nb.disabled = (curDate >= today);   // 不能切到未来
-    if(pb) pb.disabled = (curDate <= "2026-06-11"); // 数据起点之前没有
+    if(pb) pb.disabled = (curDate <= DATA_START); // 数据起点之前没有
     var tb = document.getElementById("todayb");
     if(tb) tb.disabled = (curDate >= today);   // 已在今天则置灰
     var lf = document.getElementById("liveflag");
@@ -207,8 +236,13 @@
     document.getElementById("app").innerHTML = j.html || '<div class="empty">当日无数据</div>';
     var sub = document.getElementById("sub");
     if(sub){
-      sub.innerHTML = curDate + "（BJT 00:00–23:59）· 共 " + (j.total||0) + " 条 case · 达标线 = 评论→发出 ≤10min · "
-        + (j.isToday ? "每 30 分钟自动刷新 · " : "") + "更新于 " + fmtClock(j.generatedAt);
+      if(j.isRange){
+        sub.innerHTML = fmtRangeLabel(j.from, j.to) + " 合计（BJT 各天 00:00–23:59）· 共 " + (j.total||0)
+          + " 条 case · 达标线 = 评论→发出 ≤10min · 更新于 " + fmtClock(j.generatedAt);
+      } else {
+        sub.innerHTML = curDate + "（BJT 00:00–23:59）· 共 " + (j.total||0) + " 条 case · 达标线 = 评论→发出 ≤10min · "
+          + (j.isToday ? "每 30 分钟自动刷新 · " : "") + "更新于 " + fmtClock(j.generatedAt);
+      }
     }
     // 注入后：初始化筛选计数 + 重新绑定指派勾选
     filterCases();
@@ -265,23 +299,75 @@
       })
       .catch(function(e){ document.getElementById("app").innerHTML = '<div class="empty">网络错误：' + e + '</div>'; });
   }
-  function reload(){ load(curDate || bjtToday()); }
+  function reload(){ if(curMode === "range" && curFrom && curTo) loadRange(curFrom, curTo); else load(curDate || bjtToday()); }
   function scheduleAuto(){
     if(timer){ clearInterval(timer); timer = null; }
-    if(curIsToday){ timer = setInterval(function(){ load(bjtToday()); }, REFRESH_MS); }
+    // 仅单日·今天自动刷新；区间不自动刷（数据范围固定，避免误读）
+    if(curMode === "day" && curIsToday){ timer = setInterval(function(){ load(bjtToday()); }, REFRESH_MS); }
   }
-  function goToday(){ var t = bjtToday(); if(t !== curDate) load(t); }
-  function goDate(d){ if(d && d !== curDate && d <= bjtToday()) load(d); }
+  function goToday(){ var t = bjtToday(); if(curMode !== "day" || t !== curDate) { curMode = "day"; load(t); } }
+  function goDate(d){ if(d && (curMode !== "day" || d !== curDate) && d <= bjtToday()){ curMode = "day"; load(d); } }
   function goDay(n){
     var t = shiftDate(curDate || bjtToday(), n);
-    if(t > bjtToday()) return;
-    load(t);
+    if(t > bjtToday() || t < DATA_START) return;
+    curMode = "day"; load(t);
   }
+
+  // ── 模式切换：单日 / 区间 ──
+  function setMode(m){
+    curMode = m;
+    document.getElementById("mode-day").classList.toggle("active", m === "day");
+    document.getElementById("mode-range").classList.toggle("active", m === "range");
+    document.getElementById("day-controls").style.display = (m === "day") ? "" : "none";
+    document.getElementById("range-controls").style.display = (m === "range") ? "" : "none";
+    var hint = document.getElementById("dphint");
+    if(m === "range"){
+      if(timer){ clearInterval(timer); timer = null; }   // 区间不自动刷
+      var today = bjtToday();
+      var rf = document.getElementById("rf"), rt = document.getElementById("rt");
+      rf.max = today; rf.min = DATA_START; rt.max = today; rt.min = DATA_START;
+      // 预填：止=当前查看日(或今天)，起=往前 4 天（共 5 天），不早于数据起点
+      var end = (curDate && curDate <= today) ? curDate : today;
+      var start = shiftDate(end, -4); if(start < DATA_START) start = DATA_START;
+      rt.value = end; rf.value = start;
+      if(hint) hint.textContent = "选起止日看区间合计（含首尾两天，最多 14 天）；下面 KPI / 案例 / 聚类 / 时效全部按区间重算。区间不自动刷新。";
+    } else {
+      if(hint) hint.textContent = "今天的数据每 30 分钟自动刷新一次（每次刷新都是当下最新；想立刻看点 ↻立即刷新）；可往回切看昨天/前天";
+      load(curDate || bjtToday());
+    }
+  }
+  window.setMode = setMode;
+
+  function applyRange(){
+    var rf = document.getElementById("rf").value, rt = document.getElementById("rt").value;
+    if(!rf || !rt){ alert("请选起始日和结束日"); return; }
+    if(rf > rt){ alert("起始日不能晚于结束日"); return; }
+    if(rt > bjtToday()){ alert("结束日不能晚于今天"); return; }
+    var span = Math.round((new Date(rt+"T00:00:00+08:00") - new Date(rf+"T00:00:00+08:00"))/86400000) + 1;
+    if(span > 14){ alert("区间最多 14 天，当前 " + span + " 天"); return; }
+    loadRange(rf, rt);
+  }
+  window.applyRange = applyRange;
+
+  function loadRange(from, to){
+    curMode = "range"; curFrom = from; curTo = to; curIsToday = false;
+    if(timer){ clearInterval(timer); timer = null; }
+    document.getElementById("app").innerHTML = '<div class="empty">加载中…（区间 ' + fmtRangeLabel(from, to) + '，跨多天稍慢）</div>';
+    fetch(API + "?from=" + from + "&to=" + to + "&_t=" + Date.now(), { cache:"no-store" })
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if(j.error){ document.getElementById("app").innerHTML = '<div class="empty">加载失败：' + j.error + '</div>'; return; }
+        render(j);
+      })
+      .catch(function(e){ document.getElementById("app").innerHTML = '<div class="empty">网络错误：' + e + '</div>'; });
+  }
+  window.loadRange = loadRange;
 
   // ── 指派共享（沿用 team-journey-assignments 端点 + localStorage 兜底）──
   function clusterOf(k){ return k.split("|")[1]; }
   function setLbl(g, v){ var lbl = g.parentElement.querySelector(".asg-lbl"); if(lbl) lbl.textContent = v ? ("→ " + v.split(",").join("、") + " 执行") : ""; }
   function saveAssignee(cb){
+    if(curMode === "range") return; // 区间模式不写指派（指派是按单日的运营动作）
     var g = cb.closest(".cb-group");
     var k = g.dataset.k;
     var vals = Array.prototype.slice.call(g.querySelectorAll("input:checked")).map(function(c){ return c.value; });
@@ -307,6 +393,7 @@
   }
   function applyAssignmentsLocal(){ applyMap(null); }
   function loadAssignments(){
+    if(curMode === "range") return; // 区间无单日指派
     fetch(ASG_API + "?date=" + curDate + "&_t=" + Date.now(), { cache:"no-store" })
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(j){ if(j && j.assignments) applyMap(j.assignments); })
