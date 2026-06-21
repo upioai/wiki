@@ -80,12 +80,12 @@
 <div class="wrap">
 
   <h1>DM 私信自动回复 · 0→1 复盘</h1>
-  <div class="sub">抖音私信双向闭环 · 无影云电脑通道 · 数据快照 2026-06-19（2026-06-20 补：节流/第二步点击/gist摆渡）· 部署见 <a href="/akke/dm-autoreply-deploy">部署指南</a></div>
+  <div class="sub">抖音私信双向闭环 · 无影云电脑通道 · 数据快照 2026-06-19（更新至 2026-06-21：号搜索被风控降权 / both 暂缓半自动兜）· 部署见 <a href="/akke/dm-autoreply-deploy">部署指南</a></div>
   <div class="chips">
     <span class="chip c-ok">端到端实机验通</span>
-    <span class="chip c-acc">全自动直发 + 护栏改写</span>
     <span class="chip c-info">无影捕获 + 号核身发送</span>
-    <span class="chip c-mid">批量化刚启用 · 数据待积累</span>
+    <span class="chip c-acc">护栏改写已就绪</span>
+    <span class="chip c-mid">both 全自动暂缓 · 当前半自动(人工改写发)</span>
   </div>
 
   <!-- ============ 1. 第一个案例 ============ -->
@@ -144,7 +144,7 @@
   <!-- ============ 3. 批量统计 + badcase + 优化 ============ -->
   <section>
     <div class="secno">03 · 批量化执行 · 统计 / Badcase / 优化进展</div>
-    <h2>跑通即踩雷：7 类 badcase 全在实机暴露并修掉</h2>
+    <h2>跑通即踩雷：十余类 badcase 全在实机暴露并逐个修掉</h2>
     <p class="lede">
       当前处<em>0→1 验证完成、批量化刚启用</em>阶段——下方统计为已验证的单条 + 链路指标，<strong>大批量数据待积累</strong>（不虚构）。真正的价值在 badcase 清单：把这套逻辑铺开会撞到的坑，已逐个修到。
     </p>
@@ -163,6 +163,11 @@
         <td><span class="bad">撞名发错人</span>：按昵称搜，同名多→发给陌生人（首测即中）</td>
         <td>抖音号反查（共享缓存 sec_uid→唯一号）+ 按号搜 + 主页号精确核身，号一致才发</td>
         <td><span class="st done">已修·已验</span></td>
+      </tr>
+      <tr>
+        <td><span class="bad">发送号搜索被风控降权</span>：同一抖音号别的号搜得到、发送号怎么搜都搜空 → 大量 <code>wrong_user(非主页)</code>；根因是发送号连日高频「搜人+发」被抖音悄悄削搜索结果，不是撞名/坐标/对方 block</td>
+        <td>身份门已正确拦截（搜空→落非主页→不误发）；运营侧先刷新登录(重扫码/换 cookie)→真风控则冷却 24–48h + <code>daily_limit</code> 30→15–20 拉长间隔→持续不恢复换 messaging 账号。判别：手动连搜 5–6 个号，大部分搜不到=账号级降权</td>
+        <td><span class="st done">诊断清·方案定(2026-06-20)</span></td>
       </tr>
       <tr>
         <td><span class="bad">短回复全漏</span>：列表预览 &lt;12 字被丢，"能发设计图吗""四个房间"全捕获不到</td>
@@ -193,6 +198,11 @@
         <td><span class="bad">回复重复开场白</span>：生成的回复开头照搬开场白"你好,哈哈这条挺多人催"</td>
         <td>本案人工改"可以的"后发；prompt 层根治待做（见下一步）</td>
         <td><span class="st prog">临时绕过·待根治</span></td>
+      </tr>
+      <tr>
+        <td><span class="bad">短回复生成崩兜底 → both 暂不安全</span>：客户回 ≤5 字（"4房两厅""L型"）时 cron 草稿系统性退化成 <code>这边网络卡了下 稍等我回你~</code> 兜底话术，且直接落 approved 等发</td>
+        <td><code>AKKE_DM_AUTOREPLY_MODE</code> 现只跑 <code>capture</code>(只捕获不自动发)；热 lead 靠人工改写 <code>dm_reply_drafts.draft</code> + 手动 <code>send</code> 发兜。根治 = 先治 chatReply self-check 把短回复全削成 fallback，再开 <code>both</code></td>
+        <td><span class="st prog">已定位·待根治(2026-06-20 文哥机)</span></td>
       </tr>
       <tr>
         <td><span class="bad">迁移 / 工程坑</span>：RLS policy <code>=ANY(set-returning)</code> 致迁移失败</td>
@@ -229,15 +239,19 @@
     <div class="todo">
       <div class="ti key">
         <div class="ico">🟡</div>
+        <div class="body"><b>根治短回复崩兜底（解锁 both 的前置）<span class="keytag">重点</span></b><div class="d">客户回 ≤5 字时 chatReply self-check 把草稿全削成"网络卡了"兜底——这是 <code>both</code> 现在不敢开的根因。先治 self-check，再谈全自动。当前热 lead 靠人工改写 draft 手动发兜。</div></div>
+      </div>
+      <div class="ti key">
+        <div class="ico">🟡</div>
+        <div class="body"><b>抖音号反查覆盖率 + 发送号搜索健康<span class="keytag">重点</span></b><div class="d">两面卡铺量：①无缓存号回退昵称搜=撞名风险，提高 enrich 命中率(预热缓存)、无号宁可不发；②发送号连日高频搜+发会被风控降权(搜空→wrong_user)，需冷却降频/换号轮换护住搜索健康。</div></div>
+      </div>
+      <div class="ti key">
+        <div class="ico">🟡</div>
+        <div class="body"><b>全自动(MODE=both)小范围灰度<span class="keytag">重点</span></b><div class="d"><strong>暂缓</strong>——前置是上面两项(短回复兜底 + 号反查/搜索健康)。治好后再单账号开 both 跑几天，盯 webhook 回执看话术质量+发对率，再多账号铺开。</div></div>
+      </div>
+      <div class="ti key">
+        <div class="ico">🟡</div>
         <div class="body"><b>chatReply 根治"重复开场白"<span class="keytag">重点</span></b><div class="d">回复别再照搬开场白开头(你好…哈哈这条挺多人催)；调 prompt / 跟进态去问候化，让回复像真人接话。直接影响客户观感。</div></div>
-      </div>
-      <div class="ti key">
-        <div class="ico">🟡</div>
-        <div class="body"><b>抖音号反查覆盖率<span class="keytag">重点</span></b><div class="d">无缓存号时回退昵称搜=撞名风险。提高 enrich 命中率(预热缓存)，无号宁可不发也不昵称硬搜。决定能否安全铺量。</div></div>
-      </div>
-      <div class="ti key">
-        <div class="ico">🟡</div>
-        <div class="body"><b>全自动(MODE=both)小范围灰度<span class="keytag">重点</span></b><div class="d">先单账号开 both 跑几天，盯 webhook 回执看话术质量+发对率，再多账号铺开。从"半验证"到"敢全自动"的关键一步。</div></div>
       </div>
       <div class="ti">
         <div class="ico">○</div>
@@ -260,7 +274,7 @@
   </section>
 
   <footer>
-    DM 私信自动回复 · 0→1 复盘 · 2026-06-19 · 内部项目报告（非对外案例页）
+    DM 私信自动回复 · 0→1 复盘 · 2026-06-19（末次更新 2026-06-21）· 内部项目报告（非对外案例页）
   </footer>
 
 </div>
