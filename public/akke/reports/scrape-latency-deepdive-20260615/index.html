@@ -71,6 +71,7 @@
 <a href="#s9f">　F · 解决方案</a>
 <div class="date">2026-06-20 · 5 天回顾</div>
 <a href="#s10">⑩ 架构订正 + 5天复盘</a>
+<a href="#s10status">　⓪ 五步现状速览</a>
 <a href="#s10a">　A · 一处硬错订正</a>
 <a href="#s10b">　B · claim 不再纯优先级</a>
 <a href="#s10c">　C · 6-19 快照对账</a>
@@ -581,8 +582,23 @@
 
 <h2 id="s10">⑩ 5 天回顾：架构订正 + 每刀 PR 复盘（2026-06-20）</h2>
 <div class="tl big">
-<b>这一节干两件事。</b> ① 把一份在内部流传的「抓取流程梳理」里的<b>一处硬错</b>纠回来（它把已淘汰的旧 worker 架构当成现状，会带歪"堵在哪"的判断）；② 把 <b>6-15 → 6-19 这 5 天每一刀改动</b>按「<b>为什么动 → 动了什么 → 效果</b>」串成时间线——这 5 天基本就是一条主线：<b>「评论抓得越快越好」→ 加速 → 加速踩到副作用（饿死 / 注入洪水 / 漏抓）→ 一刀刀回补</b>。
+<b>这一节干三件事。</b> ⓪ 先给一张<b>「五步现状速览」</b>——把 ② 段那张 6-15 的五段表，按 5 天后各段实际走到哪<b>逐段更新一遍</b>（最快看清"现在还堵在哪"）；① 把一份在内部流传的「抓取流程梳理」里的<b>一处硬错</b>纠回来（它把已淘汰的旧 worker 架构当成现状，会带歪"堵在哪"的判断）；② 把 <b>6-15 → 6-19 这 5 天每一刀改动</b>按「<b>为什么动 → 动了什么 → 效果</b>」串成时间线——这 5 天基本就是一条主线：<b>「评论抓得越快越好」→ 加速 → 加速踩到副作用（饿死 / 注入洪水 / 漏抓）→ 一刀刀回补</b>。
 </div>
+
+<h3 id="s10status">⓪ 五步现状速览：② 段那张五段表，5 天后各自走到哪了</h3>
+<p>② 段是 <b>6-15</b> 的拍照，当时 <b>Leg B / Leg C 是两个大头</b>。这 5 天的 7 刀 PR 基本都砸在这两段上。下面把<b>每一段</b>按「<b>6-15 原本 → 改了哪几刀 → 现在（6-19 快照）</b>」更新一遍，颜色＝当前健康度：</p>
+<div class="card">
+<div class="leg"><div class="lt good">Leg A 上架</div><div class="lb"><b>抖音侧出评论</b>（评论发出 → 抖音 API 能查到）。<span class="mut">5 天没碰它，本来也碰不着——抖音自己的系统，几秒就能查到。</span></div><div class="lv good">~几秒<br><span class="mut" style="font-weight:400">没动</span></div></div>
+
+<div class="leg"><div class="lt warn">Leg B 入队等待</div><div class="lb"><b>等到有人来抓这条视频</b>——<b>原本最痛的一段</b>：冷视频「鸡生蛋」，第一条评论几乎必慢（数分钟~数小时，慢路里 97% 属此）。<br><span class="mut">改了 3 刀</span>：<code>#363</code> 近 6h 冒高/中意向的视频<b>强行 pri=0 插队</b>（破鸡生蛋）＋ <code>#377</code> 新开 cold-intent-rescan，每 20 分钟<b>专扫近 14 天还在冒意向的老钓点</b>（治"老视频覆盖盲区"）＋ <code>#381</code> 给注入加退避（防 pri=0 洪水反把 p99 拖到 80min）。<br><b>现在</b>：一半评论 <b>中位 ~29 分钟</b>入库（比原来快很多），<b>但还拖着 35% 的 &gt;6h 慢尾</b>——卡在那批「曾产意向、但已 &gt;4 天没人扫」的老钓点（2874 个），<code>#377</code> 在追、还没追平。</div><div class="lv warn">中位↓<br><span style="color:var(--bad)">慢尾 35% 未平</span></div></div>
+
+<div class="leg"><div class="lt good">Leg C 队列排队</div><div class="lb"><b>活派进队列 → worker 领走</b>——<b>原本另一个大头</b>：中位 4.6 分，因为 pri=1 快道常年积压上百条，慢整号活又混在同条道里占槽。<br><span class="mut">改了 2 刀 + 1 处架构订正</span>：<code>#363</code> <b>快慢分道</b>（tier-1 整号 pri 1→3，把慢活降到快活之下，有空槽永远先领快活）＋ <code>#357</code> <b>aging 安全网</b>（tier-0 等久了自动提权，防饿死）；并订正一处误传——worker 早是 <b>task-per-slot 每槽独立循环</b>，不是"一批一起冻住"（详见下面 A）。<br><b>现在</b>：<b>快道（pri=0/1）基本秒清</b>（pri=1 pending 39 / 最老 3 分钟）；只剩 tier-0 慢道还压着 278 条、最老 13h，但被 aging 按在 &lt;24h、没饿死。</div><div class="lv good">快道秒清<br><span class="warn">tier-0 13h 可控</span></div></div>
+
+<div class="leg"><div class="lt good">Leg D 执行抓取</div><div class="lb"><b>worker 去视频底下把评论捞回来</b>——本来就快（~5 秒、1 个请求），但 5 天里挖出一个藏坑：抖音 <code>comment/list</code> <b>默认按热度排（不是时间倒序）</b>，热的老评论挤成一页，触发"这页全老就早停"、把深处的新 lead 漏了（33% 假空，晚 50~553 分钟才补到）。<br><span class="mut">改了 1 刀</span>：<code>#413</code> 早停条件从「1 页全老即停」改「<b>连续 2 页全老才停</b>」，代价只多翻 ~1 页。<br><b>现在</b>：仍是 ~5 秒级，但<b>把被漏的 lead 找回来了</b>，抓得更全。</div><div class="lv good">~5 秒<br><span class="mut" style="font-weight:400">漏抓已修</span></div></div>
+
+<div class="leg" style="border:none"><div class="lt good">Leg E 写库</div><div class="lb"><b>抓到的评论写进我们库</b>。<span class="mut">亚秒，5 天没碰，从来不是瓶颈。</span></div><div class="lv good">亚秒<br><span class="mut" style="font-weight:400">没动</span></div></div>
+</div>
+<div class="kx good"><b>一句话现状（五步版）</b>：原来卡死的 <b>Leg B / Leg C 两个大头都被砸过</b>——<b>Leg C 的快道已经基本秒清</b>（最见效），<b>Leg B 的中位也砍下来了</b>；A / D / E 仍是秒级、稳。<b>唯一还明显开口的是 Leg B 那条 35% 的 &gt;6h 慢尾</b>（老钓点覆盖盲区，#377 在追但 cold-intent 已 99% 空跑、钓点在枯，口径要收）。具体数字随时间漂，以<a href="https://upio.ai/akke/reports/scrape-latency-20260619" style="color:var(--acc)">自动数据快照页</a>为准。</div>
 
 <h3 id="s10a">A · 一处硬错：worker 早就不是「一批一起回」了</h3>
 <div class="kx bad"><b>错的说法</b>：「<code>_run_job</code> 用 <code>asyncio.gather</code> 一次并发抢 3 个活，一批一起返回；只要 3 个执行槽被慢整号活占满，新抢回来的快活就在槽外干等」。<br>
