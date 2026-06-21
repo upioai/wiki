@@ -118,6 +118,33 @@ import-douyin-search
         <tr><td><b>采集口</b></td><td>东京 worker（被 WAF 封）</td><td class="gA">本机 f2（国内 IP 直连；美国 IP 走 seed-ttwid 绕法）</td></tr>
       </tbody>
     </table>
+
+    <h3 style="margin-top:28px" id="muform">选词母表长什么样</h3>
+    <p style="color:var(--gray);font-size:13px;margin:6px 0">母表 = <code>scripts/chanmama/keywords-master.json</code>，<b>6 维度 57 词</b>的选词主表。每天 <code>pick-keywords</code> 跨维度自动挑 5 词，避免老盯一个维度。每词带产量字段（<code>times_used</code> / <code>total_authors</code> / <code>total_new</code> / <code>total_imported</code> / <code>new_rate</code>），跑完 <code>keyword-yield-writeback</code> 回写真实产出，<b>越用越准</b>——新率低又用过多次的词自动退役。</p>
+    <table>
+      <thead><tr><th>维度</th><th>词数</th><th>例词（真实母表）</th></tr></thead>
+      <tbody>
+        <tr><td><b>内容形式</b></td><td class="n">12</td><td>装修日记 / 装修vlog / 装修记录 / 晒新家 / 我的家 / 晒家 …</td></tr>
+        <tr><td><b>全屋定制</b></td><td class="n">16</td><td>全屋定制 / 定制衣柜 / 橱柜定制 / 榻榻米定制 / 玄关柜 / 护墙板 …</td></tr>
+        <tr><td><b>房屋类型</b></td><td class="n">10</td><td>小户型改造 / 二手房翻新 / 出租屋改造 / 婚房装修 / 大平层装修 / 复式装修 …</td></tr>
+        <tr><td><b>装修阶段</b></td><td class="n">8</td><td>新房装修 / 毛坯改造 / 拆改 / 水电改造 / 硬装 / 软装搭配 …</td></tr>
+        <tr><td><b>风格</b></td><td class="n">7</td><td>奶油风装修 / 原木风装修 / 中古风装修 / 侘寂风装修 / 法式装修 / 新中式装修 …</td></tr>
+        <tr><td><b>地域</b></td><td class="n">4</td><td>成都装修 / 武汉装修 / 西安装修 / 郑州装修</td></tr>
+      </tbody>
+    </table>
+    <div class="note"><b>新率（new_rate）</b>＝ <code>total_new / total_authors</code> ＝ 本批捞到的作者里「<b>不在 source_accounts 库</b>」的比例。<b>⚠️ 新率高 ≠ 可入库率高</b>——「新」只是没入过库，能不能入还要过下方的 avgC 落库门（6/18「晒家」新率 0.92 但 <code>total_imported=0</code> 就是这原因）。新率 &lt;20% 且用 ≥2 次的词自动退役。</div>
+
+    <h3 style="margin-top:28px" id="split">分流标准（④ 分桶具体阈值）</h3>
+    <p style="color:var(--gray);font-size:13px;margin:6px 0">富化实拉出 avgC / p30 后，<code>source-mining-split</code> 按下表把候选自动分成三桶；自动入的再按高意向排序选 top-N 升 tier1。<b>阈值是代码里的硬判定，不是人拍脑袋</b>。</p>
+    <table>
+      <thead><tr><th>桶</th><th>判定条件（满足即归此桶，从上往下）</th><th>处置</th></tr></thead>
+      <tbody>
+        <tr><td><b>否决</b><br>reject</td><td>① <b>同行号</b>（名字命中排除词）<br>② <b>avgC &lt; 落库门</b>（默认 150，<b>实跑 60 常态化</b> 2026-06-20 起，捞回活跃业主号）<br>③ <b>p30=0</b>（30 天没发新视频 = 僵尸/降温号，历史再火也没新评论可挖）<br>④ 实拉过但<b>0 可触达</b>（高+中意向 = 0）</td><td>不入</td></tr>
+        <tr><td class="gA"><b>自动入</b><br>auto_import</td><td><b>脉命中</b>（名字含业主脉）<b>且</b>过 avgC 闸 <b>且</b>（实拉过 → 高意向 ≥1 <b>或</b> 可触达 ≥3；未实拉 → 按脉+avgC 直接放行）</td><td class="gA">直接写库 +<br>推 Lark 汇总卡（<b>不静默</b>）</td></tr>
+        <tr><td><b>人工确认</b><br>need_confirm</td><td><b>脉不明确</b> 或 <b>命中率边缘</b>（过了 avgC/p30 闸但脉或意向不够硬）</td><td>推 Lark 卡<br>等人点头</td></tr>
+        <tr><td><b>升 tier1</b></td><td>从「自动入」里按 <b>高意向数 → avgC</b> 排序取 <b>top-N</b>（默认 10）</td><td>升 tier1<br>走抓取快车道</td></tr>
+      </tbody>
+    </table>
   </section>
 
   <!-- 02 现状 -->
@@ -235,13 +262,7 @@ import-douyin-search
     <p style="color:var(--gray);font-size:13px">本页出现的专业词在这用人话解释一遍，例子全用真跑过的号。看正文遇到不懂的回这查。</p>
 
     <h3 style="margin-top:24px">母表 &amp; 新率（选词机制核心）</h3>
-    <table>
-      <thead><tr><th>词</th><th>定义</th></tr></thead>
-      <tbody>
-        <tr><td><b>母表</b></td><td><code>scripts/chanmama/keywords-master.json</code> —— 选词主表，<b>6 维度</b>（内容形式 / 房屋类型 / 风格 / 地域 / 全屋定制 / 装修阶段）<b>57 词</b>。每词字段：<code>kw</code> / <code>dim</code> / <code>status</code> / <code>times_used</code> / <code>last_used</code> / <code>total_authors</code> / <code>total_new</code> / <code>total_imported</code> / <code>new_rate</code>。闭环 <b>pick → harvest → score → import → writeback 回写产量</b>，越用越准。</td></tr>
-        <tr><td><b>新率<br>(new_rate)</b></td><td>＝ <code>total_new / total_authors</code> ＝ 本批捞到的作者里「<b>不在 source_accounts 库</b>」的比例。<b>⚠️ 新率高 ≠ 可入库率高</b>——「新」只是没入过库，能不能入还要过 avgC 门（6/18「晒家」新率 0.92 但 <code>total_imported=0</code> 就是这原因）。<b>新率 &lt;20% 且用 ≥2 次的词自动退役</b>。</td></tr>
-      </tbody>
-    </table>
+    <p style="color:var(--gray);font-size:14px"><b>母表</b>（6 维度 57 词的选词主表）、<b>6 维度例词表</b>、<b>新率定义</b>已移到 §01 选词段，看 <a href="#muform" style="color:#2563eb"><b>「选词母表长什么样」</b></a>（含真实例词）。这里不重复。</p>
 
     <h3 style="margin-top:28px">「高评论动态 → 主页评估」法现状</h3>
     <div class="note warn"><b>现状 = PARKED（验证过有效，但未常态化）</b>
