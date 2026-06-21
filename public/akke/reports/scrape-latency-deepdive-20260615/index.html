@@ -646,6 +646,27 @@
 </ul>
 <span class="mut">以上会随时间漂，最新数字以 <a href="https://upio.ai/akke/reports/scrape-latency-20260619" style="color:var(--acc)">自动数据快照页</a>为准。</span></div>
 
+<h4>这些 pri 各级，现在要不要调？（2026-06-21 评估）</h4>
+<div class="kx good"><b>结论先行：现在<b>不必调 pri 各级</b>——因为当前卡点不在"排队优先级"，调 pri 治不了真问题。</b><br>
+关键认知：<b>pri 只在队列堵的时候才起作用。</b> 现在 pri=0/1 <b>秒清</b>、pri=3 排 57min、pri=5 排 13h 且被 aging 兜在 &lt;24h——<b>队列没失控</b>。而唯一还明显开口的 <b>35% &gt;6h 慢尾</b>，根因是<b>「老视频覆盖盲区」＝这些视频压根没被任何触发器选中去派活</b>（cold-intent 代码注释和 ⑨-E 都写死了），不是"派了活排太久"。<b>「没派活」是 Leg B 覆盖问题，调 Leg C 的 pri 改变不了「没派活」。</b></div>
+<table>
+<tr><th>级</th><th>现状</th><th>要不要调</th><th>为什么 / 若硬调的预期</th></tr>
+<tr><td><b>tier-0 整号</b><br><code>pri=5</code></td><td>排 13h</td><td class="good">不调</td><td>aging 已兜底（13h&lt;24h、符合设计）；tier-0 本就少产高意向。<b>提 pri → 抽走产能稀释高意向源、回吐 #346/#363 加速，高意向 median 反升。</b></td></tr>
+<tr><td><b>tier-1 整号</b><br><code>pri=3</code></td><td>排 57min</td><td class="good">不调</td><td>#363 刚把它 1→3 才让快道秒清；整号活不赶时间（高意向已被 pri=0 抢走）。<b>提回 pri=1 → 慢整号活重新堵 fast-lane，退回 #363 之前的病。</b></td></tr>
+<tr><td><b>fast-lane 常规/注入</b><br><code>pri=1 / 0</code></td><td>秒清</td><td class="good">不调</td><td>已是最优、无积压，没有可改善空间。</td></tr>
+<tr><td><b>cold-intent-rescan</b><br><code>pri=3</code></td><td>排 57min、<b>99% 空跑</b></td><td class="warn">不调 pri<br>（但要收口径）</td><td>它是治慢尾的独苗，但慢尾瓶颈是「14d 回扫周期 + 120min/视频限频 + 钓点枯」，<b>不是那 57min 排队</b>。且 99% 空跑——<b>提 pri = 让一堆空跑活插队挤掉有用活，纯负收益</b>。</td></tr>
+<tr><td><b>vip / hot-rotation / rescan-recent</b></td><td>断粮 / 停摆 / 没开</td><td class="mut">pri 无意义</td><td>它们根本不产活，pri 是"僵尸数字"。<b>真问题是要不要复活，不是改它排第几。</b></td></tr>
+</table>
+<div class="kx warn"><b>真正该动的不是 pri，是这两件（按性价比排）：</b>
+<ul>
+<li><b>① 收 cold-intent 的扫描口径（最对症）</b>：现在 99% 空跑＝钓点在枯、把 worker 槽白烧在死钓点上。把"活钓点"判定收紧（只扫真还在冒意向的）→ 空跑率压下来、命中率升上去 → 同 cron 预算能更密地回扫真·活钓点 → <b>慢尾才会真降</b>。这是动"覆盖质量"，比动 pri 有用得多。</li>
+<li><b>② 评估复活 hot-video-rotation</b>（修它 failed 的根因）：它一活，vip-rescan 的 VIP 货源就恢复 → 多一条老视频覆盖线，分担 cold-intent 这根独苗。</li>
+</ul></div>
+<div class="kx"><b>预期效果对比（一句话）</b>：<br>
+· <b>维持现状不调 pri</b> → 队列继续健康（秒清 + aging 兜底），慢尾不变（慢尾本就不归 pri 管）。<br>
+· <b>错误地调 pri（提 cold-intent / tier-0）</b> → 大概率让高意向 median 回升、慢尾几乎不动，<b>净负</b>。<br>
+· <b>改去收 cold-intent 口径 + 复活 hot-rotation</b> → 直击慢尾根因，<b>预期能把 35% 的 &gt;6h 慢尾往下压</b>（幅度要灰度后看，不敢拍数）。</div>
+
 <h3 id="s10a">A · 一处硬错：worker 早就不是「一批一起回」了</h3>
 <div class="kx bad"><b>错的说法</b>：「<code>_run_job</code> 用 <code>asyncio.gather</code> 一次并发抢 3 个活，一批一起返回；只要 3 个执行槽被慢整号活占满，新抢回来的快活就在槽外干等」。<br>
 <b>实际代码（<code>worker/services/queue.py</code>）</b>：早已改成 <b>task-per-slot（每槽独立循环）</b>——<code>_poller_loop</code> 起 N 个互不相干的 <code>_slot_worker</code>，每个槽自己跑「抢 1 个 → 干完 → 再抢 1 个」，<b>没有"一批一起回"的栅栏</b>。<code>_run_job</code> 只跑<b>一个</b>活，外面套 <code>asyncio.wait_for(deadline=1500s)</code> 兜死活。<code>gather</code> 只出现在<b>一个整号活内部</b>并发抓它那几条视频时（信号量=2）。</div>
