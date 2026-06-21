@@ -602,15 +602,41 @@
 <li><b>Leg B（入队）</b>＝决定这条视频<b>什么时候、贴哪个优先级（pri）标签</b>被丢进队列。来源不同，贴的 pri 不同。</li>
 <li><b>Leg C（排队）</b>＝worker <b>严格按 pri 从小到大</b>领活、同级先到先得。所以 <b>B 决定你拿几号牌，C 兑现这号牌要排多久</b>——B 的"分级"和 C 的"排队"是同一套 pri 的两面。</li>
 </ul>
-<p>5 天改完，现在<b>四档 pri</b> 各装什么活、各排多久（数字＝6-19 自动快照）：</p>
+<h4>Leg B 家族：8 个「入队触发器」（不止快照②那 4 个）</h4>
+<p>Leg B ＝「决定何时把哪条视频/号丢进队列」的<b>所有触发器</b>，分三支（均查代码 + <code>vercel.json</code> 坐实）。看表前先花 30 秒把术语换成人话：</p>
+<div class="kx"><b>这一节会用到的词，先讲人话：</b>
+<ul>
+<li><b>整号轮抓</b>＝把<b>一整个抖音号</b>从头翻一遍：跑到他主页，把最近 20 条视频<b>一条条</b>都抓一遍评论。重、慢，但能兜住这个号下面所有视频。</li>
+<li><b>单视频复扫</b>＝不管是谁的号，<b>只盯一条视频</b>，单独去它评论区把新评论捞回来。轻、快（~5 秒），专抓"正在冒评论"的那几条。</li>
+<li><b>lead 资料</b>＝不抓评论，去抓<b>某个高意向用户本人的主页</b>（昵称、简介），给后面发私信打招呼备料用。</li>
+<li><b>pri（优先级）＝队列里的"号牌"</b>：数字越小越急、越先被抓（0 最急、5 最慢）。</li>
+<li><b>"在快照②吗"＝</b>它会不会出现在那张「各复扫路径空跑率」表里。<b>不在 ≠ 没跑</b>，只是那张表没单独给它列一行（原因见表下）。</li>
+</ul></div>
 <table>
-<tr><th>pri 档</th><th>B 段往这档丢的活</th><th>C 段现在排多久</th><th>谁卡在这档</th></tr>
-<tr><td><code>pri=0</code><br>最急</td><td>近 6h 冒高/中意向的视频<b>强行插队</b>（#363 注入，#381 加退避防洪水）</td><td class="good"><b>秒清</b></td><td>抢救冷视频上刚冒的高意向新评论</td></tr>
-<tr><td><code>pri=1</code><br>快道</td><td><b>视频快车道</b>：单视频快活（只抓一条热视频的增量，~5 秒）</td><td class="good">pending 39 / 最老 <b>3 分钟</b></td><td>热视频（基本不卡）</td></tr>
-<tr><td><code>pri=3</code><br>中道</td><td><b>tier-1 整号活</b>（#363 从 pri=1 降下来）＋ <b>cold-intent 老钓点回扫</b>（#377）</td><td class="warn">400 条 / 最老 <b>57 分钟</b></td><td>tier-1 优质号 + 近 14d 还冒意向的老视频</td></tr>
-<tr><td><code>pri=5</code><br>慢道</td><td><b>tier-0 整号活</b> + lead 资料活</td><td class="bad">278 条 / 最老 <b>13 小时</b></td><td>tier-0 冷号（被 #357 aging 按在 &lt;24h、没饿死）</td></tr>
+<tr><th>支系</th><th>成员</th><th>抓谁 · 怎么触发</th><th>进 pri</th><th>在快照②</th></tr>
+<tr><td rowspan="2"><b>① 整号轮抓</b><br><span class="mut"><code>scrape_source</code><br>去主页捞 ≤20 条视频逐条抓</span></td><td><b>tier-0 整号</b></td><td><code>/scrape</code>：每 1h 挑 150 个最久没抓的普通号</td><td><code>5</code></td><td class="mut">否</td></tr>
+<tr><td><b>tier-1 整号</b></td><td><code>/scrape-hot</code>：每 2-3min 扫优质号（#363 从 pri=1 降到 3）</td><td><code>3</code></td><td class="mut">否</td></tr>
+<tr><td rowspan="6"><b>② 单视频复扫</b><br><span class="mut"><code>scrape_video</code><br>只抓一条视频的增量</span></td><td><b>fast-lane 常规</b></td><td><code>/scrape-hot</code>：top100 热视频（近 48h 有新鲜评论）</td><td class="good"><code>1</code></td><td class="good">✅</td></tr>
+<tr><td><b>fast-lane 高意向注入</b></td><td><code>/scrape-hot</code>：近 6h 冒高/中意向的视频强行插队（#363 破鸡生蛋）</td><td class="bad"><code>0</code></td><td class="good">✅</td></tr>
+<tr><td><b>vip-rescan</b></td><td><code>/vip-video-rescan</code>：VIP 视频（≤4d）增量复扫</td><td class="bad"><code>0</code></td><td class="good">✅</td></tr>
+<tr><td><b>cold-intent-rescan</b></td><td><code>/cold-intent-rescan</code>：近 14d 还冒意向的<b>老钓点</b>（>4d，#377）</td><td><code>3</code></td><td class="good">✅</td></tr>
+<tr><td><b>rescan-recent-videos</b></td><td><code>/rescan-recent-videos</code>：发布 <7d 的视频按 7d 全窗口复扫 <span class="warn">⚠️ 代码默认 env 关，是否在跑看 Vercel</span></td><td><code>3</code></td><td class="mut">否</td></tr>
+<tr><td><b>hot-video-rotation</b></td><td><code>/hot-video-rotation</code>：>7d 但近 14d 还活的<b>历史爆款</b>，7d 全窗口</td><td><code>5</code></td><td class="mut">否</td></tr>
+<tr><td><b>③ lead 资料</b><br><span class="mut"><code>scrape_lead_profile</code></span></td><td><b>scrape_lead_profile</b></td><td><code>/analyze-once</code>：给高意向用户抓主页资料</td><td><code>5</code></td><td class="mut">否</td></tr>
 </table>
-<div class="kx"><b>这张表关键的一刀（#363）</b>：把<b>又慢又重的 tier-1 整号活从 pri=1 降到 pri=3</b>——pri=1 快道只剩 5 秒级的单视频快活，所以 pri=1 才能<b>从原来积压上百条 / 排 4.6 分，压到现在最老只排 3 分钟</b>。代价是 tier-1 整号挪到 pri=3 排 ~57 分钟，但整号活本不赶时间（上面的高意向新评论已被 pri=0 抢救走了）。</div>
+<div class="kx warn"><b>为什么快照②只剩 4 个（人话）</b>：那张表只统计"单视频复扫"这一支，而且只给<b>身上贴了来源小标签的 4 类</b>单独列行。<code>rescan-recent</code>/<code>hot-video-rotation</code> 虽然也是单视频复扫、但没贴这种标签，整号轮抓和 lead 资料又是另一种活——所以都没进那张表。<b>一句话：快照只看到 4 个 ≠ Leg B 只有 4 个。</b></div>
+
+<h4>Leg C 家族：没有独立触发器，就是上面 8 个活按 pri 排成 4 条道</h4>
+<p>Leg C 是<b>一条队列</b>，它没有自己的"触发器"——"家族"就是 Leg B 那 8 个活落进来后、按号牌（pri）分成的 <b>4 条道</b>。worker <b>严格按号牌从小到大领</b>（同号牌先到先得）。各道现在排多久＝6-19 自动快照：</p>
+<table>
+<tr><th>pri 档</th><th>这道里装的活（全来自 Leg B）</th><th>C 段现在排多久</th><th>谁卡这档</th></tr>
+<tr><td><code>pri=0</code><br>最急</td><td>高意向注入 ＋ vip-rescan ＋ 手动</td><td class="good"><b>秒清</b></td><td>抢救冷视频上刚冒的高意向新评论</td></tr>
+<tr><td><code>pri=1</code><br>快道</td><td>fast-lane 常规（单视频快活，~5 秒）</td><td class="good">pending 39 / 最老 <b>3 分钟</b></td><td>热视频（基本不卡）</td></tr>
+<tr><td><code>pri=3</code><br>中道</td><td>tier-1 整号 ＋ cold-intent ＋ rescan-recent</td><td class="warn">400 条 / 最老 <b>57 分钟</b></td><td>tier-1 优质号 + 老钓点 + <7d 新视频</td></tr>
+<tr><td><code>pri=5</code><br>慢道</td><td>tier-0 整号 ＋ hot-video-rotation(7d 全窗) ＋ lead 资料</td><td class="bad">278 条 / 最老 <b>13 小时</b></td><td>tier-0 冷号（被 #357 aging 按在 &lt;24h、没饿死）</td></tr>
+</table>
+<div class="kx"><b>外加 Leg C 的领活机制本身</b>（也属这族）：worker <b>8 槽 task-per-slot</b>（每槽独立"抢 1→干完→再抢 1"）＋ <b>#357 aging 安全网</b>（活等久了自动提权、封顶追平 tier-1，防 tier-0 饿死）。<br><b>关键一刀 #363</b>：把又慢又重的 tier-1 整号活<b>从 pri=1 降到 pri=3</b>——pri=1 快道只剩 5 秒级单视频快活，才从原来积压上百条/排 4.6 分压到<b>最老只排 3 分钟</b>。代价是 tier-1 整号挪到 pri=3 排 ~57 分钟，但整号活本不赶时间（高意向新评论已被 pri=0 抢救走）。</div>
+<div class="kx good"><b>一句话收口两族关系</b>：<b>Leg B 发牌（8 个触发器决定谁进队、贴几号牌）→ Leg C 叫号（同一套 pri 排成 4 条道领走）</b>。同一套 pri，B 是发牌、C 是排队兑现。</div>
 
 <div class="kx warn"><b>B、C 现状各一句（带具体时间）：</b>
 <ul>
