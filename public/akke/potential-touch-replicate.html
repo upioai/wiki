@@ -124,9 +124,10 @@ SUPABASE_SCOPED_JWT=...           # role=wuying_worker 受控 JWT，回写直连
 AKKE_ACCOUNT_ID=&lt;你的账号 UUID&gt;
 AKKE_ORG_ID=&lt;org UUID&gt;
 AKKE_COMMENT_VERIFY_LENIENT=1     # 减评论假失败，必开（雷点⑩）
-AKKE_C_HOME=... AKKE_C_SEARCH=... AKKE_C_USERTAB=... AKKE_C_FIRST=...
-AKKE_C_BACK=...                   # 搜索/导航类坐标，按 2560×1600 本机实测（雷点⑫）
-# ⚠️ 别设 AKKE_C_LIKE / AKKE_C_WORK_FIRST —— 留空走 VL 视觉定位，固定坐标会点空/开错视频（雷点⑬）</pre>
+# 2560×1600 黄金值（饭粒机 06-21 实测验穿、新机直接抄，⚠️别再抄旧部署文档的错值 400,25/220,99）：
+AKKE_C_SEARCH=432,25  AKKE_C_USERTAB=287,45  AKKE_C_FIRST=219,103  AKKE_C_SEARCH_BTN=589,14  AKKE_C_CLOSE=976,50
+# ⚠️ 别设 AKKE_C_LIKE / AKKE_C_WORK_FIRST —— 留空走 VL 视觉定位，固定坐标会点空/开错视频（雷点⑬）
+# ⚠️ 坐标改完还得采模板：py douyin_dm_grounded.py --capture（生成 templates\dm_button.png 等，"非主页"兜底+发送键定位要它；模板/坐标都不能跨机复用，雷点⑫）</pre>
 
 <h2>5 · 启动 · 两个窗口（PowerShell）</h2>
 <p><b>监控窗口：</b></p>
@@ -166,7 +167,8 @@ python _realtime_touch_consume_wuying.py</pre>
 <p><b>⑨ 平台挂起冻住监控（powercfg 管不到）= 头号隐形杀手</b><br>powercfg 只关 Windows 层；<b>无影个人版平台层</b>一看「没人在真用这台桌面」就把整台 VM 挂起（powercfg 够不到、个人版无解）。<b class="warn">触发 = 远程会话掉</b>：Mac 断网 / Mac 睡 / 连着但久不动鼠标，都会让无影判「空闲」→ 挂起。<b>挂起后监控进程不死、但卡到几乎停</b>——本该每 60s 拉一轮，实测被冻到 6.5 小时才 10 轮、之后彻底无动静，于是<b>逮不到任何新鲜视频</b>（它转太慢，看到时视频都过 20min 了）。<span class="warn">⚠️ 症状：进程列表里监控「还活着」、但连续多天 0 触达——别被「进程 alive」骗了，要看监控窗口轮数是不是每分钟+1。</span><br><b>保活三条（都要）</b>：① <b>Mac 联网</b>（别断网）；② <b>Mac 醒着</b>（caffeinate/LaunchAgent，见前置「关 Mac 休眠」）；③ <b>无影桌面别久闲</b>（连着时隔几分钟动下鼠标）。重启监控后要它全速跑，得趁桌面活跃这一两小时。深夜发布仅 1.8%、接受白天档、保傍晚 17–21 高峰（占 45%）。<span class="lead">（实证：2026-06-18/19 连续两天 0 真触达，全是监控被冻——不是没货、不是 cookie 死，cookie 一直好的。）</span></p>
 <p><b>⑩ VL 验证双向误判：开 LENIENT，别开 TRUST_SEND</b><br>VL 既有假阴也有<b>假阳</b>。<code>AKKE_COMMENT_VERIFY_LENIENT=1</code> 仍真验证、减假阴——开它。<code>AKKE_COMMENT_TRUST_SEND=1</code> 点了就算、会把真失败刷成功——<b>绝不开</b>。</p>
 <p><b>⑪ 换监控池 = 必须重生成话术表</b><br>监控池和话术表是两个文件；只换池子不重生成 → 评论2 退空（<code>no_msg2</code>）。看话术表 <code>LastWriteTime</code> 是否晚于最近换池。</p>
-<p><b>⑫ 坐标按本机分辨率实测，换机/重启重测</b><br><code>AKKE_C_*</code> 是 2560×1600 标定的，换机/换分辨率/<b>重启</b>都用 <code>_capture_pos.py</code> 重测。<br><b class="warn">典型症状(6-17实证)</b>：搜人时 OCR 老读到不相干的号(如 <code>@xiexie</code>)、身份门未过→全 wrong_user = <b>搜索框坐标太靠顶边点空、昵称没输进框→搜空、抖音推个默认号</b>。修：把 <code>AKKE_C_SEARCH</code> 的 y 调大到能聚焦(饭粒机 2560×1600 实测 <code>400,25</code> 能用、<code>400,13</code> 点空)。<b>主动验</b>：拿一行真名做 CSV 跑 <code>python douyin_comment_grounded.py &lt;test&gt;.csv --confirm</code> 看 OCR match 到真人没，到 y/n 答 n 不真发，免等随机触达。</p>
+<p><b>⑫ 坐标按本机分辨率实测，换机/重启重测</b><br><code>AKKE_C_*</code> 是 2560×1600 标定的，换机/换分辨率/<b>重启</b>都用 <code>_capture_pos.py</code> 重测。<br><b class="warn">典型症状(6-17实证)</b>：搜人时 OCR 老读到不相干的号(如 <code>@xiexie</code>)、身份门未过→全 wrong_user = <b>搜索框坐标太靠顶边点空、昵称没输进框→搜空、抖音推个默认号</b>。修：用<b>黄金值</b>（饭粒机 2560×1600 实测 <code>AKKE_C_SEARCH=432,25</code>、<code>AKKE_C_USERTAB=287,45</code>、<code>AKKE_C_FIRST=219,103</code>）。<b class="warn">⚠️ 06-21 血泪：之前 .env 一直是错值 <code>400,25</code>/<code>220,99</code>（抄自旧部署文档，220,99 还和第1条结果重叠点空）+ <b>缺 dm_button 等模板</b>（"非主页"兜底失效），两个叠一起让"搜不对人"卡了好几天。坐标改黄金值后<b>还得 <code>--capture</code> 补采模板</b>。<b>主动验</b>：拿一行<b>有抖音号</b>的真名做 CSV 跑 <code>python douyin_comment_grounded.py &lt;test&gt;.csv --confirm</code>，看 <code>[OCR] match=True</code> 落到真人没，到 y/n 答 n 不真发，免等随机触达（06-21 实测「撸铁战士」<code>match=True conf=0.98</code> 验穿）。</p>
+<p><b>⑰ 可达率 ~62%：用户没设抖音号的搜不到、不是 bug</b><br>enrich 反查 <code>unique_id</code>（自定义抖音号，字母/dy默认号，<b>搜得到</b>）<b>没设就退 <code>short_id</code></b>（纯数字，如归然 <code>2091195012</code>、<code>123230083</code>，<b>抖音搜索框搜不到本人</b>、搜出来是随机人、身份门正确跳过）。抽 8 个 lead 实测 5 个能搜、3 个纯数字够不着 → <b>分母只能是设了号的 ~62%</b>。纯数字那批<b>当前任何搜索通道都无解</b>（要够着得改成从评论直接点进主页，未做）。<b>排障时别把"纯数字用户搜不到"当坐标/模板 bug 修</b>，先 <code>resolve_number</code> 看反查出的是字母号还是纯数字。</p>
 <p><b>⑬ 固定坐标会「点空 / 开错视频」→ 随内容变的元素改 VL（2026-06-18 血泪）</b><br>点赞、主页「第一个作品」若用固定坐标（<code>AKKE_C_LIKE</code>/<code>AKKE_C_WORK_FIRST</code>）会出事——点赞点空（爱心没变红）、开视频开错（点到旧视频；归然实例：发到他 6-2 旧视频而非 6-17 新视频）。<b class="warn">根因别赖「重启漂移」</b>：<code>click_norm</code> 是 0-1000 归一化坐标×屏宽高 = 按比例、分辨率/重启无关、坐标不会自己飘；真因是<b>抖音 UI 随内容变</b>（视频竖屏/横屏→点赞位置不同；主页头部高度→宫格首格位置不同），固定点跟不上。铁证：归然 log 里 VL 视觉定位的(暂停/发送/评论tab)全中、固定坐标的(点赞/首格)全崩。<b>修 = 把 .env 里 <code>AKKE_C_LIKE</code>、<code>AKKE_C_WORK_FIRST</code> 两行行首各加 <code>#</code> 注释掉</b> → 执行器 <code>C_*=None</code> 自动回落<b>已有 VL 分支</b>（找空心爱心/最左上首格），零代码、下条触达自动生效。验：<code>py -c "import douyin_comment_grounded as c; print(c.C_LIKE, c.C_WORK_FIRST)"</code> 应都 <code>None</code>。<span class="warn">⚠️ 这俩 env DM 也共享（DM 发私信前点赞无 VL 兜底→删后跳过、<b>不影响发私信本身</b>）。</span></p>
 <p><b>⑭ 进程卫生：旧实例没死透还跑旧代码</b><br>改了脚本/配置后，<b>已在跑的 python 进程仍跑内存里的旧代码</b>、改了文件也不生效，必须杀掉重起。起新消费/监控前先 <code>Get-CimInstance Win32_Process -Filter "Name='python.exe'" | Select-Object ProcessId,CommandLine | Format-List</code> 查一眼，旧的 <code>Stop-Process -Id &lt;pid&gt; -Force</code>——<b>别新旧并行</b>（两个消费各跑各的、新旧逻辑混、还可能重复触达）。</p>
 <p><b>⑮ 监控隔夜会挂，每天上班手动重起</b><br><code>_realtime_touch_watch</code> 深夜被无影平台挂起（雷点⑨）后<b>不会自动恢复</b> → 不重起就一整天零触达、消费空转。每天上班先查进程，没 watch 就重起监控（<code>python _realtime_touch_watch_wuying.py --max-age-min 20 --pool &lt;你的池&gt;</code>）。</p>
@@ -175,8 +177,8 @@ python _realtime_touch_consume_wuying.py</pre>
 
 <h2>8 · 已知未完成（roadmap，别当 bug 报）</h2>
 <ul>
-<li><b>focus_fail 修复</b>（雷点①）+ <b>点赞/开视频改 VL</b>（雷点⑬）2026-06-18 已落地，<b>待第一条真触达 e2e 盖章</b>（看 log 出 <code>locate[爱心/第一个作品]</code> + 评论落最新视频）。</li>
-<li><b>wrong_user 无昵称</b>（雷点⑧）= ✅ 2026-06-18 已修（消费端 enrich 反查抖音号）。</li>
+<li><b>搜索链（坐标+模板+enrich+身份门）</b>= ✅ <b>2026-06-21 e2e 验穿</b>：黄金坐标+补采模板后，真号搜「撸铁战士」<code>match=True conf=0.98</code> 落对人。<b>点赞/开视频改 VL</b>（雷点⑬）已落地但<b>仍待第一条真触达盖章</b>（手验那条到三连暂停就答 n 了、没真点赞，看 log 出 <code>locate[爱心/第一个作品]</code>+评论落最新视频才算）。</li>
+<li><b>wrong_user 无昵称</b>（雷点⑧）= ✅ 2026-06-18 已修（消费端 enrich 反查抖音号）；06-21 批量实测反查正常，但<b>可达率 ~62%</b>（雷点⑰：纯数字 short_id 用户搜不到，约 38% 无解）。</li>
 <li><b>开错视频残留</b>：VL 首格=最左上，没置顶时=最新✓；若有人<b>置顶旧视频</b>则首格≠最新，需进一步按 <code>video_url</code> 导航（暂未做）。</li>
 <li><b>回写自动化 / 免摆渡（Phase 5）</b> 待做：无影连不上 Vercel，正解是消费端<b>直连 Supabase</b>（用 <code>SUPABASE_SCOPED_JWT</code> 调 <code>claim_second_touch</code>/<code>mark_second_touch</code> RPC，像 DM/RC 那样）——需先补 migration 把这俩 RPC 授权给 <code>wuying_worker</code> 角色 + 改脚本。真发跑通后再做。</li>
 </ul>
