@@ -608,9 +608,10 @@
 <ul>
 <li><b>整号轮抓</b>＝把<b>一整个抖音号</b>从头翻一遍：跑到他主页，把最近 20 条视频<b>一条条</b>都抓一遍评论。重、慢，但能兜住这个号下面所有视频。</li>
 <li><b>单视频复扫</b>＝不管是谁的号，<b>只盯一条视频</b>，单独去它评论区把新评论捞回来。轻、快（~5 秒），专抓"正在冒评论"的那几条。</li>
-<li><b>lead 资料</b>＝不抓评论，去抓<b>某个高意向用户本人的主页</b>（昵称、简介），给后面发私信打招呼备料用。</li>
+<li><b>lead 资料</b>＝跟抓评论无关的另一种活。系统发现一个高意向用户后，去抓<b>这个用户本人的主页</b>（昵称、简介等）存起来——目的是给后面<b>发私信打招呼时备料</b>（知道对方是谁、好开口）。14 天内抓过就跳过，不重复抓。</li>
+<li><b>VIP 视频</b>＝被系统标成"高价值"的视频（<code>is_vip</code>）：判定＝这个号<b>产 lead 最多 + 近期还在冒评论</b>，由 hot-video-rotation 每天算一次。<b>"≤4d"</b>＝vip-rescan 只盯"<b>发布未满 4 天</b>"的 VIP 视频、每小时复扫一次（高意向新评论越早抓命中率越高：1h≈100%、隔天减半），更老的自动退役。</li>
 <li><b>pri（优先级）＝队列里的"号牌"</b>：数字越小越急、越先被抓（0 最急、5 最慢）。</li>
-<li><b>"在快照②吗"＝</b>它会不会出现在那张「各复扫路径空跑率」表里。<b>不在 ≠ 没跑</b>，只是那张表没单独给它列一行（原因见表下）。</li>
+<li><b>"在快照②吗"＝</b>它派出去的活<b>会不会出现在快照页那张「各复扫路径空跑率」表里</b>。✅=单独列一行；否=不会（要么不是单视频复扫、要么没贴来源标签）。<b>"否" ≠ 没跑</b>，只是那张表没给它列一行。</li>
 </ul></div>
 <table>
 <tr><th>支系</th><th>成员</th><th>抓谁 · 怎么触发</th><th>进 pri</th><th>在快照②</th></tr>
@@ -618,10 +619,10 @@
 <tr><td><b>tier-1 整号</b></td><td><code>/scrape-hot</code>：每 2-3min 扫优质号（#363 从 pri=1 降到 3）</td><td><code>3</code></td><td class="mut">否</td></tr>
 <tr><td rowspan="6"><b>② 单视频复扫</b><br><span class="mut"><code>scrape_video</code><br>只抓一条视频的增量</span></td><td><b>fast-lane 常规</b></td><td><code>/scrape-hot</code>：top100 热视频（近 48h 有新鲜评论）</td><td class="good"><code>1</code></td><td class="good">✅</td></tr>
 <tr><td><b>fast-lane 高意向注入</b></td><td><code>/scrape-hot</code>：近 6h 冒高/中意向的视频强行插队（#363 破鸡生蛋）</td><td class="bad"><code>0</code></td><td class="good">✅</td></tr>
-<tr><td><b>vip-rescan</b></td><td><code>/vip-video-rescan</code>：VIP 视频（≤4d）增量复扫</td><td class="bad"><code>0</code></td><td class="good">✅</td></tr>
+<tr><td><b>vip-rescan</b></td><td><code>/vip-video-rescan</code>：VIP 视频（发布 ≤4d 的高价值视频）每小时增量复扫 <span class="warn">⚠️ 它的"货源"VIP 名单由 hot-video-rotation 物化，而后者近乎停摆（见下）→ vip-rescan 实际也在断粮</span></td><td class="bad"><code>0</code></td><td class="good">✅</td></tr>
 <tr><td><b>cold-intent-rescan</b></td><td><code>/cold-intent-rescan</code>：近 14d 还冒意向的<b>老钓点</b>（>4d，#377）</td><td><code>3</code></td><td class="good">✅</td></tr>
-<tr><td><b>rescan-recent-videos</b></td><td><code>/rescan-recent-videos</code>：发布 <7d 的视频按 7d 全窗口复扫 <span class="warn">⚠️ 代码默认 env 关，是否在跑看 Vercel</span></td><td><code>3</code></td><td class="mut">否</td></tr>
-<tr><td><b>hot-video-rotation</b></td><td><code>/hot-video-rotation</code>：>7d 但近 14d 还活的<b>历史爆款</b>，7d 全窗口</td><td><code>5</code></td><td class="mut">否</td></tr>
+<tr><td><b>rescan-recent-videos</b></td><td><code>/rescan-recent-videos</code>：发布 <7d 的视频按 7d 全窗口复扫 <span class="bad">⚠️ 已确认<b>没开</b>（2026-06-21 查生产库）：env 未设 =1，cron 到点即返回 disabled，近 7d 入队 0 条</span></td><td><code>3</code></td><td class="mut">否</td></tr>
+<tr><td><b>hot-video-rotation</b></td><td><code>/hot-video-rotation</code>：>7d 但近 14d 还活的<b>历史爆款</b>，7d 全窗口 <span class="bad">⚠️ 近乎<b>停摆</b>（2026-06-21 查）：最近一条 6-17 且 failed、近 7d 入队 0 条</span></td><td><code>5</code></td><td class="mut">否</td></tr>
 <tr><td><b>③ lead 资料</b><br><span class="mut"><code>scrape_lead_profile</code></span></td><td><b>scrape_lead_profile</b></td><td><code>/analyze-once</code>：给高意向用户抓主页资料</td><td><code>5</code></td><td class="mut">否</td></tr>
 </table>
 <div class="kx warn"><b>为什么快照②只剩 4 个（人话）</b>：那张表只统计"单视频复扫"这一支，而且只给<b>身上贴了来源小标签的 4 类</b>单独列行。<code>rescan-recent</code>/<code>hot-video-rotation</code> 虽然也是单视频复扫、但没贴这种标签，整号轮抓和 lead 资料又是另一种活——所以都没进那张表。<b>一句话：快照只看到 4 个 ≠ Leg B 只有 4 个。</b></div>
