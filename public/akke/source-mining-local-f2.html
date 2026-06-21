@@ -89,7 +89,7 @@
     <div class="funnel">
       <div class="step"><div class="when">① 选词</div><div class="body"><span class="big">从选词母表挑词</span><div style="font-size:13px;color:var(--gray);margin-top:4px">系统化母表 <code>keywords-master.json</code> 每天自动选 5 词（母表长什么样、例词见下方<b>「选词母表长什么样」</b>）。</div></div></div>
       <div class="step"><div class="when">② 捞作者</div><div class="body"><span class="big">raw-CDP 捞 sec_uid</span><div style="font-size:13px;color:var(--gray);margin-top:4px">本机登录态 Chrome <code>:9222</code>，<b>原始 CDP websocket</b> 开搜索页滚动触发 <code>discover/search</code> 接口、取响应体里的 sec_uid。<b>弃 playwright</b>（Chrome149 上 <code>connect_over_cdp</code> 静默捞 0、时灵时不灵）。</div></div></div>
-      <div class="step"><div class="when">③ 富化</div><div class="body"><span class="big">本机 f2 实拉真信号</span><div style="font-size:13px;color:var(--gray);margin-top:4px">本机 <code>f2</code>（httpx 签名）串行拉每个号最近视频的<b>评论数 / 活跃度</b>两个真信号：<br>· <b>评论数 <code>avg_comments</code>(avgC)</b> = 平均每条视频多少评论 = <b>评论池多大 = 能挖多少潜客</b>（例：一口的装修日记 avgC 40198）；<br>· <b>活跃度 <code>posts_30d</code>(p30)</b> = 近 30 天发了几条视频 = 还更不更新；<b><code>p30=0</code> = 休眠号（历史火、现在不更、挖不动），高 avgC + p30=0 是典型「死矿」要剔</b>。<br>美国 IP 走 <b>seed-ttwid 绕法</b>（注入登录态 ttwid 免 anon warmup 超时）。</div></div></div>
+      <div class="step"><div class="when">③ 富化</div><div class="body"><span class="big">本机 f2 实拉真信号</span><div style="font-size:13px;color:var(--gray);margin-top:4px">本机 <code>f2</code>（httpx 签名）串行拉每个号最近视频的<b>评论数 / 活跃度</b>两个真信号：<br>· <b>评论数 <code>avg_comments</code>(avgC)</b> = <b>拉这个号最近 10 条视频、每条评论数取平均</b>（实拉最多 20 条、取最近 10 条算整体均值；<code>avgC7</code>/<code>avgC30</code> 是这 10 条里落在近 7 天 / 30 天窗口内的子集）= <b>评论池多大 = 能挖多少潜客</b>（例：一口的装修日记 avgC 40198）；<br>· <b>活跃度 <code>posts_30d</code>(p30)</b> = 近 30 天发了几条视频 = 还更不更新；<b><code>p30=0</code> = 休眠号（历史火、现在不更、挖不动），高 avgC + p30=0 是典型「死矿」要剔</b>。<br>美国 IP 走 <b>seed-ttwid 绕法</b>（注入登录态 ttwid 免 anon warmup 超时）。</div></div></div>
       <div class="step"><div class="when">④ 分流</div><div class="body"><span class="big">置信度分桶</span><div style="font-size:13px;color:var(--gray);margin-top:4px">按 avgC / 脉命中 / 是否同行<b>自动分桶</b>：高置信度自动入、边缘号推 Lark 人工确认、同行号否决（<b>具体数据标准见下方「分流标准」表</b>）。</div></div></div>
       <div class="step"><div class="when">⑤ 入库</div><div class="body"><span class="big">写库 + 联动</span><div style="font-size:13px;color:var(--gray);margin-top:4px">写 <code>source_accounts</code> → 升 tier1 → 自动排 T+7 提醒 → 回写关键词产量 → 重生成监控页。</div></div></div>
     </div>
@@ -161,9 +161,9 @@ import-douyin-search
     <table>
       <thead><tr><th>维度</th><th>现状</th></tr></thead>
       <tbody>
-        <tr><td><b>数据依据</b></td><td>富化的 <code>avg_comments</code>（avgC，评论池大小）+ <code>posts_30d</code>（p30，近 30 天活跃度）+ 入库后意向打分</td></tr>
-        <tr><td><b>tier0·1 动态流转</b></td><td><code>auto-tier1</code> cron 每天 <b>01:00</b> 既<b>升</b>（近 7 天高 + 中意向 ≥ 阈）又<b>降</b>（热号近 7 天高 + 中 = 0 自动降回 tier0）→ 升降明细见实时页流水</td></tr>
-        <tr><td><b>怎么追踪</b></td><td>实时页 <code>source-evolution</code>（tier 曲线 + 升降流水 + 快车道）+ <code>source-cohort-yield.py</code>（按批次 TAG 查 7 天产出）</td></tr>
+        <tr><td><b>数据依据</b><br><span style="color:var(--gray);font-size:12px">入库前看哪几个数</span></td><td><b>三个硬数，全是 f2 实拉 + 入库后打分的真值</b>：<br>① <code>avg_comments</code>(avgC) ＝ 最近 10 条视频平均评论数，<b>过落库门 ≥150（默认）/ ≥60（2026-06-20 起常态化）</b>；<br>② <code>posts_30d</code>(p30) ＝ 近 30 天发的视频数，<b>必须 &gt;0</b>（=0 直接否决，僵尸号）；<br>③ <b>入库后意向打分</b>：每条评论 AI 打 0–100，<b>≥80 高 / ≥60 中 / ≥30 低</b>，「高+中」数就是这个号的真实可触达产出。</td></tr>
+        <tr><td><b>tier0·1 动态流转</b><br><span style="color:var(--gray);font-size:12px">如何升 tier1 / 降 tier0</span></td><td><code>auto-tier1</code> cron 每天 <b>01:00</b> 对称升降（先升后降，口径不相交不抖）：<br>· <b>升 tier1</b>：非 tier1 的活跃号，<b>近 7 天「高+中」意向 ≥ 16 条</b> → 升进快车道（env <code>AUTO_TIER1_WINDOW_DAYS=7</code> / <code>AUTO_TIER1_MIN_HIMID=16</code>）；<br>· <b>降 tier0</b>：现有 active tier1，<b>近 7 天「高+中」意向 = 0 条</b>（完全 0 产出）→ 降回常规（env <code>AUTO_DEMOTE_TIER1_DAYS=7</code> / <code>AUTO_DEMOTE_TIER1_MAX_OUTPUT=0</code>）。<br>（注：<b>入库当批</b>也会直接标 tier1 = 当批自动入里按高意向 top-10，见上「分流标准」表；之后才由 cron 按上面的硬阈值动态升降。）→ 逐条升降明细见实时页流水。</td></tr>
+        <tr><td><b>怎么追踪</b><br><span style="color:var(--gray);font-size:12px">在哪看、跑什么命令</span></td><td>① <b>实时页</b> <a href="https://upio.ai/akke/source-evolution" style="color:#2563eb"><code>source-evolution</code></a>：tier0/1 每日号数曲线 + 升降流水（含号名+原因+抖音链接）+ 快车道积压，<b>每天自动刷</b>；<br>② <b>按批次查 7 天产出</b>：<code>TAG=&lt;批次&gt; python3 scripts/source-cohort-yield.py</code>（带 9 天宽限期防误杀，满 T+7 跑）；<br>③ <b>累计成效</b>：<code>worker/.venv/bin/python scripts/_source-mining-effect-cumulative.py</code>。</td></tr>
       </tbody>
     </table>
     <div class="note warn"><b>本质</b>：active tier1 在 ~140 上下浮动（老号掉活跃就降、新鲜好号补上），全库 62% 已淘汰为 inactive。<b>号源不缺、发送产能才是瓶颈</b>（可触达早过剩）——所以扩源真正价值是<b>换血提质</b>（用新鲜 tier1 替换衰退号），不是堆量。</div>
@@ -278,7 +278,7 @@ import-douyin-search
         <tr><td><b>号源</b></td><td>要去抓评论、找客户的抖音账号。比如「一口的装修日记」。号源库 = <code>source_accounts</code> 表。</td></tr>
         <tr><td><b>f2</b></td><td>一个工具，让程序「伪装成正常浏览器」去问抖音要数据（评论数 / 视频列表）。靠它在本机直接拉真实数据（httpx 签名）。</td></tr>
         <tr><td><b>sec_uid</b></td><td>抖音号的<b>唯一身份证号</b>（一串 <code>MS4w...</code>）。认号靠它不靠名字——名字会重复，sec_uid 不会。</td></tr>
-        <tr><td><b>avgC<br>(avg_comments)</b></td><td><b>平均评论数</b>：拉这个号最近几条视频平均每条多少评论 = 评论池多大 = 能挖多少潜客。例：一口的装修日记 avgC <b>40198</b>。</td></tr>
+        <tr><td><b>avgC<br>(avg_comments)</b></td><td><b>平均评论数</b>：拉这个号<b>最近 10 条视频</b>、每条评论数取平均（实拉最多 20 条取近 10 条算；avgC7/avgC30 = 这 10 条里落在 7/30 天内的子集）= 评论池多大 = 能挖多少潜客。例：一口的装修日记 avgC <b>40198</b>。</td></tr>
         <tr><td><b>p30<br>(posts_30d)</b></td><td>近 <b>30 天发了几条视频</b> = 活跃度。<code>p30=0</code> = 休眠号（历史火、现在不更、挖不动），高 avgC + p30=0 是典型「死矿」。</td></tr>
         <tr><td><b>tier0 / tier1</b></td><td>抓取<b>勤不勤</b>的档位。tier1（高频）≈ 每小时抓一次（验证出高产 / 新鲜好号走快车道）；tier0（常规）几小时抓一次。</td></tr>
         <tr><td><b>快车道<br>(scrape_jobs priority)</b></td><td>抓取队列优先级：<code>pri0</code> 高意向注入 / <code>pri1</code> 快车道增量 / <code>pri3</code> tier1 整号 / <code>pri5</code> tier0。数字越小越优先抓。</td></tr>
