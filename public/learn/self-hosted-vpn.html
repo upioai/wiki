@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>自建科学上网节点 — upio.ai 知识分享</title>
-<meta name="description" content="从零理解一条自建节点：VLESS-Reality 为什么这么搭、机房 IP 与住宅 IP 怎么选、IP 风控的两层含义、客户端常见的 fake-IP/DNS 坑，以及一套可复用的出口 IP 验证与节点诊断方法论。脱敏科普版，不含任何真实凭据。">
+<meta name="description" content="从零理解一条自建节点：VLESS-Reality 为什么这么搭、机房 IP 与住宅 IP 怎么选、IP 风控的两层含义、穿透与出口解耦的双层架构、客户端常见的 fake-IP/DNS 坑，以及一套可复用的出口 IP 验证与节点诊断方法论。脱敏科普版，不含任何真实凭据。">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700;800&family=Noto+Sans+SC:wght@400;500;700&display=swap">
@@ -316,11 +316,11 @@ footer {
   <header class="hero">
     <span class="tag">网络 · 科学上网</span>
     <h1>自建科学上网节点</h1>
-    <p class="subtitle">一条"能稳定访问境外服务"的自建节点，背后是<strong>协议、IP、客户端、排障</strong>四件事环环相扣。本文把团队这几年踩出来的经验<strong>脱敏</strong>整理成一篇科普：先讲清 VLESS-Reality + CDN 为什么这么搭，再讲机房 IP 与住宅 IP 怎么选、IP 风控的两层含义，最后给一套可复用的客户端排坑与节点诊断 checklist。</p>
+    <p class="subtitle">一条"能稳定访问境外服务"的自建节点，背后是<strong>协议、IP、客户端、排障</strong>四件事环环相扣。本文把团队这几年踩出来的经验<strong>脱敏</strong>整理成一篇科普：先讲清 VLESS-Reality + CDN 为什么这么搭、机房 IP 与住宅 IP 怎么选，再把<strong>团队实际采用的双层架构</strong>（穿透与出口解耦）摊开讲，最后给一套可复用的客户端排坑与节点诊断 checklist。</p>
     <div class="hero-meta">
-      <span><strong>篇幅</strong> 5 章 · 约 14 分钟</span>
+      <span><strong>篇幅</strong> 6 章 · 约 16 分钟</span>
       <span><strong>受众</strong> 想搞懂自建节点、不止"会连"的人</span>
-      <span><strong>主线</strong> 原理 → 搭建 → 选 IP → 客户端 → 排障</span>
+      <span><strong>主线</strong> 原理 → 搭建 → 选 IP → 我们的方案 → 客户端 → 排障</span>
     </div>
   </header>
 
@@ -528,6 +528,64 @@ footer {
     </div>
 
     <div class="callout info"><strong>供应商梯队（公开常识）·</strong> 住宅代理市场大致分档：头部一线（Bright Data、Oxylabs 等）池大但贵；二线（Decodo、SOAX、IPRoyal 等）性价比高。<b>避坑：</b>有些低价"住宅"实为混入机房 IP，号称城市级定位却长期缺货 —— 下单前小样本实测，别信宣传页。</div>
+  </section>
+
+  <!-- ════════════ CASE STUDY ════════════ -->
+  <div class="section-head reveal" id="our-scheme">
+    <span class="num">✦</span>
+    <div class="meta">
+      <h2>CASE STUDY · 我们实际采用的方案</h2>
+      <div class="lede">穿透与出口解耦：一台 VPS 不够，拆两层</div>
+    </div>
+  </div>
+
+  <section>
+    <p>前三章是通用原理，这一章讲<strong>团队自己踩坑后定下的架构</strong> —— 它把第 02 章的协议和第 03 章的 IP 风控串起来，也是"能连 ≠ 能用"落到实处的真实案例。</p>
+
+    <div class="callout danger">
+      <strong>起点的坑 ·</strong> 最初就是一台境外 VPS 跑 VLESS-Reality，穿透完全没问题。但很快发现：<b>VPS 自带的机房 IP 被一线 AI 服务整段拉黑</b>（风控双高危 <code>proxy=true</code> + <code>hosting=true</code>，风险评分满分），访问主流 LLM 站点直接 403 —— 而且是<b>整个 IP 段</b>被标记，在这台机器上怎么换 IP 都没用。
+    </div>
+
+    <p>结论很清楚：<strong>"能穿透"和"IP 干净"是两件事，不该指望同一个 IP 同时满足</strong>。于是把架构拆成两层 —— 这就是现在在用的方案：</p>
+
+    <div class="formula reveal">
+      <div class="fx-main" style="font-size:14px; text-align:left;">
+<span class="c2">用户</span> → <span class="c1">VLESS-Reality（VPS · 只管穿透）</span> → <span class="c4">服务端按目标分流</span><br>
+&nbsp;&nbsp;&nbsp;├─ 普通网站　　 → <span class="c3">VPS 机房 IP 直出</span>（快 · 省）<br>
+&nbsp;&nbsp;&nbsp;└─ AI / 风控敏感 → <span class="c5">住宅 / ISP 代理出口</span>（干净 · 低风控）
+      </div>
+      <div class="fx-note">穿透层只解决"进得来、抗探测"；出口层才解决"网站认不认你"。两层各司其职、各自可换、各自可排障。</div>
+    </div>
+
+    <h3>四个关键决策</h3>
+    <div class="terms reveal">
+      <div class="termcard">
+        <div class="tc-top"><span class="tc-name">① 穿透 / 出口解耦</span><span class="tc-kind k-event">架构</span></div>
+        <div class="tc-body">VPS 用 Reality 负责"安全接入"，出公网访问敏感服务时在<b>服务端</b>把流量透明转发到一组<b>住宅 / ISP 代理</b>出口。脏的机房 IP 只用来扛穿透，不用来见网站。</div>
+      </div>
+      <div class="termcard">
+        <div class="tc-top"><span class="tc-name">② 中转放服务端</span><span class="tc-kind k-event">关键 ★</span></div>
+        <div class="tc-body">没让每个人在自己客户端配代理 —— 那样会撞 <b>fake-DNS</b>（代理域名被接管成 <code>198.18.x.x</code>，必败）。服务端中转后，<b>用户只看到一个普通 VLESS-Reality 节点</b>（连 IP、不依赖 DNS），客户端零配置。</div>
+        <div class="tc-myth"><b>通用心法：</b>能在服务端一处解决的，别让每台客户端各自打补丁。</div>
+      </div>
+      <div class="termcard">
+        <div class="tc-top"><span class="tc-name">③ 静态 1:1 绑定</span><span class="tc-kind k-time">取舍</span></div>
+        <div class="tc-body">买的是<b>固定住宅 IP</b>，IP 粘性本身就是价值（养号 / 稳定身份）。所以每个用户<b>静态绑定</b>一个出口，而<b>不</b>用轮询池 —— 只有"不在乎具体 IP"的流量才进 balancer。</div>
+        <div class="tc-myth"><b>呼应 02：</b>balancer 不是万能；要 IP 粘性的场景，池化反而破坏价值。</div>
+      </div>
+      <div class="termcard">
+        <div class="tc-top"><span class="tc-name">④ 留带外通道</span><span class="tc-kind k-always">运维</span></div>
+        <div class="tc-body">代理客户端可能劫持整台机器流量，<b>连 SSH 上 VPS 都会失联</b>。提前留一条不走代理的"带外通道"（机房控制台 API），是被锁在门外时唯一的钥匙。</div>
+      </div>
+    </div>
+
+    <div class="callout success">
+      <strong>这套方案的本质 ·</strong> 把一个"既要抗封锁、又要 IP 干净"的难题，<b style="color:var(--accent-3)">拆成两个各自好解的子问题</b>：穿透交给 Reality，干净出口交给住宅代理，中间用服务端分流缝合。
+    </div>
+
+    <div class="callout info">
+      <strong>怎么知道它一直健康？·</strong> 上游住宅出口会间歇抖动、甚至整条线路掉线。做法：VPS 上跑健康检查 + <b>状态机告警</b>（只在状态翻转时推通知，不刷屏）；定位上游问题靠<b>在 VPS 端对多个出口多采样横向对比</b>，客户端测不准（受本机 fake-DNS / 网关轮换干扰）。这正是<a href="#debug">第 05 章排障方法论</a>在生产里的用法。
+    </div>
   </section>
 
   <!-- ════════════ 04 ════════════ -->
