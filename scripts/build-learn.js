@@ -54,7 +54,7 @@ const CATEGORIES = [
     label: 'MENTAL MODELS · 思维模型',
     title: '思维 · 心智模型',
     items: [
-      { slug: 'munger-inversion', title: '芒格逆向思维', desc: '「反过来想」——先问怎样会失败，再挨个避开。' },
+      { slug: 'munger-inversion', title: '芒格逆向思维', desc: '「反过来想」——先问怎样会失败，再挨个避开；结合 Akke 举例。' },
     ],
   },
 ];
