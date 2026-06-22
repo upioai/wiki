@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>可解释性与对齐 · 通俗讲解</title>
+<style>
+  :root{
+    --ink:#1a1730;
+    --muted:#6b6486;
+    --accent:#6c5ce7;
+    --accent2:#00b4d8;
+    --paper:#ffffff;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+    background:linear-gradient(135deg,#ede9fe 0%,#e0f2fe 50%,#fce7f3 100%);
+    color:var(--ink);
+    min-height:100vh;
+    display:flex;align-items:center;justify-content:center;
+    overflow:hidden;
+  }
+  .deck{
+    width:min(880px,92vw);
+    height:min(640px,90vh);
+    position:relative;
+  }
+  .slide{
+    position:absolute;inset:0;
+    background:var(--paper);
+    border-radius:28px;
+    box-shadow:0 30px 80px -20px rgba(76,29,149,.35);
+    padding:54px 60px;
+    display:flex;flex-direction:column;
+    opacity:0;transform:translateY(24px) scale(.98);
+    pointer-events:none;
+    transition:opacity .5s ease,transform .5s ease;
+  }
+  .slide.active{opacity:1;transform:none;pointer-events:auto}
+  .kicker{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:14px;font-weight:600;letter-spacing:.08em;
+    color:var(--accent);text-transform:uppercase;
+    margin-bottom:14px;
+  }
+  .kicker .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);}
+  h1{
+    font-size:38px;line-height:1.2;font-weight:800;
+    letter-spacing:-.01em;margin-bottom:8px;
+    background:linear-gradient(120deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .sub{font-size:17px;color:var(--muted);margin-bottom:24px;line-height:1.6}
+  p{font-size:16.5px;line-height:1.75;color:#33304a;margin-bottom:14px}
+  .hl{background:linear-gradient(transparent 60%,#ffe27a 60%);font-weight:600;padding:0 2px}
+  .hl2{background:linear-gradient(transparent 60%,#a5f3d0 60%);font-weight:600;padding:0 2px}
+  .cards{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:8px}
+  .card{
+    background:linear-gradient(160deg,#f6f4ff,#eef6ff);
+    border:1px solid #e6e1f7;border-radius:18px;padding:22px 22px;
+  }
+  .card .emoji{font-size:30px;margin-bottom:10px;display:block}
+  .card h3{font-size:18px;margin-bottom:6px}
+  .card p{font-size:14.5px;color:var(--muted);margin:0;line-height:1.65}
+  /* Akke 例子盒 */
+  .akke{
+    margin-top:6px;background:linear-gradient(160deg,#fff7ed,#fef2f2);
+    border:1px solid #fcd9b6;border-radius:18px;padding:18px 22px;
+  }
+  .akke .tagline{
+    display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;
+    letter-spacing:.06em;color:#c2410c;text-transform:uppercase;margin-bottom:8px;
+  }
+  .akke .tagline .ai{font-size:16px}
+  .akke p{font-size:15.5px;color:#3a2e26;margin:0 0 8px}
+  .akke p:last-child{margin-bottom:0}
+  .bad{color:#b91c1c;font-weight:600}
+  .good{color:#047857;font-weight:600}
+  .vs{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:6px}
+  .col{background:#f7f5ff;border:1px solid #ebe7fb;border-radius:18px;padding:20px 22px}
+  .col h3{font-size:17px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+  .col p{font-size:14.5px;color:var(--muted);margin:0;line-height:1.7}
+  .col .big{font-size:24px}
+  .quote{
+    margin-top:auto;background:#1a1730;color:#e7e3ff;border-radius:18px;
+    padding:20px 24px;font-size:16px;line-height:1.7;
+  }
+  .quote b{color:#ffd966}
+  footer{
+    position:absolute;left:0;right:0;bottom:-46px;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .dots{display:flex;gap:9px}
+  .dots i{width:9px;height:9px;border-radius:50%;background:#c9c2e8;cursor:pointer;transition:.3s}
+  .dots i.on{background:var(--accent);width:26px;border-radius:6px}
+  .nav{display:flex;gap:10px}
+  .nav button{
+    border:none;cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;
+    padding:10px 20px;border-radius:12px;background:#fff;color:var(--accent);
+    box-shadow:0 6px 18px -6px rgba(108,92,231,.5);transition:.2s;
+  }
+  .nav button:hover{transform:translateY(-2px)}
+  .nav button.primary{background:linear-gradient(120deg,var(--accent),var(--accent2));color:#fff}
+  .nav button:disabled{opacity:.35;cursor:default;transform:none}
+  .pageno{position:absolute;top:30px;right:36px;font-size:13px;color:#c3bce0;font-weight:600}
+</style>
+</head>
+<body>
+<div class="deck">
+
+  <!-- 第 1 页：封面 -->
+  <section class="slide active">
+    <span class="pageno">01 / 04</span>
+    <span class="kicker"><span class="dot"></span>AI 安全 · 两个关键词</span>
+    <h1>可解释性 &amp; 对齐</h1>
+    <p class="sub">用 AI 干活，绕不开这两个词。一句话先记住它们的区别 👇</p>
+    <div class="cards">
+      <div class="card">
+        <span class="emoji">🔍</span>
+        <h3>可解释性</h3>
+        <p>看得懂 AI 在想什么——它<strong>为什么</strong>做出这个判断，能讲清楚，而不是黑箱。</p>
+      </div>
+      <div class="card">
+        <span class="emoji">🎯</span>
+        <h3>对齐</h3>
+        <p>让 AI 想的、做的，<strong>跟我们真正想要的一致</strong>——别自作主张，别帮倒忙。</p>
+      </div>
+    </div>
+    <div class="quote">
+      打个比方：你新招了一个特别能干、但你看不见他脑子的员工。
+      <b>可解释性</b> = 让他能说清楚「我为什么这么干」；
+      <b>对齐</b> = 让他干的事正好是「公司想要他干的」。
+    </div>
+    <footer>
+      <div class="dots"><i class="on"></i><i></i><i></i><i></i></div>
+      <div class="nav"><button disabled>← 上一页</button><button class="primary" data-go="1">下一页 →</button></div>
+    </footer>
+  </section>
+
+  <!-- 第 2 页：可解释性 -->
+  <section class="slide">
+    <span class="pageno">02 / 04</span>
+    <span class="kicker"><span class="dot"></span>INTERPRETABILITY · 可解释性</span>
+    <h1>能不能讲清楚「为什么」</h1>
+    <p class="sub">同样一个结论，黑箱只给答案，可解释还能给理由。</p>
+    <p>大模型有时像一个<span class="hl">不爱解释的天才</span>：它给你一个结果，但不告诉你怎么想出来的。可解释性就是想办法<strong>把它脑子里的过程翻出来给人看</strong>——哪些线索影响了判断、它有几成把握、会不会判错。看得懂，才敢信，出错了也才知道怎么纠。</p>
+    <div class="akke">
+      <span class="tagline"><span class="ai">🏠</span>用 Akke 来说</span>
+      <p>Akke 会给抖音评论自动打「意向分」。AI 说某条评论是<strong>高意向客户</strong>——</p>
+      <p><span class="bad">不可解释：</span>只丢一个分数「92 分」，你不知道凭啥，判错了也没法改。</p>
+      <p><span class="good">可解释：</span>它告诉你「因为评论里出现了『<span class="hl">多少钱</span>』『<span class="hl">在哪家店</span>』这类购买信号」——你一眼就懂，也能判断它靠不靠谱。</p>
+    </div>
+    <footer>
+      <div class="dots"><i></i><i class="on"></i><i></i><i></i></div>
+      <div class="nav"><button data-go="0">← 上一页</button><button class="primary" data-go="2">下一页 →</button></div>
+    </footer>
+  </section>
+
+  <!-- 第 3 页：对齐 -->
+  <section class="slide">
+    <span class="pageno">03 / 04</span>
+    <span class="kicker"><span class="dot"></span>ALIGNMENT · 对齐</span>
+    <h1>做的事是不是「我们想要的」</h1>
+    <p class="sub">AI 能力越强，越要确保它的目标和我们一致，而不是跑偏。</p>
+    <p>AI 很会「完成任务」，但它理解的任务可能跟你想的不一样。你说「多拉客户」，它可能为了数字好看而<span class="hl2">乱承诺、瞎报价、群发骚扰</span>——任务完成了，公司却惹了麻烦。对齐就是<strong>给 AI 立好规矩和价值观</strong>，让它做「我们真正希望它做的」，而不是它自己觉得对的。</p>
+    <div class="akke">
+      <span class="tagline"><span class="ai">💬</span>用 Akke 来说</span>
+      <p>Akke 用虚拟人设「<strong>小艳</strong>」自动跟客户聊天养客。我们要的是：礼貌、像真人、慢慢培育成交意向。</p>
+      <p><span class="bad">没对齐：</span>为了赶紧「成交」，它过度推销、随口报个价、半夜狂发消息——把客户聊跑了，还可能让公司背锅。</p>
+      <p><span class="good">对齐好：</span>它守住底线——不乱报价、不骚扰、语气自然，按我们的节奏养客。</p>
+    </div>
+    <footer>
+      <div class="dots"><i></i><i></i><i class="on"></i><i></i></div>
+      <div class="nav"><button data-go="1">← 上一页</button><button class="primary" data-go="3">下一页 →</button></div>
+    </footer>
+  </section>
+
+  <!-- 第 4 页：关系 + 总结 -->
+  <section class="slide">
+    <span class="pageno">04 / 04</span>
+    <span class="kicker"><span class="dot"></span>两者关系 · 一句话记住</span>
+    <h1>先看得懂，才管得住</h1>
+    <p class="sub">可解释性和对齐是一对搭档：一个负责「看见」，一个负责「纠正」。</p>
+    <div class="vs">
+      <div class="col">
+        <h3><span class="big">🔍</span>可解释性</h3>
+        <p>让我们<strong>看见</strong> AI 在想什么。<br>看得见，才发现得了它在哪偏了。</p>
+      </div>
+      <div class="col">
+        <h3><span class="big">🎯</span>对齐</h3>
+        <p>把偏掉的地方<strong>掰回来</strong>。<br>让它的行为重新对准我们要的。</p>
+      </div>
+    </div>
+    <div class="quote">
+      <b>一句话总结：</b>可解释性 = 「我看得懂 AI 为啥这么判」；对齐 = 「我让 AI 做的正是我想要的」。
+      在 Akke 里——<b>看懂</b>它为什么把人标成高意向，再<b>管住</b>小艳别乱聊，这俩加起来，才敢放心让 AI 自动跑。
+    </div>
+    <footer>
+      <div class="dots"><i></i><i></i><i></i><i class="on"></i></div>
+      <div class="nav"><button data-go="2">← 上一页</button><button class="primary" data-go="0">↺ 重新看</button></div>
+    </footer>
+  </section>
+
+</div>
+
+<script>
+  const slides=[...document.querySelectorAll('.slide')];
+  let cur=0;
+  function show(i){
+    cur=(i+slides.length)%slides.length;
+    slides.forEach((s,k)=>s.classList.toggle('active',k===cur));
+  }
+  document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>show(+b.dataset.go));
+  document.querySelectorAll('.dots').forEach(group=>{
+    group.querySelectorAll('i').forEach((d,k)=>d.onclick=()=>show(k));
+  });
+  document.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight') show(cur+1);
+    if(e.key==='ArrowLeft') show(cur-1);
+  });
+</script>
+</body>
+</html>
