@@ -516,6 +516,132 @@
     <strong>当下注意：</strong>v5/v4 没在 Langfuse Playground 实际跑过样本（决策 7 "立刻落地都" 覆盖了原 staging-first 协议）。要回滚就喊"切回 v2"，秒级。decision 阶段主动外发 Homedz3791 撞抖音风控的概率比 opener 低但仍存在，盯 DM 送达率。
   </div>
 
+  <!-- §6 监控完整数据流（PR #452 + 已有 capture 链路） -->
+  <h2>⑤ 监控完整数据流（end-to-end）</h2>
+  <p>这次还顺手做了「客户回复 → @ 群」的告警监控（PR #452 + 复用已有 capture 通路）。整条链 8-13 min 端到端延迟。</p>
+
+  <div class="landing" style="background:#f7f8fa;">
+    <div class="step">
+      <div class="dot" style="background:#86909c;">1</div>
+      <div class="step-body">
+        <div class="step-title">客户在抖音 PC 回复 DM</div>
+        <div class="step-desc">客户在抖音消息列表里回复了我们之前发的 DM。</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="dot" style="background:#86909c;">2</div>
+      <div class="step-body">
+        <div class="step-title">无影 <code>wuying_poll_agent.py</code> 60s tick · capture 路线</div>
+        <div class="step-desc">
+          调 <code>douyin_dm_autoreply.py capture</code> → 内部用 <code>douyin_inbox_uia</code> 读【私信会话列表】UIA 文本 → 判定客户回复（preview 变了 + 非系统通知）→ RPC <code>record_dm_inbound(conv_id, preview)</code> → <code>INSERT messages (role='customer', content=preview)</code><br>
+          节流：默认 12h 一次，建议运营改成 5 min（<code>AKKE_DM_AUTOREPLY_INTERVAL=300</code>）
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="dot" style="background:#86909c;">3</div>
+      <div class="step-body">
+        <div class="step-title">Supabase <code>messages</code> 表新增一行 <code>role='customer'</code></div>
+        <div class="step-desc">RPC 内置幂等：同 conv 最后一条已是同内容 customer message 时跳过，重复扫不会重复写。</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="dot" style="background:var(--accent);">4</div>
+      <div class="step-body">
+        <div class="step-title">Vercel cron <code>/api/cron/dm-notify-watch</code> 每 3 min 扫近 10 min messages</div>
+        <div class="step-desc">
+          PR #452 新加。检测三类事件：<br>
+          · 事件 a：客户首次回复（conv 第一条 role=customer）<br>
+          · 事件 b：客户给联系方式（正则匹配微信号 / 手机号 / 抖音号 / "+v"）<br>
+          · 事件 c：我方抛 Homedz3791（role=ai 且 content 含 brand_profile.wechat_id）
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="dot" style="background:var(--ok);">5</div>
+      <div class="step-body">
+        <div class="step-title">命中事件 a/b → 推【数据监控群】Lark 卡片 + @ owner</div>
+        <div class="step-desc">
+          复用 <code>resolveDataMonitorWebhookUrl()</code>（提示词更新机器人 webhook）。蓝卡 first_reply / 橙卡 customer_contact。@ <code>accounts.owner_lark_user_id</code> 对应的运营。<br>
+          事件 c（我方给号）暂不推群，留 PR 2 日报汇总形式给负责人个人。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3 style="margin-top:18px;">👥 监控对应关系（已配齐）</h3>
+  <table class="std">
+    <thead><tr><th>messaging account</th><th>owner @ 群</th></tr></thead>
+    <tbody>
+      <tr><td>饭粒（一筑·全屋定制）</td><td>饭粒</td></tr>
+      <tr><td>小文（野荞）/ 小武 / 有大有小 / 文哥</td><td>野荞（4 账号都归她）</td></tr>
+      <tr><td>零星</td><td>夏夏</td></tr>
+      <tr><td>Gloomberg（cloud_pc 测试号）</td><td>💤 NULL · 不监控</td></tr>
+    </tbody>
+  </table>
+
+  <div class="conclusion" style="margin-top:8px;">
+    <strong>关键事实：</strong>监控完全是 <strong>Supabase DB 轮询</strong>，不挑通路。客户回复从哪个通路（云电脑 / WDA / ADB）进 messages 表都触发监控。唯一外部依赖是 Lark webhook。
+  </div>
+
+  <!-- §7 运营部署指南 -->
+  <h2>⑥ 运营部署指南（无影上 5 min 配齐）</h2>
+  <p>监控的<strong>基础设施已上线</strong>（cron + 表 + owner mapping），但<strong>数据源还没开</strong>——客户回复要进 <code>messages</code> 表才能被监控扫到。运营需要在每台无影上做下面 4 步。</p>
+
+  <div class="landing">
+    <div class="step">
+      <div class="dot">1</div>
+      <div class="step-body">
+        <div class="step-title">改 <code>.env</code></div>
+        <div class="step-desc">
+          位于 <code>worker\scripts\wuying-dm\.env</code>。加 / 改这两行：
+          <pre class="diff" style="margin:6px 0;"><span class="add">AKKE_DM_AUTOREPLY_CAPTURE=1</span>
+<span class="add">AKKE_DM_AUTOREPLY_INTERVAL=300</span></pre>
+          （默认值是 12h 太慢，改 300 秒 = 5 min）
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="dot">2</div>
+      <div class="step-body">
+        <div class="step-title">重启 <code>wuying_poll_agent.py</code></div>
+        <div class="step-desc">
+          启动文件夹拉起的：开始菜单搜 <code>shell:startup</code> → 找到 <code>poll_agent.bat</code> 重跑<br>
+          手工跑的：终端 Ctrl+C 杀掉旧的，重跑 <code>py wuying_poll_agent.py</code>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="dot">3</div>
+      <div class="step-body">
+        <div class="step-title">抖音 PC 前置状态</div>
+        <div class="step-desc">前台最大化 + 停在【私信会话列表】（左侧消息 tab 默认页面）。<strong>别点进任何具体会话</strong>—— <code>inbox_uia</code> 解析的是列表预览。</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="dot pending">4</div>
+      <div class="step-body">
+        <div class="step-title">5-10 min 后验证</div>
+        <div class="step-desc">
+          看 poll_agent 日志有没有 "AUTOREPLY captured N inbound" 之类输出；再等 3 min，Lark 【数据监控群】应该 @ 出第一张客户回复卡片。<br>
+          收到第一张卡 = 整条链 ✅ 跑通。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3 style="margin-top:18px;">⚠️ 24h 后还没卡片的排查</h3>
+  <ul style="color:var(--ink-2);font-size:13.5px;">
+    <li>poll_agent 日志有没有 <code>record_dm_inbound</code> 报错</li>
+    <li>DB 查过去 24h <code>messages</code> 表有没有 role='customer' 新增：<br><code>SELECT count(*) FROM messages WHERE role='customer' AND created_at > now() - interval '24h';</code></li>
+    <li>抖音 PC 是不是真的停在【会话列表】（不是某个会话内 / 不是其它 tab）</li>
+    <li>运营对应 <code>accounts.owner_lark_user_id</code> 是不是配好了（夏夏已配齐 6 个，Gloomberg 故意 NULL）</li>
+  </ul>
+
+  <div class="conclusion" style="margin-top:8px;">
+    <strong>事故复盘：</strong>这个 capture 通路其实早就存在（<code>douyin_dm_autoreply.py capture</code> + <code>record_dm_inbound</code> RPC + poll_agent 集成 + Vercel cron <code>dm-auto-reply</code> 都已 ready），只是 ENV 没开。Claude 做 PR #456 加 <code>--write-messages</code> flag 时没搜全代码，重复造了一个轮子（不致命，<code>--write-messages</code> 作为 standalone 工具仍可用）。下次类似工作先 <code>grep -r '关键 RPC 名'</code> 再动手。
+  </div>
+
 </div>
 </body>
 </html>
