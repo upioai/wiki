@@ -586,23 +586,44 @@
 
   <!-- §7 运营部署指南 -->
   <h2>⑥ 运营部署指南（无影上 5 min 配齐）</h2>
-  <p>监控的<strong>基础设施已上线</strong>（cron + 表 + owner mapping），但<strong>数据源还没开</strong>——客户回复要进 <code>messages</code> 表才能被监控扫到。运营需要在每台无影上做下面 4 步。</p>
+  <p>监控的<strong>基础设施已上线</strong>（cron + 表 + owner mapping），但<strong>数据源还没开</strong>——客户回复要进 <code>messages</code> 表才能被监控扫到。运营需要在每台无影上做下面 5 步。</p>
+
+  <div class="conclusion" style="margin-top:8px;border-left-color:var(--danger);background:linear-gradient(90deg,#ffece8 0%,#fff 100%);">
+    <strong>⚠️ 不影响 DM/二触/RC 跑！</strong>poll_agent 主循环 4 条路线 (DM / 二触 / RC / capture) <strong>串行</strong>跑，同一时刻只有 1 条在操作抖音窗口，互不抢资源。Capture 只读 UIA 5-10s 跑完。<br>
+    <strong>关键前置（不做 step 1 capture 会经常失败）：</strong>同账号还在跑 DM / 二触 / RC，DM 发送跑完抖音停在最后会话内、二触跑完停在视频页面，capture 来扫时找不到会话列表。解决：先量 2 个坐标，capture 跑前会自己点回私信列表（脚本自带 <code>_goto_dm_inbox()</code>）。
+  </div>
 
   <div class="landing">
     <div class="step">
       <div class="dot">1</div>
       <div class="step-body">
-        <div class="step-title">改 <code>.env</code></div>
+        <div class="step-title">先量 2 个坐标（一次性 · 不做后面全白搭）</div>
         <div class="step-desc">
-          位于 <code>worker\scripts\wuying-dm\.env</code>。加 / 改这两行：
-          <pre class="diff" style="margin:6px 0;"><span class="add">AKKE_DM_AUTOREPLY_CAPTURE=1</span>
-<span class="add">AKKE_DM_AUTOREPLY_INTERVAL=300</span></pre>
-          （默认值是 12h 太慢，改 300 秒 = 5 min）
+          在无影抖音 PC 上：
+          <ul style="margin:6px 0;padding-left:20px;">
+            <li>把光标移到<strong>左侧消息 tab 私信入口</strong>，记下 X/Y → 这是 <code>AKKE_C_DM_INBOX</code></li>
+            <li>点开私信后，把光标移到<strong>第一个会话条目</strong>，记下 X/Y → 这是 <code>AKKE_C_DM_FIRST</code>（点开第一个会话用于"撑开"会话列表）</li>
+          </ul>
+          量坐标可以用 <code>py -c "import pyautogui;print(pyautogui.position())"</code>（移光标到位再运行）；或装 AutoHotkey / X-Mouse Button Control 实时显坐标。
         </div>
       </div>
     </div>
     <div class="step">
       <div class="dot">2</div>
+      <div class="step-body">
+        <div class="step-title">改 <code>.env</code></div>
+        <div class="step-desc">
+          位于 <code>worker\scripts\wuying-dm\.env</code>。加 / 改这 4 行：
+          <pre class="diff" style="margin:6px 0;"><span class="add">AKKE_DM_AUTOREPLY_CAPTURE=1</span>
+<span class="add">AKKE_DM_AUTOREPLY_INTERVAL=300</span>
+<span class="add">AKKE_C_DM_INBOX=X,Y</span>
+<span class="add">AKKE_C_DM_FIRST=X,Y</span></pre>
+          （INTERVAL 默认 12h 太慢，改 300 秒 = 5 min；后两行填 step 1 量的坐标）
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="dot">3</div>
       <div class="step-body">
         <div class="step-title">重启 <code>wuying_poll_agent.py</code></div>
         <div class="step-desc">
@@ -612,14 +633,14 @@
       </div>
     </div>
     <div class="step">
-      <div class="dot">3</div>
+      <div class="dot">4</div>
       <div class="step-body">
-        <div class="step-title">抖音 PC 前置状态</div>
-        <div class="step-desc">前台最大化 + 停在【私信会话列表】（左侧消息 tab 默认页面）。<strong>别点进任何具体会话</strong>—— <code>inbox_uia</code> 解析的是列表预览。</div>
+        <div class="step-title">第一次跑前确认抖音 PC 状态</div>
+        <div class="step-desc">前台最大化 + 抖音已登录。Capture 跑时会自己点【私信入口】+ 第一会话撑开列表（用 step 1 的坐标），所以<strong>抖音停在哪儿都行</strong>，前提是 step 1 坐标量准。<br>后续 DM/二触/RC 跑完任何页面都没事 —— capture 自己导航回来。</div>
       </div>
     </div>
     <div class="step">
-      <div class="dot pending">4</div>
+      <div class="dot pending">5</div>
       <div class="step-body">
         <div class="step-title">5-10 min 后验证</div>
         <div class="step-desc">
