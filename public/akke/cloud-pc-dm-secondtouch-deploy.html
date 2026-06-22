@@ -403,6 +403,29 @@ py wuying_poll_agent.py</pre></div>
     <div class="note">想确认它到底在不在发、还能发几条、几点自动续 —— 在本机 Claude Code 里问<b>「云电脑在发吗 / 还能发几条」</b>会跑状态脚本从 DB 反推(<code>scripts/cloudpc-status.ts</code>),不用进无影看。</div>
   </div>
 
+  <!-- ===== 3.1 route-B 三窗口保活 ===== -->
+  <h2 class="sec"><span class="n">3.1</span> route-B 实时潜在触达 · 三窗口保活</h2>
+  <p class="lead">上面第 3 节是<b>老二触(派单 cron)</b>那套单 agent。<b>野荞 / 饭粒</b>这种<b>同机跑「DM + 实时潜在触达(route-B)」</b>的，启动不一样：一条 <code>start-dm-routeb.ps1</code> 拉起<b>三个黑窗口</b>（DM 派单 + 监控 watch + 消费 consume），靠窗口锁串行、DM 优先。下面是<b>给运营贴墙上的保活清单</b>。</p>
+
+  <div class="card">
+    <div class="st" style="font-weight:600;margin-bottom:8px">开机 / 卡死重启后，4 步拉起 ↓</div>
+    <pre class="code">1) 抖音 PC：登录本账号 + 最大化 + 放最前面 + 输入法英文 + 分辨率 2560×1600
+2) cd C:\akke-wuying\wuying-dm
+3) powershell -ExecutionPolicy Bypass -File .\start-dm-routeb.ps1
+4) 数黑窗口：应有 3 个，别关</pre>
+
+    <div class="st" style="font-weight:600;margin:12px 0 6px">三个窗口活着的样子</div>
+    <ul class="chk">
+      <li><b>① DM 派单</b>（poll agent）：开头打 <code>account=…</code> <code>rc=off</code>，每分钟拉队列。</li>
+      <li><b>② 监控 <code>Akke-watch</code></b>：每分钟冒新 <code>[轮N] 本轮 lead 新视频…</code>；逮到打 <code>🔥可触达</code>。</li>
+      <li><b>③ 消费 <code>Akke-consume</code></b>：有人入队时动手——点赞 + 双评论。</li>
+    </ul>
+
+    <div class="warn-box"><b>铁律 ⚠️ 永远别 <code>Stop-Process -Name py</code></b>——这会<b>一锅端把三个进程全杀</b>（route-B 2026-06-15→22 断 7 天就是这么误伤的）。要停某一个：<b>只在那个窗口里按 <code>Ctrl+C</code></b>。watch / consume 崩了会<b>自己 10 秒重启</b>，不用管；真要全关，手动把 3 个黑窗口叉掉。</div>
+
+    <div class="note">一眼看 route-B 出没出活：<b>监控窗口(②)</b>累计那行 <code>可触达 X / 超时放弃 Y</code>——<b>X 在涨 = 在出活</b>；整天 X=0 且 <code>新视频</code> 也一直 0 → cookie 可能过期，找 Claude 重导。想从 DB 反推（不进无影）：本机 Claude Code 里问 <b>「route-B 今天触了几条」</b>。</div>
+  </div>
+
   <!-- ===== 4. 立即操作 ===== -->
   <h2 class="sec"><span class="n">4</span> 想立马就发 · 怎么手动触发</h2>
   <p class="lead">自动通道有节奏门(DM 约 1–2 分钟/条、二触每小时派一轮)。要<b>现在就推一批出去</b>,不等 cron,有两条路。</p>
