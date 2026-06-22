@@ -76,6 +76,8 @@
 <a href="#s10b">　B · claim 不再纯优先级</a>
 <a href="#s10c">　C · 6-19 快照对账</a>
 <a href="#s10d">　D · 5天PR时间线</a>
+<div class="date">2026-06-22 · cold-intent 收口径</div>
+<a href="#s10e">　E · 收口径深挖(数据/人话/方案)</a>
 </nav>
 <div class="wrap">
 
@@ -737,10 +739,59 @@
 <div class="kx"><b>建议对账（给那份内部梳理）</b>：① <b>升 f2</b> 仍有效——但 <code>f2==0.0.1.7</code> 硬 pin <code>httpx==0.27.2</code>，升级必须协调 httpx 兼容，且只剩 3 个采集号逼近 24h 封号红线，dev 灰度务必盯每号 API 量。② <b>「解耦 pri 与 tier / 新建 pri=2」大半已落地</b>：快慢分道（#363，tier-1 整号已 pri=3）+ 老视频视频级回扫（#377，cold-intent pri=3）都做了，现有 0/1/3/5 四档已把快慢分开，不必再新建 pri=2。③ <b>查 RPC 装没装不必连库</b>：③ 段能跑出按 pri 分桶就是 RPC 在线的证据（否则 fallback legacy 单活路径、跑不出分桶）。</div>
 <div class="kx good"><b>一句话现状（6-20）</b>：5 天把「加速 → 副作用 → 回补」这条主线基本跑完——<b>median 砍 2/3、p99 注入洪水已治、漏抓 lead 已修、tier-0 饿死已被 aging 按住</b>。<b>仍开口的两件事</b>：① ② 段 88–99% 的<b>绝对空跑率</b>（退避只省再入次数、没降绝对值，B 方案待灰度）；② ① 段被老钓点拖出的 <b>35% &gt;6h 慢尾</b>（#377 在追，但 cold-intent 6-19 已 99% 空跑、命中从 65% 掉到 1%，钓点在枯、口径要收）。</div>
 
+<h3 id="s10e">E · 「收 cold-intent 口径」深挖：数据 → 人话 → 追问 → 方案（2026-06-22）</h3>
+<div class="tl big">
+承接 ⑩-C/D 那条「cold-intent 99% 空跑、钓点在枯、口径要收」。这一节把它<b>挖到能动手</b>：先用数据证明空跑长什么样，再用<b>钓鱼比方</b>把机制讲透，回答一个关键追问——<b>这么改会不会把高/中意向抓漏 or 抓慢</b>，最后给<b>带护栏的退避方案</b>（已出交接、待开 PR）。
+</div>
+
+<h4>① 数据：97% 空跑不是均匀的，是一小撮死钓点在被反复空甩</h4>
+<p>直查生产 <code>scrape_jobs</code>（近 48h，2026-06-21）：</p>
+<table>
+<tr><th>指标</th><th>数值</th><th>读法</th></tr>
+<tr><td>cold-intent 完成回扫</td><td class="n">13074 次</td><td>落在 1070 个钓点（实际量 ~6500/天；前一查被 PostgREST 默认 1000 行截断过，已分页拉全）</td></tr>
+<tr><td><b>零命中钓点</b>（48h 一条新评论没抓到）</td><td class="n bad">947 / 1070（89%）</td><td>它们白扫了 <b>11874 次 = 91% 的活</b></td></tr>
+<tr><td>　其中被反复扫 10+ 次的</td><td class="n bad">683 个</td><td>浪费高度集中在这批死钓点 ← 退避的靶子</td></tr>
+<tr><td>真正有产出的活钓点</td><td class="n">123 个</td><td>自身命中率也才 28%（每 4 竿中 1 条），但"抓到即清零"能保它们高频</td></tr>
+<tr><td><b>退避可省（连续 2 次空跑起退）</b></td><td class="n good">77% 的活</td><td>K=3 起退省 70%</td></tr>
+</table>
+<div class="kx cold"><b>一句话</b>：97% 空跑 = <b>89% 的死钓点 × 每个被扫 10+ 次</b>。退避能精准干掉这 77%、同时一根不碰那 123 个活钓点。</div>
+
+<h4>② 人话：用「钓鱼」把机制讲透（苏格拉底式自问）</h4>
+<div class="tl">
+<ul>
+<li><b>cold-intent 在干嘛？</b> 一个钓鱼人，手上一张<b>老钓点清单</b>（近 14d 冒过"鱼"＝高/中意向评论的视频），挨个去<b>甩一竿</b>（回扫看有没有新评论），每个钓点<b>隔 2 小时</b>再去。它专钓老视频——新热视频快车道管，老视频没人管，全靠他。</li>
+<li><b>为什么 97% 空竿？</b> 89% 的钓点其实早没鱼了，可他还在那儿一遍遍甩（683 个死钓点每个甩 10+ 竿）。<b>浪费不是平摊的，是死钓点在被反复空甩。</b></li>
+<li><b>最直接的办法？</b> <b>哪个钓点连着几竿没鱼，就少去那儿</b>：第一次空→2h 后再来，又空→4h，再空→8h…越空越懒得去。<b>这就是"退避"。</b></li>
+<li><b>万一冷落的钓点又来鱼了？</b> 铁律：<b>只要某竿上了鱼，立刻恢复"勤去"（2h 一次）</b>。退避只惩罚"一直没鱼"的，不耽误"刚冒头"的。</li>
+<li><b>省下的力气去哪？</b> ① <b>pri=3 道松绑</b>→同道 tier-1 整号排更快（顺带回应内部报告对"整号"的关切）；② 不耗在死钓点→<b>活钓点照看更勤</b>→真有鱼处抓更快。</li>
+</ul>
+</div>
+
+<h4 id="s10e-q">③ 追问：现在的方法，会不会让高/中意向抓不到 or 抓得慢？</h4>
+<table>
+<tr><th></th><th>抓不到？</th><th>抓得慢？</th></tr>
+<tr><td><b>现在（退避前）</b></td><td class="good">对它管的钓点基本不会——1378 钓点每 2h 该扫一遍 = 需 689 竿/h，产能 900 竿/h，<b>够用、不会被 300 上限漏掉</b></td><td class="warn">有 <b>~2h 地板</b>：每钓点 2h 才回去一次，最坏等 ~2h（+ 排队 57min）</td></tr>
+<tr><td><b>真正"抓不到"的另一类</b></td><td colspan="2">一条<b>全新冷视频</b>还没冒过意向、没进 14d 清单 → cold-intent 不认识它，只能等「整号轮抓」扫到。<b>但这是整号的活、非 cold-intent 的锅</b>——它天生是"你先冒过一次鱼、我才把你列进钓点"的事后补扫。</td></tr>
+<tr><td class="bad"><b>退避后的新风险</b></td><td colspan="2" class="bad"><b>会让"先死后活"的钓点第一条新鱼更慢</b>：一个退避到"8h 一去"的钓点突然来高意向，最坏等 8h 才被发现——比现在的 2h 还慢；若封顶设 24h 更糟，<b>等于亲手拉长慢尾、跟目标反着来</b>。</td></tr>
+</table>
+<div class="kx warn"><b>所以这一追问直接逼出两道护栏</b>（保高/中意向不被退避误伤）：<br>
+<b>· 退避封顶压到 6h（不是 24h）</b>：最坏一个复活钓点等 6h，正好卡慢尾边界、不会比现状更糟。<br>
+<b>· 高意向钓点给地板 2h</b>：曾冒过<b>高意向</b>（非仅中意向）的钓点封顶压到 ~2h（≈现状、几乎不受退避影响）；只有"光中意向"的钓点才允许退避到 6h。<br>
+净效果：<b>高意向几乎不受影响（地板 2h≈现状），中意向最坏 6h（≤现有慢尾），同时砍掉大头浪费。</b>退避治的是"在死钓点上空耗"，不拿"误了真鱼"去换。</div>
+
+<h4>④ 方案：带护栏的退避（2 改动面、worker 不动；已出交接、待开 PR）</h4>
+<table>
+<tr><th>改动面</th><th>动什么</th></tr>
+<tr><td><b>migration</b></td><td><code>videos</code> 加 <code>cold_intent_empty_streak</code> + <code>next_cold_intent_at</code> 两列（与 #366 的 <code>empty_streak/next_fast_lane_at</code> 分开，语义隔离）</td></tr>
+<tr><td><b>cron <code>cold-intent-rescan/route.ts</code></b></td><td>每 tick <b>先结算上轮</b>：0 新→streak++、间隔×2（封顶 6h，高意向钓点地板 2h）；有新→清零、复位 120min。选 due 钓点改用 <code>next_cold_intent_at</code>。<b>worker 不碰</b>（cron 自结算，比 #366 由 worker 写更省）。</td></tr>
+</table>
+<div class="kx good"><b>预期效果（按数据推）</b>：cold-intent 入队 ~6500/天 → 砍 ~77% → ~1500/天；pri=3 松绑、tier-1 整号排更快；活钓点回扫更密 → 慢尾改善。<b>诚实边界</b>：慢尾下压幅度要灰度后看、不敢拍死数（退避治浪费、非凭空加速）。<br><b>实施约束</b>：<code>supabase/migrations/**</code> + <code>src/app/api/cron/**</code> 都是高危路径，必须开分支 + CI + claude-review，禁直推 main。交接定稿见 repo <code>docs/handoffs/2026-06-22-cold-intent-backoff.md</code>。</div>
+
 <div class="foot">
 方法注记：所有数字为 2026-06-15 当日直查生产库（comments / scrape_jobs / source_accounts）+ worker 活体 <code>/queue/stats</code> + Lark 采集快照卡。诚实边界：① 每日 tier 数变化库里无历史表、不可严格重建，本页用当前快照近似；② Leg C 的「8 槽悖论」已于 23:00 实查坐实＝不是闲置，是 pri=1 队列常年积压 ~100 条 + 慢整号活占槽 + poison 活（见 Leg C）；fly machines API 因 deploy token 无读权限未取到机器数，但 running 常态 8 + 78/分吞吐，有效并发 ~8；③ 僵尸判定用 7 天 / 高意向≥5（对齐升级线）。<br>
 ⑩ 段（架构订正 + 5 天 PR 复盘）为 2026-06-20 追加，数字取自 6-19 自动数据快照 + <code>worker/services/queue.py</code> 现状代码 + 各 PR body。<br>
-Akke 内部调查 · Claude Code 协助 · 2026-06-15（⑩ 2026-06-20 续）
+⑩-E（收 cold-intent 口径深挖）为 2026-06-22 追加，数字取自当日直查生产 <code>scrape_jobs</code> 近 48h 聚合；退避方案为设计稿、尚未上线（交接见 repo <code>docs/handoffs/2026-06-22-cold-intent-backoff.md</code>）。<br>
+Akke 内部调查 · Claude Code 协助 · 2026-06-15（⑩ 2026-06-20 续 · ⑩-E 2026-06-22 续）
 </div>
 
 </div>
