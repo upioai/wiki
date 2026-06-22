@@ -50,6 +50,13 @@ const CATEGORIES = [
       { slug: 'self-hosted-vpn', title: '自建科学上网节点', desc: '协议·选 IP·客户端·排障：自建节点的完整脱敏科普。' },
     ],
   },
+  {
+    label: 'MENTAL MODELS · 思维模型',
+    title: '思维 · 心智模型',
+    items: [
+      { slug: 'munger-inversion', title: '芒格逆向思维', desc: '「反过来想」——先问怎样会失败，再挨个避开。' },
+    ],
+  },
 ];
 
 // 校验 + 统计 ──────────────────────────────────────────────────
