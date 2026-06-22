@@ -210,13 +210,87 @@
       <button data-ptsub="review">📋 复盘</button>
     </div>
     <div id="ptReview" class="hide">
-    <h2>📋 每日复盘 · 经验 · 根因 · 纠错（06-15 → 06-21）</h2>
+    <h2>📋 每日复盘 · 经验 · 根因 · 纠错（06-15 → 06-22）</h2>
+
+    <!-- ===== 大白话复盘 6/18→6/22 · DM + 潜在触达 · 写给非技术同学 ===== -->
+    <div style="margin:0 0 18px;padding:15px;background:rgba(13,148,136,.07);border:2px solid var(--chan);border-radius:9px">
+      <div style="font-size:16px;font-weight:800;color:var(--chan);margin-bottom:8px">🧑‍🏫 大白话复盘（6/18 → 6/22）· 不懂技术也能看明白</div>
+      <div style="font-size:13px;color:var(--text-dim);line-height:1.7">这一周在修两条"机器人自动触达"流水线：<b>① DM（自动发私信）</b>和<b>② 潜在触达（给没回的老客户自动点赞+评论）</b>。两条都卡在同一件事——<b>机器人在云电脑上"模拟人手"操作抖音</b>：屏幕上点哪、字打哪，差一点就全废。下面讲：出了啥问题、为啥、怎么修、做得好/不好。技术细节在本段下方的表格。</div>
+
+      <div style="margin-top:11px;padding:10px 12px;background:rgba(255,255,255,.04);border-left:3px solid var(--chan);border-radius:5px;font-size:13px;color:var(--text-dim);line-height:1.7">
+        <b>一句话</b>：DM 这条 <b style="color:#34d399">6/21 深夜彻底修通了</b>（第一条自动私信「高冷的呆呆鱼」6/21 23:46 真发成功、系统核到气泡 ocr=0.98）；潜在触达这条 <b style="color:#f87171">6/18–6/22 真发=0</b>——机器在跑，但"池子"里这些时段没人发新视频 + 被云电脑平台反复冻住。
+      </div>
+
+      <!-- DM 卡片 -->
+      <div class="card" style="margin-top:12px;border-left:3px solid #4ea1ff">
+        <div class="t" style="color:#4ea1ff">① DM · 自动发私信</div>
+        <div style="font-size:13px;color:var(--text-dim);line-height:1.75">
+        <b>出了什么问题</b>：自动给客户发私信，<b>6/11 后连续约 10 天 0 成功</b>（直查派单队列：上一条 sent 在 6/11，之后到 6/21 全是搜错人 skipped 或发送没核到气泡 failed）。最坑的是日志一直显示"发送成功"，可客户手机上根本没收到——典型的<b>"假成功"</b>。<br>
+        <b>为什么（一层套一层，挖了三层）</b>：
+        <ol style="margin:6px 0 6px 18px;padding:0">
+          <li>机器人发私信要走一串：搜到人 → 进主页 → 点"私信" → 把字打进输入框 → 点发送箭头。<b>前面全对，坏在最后两步。</b></li>
+          <li><b>搜索那段"点击位置"抄错了</b>（点哪个屏幕坐标的设定值是错的），搜不对人 → 6/21 改成正确的"黄金坐标"+重拍参照图，修好。</li>
+          <li><b>发送那段更隐蔽（真凶）</b>：输入框和发送箭头的位置飘了，机器人<b>把字打到框外面（打进空气）</b>，发送键一直灰着、点了没反应 → 没气泡、客户收不到。6/21 深夜用 <code>--capture</code> 重新校准这俩点，发送段不再点空。<span style="color:var(--text-muted)">（注：当晚手动测的「刘哥」那条因对方关了陌生人私信被挡下 rejected、不计成功；真正核实成功的是下一步自动派单的「呆呆鱼」。）</span></li>
+          <li><b>最深一层（这次才挖到）</b>：校准好、单独手动测能发，<b>但机器人自动跑还是发不出，坐标明明一模一样</b>。原因——自动跑的"管家程序"开机时把设置读进内存后就不再重读；它派活时启动的发送程序会<b>"继承"管家内存里的旧坐标</b>，把新校准的值盖住了。<b>所以必须重启管家程序，新坐标才生效。</b></li>
+        </ol>
+        <b>怎么修好的</b>：重启管家程序后，<b style="color:#34d399">第一条自动私信发给「高冷的呆呆鱼」——真发成功、核到气泡（completed→sent）</b>。再加一道根治：改一行代码让发送程序每次都以最新设置为准、不再被旧内存盖住（已提代码审查 PR #446），以后忘了重启也不会再犯。
+        </div>
+      </div>
+
+      <!-- 潜在触达 卡片 -->
+      <div class="card" style="margin-top:10px;border-left:3px solid var(--chan)">
+        <div class="t" style="color:var(--chan)">② 潜在触达 · 自动点赞+评论老客户</div>
+        <div style="font-size:13px;color:var(--text-dim);line-height:1.75">
+        <b>出了什么问题</b>：给"发过私信但 1 天没回的高意向老客户"，等他发新视频时自动去点赞+评论。这条线 <b>6/15 之后一条都没真发出去</b>。<br>
+        <b>为什么（这一周一堵墙接一堵墙）</b>：
+        <ul style="margin:6px 0 6px 18px;padding:0">
+          <li><b>6/16</b>：执行程序卡死 10 小时（没设超时，一卡冻全程）→ 加了超时。</li>
+          <li><b>6/17</b>：电脑重启后抖音窗口标题从中文"抖音"变英文"douyin"，程序只认中文 → 以为抖音没在前台、全部放弃 → 改成两个都认。</li>
+          <li><b>6/17</b>：开错视频——人找对了，但赞和评论发到了客户的<b>旧视频</b>上（程序按固定位置盲点"第一个格子"，跟不上页面变化）→ 改成"看图找"。</li>
+          <li><b>6/18–6/19</b>：<b>监控被云电脑"挂起"冻住</b>——个人版云电脑一看没人真用就挂起整台机器，监控进程没死但卡到几乎停（6.5 小时只跑 10 轮），<b>连冻两天 0 触达</b>。触发=远程连接一掉（电脑断网/睡了/久不动鼠标）。个人版无解，只能保活。</li>
+          <li><b>6/21（本次）</b>：监控在跑，却<b>一整天捞到 0</b>，中间还被冻了 4.5 小时；恢复后健康跑 4.5 小时仍 0 条。根因：<b>318 人的池子在这些时段没人发新视频</b>（要么没发装修、要么被商家号刷屏挤掉）。</li>
+          <li><b>6/22 凌晨</b>：为重启 DM 执行的"杀掉所有 python"把监控+消费<b>连带杀了</b>（还没重新拉起）。</li>
+        </ul>
+        <b>现在到哪一步</b>：执行层的坑（卡死/标题/开错视频）都上了永久护栏；剩两个真瓶颈——<b>① 池子要洗</b>（剔商家号、剔已回复，不然捞 0）；<b>② 平台挂起</b>（个人版无解、只能保活+对准白天高峰）。<b style="color:#f87171">还没真发出第一条货。</b>
+        </div>
+      </div>
+
+      <!-- 做得好 / 优化点 -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+        <div style="padding:11px;background:rgba(4,120,87,.1);border:1px solid #047857;border-radius:7px;font-size:12.5px;color:var(--text-dim);line-height:1.7">
+          <b style="color:#34d399">✅ 做得好的</b>
+          <ul style="margin:6px 0 0 16px;padding:0">
+            <li><b>不瞎归因</b>：DM 用"查库+看手机+手动测"三个证据坐死是坐标飘，没赖"抖音限频/重启"；潜在触达发现"按比例的坐标跟不上随内容变的页面"，对症改"看图找"，没一味"重启后重校坐标"（治标）。</li>
+            <li><b>以"真送达"为准</b>：不信"发送成功"日志，要看私信框真出现气泡——这才抓出"假成功"。</li>
+            <li><b>每个坑都留护栏+教程</b>：超时、标题双认、窗口命名、override 根治，都写进代码/文档防复发。</li>
+          </ul>
+        </div>
+        <div style="padding:11px;background:rgba(180,83,9,.1);border:1px solid var(--warn);border-radius:7px;font-size:12.5px;color:var(--text-dim);line-height:1.7">
+          <b style="color:#fbbf24">🔧 还能优化的</b>
+          <ul style="margin:6px 0 0 16px;padding:0">
+            <li><b>洗池子</b>：潜在触达池混了商家/食品/宠物号 + 已回复的，导致捞 0；该剔干净再跑。</li>
+            <li><b>对准高峰</b>：深夜发布量仅 1.8%、傍晚 17–21 点占 45%；机器该在傍晚开足，别整夜空转。</li>
+            <li><b>窗口锁</b>：DM 和潜在触达同机抢一个抖音窗口，目前靠"运气不撞"；该上窗口锁让它们排队。</li>
+            <li><b>改坐标后必须重启 agent</b>：反直觉的坑，已写进教程 + 代码根治（override）。</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 好坏案例 -->
+      <div style="margin-top:10px;padding:11px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:7px;font-size:12.5px;color:var(--text-dim);line-height:1.75">
+        <b style="color:#34d399">📗 Good case</b>：DM「高冷的呆呆鱼」6/21 23:46 自动真发成功+核到气泡 ocr=0.98（本周修通里程碑）。<span style="color:var(--text-muted)">潜在触达本周(6/18–6/22)真发=0，无 in-window 好案例；历史最佳范例是 6/15「质感」端到端 4.3 分钟（视频发出 1.9 分钟就被逮到触达）。</span><br>
+        <b style="color:#f87171">📕 Bad case</b>：DM 从 6/11 后约 10 天"假成功"无人察觉（只看日志不看真送达的代价）；潜在触达 6/18–6/19 连冻两天 0 触达（平台挂起隐形杀手）。<span style="color:var(--text-muted)">历史教训：6/15「雨霖麻麻」把"868/锁价/加微信"报价公开发到一个食品号评论区（同行路人可见，已加红线词拦截）。</span>
+      </div>
+
+      <div style="font-size:12px;color:var(--text-muted);margin-top:9px">↓ 下面是同一段事的<b>技术细节版</b>（逐日数据表 + 9 条问题根因表），给工程 / PM 复查用。</div>
+    </div>
+    <!-- ===== /大白话复盘 ===== -->
     <div style="margin:0 0 12px;padding:11px;background:rgba(4,120,87,.12);border:2px solid #047857;border-radius:7px"><b style="color:#047857">✅ 06-21 深夜 终于打通：云电脑自动 DM 这条死了快一个月的链子，修好了</b>。当晚把「真发=0」逐层剥到底：搜人对(OCR 0.98)→身份门过→关注/私信都点对→<b>但每条都 unverified</b>。三步定死根因：① 查 DB（近7d completed=0、全 unverified、同批人反复重发）② 手机看「没收到」③ <b>手动在抖音 PC 搜同一人、手打字、手点发送＝能发</b> → 排除「抖音陌生人墙/限频」，坐死是 <b>(b) 真没发 + 发送段「输入框/发送↑」坐标飘</b>（字没真打进框→空点发送→无气泡；6/21 黄金坐标只修了搜索段、没碰发送段）。<b style="color:#047857">修法 = 无影上 <code>--capture</code> 重采输入框+发送↑两个点</b>，重采后跑 <code>test.csv</code>（刘哥 liuquoming65）<b>真发成功</b>。<b style="color:#b45309">⚠️ 待放量一步：改了坐标必须重启 <code>wuying_poll_agent.py</code></b>（常驻 agent 启动时只 load 一次 .env，不重启还用旧飘坐标）。</div>
     <div class="card">
       <b>一句话</b>：检测端三天一直有货（每天 15–18 条 ≤20min 新鲜视频），<b>瓶颈从来不是供给、是执行层</b>。三天在"逐个拆墙"——卡死→focus→搜索坐标，每修一堵露下一堵；06-17 傍晚把 focus+搜索两堵拆通后，<b>当晚 22:25 真发首次跑通到"发送"环节</b>，但 PM 实测暴露<b>第四堵墙</b>：执行器<b>找对了人（归然本人）</b>，却把赞+评论发到他 <b>6-2 的旧视频</b>上、而非监控逮到的 <b>6-17 最新视频</b>——根因是执行器<b>按固定坐标 (637,465) 盲点主页宫格"第一格"</b>、没按目标视频导航，归然没置顶6-2、但固定比例坐标对不上他的主页布局 → 落到旧视频。<b style="color:#dc2626">真发对的人仍为 0</b>。<b>这是"开错视频"、不是"搜错人"</b>。<b style="color:#0f766e">修法（✅ 06-18 已落地、零代码）= 点赞/开视频改 VL 视觉定位</b>（删无影 .env 两个固定坐标→回落已有 VL 分支），待 e2e 验；抖音号 enrich 修的是另一类"搜错人"（未知客户型），对归然这条无效。
       <div style="margin-top:10px;padding:10px;background:rgba(4,120,87,.08);border:1px solid #047857;border-radius:6px"><b style="color:#047857">✅ 06-21 收口（搜索这关验穿了）</b>：连冻几天后复查，发现真正卡死"搜不对人"的是<b>两个被忽略的执行层坑</b>——① 无影 .env 里搜索框坐标是<b>错值 400,25 / 用户tab 220,99</b>（从旧部署文档抄错，220,99 还和第1条结果重叠点空）；② <b>缺 dm_button 等模板</b>（"非主页"兜底失效）。修：坐标全改<b>黄金值</b>（搜索框 <code>432,25</code>、用户tab <code>287,45</code>、首格 <code>219,103</code>）+ 跑 <code>--capture</code> 补采模板（<code>send_arrow</code> 自检 1.00）。<b>e2e 验穿</b>：用真抖音号搜「撸铁战士」→ <code>[OCR] match=True conf=0.98 seen='撸铁战士|号:lute1126'</code>，落对人、过身份门、走到三连暂停（<b>到这就答 n 停了、没真走发送</b>）。<b style="color:#0f766e">坐标+模板+enrich+身份门=「搜索段」通了</b>；<b style="color:#dc2626">但「发送+气泡核验段」另算、当晚实况仍 unverified 失败，见下方红框 #8。</b></div>
       <div style="margin-top:8px;padding:10px;background:rgba(180,83,9,.08);border:1px solid var(--warn);border-radius:6px"><b style="color:#b45309">📊 06-21 新发现：可达率 ~62%（不是 100%，这是天花板不是 bug）</b>：抽 8 个高/中意向 lead 跑 enrich 反查 → <b>5 个有抖音号（字母号/dy默认号，如 lutie1126、dyb8zccanppo），搜得到、能发</b>；<b>3 个只有纯数字 short_id（如归然 2091195012、123230083），用户自己没设抖音号、任何搜索通道都够不着</b>，身份门会正确跳过。<b>归然就是这第三种——不是发错、是根本搜不到。</b>所以"真发对的人"的分母只能是那 ~62% 设了号的人，剩下 ~38% 当前机制无解（要够着得改成从评论直接点进主页，未做）。</div>
-      <div style="margin-top:10px;padding:10px;background:rgba(220,38,38,.08);border:1px solid #dc2626;border-radius:6px"><b style="color:#dc2626">🔴 此时此刻（06-21 晚）直查 dispatch_queue 实况：自动派单这条路，一条都没发出去</b>。直接查派单队列（不是看日报）：<b>饭粒号 132 行 = 历史 sent 31（最后一次成功在 5/25 前）+ skipped 89（<code>wrong_user</code> 搜错人）+ failed 12（<code>unverified</code> 点了发送但没核验到气泡）</b>，<b style="color:#dc2626">近 7 天自动完成 = 0</b>；今天 12:39→13:19 一连串尝试<b>全 failed=unverified</b>。5 个云电脑 messaging 号在自动派单路上<b>近 7d 完成数全是 0</b>（零星 失败131/总503、小文 失败16、饭粒 12…）。<br><b style="color:#b45309">⚠️ 关键纠正（别被上面绿框骗了）</b>：06-21「验穿」只证明了<b>搜索这半条</b>（搜到→身份门 match=True），手验那条到三连暂停就答 n 了、<b>没真走完「发送 + 气泡核验」</b>。而实况里<b>发送核验这半条仍在失败</b>（<code>unverified</code>=点了发送键但 VL 没在私信框确认到气泡，送达不可证）。所以结论要从「整链通了」降级为 → <b>搜索段通了、发送核验段未通</b>，离「自动真发出一条」还差这半条。<br><b style="color:#b45309">⚠️ 日报上"DM 在发"≠云电脑自动在发</b>：手机端（有大有小/文哥）走的是另一条手动 claim+WDA 路、不进这个队列；云电脑自动派单这条近 7d 真发 = 0。</div>
+      <div style="margin-top:10px;padding:10px;background:rgba(220,38,38,.08);border:1px solid #dc2626;border-radius:6px"><b style="color:#dc2626">🔴 此时此刻（06-21 晚）直查 dispatch_queue 实况：自动派单这条路，一条都没发出去</b>。直接查派单队列（不是看日报）：<b>饭粒号 132 行 = 历史 sent 31（上一条 <code>sent</code> 状态在 6/11；更早的 sent 多在「气泡核验闸」上线前、不保证真送达）+ skipped 89（<code>wrong_user</code> 搜错人）+ failed 12（<code>unverified</code> 点了发送但没核验到气泡）</b>，<b style="color:#dc2626">近 7 天自动完成 = 0</b>；今天 12:39→13:19 一连串尝试<b>全 failed=unverified</b>。5 个云电脑 messaging 号在自动派单路上<b>近 7d 完成数全是 0</b>（零星 失败131/总503、小文 失败16、饭粒 12…）。<br><b style="color:#b45309">⚠️ 关键纠正（别被上面绿框骗了）</b>：06-21「验穿」只证明了<b>搜索这半条</b>（搜到→身份门 match=True），手验那条到三连暂停就答 n 了、<b>没真走完「发送 + 气泡核验」</b>。而实况里<b>发送核验这半条仍在失败</b>（<code>unverified</code>=点了发送键但 VL 没在私信框确认到气泡，送达不可证）。所以结论要从「整链通了」降级为 → <b>搜索段通了、发送核验段未通</b>，离「自动真发出一条」还差这半条。<br><b style="color:#b45309">⚠️ 日报上"DM 在发"≠云电脑自动在发</b>：手机端（有大有小/文哥）走的是另一条手动 claim+WDA 路、不进这个队列；云电脑自动派单这条近 7d 真发 = 0。</div>
       <div style="margin-top:8px;padding:10px;background:rgba(180,83,9,.08);border:1px solid var(--warn);border-radius:6px"><b style="color:#b45309">🔴 二触/潜在触达：6/18–6/21 每天 0，且自驱派单 cron 压根没排</b>。直查 <code>second_touch_state</code>：06-16 至今 last_touch = 0；查 <code>vercel.json</code>：只排了 <code>second-touch-monitor</code>（8h 体检脉搏，6/18 建）、<b>没排 <code>second-touch-dispatch</code>（真正派单的那个）</b>。叠加搜索/发送段还没全通 + 监控被平台冻（6/18-19），二触整条通道从没把一条货送出去过。要真发二触：先把 dispatch cron 排上 + 修发送核验段。</div>
     </div>
     <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px;color:var(--text-dim)">
@@ -230,6 +304,7 @@
       <tr style="border-bottom:1px solid var(--border)"><td style="padding:5px 8px"><b>06-19</b></td><td style="padding:5px 8px">0</td><td style="padding:5px 8px">0</td><td style="padding:5px 8px;color:#dc2626"><b>0</b></td><td style="padding:5px 8px">仍 0 触达（监控冻同上）。<b>17:29 清场重启</b>3 进程(派单/监控/消费)全速、赶傍晚高峰待逮货。<b>归然(6-17)仍是最后一条真触达，enrich+VL 的 e2e 仍待验</b>（连冻两天没触达机会）</td></tr>
       <tr style="border-bottom:1px solid var(--border)"><td style="padding:5px 8px"><b>06-21</b></td><td style="padding:5px 8px">复查</td><td style="padding:5px 8px">手验3条</td><td style="padding:5px 8px;color:#047857"><b>验穿</b></td><td style="padding:5px 8px"><b>搜索这关收口</b>：揪出 .env 坐标错值(400,25/220,99→黄金 432,25/287,45)+缺模板，补采 dm_button 等。真号搜「撸铁战士」<b style="color:#047857">match=True conf=0.98</b> 落对人过身份门。<b>搜索段通</b>（注：仅搜索段，见下行）。新发现<b>可达率~62%</b>（纯数字 short_id 用户约38%搜不到、归然属此类、非bug）</td></tr>
       <tr style="border-bottom:1px solid var(--border)"><td style="padding:5px 8px"><b>06-21 晚</b></td><td style="padding:5px 8px">—</td><td style="padding:5px 8px">自动派单实况</td><td style="padding:5px 8px;color:#dc2626"><b>0</b></td><td style="padding:5px 8px"><b>直查 dispatch_queue</b>：5 个云电脑号近7d自动完成全 0；饭粒 12:39→13:19 连续尝试<b>全 failed=<code>unverified</code></b>（发送核验段没过）。手验只验到搜索段、没真发。<b>搜索段通 ≠ 整链通</b>，发送+气泡核验那半条仍未通</td></tr>
+      <tr style="border-bottom:1px solid var(--border);background:rgba(4,120,87,.06)"><td style="padding:5px 8px"><b>06-21 深夜</b><br><span style="color:var(--text-muted);font-size:11px">23:46(整链通)</span></td><td style="padding:5px 8px">—</td><td style="padding:5px 8px">DM 自动派单</td><td style="padding:5px 8px;color:#047857"><b>✅ 通</b></td><td style="padding:5px 8px"><b style="color:#047857">DM 整链彻底打通</b>：挖到最深一层根因——poll agent（管家程序）启动时 load 一次 .env 进内存、不再重读，派单 subprocess <b>继承旧 <code>AKKE_INPUT_OFFSET</code></b>，<code>load_dotenv(override=False)</code> 盖不掉 → 这就是"<b>手动 test.csv 能发、自动 agent 不能发同样坐标</b>"的真因。<b>重启 poll agent 后</b>第一条自动私信「高冷的呆呆鱼」(6/21 23:46)<code>completed→sent</code>、气泡 ocr=0.98 核到。根治 <b>PR #446</b>（<code>override=True</code>，以后改坐标忘重启也不踩）。<span style="color:var(--text-muted)">潜在触达仍 0（6/22 00:06 重启后首条「往后余生」=wrong_user skipped；监控/消费被本次 Stop-Process 连带杀、待重拉+洗池）</span></td></tr>
       </tbody>
     </table></div>
     <div class="card" style="margin-top:10px">
