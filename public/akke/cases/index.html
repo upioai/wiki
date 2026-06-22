@@ -87,6 +87,29 @@
   footer { margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 12.5px; text-align: center; }
   footer a { color: var(--text-dim); text-decoration: none; }
   footer a:hover { color: var(--accent); }
+
+  /* —— 汇总：统计条 + 筛选/排序/搜索栏（2026-06-22 加，纯前端按卡片文字自动归类）—— */
+  .stats { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 26px; }
+  .stat { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; padding: 12px 18px; min-width: 100px; }
+  .stat .n { font-size: 26px; font-weight: 700; color: var(--text); line-height: 1.1; }
+  .stat .l { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+  .stat.high .n { color: var(--accent); }
+  .stat.win .n { color: var(--success); }
+
+  .toolbar { position: sticky; top: 0; z-index: 20; background: rgba(11,13,18,0.92); backdrop-filter: blur(8px); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; margin: 0 0 22px; display: flex; flex-direction: column; gap: 12px; }
+  .toolbar .row { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+  .fg { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .fg .lbl { font-size: 12px; color: var(--text-muted); margin-right: 2px; }
+  .chip { cursor: pointer; user-select: none; font-size: 13px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--bg-deep); color: var(--text-dim); transition: border-color .12s, color .12s, background .12s; }
+  .chip:hover { border-color: var(--accent); color: var(--text); }
+  .chip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .search { flex: 1; min-width: 180px; background: var(--bg-deep); border: 1px solid var(--border-strong); border-radius: 999px; padding: 8px 15px; color: var(--text); font-size: 14px; outline: none; }
+  .search:focus { border-color: var(--accent); }
+  .search::placeholder { color: var(--text-muted); }
+  .count { font-size: 12.5px; color: var(--text-muted); white-space: nowrap; }
+  .count b { color: var(--text); }
+  .case-card.hide { display: none; }
+  .no-match { display: none; background: var(--bg-elevated); border: 1px dashed var(--border-strong); border-radius: 12px; padding: 28px; color: var(--text-muted); font-size: 14px; text-align: center; }
 </style>
 </head>
 <body>
@@ -103,6 +126,38 @@
       这里收录 Akke 触达过的每位高意向客户的完整链路：他们看的视频、留下的评论、我们发出的招呼、他们的回复、以及触达背后的复盘要点。一个案例 = 一个真实的客户旅程。
     </p>
   </header>
+
+  <div class="stats" id="stats"><!-- 统计条由页脚 JS 按卡片实时计算填充 --></div>
+
+  <div class="toolbar">
+    <div class="row">
+      <input type="search" class="search" id="q" placeholder="搜昵称 / 评论原文 / 号源 / 地区…" autocomplete="off">
+      <span class="count" id="count"></span>
+    </div>
+    <div class="row">
+      <div class="fg"><span class="lbl">意向</span>
+        <span class="chip on" data-f="intent" data-v="all">全部</span>
+        <span class="chip" data-f="intent" data-v="high">高意向</span>
+        <span class="chip" data-f="intent" data-v="mid">中意向</span>
+      </div>
+      <div class="fg"><span class="lbl">结果</span>
+        <span class="chip on" data-f="outcome" data-v="all">全部</span>
+        <span class="chip" data-f="outcome" data-v="won">拿到微信·电话</span>
+        <span class="chip" data-f="outcome" data-v="pending">跟进中·待回</span>
+        <span class="chip" data-f="outcome" data-v="cold">已读未回·0回复</span>
+      </div>
+      <div class="fg"><span class="lbl">通道</span>
+        <span class="chip on" data-f="channel" data-v="all">全部</span>
+        <span class="chip" data-f="channel" data-v="cloudpc">云电脑</span>
+        <span class="chip" data-f="channel" data-v="phone">真机 ADB·WDA</span>
+        <span class="chip" data-f="channel" data-v="recomment">反评·双通道</span>
+      </div>
+      <div class="fg"><span class="lbl">排序</span>
+        <span class="chip on" data-f="sort" data-v="recent">最新优先</span>
+        <span class="chip" data-f="sort" data-v="score">意向分高→低</span>
+      </div>
+    </div>
+  </div>
 
   <h2>已归档案例</h2>
   <div class="cases">
@@ -1413,6 +1468,8 @@
 
   </div>
 
+  <div class="no-match" id="noMatch">没有匹配的案例，换个筛选条件试试。</div>
+
   <h2>说明</h2>
   <div class="note">
     <strong>这个案例库给谁看？</strong>给我们自己、给客户老板、给新加入的运营。<br>
@@ -1426,5 +1483,83 @@
   </footer>
 
 </div>
+
+<script>
+/* 案例库汇总：纯前端按每张卡片的现有文字自动归类 + 筛选 / 排序 / 搜索 + 统计条。
+   新卡片照旧手写，沿用「高/中意向 NN · 状态」等标签习惯即可自动进桶。
+   结果(won/cold)走关键词启发式，老卡可能漏判，统计为保守估计。 */
+(function () {
+  const wrap = document.querySelector('.cases');
+  const cards = Array.from(document.querySelectorAll('.case-card'));
+  const origOrder = cards.slice();
+  const norm = c => c.textContent.replace(/\s+/g, ' ');
+
+  const RE_COLD = /已读未回|0\s*回复|软拒绝|自动过期|永远没发|未送达|仍在心算|跨夜慢|冷礼貌|沉默\s*\d|47h\+?\s*沉默/;
+  const RE_WON = /微信已到手|主动给微|主动「?我加你|给了.{0,3}微信|甩.{0,3}微信|留(了)?(电话|手机号|号码)|主动留(电话|手机|微)|抛.{0,3}微信号|拿到微信|当场拿到|客户.{0,3}给\s*v\b|加微闭环|把微信号送过来|给完微信|给微信号|她给了|主动留微|甩来微信|送来微信|微信.{0,2}到手|留资|甩出.{0,3}(微信|手机号)|给\s*v\s*[:：]/i;
+
+  cards.forEach(c => {
+    const t = norm(c);
+    const tags = Array.from(c.querySelectorAll('.case-tag')).map(e => e.textContent).join(' ');
+    // 意向
+    c.dataset.intent = /高意向/.test(t) ? 'high' : (/中高意向|中意向/.test(t) ? 'mid' : 'other');
+    // 意向分（标签里第一个 2-3 位数，仅用于排序）
+    const m = tags.match(/(\d{2,3})/);
+    c.dataset.score = m ? m[1] : '0';
+    // 结果
+    c.dataset.outcome = RE_WON.test(t) ? 'won' : (RE_COLD.test(t) ? 'cold' : 'pending');
+    // 通道
+    c.dataset.channel = /云电脑/.test(t) ? 'cloudpc'
+      : (/反向评论|反评|双通道/.test(t) ? 'recomment'
+      : (/\bADB\b|WDA|真机|本地真机|iOS/.test(t) ? 'phone' : 'other'));
+  });
+
+  // 统计条
+  const n = cards.length;
+  const cnt = k => cards.filter(c => c.dataset.intent === k).length;
+  const wonN = cards.filter(c => c.dataset.outcome === 'won').length;
+  document.getElementById('stats').innerHTML =
+    `<div class="stat"><div class="n">${n}</div><div class="l">真实客户旅程</div></div>` +
+    `<div class="stat high"><div class="n">${cnt('high')}</div><div class="l">高意向</div></div>` +
+    `<div class="stat"><div class="n">${cnt('mid')}</div><div class="l">中意向</div></div>` +
+    `<div class="stat win"><div class="n">${wonN}</div><div class="l">已拿到微信 / 电话</div></div>`;
+
+  // 筛选 / 排序 / 搜索
+  const state = { intent: 'all', outcome: 'all', channel: 'all', sort: 'recent', q: '' };
+  const chips = Array.from(document.querySelectorAll('.chip'));
+  const countEl = document.getElementById('count');
+  const noMatch = document.getElementById('noMatch');
+
+  function apply() {
+    let shown = 0;
+    cards.forEach(c => {
+      const ok =
+        (state.intent === 'all' || c.dataset.intent === state.intent) &&
+        (state.outcome === 'all' || c.dataset.outcome === state.outcome) &&
+        (state.channel === 'all' || c.dataset.channel === state.channel) &&
+        (!state.q || norm(c).toLowerCase().includes(state.q));
+      c.classList.toggle('hide', !ok);
+      if (ok) shown++;
+    });
+    const ordered = state.sort === 'score'
+      ? cards.slice().sort((a, b) => b.dataset.score - a.dataset.score)
+      : origOrder;
+    ordered.forEach(c => wrap.appendChild(c));
+    countEl.innerHTML = `显示 <b>${shown}</b> / ${n}`;
+    noMatch.style.display = shown ? 'none' : 'block';
+  }
+
+  chips.forEach(ch => ch.addEventListener('click', () => {
+    const { f, v } = ch.dataset;
+    state[f] = v;
+    chips.filter(x => x.dataset.f === f).forEach(x => x.classList.toggle('on', x === ch));
+    apply();
+  }));
+  document.getElementById('q').addEventListener('input', e => {
+    state.q = e.target.value.trim().toLowerCase();
+    apply();
+  });
+  apply();
+})();
+</script>
 </body>
 </html>
