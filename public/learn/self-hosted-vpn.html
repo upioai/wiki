@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>自建科学上网节点 — upio.ai 知识分享</title>
+<meta name="description" content="从零理解一条自建节点：VLESS-Reality 为什么这么搭、机房 IP 与住宅 IP 怎么选、IP 风控的两层含义、客户端常见的 fake-IP/DNS 坑，以及一套可复用的出口 IP 验证与节点诊断方法论。脱敏科普版，不含任何真实凭据。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700;800&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+
+<style>
+:root {
+  --bg: #0a0d14; --bg-elevated: #131720; --bg-deep: #1a1f2b;
+  --border: #232936; --border-strong: #2f3646;
+  --text: #e8eaef; --text-dim: #9ba3b4; --text-muted: #6b7384;
+  --accent:   #8b5cf6; --accent-soft:   rgba(139, 92, 246, 0.15); --accent-strong: rgba(139, 92, 246, 0.35);
+  --accent-2: #60a5fa; --accent-2-soft: rgba(96, 165, 250, 0.13);
+  --accent-3: #34d399; --accent-3-soft: rgba(52, 211, 153, 0.14);
+  --warning:  #fbbf24; --warning-soft:  rgba(251, 191, 36, 0.14);
+  --danger:   #f87171; --danger-soft:   rgba(248, 113, 113, 0.14);
+  --font-display: 'Instrument Serif', 'Source Han Serif SC', Georgia, serif;
+  --font-ui:      'Inter Tight', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; padding: 0;
+  background: var(--bg); color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 15.5px; line-height: 1.7;
+  font-feature-settings: 'cv11', 'ss01', 'tnum';
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ──────────── Breadcrumb bar ──────────── */
+.crumb-bar {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(10, 13, 20, 0.82);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border-bottom: 1px solid var(--border);
+}
+.crumb-inner {
+  max-width: 1000px; margin: 0 auto;
+  padding: 11px 24px;
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--text-muted); letter-spacing: 0.04em;
+}
+.crumb-inner a { color: var(--text-dim); text-decoration: none; transition: color .2s; }
+.crumb-inner a:hover { color: var(--accent); }
+.crumb-inner .sep { margin: 0 8px; color: var(--border-strong); }
+.crumb-inner .cur { color: var(--text-dim); }
+
+/* ──────────── Layout ──────────── */
+.container { max-width: 920px; margin: 0 auto; padding: 52px 24px 100px; }
+
+/* ──────────── Hero ──────────── */
+header.hero { padding: 4px 0 38px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.tag {
+  display: inline-block; padding: 4px 12px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent);
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  margin-bottom: 18px;
+}
+h1 {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 58px; font-weight: 400;
+  margin: 0 0 18px; letter-spacing: -0.02em; line-height: 1.08;
+  background: linear-gradient(135deg, #f4f5f8 30%, var(--accent) 72%, var(--accent-2) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.subtitle {
+  font-size: 17px; color: var(--text-dim);
+  margin: 0 0 26px; max-width: 760px; line-height: 1.6;
+}
+.subtitle strong { color: var(--text); font-weight: 600; }
+.hero-meta {
+  display: flex; gap: 26px; flex-wrap: wrap;
+  font-family: var(--font-mono); font-size: 12px; color: var(--text-muted);
+}
+.hero-meta strong { color: var(--text-dim); font-weight: 500; }
+
+/* ──────────── Section head ──────────── */
+.section-head {
+  display: flex; gap: 22px; align-items: baseline;
+  padding-top: 30px; margin-top: 52px;
+  border-top: 1px solid var(--border);
+}
+.section-head .num {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 72px; line-height: 1; font-weight: 400;
+  color: var(--accent); flex-shrink: 0;
+}
+.section-head .meta { flex: 1; padding-top: 14px; }
+.section-head h2 {
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--text-muted); letter-spacing: 0.14em;
+  text-transform: uppercase; margin: 0 0 6px; font-weight: 700;
+}
+.section-head .lede {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 29px; line-height: 1.25; color: var(--text);
+}
+section { margin-bottom: 22px; }
+section > p { margin: 14px 0; color: var(--text-dim); }
+section > p strong { color: var(--text); font-weight: 600; }
+h3 {
+  font-family: var(--font-ui); font-size: 19px; font-weight: 600;
+  color: var(--text); margin: 34px 0 12px; letter-spacing: -0.01em;
+}
+ul, ol { color: var(--text-dim); padding-left: 22px; margin: 14px 0; }
+li { margin: 7px 0; line-height: 1.65; }
+li strong, li b { color: var(--text); font-weight: 600; }
+code {
+  background: var(--bg-deep); padding: 1px 6px; border-radius: 4px;
+  font-size: 0.86em; color: #c4b5fd; font-family: var(--font-mono);
+  word-break: break-word;
+}
+a { color: var(--accent-2); text-decoration: none; transition: color .2s; }
+a:hover { color: var(--accent); }
+
+/* ──────────── Callout ──────────── */
+.callout { border-radius: 10px; padding: 14px 18px; margin: 18px 0; font-size: 14px; line-height: 1.7; }
+.callout.info    { background: var(--accent-2-soft); border-left: 3px solid var(--accent-2); color: var(--text-dim); }
+.callout.info strong    { color: var(--accent-2); }
+.callout.warn    { background: var(--warning-soft); border-left: 3px solid var(--warning); color: var(--text-dim); }
+.callout.warn strong    { color: var(--warning); }
+.callout.success { background: var(--accent-3-soft); border-left: 3px solid var(--accent-3); color: var(--text-dim); }
+.callout.success strong { color: var(--accent-3); }
+.callout.purple  { background: var(--accent-soft); border-left: 3px solid var(--accent); color: var(--text-dim); }
+.callout.purple strong  { color: var(--accent); }
+.callout.danger  { background: var(--danger-soft); border-left: 3px solid var(--danger); color: var(--text-dim); }
+.callout.danger strong  { color: var(--danger); }
+
+/* ──────────── Engine / layer cards ──────────── */
+.engines { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 20px 0 18px; }
+@media (max-width: 720px) { .engines { grid-template-columns: 1fr; } }
+.engine {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 14px; padding: 20px 20px 18px;
+  position: relative; overflow: hidden;
+  transition: border-color .2s, transform .2s;
+}
+.engine::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+.engine.e-time::before  { background: var(--accent-2); }
+.engine.e-event::before { background: var(--accent); }
+.engine.e-always::before{ background: var(--accent-3); }
+.engine:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+.engine .e-sym { font-size: 26px; line-height: 1; margin-bottom: 8px; }
+.engine .e-name {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.engine.e-time  .e-name { color: var(--accent-2); }
+.engine.e-event .e-name { color: var(--accent); }
+.engine.e-always .e-name{ color: var(--accent-3); }
+.engine .e-title { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+.engine .e-sub { font-size: 13.5px; color: var(--text-dim); line-height: 1.6; }
+.engine .e-metaphor {
+  font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);
+  margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border);
+}
+
+/* ──────────── Data-path formula block ──────────── */
+.formula {
+  background: var(--bg-deep); border: 1px solid var(--border);
+  border-radius: 12px; padding: 24px; margin: 22px 0; text-align: center;
+  font-family: var(--font-mono); overflow-x: auto;
+}
+.formula .fx-main { font-size: 17px; font-weight: 700; color: var(--text); line-height: 1.9; letter-spacing: 0.01em; }
+.formula .fx-main .c1 { color: var(--accent); }
+.formula .fx-main .c2 { color: var(--accent-2); }
+.formula .fx-main .c3 { color: var(--accent-3); }
+.formula .fx-main .c4 { color: var(--warning); }
+.formula .fx-main .c5 { color: var(--danger); }
+.formula .fx-note { font-size: 12px; color: var(--text-muted); margin-top: 14px; letter-spacing: 0.02em; line-height: 1.7; }
+
+/* ──────────── Term cards ──────────── */
+.terms { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin: 20px 0; }
+@media (max-width: 720px) { .terms { grid-template-columns: 1fr; } }
+.termcard {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 12px; padding: 18px 20px;
+  transition: border-color .2s, transform .2s;
+}
+.termcard:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+.tc-top { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.tc-name { font-family: var(--font-mono); font-size: 15px; font-weight: 800; color: var(--text); }
+.tc-kind {
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 999px;
+}
+.tc-kind.k-time   { background: var(--accent-2-soft); color: var(--accent-2); }
+.tc-kind.k-event  { background: var(--accent-soft);   color: var(--accent); }
+.tc-kind.k-always { background: var(--accent-3-soft); color: var(--accent-3); }
+.tc-kind.k-meta   { background: rgba(155,163,180,0.1); color: var(--text-muted); }
+.tc-body { font-size: 13.5px; color: var(--text-dim); line-height: 1.65; }
+.tc-body b { color: var(--text); font-weight: 600; }
+.tc-myth {
+  font-family: var(--font-ui); font-size: 12px; color: var(--text-muted);
+  margin-top: 11px; padding-top: 9px; border-top: 1px dashed var(--border); line-height: 1.6;
+}
+.tc-myth b { color: var(--warning); font-weight: 600; }
+
+/* ──────────── Decision / data table ──────────── */
+.dtable-wrap { overflow-x: auto; margin: 20px 0; border: 1px solid var(--border); border-radius: 12px; }
+.dtable { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 560px; }
+.dtable th, .dtable td { text-align: left; padding: 13px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.dtable tr:last-child td { border-bottom: none; }
+.dtable th {
+  font-family: var(--font-mono); font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.12em; color: var(--text-muted); font-weight: 700;
+  background: var(--bg-deep);
+}
+.dtable td { color: var(--text-dim); line-height: 1.55; }
+.dtable td.pick { color: var(--accent); font-family: var(--font-mono); font-weight: 700; white-space: nowrap; font-size: 13px; }
+.dtable td.mono { font-family: var(--font-mono); font-size: 12px; color: var(--accent-2); }
+.dtable tbody tr:hover td { background: var(--bg-elevated); }
+
+/* ──────────── Versus pair ──────────── */
+.versus {
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch;
+  margin: 16px 0; background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+}
+@media (max-width: 560px) { .versus { grid-template-columns: 1fr; } }
+.vs-side { padding: 16px 18px; }
+.vs-side h4 { margin: 0 0 6px; font-size: 14px; font-weight: 700; font-family: var(--font-mono); letter-spacing: 0.01em; }
+.vs-side p { margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.6; }
+.vs-side.left h4 { color: var(--accent-2); }
+.vs-side.right h4 { color: var(--accent); }
+.vs-mid {
+  display: flex; align-items: center; justify-content: center; padding: 0 8px;
+  font-family: var(--font-display); font-style: italic; font-size: 18px; color: var(--text-muted);
+  border-left: 1px solid var(--border); border-right: 1px solid var(--border); background: var(--bg-deep);
+}
+@media (max-width: 560px) {
+  .vs-mid { border: none; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 6px; }
+}
+
+/* ──────────── Step list ──────────── */
+.steps { counter-reset: step; margin: 22px 0; padding: 0; list-style: none; }
+.steps > li {
+  position: relative; padding: 0 0 20px 52px; margin: 0;
+  border-left: 2px solid var(--border); margin-left: 16px;
+}
+.steps > li:last-child { border-left-color: transparent; padding-bottom: 0; }
+.steps > li::before {
+  counter-increment: step; content: counter(step);
+  position: absolute; left: -17px; top: -4px;
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--bg-elevated); border: 1px solid var(--border-strong);
+  color: var(--accent); font-family: var(--font-mono); font-weight: 700; font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+}
+.steps .s-title { font-size: 15.5px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.steps .s-body { font-size: 13.5px; color: var(--text-dim); line-height: 1.65; }
+.steps .s-body code { font-size: 0.85em; }
+
+/* ──────────── Punchline ──────────── */
+.punchline {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 27px; line-height: 1.4; color: var(--text);
+  text-align: center; margin: 44px auto 8px; max-width: 740px;
+  padding: 28px 24px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+}
+.punchline .hl {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  font-weight: 400;
+}
+
+/* ──────────── Footer ──────────── */
+footer {
+  text-align: center; padding: 56px 0 0;
+  font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted);
+  letter-spacing: 0.06em; line-height: 1.8;
+}
+
+/* ──────────── Scroll reveal ──────────── */
+.reveal { opacity: 0; filter: blur(6px); transform: translateY(12px);
+  transition: opacity .6s ease-out, filter .6s ease-out, transform .6s ease-out; }
+.reveal.in-view { opacity: 1; filter: blur(0); transform: translateY(0); }
+
+@media (max-width: 560px) {
+  h1 { font-size: 40px; }
+  .section-head { gap: 14px; }
+  .section-head .num { font-size: 52px; }
+  .section-head .lede { font-size: 23px; }
+  .punchline { font-size: 21px; }
+  .formula .fx-main { font-size: 13px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .reveal { opacity: 1 !important; filter: none !important; transform: none !important; }
+}
+</style>
+</head>
+
+<body>
+
+<nav class="crumb-bar">
+  <div class="crumb-inner">
+    <a href="/">upio.ai</a><span class="sep">/</span><a href="/learn">知识分享</a><span class="sep">/</span><span class="cur">自建科学上网节点</span>
+  </div>
+</nav>
+
+<div class="container">
+
+  <header class="hero">
+    <span class="tag">网络 · 科学上网</span>
+    <h1>自建科学上网节点</h1>
+    <p class="subtitle">一条"能稳定访问境外服务"的自建节点，背后是<strong>协议、IP、客户端、排障</strong>四件事环环相扣。本文把团队这几年踩出来的经验<strong>脱敏</strong>整理成一篇科普：先讲清 VLESS-Reality + CDN 为什么这么搭，再讲机房 IP 与住宅 IP 怎么选、IP 风控的两层含义，最后给一套可复用的客户端排坑与节点诊断 checklist。</p>
+    <div class="hero-meta">
+      <span><strong>篇幅</strong> 5 章 · 约 14 分钟</span>
+      <span><strong>受众</strong> 想搞懂自建节点、不止"会连"的人</span>
+      <span><strong>主线</strong> 原理 → 搭建 → 选 IP → 客户端 → 排障</span>
+    </div>
+  </header>
+
+  <div class="callout warn" style="margin-top:8px;">
+    <strong>关于本文 ·</strong> 这是一篇<b>脱敏科普</b>。文中所有 IP、域名、端口、UUID 均为占位示例（形如 <code>&lt;你的-VPS-IP&gt;</code>），不含任何真实节点凭据。真正的连接配置请向管理员索取，<b>不要把真实订阅链接 / UUID 贴到任何公开地方</b>。
+  </div>
+
+  <!-- ════════════ 01 ════════════ -->
+  <div class="section-head reveal" id="why">
+    <span class="num">01</span>
+    <div class="meta">
+      <h2>SECTION ONE · THE BIG PICTURE</h2>
+      <div class="lede">一条节点，到底由哪几段拼成</div>
+    </div>
+  </div>
+
+  <section>
+    <p>"科学上网"听起来是一件事，其实是<strong>一条链路</strong>：你的设备 → 客户端 → 中间传输 → 境外服务器（出口）→ 目标网站。任何一段出问题，体验都会崩。先把这条链路的每一段看清楚，后面所有选型和排障都是在这张图上做文章。</p>
+
+    <div class="formula reveal">
+      <div class="fx-main">
+        <span class="c2">你的设备</span> → <span class="c2">客户端 App</span> → <span class="c1">加密隧道</span> → <span class="c4">[ CDN 前置 ]</span> → <span class="c3">VPS 出口</span> → 目标网站
+      </div>
+      <div class="fx-note">
+        客户端负责<span style="color:var(--accent-2)">把流量伪装+加密发出去</span>　·　隧道决定<span style="color:var(--accent)">能不能穿过封锁</span>　·　CDN 是<span style="color:var(--warning)">可选的"套一层壳"</span>　·　VPS 出口的 IP <span style="color:var(--accent-3)">决定目标网站认不认你</span>
+      </div>
+    </div>
+
+    <p>很多人以为"翻不出去"就是节点挂了，其实问题分布在不同段。下面三类把责任分清，是后面排障的基础：</p>
+
+    <div class="engines reveal">
+      <div class="engine e-event">
+        <div class="e-sym">🔒</div>
+        <div class="e-name">穿透层 · 能不能出去</div>
+        <div class="e-title">协议与隧道</div>
+        <div class="e-sub">流量长得像不像正常 HTTPS、能不能骗过封锁。出问题表现为"连不上 / 频繁断"。</div>
+        <div class="e-metaphor">VLESS · Reality · TLS 伪装 · CDN 前置</div>
+      </div>
+      <div class="engine e-always">
+        <div class="e-sym">🌐</div>
+        <div class="e-name">出口层 · 网站认不认</div>
+        <div class="e-title">出口 IP 质量</div>
+        <div class="e-sub">能连上 ≠ 能用。出口 IP 被风控标记，会触发验证码、403、封号。</div>
+        <div class="e-metaphor">机房 IP · 住宅 IP · ASN · 风控评分</div>
+      </div>
+      <div class="engine e-time">
+        <div class="e-sym">📱</div>
+        <div class="e-name">客户端层 · 本机配置</div>
+        <div class="e-title">客户端与分流</div>
+        <div class="e-sub">同一节点换个客户端就好/就坏，多半是本机 DNS、fake-IP、分流规则在作怪。</div>
+        <div class="e-metaphor">Shadowrocket · Clash · 路由规则 · fake-IP</div>
+      </div>
+    </div>
+
+    <div class="callout success">
+      <strong>核心心智模型 ·</strong> 出故障先问一句：<b style="color:var(--accent-3)">是"出不去"（穿透层），还是"出去了但网站不认"（出口层），还是"只在这台设备上坏"（客户端层）？</b> 三层定位错了，再多命令也是白排。
+    </div>
+  </section>
+
+  <!-- ════════════ 02 ════════════ -->
+  <div class="section-head reveal" id="protocol">
+    <span class="num">02</span>
+    <div class="meta">
+      <h2>SECTION TWO · PROTOCOL &amp; ARCHITECTURE</h2>
+      <div class="lede">VLESS-Reality + CDN：为什么是现在这套</div>
+    </div>
+  </div>
+
+  <section>
+    <p>翻墙协议这些年一路进化：<code>Shadowsocks</code> → <code>VMess</code> → <code>VLESS</code> → <code>Trojan</code>，再到现在主流的 <strong>VLESS + Reality</strong>。进化的主线只有一条 —— <strong>让代理流量越来越"像"普通 HTTPS</strong>，从而躲过基于流量特征的主动探测（GFW 的主动探测会去"敲"你的服务器，看它像不像代理）。</p>
+
+    <div class="terms reveal">
+      <div class="termcard">
+        <div class="tc-top"><span class="tc-name">VLESS</span><span class="tc-kind k-event">传输协议</span></div>
+        <div class="tc-body">轻量代理协议，<b>本身不加密</b>，把加密交给外层 TLS。比老的 VMess 更省 CPU、特征更少。是当前自建节点的主力载体。</div>
+        <div class="tc-myth"><b>记住：</b>VLESS 只负责"转发"，安全性靠它外面套的 TLS / Reality。</div>
+      </div>
+      <div class="termcard">
+        <div class="tc-top"><span class="tc-name">Reality</span><span class="tc-kind k-event">伪装层 ★</span></div>
+        <div class="tc-body">关键创新：<b>借用一个真实的大网站证书</b>（如某热门站点）做 TLS 握手，让探测者看到的就是"在访问那个正经网站"。<b>无需自己买域名 / 证书</b>。</div>
+        <div class="tc-myth"><b>为什么强：</b>主动探测去敲你的端口，看到的是一个真实可信站点的握手，无从判定你是代理。</div>
+      </div>
+      <div class="termcard">
+        <div class="tc-top"><span class="tc-name">XTLS-Vision</span><span class="tc-kind k-meta">流控</span></div>
+        <div class="tc-body">VLESS 上的流控模式（<code>flow=xtls-rprx-vision</code>），减少 TLS 套 TLS 的性能损耗、削弱特征。<b>常与 Reality 搭配</b>。</div>
+        <div class="tc-myth"><b>坑：</b>Vision flow 与多路复用（mux）互斥 —— 开了 Vision 就别开 mux。</div>
+      </div>
+      <div class="termcard">
+        <div class="tc-top"><span class="tc-name">CDN 前置</span><span class="tc-kind k-time">可选增强</span></div>
+        <div class="tc-body">把流量先经过 Cloudflare 等 CDN 再回源到 VPS。<b>好处</b>：真实 VPS IP 不暴露、借 CDN 的 IP 池抗封。<b>代价</b>：多一跳、延迟略增。</div>
+        <div class="tc-myth"><b>取舍：</b>VPS IP 容易被封、或想藏真实 IP 时上 CDN；纯自用、追求低延迟可不套。</div>
+      </div>
+    </div>
+
+    <h3>面板：3x-ui 把这些拼起来</h3>
+    <p>裸手写 <code>xray</code> 配置门槛高，社区普遍用 <strong>3x-ui</strong> 这类 Web 面板来可视化管理：建入站、加用户、生成订阅链接、看流量统计。它底层跑的还是 xray，只是把配置 JSON 包装成了点点点的界面。搭一条节点的大致顺序：</p>
+
+    <ol class="steps reveal">
+      <li>
+        <div class="s-title">备一台境外 VPS</div>
+        <div class="s-body">选线路好的机房（日本 / 新加坡 / 美西常见）。注意 VPS 的 IP 段质量 —— 后面第 03 章会讲为什么有的机房段天生被一线 AI 服务拉黑。</div>
+      </li>
+      <li>
+        <div class="s-title">装面板，建 VLESS-Reality 入站</div>
+        <div class="s-body">面板里新建一个 VLESS 入站，传输选 Reality，借一个真实大站做伪装目标（<code>dest</code> / <code>serverName</code>），生成密钥对。</div>
+      </li>
+      <li>
+        <div class="s-title">加客户端（用户）</div>
+        <div class="s-body">每个使用者一个 UUID。<b>易错点：</b>面板里新增 client 时务必显式把"启用 / enable"打开 —— 某些版本默认是关的，加了却连不上，查半天发现根本没生效。</div>
+      </li>
+      <li>
+        <div class="s-title">（可选）套 CDN</div>
+        <div class="s-body">要藏真实 IP 时，把域名解析挂到 CDN、回源指向 VPS，入站改走 CDN 支持的传输方式。</div>
+      </li>
+      <li>
+        <div class="s-title">分发订阅链接</div>
+        <div class="s-body">面板生成的 <code>vless://…</code> 链接 / 订阅 URL 发给使用者导入客户端即可。<b>这串就是凭据，按密码对待。</b></div>
+      </li>
+    </ol>
+
+    <div class="callout danger">
+      <strong>真实 config 在哪 ·</strong> 排查 xray 行为时，别看本地缓存的模板文件 —— 面板"运行中"的真实配置在它自己的进程 / 容器里。容器化部署的，要进容器看 <code>config.json</code>，本地 <code>/tmp</code> 里的快照一旦面板改过就过期失真了。
+    </div>
+
+    <h3>进阶：单上游绑定是"抖动放大器"</h3>
+    <p>如果出口接的是一组上游 IP（比如对接了代理供应商的多个 IP），<strong>把出站死绑到单一上游</strong>是个隐患：那个上游一抖，你整条节点跟着抖。更稳的做法是用 <code>balancer</code> 做轮询池，让流量在多个上游间分摊。</p>
+    <div class="callout warn">
+      <strong>反直觉坑 ·</strong> balancer 的 <code>leastPing</code>（选延迟最低）策略，在一组"质量都不稳"的上游上反而会<b>锁死到最差的那个</b>——因为噪声让它误判。噪声大的池子用 <code>roundRobin</code>（轮询）往往比"智能选优"更稳。
+    </div>
+  </section>
+
+  <!-- ════════════ 03 ════════════ -->
+  <div class="section-head reveal" id="ip">
+    <span class="num">03</span>
+    <div class="meta">
+      <h2>SECTION THREE · IP SELECTION &amp; RISK</h2>
+      <div class="lede">能连上 ≠ 能用：出口 IP 的学问</div>
+    </div>
+  </div>
+
+  <section>
+    <p>这是新手最容易忽略、却最致命的一章。<strong>节点连上了、能打开网页，不代表它"可用"</strong> —— 因为目标网站（尤其 AI 服务、支付、社交平台）会对你的<strong>出口 IP 做风控</strong>。理解这一层，你才知道为什么"同样能连，有人用着好好的，有人一上就要验证码 / 403 / 封号"。</p>
+
+    <h3>IP 可用性分两层，别混为一谈</h3>
+    <div class="versus reveal">
+      <div class="vs-side left"><h4>① 网络可达</h4><p>能 ping 通、能建立 TCP 连接、网页能打开。这只是<b>"线路通"</b>。绝大多数人只验到这一层就以为没问题。</p></div>
+      <div class="vs-mid">≠</div>
+      <div class="vs-side right"><h4>② 风控可用</h4><p>目标网站<b>愿意把你当正常用户</b>：不弹验证码、不 403、不封号。这才是真正决定体验的一层。</p></div>
+    </div>
+    <div class="callout info"><strong>一句话 ·</strong> "能连"是网络层的事，"能用"是风控层的事。排障时务必分清你卡在哪一层 —— 第 05 章的实测命令就是用来验第二层的。</div>
+
+    <h3>机房 IP vs 住宅 IP：按用途选</h3>
+    <p>出口 IP 主要分两类，性质天差地别：</p>
+    <div class="dtable-wrap reveal">
+      <table class="dtable">
+        <thead><tr><th>类型</th><th>风控眼里</th><th>适合</th><th>不适合</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="mono">机房 / Datacenter</td>
+            <td>"一看就是服务器"，高风险</td>
+            <td>自建 VPN 自用、跑通用网站、便宜量大</td>
+            <td>注册账号、AI 服务、广告投放</td>
+          </tr>
+          <tr>
+            <td class="mono">住宅 / Residential</td>
+            <td>"像真人家庭宽带"，低风险</td>
+            <td>账号注册养号、风控严的平台</td>
+            <td>预算敏感（贵）、纯自用浪费</td>
+          </tr>
+          <tr>
+            <td class="mono">静态住宅 ISP</td>
+            <td>住宅信誉 + IP 固定</td>
+            <td>需要稳定身份的"暖号"场景</td>
+            <td>需要频繁换 IP 的爬虫</td>
+          </tr>
+          <tr>
+            <td class="mono">轮换住宅</td>
+            <td>住宅信誉 + IP 池轮换</td>
+            <td>高频采集、分散指纹</td>
+            <td>需要会话保持 / 固定身份</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout purple"><strong>选型口诀 ·</strong> 自建 VPN 日常上网 → 机房 IP 够用且便宜；要注册/养号 → 静态住宅；高频爬虫 → 轮换住宅。<b>用错类型比没有还坑</b>：拿机房 IP 去注册账号，基本一注册就风控。</div>
+
+    <h3>风控的"双高危"信号</h3>
+    <p>怎么知道一个出口 IP 会不会被嫌弃？业界有现成的风险数据库可查。最强的危险信号是<strong>两个字段同时命中</strong>：</p>
+    <div class="callout danger">
+      <strong>双高危 ·</strong> <code>ip-api.com</code> 返回的 <code>proxy=true</code> <b>且</b> <code>hosting=true</code> 同时为真，或 <code>getipintel</code> 评分接近 <code>1.0</code>（满分=最高风险）—— 几乎所有反爬 / AI 服务都会拒。命中这个，就该准备住宅备用出口了。
+    </div>
+
+    <h3>两个容易栽的现实坑</h3>
+    <div class="terms reveal">
+      <div class="termcard">
+        <div class="tc-top"><span class="tc-name">整段被拉黑</span><span class="tc-kind k-meta">ASN 风险</span></div>
+        <div class="tc-body">风控不只看单个 IP，还看它属于哪个 <b>ASN（自治域 / 运营商段）</b>。某些机房的整个 IP 段被标记为 datacenter，<b>同段所有 IP 一起遭殃</b> —— 你换 IP 没用，得换机房 / 换段。</div>
+        <div class="tc-myth"><b>启示：</b>选 VPS 前先查它的 IP 段口碑，别买完才发现整段被一线 AI 服务 403。</div>
+      </div>
+      <div class="termcard">
+        <div class="tc-top"><span class="tc-name">风险评分会漂移</span><span class="tc-kind k-meta">时效性</span></div>
+        <div class="tc-body">IP 的风险评分<b>不是恒定的</b>，可能几天内翻转：今天干净的 IP，过几天因为别人滥用就被打高分。</div>
+        <div class="tc-myth"><b>启示：</b>"上次测着没事"不能当结论。出问题时<b>重新实测当前评分</b>，别凭记忆。</div>
+      </div>
+    </div>
+
+    <div class="callout info"><strong>供应商梯队（公开常识）·</strong> 住宅代理市场大致分档：头部一线（Bright Data、Oxylabs 等）池大但贵；二线（Decodo、SOAX、IPRoyal 等）性价比高。<b>避坑：</b>有些低价"住宅"实为混入机房 IP，号称城市级定位却长期缺货 —— 下单前小样本实测，别信宣传页。</div>
+  </section>
+
+  <!-- ════════════ 04 ════════════ -->
+  <div class="section-head reveal" id="client">
+    <span class="num">04</span>
+    <div class="meta">
+      <h2>SECTION FOUR · CLIENT SETUP</h2>
+      <div class="lede">同一节点，换客户端就好/就坏</div>
+    </div>
+  </div>
+
+  <section>
+    <p>节点没动，只是换了台设备或换了个客户端，体验却天差地别 —— 这类问题<strong>九成出在客户端的 DNS 与分流配置</strong>，而不是节点本身。先认识主流客户端，再认识那几个最坑的机制。</p>
+
+    <div class="dtable-wrap reveal">
+      <table class="dtable">
+        <thead><tr><th>平台</th><th>常用客户端</th><th>备注</th></tr></thead>
+        <tbody>
+          <tr><td>iOS / iPadOS</td><td class="mono">Shadowrocket</td><td>付费、稳定，订阅链接一导入即用</td></tr>
+          <tr><td>Android</td><td class="mono">v2rayNG / sing-box</td><td>开源免费，配置项多</td></tr>
+          <tr><td>macOS</td><td class="mono">Shadowrocket / sing-box</td><td>ClashX Meta 在新系统上时有失效，sing-box 更稳</td></tr>
+          <tr><td>Windows</td><td class="mono">v2rayN / Clash 系</td><td>桌面端配置最灵活</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>最坑的机制：fake-IP</h3>
+    <p>很多客户端默认开 <strong>fake-IP 模式</strong>：它不真的解析域名，而是先发一个 <code>198.18.x.x</code> 段的"假 IP"占位，等连接建立时再在隧道内解析。平时无感，但它是一类诡异故障的根源：</p>
+    <div class="terms reveal">
+      <div class="termcard">
+        <div class="tc-top"><span class="tc-name">UDP 应用连不上</span><span class="tc-kind k-event">症状</span></div>
+        <div class="tc-body">云电脑、串流、WebRTC 这类<b>依赖 UDP / 直连</b>的应用失败，抓 DNS 看到 <code>198.18.x.x</code>。fake-IP 把它们的连接锁死了。</div>
+        <div class="tc-myth"><b>验证：</b>关掉代理能正常 → 基本确认是 fake-IP；解法是给这些域名配直连 / 走 redir-host。</div>
+      </div>
+      <div class="termcard">
+        <div class="tc-top"><span class="tc-name">自定义域 curl 无响应</span><span class="tc-kind k-event">症状</span></div>
+        <div class="tc-body"><code>curl</code> 自己的域名挂起、返回 <code>HTTP 000</code>，而 <code>.vercel.app</code> / <code>.fly.dev</code> 等内置域正常。DNS 已在 fake-IP 层被劫持。</div>
+        <div class="tc-myth"><b>坑中坑：</b><code>--noproxy</code> 没用 —— 劫持发生在 DNS 层，不在代理层。</div>
+      </div>
+    </div>
+
+    <h3>其它两个高频坑</h3>
+    <ul>
+      <li><strong>测速假阳性：</strong>客户端内置的"节点测延迟"是<b>走当前出口去测</b>的。当前出口本身不通时，所有节点都显示 timeout，让你误以为节点全挂 —— 其实是出口链路的问题，换个测试方式（直接 curl 目标）才准。</li>
+      <li><strong>fake-DNS 接管特定域名：</strong>某些场景下客户端会把特定域名的 DNS 全接管（同样 <code>198.18.x.x</code>），导致这些域名行为异常。最干净的解法是在<b>服务端做透明中转</b>，而不是在客户端层反复打补丁。</li>
+    </ul>
+
+    <div class="callout success"><strong>客户端排坑心法 ·</strong> 设备相关的怪问题，先怀疑三样：<b style="color:var(--accent-3)">① fake-IP（看是不是 198.18.x.x）② DNS 分流规则 ③ 测试方式本身是否走了坏出口</b>。把这三样排掉，再去怀疑节点。</div>
+  </section>
+
+  <!-- ════════════ 05 ════════════ -->
+  <div class="section-head reveal" id="debug">
+    <span class="num">05</span>
+    <div class="meta">
+      <h2>SECTION FIVE · TROUBLESHOOTING</h2>
+      <div class="lede">一套可复用的节点诊断 checklist</div>
+    </div>
+  </div>
+
+  <section>
+    <p>节点出问题时别凭感觉乱试。下面这套方法论分两步：<strong>先确认"我现在的出口到底是哪个 IP"</strong>，再<strong>对这个 IP 逐维度体检</strong>。</p>
+
+    <h3>第一步：出口 IP 多源交叉验证</h3>
+    <p>关键陷阱：<strong>单个 IP 查询站可能给出错误结果</strong>（服务瞬时故障、或某条路径漏出了别的 IP）。曾有真实案例：一个查询站返回了一个俄罗斯 IP，让人误判"VPN 断了"狂查半天，其实换两个站一对就知道出口正常。所以——<strong>三个数一致才下结论</strong>：</p>
+    <div class="formula reveal">
+      <div class="fx-main" style="font-size:13px; text-align:left;">
+<span class="c3">curl</span> -s 'https://api.ipify.org?format=json'<br>
+<span class="c3">curl</span> -s ifconfig.me<br>
+<span class="c3">curl</span> -s icanhazip.com<br>
+<span class="c2">dig</span> +short myip.opendns.com @resolver1.opendns.com
+      </div>
+      <div class="fx-note">三个出口查询 + 一个 DNS 出口验证；<b>三数一致</b>再下结论，不一致先怀疑某个站抽风，而不是"节点挂了"。</div>
+    </div>
+
+    <h3>第二步：10 维度节点深度体检</h3>
+    <p>确认了出口 IP，再对它逐项体检。这张表是团队沉淀下来的完整 checklist，照着跑一遍，问题基本无所遁形：</p>
+    <div class="dtable-wrap reveal">
+      <table class="dtable">
+        <thead><tr><th>#</th><th>维度</th><th>怎么测</th><th>判断标准</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>真实出口 IP</td><td class="mono">四源交叉（见上）</td><td>三数一致</td></tr>
+          <tr><td>2</td><td>ASN / 机房类型</td><td class="mono">curl ipinfo.io/&lt;IP&gt;</td><td>datacenter=高危；住宅/ISP=低危</td></tr>
+          <tr><td>3</td><td>风控评分</td><td class="mono">ip-api proxy+hosting · getipintel</td><td>双 true / 评分≈1.0 → 必拒</td></tr>
+          <tr><td>4</td><td>敏感服务实测</td><td class="mono">curl -I 目标站</td><td>403=被挡；200/302=可用</td></tr>
+          <tr><td>5</td><td>TLS 握手抖动</td><td class="mono">curl -w time_connect ×5</td><td>抖动&gt;3× 最小值=上游不稳</td></tr>
+          <tr><td>6</td><td>ICMP 劫持</td><td class="mono">ping 对比 TCP 延迟</td><td>ping 极低但 TCP 高=假响应</td></tr>
+          <tr><td>7</td><td>时区一致性</td><td class="mono">机器时区 vs IP 地理时区</td><td>不一致=指纹暴露</td></tr>
+          <tr><td>8</td><td>DNS / WebRTC leak</td><td class="mono">ip-api/json + leak test</td><td>无额外真实 IP 暴露</td></tr>
+          <tr><td>9</td><td>IPv6 leak</td><td class="mono">curl -6 api6.ipify.org</td><td>空/被拒=安全；有 v6=leak</td></tr>
+          <tr><td>10</td><td>吞吐</td><td class="mono">cloudflare speed __down</td><td>&lt;10Mbps=瓶颈明显</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout danger">
+      <strong>头号陷阱 · ICMP 被劫持 ·</strong> 代理环境下 <code>ping</code> / <code>traceroute</code> 常被劫持给<b>假响应</b>（ping 显示 0.3ms、traceroute 全是 <code>* * *</code>），完全不反映真实链路。<b>诊断网络延迟必须用 TCP 层工具</b>（<code>curl -w</code> / <code>nc</code> / <code>openssl s_client</code>），别信 ping 的数字。
+    </div>
+
+    <div class="callout info"><strong>带外通道意识 ·</strong> 如果代理客户端把整台机器流量都劫持了，你 SSH 上 VPS 都可能失联。提前留一条不走代理的"带外通道"（机房控制台 / API shell），是救命的。诊断前先 <code>route -n get &lt;VPS_IP&gt;</code> 确认到 VPS 的路由没被隧道接管。</div>
+  </section>
+
+  <!-- ════════════ TAKEAWAY ════════════ -->
+  <div class="section-head reveal" id="takeaway">
+    <span class="num">★</span>
+    <div class="meta">
+      <h2>TAKEAWAY · 一句话装进脑子</h2>
+      <div class="lede">浓缩成一行心法</div>
+    </div>
+  </div>
+
+  <section>
+    <div class="punchline">
+      <span class="hl">能连上 ≠ 能用</span>。<br>
+      协议管"出不出得去"，IP 管"网站认不认你"，<br>客户端管"这台设备坏没坏"。
+    </div>
+
+    <div class="callout success" style="margin-top:24px;">
+      <strong>速记 ·</strong>
+      <b style="color:var(--accent)">协议</b> → VLESS-Reality 借真站伪装，CDN 藏 IP；
+      <b style="color:var(--accent-2)">选 IP</b> → 自用机房、养号住宅，警惕"双高危"和整段拉黑；
+      <b style="color:var(--accent-3)">排障</b> → 先四源验出口，再 10 维体检，别信 ping。
+    </div>
+
+    <div class="callout warn" style="margin-top:14px;">
+      <strong>只想"连上"不想搞原理？·</strong> 看同站的 <a href="/vpn-quick-start">《VPN 一键上手指南》</a> —— 向管理员要专属链接、各平台客户端照步骤配即可，不涉及本文的搭建细节。
+    </div>
+  </section>
+
+  <footer>
+    脱敏整理自团队内部自建节点实践 · upio.ai 知识分享<br>
+    本文不含任何真实节点凭据；配置请向管理员索取，勿公开传播订阅链接
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) { e.target.classList.add('in-view'); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.12, rootMargin: '0px 0px -6% 0px' });
+  document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
+})();
+</script>
+
+</body>
+</html>

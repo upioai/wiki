@@ -43,6 +43,13 @@ const CATEGORIES = [
       { slug: 'sql-python-intro', title: 'SQL 与 Python 入门', desc: '数据分析基础速成。' },
     ],
   },
+  {
+    label: 'NETWORKING · 科学上网',
+    title: '网络 · 科学上网',
+    items: [
+      { slug: 'self-hosted-vpn', title: '自建科学上网节点', desc: '协议·选 IP·客户端·排障：自建节点的完整脱敏科普。' },
+    ],
+  },
 ];
 
 // 校验 + 统计 ──────────────────────────────────────────────────
