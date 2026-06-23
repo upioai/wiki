@@ -262,13 +262,15 @@ def read_comment_log_row(aweme_id, sec):
     return hit[-1] if hit else {}
 
 
-def db_log(db, account, sec, comment_id, touch_seq, video_url, video_pub_iso, e2e_min, lr):
+def db_log(db, account, sec, comment_id, touch_seq, video_url, video_pub_iso, e2e_min, lr, detected_at=None):
     """直调 log_second_touch：INSERT 一行 second_touch_log（append-only，完整时间线）。
-    lr = read_comment_log_row 的行（带 like_at/comment1_at/comment2_at + 各步 status）。"""
+    lr = read_comment_log_row 的行（带 like_at/comment1_at/comment2_at + 各步 status）。
+    detected_at = watch 检测到这条新视频的时刻（「我们检测了」节点；20260623131016 加列）。"""
     def _t(v):
         v = (v or "").strip()
         return v or None
     return _db_rpc(db, "log_second_touch", {
+        "p_detected_at": detected_at or None,
         "p_org_id": db["org"], "p_douyin_user_id": sec, "p_account_id": account,
         "p_source_comment_id": comment_id or None, "p_touch_seq": touch_seq,
         "p_touched_video_aweme_id": (lr.get("_aweme_id") or None),
@@ -461,12 +463,12 @@ def main():
             # mark-second-touch.ts --from-comment-log（非幂等，会把 touch_count 重复 ++）。
             cols = ["douyin_id", "nickname", "message", "message2",
                     "has_works", "_comment_id", "_sec_uid", "_dispatch_id",
-                    "_aweme_id", "_create_time"]
+                    "_aweme_id", "_create_time", "_detected_at"]
             with open(args.csv_tmp, "w", encoding="utf-8-sig", newline="") as cf:
                 w = csv.writer(cf)
                 w.writerow(cols)
                 w.writerow([query, name, comment1, comment2, 1, cmt_id, sec, "",
-                            aweme_id, rec.get("create_time") or ""])
+                            aweme_id, rec.get("create_time") or "", det or ""])
 
             emit(f"🔥 触达 ★{name} {aweme_id} | 评论1={comment1[:24]} | "
                  f"评论2={'(无)' if not comment2 else comment2[:18]}")
@@ -515,7 +517,7 @@ def main():
                             try:
                                 lr = read_comment_log_row(aweme_id, sec)
                                 db_log(db, args.account, sec, cmt_id, cr.get("touch_count"),
-                                       rec.get("video_url"), video_pub_iso, e2e_min, lr)
+                                       rec.get("video_url"), video_pub_iso, e2e_min, lr, det)
                                 emit(f"   🧾 流水落库 second_touch_log seq={cr.get('touch_count')} "
                                      f"like={lr.get('like_at','')[11:16]} c1={lr.get('comment1_at','')[11:16]} "
                                      f"c2={lr.get('comment2_at','')[11:16]}")
