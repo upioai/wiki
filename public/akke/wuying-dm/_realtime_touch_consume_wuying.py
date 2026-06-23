@@ -194,8 +194,10 @@ def _load_env_for_db():
             load_dotenv(p, override=False)
 
 
-def setup_db(emit, account):
-    """读 .env 组装直连配置；缺关键 env 返回 None（调用方降级本地表模式）。"""
+def setup_db(emit, account, require=False):
+    """读 .env 组装直连配置；缺关键 env 返回 None（调用方降级本地表模式）。
+    require=True（显式 --db）时才把缺啥喊出来；自动探测（无 --db）时静默降级，
+    省得本来就该跑本地模式的机器刷红错。"""
     _load_env_for_db()
     url = os.environ.get("SUPABASE_URL") or os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
     scoped = os.environ.get("SUPABASE_SCOPED_JWT")
@@ -211,7 +213,8 @@ def setup_db(emit, account):
         ("AKKE_ACCOUNT_ID(--account)", account),
         ("SUPABASE_SCOPED_JWT+ANON 或 SERVICE_ROLE_KEY", bearer)] if not v]
     if missing:
-        emit("❌ --db 缺 env: %s" % ", ".join(missing))
+        if require:
+            emit("❌ --db 缺 env: %s" % ", ".join(missing))
         return None
     return {"url": url.rstrip("/"), "apikey": apikey, "bearer": bearer, "org": org}
 
@@ -334,15 +337,17 @@ def main():
         json.dump(sorted(consumed), open(args.consumed, "w"), ensure_ascii=False)
         json.dump(touched, open(args.touched, "w"), ensure_ascii=False)
 
-    # 直连 Supabase（--db）：与 --api-base 互斥（端点对无影是死路，--db 优先）。配置不全自动降级。
-    db = None
-    if args.db:
+    # 直连 Supabase：**.env 配齐 key 就自动开（无须 --db）**；--db 只作"显式要求"——缺 key 时
+    # 喊出来而非静默降级。这样运营双击 .bat（裸跑 consume、不带 --db）只要机器配了受控 key 就
+    # 自动直连库，不用记开关、也不再卡"忘了加 --db / 跑了旧版没 --db"。与 --api-base 互斥（端点对
+    # 无影 HTTP 000，直连优先）。
+    db = setup_db(emit, args.account, require=args.db)
+    if db is not None:
         if use_api:
-            emit("⚠️ --db 与 --api-base 同设 → 用 --db 直连（端点对无影 HTTP 000），忽略 --api-base")
+            emit("⚠️ DB 直连可用 → 优先直连库，忽略 --api-base（端点对无影 HTTP 000）")
             use_api = False
-        db = setup_db(emit, args.account)
-        if db is None:
-            emit("→ --db 配置不全，退回本地表模式（无 DB 去重/回写）；检查 .env")
+    elif args.db:
+        emit("→ --db 配置不全，退回本地表模式（无 DB 去重/回写）；检查 .env")
     use_db = db is not None
 
     _mode = ("直连Supabase(本地话术表+DB领号+DB回写) " if use_db
