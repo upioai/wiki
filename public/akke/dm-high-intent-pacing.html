@@ -77,6 +77,10 @@
     把「<b>当天 DM 实发里高意向占比 ≥ 80%</b>、<b>每号当天 ≤ 25 条</b>」这条目标，落成拉单层一道闸 + 现成发送器不动。<br/>
     完整口径见需求 <code>docs/requirements/2026-06-23-dm-dynamic-high-intent-pacing.md</code>；本页讲机制 + 用近 7 天真实数据回答「高意向扎堆会不会发不过来」。
   </div>
+  <div style="background:var(--yellow-s);border:1px solid #f0dcb0;border-left:4px solid var(--yellow);border-radius:10px;padding:12px 15px;margin:14px 0 0;font-size:12.5px;line-height:1.8;color:#5a4a1f">
+    ⚠️ <b>这是设计方案、还没上线</b>——讲的是「打算怎么把目标落成代码」，不是已经在跑的功能。下面提到的 <code>planner</code> / <code>pacing-plan.ts</code> 都是<b>待建</b>的。<br/>
+    📌 <b>关于发送通道</b>：DM 目前主要走<b>云电脑</b>。这道「配速闸」具体加在哪、能不能全自动，取决于走哪条云电脑通道——见 ① 末「落地点」。
+  </div>
   <div class="toc">
     <a href="#s1">① 0→1 怎么落地</a>
     <a href="#s2">② 如何批量到全员</a>
@@ -145,11 +149,11 @@
       <div class="flow-lane new">
         <div class="lane-title"><span class="lane-tag new">新增</span>claim 拉单层 · planner 守门（<code>scripts/claim-leads.ts</code> → <code>pacing-plan.ts</code>）</div>
         <div class="steps">
-          <div class="step"><b>① 算当天已发</b><br/>查 messages(role=ai,sent,当天) join comments.intent_score → 已发高 A / 已发中低 B</div>
+          <div class="step"><b>① 先算今天已发</b><br/>查你今天已经发了几条：其中高意向几条（记 <b>A</b>）、中/低意向几条（记 <b>B</b>）</div>
           <div class="arrow">→</div>
-          <div class="step"><b>② 算本轮额度</b><br/>按当前 BJT 时刻 + 近 7 天高意向到达分布，摊出「该时段应放量」，再扣已发</div>
+          <div class="step"><b>② 算这轮还能放几条</b><br/>按现在几点（北京时间）+ 近 7 天高意向一般什么时段来，把 25 条预算摊到全天，算出这轮该放几条、别上午烧光</div>
           <div class="arrow">→</div>
-          <div class="step"><b>③ 配比闸</b><br/>中/低 claim 只在「B &lt; A÷4」时放行；超额直接不发。阈值 <code>p</code> 参数化（回 50% 只改一个系数）</div>
+          <div class="step"><b>③ 配比闸</b><br/>中/低意向只在「已发中低 B &lt; 高 A÷4」时才放；超了这轮就只给高意向。占比目标 <code>p</code> 可调（回 50% 只改一个数）</div>
         </div>
       </div>
       <div style="text-align:center;color:var(--faint);font-size:18px;margin:-6px 0 8px">↓ claim 出来的 lead 照常进现成链路</div>
@@ -163,6 +167,11 @@
           <div class="step"><b>日限护栏</b><br/>单号当天 <b>≤ 30</b> 条已有上限托底；配速 25 在它之内</div>
         </div>
       </div>
+    </div>
+    <div class="chart-cap" style="margin-top:12px;background:#fafbff;border:1px solid var(--line);border-radius:10px;padding:12px 14px">
+      📌 <b>这道闸放哪、能不能全自动，看 DM 走哪条云电脑通道：</b><br/>
+      • <b>本机拉单 → 云电脑发</b>（运营手动 claim 那条）：闸加在 <code>scripts/claim-leads.ts</code>，就是上图。半自动——还得运营每轮敲一下拉单。<br/>
+      • <b>云电脑全自动派单</b>（cron <code>cloud-pc-dispatch</code> 无人值守那条）：<b>没有手动 claim</b>，所以同一道闸改放进<b>派单 cron 选 lead 那步</b>（<code>src/lib/dispatch/shared.ts</code>），逻辑一模一样、但<b>跑起来全自动、不用人管</b>。需求 v1 原本没覆盖这条，<b>要全自动就把闸做进这里</b>。
     </div>
 
     <div class="valves">
@@ -262,7 +271,7 @@
         <text x="255" y="267" font-size="10" fill="#9aa4b2" text-anchor="middle">单个 10min 桶里的高意向条数 →（柱高 = 这种密度出现了多少个桶）</text>
       </svg>
       <div class="chart-cap">
-        近 7 天高意向按 BJT 10 分钟分桶。<b>291 个桶只有 1 条</b>、107 个桶 2 条……越往右越罕见。<b>9 条以上总共才 4 个桶、12 条仅 1 次</b>。
+        近 7 天高意向按北京时间每 10 分钟分一桶（一格）。<b>291 个桶只有 1 条</b>、107 个桶 2 条……越往右越罕见。<b>9 条以上总共才 4 个桶、12 条仅 1 次</b>。
       </div>
     </div>
 
