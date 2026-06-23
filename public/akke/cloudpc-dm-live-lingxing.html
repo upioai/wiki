@@ -172,7 +172,7 @@ function pad2(n){ return String(n).padStart(2,"0"); }
 function bjToday(){ const d=new Date(Date.now()+8*3600000); return d.getUTCFullYear()+"-"+pad2(d.getUTCMonth()+1)+"-"+pad2(d.getUTCDate()); }
 function addDays(ds, n){ const [y,m,d]=ds.split("-").map(Number); const t=new Date(Date.UTC(y,m-1,d)); t.setUTCDate(t.getUTCDate()+n);
   return t.getUTCFullYear()+"-"+pad2(t.getUTCMonth()+1)+"-"+pad2(t.getUTCDate()); }
-const TODAY = bjToday();
+let TODAY = bjToday();   // 跨日会被 setInterval 重算，别改回 const
 const _qd = new URLSearchParams(location.search).get("date") || "";
 let viewDate = (/^\d{4}-\d{2}-\d{2}$/.test(_qd) && _qd <= TODAY) ? _qd : TODAY;
 function isToday(){ return viewDate === TODAY; }
@@ -393,7 +393,16 @@ async function load(){
 
 renderDateNav();
 load();
-setInterval(()=>{ if(isToday()) load(); }, 60000);
+setInterval(()=>{
+  const t = bjToday();
+  if (t !== TODAY) {  // 跨日：tab 跨夜没关时把 TODAY/viewDate 推到新一天，重画日期导航
+    const wasToday = viewDate === TODAY;
+    TODAY = t;
+    if (wasToday) viewDate = t;
+    renderDateNav();
+  }
+  if (isToday()) load();
+}, 60000);
 </script>
 </body>
 </html>
