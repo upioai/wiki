@@ -61,17 +61,17 @@
   <h1>DM 自动回复 · 部署操作指南</h1>
   <div class="sub">在你的无影云电脑上开启「客户回私信 → 系统自动抓到」· 跟着做约 10 分钟 · 一步一步来</div>
 
-  <div class="alert">
-    <b>⚠️ 先看这条：现在只开「捕获(capture)」</b><br>
-    捕获 = 只自动<b>抓</b>客户的回复进系统，<b>不</b>自动发消息出去。<br>
-    <b>千万别自己改成 both（全自动发）</b>——发送的安全闸还没补完，PM 通知你之前一直保持 <code>capture</code>。
+  <div class="alert" style="background:var(--oks);border-color:var(--ok)">
+    <b style="color:var(--ok)">✅ 这版可以开「both 全自动回复」了（2026-06-23）</b><br>
+    <b>both</b> = 客户回私信 → 系统<b>自动抓 + 自动生成 + 在收件箱就地回出去</b>，全程无人工、不搜号。<br>
+    安全闸已补齐：草稿崩/空/超长、谈判阶段、客户没问你却自冒价格/微信 → 都自动<b>转人工不发</b>，只发干净的。所以可放心写 <code>both</code>。<span style="color:var(--mut)">想先只抓不发观察，写 <code>capture</code> 也行。</span>
   </div>
 
   <div class="pre">
     <h3>开工前，确认这台机满足 3 个条件</h3>
     <div class="chk"><span class="b">✓</span><div>这台无影<b>已经在跑 DM 首触</b>（有个黑窗口一直在滚动 <code>[轮N]</code>）。自动回复是<b>加在它上面</b>，不是重装一套。</div></div>
     <div class="chk"><span class="b">✓</span><div>这台<b>已经能正常发冷启动 DM</b>（即跑过 <code>douyin_dm_grounded.py --capture</code> 校准过发送键）。就地回复要用它的发送能力。<span style="color:var(--mut)">没校准过 → 先跑 <code>py douyin_dm_grounded.py --capture</code> 按提示采一遍。</span></div></div>
-    <div class="chk"><span class="b">✓</span><div>PM 给了你<b>这台对应的 <code>AKKE_ACCOUNT_ID</code></b>（一串 UUID）。必须是这台<b>登录的那个抖音号</b>的，不能用别人的。</div></div>
+    <div class="chk"><span class="b">✓</span><div>知道<b>这台登录的是谁的抖音号</b>（步骤 2 有 id 对照表，自己核对，不用问 PM）。</div></div>
     <div style="margin-top:12px;color:var(--mut);font-size:13.5px">云端总开关 <code>DM_AUTO_REPLY_ENABLED=1</code> 是 PM 一次性配的，<b>你不用管</b>。</div>
   </div>
 
@@ -105,10 +105,22 @@
     <div class="num">2</div>
     <div class="body">
       <h2>确认账号对（最关键，错了后面全白干）</h2>
-      <p>看这台 <code>.env</code> 里绑的账号，跟 PM 给你的那串 UUID 对一对：</p>
+      <p>看这台 <code>.env</code> 里绑的账号 UUID：</p>
       <div class="cmd">findstr AKKE_ACCOUNT_ID .env</div>
       <div class="see"><b>你会看到</b>：<code>AKKE_ACCOUNT_ID=804a8ab8-....</code> 这样一串。</div>
-      <div class="danger"><b>必须等于 PM 给你的、这台登录抖音号对应的那串。</b>不一致就<b>停下找 PM</b>，别往下做——绑错的话系统认不出你的客户，红点逮到也存不进去（日志会一直 <code>已发记录 0 人</code>）。</div>
+      <p>对照下表自己核对 —— <b>这台登录的抖音号是谁，UUID 就必须是哪个</b>（不用再问 PM）：</p>
+      <table>
+        <thead><tr><th>这台云电脑登录的号</th><th>AKKE_ACCOUNT_ID 必须是</th></tr></thead>
+        <tbody>
+          <tr><td>小文（野荞）</td><td><code>81cc9678-9b53-413b-9f40-7964341f4af1</code></td></tr>
+          <tr><td>小胡</td><td><code>804a8ab8-167b-4485-b9b9-7f3692404847</code></td></tr>
+          <tr><td>文哥</td><td><code>e7d50b4c-24f9-4cb2-b8fe-cb47c2682ab0</code></td></tr>
+          <tr><td>有大有小</td><td><code>9535e31c-bced-4cf6-93d1-0f8699df4cb0</code></td></tr>
+          <tr><td>零星</td><td><code>8af08f10-6db5-4d83-8942-b908349efbda</code></td></tr>
+          <tr><td>饭粒（一筑·全屋定制）</td><td><code>c5d236e1-fd80-4cff-b349-506dfd09699b</code></td></tr>
+        </tbody>
+      </table>
+      <div class="danger"><b>必须等于这台登录抖音号对应的那串。</b>不一致就改成对的再往下——绑错的话系统认不出你的客户，红点逮到也存不进去（日志一直 <code>已发记录 0 人</code>）。<b>表里没有你的号</b> → 找 PM 补一行。</div>
     </div>
   </div>
 
@@ -116,12 +128,15 @@
   <div class="step">
     <div class="num">3</div>
     <div class="body">
-      <h2>量 2 个位置（脚本自动帮你写好）</h2>
-      <p>自动跑的时候，脚本要自己点开私信、点第一个会话，所以得先告诉它这俩在屏幕哪。跑这个小工具，它会一步步带你：</p>
+      <h2>量 2 个位置（量完要换算，看清楚！）</h2>
+      <p>自动跑时脚本要自己点开私信、点第一个会话，得先告诉它这俩在屏幕哪。先<b>把抖音停在私信会话列表</b>（能看到一列会话），再跑：</p>
       <div class="cmd">py measure_dm_coords.py</div>
-      <p>它会提示两次，照着做：</p>
-      <div class="tip"><b>第 1 次</b>：把鼠标移到抖音左边的「<b>消息 / 私信</b>」图标上 → 按回车。<br><b>第 2 次</b>：把鼠标移到私信列表里「<b>第一个会话</b>」那一条上 → 按回车。<br>最后问「<b>是否写入 .env？</b>」→ 输 <code>Y</code> 回车。</div>
-      <div class="see"><b>它会自动写好 4 行</b>到 <code>.env</code>：私信坐标、第一会话坐标、捕获开关、3 分钟间隔。你不用手算。</div>
+      <div class="tip"><b>第 1 次</b>：鼠标移到顶部/侧边的「<b>私信</b>」图标上 → 回车。<br><b>第 2 次</b>：鼠标移到私信列表里「<b>第一个会话的头像</b>」上 → 回车。</div>
+      <div class="danger"><b>⚠️ 它显示的 <code>抓到坐标: (1835, 140)</code> 是【原始像素】，但脚本要【千分比 0~1000】—— 问「是否写入 .env」时输 <code>n</code> 别让它直接写！</b><br>
+      把量到的两个 <code>(x,y)</code> <b>各 ÷ 屏幕宽 ÷ 高 ×1000</b> 换算（屏宽多半 2560、高 1600）：<br>
+      · 私信 <code>(2294,16)</code> → 2294÷2560×1000=<b>896</b>，16÷1600×1000=<b>10</b> → <code>896,10</code><br>
+      · 第一会话 <code>(1835,140)</code> → <b>717,88</b><br>
+      下一步手填进 .env。<b>算不准就把两个原始 px 发 PM 换算。</b><span style="color:var(--mut)">（直接写原始 px 会点屏外、列表撑不开、capture 只读 <code>1 行</code>、回复全 <code>no_row</code> —— 今天小文这台栽过）</span></div>
     </div>
   </div>
 
@@ -129,18 +144,14 @@
   <div class="step">
     <div class="num">4</div>
     <div class="body">
-      <h2>给 .env 再加 1 行（保持只捕获）</h2>
-      <p>用记事本打开 <code>C:\akke-wuying\wuying-dm\.env</code>，在末尾加这一行：</p>
-      <div class="cmd">AKKE_DM_AUTOREPLY_MODE=capture</div>
-      <p>加完，确认 <code>.env</code> 里这 5 行都在（前 4 行是上一步自动写的）：</p>
-      <div class="cmd"><span class="c"># 上一步 measure 自动写的 4 行：</span>
-AKKE_C_DM_INBOX=<span class="c">xxx,xx</span>
-AKKE_C_DM_FIRST=<span class="c">xxx,xx</span>
+      <h2>填 .env（坐标 + 开关 + 模式）</h2>
+      <p>记事本打开 <code>C:\akke-wuying\wuying-dm\.env</code>，确认/补这 5 行（坐标填上一步<b>换算好的千分比</b>）：</p>
+      <div class="cmd">AKKE_C_DM_INBOX=<span class="c">896,10   # ← 上一步换算的私信入口千分比</span>
+AKKE_C_DM_FIRST=<span class="c">717,88   # ← 上一步换算的第一会话千分比</span>
 AKKE_DM_AUTOREPLY_CAPTURE=1
-AKKE_DM_AUTOREPLY_INTERVAL=180
-<span class="c"># 你这步手动加的 1 行：</span>
-AKKE_DM_AUTOREPLY_MODE=capture</div>
-      <div class="danger"><b>就停在 <code>capture</code>，别写 <code>both</code>。</b></div>
+AKKE_DM_AUTOREPLY_INTERVAL=<span class="c">15   # 多久扫一次：15=15秒(回最快) / 60=1分 / 180=3分(省窗口)</span>
+AKKE_DM_AUTOREPLY_MODE=<span class="c">both   # both=自动发 / capture=只抓不发</span></div>
+      <div class="tip">想先稳一点<b>只抓不发</b>验几条，把最后一行写 <code>capture</code>；确认没问题再改 <code>both</code> 重启。坐标千分比 = 这台机专属，别抄别人的。</div>
     </div>
   </div>
 
@@ -162,9 +173,10 @@ AKKE_DM_AUTOREPLY_MODE=capture</div>
     <div class="num">6</div>
     <div class="body">
       <h2>看日志，确认在跑</h2>
-      <p>盯着那个黑窗口，<b>每约 3 分钟</b>会冒出这两行：</p>
-      <div class="cmd">收件箱捕获(每3min一次) mode=capture
+      <p>盯着那个黑窗口，<b>每隔你设的间隔</b>（15 秒 / 3 分钟）会冒出这两行：</p>
+      <div class="cmd">收件箱捕获(每15s一次) mode=both
 === capture[红点门控]: N 行 / 未读 M / 已发记录 K 人 ===</div>
+      <div class="danger" style="margin-top:4px"><b>N 必须 &gt; 1</b>（13 行那种）。<b>只有 <code>1 行</code> = 坐标没换算千分比 / 抖音没停私信列表</b> → 回步骤 3。<code>both</code> 模式有 approved 草稿时还会打 <code>[reply] 某某: sent</code> = 真发出去了。</div>
       <div class="see">
         <b>怎么看懂这行：</b><br>
         · <b>已发记录 K</b>：K 大于 0 = 账号绑对了、能认出你的客户 ✅（K=0 一直不变 → 账号绑错，回<b>步骤 2</b> 找 PM）<br>
@@ -190,7 +202,8 @@ AKKE_DM_AUTOREPLY_MODE=capture</div>
     <thead><tr><th>看到的现象</th><th>怎么办</th></tr></thead>
     <tbody>
       <tr><td>日志一直 <span class="bad">已发记录 0 人</span></td><td><b>账号绑错</b>（最常见）→ 回步骤 2，把 <code>AKKE_ACCOUNT_ID</code> 跟 PM 核对，改成这台登录抖音号的那串，重启 agent。</td></tr>
-      <tr><td><span class="bad">列表 0 行</span> / 没解析到会话</td><td>抖音没停在私信列表，或私信/第一会话坐标量歪了 → 重跑步骤 3 <code>measure_dm_coords.py</code>。</td></tr>
+      <tr><td><span class="bad">capture 只读 1 行</span> / 没解析到会话</td><td>抖音没停在私信会话列表，或坐标量歪 → 重跑步骤 3 <code>measure_dm_coords.py</code>。</td></tr>
+      <tr><td><span class="bad">capture 13 行但回复全 no_row</span> / <span class="bad">点到屏外</span></td><td><b>坐标写了原始像素没换算千分比</b>（最常见）→ 回步骤 3 把 px ÷屏宽÷高×1000 换算重填；或脚本是旧版 → 重下步骤 1。</td></tr>
       <tr><td>日志压根没 <span class="bad">capture[红点门控]</span> 这行</td><td><code>AKKE_DM_AUTOREPLY_CAPTURE=1</code> 没写、或 agent 没重启 → 检查 .env（步骤 4）+ 重启（步骤 5）。</td></tr>
       <tr><td>日志显示 <span class="bad">每0h一次</span></td><td>说明是<b>老脚本</b> → 重下步骤 1 的 <code>wuying_poll_agent.py</code> 再重启。（新脚本显示「每3min一次」）</td></tr>
       <tr><td>下载报「<span class="bad">缺少参数</span> / Malformed」</td><td>多行命令被 <code>&gt;&gt;</code> 连断了 → <b>一行一行</b>重新粘（步骤 1）。</td></tr>
@@ -199,12 +212,12 @@ AKKE_DM_AUTOREPLY_MODE=capture</div>
   </table>
 
   <div class="alert" style="margin-top:30px">
-    <b>一句话流程</b>：下 5 个脚本 → 对账号(步2) → 跑 measure 量坐标(步3) → .env 加 <code>MODE=capture</code>(步4) → 重启 agent(步5) → 看日志有 <code>capture[红点门控]</code> + <code>已发记录 K&gt;0</code>(步6)。<br>
-    <b>全程只到 capture，别开 both。</b>遇到拿不准的，截图问 PM。
+    <b>一句话流程</b>：下 5 脚本 → 对账号(步2·有 id 对照表) → 量坐标【<b>换算成千分比</b>】(步3) → .env 填坐标+<code>MODE=both</code>+间隔(步4) → 重启(步5) → 看日志 <code>mode=both</code> + <code>capture[红点门控]: N行(N&gt;1)</code> + <code>已发记录 K&gt;0</code>(步6)。<br>
+    最容易栽的一步是<b>坐标换算</b>（步3）—— 量到的原始像素必须 ÷屏宽÷高×1000 再填。拿不准截图问 PM。
   </div>
 
   <footer>
-    DM 自动回复部署指南 · 2026-06-22 · 红点门控捕获 + 就地回复就地发<br>
+    DM 自动回复部署指南 · 2026-06-23 · both 全自动 · 红点门控捕获 + 就地回复不搜号<br>
     原理 / 复盘见 <a href="https://upio.ai/akke/dm-autoreply-0to1">upio.ai/akke/dm-autoreply-0to1</a>（或问 PM 要 0→1 报告）
   </footer>
 
