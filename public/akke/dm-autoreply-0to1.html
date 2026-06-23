@@ -80,12 +80,12 @@
 <div class="wrap">
 
   <h1>DM 私信自动回复 · 0→1 复盘</h1>
-  <div class="sub">抖音私信双向闭环 · 无影云电脑通道 · 数据快照 2026-06-19（更新至 2026-06-21：号搜索被风控降权 / both 暂缓半自动兜）· 部署见 <a href="/akke/dm-autoreply-deploy">部署指南</a></div>
+  <div class="sub">抖音私信双向闭环 · 无影云电脑通道 · 数据快照 2026-06-19（更新至 <strong>2026-06-23：both 全自动链路打通 · 就地回复不搜号 · 三通道同机串行，详见 §5</strong>）· 部署见 <a href="/akke/dm-autoreply-deploy">部署指南</a></div>
   <div class="chips">
-    <span class="chip c-ok">端到端实机验通</span>
-    <span class="chip c-info">无影捕获 + 号核身发送</span>
-    <span class="chip c-acc">护栏改写已就绪</span>
-    <span class="chip c-mid">both 全自动暂缓 · 当前半自动(人工改写发)</span>
+    <span class="chip c-ok">✅ both 全自动链路打通(06-23)</span>
+    <span class="chip c-info">就地回复 · 不搜号</span>
+    <span class="chip c-acc">三通道同机串行 · 自动回复最优先</span>
+    <span class="chip c-ok">齐活：DM首触 + both + route-B</span>
   </div>
 
   <!-- ============ 1. 第一个案例 ============ -->
@@ -296,11 +296,62 @@
         <div class="body"><b>各机校准两坐标 + 转化漏斗</b><div class="d">每台云电脑量<code>AKKE_C_DM_INBOX</code>(私信图标)+<code>AKKE_C_DM_FIRST</code>(第一个会话，撑开列表)；部署照 <a href="/akke/dm-autoreply-deploy" style="color:var(--acc)">部署指南</a>。铺量后补回复率/加微率统计，量化双向闭环价值。</div></div>
       </div>
     </div>
-    <div class="note">🟡 = 本周重点（直接卡"能不能安全铺量"）；○ = 增量优化。</div>
+    <div class="note">🟡 = 本周重点（直接卡"能不能安全铺量"）；○ = 增量优化。<strong>下方 §5：04 里标「暂缓」的 both 全自动，已于 06-23 打通。</strong></div>
+  </section>
+
+  <!-- ============ 5. 2026-06-23 更新：both 全链路打通 ============ -->
+  <section>
+    <div class="secno">05 · 2026-06-23 更新 — both 全链路打通</div>
+    <h2>🎉 整条 both 链路打通 — 三通道同机串行齐活</h2>
+    <p class="lede">06-21 还卡在「<em>both 暂缓 · 半自动</em>」，06-23 把根因补齐后 <strong>both 全自动真打通</strong>：客户回私信 → 自动捕获 → 生成（带护栏口径）→ <em>在收件箱就地点开 TA 发（不搜号）</em> → 回写。同机 DM 首触 + DM 自动回复 + route-B 三条按窗口锁串行、<strong>自动回复最优先</strong>。</p>
+
+    <h3>全部齐活清单（小文 / 野荞 云电脑实测）</h3>
+    <table>
+      <tr><th>通道 / 配置</th><th>状态</th></tr>
+      <tr><td><b>DM 首触</b>（派单发私信）</td><td><span class="st done">跑 · claim=2 · 窗口锁 on</span></td></tr>
+      <tr><td><b>DM 自动回复 both</b>（本报告这条）</td><td><span class="st done">mode=both · 每 1min · capture 13 行</span></td></tr>
+      <tr><td><b>route-B 潜在触达</b></td><td><span class="st done">起 · watch+consume 两窗口</span></td></tr>
+      <tr><td>RC 反评</td><td><span class="st done">关（同窗口跑 route-B 必须关 RC，否则抢窗口）</span></td></tr>
+      <tr><td>派单口径</td><td><span class="st done">daily_limit=10 · fresh_window=10min（只派评论抓到≤10min 的新鲜单，空了不回退老单）</span></td></tr>
+      <tr><td>both 护栏口径</td><td><span class="st done">客户没问不提价、问了原样发（PR #484）</span></td></tr>
+    </table>
+
+    <h3>三通道分配：同号同窗口、分时抢占</h3>
+    <p class="lede">一台无影只有<em>一个</em>抖音前台窗口，三条都靠它驱动 → <code>AKKE_WINDOW_LOCK=1</code> 串行。同一 lead 任一时刻只在漏斗一段，<strong>不在「人」上撞、只在「窗口」上抢</strong>；客户一回复就出二触池、进自动回复，天然不重碰。优先级按时间敏感度：</p>
+    <table>
+      <tr><th>优先级</th><th>通道</th><th>为什么</th></tr>
+      <tr><td><b>① 最高</b></td><td>DM 自动回复（both）</td><td>客户正在对话里等，回复延迟直接砸转化；接窗口锁置 <code>.dm-want</code>、route-B 让位、轮内排在首触前（PR4）</td></tr>
+      <tr><td>② 次</td><td>DM 一触（首触）</td><td>新增高意向 lead，走量主力</td></tr>
+      <tr><td>③ 垫底</td><td>route-B 二触</td><td>捞已 ghost 的人，窗口空 + 鲜视频才跑；自动回复 / 首触一来就让位，最坏等一个在飞单位</td></tr>
+    </table>
+
+    <h3>就地回复 替代 搜号发：绕开 wrong_user / 风控降权</h3>
+    <p class="lede">06-21 的「按抖音号搜人 + 号核身发」撞上 <em>发送号搜索被风控降权</em>（怎么搜都搜空 → <code>wrong_user</code>，见 §3）。06-23 自动回复改走 <strong>在私信收件箱直接点开 TA 就地发</strong>——对方已在你收件箱、刚回过你，<em>压根不用搜号</em>，结构性绕开撞名与搜索降权。</p>
+
+    <h3>今日两个卡点（实机暴露 → 当场修）</h3>
+    <table>
+      <tr><th>卡点</th><th>根因</th><th>修复</th></tr>
+      <tr>
+        <td><span class="bad">capture 只读 1 行 / 就地回复 no_row</span>：收件箱明明 10+ 会话，脚本只认出 1 行，要发的人全「找不到会话」</td>
+        <td>会话行靠「名字 + 时间 + 预览」三连识别，时间正则 <code>_TIME_RE</code> 认「昨天 / 天前」却<strong>漏「前天」</strong>；收件箱里发了 2 天没回的会话时间全是「前天」→ 全军覆没</td>
+        <td><span class="st done">补「前天」+ 日期格式（PR #495 + gist 已分发）</span></td>
+      </tr>
+      <tr>
+        <td><span class="bad">私信列表撑不开</span>：点完私信图标后，再点「第一会话」撑开列表那一下点空了</td>
+        <td><code>AKKE_C_DM_FIRST</code> 归一化坐标量偏（879 落到屏幕偏右、点空），左侧会话列表没渲染</td>
+        <td><span class="st done">重量坐标 879→717（实测第一会话头像位）→ capture 1 行→13 行</span></td>
+      </tr>
+      <tr>
+        <td><span class="bad">capture 时效太松 / 占窗口</span>：旧 12h 节流远非「回了就回」</td>
+        <td>红点门控扫描零 LLM 成本，旧 12h 大节流没必要</td>
+        <td><span class="st done">默认 12h→3min，小文实测压到 1min（<code>AKKE_DM_AUTOREPLY_INTERVAL=60</code>）</span></td>
+      </tr>
+    </table>
+    <div class="note">坐标 + <code>_TIME_RE</code> 两个根因都补上后，小文云电脑 <code>capture[红点门控]</code> 从 <code>1 行</code> 变 <code>13 行</code>，both 抓回复 + 就地发链路全通。<strong>下一步真实验证</strong>：等真有客户回私信，盯日志出 <code>未读 M&gt;0</code> + <code>[inbound]</code> + <code>[reply] sent</code>（不再 no_row）。</div>
   </section>
 
   <footer>
-    DM 私信自动回复 · 0→1 复盘 · 2026-06-19（末次更新 2026-06-21）· 内部项目报告（非对外案例页）
+    DM 私信自动回复 · 0→1 复盘 · 2026-06-19（末次更新 <strong>2026-06-23：both 全链路打通</strong>）· 内部项目报告（非对外案例页）
   </footer>
 
 </div>
