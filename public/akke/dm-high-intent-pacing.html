@@ -84,7 +84,7 @@
   </div>
   <div class="toc">
     <a href="#s1">① 0→1 怎么落地</a>
-    <a href="#s2">② 如何批量到全员</a>
+    <a href="#s2">② 已铺到全员（5 号）</a>
     <a href="#s3">③ Good / Bad case</a>
     <a href="#s4">④ 真实数据：扎堆不是问题</a>
     <a href="#s5">⑤ 按时段 · 各号覆盖</a>
@@ -185,19 +185,21 @@
 
   <!-- ② 批量 -->
   <div class="section" id="s2">
-    <h2 class="section-title">② 如何批量：从「饭粒一台」铺到全员</h2>
-    <div class="section-hint">机制天然按号独立，铺开只是把「单账号目标」变成每号一份。</div>
+    <h2 class="section-title">② 已铺到全员：5 个云电脑号（全自动派单）</h2>
+    <div class="section-hint">占比闸<b>已不是「饭粒一台手动流」</b>——它跑在<b>云电脑全自动派单</b>（cron <code>cloud-pc-dispatch</code>，每分钟自动守、无人值守），<b>已开 5 个号</b>（2026-06-23 起）。</div>
     <div class="lead">
-      <b>逐账号 <code>PER_ACCOUNT_TARGET</code></b>：占比 80% + 总量 25 都是<b>按单个 messaging 号</b>算的（口径与 team-journey / 日报完全一致：<code>conversations.messaging_account_id</code> → <code>messages(role=ai,sent)</code> join <code>comments.intent_score≥80</code>）。每个运营 claim 时带自己的 <code>AKKE_ACCOUNT_ID</code>，planner 就只看这个号当天的 A/B，互不干扰。<br/><br/>
-      <b>复用现成限速、不重写</b>：30–90s 间隔、单号日限 30、4h claim 锁全都是已经在跑的护栏。配速这一层只多算一个「本轮允许的高/低条数」，塞在 <code>claim_leads_batch</code> 之前；发送侧（WDA 串发 / 云电脑自驱）一行不动。<br/><br/>
-      <b>v1 范围</b>：先只治<b>手动 claim 流</b>（饭粒这台先验证）。云电脑那条<b>自动派单</b> sender 暂不接入，稳定后再同步同事 / 扩到自动派单。
+      <b>在跑的号（5）</b>：文哥 · 小文（野荞）· 有大有小 · 饭粒（一筑）· 零星，均 <code>high_intent_ratio = 0.8</code>；<b>小胡</b>停用、未开。<br/><br/>
+      <b>逐账号 per-account</b>：每号一个 <code>accounts.high_intent_ratio</code> 值，闸按<b>该号当天</b>已发的高 A / 非高 B 守「中 ≤ 高 ÷ 4」，互不干扰。占比口径与 team-journey / 日报完全一致（<code>messaging_account_id</code> → <code>messages(role=ai,sent)</code> join <code>comments.intent_score≥80</code>）。要给某号开/关，改这一列即可（设回 <code>NULL</code> 就关闸）。<br/><br/>
+      <b>复用现成限速、不重写</b>：发送间隔、单号日限、4h claim 锁、fresh window 都是已经在跑的护栏，一行不动；闸只在派单「<b>中意向补位前</b>」多加一道判（在 cron 的 claim 那步）。发送侧（云电脑自驱）零改动。<br/><br/>
+      <b>仍未做（搁置）</b>：手动 claim 流（<code>claim-leads.ts</code> → <code>pacing-plan.ts</code>）那版、以及「按时段预判配速」——见顶部 banner。① 画的「拉单层 planner」就是这条未建的设计路径。
     </div>
     <div style="margin-top:10px">
+      <span class="pill">✅ 已铺 5 号（全自动派单）</span>
       <span class="pill">按号独立算 A/B</span>
-      <span class="pill">阈值 p 参数化 · 默认 0.8</span>
+      <span class="pill">阈值 p 参数化 · 现 0.8</span>
       <span class="pill">25 = 上限非下限</span>
       <span class="pill">发送器零改动</span>
-      <span class="pill">先饭粒手动流 → 再铺全员</span>
+      <span class="pill">小胡未开</span>
     </div>
   </div>
 
