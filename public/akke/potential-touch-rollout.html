@@ -104,7 +104,7 @@
         <div>已触过<b>58</b></div>
         <div>实时回写<b>6-22</b>e2e 3.4·4.4min</div>
       </div>
-      <div class="kpi-note">fanny 自己的号。所有卡点都在这台踩通；DM + 监控 + 消费三进程同机（窗口锁），数据已切 DB 直连。监控池 318。e2e 两条样本 3.4 / 4.4 分钟均 ≤20min 达标。</div>
+      <div class="kpi-note">fanny 自己的号。所有卡点都在这台踩通；DM + 监控 + 消费三进程同机（窗口锁），数据已切 DB 直连。监控池 318。e2e 两条样本 3.4 / 4.4 分钟均 ≤20min 达标。<br><b>6-24 晚</b>：发现这台 poll agent 也是旧版无 capture 支线、且 DM 入站坐标存成原始像素(1993,178&gt;1000) → 重更脚本 + 坐标改 778,111/738,98 + 配开机自启；capture 实跑「列表 11 行 / 已发记录 440」。</div>
     </div>
     <div class="kpi k1">
       <div class="kpi-name">零星（小星/夏夏）<span class="kpi-id"> 8af08f10</span></div>
@@ -114,7 +114,7 @@
         <div>已触过<b>1</b></div>
         <div>监控池<b>462</b>高241+中221</div>
       </div>
-      <div class="kpi-note">夏夏的号，fanny 接管。昨天下午一次性修通三件：DM 入站 capture（坐标飞屏幕外）+ route-B watch（从库拉 cookie 2155 字节）+ consume（本地→直连库）。<b>DM + 潜在触达 + 入站 capture 全活</b>，带窗口锁串行。链路全通、<b>实时触达量待攒</b>（second_touch_state 仅 14 / 已触 1 是接管前老数据）。监控池 462 = 今日 worklist 实时口径（高 241 + 中 221）；夏夏机 watch 当前加载快照为 450，触达前本机重扫回复会再剔已回。</div>
+      <div class="kpi-note">夏夏的号，fanny 接管。昨天下午一次性修通三件：DM 入站 capture（坐标飞屏幕外）+ route-B watch（从库拉 cookie 2155 字节）+ consume（本地→直连库）。<b>DM + 潜在触达 + 入站 capture 全活</b>，带窗口锁串行。链路全通、<b>实时触达量待攒</b>（second_touch_state 仅 14 / 已触 1 是接管前老数据）。监控池 462 = 今日 worklist 实时口径（高 241 + 中 221）；夏夏机 watch 当前加载快照为 450，触达前本机重扫回复会再剔已回。<br><b>⚠️ 6-24 晚修正</b>：实查发现这台 poll agent <b>仍是旧版、没 capture route-D 支线</b>——6-23「全活」只修了坐标/cookie/consume，<b>连续入站捕获其实没在跑</b>（今早爱财爱己/风生水起回复因此没 @ 到夏夏）。已从镜像重更 poll agent + route-B 启动器(1870→3158) + 配开机自启完整版；现 DM+capture+route-B 三进程窗口锁串行（实查恰好 1+1+1）、watch lead池 450、capture 滚「列表 13 行 / 已发记录 480」。</div>
     </div>
     <div class="kpi k2">
       <div class="kpi-name">小文（野荞）<span class="kpi-id"> 81cc9678</span></div>
@@ -273,7 +273,15 @@
 
       <div class="kbcard"><h3><span class="kbtag">坐标·DM入站</span>★ 坐标飞屏幕外（小星 capture 实锤）</h3>
         <div class="b"><code>AKKE_C_DM_INBOX</code>/<code>DM_FIRST</code> 是千分比(0-1000)，填成原始像素(如 2361/2153 &gt;1000) → 被 <code>click_norm</code> 又乘屏幕 → 点到 (6941,401) 飞出屏幕 → 私信列表 0 行、入站一条抓不到</div>
-        <div class="f">诊断看 <code>click_norm -&gt; (x,y)</code> 超屏宽 + <code>列表 N 行</code>；<code>_capture_pos.py</code> 重量（改成 884,7 / 719,104）→ 列表 1→13 行、库里入站 1→2。<b>DM_FIRST 是关键、别漏</b></div></div>
+        <div class="f">诊断看 <code>click_norm -&gt; (x,y)</code> 超屏宽 + <code>列表 N 行</code>；<code>_capture_pos.py</code> 重量（改成 884,7 / 719,104）→ 列表 1→13 行、库里入站 1→2。<b>DM_FIRST 是关键、别漏</b>。6-24 晚发现饭粒同坑（1993,178 / 1890,157 &gt;1000，÷2560×1600×1000 改 778,111 / 738,98）</div></div>
+
+      <div class="kbcard"><h3><span class="kbtag">脚本·版本</span>★ poll agent 旧版没 capture 支线（6-24 实锤 · @不出人真根因）</h3>
+        <div class="b">坐标/cookie/consume 都修了，夏夏回复还是没 @ 出去——根因是机上 <code>wuying_poll_agent.py</code> 是<b>旧版、压根没有「收件箱捕获」route-D 那段代码</b>，<code>.env</code> 的 <code>AKKE_DM_AUTOREPLY_CAPTURE=1</code> 没人读。6-23「capture 实锤 列表1→13」是手动单跑 <code>douyin_dm_autoreply.py capture</code> 的一次性结果，<b>不是常驻支线在跑</b>（连续捕获其实没起）。</div>
+        <div class="f">验版本 <code>findstr "DM_AUTOREPLY_CAPTURE_ENABLED" wuying_poll_agent.py</code>（<b>英文词</b>，中文 findstr 在 GBK 控制台假阴性、别误判「没这段」）；空=旧版 → 从镜像 <code>iwr</code> 更新（≈50521 字节）。起来后 DM 窗口每轮滚 <code>收件箱捕获 mode=capture</code> + <code>capture: 列表 N 行</code> 才算真在抓。6-24 晚饭粒+夏夏两台都重更，capture 实跑（11/13 行）。</div></div>
+
+      <div class="kbcard"><h3><span class="kbtag">运维·自启</span>★ 开机自启完整版（让 7×24 真落地）</h3>
+        <div class="b">手动 PowerShell 起的，重启即失；旧的开机自启 <code>akke_wuying_agent.bat</code>(138B) 只裸跑 DM（没窗口锁、没 route-B、没 capture 续命）</div>
+        <div class="f">把 <code>%APPDATA%\…\Startup\akke_wuying_agent.bat</code> 覆成 ASCII 纯英文版：<code>set AKKE_WINDOW_LOCK=1 + start "Akke DM" cmd /k py wuying_poll_agent.py + start "Akke route-B" cmd /k _start-realtime-touch.bat</code>（<b>用 py 不用 python</b>，纯英文防 cmd GBK 编码坑）。6-24 晚饭粒+夏夏都配。前提：抖音保持登录+最大化+前台</div></div>
 
       <div class="kbcard"><h3><span class="kbtag">号源·取数</span>★ 监控池实时化（替代摆渡快照）</h3>
         <div class="b">旧法 = 手动跑 worklist + 摆渡 <code>special-follow.json</code> 快照，新 lead 进不去、还得人工搬</div>
@@ -341,7 +349,7 @@
     </ul>
   </div>
 
-  <p class="footnote">DB 实查 + 会话实锤 · 截至 2026-06-24 ｜ 源：project_akke_potential_touch_route_b / project_akke_dm_autoreply_cloudpc 记忆 + 6-23 会话实锤 + PR #503 + wuying-routeb-deploy-xiaowen 部署清单</p>
+  <p class="footnote">DB 实查 + 会话实锤 · 截至 2026-06-24 晚 ｜ 源：project_akke_potential_touch_route_b / project_akke_dm_autoreply_cloudpc 记忆 + 6-23/6-24 会话实锤（含 6-24 晚两台重更 poll agent + 坐标 px 修 + 开机自启）+ PR #503 + wuying-routeb-deploy-xiaowen 部署清单</p>
 
 </div>
 </body>
