@@ -1705,69 +1705,96 @@ footer p { margin: 4px 0; }
   </div>
 </section>
 
-<!-- ============ 2.5 · 06-24 实测验证 ============ -->
+<!-- ============ 2.5 · AI 在对话上 4 处变了 ============ -->
 <section>
   <div class="section-head">
     <div class="section-num">2.5</div>
-    <h2 class="section-title">06-24 实测验证 · N=5 真 LLM 跑通</h2>
-    <span class="section-sub">qwen3-235b-a22b-2507 · brand_profile loaded · trace 实拉</span>
+    <h2 class="section-title">2026-06-24 · AI 在对话上 4 处变了</h2>
+    <span class="section-sub">运营 / PM 看这里，技术细节见下面 §3</span>
   </div>
 
   <div class="lede">
-    新铁律 + 类目对位规则上线前，跑了 2 轮 <code>chatReply(stage=nurture)</code> 真 LLM 验证：5 个 commit 问产品变体（材质/用什么板/什么牌子/五金哪家/台面是什么），每条都注入完整 brand_profile（13 条 selling_points 含新加台面那条 + 8 条 faqs + 双口径价格 568 投影 / 284 房产证）。脚本：<code>scripts/_eval-nurture-product-question.ts</code>。
+    上周客户加了微信后，常出现「设计师那边对不上 AI 之前说的产品」「客户聊到第 5 轮就冷下来」「AI 一口气塞一堆客户没问的」等情况。今天端到端修了 4 处，跑了真 LLM 验证全过。下面是<strong>对话层面</strong>会看到的具体变化（不是技术细节）。
   </div>
 
-  <div style="display: grid; gap: 18px; margin-bottom: 28px;">
-    <div style="background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--success); border-radius: 10px; padding: 18px 22px;">
-      <div style="font-size: 13.5px; font-weight: 700; color: #6ee7b7; margin-bottom: 12px; letter-spacing: 0.4px;">🎯 核心铁律 100% 通</div>
-      <div style="font-size: 13px; color: var(--text-dim); line-height: 1.75;">
-        <strong style="color: var(--text);">禁 E0 颗粒板默认词</strong>：5/5 不出现（治住 jiandan #6 反例）<br>
-        <strong style="color: var(--text);">禁三档对比骨架（颗粒板 ENF 环保最实惠 / 多层板防潮好贵一截 / 实木最环保再加钱）</strong>：5/5 不出现 — LLM 真去 brand_profile 取了实品牌，没回退到通用兜底
+  <div style="display: grid; gap: 22px; margin-bottom: 28px;">
+
+    <!-- 改变 ① -->
+    <div style="background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 22px 26px;">
+      <div style="font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 6px;">① AI 答产品不再瞎编品牌了</div>
+      <div style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 16px;">客户问「你们是什么板」、「什么牌子」、「五金哪家」、「台面是什么」这类定义性问题时</div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+        <div style="background: var(--panel-2); border-top: 3px solid var(--danger); border-radius: 8px; padding: 14px 16px;">
+          <div style="font-size: 11.5px; color: var(--danger); font-weight: 700; letter-spacing: 0.5px; margin-bottom: 8px;">❌ 之前 AI 会说</div>
+          <div style="font-size: 13px; color: var(--text-dim); line-height: 1.7;">「<strong style="color:#fca5a5;">E0 颗粒板</strong> ENF 环保最实惠 / 多层板防潮好贵一截 / 实木最环保再加钱」<br><span style="color: var(--text-muted); font-size: 12px;">— 行业通用词，不是公司真在卖的。客户加微到设计师那儿一对：「不对啊，我们做的是多层板」 → 信任直接崩。</span></div>
+        </div>
+        <div style="background: var(--panel-2); border-top: 3px solid var(--success); border-radius: 8px; padding: 14px 16px;">
+          <div style="font-size: 11.5px; color: var(--success); font-weight: 700; letter-spacing: 0.5px; margin-bottom: 8px;">✅ 现在 AI 会说</div>
+          <div style="font-size: 13px; color: var(--text-dim); line-height: 1.7;">「我们用<strong style="color:#6ee7b7;">兔宝宝、莫干山、千年舟 ENF 级多层板</strong>，封边是 PUR 的，环保检验不合格全额赔付」<br><span style="color: var(--text-muted); font-size: 12px;">— 公司真在卖的产品，跟设计师那边对得上号。</span></div>
+        </div>
       </div>
     </div>
 
-    <div style="background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--success); border-radius: 10px; padding: 18px 22px;">
-      <div style="font-size: 13.5px; font-weight: 700; color: #6ee7b7; margin-bottom: 12px; letter-spacing: 0.4px;">🎯 类目对位 5/5 命中 brand_profile 真信息</div>
-      <div style="font-size: 13px; color: var(--text-dim); line-height: 1.75;">
-        | 客户问 | AI 答的核心 brand_profile 字段 | 评 |<br>
-        | :--- | :--- | :--- |<br>
-        | 「五米。你的是什么材质」 | 兔宝宝/莫干山/千年舟 ENF 多层板 + 568 一平 + 台面 + 钩水电 | ✅ 板+品牌+ENF+价对位齐 |<br>
-        | 「你们用什么板？」 | 兔宝宝/莫干山/千年舟 ENF + PUR 封边 | ✅ 板话题对位 |<br>
-        | 「什么牌子的板材」 | 兔宝宝/莫干山/千年舟 ENF 任选 + PUR + 全额赔 | ✅ 牌子话题对位 |<br>
-        | 「五金哪家的」 | <strong style="color:#6ee7b7;">悍高</strong> + 滑轨 + 拉篮 + 一万次开合 | ✅ 五金话题对位（不冗余提板） |<br>
-        | 「台面用的什么？」 | <strong style="color:#6ee7b7;">石英石或岩板</strong>（治上次反例答防火板/亚克力）| ✅ 台面话题对位 |
+    <!-- 改变 ② -->
+    <div style="background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 22px 26px;">
+      <div style="font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 6px;">② 客户问台面，AI 不再答跑题</div>
+      <div style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 16px;">客户问「台面用的什么」</div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+        <div style="background: var(--panel-2); border-top: 3px solid var(--danger); border-radius: 8px; padding: 14px 16px;">
+          <div style="font-size: 11.5px; color: var(--danger); font-weight: 700; letter-spacing: 0.5px; margin-bottom: 8px;">❌ 之前 AI 会说</div>
+          <div style="font-size: 13px; color: var(--text-dim); line-height: 1.7;">「台面分几种：石英石、<strong style="color:#fca5a5;">防火板、亚克力</strong>...」<br><span style="color: var(--text-muted); font-size: 12px;">— 防火板 / 亚克力 公司不卖。客户被引偏到错误的产品类目。</span></div>
+        </div>
+        <div style="background: var(--panel-2); border-top: 3px solid var(--success); border-radius: 8px; padding: 14px 16px;">
+          <div style="font-size: 11.5px; color: var(--success); font-weight: 700; letter-spacing: 0.5px; margin-bottom: 8px;">✅ 现在 AI 会说</div>
+          <div style="font-size: 13px; color: var(--text-dim); line-height: 1.7;">「台面可选<strong style="color:#6ee7b7;">石英石或岩板</strong>，石英石耐磨抗刮，岩板一体性好、颜值高...」<br><span style="color: var(--text-muted); font-size: 12px;">— 只答公司真有的两种台面材料。</span></div>
+        </div>
       </div>
     </div>
 
-    <div style="background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 10px; padding: 18px 22px;">
-      <div style="font-size: 13.5px; font-weight: 700; color: #c4b5fd; margin-bottom: 12px; letter-spacing: 0.4px;">🔧 配套改动（不在 PR diff 但已上线）</div>
-      <div style="font-size: 13px; color: var(--text-dim); line-height: 1.75;">
-        <strong style="color: var(--text);">brand_profile.price_range 双口径</strong>：原「568元/投影㎡」改成「<code>柜体 568元/投影㎡，房产证平方 284元/㎡（江浙沪京深另加100元/㎡）</code>」。治 prompt §H 禁投影 vs brand_profile 用投影的口径冲突，LLM 现在读到两个数能按客户问法自动选（问"多少钱一平" → 284 房产证；问"按啥单位算" → 双口径都说）。<br><br>
-        <strong style="color: var(--text);">brand_profile.selling_points 加第 13 条台面</strong>：「<code>台面：石英石/岩板任选（厨房动线定厚度，标 2cm，岛台建议加厚 3cm），耐刮耐油污好打理</code>」。治第一跑客户问台面 LLM 答防火板/亚克力（非本号产品）的反例。
+    <!-- 改变 ③ -->
+    <div style="background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 22px 26px;">
+      <div style="font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 6px;">③ AI 不再啰嗦塞客户没问的</div>
+      <div style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 16px;">客户问「五金哪家的」（只问五金，没问板材）</div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+        <div style="background: var(--panel-2); border-top: 3px solid var(--danger); border-radius: 8px; padding: 14px 16px;">
+          <div style="font-size: 11.5px; color: var(--danger); font-weight: 700; letter-spacing: 0.5px; margin-bottom: 8px;">❌ 之前 AI 会说</div>
+          <div style="font-size: 13px; color: var(--text-dim); line-height: 1.7;">「五金我们用悍高，<strong style="color:#fca5a5;">板材是 18mm 多层板，兔宝宝/莫干山/千年舟 ENF 任选，台面石英石/岩板都做，价格 568...</strong>」<br><span style="color: var(--text-muted); font-size: 12px;">— 一口气塞 4 件事，客户没问就给，看着像广告。</span></div>
+        </div>
+        <div style="background: var(--panel-2); border-top: 3px solid var(--success); border-radius: 8px; padding: 14px 16px;">
+          <div style="font-size: 11.5px; color: var(--success); font-weight: 700; letter-spacing: 0.5px; margin-bottom: 8px;">✅ 现在 AI 会说</div>
+          <div style="font-size: 13px; color: var(--text-dim); line-height: 1.7;">「我们标配<strong style="color:#6ee7b7;">悍高</strong>，滑轨稳定、拉篮结实，用个十年没问题。你家厨房用得多不？」<br><span style="color: var(--text-muted); font-size: 12px;">— 问什么答什么，再钩 1 个相关细节问题继续聊。</span></div>
+        </div>
       </div>
     </div>
 
-    <div style="background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--warn); border-radius: 10px; padding: 18px 22px;">
-      <div style="font-size: 13.5px; font-weight: 700; color: #fcd34d; margin-bottom: 12px; letter-spacing: 0.4px;">⚠️ 关键洞察 · 第一版「4 件事齐」过严，反而压住 LLM</div>
-      <div style="font-size: 13px; color: var(--text-dim); line-height: 1.75;">
-        第一跑 5/7 命中：发现 LLM 已经 100% 用 brand_profile 真品牌，但漏「悍高五金」「价格」是因为客户问的就不是这些。我之前 prompt 写「一句话给齐板材+品牌+五金+台面 4 件事」**违反了 prompt 顶部「客户问什么答什么」原则**。LLM 选了听顶部，做对位裁剪 — 这是正确行为，不是规则违反。<br><br>
-        <strong style="color: var(--text);">第二版改成「问 X 类目对位回 brand_profile 真信息」</strong>：保留 LLM 对位裁剪能力，铁律不变（commit 到具体品牌必须用 brand_profile），加 4 个类目映射 + 每答完按类目钩 1 细节。
+    <!-- 改变 ④ -->
+    <div style="background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 22px 26px;">
+      <div style="font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 6px;">④ 聊到第 5 轮 AI 自动收口要微信</div>
+      <div style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 16px;">已经聊了 4 个来回还没加上微信，下一句 AI 自动收口（不需要运营介入）</div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+        <div style="background: var(--panel-2); border-top: 3px solid var(--danger); border-radius: 8px; padding: 14px 16px;">
+          <div style="font-size: 11.5px; color: var(--danger); font-weight: 700; letter-spacing: 0.5px; margin-bottom: 8px;">❌ 之前（jiandan-zuimei #10 翻车）</div>
+          <div style="font-size: 13px; color: var(--text-dim); line-height: 1.7;">运营自己手动改 AI 话术：「您主页视频拍得很不错哈哈，那等您到时候需要了再找我们，到时候可以备注抖音名添加 v 一 Homedz3791」<br><span style="color: var(--text-muted); font-size: 12px;">— 没接住前 4 轮聊的、没说为什么要加微、夸主页文不对题。<strong style="color:#fca5a5;">前 4 轮辛苦垫的信任被这一句拉回 23 分翻车档</strong>。</span></div>
+        </div>
+        <div style="background: var(--panel-2); border-top: 3px solid var(--success); border-radius: 8px; padding: 14px 16px;">
+          <div style="font-size: 11.5px; color: var(--success); font-weight: 700; letter-spacing: 0.5px; margin-bottom: 8px;">✅ 现在 AI 自动发</div>
+          <div style="font-size: 13px; color: var(--text-dim); line-height: 1.7;">「<strong>简单姐，前面咱们聊了几个点都是装修里的关键，DM 一条条答太碎。我让本地设计师直接加你微信，按你户型实际情况出套方案 + 报价（样板房专供 568 一平全包，原价 868 一平：18mm 多层板柜体 + 兔宝宝/莫干山/千年舟 ENF + 悍高五金），免费，定不定都不亏。</strong>微信：<strong style="color:#6ee7b7;">Homedz3791</strong>（备注抖音名添加即可）🤗」<br><span style="color: var(--text-muted); font-size: 12px;">— 承接前几轮聊过的细节 + 具体配置 + 价格 + 降压退路 + 微信号一站式给。</span></div>
+        </div>
       </div>
     </div>
 
-    <div style="background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--info); border-radius: 10px; padding: 18px 22px;">
-      <div style="font-size: 13.5px; font-weight: 700; color: #60a5fa; margin-bottom: 12px; letter-spacing: 0.4px;">📦 一天端到端落地清单</div>
-      <div style="font-size: 13px; color: var(--text-dim); line-height: 1.75;">
-        <strong style="color: var(--text);">代码已合 main</strong>：<br>
-        ① <code>e9933d63</code> · #521 · R5 hard gate 强推 v + nurture 答产品先用 brand_profile<br>
-        ② <code>a59ff1ca</code> · #523 · 类目对位规则（取代 4 件事齐过严要求）<br><br>
-        <strong style="color: var(--text);">DB 已写库</strong>：<br>
-        ① brand_profile.price_range 双口径（568 投影 / 284 房产证）<br>
-        ② brand_profile.selling_points 加第 13 条台面信息<br><br>
-        <strong style="color: var(--text);">Vitest 防回退</strong>：69/69 pass · hard gate 6 case + DM_NURTURE_FALLBACK 禁含投影 + 必含 brand_profile 铁律 + 必含缺失兜底 3 case<br><br>
-        <strong style="color: var(--text);">N=5 真 LLM 验证</strong>：核心铁律 100% · 类目对位 5/5 · 台面 bug 已修复
-      </div>
+  </div>
+
+  <!-- 收口：实测验证 + 技术指针 -->
+  <div style="background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--success); border-radius: 10px; padding: 18px 22px; margin-bottom: 16px;">
+    <div style="font-size: 13.5px; font-weight: 700; color: #6ee7b7; margin-bottom: 8px; letter-spacing: 0.4px;">✅ 跑了真 LLM 验证 · 5 段对话全过</div>
+    <div style="font-size: 13px; color: var(--text-dim); line-height: 1.75;">
+      上线前用 5 种不同问法（「你的是什么材质」/「用什么板」/「什么牌子」/「五金哪家」/「台面是什么」）跑了真 LLM 验证：<strong style="color: var(--text);">没有一条编 E0 颗粒板</strong>、<strong style="color: var(--text);">没有一条答跑题</strong>、<strong style="color: var(--text);">每条都答得对位且不啰嗦</strong>。运营可以放心，AI 不会再像之前那样把产品答错。
     </div>
+  </div>
+
+  <div style="font-size: 12px; color: var(--text-muted); padding: 8px 14px; background: var(--panel-2); border-radius: 6px;">
+    🔧 技术细节（hard gate 实现 / brand_profile 字段 / vitest 防回退 / PR diff）见 §3 决策卡的 hard gate banner，以及代码仓 Akke#521 + Akke#523 两条 PR。
   </div>
 </section>
 
