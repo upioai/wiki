@@ -762,6 +762,15 @@ def main() -> int:
     print()
 
     try:
+        # 步 -1: 清残留模态 (上次失败 loop 留下的 Windows 文件选择对话框等会吞键盘 → 这次 Ctrl+V/Enter 全发不进新页面).
+        # 2026-06-24 烟测踩坑: 第 1 次 loop 失败后文件选择器停留, 第 2 次 loop click_upload_button 没弹新对话框,
+        # paste_image_paths 的 Ctrl+V/Enter 进了旧对话框被吞, 后续 fill_title NOT FOUND → exit 5.
+        # 修: 起手压 3 下 Esc, 让任何系统级/页面级 modal 关掉, 再开 fresh 流程.
+        print('[step -1] 清残留模态 (Esc x3)')
+        for _ in range(3):
+            pyautogui.press('escape')
+            time.sleep(0.2)
+
         # 步 0
         if not args.skip_focus:
             print('[step 0] focus Edge/抖音窗口')
@@ -833,6 +842,15 @@ def main() -> int:
         print('=== ✓ DRY-RUN 全程通, 加 --commit 真发 ===')
         return 0
     finally:
+        # 双保险: 退出前再 Esc x3 收尾, 防失败路径的对话框堆给下一次 subprocess 启动.
+        # (起手的 Esc 是清上次的; 这里的 Esc 是不让自己的失败影响下次.)
+        try:
+            for _ in range(3):
+                pyautogui.press('escape')
+                time.sleep(0.15)
+        except Exception:
+            pass
+
         # 清理 staging: 仅当 manifest 含 image_urls 触发下载时清, 用户自带本地 --images 不动.
         # 保证不管 commit/dry-run/失败/异常都执行, 避免 staging 堆积占盘.
         if downloaded_from_urls and images:
