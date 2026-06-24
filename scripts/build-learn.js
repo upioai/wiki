@@ -29,6 +29,7 @@ const CATEGORIES = [
     label: 'AGENT · AI ENGINEERING',
     title: 'Agent · AI 工程',
     items: [
+      { slug: 'claude-tag',       title: 'Claude Tag · Slack 队友', desc: '把 Claude 拉进 Slack 当常驻队友：@一下就接活、会主动盯事（Opus 4.8）。' },
       { slug: 'hermes-agent',     title: 'Hermes Agent 框架',  desc: '团队自研 Agent 系统讲解。' },
       { slug: 'loop-engineering', title: 'Loop Engineering',    desc: 'Agent 循环工程方法论。' },
       { slug: 'fde',              title: 'FDE 前线部署工程师',  desc: 'Anthropic 的 FDE 角色解读。' },

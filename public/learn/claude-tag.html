@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Tag · 把 Claude 拉进 Slack 当队友 · 讲解</title>
+<meta name="description" content="Anthropic 2026-06-23 发布的 Claude Tag：常驻 Slack 频道、@一下就接活、会主动盯事的 AI 队友。通俗讲解 + 团队怎么用。">
+<style>
+  :root{
+    --bg:#0f1117; --card:#181b24; --card2:#1f232e;
+    --ink:#e8eaed; --muted:#9aa3b2; --line:#2a2f3a;
+    --indigo:#7c83ff; --green:#4ade80; --orange:#fbbf24; --red:#f87171; --blue:#60a5fa; --pink:#f472b6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:-apple-system,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    background:var(--bg); color:var(--ink); line-height:1.7;
+    padding:48px 20px; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:860px;margin:0 auto}
+  .crumb{font-size:13px;color:var(--muted);margin-bottom:22px;font-family:"SF Mono",ui-monospace,Menlo,monospace}
+  .crumb a{color:var(--muted);text-decoration:none}
+  .crumb a:hover{color:var(--indigo)}
+  header{text-align:center;margin-bottom:44px}
+  header .kicker{color:var(--indigo);font-weight:600;letter-spacing:2px;font-size:13px;text-transform:uppercase}
+  header h1{font-size:34px;margin:10px 0 8px;font-weight:800;letter-spacing:-.5px}
+  header p{color:var(--muted);font-size:16px;max-width:640px;margin:0 auto}
+  .meta{display:inline-flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px}
+  .meta span{background:var(--card2);border:1px solid var(--line);border-radius:20px;padding:4px 12px;font-size:12.5px;color:var(--muted)}
+  .meta b{color:var(--ink);font-weight:600}
+  section{
+    background:var(--card); border:1px solid var(--line);
+    border-radius:16px; padding:28px 30px; margin-bottom:22px;
+  }
+  h2{font-size:21px;margin-bottom:14px;display:flex;align-items:center;gap:10px}
+  h2 .dot{width:9px;height:9px;border-radius:50%;flex:none}
+  h3{font-size:16px;margin:18px 0 8px;color:var(--ink)}
+  p,li{color:#cdd2dc;font-size:15.5px}
+  .lead{font-size:16.5px;color:var(--ink)}
+  ul{margin:8px 0 0 0;padding-left:0;list-style:none}
+  li{margin:8px 0;padding-left:24px;position:relative}
+  li::before{content:"›";position:absolute;left:6px;color:var(--indigo);font-weight:800}
+  b{color:#fff}
+  code{background:#11141b;border:1px solid var(--line);border-radius:5px;padding:2px 7px;font-size:13px;font-family:"SF Mono",ui-monospace,Menlo,monospace;color:#a5b4fc}
+  .analogy{background:var(--card2);border-left:3px solid var(--orange);border-radius:8px;padding:14px 18px;margin:14px 0;color:#dfe3ea}
+  .analogy b{color:var(--orange)}
+  .bad,.good{border-radius:10px;padding:14px 18px;margin:10px 0}
+  .bad{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3)}
+  .good{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.3)}
+  .bad .tag{color:var(--red);font-weight:700}
+  .good .tag{color:var(--green);font-weight:700}
+  .flow{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:14px 0;font-size:14px}
+  .flow span{background:var(--card2);border:1px solid var(--line);padding:8px 14px;border-radius:8px}
+  .flow .arrow{color:var(--indigo);font-weight:800;background:none;border:none;padding:0}
+  .diff{display:flex;flex-direction:column;gap:10px;margin:16px 0}
+  .diff .row{display:flex;align-items:flex-start;gap:14px;padding:14px 16px;background:var(--card2);border:1px solid var(--line);border-radius:10px}
+  .diff .num{flex:none;width:30px;height:30px;border-radius:8px;display:grid;place-items:center;font-weight:800;color:#0f1117;background:var(--indigo)}
+  .diff .body b{font-size:15px;color:#fff}
+  .diff .body small{color:var(--muted);display:block;margin-top:3px;font-size:13.5px;line-height:1.6}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}
+  @media(max-width:620px){.grid{grid-template-columns:1fr}}
+  .grid .item{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .grid .item b{display:block;margin-bottom:4px}
+  .steps{counter-reset:s;margin-top:8px}
+  .steps .s{position:relative;padding:12px 16px 12px 50px;background:var(--card2);border:1px solid var(--line);border-radius:10px;margin-bottom:10px}
+  .steps .s::before{counter-increment:s;content:counter(s);position:absolute;left:14px;top:12px;width:24px;height:24px;border-radius:7px;background:var(--blue);color:#0f1117;font-weight:800;display:grid;place-items:center;font-size:13px}
+  .steps .s b{color:#fff}
+  .note{background:rgba(96,165,250,.08);border:1px solid rgba(96,165,250,.3);border-radius:10px;padding:12px 16px;margin-top:12px;font-size:14px;color:#cdd2dc}
+  .note b{color:var(--blue)}
+  .warn{background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);border-radius:10px;padding:12px 16px;margin-top:12px;font-size:14px;color:#cdd2dc}
+  .warn b{color:var(--orange)}
+  footer{text-align:center;color:var(--muted);font-size:13px;margin-top:30px;padding-top:20px;border-top:1px solid var(--line)}
+  footer .src{margin-top:10px;font-size:12.5px;line-height:1.9}
+  footer .src a{color:var(--muted);text-decoration:none}
+  footer .src a:hover{color:var(--indigo)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="crumb"><a href="/">upio.ai</a> / <a href="/learn">知识分享</a> / Claude Tag</div>
+
+  <header>
+    <div class="kicker">Anthropic · 2026-06-23 发布</div>
+    <h1>Claude Tag · 把 Claude 拉进 Slack 当队友</h1>
+    <p>不再是"打开网页问它一句"，而是让 Claude <b>常驻在你们的 Slack 频道里</b>——@ 一下就接活，干不完会自己接着干，没人跟进的事它还会主动提醒。</p>
+    <div class="meta">
+      <span>跑在 <b>Opus 4.8</b></span>
+      <span>面向 <b>Enterprise / Team</b></span>
+      <span><b>beta</b> 研究预览</span>
+      <span>旧 Slack 应用 <b>8/3</b> 切换</span>
+    </div>
+  </header>
+
+  <!-- 屏 1：是什么 -->
+  <section>
+    <h2><span class="dot" style="background:var(--indigo)"></span>一、Claude Tag 是个啥？</h2>
+    <p class="lead">过去我们用 Claude，是<b>"我打开一个对话框，问它，它答我，结束"</b>——它是个<b>工具</b>，每次都得我主动去找它。</p>
+    <p style="margin-top:10px"><b>Claude Tag</b> 把这件事彻底翻了个面：你把 Claude <b>请进 Slack 频道当成员</b>，给它授权能用哪些工具、看哪些数据（甚至代码库）。之后频道里<b>任何人 @Claude 一下，就能把活派给它</b>，自己该忙别的忙别的，它在 thread 里把结果交回来。Anthropic 把它定位成 <b>"Claude Code 的一次演进"</b>。</p>
+
+    <div class="analogy">
+      <b>就像团队来了个新同事 🧑‍💻</b><br>
+      你不会每次都"打开同事 App 问一句"。他<b>就坐在群里</b>：你 @ 他派个活，他自己拆步骤去做；做到一半你下班了，<b>另一个同事能接着往下做</b>；有件事拖着没人管，他还会主动冒泡提醒。<br>
+      —— Claude Tag 想做的，就是从"<b>一个你要去用的工具</b>"变成"<b>一个待在群里的同事</b>"。
+    </div>
+    <p style="margin-top:12px;color:var(--muted);font-size:14px">它会替换掉旧的 "Claude in Slack" 应用，<b style="color:#fff">2026 年 8 月 3 日</b>正式切到 Claude Tag 体验，给 30 天迁移窗口。</p>
+  </section>
+
+  <!-- 屏 2：和旧机器人的区别 -->
+  <section>
+    <h2><span class="dot" style="background:var(--green)"></span>二、它和以前的 Slack 机器人有啥不一样？</h2>
+    <p>Slack 里早有各种 bot，为什么这个值得专门讲？因为它在四件事上跟传统 bot 根本不是一类东西：</p>
+    <div class="diff">
+      <div class="row">
+        <div class="num">1</div>
+        <div class="body">
+          <b>多人共享「同一个」Claude</b>
+          <small>一个频道里<b style="color:#fff">只有一个</b> Claude，和所有人交互。谁都能看到它正在干什么，也能<b style="color:#fff">接着上一个人的进度往下做</b>——官方叫它 "multiplayer / @Claude is multiplayer"。不是每人一个互不相通的私聊。</small>
+        </div>
+      </div>
+      <div class="row">
+        <div class="num">2</div>
+        <div class="body">
+          <b>有记忆，而且按频道隔离</b>
+          <small>它会在频道里<b style="color:#fff">慢慢记住相关信息</b>，授权后还能从别的频道/数据源学。但记忆<b style="color:#fff">严格锁在管理员划定的频道范围内</b>——销售频道的 Claude 不会把记忆串到工程频道。</small>
+        </div>
+      </div>
+      <div class="row">
+        <div class="num">3</div>
+        <div class="body">
+          <b>会「主动」冒泡（ambient 模式）</b>
+          <small>传统 bot 你不戳它就不动。开启后的 Claude Tag 会<b style="color:#fff">主动</b>把它觉得你该知道的信息抛给你、追那些<b style="color:#fff">没人跟进、悬着没解决的 thread / 任务</b>。</small>
+        </div>
+      </div>
+      <div class="row">
+        <div class="num">4</div>
+        <div class="body">
+          <b>能异步自治，连干几小时甚至几天</b>
+          <small>派给它一个任务你就能走开，它把任务<b style="color:#fff">拆成阶段</b>逐步推进；还能<b style="color:#fff">给自己排期</b>，把一个项目自主推进数小时到数天，而不是一问一答完事。</small>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 屏 3：怎么用 -->
+  <section>
+    <h2><span class="dot" style="background:var(--blue)"></span>三、日常怎么用它？</h2>
+    <p>核心动作就一个：<b>在频道里 @Claude，用大白话把活说清楚</b>。它接到后的流程是：</p>
+    <div class="flow">
+      <span>① @Claude 提需求</span>
+      <span class="arrow">→</span>
+      <span>② 它把任务拆成步骤</span>
+      <span class="arrow">→</span>
+      <span>③ 用连接的工具/数据干活</span>
+      <span class="arrow">→</span>
+      <span>④ 在 thread 里交结果</span>
+    </div>
+    <h3>三种入口：</h3>
+    <ul>
+      <li><b>频道里 @Claude</b> —— 派活给"共享的那个 Claude"，全频道可见、可接力。</li>
+      <li><b>私聊 DM</b> —— 想要私密回答、用你个人的工具和连接器时，单独私信它。</li>
+      <li><b>AI 助手面板</b> —— Slack 顶部 AI 助手区里的 Claude 图标。</li>
+    </ul>
+    <div class="note"><b>提示：</b>非管理员在公司 Slack 里通常需要管理员批准才能装；可以在 Slack 应用市场里向管理员发安装申请。</div>
+  </section>
+
+  <!-- 屏 4：关键特性 -->
+  <section>
+    <h2><span class="dot" style="background:var(--pink)"></span>四、关键特性一览</h2>
+    <div class="grid">
+      <div class="item"><b style="color:var(--indigo)">共享单一身份</b>一个频道一个 Claude，全员协作、随时接力。</div>
+      <div class="item"><b style="color:var(--green)">频道隔离的记忆</b>越用越懂你们的活，但记忆不跨界泄漏。</div>
+      <div class="item"><b style="color:var(--orange)">Ambient 主动模式</b>主动提醒、追悬而未决的事，不用你催。</div>
+      <div class="item"><b style="color:var(--blue)">异步自治</b>能自排期、连干数小时到数天。</div>
+      <div class="item"><b style="color:var(--pink)">接工具·数据·代码库</b>授权后能调你们实际在用的系统去干活。</div>
+      <div class="item"><b style="color:#fff">Opus 4.8 驱动</b>底座是目前的旗舰模型。</div>
+    </div>
+  </section>
+
+  <!-- 屏 5：管理员怎么开 + 安全 -->
+  <section>
+    <h2><span class="dot" style="background:var(--orange)"></span>五、管理员怎么开通 + 安全边界</h2>
+    <p>这部分对团队尤其重要——<b>谁能开、花多少钱、数据会不会串</b>，都在管理员手里。官方给的是四步：</p>
+    <div class="steps">
+      <div class="s"><b>配对</b> —— 把 Claude Tag 和你们的 Slack workspace 绑上。</div>
+      <div class="s"><b>授权工具</b> —— 指定它能用哪些工具、看哪些数据，按频道分别配（等于给不同用途建不同的 Claude 身份）。</div>
+      <div class="s"><b>设每月预算上限</b> —— 给组织设 token 花费上限（可按组织 / 按频道分别限）。</div>
+      <div class="s"><b>私有频道先测</b> —— 先在一个私有频道里试，跑顺了再铺开。</div>
+    </div>
+    <div class="warn"><b>安全要点：</b>权限<b style="color:#fff">按频道</b>精细控制；有<b style="color:#fff">活动日志</b>记录 @Claude 干过的每一件事、以及是谁派的活；敏感数据和工具能被锁得很死；私有频道的内容不会跨范围外泄。面向 Claude <b style="color:#fff">Enterprise / Team</b> 客户，beta 阶段有启动额度。</div>
+  </section>
+
+  <!-- 屏 6：对我们意味着什么 -->
+  <section>
+    <h2><span class="dot" style="background:var(--green)"></span>六、对我们团队意味着什么？</h2>
+    <p>用对了，它能把"群里那些拖着没人管的事"和"重复的查数/跑活"接过去。但用法上有个常见误区：</p>
+    <div class="bad">
+      <span class="tag">✗ 当成"群里的一次性问答机"</span>
+      <p style="margin-top:6px">@一句问完就走，不给它授权工具、不开记忆和主动模式——那它和你自己开网页问 Claude 没区别，白瞎了"常驻队友"这层价值。</p>
+    </div>
+    <div class="good">
+      <span class="tag">✓ 当成"能持续盯事的队友"</span>
+      <p style="margin-top:6px">给它接上真用的工具/数据，让它在频道里长期积累上下文、主动追进度、把多步任务自己跑完。<b>同一个模型，挂进这套协作循环里，产出天差地别。</b></p>
+    </div>
+    <div class="analogy" style="border-left-color:var(--green)">
+      <b>一个数字 👉</b> 在 Anthropic 内部，产品团队 <b>65% 的代码</b>由他们内部版的 Claude Tag 生成；这套用法还扩散到了工程之外——<b>追产品指标和数据、处理支持工单、帮忙定位棘手 bug 的根因</b>。这正是我们可以照着搬的几类场景。
+    </div>
+    <p style="margin-top:12px;color:var(--muted);font-size:14px">目前只在 Slack 上；Anthropic 说目标是扩展到团队工作的更多地方。我们这种重 Slack 协作的小团队，是它的典型受益对象。</p>
+  </section>
+
+  <footer>
+    Claude Tag 讲解 · upio.ai 知识分享 · 2026-06-24
+    <div class="src">
+      来源：
+      <a href="https://www.anthropic.com/news/introducing-claude-tag" target="_blank" rel="noopener">Anthropic 官方公告</a> ·
+      <a href="https://support.claude.com/en/articles/11506255-get-started-with-claude-in-slack" target="_blank" rel="noopener">Claude 帮助中心：Claude in Slack</a> ·
+      <a href="https://techcrunch.com/2026/06/23/anthropics-claude-tag-is-learning-your-company-one-slack-message-at-a-time/" target="_blank" rel="noopener">TechCrunch 报道</a>
+    </div>
+  </footer>
+
+</div>
+</body>
+</html>
