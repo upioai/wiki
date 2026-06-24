@@ -54,6 +54,55 @@ def load_pool(path):
     return pool
 
 
+def _setup_db(account):
+    """读 .env 组装 monitored_targets 直连配置（镜像 consume 的 setup_db：anon+scoped JWT / 回退 service）。
+    缺关键 env 返回 None → 调用方降级到本地 special-follow.json 文件池。"""
+    try:
+        from dotenv import load_dotenv
+        for p in (os.path.join(HERE, ".env"), os.path.join(os.path.dirname(HERE), ".env")):
+            if os.path.exists(p):
+                load_dotenv(p, override=False)
+    except Exception:
+        pass
+    url = os.environ.get("SUPABASE_URL") or os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
+    scoped = os.environ.get("SUPABASE_SCOPED_JWT")
+    anon = os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY") or os.environ.get("SUPABASE_ANON_KEY")
+    service = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    org = os.environ.get("AKKE_ORG_ID")
+    if scoped and anon:
+        apikey, bearer = anon, scoped       # 受控 wuying_worker 角色（无影优先）
+    elif service:
+        apikey = bearer = service           # 回退 service_role
+    else:
+        return None
+    if not (url and org and account):
+        return None
+    return {"url": url.rstrip("/"), "apikey": apikey, "bearer": bearer, "org": org}
+
+
+def load_pool_db(db, account):
+    """从 monitored_targets 读 status=watching 名单 → {sec_uid:{name,comment_id}}（实时，替代文件池）。
+    cron refresh-monitored-targets 写库 → 本 watch 直接读库，去人工摆渡（Q3）。"""
+    import urllib.request
+    import urllib.parse
+    q = urllib.parse.urlencode({
+        "select": "douyin_user_id,nickname,source_comment_id",
+        "org_id": f"eq.{db['org']}",
+        "account_id": f"eq.{account}",
+        "status": "eq.watching",
+    })
+    req = urllib.request.Request(
+        f"{db['url']}/rest/v1/monitored_targets?{q}",
+        headers={"apikey": db["apikey"], "Authorization": f"Bearer {db['bearer']}"})
+    rows = json.load(urllib.request.urlopen(req, timeout=30))
+    pool = {}
+    for r in rows:
+        sec = r.get("douyin_user_id")
+        if sec:
+            pool[sec] = {"name": r.get("nickname") or "", "comment_id": r.get("source_comment_id") or ""}
+    return pool
+
+
 def _default(name):
     return os.path.join(HERE, name)
 
@@ -65,7 +114,12 @@ def main():
     ap.add_argument("--pages", type=int, default=3)
     ap.add_argument("--interval-sec", type=float, default=60)
     ap.add_argument("--max-age-min", type=float, default=10, help="发布<=此值才触达;同时挡掉历史回灌")
-    ap.add_argument("--pool", default=_default("special-follow-饭粒.json"))
+    ap.add_argument("--pool", default=_default("special-follow-饭粒.json"),
+                    help="文件池（DB 不可用时兜底）")
+    ap.add_argument("--account", default=os.environ.get("AKKE_ACCOUNT_ID", ""),
+                    help="本机执行号（读 monitored_targets 用，默认 AKKE_ACCOUNT_ID）")
+    ap.add_argument("--no-db", action="store_true",
+                    help="强制走文件池，不读库（默认 .env 配齐 key 就自动读 monitored_targets 实时池）")
     ap.add_argument("--queue", default=_default("realtime-touch-queue.jsonl"))
     ap.add_argument("--seen", default=_default("realtime-touch-seen.json"))
     ap.add_argument("--log", default=_default("realtime-touch.log"))
@@ -75,9 +129,23 @@ def main():
     cookie = pfw.load_cookie(args)  # 从 --cookie / --cookie-file / 同目录 dy_cookie.txt 读
     if not cookie:
         print("没找到 cookie（--cookie / --cookie-file / 同目录 dy_cookie.txt 都空）"); return
-    if not os.path.exists(args.pool):
-        print(f"lead 池不存在：{args.pool}（把 mac 的 special-follow-饭粒.json 摆渡过来）"); return
-    pool = load_pool(args.pool)
+    # 池来源（Q3 实时化）：默认 .env 配齐 key 就自动读 monitored_targets 实时库；
+    # 缺 key / --no-db / 读库失败 → 降级本地 special-follow.json 文件池（去手动摆渡前的老路）。
+    pool, pool_src = None, ""
+    db = None if args.no_db else _setup_db(args.account)
+    if db:
+        try:
+            pool = load_pool_db(db, args.account)
+            pool_src = f"monitored_targets(实时DB) account={args.account[:8]}"
+        except Exception as e:
+            print(f"读监控池库失败({e}) → 降级文件池 {args.pool}")
+            pool = None
+    if pool is None:
+        if not os.path.exists(args.pool):
+            print(f"lead 池不可用：DB 未配({'--no-db' if args.no_db else '缺 .env key'}) 且文件不存在 {args.pool}"
+                  f"（.env 配 SUPABASE_*+AKKE_ORG_ID+AKKE_ACCOUNT_ID 走实时，或摆渡 special-follow-饭粒.json）"); return
+        pool = load_pool(args.pool)
+        pool_src = f"文件 {os.path.basename(args.pool)}"
     seen = set()
     if os.path.exists(args.seen):
         try:
@@ -91,7 +159,7 @@ def main():
         with open(args.log, "a", encoding="utf-8") as f:
             f.write(line + "\n")
 
-    emit(f"实时触达侦测启动(无影) | cookie {len(cookie)}字节 | lead池 {len(pool)} | "
+    emit(f"实时触达侦测启动(无影) | cookie {len(cookie)}字节 | lead池 {len(pool)}（{pool_src}）| "
          f"每 {args.interval_sec:.0f}s 拉 {args.pages} 页 | 触达闸 发布<={args.max_age_min:.0f}min")
 
     # 用单调时钟做计时（Date.now 类的 wall-clock 跳变不影响时长判断）
