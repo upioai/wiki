@@ -21,6 +21,7 @@ const CATEGORIES = [
       { slug: 'deep-learning-rl',          title: '深度学习与强化学习',          desc: '两大范式的通俗入门。' },
       { slug: 'recursive-self-improvement',title: '递归自我改进',                desc: 'AI 自我迭代的原理与边界。' },
       { slug: 'progressive-disclosure',    title: '渐进式披露',                  desc: '上下文工程中的记忆与信息分层。' },
+      { slug: 'representation-learning',    title: '表征学习',                    desc: '让 AI 把万物「翻译成数字」——embedding 与向量搜索的地基，结合 Akke 举例。' },
       { slug: 'interpretability-alignment',title: '可解释性与对齐',              desc: '看懂 AI 在想什么、让它做我们想要的——结合 Akke 举例。' },
     ],
   },

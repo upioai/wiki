@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>表征学习 · 通俗讲解</title>
+<style>
+  :root{
+    --ink:#1a1730;
+    --muted:#6b6486;
+    --accent:#6c5ce7;
+    --accent2:#00b4d8;
+    --paper:#ffffff;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+    background:linear-gradient(135deg,#ede9fe 0%,#e0f2fe 50%,#fce7f3 100%);
+    color:var(--ink);
+    min-height:100vh;
+    display:flex;align-items:center;justify-content:center;
+    overflow:hidden;
+  }
+  .deck{
+    width:min(880px,92vw);
+    height:min(640px,90vh);
+    position:relative;
+  }
+  .slide{
+    position:absolute;inset:0;
+    background:var(--paper);
+    border-radius:28px;
+    box-shadow:0 30px 80px -20px rgba(76,29,149,.35);
+    padding:54px 60px;
+    display:flex;flex-direction:column;
+    opacity:0;transform:translateY(24px) scale(.98);
+    pointer-events:none;
+    transition:opacity .5s ease,transform .5s ease;
+  }
+  .slide.active{opacity:1;transform:none;pointer-events:auto}
+  .kicker{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:14px;font-weight:600;letter-spacing:.08em;
+    color:var(--accent);text-transform:uppercase;
+    margin-bottom:14px;
+  }
+  .kicker .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);}
+  h1{
+    font-size:38px;line-height:1.2;font-weight:800;
+    letter-spacing:-.01em;margin-bottom:8px;
+    background:linear-gradient(120deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .sub{font-size:17px;color:var(--muted);margin-bottom:24px;line-height:1.6}
+  p{font-size:16.5px;line-height:1.75;color:#33304a;margin-bottom:14px}
+  .hl{background:linear-gradient(transparent 60%,#ffe27a 60%);font-weight:600;padding:0 2px}
+  .hl2{background:linear-gradient(transparent 60%,#a5f3d0 60%);font-weight:600;padding:0 2px}
+  .cards{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:8px}
+  .card{
+    background:linear-gradient(160deg,#f6f4ff,#eef6ff);
+    border:1px solid #e6e1f7;border-radius:18px;padding:22px 22px;
+  }
+  .card .emoji{font-size:30px;margin-bottom:10px;display:block}
+  .card h3{font-size:18px;margin-bottom:6px}
+  .card p{font-size:14.5px;color:var(--muted);margin:0;line-height:1.65}
+  /* 坐标 / 向量 示意 */
+  .coords{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:8px}
+  .coord{
+    background:linear-gradient(160deg,#f6f4ff,#eef6ff);
+    border:1px solid #e6e1f7;border-radius:16px;padding:16px 16px;text-align:center;
+  }
+  .coord .ico{font-size:30px;display:block;margin-bottom:8px}
+  .coord .name{font-size:15px;font-weight:700;margin-bottom:6px}
+  .coord .vec{font-size:13px;color:var(--accent);font-family:"SF Mono",ui-monospace,Menlo,monospace;letter-spacing:-.02em}
+  .coord small{display:block;font-size:12.5px;color:var(--muted);margin-top:6px;line-height:1.5}
+  /* Akke 例子盒 */
+  .akke{
+    margin-top:6px;background:linear-gradient(160deg,#fff7ed,#fef2f2);
+    border:1px solid #fcd9b6;border-radius:18px;padding:18px 22px;
+  }
+  .akke .tagline{
+    display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;
+    letter-spacing:.06em;color:#c2410c;text-transform:uppercase;margin-bottom:8px;
+  }
+  .akke .tagline .ai{font-size:16px}
+  .akke p{font-size:15.5px;color:#3a2e26;margin:0 0 8px}
+  .akke p:last-child{margin-bottom:0}
+  .bad{color:#b91c1c;font-weight:600}
+  .good{color:#047857;font-weight:600}
+  .vs{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:6px}
+  .col{background:#f7f5ff;border:1px solid #ebe7fb;border-radius:18px;padding:20px 22px}
+  .col h3{font-size:17px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+  .col p{font-size:14.5px;color:var(--muted);margin:0;line-height:1.7}
+  .col .big{font-size:24px}
+  .three{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:6px}
+  .three .col h3{font-size:15.5px;margin-bottom:6px}
+  .three .col p{font-size:13.5px}
+  .quote{
+    margin-top:auto;background:#1a1730;color:#e7e3ff;border-radius:18px;
+    padding:20px 24px;font-size:16px;line-height:1.7;
+  }
+  .quote b{color:#ffd966}
+  footer{
+    position:absolute;left:0;right:0;bottom:-46px;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .dots{display:flex;gap:9px}
+  .dots i{width:9px;height:9px;border-radius:50%;background:#c9c2e8;cursor:pointer;transition:.3s}
+  .dots i.on{background:var(--accent);width:26px;border-radius:6px}
+  .nav{display:flex;gap:10px}
+  .nav button{
+    border:none;cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;
+    padding:10px 20px;border-radius:12px;background:#fff;color:var(--accent);
+    box-shadow:0 6px 18px -6px rgba(108,92,231,.5);transition:.2s;
+  }
+  .nav button:hover{transform:translateY(-2px)}
+  .nav button.primary{background:linear-gradient(120deg,var(--accent),var(--accent2));color:#fff}
+  .nav button:disabled{opacity:.35;cursor:default;transform:none}
+  .pageno{position:absolute;top:30px;right:36px;font-size:13px;color:#c3bce0;font-weight:600}
+</style>
+</head>
+<body>
+<div class="deck">
+
+  <!-- 第 1 页：封面 -->
+  <section class="slide active">
+    <span class="pageno">01 / 05</span>
+    <span class="kicker"><span class="dot"></span>大模型基础 · AI 的第一步</span>
+    <h1>表征学习</h1>
+    <p class="sub">几乎所有 AI 干活之前，都要先做这件事：把万物「翻译成数字」。一句话先记住它 👇</p>
+    <div class="cards">
+      <div class="card">
+        <span class="emoji">📝</span>
+        <h3>AI 看不懂原始数据</h3>
+        <p>文字、图片、一条评论、一个客户——计算机眼里都不是「意思」，只是一堆符号。</p>
+      </div>
+      <div class="card">
+        <span class="emoji">🔢</span>
+        <h3>得先变成一串数字</h3>
+        <p>把每个东西转成一串能反映它<strong>本质特征</strong>的数字，AI 才能拿来计算、比较、判断。</p>
+      </div>
+    </div>
+    <div class="quote">
+      <b>表征学习</b> = 让 AI <b>自己学会</b>「怎么把一个东西，翻译成一串能抓住它本质的数字」。
+      这串数字，就是它的「表征」（也叫 <b>embedding / 向量</b>）。
+    </div>
+    <footer>
+      <div class="dots"><i class="on"></i><i></i><i></i><i></i><i></i></div>
+      <div class="nav"><button disabled>← 上一页</button><button class="primary" data-go="1">下一页 →</button></div>
+    </footer>
+  </section>
+
+  <!-- 第 2 页：为什么要翻译成数字 -->
+  <section class="slide">
+    <span class="pageno">02 / 05</span>
+    <span class="kicker"><span class="dot"></span>WHY · 为什么要翻译成数字</span>
+    <h1>给每个事物一串「坐标」</h1>
+    <p class="sub">把一串数字想成地图上的坐标——意思越像的东西，坐标就越挨在一起。</p>
+    <p>表征就是给每个东西一组坐标。妙处在于：<span class="hl">意思相近的，坐标也相近；八竿子打不着的，离得老远</span>。于是「猫」和「狗」凑一块儿，「汽车」就在另一头。AI 不用真的「懂」猫狗，只要看坐标远近，就知道谁跟谁像。</p>
+    <div class="coords">
+      <div class="coord">
+        <span class="ico">🐱</span>
+        <div class="name">猫</div>
+        <div class="vec">[0.9, 0.8, 0.1]</div>
+        <small>和「狗」很近</small>
+      </div>
+      <div class="coord">
+        <span class="ico">🐶</span>
+        <div class="name">狗</div>
+        <div class="vec">[0.9, 0.7, 0.2]</div>
+        <small>和「猫」很近</small>
+      </div>
+      <div class="coord">
+        <span class="ico">🚗</span>
+        <div class="name">汽车</div>
+        <div class="vec">[0.1, 0.2, 0.9]</div>
+        <small>离猫狗都很远</small>
+      </div>
+    </div>
+    <div class="quote">
+      数字本身不重要，<b>谁离谁近</b>才重要。一旦万物都有了坐标，「找相似」「分类」「推荐」这些活，就都变成了<b>量一量距离</b>。
+    </div>
+    <footer>
+      <div class="dots"><i></i><i class="on"></i><i></i><i></i><i></i></div>
+      <div class="nav"><button data-go="0">← 上一页</button><button class="primary" data-go="2">下一页 →</button></div>
+    </footer>
+  </section>
+
+  <!-- 第 3 页：这串数字谁来定 -->
+  <section class="slide">
+    <span class="pageno">03 / 05</span>
+    <span class="kicker"><span class="dot"></span>HOW · 这串数字谁来定</span>
+    <h1>从「人手工填」到「自己学」</h1>
+    <p class="sub">关键就在那个「学习」二字——坐标不是人定的，是模型从海量数据里自己摸出来的。</p>
+    <div class="vs">
+      <div class="col">
+        <h3><span class="big">✍️</span>老办法：手工定特征</h3>
+        <p>人来想：要不要看「长几条腿」「有没有毛」……费脑、死板，换个场景就得重来，很多说不清的特征根本填不出。</p>
+      </div>
+      <div class="col">
+        <h3><span class="big">🧠</span>表征<strong>学习</strong>：自己学</h3>
+        <p>把海量数据喂进去，让模型<span class="hl2">自己摸出</span>该用哪些坐标。学好的标准很朴素：<strong>该像的挨在一起，不相干的离得远</strong>。</p>
+      </div>
+    </div>
+    <div class="akke">
+      <span class="tagline"><span class="ai">🏠</span>用 Akke 来说</span>
+      <p>Akke 要判断抖音评论的购买意向。没人能把「什么样算高意向」一条条写死——</p>
+      <p><span class="good">让模型自己学：</span>喂进海量真实评论，它自己学会把「<span class="hl">多少钱</span>」「<span class="hl">在哪家店</span>」这类高意向评论的坐标，放到挨在一起的位置。这套坐标，就是它学出来的表征。</p>
+    </div>
+    <footer>
+      <div class="dots"><i></i><i></i><i class="on"></i><i></i><i></i></div>
+      <div class="nav"><button data-go="1">← 上一页</button><button class="primary" data-go="3">下一页 →</button></div>
+    </footer>
+  </section>
+
+  <!-- 第 4 页：Akke 实战 -->
+  <section class="slide">
+    <span class="pageno">04 / 05</span>
+    <span class="kicker"><span class="dot"></span>用 Akke 来说 · 有了坐标能干嘛</span>
+    <h1>评论 / 客户 变向量之后</h1>
+    <p class="sub">一旦评论和客户都有了坐标，很多原本要人盯的活，都变成了「量距离」。</p>
+    <div class="cards">
+      <div class="card">
+        <span class="emoji">🎯</span>
+        <h3>自动分意向</h3>
+        <p>新评论一来，看它的坐标落在「高意向」那堆附近，还是「凑热闹」那堆——自动打分。</p>
+      </div>
+      <div class="card">
+        <span class="emoji">👥</span>
+        <h3>找相似客户</h3>
+        <p>成交过一个客户，就去坐标附近捞「长得像」的客户，优先跟进。</p>
+      </div>
+      <div class="card">
+        <span class="emoji">🔎</span>
+        <h3>向量搜索</h3>
+        <p>「找意思相近的内容」不再靠关键词死磕，而是按坐标远近捞——这就是 RAG / 智能检索的地基。</p>
+      </div>
+      <div class="card">
+        <span class="emoji">💬</span>
+        <h3>更懂客户的聊天</h3>
+        <p>客户的话先转成坐标，AI 才能听懂「言外之意」，接得上、答得准。</p>
+      </div>
+    </div>
+    <div class="quote">
+      一句话：<b>好表征是一切的地基。</b>分意向、找相似、向量搜索、智能聊天……上层这些花活，全都站在「东西被翻译得好不好」这块地基上。
+    </div>
+    <footer>
+      <div class="dots"><i></i><i></i><i></i><i class="on"></i><i></i></div>
+      <div class="nav"><button data-go="2">← 上一页</button><button class="primary" data-go="4">下一页 →</button></div>
+    </footer>
+  </section>
+
+  <!-- 第 5 页：总结 -->
+  <section class="slide">
+    <span class="pageno">05 / 05</span>
+    <span class="kicker"><span class="dot"></span>一句话记住 · 好表征长什么样</span>
+    <h1>好坐标的三个特点</h1>
+    <p class="sub">判断一套表征学得好不好，看这三条就够了。</p>
+    <div class="three">
+      <div class="col">
+        <h3>🧲 相似聚拢</h3>
+        <p>该像的挨在一起，不相干的离得远。这是好表征的命根子。</p>
+      </div>
+      <div class="col">
+        <h3>♻️ 可迁移</h3>
+        <p>学一次，到处能用——同一套坐标既能分意向、也能找相似、还能喂给聊天。</p>
+      </div>
+      <div class="col">
+        <h3>💡 抓本质</h3>
+        <p>抓的是「意思」，不是表面字眼。换个说法但同一个意图，坐标依然靠近。</p>
+      </div>
+    </div>
+    <div class="quote">
+      <b>一句话总结：</b>表征学习 = 让 AI 自己学会把万物翻译成一串「抓住本质的坐标」，相近的挨一起、无关的离很远。
+      在 Akke 里——评论和客户先被翻译成好坐标，<b>分意向、找相似、智能聊天</b>才跑得动。坐标翻译得好，上面的活才靠谱。
+    </div>
+    <footer>
+      <div class="dots"><i></i><i></i><i></i><i></i><i class="on"></i></div>
+      <div class="nav"><button data-go="3">← 上一页</button><button class="primary" data-go="0">↺ 重新看</button></div>
+    </footer>
+  </section>
+
+</div>
+
+<script>
+  const slides=[...document.querySelectorAll('.slide')];
+  let cur=0;
+  function show(i){
+    cur=(i+slides.length)%slides.length;
+    slides.forEach((s,k)=>s.classList.toggle('active',k===cur));
+  }
+  document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>show(+b.dataset.go));
+  document.querySelectorAll('.dots').forEach(group=>{
+    group.querySelectorAll('i').forEach((d,k)=>d.onclick=()=>show(k));
+  });
+  document.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight') show(cur+1);
+    if(e.key==='ArrowLeft') show(cur-1);
+  });
+</script>
+</body>
+</html>
