@@ -47,6 +47,11 @@ if hasattr(sys.stdout, 'reconfigure'):
 WORK_DIR = Path(__file__).resolve().parent
 os.chdir(WORK_DIR)
 
+# ── 版本标记 ─────────────────────────────────────────────────────────────────
+# 云电脑不装 git、update.bat 只下载 raw .py，运行时取不到 git SHA。故硬编码版本串，
+# 每次有意义改动手动 bump（日期+特性名），启动横幅打印 → 运营/PM 一眼核对"是不是最新版"。
+AGENT_VERSION = '2026-06-24+captcha-char-sample'
+
 try:
     from dotenv import load_dotenv
     load_dotenv(WORK_DIR / '.env')
@@ -949,7 +954,7 @@ def process_rc_batch(claimed: list[dict]) -> None:
 def main():
     st_note = (f'  second_touch={"on" if SECOND_TOUCH_ENABLED else "off"}'
                f'  rc={"on" if REVERSE_COMMENT_ENABLED else "off"}')
-    print(f'=== wuying_poll_agent  account={ACCOUNT_ID[:8]}…  every {POLL_INTERVAL}s  claim={CLAIM_LIMIT}{st_note} ===')
+    print(f'=== wuying_poll_agent  v={AGENT_VERSION}  account={ACCOUNT_ID[:8]}…  every {POLL_INTERVAL}s  claim={CLAIM_LIMIT}{st_note} ===')
     print(f'work_dir={WORK_DIR}')
 
     _last_autoreply = 0.0   # 收件箱捕获节流时戳(0=启动后第一轮先扫一次,之后每 DM_AUTOREPLY_INTERVAL 扫)
