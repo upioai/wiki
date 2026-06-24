@@ -1698,6 +1698,10 @@ footer p { margin: 4px 0; }
       <p class="problem-head">⑤ 一口气连问 3 个问题</p>
       <p class="problem-body">转身第二轮一口气问「<code>城市 / 户型 / 主要动哪块</code>」——客户上一句才 2 字「翻新」，节奏完全不匹配。<strong>客户每句话的能量是 AI 下一句长度的天花板</strong>。</p>
     </div>
+    <div class="problem" style="border-left-color: var(--accent);">
+      <p class="problem-head" style="color: #c4b5fd;">⑥ 答产品用 LLM 默认词而非 brand_profile 真实品牌（2026-06-24 新加 · 铁律）</p>
+      <p class="problem-body">jiandan #6 反例：客户问「你的是什么材质」，LLM 默认回「<code>E0 颗粒板</code>」（行业通用词，非「有大有小」实际在卖的产品）—— PM 手动按「有大有小」RAG 改成「<code>18mm 多层板 + 兔宝宝/莫干山/千年舟 ENF + 悍高五金</code>」才对上号。<strong>问题</strong>：不同号源（"有大有小" vs "一筑" vs "零星"）卖的板材牌子都不一样，答错品牌 = 客户加微到设计师那儿对不上号 = 信任崩。<br><strong>修复（已落 nurture prompt 铁律）</strong>：客户 commit 问产品 → <strong>必须</strong>从 system prompt 上方的【你能用上的品牌信息】段（<code>brand_profile.productCategories</code> / <code>sellingPoints</code>）取该号源实际产品答。<strong>brand_profile 字段缺失时</strong>才回退三档对比骨架（颗粒板/多层板/实木）+ 明说"让设计师按你户型拉具体清单"，<strong>禁硬编品牌</strong>。</p>
+    </div>
   </div>
 </section>
 
@@ -1854,8 +1858,9 @@ footer p { margin: 4px 0; }
       <div style="font-size: 13px; color: var(--text-dim); line-height: 1.75;">
         <strong style="color: var(--text);">触发条件</strong>：AI 已发 ≥ 4 条（破冰 + R2 + R3 + R4），<strong>下一条（R5）无论客户在哪档都强推 v</strong>。<br>
         <strong style="color: var(--text);">为什么要这条</strong>：决策卡 L0/L1「绝不发 v」治的是"短期信任建设期"，但拖到 R5 后客户多半已读不回，长尾流失成本比一次推 v 翻车更高。所以两条规则是<strong>接力，不是冲突</strong>：前 4 条 AI 在建专业可信度（攒筹码），第 5 条把筹码换成兑现。<br>
-        <strong style="color: var(--text);">实现</strong>：<code>shouldHardGateWechatPush()</code> + <code>buildHardGateWechatPushText()</code> 在 <code>src/lib/llm.ts</code>，<strong>绕开 LLM 拼模板</strong>（零 token、零 reroll、确定性输出）。模板硬绑「微信号 + 三品牌 ENF 报价对比 + 免费方案 + 定不定都不亏」5 个钩。<br>
-        <strong style="color: var(--text);">反例</strong>：Case 13 #10「您主页视频拍得很不错哈哈 + 裸抛 Homedz3791」= <span class="ref-score bad">23 分翻车</span>。时机对（正好是 R5），但模板要求的 5 个钩缺了 4 个 — 没接住前 4 轮、没价值钩、没降压退路。新 hard gate 模板把这 4 个钩硬绑成确定性输出，预计 R5 落点 75-80 分（良好档）。
+        <strong style="color: var(--text);">实现</strong>：<code>shouldHardGateWechatPush()</code> + <code>buildHardGateWechatPushText()</code> 在 <code>src/lib/llm.ts</code>，<strong>绕开 LLM 拼模板</strong>（零 token、零 reroll、确定性输出）。模板硬绑 7 个钩：<strong>信任承接 + 设计师加微 + 样板房专供 568 一平全包（原价 868 一平）+ 18mm 多层板柜体 + 兔宝宝/莫干山/千年舟 ENF 级板 + 悍高五金 + 免费定不定都不亏 + 微信号 Homedz3791 备注抖音名</strong>。<br>
+        <strong style="color: var(--text);">为什么硬绑具体价格</strong>：06-23 反例 — 提产品（多层板/三品牌 ENF）却不给 568/868 价格，客户落 DM 时拿不到决策锚 = 转化前空一截。Vitest 加了「提产品必带价」断言锁住这点，将来改模板想拆开提产品/提价格就会红。价格口径来自 opener prompt §H「按房产证平方：零售 868 一平、样板房专供 568 一平」—— 和 prompt 自洽。<br>
+        <strong style="color: var(--text);">反例</strong>：Case 13 #10「您主页视频拍得很不错哈哈 + 裸抛 Homedz3791」= <span class="ref-score bad">23 分翻车</span>。时机对（正好是 R5），但模板要求的 7 个钩缺了 6 个 — 没接住前 4 轮、没价值钩、没具体价、没产品配置、没降压退路。新 hard gate 模板把这 7 个钩硬绑成确定性输出，预计 R5 落点 78-82 分（良好档）。
       </div>
     </div>
 
