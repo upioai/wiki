@@ -57,6 +57,7 @@ const CATEGORIES = [
     title: '思维 · 心智模型',
     items: [
       { slug: 'munger-inversion', title: '芒格逆向思维', desc: '「反过来想」——先问怎样会失败，再挨个避开；结合 Akke 举例。' },
+      { slug: 'musk-five-step-algorithm', title: '马斯克工程五步法', desc: '质疑需求→删除→简化→加速→自动化：工程思维的操作系统，结合 Akke 举例。' },
     ],
   },
 ];
