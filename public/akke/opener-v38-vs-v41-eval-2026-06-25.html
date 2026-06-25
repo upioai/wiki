@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>破冰话术 v38 vs v41 · 回滚前后数据 + 优化方案 — 2026-06-25</title>
+<style>
+  :root {
+    --bg: #fafafa;
+    --card: #ffffff;
+    --ink: #1f2329;
+    --ink-2: #4e5969;
+    --muted: #86909c;
+    --faint: #b0b6c0;
+    --border: #e5e6eb;
+    --line: #ececec;
+    --accent: #1664ff;
+    --danger: #f53f3f;
+    --warn: #ea580c;
+    --ok: #00b42a;
+    --bg-soft: #f7f8fa;
+    --code-bg: #f5f5f7;
+    --yellow-soft: #fff7e0;
+    --yellow-line: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.75;
+    font-size: 15px;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 36px 24px 80px; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 20px; margin-bottom: 28px; }
+  h1 { margin: 0 0 8px; font-size: 26px; font-weight: 700; letter-spacing: -0.3px; }
+  header .meta { color: var(--muted); font-size: 13px; }
+  header .meta span + span::before { content: " · "; margin: 0 4px; }
+  h2 {
+    font-size: 20px;
+    margin: 44px 0 14px;
+    padding-left: 12px;
+    border-left: 3px solid var(--accent);
+  }
+  h3 { margin: 22px 0 8px; font-size: 16px; color: var(--ink); font-weight: 600; }
+  h4 { margin: 14px 0 6px; font-size: 14.5px; color: var(--ink-2); }
+  p, li { color: #2c3138; }
+
+  /* 黄色重点（marker 笔效果） */
+  .hi { background: linear-gradient(180deg, transparent 55%, var(--yellow-soft) 55%); padding: 0 3px; font-weight: 600; }
+  .hi-strong { background: var(--yellow-soft); padding: 1px 6px; border-radius: 4px; font-weight: 700; border-bottom: 2px solid var(--yellow-line); }
+
+  /* TL;DR */
+  .tldr {
+    background: linear-gradient(135deg, #fffbeb 0%, #fff 100%);
+    border: 1px solid #fcd34d;
+    border-left: 4px solid var(--yellow-line);
+    border-radius: 10px;
+    padding: 18px 22px;
+    margin-bottom: 24px;
+  }
+  .tldr h3 { margin: 0 0 8px; font-size: 16px; color: #92400e; }
+  .tldr ol { margin: 6px 0 0; padding-left: 22px; line-height: 2; }
+  .tldr p { margin: 8px 0 0; }
+
+  .goal {
+    background: linear-gradient(135deg, #f0f7ff 0%, #e8f4ff 100%);
+    border: 1px solid #c9deff;
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 18px;
+  }
+  .goal h3 { margin: 0 0 4px; color: var(--accent); font-size: 15px; }
+  .goal p { margin: 4px 0; color: var(--ink-2); font-size: 14px; }
+
+  /* KPI 卡 */
+  .kpi-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 16px 0 24px; }
+  .kpi { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; position: relative; overflow: hidden; }
+  .kpi::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--accent); }
+  .kpi.pre::before { background: var(--warn); }
+  .kpi.post::before { background: var(--danger); }
+  .kpi.new::before { background: var(--ok); }
+  .kpi-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .kpi-value { font-size: 26px; font-weight: 700; line-height: 1; }
+  .kpi-value.hi { background: var(--yellow-soft); padding: 2px 8px; border-radius: 4px; }
+  .kpi-sub { margin-top: 6px; font-size: 12px; color: var(--faint); }
+
+  /* 通用表格 */
+  table.std {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    font-size: 13.5px;
+    margin: 14px 0 22px;
+  }
+  table.std th, table.std td {
+    text-align: left;
+    padding: 11px 13px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  table.std th {
+    background: var(--bg-soft);
+    color: var(--ink-2);
+    font-weight: 600;
+    font-size: 13px;
+  }
+  table.std tr:last-child td { border-bottom: none; }
+  table.std .col-left { width: 130px; font-weight: 600; color: var(--ink); }
+  table.std code {
+    background: var(--code-bg);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+    color: var(--ink-2);
+  }
+  .row-hi td { background: var(--yellow-soft) !important; }
+
+  /* pill / badge */
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 4px; font-size: 12px; font-weight: 500; margin-right: 4px; }
+  .pill.p0 { background: #ffece8; color: var(--danger); }
+  .pill.p1 { background: #fff7e8; color: var(--warn); }
+  .pill.p2 { background: #e8f0ff; color: var(--accent); }
+  .pill.keep { background: #e8f7e8; color: var(--ok); }
+  .pill.v38 { background: #fef3c7; color: #92400e; font-weight: 600; }
+  .pill.v41 { background: #dcfce7; color: #166534; font-weight: 600; }
+
+  /* callout */
+  .callout {
+    background: #fff7ed;
+    border-left: 4px solid var(--warn);
+    border-radius: 0 8px 8px 0;
+    padding: 12px 16px;
+    margin: 14px 0;
+    font-size: 13.5px;
+  }
+  .callout.warn { background: #fef2f2; border-left-color: var(--danger); }
+  .callout.good { background: #f0fdf4; border-left-color: var(--ok); }
+  .callout.yellow { background: var(--yellow-soft); border-left-color: var(--yellow-line); }
+  .callout strong { color: var(--ink); }
+
+  /* 版本对比 grid */
+  .vs-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 14px;
+    margin: 18px 0;
+  }
+  .vs-grid.two { grid-template-columns: 1fr 1fr; }
+  .vs-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+  }
+  .vs-card.v38 { border-top: 4px solid var(--yellow-line); background: linear-gradient(180deg, #fffbeb 0%, #fff 30%); }
+  .vs-card.v41 { border-top: 4px solid var(--ok); background: linear-gradient(180deg, #f0fdf4 0%, #fff 30%); }
+  .vs-title { font-weight: 700; font-size: 15px; margin-bottom: 4px; }
+  .vs-sub { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
+  .vs-card ul { padding-left: 18px; margin: 6px 0; font-size: 13px; line-height: 1.85; }
+
+  /* 分支卡 */
+  .branch-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 12px;
+  }
+  .branch-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; margin-bottom: 8px; flex-wrap: wrap;
+  }
+  .branch-title { font-size: 14.5px; font-weight: 600; color: var(--ink); }
+  .branch-title .code { color: var(--muted); font-weight: 400; font-size: 12.5px; margin-left: 6px; }
+  .branch-meta .ratio {
+    display: inline-block; font-weight: 700; color: var(--accent);
+    font-size: 13px; margin-right: 6px;
+  }
+  .branch-card .row { margin: 6px 0; color: var(--ink-2); font-size: 13px; }
+  .branch-card .row strong { display: inline-block; color: var(--ink); min-width: 100px; font-weight: 600; }
+  .branch-card .opt {
+    background: var(--yellow-soft);
+    border-left: 3px solid var(--yellow-line);
+    padding: 9px 13px;
+    border-radius: 4px;
+    margin-top: 8px;
+    font-size: 13px;
+  }
+  .branch-card .opt strong { color: #92400e; }
+  .branch-card .reply {
+    background: var(--code-bg); border-radius: 4px; padding: 7px 11px; margin-top: 6px;
+    font-family: "PingFang SC", "Microsoft YaHei", monospace; font-size: 12.5px;
+    color: var(--ink); line-height: 1.6;
+  }
+  .branch-card.keep { border-left: 4px solid var(--ok); }
+  .branch-card.p0 { border-left: 4px solid var(--danger); }
+  .branch-card.p1 { border-left: 4px solid var(--warn); }
+  .branch-card.p2 { border-left: 4px solid var(--accent); }
+
+  /* 案例链路 */
+  .case-list {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 10px; margin: 12px 0;
+  }
+  .case-link {
+    display: block; padding: 10px 13px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--ink); text-decoration: none; font-size: 13px;
+    transition: border-color .15s;
+  }
+  .case-link:hover { border-color: var(--accent); }
+  .case-link .name { font-weight: 600; }
+  .case-link .when { color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+  .case-link .tag { display: inline-block; margin-left: 6px; font-size: 11px; padding: 1px 6px; border-radius: 3px; }
+  .case-link .tag.replied { background: #dcfce7; color: #166534; }
+  .case-link .tag.wechat { background: #ddd6fe; color: #6b21a8; }
+
+  .summary {
+    background: linear-gradient(135deg, #f0fdf4 0%, #f0fff0 100%);
+    border: 1px solid #86efac;
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin: 16px 0;
+  }
+  .summary p { margin: 6px 0; }
+
+  footer { margin-top: 50px; color: var(--faint); font-size: 12px; text-align: center; border-top: 1px solid var(--border); padding-top: 16px; }
+  footer a { color: var(--muted); text-decoration: none; }
+  footer a:hover { color: var(--accent); }
+
+  a.ref { color: var(--accent); text-decoration: none; border-bottom: 1px dashed var(--accent); }
+  a.ref:hover { background: var(--bg-soft); }
+
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>破冰话术 v38 vs v41 · 回滚前后数据 + 优化方案</h1>
+    <div class="meta">
+      <span>Owner: 夏夏</span>
+      <span>2026-06-25</span>
+      <span>v38 四要素时期(6/05–6/17) → v41 4 步分支(6/17–今)</span>
+      <span>覆盖账号：饭粒 / 野荞 / 零星 + 有大有小 / 小星·全屋定制</span>
+    </div>
+  </header>
+
+  <!-- ====== TL;DR ====== -->
+  <div class="tldr">
+    <h3>📋 TL;DR · 一句话浓缩</h3>
+    <p>
+      <span class="hi">v38（含四要素 868/568 一锅端）跑 11 天，回复率 0.97%（5/515）；</span>
+      <span class="hi">v41（4 步分支 + 不报固定金额）跑 8 天，回复率 7.66%（16/209）— ~8 倍提升。</span>
+      回滚方向正确。当前正在按"评论聚合 → 分支优化"路径推 v42b → v43 把<span class="hi">客户回复率</span>继续往 ≥10% 推。
+    </p>
+    <ol>
+      <li><b>v38 失败原因</b>：破冰一次砸 4 锚点（零售 868 / 专供 568 / 品牌串 / 限量一套），客户被报价压住、防御性强</li>
+      <li><b>v41 回归路径</b>：破冰只挑钩留悬念，所有具体价格留到 nurture；字数 ≤80（v38 是 ≤135）；联系方式从"给个 v"豁免到只在 (W) (H) 路径出现</li>
+      <li><b>评论分布最大三类</b>：<span class="hi">C9 要清单(16.2%) + C1 总价(13.7%) + C5 地域(12.3%) = 占 42%</span></li>
+    </ol>
+  </div>
+
+  <div class="goal">
+    <h3>目标</h3>
+    <p>把破冰招呼（DM 第一条）的客户回复率拉到 <strong>≥ 10%</strong>。</p>
+  </div>
+
+  <!-- ====== § 一 三版本对比 ====== -->
+  <h2>① 两版本架构差异 — v38 四要素 / v41 4 步分支</h2>
+
+  <div class="vs-grid two">
+    <div class="vs-card v38">
+      <div class="vs-title"><span class="pill v38">v38</span> 四要素一锅端</div>
+      <div class="vs-sub">2026-06-05 16:48 → 2026-06-17 18:00</div>
+      <ul>
+        <li>三要素：师出有名 + 产品优势（价格四要素）+ 联系方式钩子</li>
+        <li>价格 4 锚点一次说完：<span class="hi">零售 868 / 专供 568 / 兔宝宝+千年舟+悍高+海蒂诗+ENF / 小区限量一套</span></li>
+        <li>「<span class="hi">给个 v</span>」黑话 + 强制反问钩 ？ 收口</li>
+        <li>≤ 135 字</li>
+        <li>案例池密度：<b>0.36 个/天</b>（11 天 / 4 案例）<span class="hi"> ← 跌</span></li>
+      </ul>
+    </div>
+    <div class="vs-card v41">
+      <div class="vs-title"><span class="pill v41">v41+</span> 4 步分支（当前）</div>
+      <div class="vs-sub">2026-06-17 18:00 → 今天 2026-06-25</div>
+      <ul>
+        <li>4 步分支：<span class="hi">① 招呼 + ② 聊视频 + ③ 聊地域 + ④ 答评论</span></li>
+        <li><span class="hi">不报价格，只挑钩</span>；客户问了才走 (A1)-(H) 分支给单点</li>
+        <li>「<span class="hi">加微信</span>」3 字只在 (H) (W) 路径出现</li>
+        <li>≤ 80 字</li>
+        <li>案例池密度：<b class="hi-strong">2.0 个/天</b>（8 天 / 16 案例）</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>1.1 关键差异表</h3>
+  <table class="std">
+    <thead>
+      <tr>
+        <th class="col-left">维度</th>
+        <th>v38 — 三要素一锅端</th>
+        <th>v41 — 4 步分支</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="col-left">主架构</td>
+        <td>师出有名 + 产品优势（价格四要素）+ 联系方式钩</td>
+        <td>① 招呼 + ② 聊视频 + ③ 聊地域 + ④ 答评论</td>
+      </tr>
+      <tr class="row-hi">
+        <td class="col-left">价格口径</td>
+        <td>一次说完：<strong>零售 868 / 样板房专供 568 全包 / 兔宝宝+千年舟+悍高+海蒂诗+ENF / 小区限量一套</strong></td>
+        <td><span class="hi">不报价格，只挑钩</span>；客户问了才走 (A1)-(H) 分支给单点</td>
+      </tr>
+      <tr>
+        <td class="col-left">联系方式</td>
+        <td><span class="hi">「给个 v」黑话</span> + 强制反问钩收口（末字必须 ？）</td>
+        <td>「加微信」3 字，仅 (H) 硬装/软装 + (W) 联系方式豁免才出现</td>
+      </tr>
+      <tr>
+        <td class="col-left">字数</td>
+        <td>三要素齐全 ≤ <span class="hi">135 字</span></td>
+        <td>一律 ≤ <span class="hi">80 字</span></td>
+      </tr>
+      <tr>
+        <td class="col-left">客户首次看到</td>
+        <td><span class="hi-strong">4 个锚点同时砸</span>（868 + 568 + 品牌串 + 限量一套）</td>
+        <td>1 个钩子 + 1 个反问</td>
+      </tr>
+      <tr>
+        <td class="col-left">心理预期</td>
+        <td>一上来就被报价压住，<span class="hi">防御性强</span></td>
+        <td>只挑钩留悬念，<span class="hi">客户更容易顺手回一句</span></td>
+      </tr>
+      <tr>
+        <td class="col-left">模型生成稳定性</td>
+        <td>≤135 字塞 3 要素 + 4 数字，模型抓不齐易兜底</td>
+        <td>≤80 字单分支，生成轻松、文案自然</td>
+      </tr>
+      <tr>
+        <td class="col-left">长链路价值</td>
+        <td>破冰把底牌全亮了，nurture 阶段没料</td>
+        <td>破冰留钩 → nurture 客户问价时再放四要素，<strong>节奏分两段</strong></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout yellow">
+    <strong>结论：</strong>v41 在破冰阶段更容易拿到回复。把<span class="hi">"四要素"从破冰拿掉、放到后续对话当客户主动追价时再讲清楚</span>，是更合理的节奏。
+  </div>
+
+  <!-- ====== § 二 v38 数据 ====== -->
+  <h2>② v38 四要素时期数据 (2026-06-05 → 2026-06-17, 11 天)</h2>
+
+  <p style="color: var(--ink-2); font-size: 14px;">
+    数据来源：<a class="ref" href="https://upio.ai/akke/v38-rollback-eval-2026-06-16" target="_blank">upio.ai/akke/v38-rollback-eval-2026-06-16</a>（DB <code>messages.role='customer'</code> + 案例池合并口径）。完整方法学见原页"③ AI 评估建议"段。
+  </p>
+
+  <div class="kpi-row">
+    <div class="kpi post"><div class="kpi-label">v38 期 · AI 发出 opener</div><div class="kpi-value">515</div><div class="kpi-sub">6/05–6/16，11 天窗口</div></div>
+    <div class="kpi post"><div class="kpi-label">v38 期 · 已回复客户数</div><div class="kpi-value">5</div><div class="kpi-sub">DB 信号 1 + 案例池已回复 4</div></div>
+    <div class="kpi post"><div class="kpi-label">v38 期 · 回复率</div><div class="kpi-value hi">1.06%</div><div class="kpi-sub">按 1 天观察期对齐（470 满足条件）</div></div>
+    <div class="kpi post"><div class="kpi-label">v38 期 · 案例池密度</div><div class="kpi-value">0.36 个/天</div><div class="kpi-sub">11 天 / 4 个真实多轮对话</div></div>
+  </div>
+
+  <h3>2.1 v38 期案例池真实多轮对话（4 个）</h3>
+  <div class="case-list">
+    <a class="case-link" href="https://upio.ai/akke/cases/ni-min" target="_blank"><div class="name">ni-min<span class="tag replied">已回复</span></div><div class="when">2026-06-06 11:38</div></a>
+    <a class="case-link" href="https://upio.ai/akke/cases/zhang-zhilin" target="_blank"><div class="name">zhang-zhilin<span class="tag replied">已回复</span></div><div class="when">2026-06-07 01:45</div></a>
+    <a class="case-link" href="https://upio.ai/akke/cases/liangxin-heku" target="_blank"><div class="name">liangxin-heku<span class="tag replied">已回复</span></div><div class="when">2026-06-09 17:44</div></a>
+    <a class="case-link" href="https://upio.ai/akke/cases/haoyun-wudi" target="_blank"><div class="name">haoyun-wudi<span class="tag replied">已回复</span></div><div class="when">2026-06-10 12:56</div></a>
+    <a class="case-link" href="https://upio.ai/akke/cases/xingzi" target="_blank"><div class="name">xingzi<span class="tag replied">已回复</span></div><div class="when">2026-06-12 21:46</div></a>
+    <a class="case-link" href="https://upio.ai/akke/cases/budaoweng" target="_blank"><div class="name">budaoweng<span class="tag replied">已回复</span></div><div class="when">2026-06-15 11:52</div></a>
+  </div>
+  <p style="color: var(--muted); font-size: 13px;">注：v38 期截至 6/16 案例池有 4 个；含 6/16–6/17 过渡期共 6 个。</p>
+
+  <!-- ====== § 三 v41+ 数据 ====== -->
+  <h2>③ v41+ 数据 (2026-06-17 → 2026-06-25, 8 天)</h2>
+
+  <p style="color: var(--ink-2); font-size: 14px;">
+    数据来源：<a class="ref" href="https://upio.ai/akke/cases" target="_blank">upio.ai/akke/cases</a> 案例库自动统计。v41 上线后 8 天，<span class="hi">案例池新增 16 个真实多轮对话案例</span>。
+  </p>
+
+  <div class="kpi-row">
+    <div class="kpi new"><div class="kpi-label">v41+ 期 · AI 发出 opener</div><div class="kpi-value">214</div><div class="kpi-sub">6/17–6/25，8 天窗口</div></div>
+    <div class="kpi new"><div class="kpi-label">v41+ 期 · 已回复客户数</div><div class="kpi-value">16</div><div class="kpi-sub">案例池已回复 16（全部进入多轮对话）</div></div>
+    <div class="kpi new"><div class="kpi-label">v41+ 期 · 回复率</div><div class="kpi-value hi">7.66%</div><div class="kpi-sub">16 / 209 独立客户（同 v38 口径）</div></div>
+    <div class="kpi new"><div class="kpi-label">v41+ 期 · 案例池密度</div><div class="kpi-value">2.0 个/天</div><div class="kpi-sub">vs v38 期 0.36（<span class="hi">+456%</span>）</div></div>
+  </div>
+
+  <h3>3.1 v38 vs v41+ 回复率对比（同口径）</h3>
+  <table class="std">
+    <thead>
+      <tr>
+        <th class="col-left">分组</th>
+        <th>窗口</th>
+        <th>独立被 DM 客户</th>
+        <th>已回复客户数</th>
+        <th>回复率</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td class="col-left"><span class="pill v38">v38</span> 四要素</td><td>6/05–6/17（11 天）</td><td>515</td><td>5（DB 1 + 案例池 4）</td><td><strong>0.97%</strong></td></tr>
+      <tr class="row-hi"><td class="col-left"><span class="pill v41">v41+</span> 4 步分支</td><td>6/17–6/25（8 天）</td><td>209</td><td><strong>16</strong>（案例池 16）</td><td><span class="hi-strong">7.66%</span></td></tr>
+      <tr><td class="col-left"><b>Δ</b></td><td colspan="3">回复率 <span class="hi">+6.69pp</span></td><td><span class="hi-strong" style="color:#166534;">~8 倍提升</span></td></tr>
+    </tbody>
+  </table>
+
+  <h3>3.2 v41+ 案例逐个 (16 个 · 按时间倒序)</h3>
+  <div class="case-list">
+    <a class="case-link" href="https://upio.ai/akke/cases/jiandan-zuimei-0716" target="_blank"><div class="name">jiandan-zuimei-0716<span class="tag replied">已回复</span></div><div class="when">2026-06-23 15:04</div></a>
+    <a class="case-link" href="https://upio.ai/akke/cases/baigei-xiaobawang" target="_blank"><div class="name">baigei-xiaobawang<span class="tag replied">已回复</span><span class="tag wechat">加微</span></div><div class="when">2026-06-22 21:02</div></a>
+    <a class="case-link" href="https://upio.ai/akke/cases/zhuanshen" target="_blank"><div class="name">zhuanshen<span class="tag replied">已回复</span></div><div class="when">2026-06-22 16:40</div></a>
+    <a class="case-link" href="https://upio.ai/akke/cases/huang-xiansen" target="_blank"><div class="name">huang-xiansen<span class="tag replied">已回复</span><span class="tag wechat">加微</span></div><div class="when">2026-06-22 16:13</div></a>
+    <a class="case-link" href="https://upio.ai/akke/cases/jiandan" target="_blank"><div class="name">jiandan<span class="tag replied">已回复</span><span class="tag wechat">加微</span></div><div class="when">2026-06-22 11:45</div></a>
+    <a class="case-link" href="https://upio.ai/akke/cases/meishan-2019" target="_blank"><div class="name">meishan-2019<span class="tag replied">已回复</span><span class="tag wechat">加微</span></div><div class="when">2026-06-22 02:45</div></a>
+    <a class="case-link" href="https://upio.ai/akke/cases/chaocai-buyaoguo" target="_blank"><div class="name">chaocai-buyaoguo<span class="tag replied">已回复</span><span class="tag wechat">加微</span></div><div class="when">2026-06-22 01:42</div></a>
+    <a class="case-link" href="https://upio.ai/akke/cases/camille-zhongshan" target="_blank"><div class="name">camille-zhongshan<span class="tag replied">已回复</span><span class="tag wechat">加微</span></div><div class="when">2026-06-22 00:33</div></a>
+    <a class="case-link" href="https://upio.ai/akke/cases/yuaner" target="_blank"><div class="name">yuaner<span class="tag replied">已回复</span><span class="tag wechat">加微</span></div><div class="when">2026-06-21 22:47</div></a>
+    <a class="case-link" href="https://upio.ai/akke/cases/aicai-aiyi" target="_blank"><div class="name">aicai-aiyi<span class="tag replied">已回复</span><span class="tag wechat">加微</span></div><div class="when">2026-06-21 22:24</div></a>
+    <a class="case-link" href="https://upio.ai/akke/cases/heise-youmo" target="_blank"><div class="name">heise-youmo<span class="tag replied">已回复</span></div><div class="when">2026-06-21 10:38</div></a>
+    <a class="case-link" href="https://upio.ai/akke/cases/way" target="_blank"><div class="name">way<span class="tag replied">已回复</span><span class="tag wechat">加微</span></div><div class="when">2026-06-19 17:15</div></a>
+    <a class="case-link" href="https://upio.ai/akke/cases/qingfuxiao" target="_blank"><div class="name">qingfuxiao<span class="tag replied">已回复</span><span class="tag wechat">加微</span></div><div class="when">2026-06-19 15:32</div></a>
+    <a class="case-link" href="https://upio.ai/akke/cases/qiangguo-jiuan" target="_blank"><div class="name">qiangguo-jiuan<span class="tag replied">已回复</span></div><div class="when">2026-06-18 10:14</div></a>
+    <a class="case-link" href="https://upio.ai/akke/cases/hao" target="_blank"><div class="name">hao<span class="tag replied">已回复</span></div><div class="when">2026-06-17 21:50</div></a>
+    <a class="case-link" href="https://upio.ai/akke/cases/xiaomin" target="_blank"><div class="name">xiaomin<span class="tag replied">已回复</span></div><div class="when">2026-06-17 18:40</div></a>
+  </div>
+
+  <h3>3.3 v41+ 期典型 opener 样本（"诊断式"破冰）</h3>
+  <p style="color: var(--ink-2); font-size: 13.5px;">v41 的核心做法是<span class="hi">面对高意向 lead 时，不报价、不上折扣、不提名额，先接住客户的专业问题，再制造"这事有坑、得问内行"的认知，最后用诊断式问题把球轻轻推回去</span>。</p>
+
+  <div class="branch-card">
+    <div class="branch-head">
+      <div class="branch-title">xiaomin · 高意向评分 100 · "四改三 + 保温墙"</div>
+      <div class="branch-meta"><span class="pill v41">v41 实战</span></div>
+    </div>
+    <div class="row"><strong>客户原评论：</strong>"刚买的房子，想四改三，保温墙怎么处理？"</div>
+    <div class="row"><strong>v41 破冰：</strong></div>
+    <div class="reply">你好，xiaomin姐 保温墙处理要根据墙体情况定 四改三常在这上面踩坑 几室几厅 ？</div>
+    <div class="row"><strong>客户回复（7h49m 后）：</strong>"四个房间"<span class="hi"> ← 直接答了诊断问题，对话顺利推进的强信号</span></div>
+  </div>
+
+  <!-- ====== § 四 评论分类聚合 ====== -->
+  <h2>④ 评论分类聚合 · v43 评论占比与各分支当前话术</h2>
+
+  <p style="color: var(--muted); font-size: 13.5px;">
+    样本：近 14 天高/中意向评论 <strong>482 条</strong>。来源 <a class="ref" href="https://upio.ai/akke/icebreak-prompt-optim-2026-06-17" target="_blank">upio.ai/akke/icebreak-prompt-optim-2026-06-17</a>。多类目可重叠。
+  </p>
+
+  <h3>4.1 评论占比</h3>
+  <table class="std">
+    <thead>
+      <tr>
+        <th class="col-left">类</th>
+        <th style="width: 100px;">占比</th>
+        <th>关键识别词</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="row-hi"><td class="col-left">C9 要清单 / 资料 / 链接</td><td><strong>16.2%</strong></td><td>888 / 来一份 / 清单 / 手册 / 攻略 / 链接 / 效果图</td></tr>
+      <tr class="row-hi"><td class="col-left">C1 总价 / 全屋报价</td><td><strong>13.7%</strong></td><td>多少钱 / 装修花了 / 做下来 / 这套多少</td></tr>
+      <tr class="row-hi"><td class="col-left">C5 地域 / 上门</td><td><strong>12.3%</strong></td><td>{地名} + 能做 / 来不 / 有没有</td></tr>
+      <tr><td class="col-left">C8 尺寸 / 工艺</td><td>8.5%</td><td>多深 / 几米 / 几公分 / 尺寸 / 多宽</td></tr>
+      <tr><td class="col-left">C7 颜色 / 材质 / 型号</td><td>7.9%</td><td>什么颜色 / 什么板 / 莫干山 / 兔宝宝 / 胡桃</td></tr>
+      <tr><td class="col-left">C11 主动求装修</td><td>5.4%</td><td>来我家 / 给我装 / 准备装修 / 师傅有空</td></tr>
+      <tr><td class="col-left">C2 单价</td><td>4.4%</td><td>一平 / 一米 / 一公分 / 每平</td></tr>
+      <tr><td class="col-left">C10 联系方式直问</td><td>4.2%</td><td>怎么联系 / 加 v / 微信 / 在吗</td></tr>
+      <tr><td class="col-left">C6 户型 / 设计需求</td><td>3.1%</td><td>N 平 + 怎么设计 / 怎么搞 / 能做吗</td></tr>
+      <tr><td class="col-left">C4 比价 / 嫌贵</td><td>2.3%</td><td>太贵 / 便宜的 N / 公道吗</td></tr>
+      <tr><td class="col-left">C12 自装党</td><td>1.5%</td><td>自装 / 腻子粉 / 砂浆 / 工费</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout yellow">
+    <strong>v43 总体原则：</strong>破冰只挑钩留悬念，所有具体价格数字（568/868/品牌串/小区限量一套）留到 nurture；<span class="hi">破冰不报固定金额</span>，没面积 → 反问要面积，有面积 → 284/㎡ 单价口径；<span class="hi">"邀微信"语气全部收进 (R) 段代码注入</span>，不再在 prompt 通用段写。
+  </div>
+
+  <h3>4.2 各分支当前话术</h3>
+
+  <!-- C9 → (R) 资料钩 三模板池化 -->
+  <div class="branch-card">
+    <div class="branch-head">
+      <div class="branch-title">C9 要清单 / 资料 / 链接 → <span class="hi-strong">(R) 资料钩 · 三模板 A/B/C 池化</span></div>
+      <div class="branch-meta"><span class="ratio">16.2%</span></div>
+    </div>
+    <div class="row">代码层 <span class="hi">hash(称呼+评论)</span> 选 1 个变体，权重 <span class="hi-strong">A:B:C = 3:1:1</span>（A=60% / B=20% / C=20%），同 lead 稳定不漂移、多刷不塌成一句。</div>
+    <div class="row" style="margin-top: 10px;"><strong>A 型（60%）· 先户型钩：</strong>单钩反问户型，不抛 v</div>
+    <div class="reply">你好，{称呼}，{视频钩 1 句} 实拍+户型清单都可以发，<span class="hi">你家几室几厅 ？</span></div>
+    <div class="row" style="margin-top: 6px;"><strong>B 型（20%）· 先要号：</strong>软问要 v，句号收尾不挂户型钩</div>
+    <div class="reply">你好，{称呼}，{视频钩 1 句} <span class="hi">方便发个 v 过来吗</span> 让设计师按你家面积整一份。</div>
+    <div class="row" style="margin-top: 6px;"><strong>C 型（20%）· 先承诺再问翻新：</strong>承诺给方案 + 新房/翻新二选一</div>
+    <div class="reply">你好，{称呼}，{视频钩 1 句} 户型方案+实拍都能整给你看，<span class="hi">你家是新房还是翻新 ？</span></div>
+  </div>
+
+  <!-- C1 → (A1) 总价 -->
+  <div class="branch-card">
+    <div class="branch-head">
+      <div class="branch-title">C1 总价 / 全屋报价 → <span class="hi-strong">(A1) 总价分支 · 284 一平</span></div>
+      <div class="branch-meta"><span class="ratio">13.7%</span></div>
+    </div>
+    <div class="row">破冰<span class="hi">不报固定金额</span>，没面积 → 直接反问要面积；有面积 → 走 284/㎡ 单价口径。代码层 <code>hasUnauthorizedTotalPrice</code> deterministic 拦"5万/5.3万/38万/3-5万"等所有变体。</div>
+    <div class="reply">你好，{称呼}，{视频钩 1 句} 全屋按平方算 <span class="hi">284 一平 全包板材+五金+柜门+安装</span> 你家面积大概多少 ？</div>
+  </div>
+
+  <!-- C5 → (P) + (C) 地区可做先行 -->
+  <div class="branch-card">
+    <div class="branch-head">
+      <div class="branch-title">C5 地域 / 上门 → <span class="hi-strong">(P) + (C) 地区可做先行</span></div>
+      <div class="branch-meta"><span class="ratio">12.3%</span></div>
+    </div>
+    <div class="row">评论含 {地名}+能做吗/有吗 时<span class="hi">强制先说「{地名}可以做」</span>，代码层 <code>buildGeoHint</code> deterministic 兜底；反问钩用"几室几厅"（运营复盘客户更愿答户型）。</div>
+    <div class="reply">你好，{称呼}，<span class="hi">{地名}可以做</span> 量尺设计能上门——{视频钩 1 句} 你家几室几厅 ？</div>
+  </div>
+
+  <!-- C2 → (A4) 单价 -->
+  <div class="branch-card">
+    <div class="branch-head">
+      <div class="branch-title">C2 单价 → <span class="hi-strong">(A4) 单价分支 · 按平方算</span></div>
+      <div class="branch-meta"><span class="ratio">4.4%</span></div>
+    </div>
+    <div class="row">单价分支客户更愿答面积，反问钩用"面积大概多少"而不是"几室几厅"。</div>
+    <div class="reply">你好，{称呼}，{视频钩} 按平方算 <span class="hi">284 一平 全包板材+五金+柜门+安装</span> 你家面积大概多少 ？</div>
+  </div>
+
+  <!-- C6/C8/C11 → 默认三要素 -->
+  <div class="branch-card">
+    <div class="branch-head">
+      <div class="branch-title">C6 户型 / C8 尺寸 / C11 主动求装修 → <span class="hi-strong">默认三要素路径</span></div>
+      <div class="branch-meta"><span class="ratio">3.1% + 8.5% + 5.4% = 17.0%</span></div>
+    </div>
+    <div class="row">走默认<span class="hi">「要素一 师出有名 + 要素二 产品优势 + 要素三 联系方式钩」</span>三段连贯短文，<span class="hi">≤ 80 字</span>，末字必须是 ？。柜体/全屋意向走 (价) 报价口径（仅在客户问价时才报 868/568）；硬装/软装走 (H) "按项目报+给个 v"。</div>
+    <div class="row" style="margin-top: 8px;"><strong>典型样本（xiaomin · "诊断式破冰"）：</strong></div>
+    <div class="reply">你好，xiaomin姐 <span class="hi">保温墙处理要根据墙体情况定 四改三常在这上面踩坑</span> 几室几厅 ？</div>
+    <div class="row" style="margin-top: 4px; color: var(--ok); font-size: 12.5px;">→ 客户 7h49m 后回「四个房间」直接答了诊断问题</div>
+  </div>
+
+  <!-- C7 → (H) 配置/规格 -->
+  <div class="branch-card">
+    <div class="branch-head">
+      <div class="branch-title">C7 颜色 / 材质 / 型号 → <span class="hi-strong">(H) configMatrix 触发 · 1 行短答</span></div>
+      <div class="branch-meta"><span class="ratio">7.9%</span></div>
+    </div>
+    <div class="row">客户问了板材/品牌/五金/环保才引用 <code>{{configMatrix}}</code>，<span class="hi">最多 1 品牌 + 1 规格</span>；空时一律「一线品牌/大牌/源头工厂」泛指。要素二改成"按项目报 + 给个 v"两 token。</div>
+    <div class="reply">你好，{称呼}，{客户原物件}用的 {柜体颜色或板材} 按项目报 <span class="hi">给个 v</span> 让设计师按你家整体风格出方案 你家几室几厅 ？</div>
+  </div>
+
+  <!-- C4 → (§C) Closing 比价话术 -->
+  <div class="branch-card">
+    <div class="branch-head">
+      <div class="branch-title">C4 比价 / 嫌贵 → <span class="hi-strong">(§C) Closing 比价话术</span></div>
+      <div class="branch-meta"><span class="ratio">2.3%</span></div>
+    </div>
+    <div class="row">命中「别家/更便宜/贵了」→ 走 (§C) <span class="hi">「样板房专供价 568 一平 比零售 868 一平每㎡省 300 外面拿不到这个价」</span>；其它走默认三要素。</div>
+    <div class="reply">你好，{称呼}，{视频钩 1 句} 样板房专供价 <span class="hi">568 一平比零售 868 每㎡省 300</span> 全包板材+五金+柜门+安装 你家几室几厅 ？</div>
+  </div>
+
+  <!-- C10 → (W) 简化路径 -->
+  <div class="branch-card">
+    <div class="branch-head">
+      <div class="branch-title">C10 联系方式直问 → <span class="hi-strong">(W) 简化路径 · 50–70 字</span></div>
+      <div class="branch-meta"><span class="ratio">4.2%</span></div>
+    </div>
+    <div class="row">命中「怎么联系/加 v/加微/微信/在吗/私信/我要买/上门/急需」等 → <span class="hi">省要素二产品优势</span>，只走「要素一招呼+视频钩 + 要素三反问要号」。</div>
+    <div class="reply">你好，{称呼}。{视频钩 10-25 字} 你方便<span class="hi">给个 v 吗 我让设计师加你</span> ？</div>
+  </div>
+
+  <!-- C12 → (G) 双无信号 -->
+  <div class="branch-card">
+    <div class="branch-head">
+      <div class="branch-title">C12 自装党 → <span class="hi-strong">(G) 双无装修信号 · 短句答字面</span></div>
+      <div class="branch-meta"><span class="ratio">1.5%</span></div>
+    </div>
+    <div class="row">评论无装修信号词 + 视频也无柜体/装修关键词 → opener <span class="hi">完全不接装修业务</span>，短句答字面 ≤ 30 字，禁全屋柜体/板材/封边/上门量尺/活动期/价格数字/反问钩。</div>
+    <div class="reply">你好，{称呼}，自装党的腻子粉这步省不了，工费按本地小工算就行。</div>
+  </div>
+
+
+  <footer>
+    生成时间：2026-06-25<br>
+    本页面汇总来源：<a href="https://upio.ai/akke/v38-rollback-eval-2026-06-16" target="_blank">v38-rollback-eval-2026-06-16</a> · <a href="https://upio.ai/akke/icebreak-prompt-optim-2026-06-17" target="_blank">icebreak-prompt-optim-2026-06-17</a> · <a href="https://upio.ai/akke/cases" target="_blank">案例库</a><br>
+    脚本：<code>scripts/_v38-cases-distribution.ts</code> · <code>scripts/_v38-real-replies-html.ts</code>
+  </footer>
+
+</div>
+</body>
+</html>
