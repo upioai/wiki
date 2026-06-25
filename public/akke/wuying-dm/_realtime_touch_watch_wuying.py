@@ -25,7 +25,7 @@ import importlib.util
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 # 复用无影探针的 fetch_feed / ago / load_cookie（同端点同签名，cookie 从文件读）
@@ -183,8 +183,17 @@ def main():
     cycle = 0
     actionable = 0
     expired = 0
+    coverage_today = set()      # ③ feed 覆盖：当日刷到 ∩ pool 的去重 sec_uid（M），跨天重置
+    coverage_date = None        # 当日北京时(UTC+8) YYYY-MM-DD；变了就重置 coverage_today
+    last_cov_written = -1       # 上次上报的覆盖数；仅在增长时再写库，省 RPC
     while time_mod.monotonic() < deadline:
         cycle += 1
+        # ③ feed 覆盖按北京时归「运营日」；跨天重置当日去重集合（新一天从 0 起高水位）。
+        _bjt_date = (datetime.now(timezone.utc) + timedelta(hours=8)).strftime("%Y-%m-%d")
+        if _bjt_date != coverage_date:
+            coverage_date = _bjt_date
+            coverage_today = set()
+            last_cov_written = -1
         cursor = 0
         lead_seen_this = 0
         for _ in range(args.pages):
@@ -202,6 +211,7 @@ def main():
                     continue
                 if sec not in pool:
                     continue                              # 只关心 lead
+                coverage_today.add(sec)                  # ③ feed 覆盖：当日刷到的 pool 成员（去重 sec_uid，不论视频新旧）
                 if aweme_id in seen:
                     continue                              # 已处理过这条视频
                 lead_seen_this += 1
@@ -255,9 +265,21 @@ def main():
             if not data.get("has_more"):
                 break
         json.dump(sorted(seen), open(args.seen, "w"), ensure_ascii=False)
+        # ③ feed 覆盖上报：当日去重人数（高水位）经 RPC UPSERT；仅在增长时写，省 RPC。失败只告警、不影响触达。
+        if db and len(coverage_today) > last_cov_written:
+            try:
+                _db_rpc(db, "log_feed_coverage", {
+                    "p_org_id": db["org"],
+                    "p_account_id": args.account,
+                    "p_date": coverage_date,
+                    "p_distinct_authors": len(coverage_today),
+                })
+                last_cov_written = len(coverage_today)
+            except Exception as e:
+                emit(f"   ⚠️ feed 覆盖写库失败({type(e).__name__})；不影响触达")
         if cycle % 10 == 0 or lead_seen_this:
             emit(f"[轮{cycle} | {(time_mod.monotonic()-start)/60:.0f}min] 本轮 lead 新视频 {lead_seen_this} | "
-                 f"累计 可触达 {actionable} / 超时放弃 {expired}")
+                 f"feed覆盖(今日∩池) {len(coverage_today)} | 累计 可触达 {actionable} / 超时放弃 {expired}")
         if time_mod.monotonic() + args.interval_sec < deadline:
             time_mod.sleep(args.interval_sec)
         else:
