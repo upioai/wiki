@@ -264,6 +264,22 @@
       </div>
     </div>
 
+    <div class="block-label">派单 → 触达:那 1 分 37 秒在干嘛</div>
+    <div class="plain" style="border-left-color:var(--good);">
+      <b>派单 ≠ 立刻送达。</b>"派单"只是把这条 lead 交给某个账号;真正发出去还要走四步:
+      <b>① 云电脑认领这条单(锁 4 小时防重复)→ ② 在抖音里搜到这个用户、打开会话 → ③ 模拟人手把打招呼话术粘贴发送 → ④ 解码返回、校验 <code>status_code==0</code> 确认真发出 → 触达 ✓</b>。
+      案例里这段耗时 <mark>1 分 37 秒</mark>——这正是下面<b>节点 ④「通道自驱」</b>在做的事(云电脑挂机自动完成,不用人)。
+    </div>
+    <div class="flow">
+      <div class="step"><div class="n">1</div><div class="ic">🔒</div><div class="st">认领</div><div class="sd">锁 4h 防重复发</div></div>
+      <div class="arrowx">→</div>
+      <div class="step"><div class="n">2</div><div class="ic">🔎</div><div class="st">搜到用户开会话</div><div class="sd">GUI 找到本人</div></div>
+      <div class="arrowx">→</div>
+      <div class="step"><div class="n">3</div><div class="ic">🖱️</div><div class="st">模拟人手发</div><div class="sd">粘贴话术发送</div></div>
+      <div class="arrowx">→</div>
+      <div class="step"><div class="n">4</div><div class="ic">✔️</div><div class="st">解码验证</div><div class="sd">status_code==0 才算触达</div></div>
+    </div>
+
     <div class="block-label">0 → 1 是怎么跑通的</div>
     <div class="flow">
       <div class="step"><div class="n">1</div><div class="ic">📥</div><div class="st">评论进库</div><div class="sd">来自上一段采集</div></div>
@@ -286,14 +302,13 @@
     <table>
       <thead><tr><th>遇到的问题(现象)</th><th>怎么修的</th><th>进展</th></tr></thead>
       <tbody>
-        <tr><td class="case"><b>"10 分钟闸"误杀新鲜评论</b>:监控逮到 5 条新视频,只有 1 条压线 10 分钟过闸,其余 4 条 11-15 分钟被丢弃</td><td>把新鲜窗口从 10 分钟放宽到 20 分钟,当天可发从 1→5 条</td><td><span class="badge b-fixed">✅ 已修</span></td></tr>
-        <tr><td class="case"><b>点开错视频</b>:固定坐标盲点"主页第一格",但主页头部高度会变,点到了旧视频/同名号</td><td>改成 AI 视觉识别(VL)显式跳过置顶、点第一个真视频(PR #421)</td><td><span class="badge b-fixed">✅ 已修</span></td></tr>
-        <tr><td class="case"><b>连播功能害点赞落到下一条</b>:视频自动连播,脚本点赞时播放器已经翻到下一个视频</td><td>关掉连播开关(一次性持久记住)</td><td><span class="badge b-fixed">✅ 已修</span></td></tr>
-        <tr><td class="case"><b>窗口标题"抖音"变"douyin"全天 0 发</b>:云电脑重启后标题变了,脚本只认"抖音"二字,误判前台不是抖音</td><td>两种标题都认(PR #380)</td><td><span class="badge b-fixed">✅ 已修</span></td></tr>
-        <tr><td class="case"><b>陌生人评论"评论自见"软封</b>:给陌生人新视频贴评论,本号能看见、别人看不见(平台软封),非话术问题</td><td>结论:单账号不适合常驻这条通道,风控比私信更严 → 改作辅助渠道</td><td><span class="badge b-part">⚠️ 已知约束</span></td></tr>
+        <tr><td class="case"><b>紧窗口账号被派"老货"、opener 白烧</b>:高危字段代码先于迁移直推上线,降级查询缺 fresh_window 列 → 只收 10 分钟内新鲜 lead 的账号被派了老评论,全被 skipped</td><td>高危路径(迁移/派单)必须走 PR;降级查询阶梯式保住安全列(PR #499)</td><td><span class="badge b-fixed">✅ 已修</span></td></tr>
+        <tr><td class="case"><b>砍老评论怕"误杀"</b>:按评论时间砍掉超 2 小时的,但有些评论时间是空值(NULL),一刀切会把它们也误杀</td><td>NULL 评论时间放行、不误杀,只砍明确超龄的</td><td><span class="badge b-fixed">✅ 已修</span></td></tr>
+        <tr><td class="case"><b>cron 广播派单"撒太广"</b>:每分钟 cron 给所有云电脑账号广播派单,有些账号本不该收</td><td>加 <code>CLOUD_PC_CRON_EXCLUDE</code> 让指定账号退出 cron 广播派单</td><td><span class="badge b-fixed">✅ 已修</span></td></tr>
+        <tr><td class="case"><b>派单节奏被"记忆里的默认值"带偏</b>:账号实际节奏已改成 60 秒,运维却按代码默认"45 分钟"理解,排查 2 周才发现</td><td>铁律:报节奏/配额前先查库里账号真实值,不引用代码默认</td><td><span class="badge b-fixed">✅ 已纠正</span></td></tr>
       </tbody>
     </table>
-    <div class="blocker"><span class="bi">🚧</span><div><span class="bt">目前卡点:</span>软冷却完整版还没落地(派单合计仍 41s,未到目标 ~21s);潜在触达的"评论自见"软封让单账号不能常驻、真实触达率仍待量化;关注流覆盖只有 12%——没关注≈监控无料。</div></div>
+    <div class="blocker"><span class="bi">🚧</span><div><span class="bt">目前卡点:</span>软冷却完整版还没落地(派单合计仍 41s,未到目标 ~21s);高意向占比闸 / 账号日限的平衡仍在调;新鲜窗口目前是固定值,还没按账号 tier 动态化(tier-0 最新 12h / tier-1 24h)。</div></div>
   </div>
 </section>
 
@@ -406,6 +421,10 @@
         <tr><td class="case"><b>本机国内访问全断</b>:Mac 上 VPN 的 fake-IP 模式劫持了 DNS,抖音域名解析到占位 IP,看似走代理实际断</td><td>批量操作搬到云电脑(国内 IP 无 VPN 干扰);本机调试时关 VPN 或加直连规则</td><td><span class="badge b-fixed">✅ 已绕过</span></td></tr>
         <tr><td class="case"><b>派单机制突然裂开</b>:代码合并了但数据库迁移没真跑,新字段不存在,cron 查报错、单子堆积</td><td>铁律:高危迁移合并后立刻查字段是否真存在;高危路径必须走 PR(PR #499 阶梯降级保住安全列)</td><td><span class="badge b-fixed">✅ 已修</span></td></tr>
         <tr><td class="case"><b>云电脑深夜休眠断供</b>:个人版云电脑不是 24/7,会自动休眠,深夜没人唤醒就不发</td><td>决策迁企业版 3 台(¥199/台/年),自带唤醒 API、脱离按时计费</td><td><span class="badge b-plan">🔵 已决策·待落地</span></td></tr>
+        <tr><td class="case"><span style="color:var(--muted); font-size:12px;">[潜在触达]</span> <b>点开了错视频</b>:固定坐标盲点"主页第一格",但主页头部高度会变,点到旧视频/同名号</td><td>改 AI 视觉识别(VL)显式跳过置顶、点第一个真视频(PR #421)</td><td><span class="badge b-fixed">✅ 已修</span></td></tr>
+        <tr><td class="case"><span style="color:var(--muted); font-size:12px;">[潜在触达]</span> <b>连播害点赞落到下一条</b>:视频自动连播,脚本点赞时播放器已翻到下一个</td><td>关掉连播开关(一次性持久记住)</td><td><span class="badge b-fixed">✅ 已修</span></td></tr>
+        <tr><td class="case"><span style="color:var(--muted); font-size:12px;">[潜在触达]</span> <b>窗口标题"抖音"变"douyin"全天 0 发</b>:重启后标题变了,脚本只认"抖音"二字</td><td>两种标题都认(PR #380)</td><td><span class="badge b-fixed">✅ 已修</span></td></tr>
+        <tr><td class="case"><span style="color:var(--muted); font-size:12px;">[潜在触达]</span> <b>陌生人评论"评论自见"软封</b>:贴评论本号能看见、别人看不见(平台软封),非话术问题</td><td>单账号不适合常驻,风控比私信严 → 改作辅助渠道</td><td><span class="badge b-part">⚠️ 已知约束</span></td></tr>
       </tbody>
     </table>
     <div class="blocker"><span class="bi">🚧</span><div><span class="bt">目前卡点:</span>个人版云电脑深夜休眠(全天约 87% 时间黑屏无派单)是最大未解杠杆,企业版 3 台已决策但还没落地;陌生人 DM 软上限 ~18-20 条/24h 是硬约束;DM × 潜在触达 同机窗口锁的进程间通信仍待 PoC。</div></div>
