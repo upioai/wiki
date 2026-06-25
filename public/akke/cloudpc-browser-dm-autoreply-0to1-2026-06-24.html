@@ -97,15 +97,49 @@ mark{background:#ffe680;color:inherit;padding:0 4px;border-radius:3px;font-weigh
     <span class="pill">账号 <b>有大有小 (shawsnk) · 9535e31c</b></span>
     <span class="pill">通道 <b>第 4 条·浏览器自动回复</b></span>
     <span class="pill">首触自动发 <b style="color:var(--good)">✅ 已上线运行</b></span>
+    <span class="pill">派单时效 <b style="color:var(--good)">≤10min 新鲜窗口</b></span>
     <span class="pill">回复·发送 <b style="color:var(--good)">✅ 实测 4/4 通</b></span>
-    <span class="pill">回复·捕获 <b style="color:var(--warn)">🚧 收尾中</b></span>
+    <span class="pill">回复·捕获 <b style="color:var(--warn)">🚧 已部署 agent · 读取收尾中</b></span>
+    <span class="pill">更新 <b>2026-06-25</b></span>
   </div>
 </header>
 
 <div class="note">
   <b>一句话结论：</b>后端（找待回 → chatReply 生成草稿 → 置信度门 → 回执）<b>通道无关、现成可用</b>；
-  web <b>发送</b>复用首触 <code>process_web</code> 已实测 100% 发出；唯一还在收尾的是 web <b>捕获</b>（在 Edge 上把"谁回了"读准）——
-  红点检测已准、"点开会话读消息"方向已对，剩"滚动误点 / 聊天窗读稳"两个收尾点。当前捕获暂关（<code>CAPTURE=0</code>），不会误发。
+  web <b>发送</b>复用首触 <code>process_web</code> 已实测 100% 发出；web <b>捕获</b>已部署到 agent、`capture` 只读模式跑起来了——
+  红点检测准、固定坐标自动开私信、点开会话读消息通路打通，剩"点开后读对【对方昵称+对方那条回复】"这一个读取精度收尾点。
+</div>
+
+<h2 class="sec"><span class="n">▲</span> 2026-06-25 更新 · 进展 &amp; 当前卡点</h2>
+<div class="card">
+  <h3>今日进展</h3>
+  <table>
+    <tbody>
+    <tr><td style="width:30%"><b>派单 ≤10min 新鲜窗口</b></td><td>账号设 <code>fresh_window_minutes=10</code>：只 claim「评论入库 ≤10min」的新鲜 lead，超窗不发（"不满足时效性的不发送"）。<span class="badge b-done">✅已设</span></td></tr>
+    <tr><td><b>agent 版本根因</b></td><td>云电脑跑的是<b>旧版 agent</b>（横幅无 <code>v=</code>）→ 没有自动回复分支，<code>CAPTURE=1</code> 配了也不读私信。已更新到 <code>v=2026-06-24+captcha-char-sample</code>。<span class="badge b-done">✅已修</span></td></tr>
+    <tr><td><b>自动回复部署到 agent</b></td><td>.env 配齐 <code>CAPTURE=1 / MODE=capture / AUTOOPEN=1 / C_DM_ICON / LIST_X·Y</code>，agent 每 15s 自驱开私信→红点检测→点开会话读。<span class="badge b-done">✅运行中</span></td></tr>
+    <tr><td><b>固定坐标自动开私信</b></td><td>私信是焦点敏感右侧浮层，手动跑会失焦收起；改用固定坐标 <code>(0.939,0.109)</code> 程序自开自截，无人值守成立。<span class="badge b-done">✅已修</span></td></tr>
+    <tr><td><b>滚动落点 / 滚回顶部</b></td><td>滚轮要落在【会话行内容】(x≈0.64)才滚列表、不穿透到背景抖音页；每轮开跑先滚回列表顶部，避免接着上轮位置往下漂漏掉最新；刷屏数 5→3。<span class="badge b-prog">🚧调试中</span></td></tr>
+    <tr><td><b>公开报告上线</b></td><td>本页发布到 upio.ai，团队/客户可直接看。<span class="badge b-done">✅已上线</span></td></tr>
+    </tbody>
+  </table>
+
+  <h3 style="margin-top:18px">当前卡点（capture 只读模式，安全，不会误发）</h3>
+  <div class="warn-box">
+    <b>① 头号卡点 · 点开会话后读取精度：</b>点开红点会话后，VL 有时读到的是<b>我们自己账号名「有大有小」（头部）+ 我方开场白</b>，而不是<b>对方昵称 + 对方那条回复</b>（实测 nick 读成"有/大云"、preview 读成我方开场白）。读不对昵称就匹配不上 by_name → 真回复会被跳过。需要再调聊天窗读取区(<code>CHAT_L</code>)与提示。
+  </div>
+  <div class="warn-box">
+    <b>② 缺真回复测试样本：</b>当前收件箱里待回的真客户回复已被手动回过、红点消了，剩下的红点多是"我方开场白无回复"的会话——不是好测样本，看不出读取调没调对。<b>需要等一个新的真客户回复</b>来对着日志把读取调准。
+  </div>
+  <div class="warn-box">
+    <b>③ 重复草稿风险：</b>VL 每次读字略有差异 → 同会话可能产生多条客户消息/草稿。正式 <code>both</code> 同轮"捕获→即发→红点消"可缓解，但仍需 <code>record_dm_inbound</code> 去重加固。
+  </div>
+  <div class="warn-box">
+    <b>④ 环境 · 网络间歇抽风：</b>运营本机到 Supabase/GitHub/paste.rs 的 fake-IP 间歇 ECONNRESET/SSL 断流，拖慢查库与脚本下发（已用重试+空读重试+后台循环硬扛）。
+  </div>
+  <div class="note">
+    <b>当前模式：</b><code>MODE=capture</code>（只读私信、生成草稿、<b>不自动发</b>）。读取精度收尾稳、草稿质量审过后，再升 <code>both</code> 全自动发。
+  </div>
 </div>
 
 <!-- ① 第一个案例 -->
@@ -215,6 +249,9 @@ wuying_poll_agent.py       <span class="c"># 零改动：subprocess 调 autorepl
 <tr><td>点开会话读到"律公约》"(页脚) / 滚动太快误点别的会话</td><td>聊天窗裁剪左界偏 / 多红点时连续点击节奏太快</td><td>调 <code>CHAT_L</code> 裁准聊天窗；点击间加确认+间隔，只点红点那一行</td><td><span class="badge b-prog">🚧进行中</span></td></tr>
 <tr><td>同一客户生成多条草稿</td><td>反复手动跑捕获，VL 每次 OCR 略不同→多条客户消息→多草稿</td><td>正式 <code>both</code> 模式同轮"捕获→即发→红点消"，同会话不重抓；DB 去重加固</td><td><span class="badge b-prog">🚧监控</span></td></tr>
 <tr><td>本机查库/传脚本间歇失败（ECONNRESET/SSL）</td><td>运营本机到 Supabase/paste.rs 的 fake-IP 间歇抽风</td><td>查询加重试+空读重试；传脚本多服务+循环重试</td><td><span class="badge b-prog">⚠️环境</span></td></tr>
+<tr><td>.env 配了 <code>CAPTURE=1</code> 但 agent 不读私信</td><td>云电脑跑的是<b>旧版 agent</b>（横幅无 <code>v=</code>），没有自动回复分支去读这个开关</td><td>更新 agent 到 <code>v=2026-06-24+...</code>（含自动回复分支）；横幅有 <code>v=</code> 才算更新成功</td><td><span class="badge b-done">✅已修</span></td></tr>
+<tr><td>点开会话后 nick 读成"有/大云"、preview 读成我方开场白</td><td>聊天窗读取区读到了<b>我们自己账号名(头部)+我方开场白</b>，不是对方昵称+对方回复</td><td>调 <code>CHAT_L</code> 读取区到对方那条气泡；昵称读对才能匹配 by_name（<b>需真回复样本验证</b>）</td><td><span class="badge b-todo">🚧头号卡点</span></td></tr>
+<tr><td>滚的是抖音背景页、不是私信列表 / 每轮接着往下漂</td><td>滚轮落点在徽标/缝隙处穿透到背景页；上轮停在下面本轮接着滚漏掉最新</td><td>滚动落点改到【会话行内容】(x≈0.64)；每轮开跑先滚回列表顶部；刷屏 5→3</td><td><span class="badge b-prog">🚧调试中</span></td></tr>
 </tbody>
 </table>
 </div>
@@ -224,11 +261,11 @@ wuying_poll_agent.py       <span class="c"># 零改动：subprocess 调 autorepl
 <h2 class="sec"><span class="n">4</span> 下一步待做优化</h2>
 <div class="roadmap">
   <div class="phase now">
-    <span class="tag">NOW · 捕获收尾</span>
+    <span class="tag">NOW · 读取精度收尾</span>
     <ul>
-      <li>多红点时"滚动太快误点别的会话"——点击前确认落在红点行、加节奏间隔</li>
-      <li>聊天窗 VL 读稳：裁准 <code>CHAT_L</code>、只读"对方最后一条左侧气泡"，杜绝串页脚</li>
-      <li>验通后 <code>CAPTURE=1</code> + <code>MODE=capture</code> 只捕获不发、人工抽审草稿质量</li>
+      <li><b>头号</b>：点开会话后读对【对方昵称 + 对方那条回复】——现在会串到我方账号名/开场白，调 <code>CHAT_L</code> 读取区</li>
+      <li>等一个<b>真客户回复</b>样本，对着日志把读取调准并验证能匹配 by_name</li>
+      <li>滚动落点(行内容 0.64)+每轮滚回顶部 已加，盯"累计去重"随滚增长确认生效</li>
     </ul>
   </div>
   <div class="phase next">
