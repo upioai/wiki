@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WBS 工作分解结构 · 把大事拆到不能再拆</title>
+<meta name="description" content="WBS（工作分解结构）通俗讲解：把大目标拆成可执行清单树，拆到「一人一天可验收」为止。结合 Akke 抖音获客近 3 天的真实工作举例。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700;800&display=swap">
+<style>
+  :root{
+    --bg:#0a0d14; --bg-elevated:#131720; --bg-deep:#1a1f2b;
+    --border:#232936; --border-strong:#2f3646;
+    --text:#e8eaef; --text-dim:#9ba3b4; --text-muted:#6b7384;
+    --accent:#8b5cf6; --accent-soft:rgba(139,92,246,.15);
+    --accent-2:#60a5fa; --accent-2-soft:rgba(96,165,250,.13);
+    --accent-3:#34d399; --accent-3-soft:rgba(52,211,153,.14);
+    --warning:#fbbf24; --warning-soft:rgba(251,191,36,.14);
+    --danger:#f87171; --danger-soft:rgba(248,113,113,.14);
+    --font-display:'Instrument Serif','Source Han Serif SC',Georgia,serif;
+    --font-ui:'Inter Tight','Noto Sans SC',-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;
+    --font-mono:'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    font-family:var(--font-ui);
+    background:var(--bg);color:var(--text);
+    font-size:15.5px;line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+    font-feature-settings:'cv11','ss01','tnum';
+    min-height:100vh;display:flex;align-items:center;justify-content:center;
+    overflow:hidden;position:relative;
+  }
+  /* 背景：蓝图网格 + 双角辉光 */
+  body::before{
+    content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+    background:
+      radial-gradient(620px 460px at 12% 0%, rgba(139,92,246,.16), transparent 60%),
+      radial-gradient(680px 520px at 100% 100%, rgba(96,165,250,.12), transparent 60%),
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size:auto,auto,46px 46px,46px 46px;
+    opacity:.5;
+    -webkit-mask-image:radial-gradient(120% 120% at 50% 40%, #000 55%, transparent 100%);
+            mask-image:radial-gradient(120% 120% at 50% 40%, #000 55%, transparent 100%);
+  }
+
+  .deck{width:min(980px,94vw);height:min(686px,92vh);position:relative;z-index:1}
+
+  .slide{
+    position:absolute;inset:0;
+    background:linear-gradient(180deg,#10141d 0%,#0d111a 100%);
+    border:1px solid var(--border);
+    border-radius:20px;
+    box-shadow:0 40px 90px -30px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.03);
+    padding:44px 54px 50px;
+    display:flex;flex-direction:column;
+    opacity:0;transform:translateY(20px) scale(.985);
+    pointer-events:none;
+    transition:opacity .45s ease,transform .45s ease;
+    overflow:hidden;
+  }
+  .slide.active{opacity:1;transform:none;pointer-events:auto}
+  /* 顶部进度条 */
+  .slide::before{
+    content:"";position:absolute;top:0;left:0;height:3px;
+    width:var(--prog,11%);
+    background:linear-gradient(90deg,var(--accent),var(--accent-2),var(--accent-3));
+    border-radius:20px 0 0 0;opacity:.9;
+  }
+
+  /* 错峰入场 */
+  .slide.active .rise{animation:rise .55s cubic-bezier(.2,.7,.2,1) both}
+  .slide.active .rise:nth-child(1){animation-delay:.04s}
+  .slide.active .rise:nth-child(2){animation-delay:.10s}
+  .slide.active .rise:nth-child(3){animation-delay:.16s}
+  .slide.active .rise:nth-child(4){animation-delay:.22s}
+  .slide.active .rise:nth-child(5){animation-delay:.28s}
+  .slide.active .rise:nth-child(6){animation-delay:.34s}
+  .slide.active .rise:nth-child(7){animation-delay:.40s}
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+  .pageno{
+    position:absolute;top:22px;right:26px;
+    font-family:var(--font-mono);font-size:12px;font-weight:600;
+    color:var(--text-muted);letter-spacing:.06em;
+  }
+  .kicker{
+    display:inline-flex;align-items:center;gap:9px;
+    font-family:var(--font-mono);font-size:11px;font-weight:700;
+    letter-spacing:.16em;text-transform:uppercase;color:var(--accent);
+    margin-bottom:14px;
+  }
+  .kicker .dot{
+    width:7px;height:7px;border-radius:50%;background:var(--accent);
+    box-shadow:0 0 10px var(--accent);animation:pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+  h1{
+    font-family:var(--font-display);font-style:italic;font-weight:400;
+    font-size:44px;line-height:1.08;letter-spacing:-.01em;margin-bottom:10px;
+    background:linear-gradient(135deg,#f4f5f8 25%,var(--accent) 78%,var(--accent-2) 100%);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  }
+  .sub{font-size:16px;color:var(--text-dim);margin-bottom:18px;line-height:1.62;max-width:780px}
+  p{font-size:15px;line-height:1.72;color:var(--text-dim);margin-bottom:12px}
+  strong{color:var(--text);font-weight:600}
+  .hl{color:#c4b5fd;font-weight:600}
+  .hl2{color:#6ee7b7;font-weight:600}
+
+  /* 名言 */
+  .quote{
+    margin-top:auto;position:relative;
+    background:rgba(139,92,246,.06);
+    border:1px solid var(--border);border-left:3px solid var(--accent);
+    border-radius:0 14px 14px 0;padding:16px 22px 16px 24px;
+  }
+  .quote b{
+    font-family:var(--font-display);font-style:italic;font-weight:400;
+    font-size:19px;line-height:1.5;color:#ece9ff;display:block;
+  }
+  .quote .by{
+    display:block;margin-top:9px;font-family:var(--font-mono);
+    font-size:11.5px;letter-spacing:.04em;color:var(--text-muted);
+  }
+  .quote.amber{background:var(--warning-soft);border-left-color:var(--warning)}
+  .quote.amber b{color:#fde9b8}
+
+  /* 三栏法则 / 通用卡 */
+  .cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:2px}
+  .gcard{background:var(--bg-elevated);border:1px solid var(--border);border-left:3px solid var(--c,var(--accent));border-radius:13px;padding:15px 17px}
+  .gcard .n{font-family:var(--font-mono);font-weight:800;font-size:13px;color:var(--c,var(--accent));letter-spacing:.04em}
+  .gcard b{display:block;font-size:15px;color:var(--text);margin:7px 0 6px;font-weight:600}
+  .gcard span{font-size:13px;color:var(--text-dim);line-height:1.55}
+
+  /* 步骤列表 */
+  .steps{display:flex;flex-direction:column;gap:9px;margin-top:2px}
+  .step{display:flex;align-items:flex-start;gap:15px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:12px;padding:11px 16px;position:relative;overflow:hidden}
+  .step::after{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--c,var(--accent))}
+  .step .n{flex:0 0 auto;width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-weight:800;font-size:14px;color:#0a0d14;background:var(--c,var(--accent));box-shadow:0 0 16px -2px var(--c,var(--accent))}
+  .step .body{flex:1}
+  .step .body b{font-size:15px;color:var(--text);font-weight:600}
+  .step .body span{display:block;font-size:13px;color:var(--text-muted);line-height:1.5;margin-top:2px}
+
+  .warn{margin-top:12px;background:var(--warning-soft);border:1px solid rgba(251,191,36,.28);border-radius:12px;padding:12px 17px;font-size:13.6px;line-height:1.6;color:#f3d9a0}
+  .warn b{color:var(--warning)}
+
+  /* Akke 例子盒 */
+  .akke{background:var(--accent-2-soft);border:1px solid rgba(96,165,250,.24);border-radius:12px;padding:13px 18px;font-size:13.8px;line-height:1.62;color:var(--text-dim)}
+  .akke .tag{display:inline-flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent-2);margin-bottom:6px}
+  .akke .tag::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent-2);box-shadow:0 0 8px var(--accent-2)}
+  .akke strong{color:var(--text)}
+
+  /* WBS 宽度树 */
+  .root-node{display:inline-flex;align-items:center;gap:9px;background:linear-gradient(120deg,var(--accent-soft),var(--accent-2-soft));border:1px solid var(--border-strong);border-radius:11px;padding:8px 16px;font-weight:600;color:var(--text);font-size:14px;margin-bottom:12px}
+  .root-node .em{font-size:16px}
+  .branches{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .bn{background:var(--bg-elevated);border:1px solid var(--border);border-left:3px solid var(--c);border-radius:11px;padding:10px 13px}
+  .bn.span2{grid-column:1 / -1}
+  .bn h4{font-size:13px;color:var(--text);margin-bottom:7px;display:flex;align-items:center;gap:8px;font-weight:600}
+  .bn h4 .k{font-family:var(--font-mono);font-size:11px;color:var(--c);font-weight:800}
+  .leaves{display:flex;flex-wrap:wrap;gap:6px}
+  .leaf{font-family:var(--font-mono);font-size:11px;color:var(--text-dim);background:var(--bg-deep);border:1px solid var(--border);border-radius:7px;padding:4px 8px;line-height:1.3}
+  .leaf .pr{color:var(--accent-2);font-weight:700}
+
+  /* WBS 深度树（mono 画树） */
+  .vtree{font-family:var(--font-mono);font-size:12.7px;line-height:1.95;color:var(--text-dim);background:var(--bg-elevated);border:1px solid var(--border);border-radius:13px;padding:14px 18px;white-space:pre;overflow-x:auto}
+  .vtree .g{color:var(--border-strong)}
+  .vtree .h{color:var(--text);font-weight:600}
+  .vtree .pr{color:var(--accent-2);font-weight:700}
+  .vtree .ok{color:var(--accent-3);font-weight:700}
+
+  /* 收尾三连 */
+  .chain{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;margin-top:2px}
+  .chain .c{background:var(--bg-elevated);border:1px solid var(--border);border-radius:12px;padding:13px 15px}
+  .chain .c .em{font-family:var(--font-mono);font-size:12.5px;font-weight:700;color:var(--accent-2);letter-spacing:.02em}
+  .chain .c b{display:block;font-size:14px;margin:6px 0 4px;color:var(--text)}
+  .chain .c span{font-size:12.5px;color:var(--text-muted);line-height:1.5}
+
+  /* 误区两栏 */
+  .pitfalls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:2px}
+  .pit{background:var(--danger-soft);border:1px solid rgba(248,113,113,.22);border-radius:11px;padding:12px 15px}
+  .pit b{display:block;color:#fca5a5;font-size:14px;margin-bottom:4px;font-weight:600}
+  .pit span{font-size:13px;color:var(--text-dim);line-height:1.55}
+
+  /* 谁在用 */
+  .users{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 2px}
+  .users .u{font-family:var(--font-mono);font-size:12px;color:var(--text-dim);background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:6px 11px}
+  .users .u b{color:var(--accent);font-weight:700}
+
+  /* 页脚导航 */
+  footer{position:absolute;left:54px;right:54px;bottom:18px;display:flex;align-items:center;justify-content:space-between}
+  .dots{display:flex;gap:7px;flex-wrap:wrap}
+  .dots i{width:8px;height:8px;border-radius:50%;background:var(--border-strong);cursor:pointer;transition:.3s}
+  .dots i:hover{background:var(--text-muted)}
+  .dots i.on{background:var(--accent);width:22px;border-radius:5px;box-shadow:0 0 10px -1px var(--accent)}
+  .nav{display:flex;gap:9px}
+  .nav button{border:1px solid var(--border-strong);cursor:pointer;font-family:var(--font-mono);font-size:12.5px;font-weight:600;letter-spacing:.02em;padding:9px 17px;border-radius:10px;background:var(--bg-deep);color:var(--text-dim);transition:.18s}
+  .nav button:hover{transform:translateY(-2px);color:var(--text);border-color:var(--accent)}
+  .nav button.primary{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#fff;border-color:transparent}
+  .nav button:disabled{opacity:.3;cursor:default;transform:none}
+
+  @media (max-height:660px){.slide{padding:32px 42px 44px}h1{font-size:36px}footer{bottom:14px}}
+  @media (max-width:760px){.cols3,.branches,.chain,.pitfalls{grid-template-columns:1fr}h1{font-size:32px}.slide{padding:30px 24px 64px}footer{left:24px;right:24px}.bn.span2{grid-column:auto}}
+  @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="deck">
+
+  <!-- 01 封面 -->
+  <section class="slide active" style="--prog:11.1%">
+    <span class="pageno">01 / 09</span>
+    <span class="kicker rise"><span class="dot"></span>工程方法 · Work Breakdown Structure</span>
+    <h1 class="rise">WBS · 把大事拆到不能再拆</h1>
+    <p class="sub rise">「任务拆到不能再拆、每块不超过 2 天」——这条很多互联网公司（包括米哈游员工手册）都在讲的工作法，正式名字叫 <strong>WBS，工作分解结构（Work Breakdown Structure）</strong>。它把一个大目标拆成一棵<strong>「可执行清单树」</strong>。</p>
+    <p class="rise">它不是某家公司的私有发明，而是项目管理的通用地基。下面整套讲解，我们全程用自己的 <span class="hl">Akke 抖音获客</span> 近 3 天（6/23–6/25）的真实工作当例子，演示怎么把一堆活儿拆成一棵树。</p>
+    <p class="rise">先记住一句话：<span class="hl2">再大的项目，只要拆到「每一片都能被一个人在一天内干完、且能验收」，就不再可怕。</span></p>
+    <div class="quote rise">
+      <b>「分而治之：把复杂拆成简单，把简单拆到可执行——剩下的只是把它们一个个做掉。」</b>
+      <span class="by">WBS · 工作分解结构的核心思想</span>
+    </div>
+    <footer><div class="dots" data-dots></div><div class="nav"><button class="prev">← PREV</button><button class="primary next">NEXT →</button></div></footer>
+  </section>
+
+  <!-- 02 什么是 WBS -->
+  <section class="slide" style="--prog:22.2%">
+    <span class="pageno">02 / 09</span>
+    <span class="kicker rise"><span class="dot"></span>定义 · 它到底是什么</span>
+    <h1 class="rise">什么是工作分解结构</h1>
+    <p class="sub rise">WBS = 把一个目标，<strong>自顶向下层层拆解</strong>，直到最底层是「可以直接派给<strong>一个人</strong>独立完成」的<strong>工作包（work package）</strong>为止。</p>
+    <div class="steps rise">
+      <div class="step" style="--c:#8b5cf6"><span class="n">1</span><div class="body"><b>目标 Goal</b><span>唯一的顶层，一句话能说清——「让 Akke 在抖音上自动获客成交」。</span></div></div>
+      <div class="step" style="--c:#60a5fa"><span class="n">2</span><div class="body"><b>交付物 / 模块 Deliverables</b><span>中间层，按「要产出的东西 / 子系统」切——图文发布、私信回复、数据看板……</span></div></div>
+      <div class="step" style="--c:#34d399"><span class="n">3</span><div class="body"><b>工作包 Work Package（树的叶子）</b><span>最底层，一个人照着就能直接动手、能验收的最小活儿。</span></div></div>
+    </div>
+    <p class="rise" style="margin-top:14px">类比：把「做一顿年夜饭」拆成 买菜 / 备料 / 炒菜 / 摆盘，再把「炒菜」拆成一道道具体的菜——<span class="hl">拆到「某个人照着就能直接下锅」那一层就停。</span></p>
+    <footer><div class="dots" data-dots></div><div class="nav"><button class="prev">← PREV</button><button class="primary next">NEXT →</button></div></footer>
+  </section>
+
+  <!-- 03 收口三法则 -->
+  <section class="slide" style="--prog:33.3%">
+    <span class="pageno">03 / 09</span>
+    <span class="kicker rise"><span class="dot"></span>核心 · 拆到哪算「到底」</span>
+    <h1 class="rise">拆到哪一层算「不能再拆」？</h1>
+    <p class="sub rise">「拆到不能再拆」不是凭感觉，而是有三条<strong>收口法则</strong>。一个叶子三条全满足，就停手；只要还差一条，就继续往下拆。</p>
+    <div class="cols3 rise">
+      <div class="gcard" style="--c:#8b5cf6"><span class="n">法则 1</span><b>一人日</b><span>一个叶子能被一个人在 ≈1 天（最多 2 天）内干完。再大 → 继续拆。</span></div>
+      <div class="gcard" style="--c:#60a5fa"><span class="n">法则 2</span><b>单一责任</b><span>每个叶子只挂一个人名。挂不到具体人、要几个人合力 → 还能拆。</span></div>
+      <div class="gcard" style="--c:#34d399"><span class="n">法则 3</span><b>可独立验收</b><span>「做完没做完」有明确、可验证的标志（合并 / 上线 / 跑通）。说不清算不算完 → 还没到位。</span></div>
+    </div>
+    <div class="warn rise"><b>同层兄弟要 MECE（不重不漏）：</b>同一层级几个节点加起来要正好等于父节点——既不重叠（别两个人干同一件事）、也不遗漏（别漏掉某块没人管）。</div>
+    <footer><div class="dots" data-dots></div><div class="nav"><button class="prev">← PREV</button><button class="primary next">NEXT →</button></div></footer>
+  </section>
+
+  <!-- 04 怎么拆 -->
+  <section class="slide" style="--prog:44.4%">
+    <span class="pageno">04 / 09</span>
+    <span class="kicker rise"><span class="dot"></span>方法 · 自顶向下剥洋葱</span>
+    <h1 class="rise">怎么拆：一层层往下剥</h1>
+    <div class="steps rise">
+      <div class="step" style="--c:#8b5cf6"><span class="n">1</span><div class="body"><b>写下唯一顶层目标</b><span>一句话。说不清就先别拆。</span></div></div>
+      <div class="step" style="--c:#7c8df7"><span class="n">2</span><div class="body"><b>拆成 3–7 个交付物 / 模块</b><span>第一层按「要产出的东西 / 子系统」切（名词），别按「步骤」切（动词）。</span></div></div>
+      <div class="step" style="--c:#60a5fa"><span class="n">3</span><div class="body"><b>每个模块继续往下拆</b><span>直到每片满足上一页的三条收口法则为止。</span></div></div>
+      <div class="step" style="--c:#34d399"><span class="n">4</span><div class="body"><b>给每个叶子挂人 + 估时</b><span>有了人和工时，排期、进度、风险就自动浮现。</span></div></div>
+    </div>
+    <div class="warn rise" style="background:var(--accent-soft);border-color:var(--border-strong);color:var(--text-dim)"><b style="color:var(--accent)">经验：</b>第一层按「东西」（可交付物）拆，比按「先做 A 再做 B」的步骤拆<strong> 更不容易漏项</strong>——动词清单容易漏掉"没人提但必须做"的事。</div>
+    <footer><div class="dots" data-dots></div><div class="nav"><button class="prev">← PREV</button><button class="primary next">NEXT →</button></div></footer>
+  </section>
+
+  <!-- 05 Akke 实战① 宽度 -->
+  <section class="slide" style="--prog:55.6%">
+    <span class="pageno">05 / 09</span>
+    <span class="kicker rise"><span class="dot"></span>实战 ① · 把 3 天画成一棵树</span>
+    <h1 class="rise">用 Akke 这 3 天演示（宽度）</h1>
+    <div class="root-node rise"><span class="em">🎯</span>Akke 抖音自动获客 · 6/23–6/25 迭代</div>
+    <div class="branches rise">
+      <div class="bn" style="--c:#8b5cf6"><h4><span class="k">A</span>图文内容自动发布</h4><div class="leaves"><span class="leaf">题库 DB 化去重 <span class="pr">#525</span></span><span class="leaf">封面按抖音号绑定 <span class="pr">#527</span></span><span class="leaf">多 assignee 调度 <span class="pr">#528</span></span></div></div>
+      <div class="bn" style="--c:#60a5fa"><h4><span class="k">B</span>私信自动回复</h4><div class="leaves"><span class="leaf">网页版 DM 0to1 <span class="pr">#554</span></span><span class="leaf">报价越权硬闸 <span class="pr">#550</span></span><span class="leaf">心跳卡死告警 <span class="pr">#551</span></span></div></div>
+      <div class="bn" style="--c:#34d399"><h4><span class="k">C</span>真实关注数抓取</h4><div class="leaves"><span class="leaf">关注列表探针 <span class="pr">#552</span></span><span class="leaf">抓取器 + 入口 <span class="pr">#543</span></span><span class="leaf">入库→漏斗口径 <span class="pr">#544</span></span></div></div>
+      <div class="bn" style="--c:#fbbf24"><h4><span class="k">D</span>团队旅程看板</h4><div class="leaves"><span class="leaf">入库时延环形图 <span class="pr">#542</span></span><span class="leaf">卡点归因纠偏 <span class="pr">#532</span></span><span class="leaf">高意向时延分布 <span class="pr">#530</span></span></div></div>
+      <div class="bn span2" style="--c:#3fb6cf"><h4><span class="k">E</span>话术 playbook 重构</h4><div class="leaves"><span class="leaf">按客户回复 7 类组织 §2/§3</span><span class="leaf">重点关键词高亮</span><span class="leaf">案例评分 + 删冗余结论</span></div></div>
+    </div>
+    <p class="rise" style="margin-top:12px;font-size:13.5px">这 3 天不是「一堆零散提交」——而是 <span class="hl">5 条并行支线</span>，每条都能再往下拆成一个个可独立交付的工作包。下一页放大 A 支线看「深度」。</p>
+    <footer><div class="dots" data-dots></div><div class="nav"><button class="prev">← PREV</button><button class="primary next">NEXT →</button></div></footer>
+  </section>
+
+  <!-- 06 Akke 实战② 深度 + 收口验证 -->
+  <section class="slide" style="--prog:66.7%">
+    <span class="pageno">06 / 09</span>
+    <span class="kicker rise"><span class="dot"></span>实战 ② · 叶子 = 一个 PR</span>
+    <h1 class="rise">「拆到不能再拆」= 每个叶子就是一个 PR</h1>
+    <div class="vtree rise"><span class="h">🎯 Akke 抖音自动获客</span>
+<span class="g">└─</span> <span class="h">A 图文内容自动发布</span><span class="g">（交付物）</span>
+<span class="g">   ├─</span> A1 题库 DB 化永久去重 + LLM 补题      <span class="pr">#525</span>
+<span class="g">   ├─</span> A2 封面风格按抖音号绑定               <span class="pr">#527</span>
+<span class="g">   ├─</span> A3 多 assignee cron 调度              <span class="pr">#528</span>
+<span class="g">   ├─</span> A4 Lark 卡片真 @ 发送人               <span class="pr">#522</span>
+<span class="g">   └─</span> A5 生成稳定性：max_tokens / retry 调优  <span class="pr">#513 #517 #520</span></div>
+    <div class="akke rise" style="margin-top:12px">
+      <span class="tag">拿 A2 套三条收口法则</span>
+      「封面风格按抖音号绑定 <span class="pr" style="color:var(--accent-2);font-family:var(--font-mono)">#527</span>」：<strong>一人日</strong>——一天能写完合并 <span class="hl2">✓</span>；<strong>单一责任</strong>——一个人负责这个 PR <span class="hl2">✓</span>；<strong>可独立验收</strong>——合并上线后封面按号生效，能直接看到 <span class="hl2">✓</span>。三条全中 → <strong>这就是叶子，不用再拆</strong>。这也是「每块不超过 2 天」那条规矩的本质：<span class="hl">一个 PR ≈ 一个工作包</span>。
+    </div>
+    <footer><div class="dots" data-dots></div><div class="nav"><button class="prev">← PREV</button><button class="primary next">NEXT →</button></div></footer>
+  </section>
+
+  <!-- 07 拆完之后能干嘛 -->
+  <section class="slide" style="--prog:77.8%">
+    <span class="pageno">07 / 09</span>
+    <span class="kicker rise"><span class="dot"></span>价值 · 拆完之后</span>
+    <h1 class="rise">拆到底之后，排期和分工自己就出来了</h1>
+    <p class="sub rise">WBS 的真正回报，是在「拆完」那一刻——下面这些原本要靠拍脑袋的事，全都变成了「数叶子」。</p>
+    <div class="chain rise">
+      <div class="c"><span class="em">估时</span><b>工期 = 叶子相加</b><span>每片估 1 天，加起来就是总工期，不再靠拍脑袋。</span></div>
+      <div class="c"><span class="em">分工</span><b>责任到人</b><span>一个叶子一个负责人，没有「这块以为别人在做」。</span></div>
+      <div class="c"><span class="em">进度</span><b>勾掉就是进度条</b><span>PR 合并 = 一片叶子变绿，进度一眼可见。</span></div>
+    </div>
+    <div class="akke rise" style="margin-top:13px">
+      <span class="tag">对应到我们的做法</span>
+      Akke 里这套是天然落地的：<strong>每个工作包 = 一个 PR</strong>，合并即「叶子勾掉」；部署记录（deploy-ids）= 验收留痕；哪条支线卡住，看哪片叶子迟迟不绿就知道。<span class="hl">WBS 不是额外的文档负担，而是 PR 列表本来就该长的样子。</span>
+    </div>
+    <footer><div class="dots" data-dots></div><div class="nav"><button class="prev">← PREV</button><button class="primary next">NEXT →</button></div></footer>
+  </section>
+
+  <!-- 08 常见误区 -->
+  <section class="slide" style="--prog:88.9%">
+    <span class="pageno">08 / 09</span>
+    <span class="kicker rise"><span class="dot"></span>避坑 · 四个常见错误</span>
+    <h1 class="rise">拆解最容易踩的四个坑</h1>
+    <div class="pitfalls rise">
+      <div class="pit"><b>① 拆太粗</b><span>一个「叶子」要干两周——根本没拆到位，估时和验收都模糊。判据：超过 2 天就接着拆。</span></div>
+      <div class="pit"><b>② 拆太细</b><span>拆到「打开编辑器」这种颗粒度，管理成本反噬、得不偿失。停在「一人日 + 可验收」就够。</span></div>
+      <div class="pit"><b>③ 按动词拆，漏项</b><span>用「先做 A 再做 B」的步骤清单拆，容易漏掉没人提但必须做的事。第一层按「东西」拆更全。</span></div>
+      <div class="pit"><b>④ 叶子挂不到人</b><span>挂到「某部门 / 客户说的」而不是具体人名——没人负责、追不到，等于没拆。</span></div>
+    </div>
+    <div class="warn rise"><b>一句话自检：</b>盯住任意一片叶子，问三遍——「<strong>一天干得完吗？一个人负责吗？怎么算做完了？</strong>」三个都答得干脆，才算拆到位。</div>
+    <footer><div class="dots" data-dots></div><div class="nav"><button class="prev">← PREV</button><button class="primary next">NEXT →</button></div></footer>
+  </section>
+
+  <!-- 09 谁在用 + 总结 -->
+  <section class="slide" style="--prog:100%">
+    <span class="pageno">09 / 09</span>
+    <span class="kicker rise"><span class="dot"></span>总结 · 谁在用 + 一句话带走</span>
+    <h1 class="rise">不是私房秘籍，是行业通用地基</h1>
+    <p class="sub rise">WBS 源自 1960 年代美国国防部 / NASA 的项目管理，后被写进 PMBOK 成为标准。今天几乎所有走正规项目管理的团队都在用，只是叫法和颗粒度不同：</p>
+    <div class="users rise">
+      <span class="u"><b>米哈游</b> 拆到 ≤2 天</span>
+      <span class="u"><b>华为</b> IPD 流程</span>
+      <span class="u"><b>微软</b> Project</span>
+      <span class="u"><b>字节 / 腾讯 / 阿里</b> 研发拆解</span>
+      <span class="u"><b>Jira</b> Epic→Story→Subtask</span>
+      <span class="u"><b>NASA / 国防部</b> WBS 起源</span>
+    </div>
+    <div class="quote amber rise">
+      <b>目标 → 交付物 → 工作包，拆到「一人、一天、可验收」为止。</b>
+      <span class="by">别一上来就埋头干——先把大目标拆成一棵树，拆到每片叶子都满足「一人日 / 单一责任 / 可独立验收」，剩下的就是把叶子一个个勾绿。 —— WBS · 工作分解结构</span>
+    </div>
+    <footer><div class="dots" data-dots></div><div class="nav"><button class="prev">← PREV</button><button class="primary next">NEXT →</button></div></footer>
+  </section>
+
+</div>
+
+<script>
+  const slides=[...document.querySelectorAll('.slide')];
+  const N=slides.length;
+  let cur=0;
+  // 初始化：为每张幻灯片生成 N 个圆点 + 绑定上一页/下一页
+  slides.forEach(s=>{
+    const dw=s.querySelector('[data-dots]');
+    for(let k=0;k<N;k++){const i=document.createElement('i');i.onclick=()=>show(k);dw.appendChild(i);}
+    s.querySelector('.prev').onclick=()=>show(cur-1);
+    s.querySelector('.next').onclick=()=>show(cur+1);
+  });
+  function show(i){
+    cur=(i+N)%N;
+    slides.forEach((s,k)=>{
+      s.classList.toggle('active',k===cur);
+      s.querySelectorAll('[data-dots] i').forEach((d,j)=>d.classList.toggle('on',j===cur));
+      s.querySelector('.prev').disabled=(cur===0);
+      s.querySelector('.next').textContent=(cur===N-1)?'↺ RESTART':'NEXT →';
+    });
+  }
+  document.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight') show(cur+1);
+    if(e.key==='ArrowLeft') show(cur-1);
+  });
+  show(0);
+</script>
+</body>
+</html>
