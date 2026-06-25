@@ -175,8 +175,21 @@ def process_one(row: dict) -> None:
     rc = proc.returncode
     print(f'  [tuwen] {disp_id[:8]} exit={rc}')
 
-    status = 'published' if rc == 0 else 'failed'
-    err = None if rc == 0 else f'creator_publisher exit {rc}'
+    # status 映射 (2026-06-25 彻底修): exit 8 不等于真失败.
+    # creator_publisher step 7 verify_published 是 best-effort: URL 检测 + 多层 VL,
+    # 任一信号 hit 就 exit 0; 全部 miss 才 exit 8. exit 8 实际作品大概率已发出 (发布
+    # 按钮已点 + 表单已提交), 只是 agent 没自信确认. 应该标 needs_review 让运营抽查
+    # creator 后台「作品管理」, 不应该当 failed 让日报误判触发重发.
+    # 真失败 (exit 4/5/6/7) 仍标 failed.
+    if rc == 0:
+        status = 'published'
+        err = None
+    elif rc == 8:
+        status = 'needs_review'
+        err = '⚠ 发布按钮已点 + 表单已提交, 但 verify_published 多层信号都没 hit. 大概率已发出, 抽查 creator 后台「作品管理」确认. (creator_publisher exit 8)'
+    else:
+        status = 'failed'
+        err = f'creator_publisher exit {rc}'
     _safe_complete(disp_id, status, err)
 
     try:

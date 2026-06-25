@@ -598,20 +598,79 @@ def _push_lark_captcha_alert(captcha_type: str, seen_text: str) -> None:
 
 
 def verify_published(title_prefix: str) -> dict:
-    """发完应跳作品列表/详情页, 或弹「发布成功」. VL 校验."""
+    """彻底修版 (2026-06-25): 多信号校验, 不再单 VL 看 toast 那一闪而过.
+
+    历史: 06-24 真发 3 行实际成功但 daily-report 显示 3 ❌ failed (exit 8) — VL
+    截 "发布成功" toast 经常错过 (toast 显示 1-2s 就消失, VL 截图常落在跳转后页面
+    上, 没识别为 "发布成功" 字样, 返回 published=false). 实际作品已经在 creator
+    后台「作品管理」里了.
+
+    新版优先信号:
+      ① URL 检测 (最可靠): 发布成功后 Edge 跳到 creator-micro/content/manage 或
+         work/finish 等. 用 Ctrl+L → Ctrl+C 读地址栏 URL 判定. 浏览器跳转 100% 准.
+      ② VL 看页面 (兜底): 是否离开了发布页 (没有大图片上传区 + 没有发布按钮).
+         离开 = 提交成功 (跳转中). 比看 toast 准很多.
+      ③ 老 VL 看 toast (二次兜底): 万一前两个都炸了再退到老逻辑.
+    任一 hit = published. 都 miss = 真失败.
+    """
+    import pyperclip
+
+    # ── 信号 1: URL via Ctrl+L → Ctrl+C ───────────────────────────────
+    time.sleep(2)  # 等跳转完成 (creator 后台跳转通常 < 1.5s)
+    url = ''
+    try:
+        pyperclip.copy('')  # 清空 clipboard, 防读到旧内容
+        time.sleep(0.15)
+        pyautogui.hotkey('ctrl', 'l'); time.sleep(0.35)  # 焦点到地址栏 + 全选
+        pyautogui.hotkey('ctrl', 'c'); time.sleep(0.4)
+        pyautogui.press('escape'); time.sleep(0.15)  # 取消地址栏聚焦
+        url = pyperclip.paste().strip()
+    except Exception as e:
+        print(f'  [verify] URL 信号读取失败 ({type(e).__name__}: {e}), 走 VL 兜底', file=sys.stderr)
+
+    print(f'  [verify] URL = {url[:120]}')
+
+    # creator 后台发完会跳的几种 URL pattern, 任一 hit = 成功:
+    URL_SUCCESS_PATTERNS = (
+        '/creator-micro/content/manage',  # 作品管理列表
+        '/work/detail',                    # 作品详情页
+        '/work/finish',                    # 发布完成页
+        '/upload/finish',                  # 上传完成页
+    )
+    for p in URL_SUCCESS_PATTERNS:
+        if p in url:
+            return {'published': True, 'method': 'url', 'url': url[:120]}
+
+    # ── 信号 2: VL 看是不是离开了发布页 (兜底) ────────────────────────
     path, _ = _shot('_after_publish.png')
     b64 = base64.b64encode(Path(path).read_bytes()).decode()
-    prompt = (
+    prompt_left = (
+        '这是抖音创作服务平台 (creator.douyin.com) 的某个页面截图. 判断:'
+        '页面是否【还在发布作品页】 (页面有大块"图片上传区/拖拽上传"区域, 或者底部有红色「发布」按钮)?'
+        '如果页面已经离开发布作品页 (例如跳到「作品管理」列表 / 作品详情 / 数据中心 / 创作中心首页等), 回 false.'
+        '只回严格JSON: {"on_publish_page": true/false, "reason": "..."}'
+    )
+    try:
+        d = _pjson(_vision(b64, prompt_left))
+        if d.get('on_publish_page') is False:
+            return {'published': True, 'method': 'vl-left-page', 'url': url[:120], 'detail': d}
+    except Exception as e:
+        print(f'  [verify] VL 信号 2 失败 ({type(e).__name__}: {e}), 走老兜底', file=sys.stderr)
+
+    # ── 信号 3 (二次兜底): 老 VL 看 toast 逻辑 ─────────────────────────
+    prompt_old = (
         '这是抖音创作服务平台发布完图文之后的截图. 判断:'
         '(a) 是否成功发布(页面有「发布成功」/「作品已发布」提示, 或跳到作品列表/详情页)?'
         f'(b) 如果跳到了作品列表, 能否看到一条标题以「{title_prefix[:12]}」开头的最新作品?'
         '只回严格JSON:{"published":true/false,"title_seen":"...","confidence":0~1}'
     )
     try:
-        d = _pjson(_vision(b64, prompt))
+        d = _pjson(_vision(b64, prompt_old))
+        d['method'] = 'vl-toast-fallback'
+        d['url'] = url[:120]
         return d
     except Exception as e:
-        return {'published': False, 'error': f'{type(e).__name__}: {e}'}
+        return {'published': False, 'error': f'{type(e).__name__}: {e}', 'method': 'all-failed', 'url': url[:120]}
 
 
 # ---------- 入口 ----------
