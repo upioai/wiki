@@ -84,7 +84,7 @@
       一个人（饭粒/fanny）把「关注的人一发新视频（≤20min）→ 自动点赞 + 评论1(评视频) + 评论2(搬当初 DM)」这条无影常驻通道，
       从自己的号 <b>一筑</b> 跑通 → 接管夏夏的 <b>零星</b> 号也<b>整台修活</b> → 操作说明发群，待 <b>小文(野荞)</b> 自己把 3 台云电脑照单部署。
       按号分列、按部署生命周期分阶段，标清每个号 <b>做了什么 / 卡在哪 / 怎么解</b>。
-      数据为 DB 实查 + 会话实锤 · 截至 <b>2026-06-24</b>。
+      数据为 DB 实查 + 会话实锤 · 截至 <b>2026-06-25</b>。
     </p>
     <div class="legend">
       <span><i class="dot do"></i>做了什么</span>
@@ -93,6 +93,46 @@
       <span>· e2e = 视频发布→我们三连完成的端到端分钟数（达标线 ≤20min）</span>
     </div>
   </header>
+
+  <!-- 本次更新 6-25 -->
+  <div class="section" style="border-color:var(--green);border-width:2px">
+    <h2>🔧 本次更新 · 2026-06-25 · DM 卡死根治 + 心跳告警 + 云电脑 24h 常开</h2>
+    <p class="hint">一筑凌晨 01:00 DM agent 卡死 8.5h（早上发现一夜没发 DM）→ 定位根因 → 根治补丁 + 心跳告警上线 → 一筑 / 零星两台都升级重启 → Mac 改 24h 常开。route-B（潜在触达）全程没断。</p>
+
+    <div class="callout">
+      <b>事件 · 根因</b>：DM agent 进程没死、无影窗口还开着，看着「正常运行」，其实主循环 8.5h 没动、一条 DM 没发。根因 = 主循环每 ~3min 调的「收件箱捕获」子进程 <code>douyin_dm_autoreply.py</code> 的 <code>subprocess.run</code> <b>无 timeout</b>，某轮收件箱进了乱状态把它挂死 → 整个 poll 循环永久阻塞 → 心跳停 + DM 全停。<b>判活只能看 DB 心跳 <code>last_poll_at</code>，不能看窗口。</b>
+    </div>
+
+    <div class="callout ok">
+      <b>修复 · 四项</b>
+      <ul class="tight">
+        <li><b>根治 timeout</b>：捕获子进程加 <code>timeout=AKKE_DM_AUTOREPLY_TIMEOUT_SEC</code>（默认 240s）+ 超时杀子进程跳过本轮、循环继续转 → 捕获挂死再也冻不死整个循环。（PR #551 已合并部署）</li>
+        <li><b>心跳告警</b>：新 cron <code>/api/cron/wuying-heartbeat-watch</code> 每 5min 读心跳，盯一筑 + 零星两台，停 &gt;20min 推饭粒个人私有群。补现有看门狗抓不到的「崩在两批之间 / 卡死无 claimed 行」缺口。</li>
+        <li><b>两台升级</b>：一筑 + 零星都换带 timeout 的新 agent、只重启 DM 腿（route-B 不动），DB 心跳确认两台都活。</li>
+        <li><b>Mac 24h 常开</b>：停掉「18:00 关无影」的 launchd 任务（<code>com.akke.wuying-close</code>），两台云电脑不再每天被关（两个无影都在同一台 Mac，一改覆盖两台）。</li>
+      </ul>
+    </div>
+
+    <h3 style="font-size:13px;margin:16px 0 7px">📋 云电脑日常运维 SOP（存着照做）</h3>
+    <div class="kb">
+      <div class="kbcard">
+        <h3>每天作息 + 启动</h3>
+        <p>3 个常驻 agent：<b>DM</b>(wuying_poll_agent.py) + route-B <b>监控</b>(watch) + route-B <b>消费</b>(consume)，一次用 <code>start-dm-routeb.bat</code> 起齐（带窗口锁串行）。前提：抖音 PC 登录 + 最大化 + 输入法英文；3 个黑窗口别关。Mac 一台跑两个无影、已设 24h 常开。</p>
+      </div>
+      <div class="kbcard">
+        <h3>升级 agent（换新代码）</h3>
+        <p><code>update.bat</code> 常不在机器上 → 直接 <code>curl.exe -fSL -o wuying_poll_agent.py &lt;镜像URL&gt;</code> 覆盖（<b>必须 curl.exe，不是 PowerShell 的 curl 别名</b>，别名=IWR 会坏文件）。先 <code>Copy-Item …bak</code> 备份、<code>Select-String</code> 验新版。换完文件<b>必须重启 DM 腿</b>才生效。</p>
+      </div>
+      <div class="kbcard">
+        <h3>重启 DM 腿（铁律：别动 route-B）</h3>
+        <p><code>Get-CimInstance …|fl</code> 认出 <code>wuying_poll_agent.py</code> 的 pid → <code>Stop-Process</code> <b>只杀 DM</b> → <code>Remove-Item .douyin-win.lock,.douyin-dm-want</code> → 设 <code>AKKE_WINDOW_LOCK=1</code> 后 <code>Start-Process cmd '/k python wuying_poll_agent.py'</code>。watch / consume 一个不碰。banner 核 <code>account=</code> + <code>rc=off</code>。</p>
+      </div>
+      <div class="kbcard">
+        <h3>判活 / 异常处理</h3>
+        <p><b>判活只认 DB 心跳</b>（&lt;5min=活），不看窗口。收到「agent 没在轮询」告警 → 上机重启 DM 腿。DM 一直 skip「非主页」→ 查抖音前台输入法是不是英文。窗口认法：<b>还在冒新行=活留，停在 <code>wuying-dm&gt;</code> 不动=死关</b>。</p>
+      </div>
+    </div>
+  </div>
 
   <!-- 本次更新 6-24 晚 -->
   <div class="section" style="border-color:var(--green);border-width:2px">
