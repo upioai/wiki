@@ -37,7 +37,7 @@ import time
 import httpx
 
 try:
-    from f2.apps.douyin.utils import ABogusManager
+    from f2.apps.douyin.utils import ABogusManager, TokenManager
 except Exception as e:
     print(f"X 没装 f2：{e}\n   先在无影 PowerShell 跑：pip install f2==0.0.1.7", file=sys.stderr)
     sys.exit(2)
@@ -65,6 +65,25 @@ def cookie_value(cookie_str, name):
         if kv.startswith(name + "="):
             return kv[len(name) + 1:]
     return ""
+
+
+def resolve_mstoken(cookie_str):
+    """following/list 必带 msToken。cookie 里有就用；没有就用 f2 TokenManager 现造真 msToken
+    （无影实测 2026-06-25：dy_cookie.txt 常不含 msToken，gen_real_msToken() 能现申请）。
+    返回 (msToken, 来源标签)。两条都不行返回造的假 token 兜底（多半还是不行，但留信息）。"""
+    ck = cookie_value(cookie_str, "msToken")
+    if ck:
+        return ck, "cookie"
+    try:
+        real = TokenManager.gen_real_msToken()
+        if real:
+            return real, "f2现造"
+    except Exception as e:
+        print(f"  ⚠️ gen_real_msToken 失败：{type(e).__name__}: {str(e)[:80]}", file=sys.stderr)
+    try:
+        return TokenManager.gen_false_msToken(), "f2假造(兜底)"
+    except Exception:
+        return "", "无"
 
 
 def following_params(sec_uid, max_time, offset, count, mstoken):
@@ -102,8 +121,7 @@ def following_params(sec_uid, max_time, offset, count, mstoken):
     }
 
 
-def fetch_following(cookie_str, sec_uid, max_time, offset, count):
-    mstoken = cookie_value(cookie_str, "msToken")
+def fetch_following(cookie_str, sec_uid, max_time, offset, count, mstoken):
     # Referer 指到本号主页（部分端点校验来源页）。
     headers = {"User-Agent": UA, "Referer": f"https://www.douyin.com/user/{sec_uid}", "Cookie": cookie_str,
                "Accept": "application/json, text/plain, */*", "Accept-Language": "zh-CN,zh;q=0.9"}
@@ -165,9 +183,9 @@ def main():
 
     account_id, sec_uid, label = resolve_target(args)
     cookie_str = load_cookie(args)
-    mstoken = cookie_value(cookie_str, "msToken")
+    mstoken, mstoken_src = resolve_mstoken(cookie_str)
     print(f"号 {label}（acct {account_id[:8] or '?'}） sec_uid={sec_uid[:20]}…")
-    print(f"cookie {len(cookie_str)} 字节 | msToken={'有' if mstoken else '✗无(following/list 必报未登录,cookie 要重导含 msToken)'} "
+    print(f"cookie {len(cookie_str)} 字节 | msToken={mstoken_src}({len(mstoken)}字节) "
           f"| 最多 {args.pages} 页 × {args.count} 间隔 {args.sleep}s\n")
 
     max_time = 0
@@ -175,7 +193,7 @@ def main():
     total_reported = None
     follows = {}                # sec_uid -> {sec_uid, nickname, uid}
     for page in range(1, args.pages + 1):
-        data, err = fetch_following(cookie_str, sec_uid, max_time, offset, args.count)
+        data, err = fetch_following(cookie_str, sec_uid, max_time, offset, args.count, mstoken)
         if err:
             print(f"第{page}页 X {err}  → 限流/超时/cookie失效，停在这页（前面的照常算）。")
             break
