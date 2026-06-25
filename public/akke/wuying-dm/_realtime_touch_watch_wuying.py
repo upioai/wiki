@@ -103,6 +103,20 @@ def load_pool_db(db, account):
     return pool
 
 
+def _db_rpc(db, name, payload, timeout=20):
+    """调 PostgREST RPC（stdlib urllib，与 consume 同姿势）。失败抛异常，由调用方兜。"""
+    import urllib.request
+    req = urllib.request.Request(
+        f"{db['url']}/rest/v1/rpc/{name}",
+        data=json.dumps(payload).encode(),
+        headers={"apikey": db["apikey"], "Authorization": f"Bearer {db['bearer']}",
+                 "Content-Type": "application/json"},
+        method="POST")
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        body = resp.read().decode()
+    return json.loads(body) if body else None
+
+
 def _default(name):
     return os.path.join(HERE, name)
 
@@ -206,6 +220,31 @@ def main():
                        "gate": gate}
                 with open(args.queue, "a", encoding="utf-8") as f:
                     f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+                # sighting 写库（DB 配齐才写）：每条 lead 新视频(含 actionable+expired)落一行
+                # pt_target_video_sightings → pt-summary 漏斗「当天更新人数/视频条数」。失败只告警、
+                # 不影响触达（队列已写）。ON CONFLICT DO NOTHING 幂等 + 本地 seen 去重双保险。
+                if db:
+                    try:
+                        _pub = None
+                        if ct:
+                            _pub = datetime.fromtimestamp(int(float(ct)), tz=timezone.utc).isoformat()
+                        _db_rpc(db, "log_sighting", {
+                            "p_org_id": db["org"],
+                            "p_account_id": args.account,
+                            "p_douyin_user_id": sec,
+                            "p_aweme_id": aweme_id,
+                            "p_detected_at": rec["detected_at"],
+                            "p_customer_name": info["name"] or None,
+                            "p_source_comment_id": info["comment_id"] or None,
+                            "p_video_url": rec["video_url"],
+                            "p_video_desc": (desc or "")[:500] or None,
+                            "p_published_at": _pub,
+                            "p_age_min": round(age, 1),
+                            "p_gate": gate,
+                            "p_touched": False,
+                        })
+                    except Exception as e:
+                        emit(f"   ⚠️ sighting 写库失败({type(e).__name__})；不影响触达")
                 if gate == "actionable":
                     actionable += 1
                     emit(f"🔥 可触达! ★{info['name']} 发布{age:.0f}min前 | {desc[:40]} | aweme={aweme_id} → 入队点赞+双评论")
