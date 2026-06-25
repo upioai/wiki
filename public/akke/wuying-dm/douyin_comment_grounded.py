@@ -149,8 +149,14 @@ _REDLINE_RE = re.compile(
 
 
 def has_redline(text):
-    """公开评论红线词(价格/微信)检测——命中则不公开发(防限号)。"""
+    """公开评论红线词(价格/微信)检测。"""
     return bool(_REDLINE_RE.search(text or ''))
+
+
+# 评论2 红线挡：默认【关】=照发（含价格/微信也发）——fanny 2026-06-12 拍板「评论2 逐字照搬、
+# 含价格也发」，接受公开发价格/微信的限号风险（与 consume 端 ⚠️ 注释一致，两端口径对齐）。
+# 设 AKKE_COMMENT2_REDLINE_SKIP=1 才重新挡（含红线时只发评论1）。
+_COMMENT2_REDLINE_SKIP = os.environ.get('AKKE_COMMENT2_REDLINE_SKIP', '').lower() in ('1', 'true', 'yes')
 
 
 def open_first_video():
@@ -446,9 +452,9 @@ def process(c, auto, times=None):
     # 6.5) 发评论2（顺到产品）——评论1【验证发出】且有第二条才发；两条之间留间隔别瞬发
     st2 = 'no_msg2'
     if comment2:
-        if has_redline(comment2):
-            st2 = 'skip_redline'  # 评论2 含价格/微信红线词,公开发会限号 → 只发评论1
-            print('  [评论2跳过] 含红线词(价格/微信),公开发会限号 → 只发评论1。需公开安全版话术')
+        if _COMMENT2_REDLINE_SKIP and has_redline(comment2):
+            st2 = 'skip_redline'  # 仅 AKKE_COMMENT2_REDLINE_SKIP=1 时挡；默认照发(fanny 拍板)
+            print('  [评论2跳过] 含红线词(价格/微信) → 只发评论1(AKKE_COMMENT2_REDLINE_SKIP=1 开了挡)')
         elif st == 'sent':
             time.sleep(random.randint(4, 8))
             st2 = post_comment(comment2)

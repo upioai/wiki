@@ -129,18 +129,23 @@ DM_AUTOREPLY_INTERVAL = int(os.environ.get('AKKE_DM_AUTOREPLY_INTERVAL', '180'))
 # 必是挂死 → 杀子进程、跳过本轮捕获、循环继续转（心跳照常跳）。
 DM_AUTOREPLY_TIMEOUT_SEC = int(os.environ.get('AKKE_DM_AUTOREPLY_TIMEOUT_SEC', '240'))
 
+# web(Edge)通道用 sec_uid 直达主页 URL、不搜人，故不需要抖音号反查 —— 下面两项随之默认关
+# （脚本名含 'web' 即判定，与 _auto_default 同源惯例；显式 env 仍可覆盖）。
+_dm_script_is_web = 'web' in os.environ.get('AKKE_DM_SCRIPT', '').lower()
+
 # 抖音号反查（根治撞名）。默认开 —— 派单只带 sec_uid + 昵称，按昵称搜会撞同名别人
 # （2026-06-09 淡雅事故）。云电脑国内 IP 能通抖音主页接口，发送前用 sec_uid 反查唯一抖音号
 # 当搜索词，命中则精准定位、未命中回退昵称（不比现状差）。需 pip install "f2==0.0.1.7" httpx。
-# 设 AKKE_HANDLE_RESOLVE=0 可关（退回按昵称搜）。
-HANDLE_RESOLVE_ENABLED = os.environ.get('AKKE_HANDLE_RESOLVE', '1').lower() in ('1', 'true', 'yes')
+# 设 AKKE_HANDLE_RESOLVE=0 可关（退回按昵称搜）。web 通道默认关（直达 URL 不搜人、反查无用）。
+HANDLE_RESOLVE_ENABLED = os.environ.get('AKKE_HANDLE_RESOLVE', '0' if _dm_script_is_web else '1').lower() in ('1', 'true', 'yes')
 _handle_cookie = None  # 懒加载的登录态 cookie 头串（DB 优先，cookie.txt 兜底）
 
 # enrich 硬门（2026-06-10，wrong_user 根治第二段）：DM 一触没有抖音号（派单缓存 + 现场反查
 # 都没拿到）就【不跑 GUI】—— 按昵称搜大众名/特殊字符名大概率撞别人，白烧一次完整 GUI 流程
 # 还可能发错人。确定无号 → complete skipped/enrich_failed（计入失败自动抑制）；瞬时反查失败
 # → 留 claimed 等 15min 死锁回收自动重试。设 AKKE_ENRICH_REQUIRE_NUMBER=0 退回旧昵称回退行为。
-ENRICH_REQUIRE_NUMBER = os.environ.get('AKKE_ENRICH_REQUIRE_NUMBER', '1').lower() in ('1', 'true', 'yes')
+# web 通道默认关此门：web 用 sec_uid 直达、压根不需要抖音号，开着会把反查失败的 lead 误跳过。
+ENRICH_REQUIRE_NUMBER = os.environ.get('AKKE_ENRICH_REQUIRE_NUMBER', '0' if _dm_script_is_web else '1').lower() in ('1', 'true', 'yes')
 
 
 def _rpc(name: str, payload: dict):
