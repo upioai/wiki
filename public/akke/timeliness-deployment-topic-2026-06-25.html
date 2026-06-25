@@ -164,9 +164,9 @@
 
     <div class="shadow">
       <div class="h">📌 一分钟看懂(设计 + 卡点)</div>
-      <p><b>整体设计:</b>我们把「一条评论 → 成交」这条流水线拆成<mark>四段:① 采集 → ② 分拣派单 → ③ 自动回复 → ④ 通道发送</mark>,每一段单独提速,而不是笼统地"让它快点"。</p>
-      <p><b>真正的卡点不是"发得慢",而是四个堵点:</b>① 采集等太久(所有号源一律 5 分钟才扫一遍);② 算太多(大量算力浪费在没有新评论的老视频和老评论上);③ 看不到(客户回了消息,系统最坏要 12 小时才发现);④ 没人盯(全靠人工逐条发,深夜没人就断供)。</p>
-      <p><b>四段各个击破后,</b>端到端最坏延迟从 <mark>4 小时 15 分 → 平均 ≤ 10 分钟</mark>。下面每一段都讲:第一次跑通时最快多少、原理怎么转、批量跑后的数据、以及踩过的坑怎么修的。</p>
+      <p><b>整体设计:</b>我们把「一条评论 → 成交」这条流水线拆成<mark>五段:① 采集 → ② 分拣派单 → ③ 触达发送 → ④ 自动回复 → ⑤ 通道自驱</mark>,每一段单独提速,而不是笼统地"让它快点"。</p>
+      <p><b>真正的卡点不是"发得慢",而是几个堵点:</b>① 采集等太久(所有号源一律 5 分钟才扫一遍);② 算太多(大量算力浪费在没有新评论的老视频和老评论上);③ 发不实(返回"成功"其实被静默丢弃);④ 看不到(客户回了消息,系统最坏要 12 小时才发现);⑤ 没人盯(全靠人工逐条发,深夜没人就断供)。</p>
+      <p><b>各个击破后,</b>端到端最坏延迟从 <mark>4 小时 15 分 → 平均 ≤ 10 分钟</mark>。下面每一段都讲:第一次跑通时最快多少、原理怎么转、批量跑后的数据、踩过的坑怎么修的、以及目前还卡在哪。</p>
     </div>
 
     <div class="headline-metric">
@@ -176,7 +176,7 @@
     </div>
 
     <nav class="toc">
-      <a href="#a">① 采集</a><a href="#b">② 分拣派单</a><a href="#c">③ 自动回复</a><a href="#d">④ 通道自驱</a><a href="#next">下一步待做</a>
+      <a href="#a">① 采集</a><a href="#b">② 分拣派单</a><a href="#send">③ 触达发送</a><a href="#c">④ 自动回复</a><a href="#d">⑤ 通道自驱</a><a href="#next">下一步待做</a>
     </nav>
   </div>
 </header>
@@ -264,22 +264,6 @@
       </div>
     </div>
 
-    <div class="block-label">派单 → 触达:那 1 分 37 秒在干嘛</div>
-    <div class="plain" style="border-left-color:var(--good);">
-      <b>派单 ≠ 立刻送达。</b>"派单"只是把这条 lead 交给某个账号;真正发出去还要走四步:
-      <b>① 云电脑认领这条单(锁 4 小时防重复)→ ② 在抖音里搜到这个用户、打开会话 → ③ 模拟人手把打招呼话术粘贴发送 → ④ 解码返回、校验 <code>status_code==0</code> 确认真发出 → 触达 ✓</b>。
-      案例里这段耗时 <mark>1 分 37 秒</mark>——这正是下面<b>节点 ④「通道自驱」</b>在做的事(云电脑挂机自动完成,不用人)。
-    </div>
-    <div class="flow">
-      <div class="step"><div class="n">1</div><div class="ic">🔒</div><div class="st">认领</div><div class="sd">锁 4h 防重复发</div></div>
-      <div class="arrowx">→</div>
-      <div class="step"><div class="n">2</div><div class="ic">🔎</div><div class="st">搜到用户开会话</div><div class="sd">GUI 找到本人</div></div>
-      <div class="arrowx">→</div>
-      <div class="step"><div class="n">3</div><div class="ic">🖱️</div><div class="st">模拟人手发</div><div class="sd">粘贴话术发送</div></div>
-      <div class="arrowx">→</div>
-      <div class="step"><div class="n">4</div><div class="ic">✔️</div><div class="st">解码验证</div><div class="sd">status_code==0 才算触达</div></div>
-    </div>
-
     <div class="block-label">0 → 1 是怎么跑通的</div>
     <div class="flow">
       <div class="step"><div class="n">1</div><div class="ic">📥</div><div class="st">评论进库</div><div class="sd">来自上一段采集</div></div>
@@ -312,10 +296,56 @@
   </div>
 </section>
 
+<!-- ================= 节点 触达发送 ================= -->
+<section id="send">
+  <div class="wrap">
+    <div class="sec-head"><span class="sec-no">③</span><h2>触达发送 — 把私信真发到客户手里</h2></div>
+    <div class="plain">🪧 <b>用大白话讲:</b>"派单"只是把这条 lead 交给某个账号,客户还没收到。真正发出去要靠云电脑:<b>认领 → 搜到本人 → 模拟人手把话术粘贴发送 → 解码返回验证"真发出了"才算数</b>。这一段就是把"派了单"变成"客户真收到了"。</div>
+
+    <div class="block-label">第一个案例 · 最快速度</div>
+    <div class="first-case">
+      <div class="speed"><div class="num">1 分 37 秒</div><div class="cap">派单 →<br/>私信触达</div></div>
+      <div class="desc">
+        <div class="t">真实 DM 打招呼案例「师傅 来一份」(中意向) · 2026-06-25 08:40 <span style="display:inline-block; font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px; background:rgba(52,211,153,.15); color:var(--good); border:1px solid rgba(52,211,153,.35); margin-left:6px;">✓ 已送达</span></div>
+        派单后云电脑认领 → 搜到用户开会话 → 模拟人手发 → 解码校验 <code>status_code==0</code>,<mark>1 分 37 秒</mark>私信触达客户(与采集/派单同一条 lead,评论→发出全程 2 分 34 秒)。
+        <div class="src">来源:lead 旅程实测 2026-06-25</div>
+      </div>
+    </div>
+
+    <div class="block-label">0 → 1 是怎么跑通的</div>
+    <div class="flow">
+      <div class="step"><div class="n">1</div><div class="ic">🔒</div><div class="st">认领这条单</div><div class="sd">锁 4h 防重复发</div></div>
+      <div class="arrowx">→</div>
+      <div class="step"><div class="n">2</div><div class="ic">🔎</div><div class="st">搜到用户开会话</div><div class="sd">GUI 找到本人</div></div>
+      <div class="arrowx">→</div>
+      <div class="step"><div class="n">3</div><div class="ic">🖱️</div><div class="st">模拟人手发</div><div class="sd">粘贴话术发送</div></div>
+      <div class="arrowx">→</div>
+      <div class="step"><div class="n">4</div><div class="ic">✔️</div><div class="st">解码验证</div><div class="sd">status_code==0 才算送达</div></div>
+    </div>
+
+    <div class="block-label">按这套逻辑批量跑起来后</div>
+    <div class="metrics">
+      <div class="metric"><div class="big flux">~1.5min</div><div class="lbl">派单→触达 典型耗时</div></div>
+      <div class="metric"><div class="big">1-2min</div><div class="lbl">单条 GUI 串发</div></div>
+      <div class="metric"><div class="big">status_code==0</div><div class="lbl">解码校验才算"真送达"<br/>(不信协议层 OK)</div></div>
+    </div>
+
+    <div class="block-label">踩过的坑 & 怎么修的</div>
+    <table>
+      <thead><tr><th>遇到的问题(现象)</th><th>怎么修的</th><th>进展</th></tr></thead>
+      <tbody>
+        <tr><td class="case"><b>"发成功"是假的</b>:抖音返回协议层 OK(cmd=100),但业务层被静默丢弃(status_code 7911=陌生人限速,24h 冷却),脚本还以为发出去了</td><td>必须解码消息体、校验 <mark>status_code==0 才算成功</mark>;加速率防护 + 滚动 24h 配额计数</td><td><span class="badge b-fixed">✅ 已修</span></td></tr>
+        <tr><td class="case"><b>"输入框清空=已发"信号有假阳性</b>:就地回复用输入框被清空判定"已发",偶发误判;打字前窗口没置前还会把按键漏进后台控制台</td><td>打字前强制把抖音窗口置前;发送信号升级为<b>读回对方气泡</b>确认</td><td><span class="badge b-part">⚠️ 收敛中</span></td></tr>
+      </tbody>
+    </table>
+    <div class="blocker"><span class="bi">🚧</span><div><span class="bt">目前卡点:</span>同一个号一个界面只能<b>串行</b>发(发得慢、量上不去);陌生人 DM 软上限 ~18-20 条/24h 是平台硬约束;发送成功信号还在从"输入框清空"升级到"读回气泡"。</div></div>
+  </div>
+</section>
+
 <!-- ================= 节点 C 自动回复 ================= -->
 <section id="c">
   <div class="wrap">
-    <div class="sec-head"><span class="sec-no">③</span><h2>自动回复时效 — 客户一回消息就秒接</h2></div>
+    <div class="sec-head"><span class="sec-no">④</span><h2>自动回复时效 — 客户一回消息就秒接</h2></div>
     <div class="plain">🪧 <b>用大白话讲:</b>客户回了私信,系统要立刻看到(靠"未读红点"),AI 立刻写好回复,自动发出去。这块体感最强——从"最坏等 12 小时"一路压到 <b>3-4 分钟</b>。</div>
 
     <div class="block-label">第一个案例 · 最快速度</div>
@@ -379,8 +409,8 @@
 <!-- ================= 节点 D 通道自驱 ================= -->
 <section id="d">
   <div class="wrap">
-    <div class="sec-head"><span class="sec-no">④</span><h2>通道自驱化 — 让云电脑自己挂机发</h2></div>
-    <div class="plain">🪧 <b>用大白话讲:</b>最底层是"谁来发"。从人工逐条发,变成<b>云电脑挂机自动发</b>——每分钟问一次"有单吗",认领一条就模拟人手发出去,还要解码验证"真发出去了"才算数。把端到端从小时级拉到分钟级。</div>
+    <div class="sec-head"><span class="sec-no">⑤</span><h2>通道自驱化 — 让它无人值守、7×24 跑起来</h2></div>
+    <div class="plain">🪧 <b>用大白话讲:</b>节点 ③ 讲的是"把一条私信可靠发出去";这一段讲<b>怎么让云电脑无人值守地大规模、全天候跑</b>——每分钟自动问"有单吗"、认领、发送(细节见③)、再回到挂机,人彻底走开。最大的卡点不是发得慢,而是"有没有人在发"。</div>
 
     <div class="block-label">第一个案例 · 最快速度</div>
     <div class="first-case">
@@ -417,7 +447,6 @@
     <table>
       <thead><tr><th>遇到的问题(现象)</th><th>怎么修的</th><th>进展</th></tr></thead>
       <tbody>
-        <tr><td class="case"><b>"发成功"是假的</b>:抖音返回协议层 OK(cmd=100),但业务层被静默丢弃(status_code 7911=陌生人限速,24h 冷却),脚本还以为发出去了</td><td>必须解码消息体、校验 <mark>status_code==0 才算成功</mark>;加速率防护 + 滚动 24h 配额计数</td><td><span class="badge b-fixed">✅ 已修</span></td></tr>
         <tr><td class="case"><b>本机国内访问全断</b>:Mac 上 VPN 的 fake-IP 模式劫持了 DNS,抖音域名解析到占位 IP,看似走代理实际断</td><td>批量操作搬到云电脑(国内 IP 无 VPN 干扰);本机调试时关 VPN 或加直连规则</td><td><span class="badge b-fixed">✅ 已绕过</span></td></tr>
         <tr><td class="case"><b>派单机制突然裂开</b>:代码合并了但数据库迁移没真跑,新字段不存在,cron 查报错、单子堆积</td><td>铁律:高危迁移合并后立刻查字段是否真存在;高危路径必须走 PR(PR #499 阶梯降级保住安全列)</td><td><span class="badge b-fixed">✅ 已修</span></td></tr>
         <tr><td class="case"><b>云电脑深夜休眠断供</b>:个人版云电脑不是 24/7,会自动休眠,深夜没人唤醒就不发</td><td>决策迁企业版 3 台(¥199/台/年),自带唤醒 API、脱离按时计费</td><td><span class="badge b-plan">🔵 已决策·待落地</span></td></tr>
@@ -427,7 +456,7 @@
         <tr><td class="case"><span style="color:var(--muted); font-size:12px;">[潜在触达]</span> <b>陌生人评论"评论自见"软封</b>:贴评论本号能看见、别人看不见(平台软封),非话术问题</td><td>单账号不适合常驻,风控比私信严 → 改作辅助渠道</td><td><span class="badge b-part">⚠️ 已知约束</span></td></tr>
       </tbody>
     </table>
-    <div class="blocker"><span class="bi">🚧</span><div><span class="bt">目前卡点:</span>个人版云电脑深夜休眠(全天约 87% 时间黑屏无派单)是最大未解杠杆,企业版 3 台已决策但还没落地;陌生人 DM 软上限 ~18-20 条/24h 是硬约束;DM × 潜在触达 同机窗口锁的进程间通信仍待 PoC。</div></div>
+    <div class="blocker"><span class="bi">🚧</span><div><span class="bt">目前卡点:</span>个人版云电脑深夜休眠(全天约 87% 时间黑屏无派单)是最大未解杠杆,企业版 3 台已决策但还没落地;DM × 潜在触达 同机窗口锁的进程间通信仍待 PoC;潜在触达"评论自见"软封,使单账号不宜常驻该通道。</div></div>
   </div>
 </section>
 
