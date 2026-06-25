@@ -270,6 +270,17 @@ function dispatchWhy(r){
   if(r.status==="pending" || r.status==="claimed")
     return "进行中：已派单，" + (r.claimedAt ? "已抢锁、等 GUI 串发" : "等无影下一跳轮询抢锁") + "，尚未真发出";
   const em = r.errorMessage || "";
+  // 评论超时放弃：评论→抓取 > 5min 把端到端推过 10min 时效线、判过期不发的，
+  // 归因到上游抓取耗时（爬虫入库慢才是主因，不是派单/串发段的问题）。
+  const isExpired = em.indexOf("expired_") === 0;
+  const scrapeMs = gapMs(r.commentTime, r.scrapedAt);
+  if(isExpired && scrapeMs != null && scrapeMs > 5*60000){
+    const atClaim = em.indexOf("at_claim") >= 0;
+    return "评论超时放弃：评论→抓取就耗了 " + fmtMin(scrapeMs) + "（>5min），"
+      + "把端到端推过 10min 时效线，"
+      + (atClaim ? "抢锁那刻判过期、放弃发送" : "入队那刻判过期、不进串发")
+      + "，故无触达时间";
+  }
   const map = {
     "rejected": "运营在无影端人工驳回（话术 / 对象不合适），未发出",
     "wrong_user": "搜索定位撞名、身份门拦截，未发出",
