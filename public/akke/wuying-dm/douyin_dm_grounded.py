@@ -134,9 +134,10 @@ C_CLOSE = _coord('AKKE_C_CLOSE', (976, 50))           # 聊天窗口右上角×�
 # 缩略图每人封面不同→只能固定坐标(宫格首格位置稳定),不能模板匹配。
 C_WORK_FIRST = _coord('AKKE_C_WORK_FIRST', None)       # 主页作品宫格第一个(最新)作品封面中心
 C_LIKE = _coord('AKKE_C_LIKE', None)                   # 作品播放页点赞♡(心形)按钮中心
-# 发私信前关注用户用(2026-06-09)。默认 None=未采坐标→自动跳过关注,不盲点。
+# 发私信前关注用户用(2026-06-09;2026-06-24 改硬要求)。关注是首触 DM 必做步骤,不再因未采坐标静默跳过:
+# 有坐标走坐标,未采坐标(None)则 follow_user() 用 VL 实时定位关注按钮兜底。坐标稳定时仍建议量准更快更稳。
 # 主页头部「关注」按钮位置稳定→固定坐标。measure_nav.py 一并量,写进 .env: AKKE_C_FOLLOW。
-C_FOLLOW = _coord('AKKE_C_FOLLOW', None)                # 主页头部「关注」按钮中心
+C_FOLLOW = _coord('AKKE_C_FOLLOW', None)                # 主页头部「关注」按钮中心(可空→VL 兜底)
 # 点赞后退回主页用(2026-06-09)。视频页左上角「返回」按钮——Esc 退不出视频层(吃焦点,
 # 二触脚本实测),点返回键才稳。与 douyin_comment_grounded.py 共用同一 .env 的 AKKE_C_BACK;
 # 二触配过就直接复用,没配则 None→VL 实时定位左上角返回键。
@@ -737,24 +738,45 @@ def like_latest_work(nick):
         return 'failed'
 
 
+def _click_follow_btn(label):
+    """点一次「关注」按钮:有 C_FOLLOW 走固定坐标,否则 VL 实时定位(镜像 web 通道,缺坐标不再跳过)。
+    返回 True=点了一次 / False=连 VL 都没定位到(此时不盲点)。"""
+    if C_FOLLOW:
+        click_norm(C_FOLLOW[0], C_FOLLOW[1], wait=1.5, label=label)
+        return True
+    pt = None
+    try:
+        pt = locate('抖音PC个人主页头部的【关注按钮】(在「私信」按钮附近、按钮上写着"关注"二字)。不要选「私信」',
+                    region=(0.30, 0.04, 1.0, 0.40))
+    except Exception:
+        pt = None
+    if not pt:
+        return False
+    pyautogui.click(pt[0], pt[1])
+    time.sleep(1.5)
+    return True
+
+
 def follow_user():
     """OCR 核身份通过后、在个人主页上点「关注」按钮(在 like_latest_work 之前调,此时确定停在主页)。
-    best-effort:坐标未采(AKKE_C_FOLLOW)/失败都不抛异常、不阻断私信。返回 'followed'/'no_coords'/'failed'。
-    注意:已关注的用户再点会【取消关注】——陌生潜客几乎不会已关注,可接受(与点赞同款权衡);
-    给老用户二次触达时想关掉本步,把 .env 里 AKKE_C_FOLLOW 留空即可。坐标: AKKE_C_FOLLOW。"""
-    if not C_FOLLOW:
-        return 'no_coords'   # 未采坐标 → 跳过关注,不盲点 0,0
+    关注是首触 DM【必做】步骤(2026-06-24 改硬要求):未采坐标(AKKE_C_FOLLOW)改用 VL 实时定位兜底,不再静默跳过;
+    仅当 VL 也定位不到 / 点击异常时才放过——best-effort 不抛异常、不阻断私信。
+    返回 'followed'/'already'/'click_no_effect'/'not_found'/'failed'。
+    注意:已关注的用户再点会【取消关注】——陌生潜客几乎不会已关注,可接受(与点赞同款权衡)。"""
     try:
         # 先看是不是已关注(避免再点成取消关注)
         if _is_followed() is True:
             print('  [关注] 已是关注态,跳过')
             return 'already'
-        click_norm(C_FOLLOW[0], C_FOLLOW[1], wait=1.5, label='关注')
+        if not _click_follow_btn('关注'):
+            print('  [关注] 无坐标且 VL 定位不到关注按钮 → 放过(不阻断私信)')
+            return 'not_found'
         if _is_followed() is True:
             return 'followed'
         # 没生效:无影单击偶尔只唤醒窗口不注册 → 重点一次
         print('  [关注] 首点未生效,重点一次')
-        click_norm(C_FOLLOW[0], C_FOLLOW[1], wait=1.5, label='关注(重点)')
+        if not _click_follow_btn('关注(重点)'):
+            return 'click_no_effect'
         return 'followed' if _is_followed() is True else 'click_no_effect'
     except Exception as e:
         print('  [关注] 失败(%s) → 继续私信' % e)
