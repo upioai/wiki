@@ -123,6 +123,11 @@ DM_AUTOREPLY_CAPTURE_ENABLED = os.environ.get('AKKE_DM_AUTOREPLY_CAPTURE', '').l
 # 配合 webhook 秒级生成，端到端 ~3-4min。想更紧(120s≈2min)可设 env，但与 route-B/RC 同号共存、
 # 窗口锁(PR4)上线前别压太低、防抢二触 consume 的窗口。设 0 = 每轮都扫。
 DM_AUTOREPLY_INTERVAL = int(os.environ.get('AKKE_DM_AUTOREPLY_INTERVAL', '180'))
+# 捕获子进程硬超时（秒）。正常扫收件箱只需秒级；一旦在某个 GUI 状态上挂住（如收件箱进了
+# 乱状态、模态卡住），没超时会让 subprocess.run 永久阻塞 → 整个 poll 循环冻死、心跳停、DM
+# 全停（2026-06-25 饭粒凌晨 01:00 卡死 8.5h 的根因）。240s 足够最慢的一次正常捕获，超了
+# 必是挂死 → 杀子进程、跳过本轮捕获、循环继续转（心跳照常跳）。
+DM_AUTOREPLY_TIMEOUT_SEC = int(os.environ.get('AKKE_DM_AUTOREPLY_TIMEOUT_SEC', '240'))
 
 # 抖音号反查（根治撞名）。默认开 —— 派单只带 sec_uid + 昵称，按昵称搜会撞同名别人
 # （2026-06-09 淡雅事故）。云电脑国内 IP 能通抖音主页接口，发送前用 sec_uid 反查唯一抖音号
@@ -974,8 +979,12 @@ def main():
                 print(f'[{datetime.now():%H:%M:%S}] 收件箱捕获(每{_iv_h}一次) mode={_ar_mode}')
                 try:
                     with _wl.dm_batch():   # 置 .dm-want → route-B 让位(autoreply 优先于一触/二触)
+                        # 硬超时：捕获挂死不能拖垮整个 poll 循环（见 DM_AUTOREPLY_TIMEOUT_SEC）。
                         subprocess.run([sys.executable, str(DOUYIN_AUTOREPLY_PY), _ar_mode],
-                                       cwd=str(WORK_DIR))
+                                       cwd=str(WORK_DIR), timeout=DM_AUTOREPLY_TIMEOUT_SEC)
+                except subprocess.TimeoutExpired:
+                    print(f'!! dm-autoreply ({_ar_mode}) 超时 {DM_AUTOREPLY_TIMEOUT_SEC}s 已杀子进程，跳过本轮捕获继续转',
+                          file=sys.stderr)
                 except Exception as e:
                     print(f'!! dm-autoreply ({_ar_mode}) error: {e}', file=sys.stderr)
 
