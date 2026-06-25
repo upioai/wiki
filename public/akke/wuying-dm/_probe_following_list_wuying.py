@@ -58,12 +58,23 @@ KNOWN_ACCOUNTS = {
 }
 
 
-def following_params(sec_uid, max_time, offset, count):
+def cookie_value(cookie_str, name):
+    """从 cookie 串里抠某个键的值（如 msToken）。没有返回 ""。"""
+    for kv in cookie_str.split(";"):
+        kv = kv.strip()
+        if kv.startswith(name + "="):
+            return kv[len(name) + 1:]
+    return ""
+
+
+def following_params(sec_uid, max_time, offset, count, mstoken):
     """user/following/list 参数。common 块照 follow/feed；following 专属在下半段。
 
-    ⚠️ 未知数①：web 端 following/list 用 user_id=数字 uid + sec_user_id=sec_uid。我们只有 sec_uid，
-       先两个都填 sec_uid 试。若首页 status_code≠0（常见错：user_id 非法），把 user_id 换成数字 uid——
-       数字 uid 可从该号主页 URL（douyin.com/user/<sec_uid> 跳转后）或 user/profile 端点解。
+    关键差异（2026-06-25 无影实测）：following/list 比 follow/feed 多要 msToken——直接用 f2 底层签名
+    时 feed 不计较、following/list 不带就回 status_code=8「用户未登录」。所以这里把 cookie 里的
+    msToken 抠出来一起带上（参与 a_bogus 签名）。
+    ⚠️ user_id：web 端正式是 user_id=数字 uid + sec_user_id=sec_uid。我们只有 sec_uid，先 user_id 留空、
+       只靠 sec_user_id 试；若签名通(非未登录)但报找不到用户，再换数字 uid。
     源排序 source_type=1=按关注时间倒序；翻页用 max_time（传上一页返回的 min_time）。
     """
     return {
@@ -77,7 +88,7 @@ def following_params(sec_uid, max_time, offset, count):
         "cpu_core_num": "12", "device_memory": "8", "platform": "PC", "downlink": "10",
         "effective_type": "4g", "round_trip_time": "100",
         # ---- following/list 专属 ----
-        "user_id": sec_uid,          # ⚠️ 可能要换数字 uid，见 docstring
+        "user_id": "",               # 先留空只靠 sec_user_id；不行再换数字 uid，见 docstring
         "sec_user_id": sec_uid,
         "offset": str(offset),
         "min_time": "0",
@@ -87,14 +98,18 @@ def following_params(sec_uid, max_time, offset, count):
         "gps_access": "0",
         "address_book_access": "0",
         "is_top": "1",
+        "msToken": mstoken,          # ← following/list 必带，否则「用户未登录」
     }
 
 
 def fetch_following(cookie_str, sec_uid, max_time, offset, count):
-    headers = {"User-Agent": UA, "Referer": "https://www.douyin.com/", "Cookie": cookie_str,
+    mstoken = cookie_value(cookie_str, "msToken")
+    # Referer 指到本号主页（部分端点校验来源页）。
+    headers = {"User-Agent": UA, "Referer": f"https://www.douyin.com/user/{sec_uid}", "Cookie": cookie_str,
                "Accept": "application/json, text/plain, */*", "Accept-Language": "zh-CN,zh;q=0.9"}
     try:
-        ep = ABogusManager.model_2_endpoint(UA, FOLLOWING_LIST, following_params(sec_uid, max_time, offset, count))
+        params = following_params(sec_uid, max_time, offset, count, mstoken)
+        ep = ABogusManager.model_2_endpoint(UA, FOLLOWING_LIST, params)
         r = httpx.get(ep, headers=headers, timeout=20, follow_redirects=True)
     except Exception as e:
         return None, f"{type(e).__name__}: {str(e)[:120]}"
@@ -150,8 +165,10 @@ def main():
 
     account_id, sec_uid, label = resolve_target(args)
     cookie_str = load_cookie(args)
+    mstoken = cookie_value(cookie_str, "msToken")
     print(f"号 {label}（acct {account_id[:8] or '?'}） sec_uid={sec_uid[:20]}…")
-    print(f"cookie {len(cookie_str)} 字节 | 最多 {args.pages} 页 × {args.count} 间隔 {args.sleep}s\n")
+    print(f"cookie {len(cookie_str)} 字节 | msToken={'有' if mstoken else '✗无(following/list 必报未登录,cookie 要重导含 msToken)'} "
+          f"| 最多 {args.pages} 页 × {args.count} 间隔 {args.sleep}s\n")
 
     max_time = 0
     offset = 0
