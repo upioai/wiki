@@ -45,6 +45,28 @@ except Exception as e:
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0")
 FOLLOWING_LIST = "https://www.douyin.com/aweme/v1/web/user/following/list/"
+USER_PROFILE = "https://www.douyin.com/aweme/v1/web/user/profile/other/"
+
+
+def common_params():
+    """两个端点共用的浏览器指纹/通用参数（同 follow/feed）。"""
+    return {
+        "device_platform": "webapp", "aid": "6383", "channel": "channel_pc_web",
+        "pc_client_type": "1", "version_code": "290100", "version_name": "29.1.0",
+        "cookie_enabled": "true", "screen_width": "1920", "screen_height": "1080",
+        "browser_language": "zh-CN", "browser_platform": "Win32", "browser_name": "Edge",
+        "browser_version": "130.0.0.0", "browser_online": "true", "engine_name": "Blink",
+        "engine_version": "130.0.0.0", "os_name": "Windows", "os_version": "10",
+        "cpu_core_num": "12", "device_memory": "8", "platform": "PC", "downlink": "10",
+        "effective_type": "4g", "round_trip_time": "100",
+    }
+
+
+def with_mstoken_cookie(cookie_str, mstoken):
+    """把 msToken 塞进 cookie 头（若原 cookie 没有），保证 cookie.msToken == 参数.msToken。"""
+    if mstoken and "msToken=" not in cookie_str:
+        return cookie_str.rstrip("; ") + f"; msToken={mstoken}"
+    return cookie_str
 
 # 便捷映射：accounts.sec_uid（migration 20260527141304 种好）。无影够不到 DB，内置 3 个常量省得手敲。
 # 名字 / handle / account-uuid 前缀都能命中。
@@ -86,49 +108,51 @@ def resolve_mstoken(cookie_str):
         return "", "无"
 
 
-def following_params(sec_uid, max_time, offset, count, mstoken):
-    """user/following/list 参数。common 块照 follow/feed；following 专属在下半段。
+def _headers(cookie_str, sec_uid):
+    # Referer 指到本号主页（部分端点校验来源页）。
+    return {"User-Agent": UA, "Referer": f"https://www.douyin.com/user/{sec_uid}", "Cookie": cookie_str,
+            "Accept": "application/json, text/plain, */*", "Accept-Language": "zh-CN,zh;q=0.9"}
 
-    关键差异（2026-06-25 无影实测）：following/list 比 follow/feed 多要 msToken——直接用 f2 底层签名
-    时 feed 不计较、following/list 不带就回 status_code=8「用户未登录」。所以这里把 cookie 里的
-    msToken 抠出来一起带上（参与 a_bogus 签名）。
-    ⚠️ user_id：web 端正式是 user_id=数字 uid + sec_user_id=sec_uid。我们只有 sec_uid，先 user_id 留空、
-       只靠 sec_user_id 试；若签名通(非未登录)但报找不到用户，再换数字 uid。
-    源排序 source_type=1=按关注时间倒序；翻页用 max_time（传上一页返回的 min_time）。
-    """
+
+def fetch_profile(cookie_str, sec_uid, mstoken):
+    """打 user/profile/other：直接返回 following_count(真实关注数) + 数字 uid + nickname。
+    比 following/list 轻、限制也松；既拿到漏斗要的数，又拿到 following/list 要的数字 uid。"""
+    params = {**common_params(), "sec_user_id": sec_uid, "msToken": mstoken,
+              "source": "channel_pc_web", "publish_video_strategy_type": "2"}
+    ck = with_mstoken_cookie(cookie_str, mstoken)
+    try:
+        ep = ABogusManager.model_2_endpoint(UA, USER_PROFILE, params)
+        r = httpx.get(ep, headers=_headers(ck, sec_uid), timeout=20, follow_redirects=True)
+        return r.json(), None
+    except Exception as e:
+        return None, f"{type(e).__name__}: {str(e)[:120]}"
+
+
+def following_params(numeric_uid, sec_uid, max_time, offset, count, mstoken):
+    """user/following/list 参数。user_id 用 profile 解出的【数字 uid】（留空/填 sec_uid 都报未登录）。
+    msToken 必带且 cookie 头里也塞同一个（见 with_mstoken_cookie）。source_type=1=按关注时间倒序。"""
     return {
-        # ---- common（同 feed_params）----
-        "device_platform": "webapp", "aid": "6383", "channel": "channel_pc_web",
-        "pc_client_type": "1", "version_code": "290100", "version_name": "29.1.0",
-        "cookie_enabled": "true", "screen_width": "1920", "screen_height": "1080",
-        "browser_language": "zh-CN", "browser_platform": "Win32", "browser_name": "Edge",
-        "browser_version": "130.0.0.0", "browser_online": "true", "engine_name": "Blink",
-        "engine_version": "130.0.0.0", "os_name": "Windows", "os_version": "10",
-        "cpu_core_num": "12", "device_memory": "8", "platform": "PC", "downlink": "10",
-        "effective_type": "4g", "round_trip_time": "100",
-        # ---- following/list 专属 ----
-        "user_id": "",               # 先留空只靠 sec_user_id；不行再换数字 uid，见 docstring
+        **common_params(),
+        "user_id": numeric_uid,
         "sec_user_id": sec_uid,
         "offset": str(offset),
         "min_time": "0",
         "max_time": str(max_time),
         "count": str(count),
-        "source_type": "1",          # 1=最近关注倒序
+        "source_type": "1",
         "gps_access": "0",
         "address_book_access": "0",
         "is_top": "1",
-        "msToken": mstoken,          # ← following/list 必带，否则「用户未登录」
+        "msToken": mstoken,
     }
 
 
-def fetch_following(cookie_str, sec_uid, max_time, offset, count, mstoken):
-    # Referer 指到本号主页（部分端点校验来源页）。
-    headers = {"User-Agent": UA, "Referer": f"https://www.douyin.com/user/{sec_uid}", "Cookie": cookie_str,
-               "Accept": "application/json, text/plain, */*", "Accept-Language": "zh-CN,zh;q=0.9"}
+def fetch_following(cookie_str, numeric_uid, sec_uid, max_time, offset, count, mstoken):
+    ck = with_mstoken_cookie(cookie_str, mstoken)
     try:
-        params = following_params(sec_uid, max_time, offset, count, mstoken)
+        params = following_params(numeric_uid, sec_uid, max_time, offset, count, mstoken)
         ep = ABogusManager.model_2_endpoint(UA, FOLLOWING_LIST, params)
-        r = httpx.get(ep, headers=headers, timeout=20, follow_redirects=True)
+        r = httpx.get(ep, headers=_headers(ck, sec_uid), timeout=20, follow_redirects=True)
     except Exception as e:
         return None, f"{type(e).__name__}: {str(e)[:120]}"
     try:
@@ -188,12 +212,30 @@ def main():
     print(f"cookie {len(cookie_str)} 字节 | msToken={mstoken_src}({len(mstoken)}字节) "
           f"| 最多 {args.pages} 页 × {args.count} 间隔 {args.sleep}s\n")
 
+    # ① 先打 profile：拿真实关注数 following_count + 数字 uid（following/list 的 user_id 要它）。
+    numeric_uid = ""
+    following_count = None
+    pdata, perr = fetch_profile(cookie_str, sec_uid, mstoken)
+    if perr:
+        print(f"profile X {perr}")
+    else:
+        u = (pdata or {}).get("user") or {}
+        numeric_uid = str(u.get("uid") or "")
+        following_count = u.get("following_count")
+        print(f"profile status_code={pdata.get('status_code')} → 昵称={u.get('nickname','?')} "
+              f"数字uid={numeric_uid or '✗解不出'} 真实关注数 following_count={following_count} "
+              f"粉丝={u.get('follower_count')}")
+        if pdata.get("status_code") not in (0, None) or not numeric_uid:
+            print("  ⚠️ profile 原始返回头：" + json.dumps(pdata, ensure_ascii=False)[:400])
+    print()
+
+    # ② 再用数字 uid 拉 following/list 完整名单。
     max_time = 0
     offset = 0
-    total_reported = None
+    total_reported = following_count   # following_count 作真实关注数基准
     follows = {}                # sec_uid -> {sec_uid, nickname, uid}
     for page in range(1, args.pages + 1):
-        data, err = fetch_following(cookie_str, sec_uid, max_time, offset, args.count, mstoken)
+        data, err = fetch_following(cookie_str, numeric_uid, sec_uid, max_time, offset, args.count, mstoken)
         if err:
             print(f"第{page}页 X {err}  → 限流/超时/cookie失效，停在这页（前面的照常算）。")
             break
@@ -239,6 +281,8 @@ def main():
             "account_id": account_id,
             "account_name": label,
             "sec_uid": sec_uid,
+            "numeric_uid": numeric_uid,
+            "following_count": following_count,   # profile 报的真实关注数（漏斗用）
             "total": total_reported,
             "fetched": len(follows),
             "follows": list(follows.values()),
