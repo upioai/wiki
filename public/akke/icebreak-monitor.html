@@ -194,7 +194,7 @@
   <div class="notes">
     <b>口径说明</b>
     <ul>
-      <li><b>回复率（按人）＝ 分子 ÷ 分母</b>，统计窗口 <b>v41 上线（2026-06-05）起至今</b>累计。<b>分子＝案例库回复案例数</b>（<code>/akke/cases/manifest.json</code> 里 <code>date≥2026-06-05</code> 的案例，人工核的真实回复源）；<b>分母＝DB 被私信人数</b>（<code>messages.role=ai·sent</code> 的 distinct 会话）。</li>
+      <li><b>回复率（按人）＝ 分子 ÷ 分母</b>，默认统计窗口 <b>近 14 天滚动</b>（贴近期战况，非 v41 起累计；想换天数改后端 <code>REPLY_WINDOW_DAYS</code>）。<b>分子＝案例库窗口内回复案例数</b>（<code>/akke/cases/manifest.json</code> 里 <code>date≥窗口起点</code> 的案例，人工核的真实回复源）；<b>分母＝DB 该窗口被私信人数</b>（<code>messages.role=ai·sent</code> 的 distinct 会话）。</li>
       <li><b>为何不用纯 SQL 数回复</b>：回复回流管道不完整（云电脑 GUI 通道无回执、<code>check-replies</code> cron 自 6/05 下线、<code>last_inbound_at</code> 已废弃），且 <code>role=customer</code> 混有 OCR/在线徽标假阳，<b>系统性失真</b>。故分子以案例库人工核为准；面板右侧「DB 自动回复信号」仅作参考、不进分子。</li>
       <li>案例库默认每条都算回复案例；若某条是无回复的话术质量样本，在 manifest 该条加 <code>"replied": false</code> 即从分子剔除。走势图只画每日私信发送量（回复时刻不可靠，不按日拆）。</li>
       <li><b>合格判定</b>＝ 复用线上 ice_break 同款 deterministic 硬规（<code>src/lib/llm/signals.ts</code>）扫已发话术，命中任一即不合格。监控只跑<b>无上下文 + 评论/地理上下文</b>的高精度子集（违禁开头/截断/套话/敷衍/越权报价/(R)泄价/地理矛盾/联系方式/地区可做未先行）；依赖昵称/品牌/装修阶段上下文的检查（自加后缀/杜撰资历/省名越权）因字段未持久化易误判，<b>不纳入</b>，故合格率偏宽松。</li>
@@ -211,22 +211,15 @@ const $ = (id) => document.getElementById(id);
 
 // 案例库（同源 manifest）= 真实回复的人工核来源。分子取此，分母取 DB（见口径说明）。
 const CASE_MANIFEST = "/akke/cases/manifest.json";
-const V41_DATE = "2026-06-05"; // v41 上线日，案例库按 date 字段过滤
-let caseStats = { replied: null, total: null };
+let caseList = null; // 原始 manifest，按 API 给的窗口起点现场过滤算分子
 
 async function loadCases() {
   try {
     const res = await fetch(CASE_MANIFEST + "?_t=" + Date.now(), { cache: "no-store" });
     if (!res.ok) throw new Error("HTTP " + res.status);
-    const list = await res.json();
-    // 分子 = v41 起、非 replied:false 的案例数（案例库默认即回复案例，质量样本可标 replied:false 排除）
-    const inWin = list.filter(c => (c.date || "") >= V41_DATE);
-    caseStats = {
-      replied: inWin.filter(c => c.replied !== false).length,
-      total: inWin.length,
-    };
+    caseList = await res.json();
   } catch (e) {
-    caseStats = { replied: null, total: null }; // 拉不到则回退 DB 自动口径
+    caseList = null; // 拉不到则回退 DB 自动口径
   }
 }
 
@@ -289,20 +282,26 @@ function renderArch(a) {
 
 function renderReplyRate(rr) {
   const s = rr.sinceV41;
-  $("rrSince").textContent = "v41 上线（" + s.since.slice(0,10) + "）起累计";
-  // 分子 = 案例库回复案例数（人工核·真实）；分母 = DB 被私信人数。拉不到案例库则回退 DB 自动口径。
-  const num = caseStats.replied;
-  const denom = s.contactedPeople;
+  const w = rr.window || { days: 14, sinceDate: s.since.slice(0,10), contactedPeople: s.contactedPeople, dmCount: s.dmCount };
+  $("rrSince").textContent = `近 ${w.days} 天（${w.sinceDate} 起）`;
+  // 分子 = 案例库窗口内回复案例数（人工核·真实，date≥窗口起点、非 replied:false）；分母 = DB 该窗口被私信人数。
+  let num = null, total = null;
+  if (caseList) {
+    const inWin = caseList.filter(c => (c.date || "") >= w.sinceDate);
+    total = inWin.length;
+    num = inWin.filter(c => c.replied !== false).length;
+  }
+  const denom = w.contactedPeople;
   const hasCase = num != null;
-  const rate = hasCase && denom ? +((num / denom) * 100).toFixed(2) : s.ratePct;
+  const rate = hasCase && denom ? +((num / denom) * 100).toFixed(2) : (denom ? +((s.repliedPeople/denom)*100).toFixed(2) : 0);
   const heroSub = hasCase
-    ? `${num} 回复案例 / ${denom} 被私信人`
-    : `${s.repliedPeople} 回复 / ${denom} 被私信（DB 自动·案例库未加载）`;
+    ? `${num} 回复案例 / ${denom} 被私信人 · 近 ${w.days} 天`
+    : `案例库未加载 · 回退 DB 自动 ${s.repliedPeople}/${s.contactedPeople}`;
   $("rrKpis").innerHTML = `
-    <div class="kpi hero-kpi"><div class="l">回复率（按人）</div><div class="v">${rate}%</div><div class="sub">${heroSub}</div></div>
-    <div class="kpi"><div class="l">回复案例数 · 分子</div><div class="v">${hasCase ? num : "—"}</div><div class="sub">案例库人工核${hasCase ? `（含 ${caseStats.total} 条样本）` : "·未加载"}</div></div>
-    <div class="kpi"><div class="l">被私信人数 · 分母</div><div class="v">${denom}</div><div class="sub">DB distinct 会话</div></div>
-    <div class="kpi"><div class="l">私信条数</div><div class="v">${s.dmCount}</div><div class="sub">DB role=ai·sent</div></div>
+    <div class="kpi hero-kpi"><div class="l">回复率（按人 · 近 ${w.days} 天）</div><div class="v">${rate}%</div><div class="sub">${heroSub}</div></div>
+    <div class="kpi"><div class="l">回复案例数 · 分子</div><div class="v">${hasCase ? num : "—"}</div><div class="sub">案例库人工核${hasCase ? `（窗口内 ${total} 条样本）` : "·未加载"}</div></div>
+    <div class="kpi"><div class="l">被私信人数 · 分母</div><div class="v">${denom}</div><div class="sub">DB·近 ${w.days} 天 distinct 会话</div></div>
+    <div class="kpi"><div class="l">私信条数 · 近 ${w.days} 天</div><div class="v">${w.dmCount}</div><div class="sub">v41 起累计 ${s.dmCount}</div></div>
     <div class="kpi"><div class="l">DB 自动回复信号</div><div class="v">${s.repliedPeople}</div><div class="sub">role=customer·含噪/漏·仅参考</div></div>`;
 
   const max = Math.max(1, ...rr.trend.map(t => t.dm));
