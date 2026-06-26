@@ -503,42 +503,90 @@ def click_publish(commit: bool = False) -> bool:
     return True
 
 
-CAPTCHA_TIMEOUT_SEC = int(os.environ.get('AKKE_TUWEN_CAPTCHA_TIMEOUT_SEC', '180'))  # 默认 3min
+CAPTCHA_TIMEOUT_SEC = int(os.environ.get('AKKE_TUWEN_CAPTCHA_TIMEOUT_SEC', str(12 * 3600)))  # 默认 12h
+CAPTCHA_PAGE_CHECK_INTERVAL_SEC = int(os.environ.get('AKKE_TUWEN_CAPTCHA_PAGE_CHECK_SEC', '60'))  # 每 60s VL 看一次
 
 
-def _wait_for_enter_with_timeout(timeout_sec: int) -> bool:
-    """Windows: 用 msvcrt 轮询键盘. 返回 True if Enter 按了, False if 超时.
+def _is_still_on_publish_page() -> bool:
+    """VL 截图判断 Edge 是否仍在发布页 (有大块图上传区 / 底部有发布按钮).
 
-    替代裸 input() 阻塞 — input() 没法超时, 周末运营没盯云电脑会让 agent 死死挂着,
-    后面同 assignee 的 row 全堵 (sequential). 超时返回 False, 上层抛 SystemExit(10),
-    agent 把 row 标 needs_review 不挡下一条.
+    捕获 "运营自助过完 captcha + 自己点了发送按钮 → 页面跳走" 信号 — 无需运营回
+    PowerShell 按 Enter. 真发后页面跳作品列表 / 数据中心等, 不再在发布页.
+
+    返回 True = 还在发布页 (continue 等). 返回 False = 跳走了 (= 运营点过发送, 可以
+    接 verify_published).
+
+    失败 (VL 报错 / 截图失败) 保守返回 True, 继续等运营按 Enter.
+    """
+    try:
+        path, _ = _shot('_captcha_pagecheck.png')
+        b64 = base64.b64encode(Path(path).read_bytes()).decode()
+        prompt = (
+            '这是抖音创作服务平台 (creator.douyin.com) 的某个页面截图. 判断:'
+            '页面是否【还在发布作品页】 (页面有大块"图片上传区/拖拽上传"区域, 或者底部有红色「发布」按钮)?'
+            '注意: 验证码弹窗本身覆盖在发布页之上, 此时也算"还在发布页", 回 true.'
+            '如果页面已经离开发布作品页 (例如跳到「作品管理」列表 / 作品详情 / 数据中心 / 创作中心首页等), 回 false.'
+            '只回严格JSON: {"on_publish_page": true/false, "reason": "..."}'
+        )
+        d = _pjson(_vision(b64, prompt))
+        on = d.get('on_publish_page')
+        if on is False:
+            print(f'  [captcha] VL 检测页面已离开发布页 — 运营点了发送, 自动接续. ({d.get("reason", "")[:60]})')
+            return False
+        return True
+    except Exception as e:
+        print(f'  [captcha] 页面检测失败 ({type(e).__name__}: {e}), 保守继续等 Enter', file=sys.stderr)
+        return True
+
+
+def _wait_for_captcha_done(timeout_sec: int) -> str:
+    """暂停等运营过 captcha. 双信号检测, 任一 hit 就返回:
+      - 信号 A: 黑窗口按 Enter → 返回 'enter'
+      - 信号 B: VL 看到页面已离开发布页 (运营自助点了发送) → 返回 'page-left'
+      - timeout_sec 超时 → 返回 'timeout' (agent 转 needs_review)
+
+    每 CAPTCHA_PAGE_CHECK_INTERVAL_SEC 秒做一次 VL page check (默认 60s).
+    每 5min 提醒剩余时间 (避免日志刷屏).
     """
     try:
         import msvcrt  # type: ignore[import-not-found]
+        has_keyboard = True
     except ImportError:
-        # 非 Windows fallback: 退到裸 input (本地 Mac 开发, 真生产是 Windows 云电脑)
-        try:
-            input(f'  等待 [Enter] 续跑 (timeout 仅 Windows 生效, 此处无 timeout)... ')
-            return True
-        except (KeyboardInterrupt, EOFError):
-            return False
+        # 非 Windows fallback: 没法 polling 键盘, 退到纯 VL 检测
+        msvcrt = None  # type: ignore
+        has_keyboard = False
 
     deadline = time.time() + timeout_sec
-    print(f'  [captcha] 等待 [Enter] 续跑 (超时 {timeout_sec}s 后 abort 转 needs_review)... ', flush=True)
-    last_print_at = 0
+    next_page_check_at = time.time() + CAPTCHA_PAGE_CHECK_INTERVAL_SEC
+    next_reminder_at = time.time() + 300  # 每 5min 一次提醒
+    mode = 'Enter / 自己点发送' if has_keyboard else 'VL 检测页面跳走'
+    print(f'  [captcha] 等运营过 captcha (双信号: {mode}, 超时 {timeout_sec // 3600}h{(timeout_sec % 3600) // 60}m)', flush=True)
+
     while time.time() < deadline:
-        if msvcrt.kbhit():
+        # 信号 A: keyboard Enter
+        if has_keyboard and msvcrt.kbhit():
             ch = msvcrt.getwch()
             if ch in ('\r', '\n'):
-                return True
-            # 其它键吞掉, 继续等 Enter
-        # 每 30s 提醒一次剩余时间
-        remaining = int(deadline - time.time())
-        if remaining > 0 and remaining % 30 == 0 and remaining != last_print_at:
-            print(f'  [captcha] 还有 {remaining}s 等你过验证码 + Enter...', flush=True)
-            last_print_at = remaining
+                print('  [captcha] 收到 Enter, 接续 verify_published')
+                return 'enter'
+            # 其它键吞掉
+
+        # 信号 B: VL 看 page state (周期检测)
+        if time.time() >= next_page_check_at:
+            next_page_check_at = time.time() + CAPTCHA_PAGE_CHECK_INTERVAL_SEC
+            if not _is_still_on_publish_page():
+                return 'page-left'
+
+        # 周期提醒
+        if time.time() >= next_reminder_at:
+            next_reminder_at = time.time() + 300
+            remaining = int(deadline - time.time())
+            h, m = remaining // 3600, (remaining % 3600) // 60
+            print(f'  [captcha] 仍在等运营... 剩 {h}h{m}m', flush=True)
+
         time.sleep(0.2)
-    return False
+
+    return 'timeout'
 
 
 def _detect_and_pause_for_captcha() -> None:
@@ -569,14 +617,17 @@ def _detect_and_pause_for_captcha() -> None:
     print('  ⚠️  请在 Edge 里手动过完验证码 (滑块拖到底/点字/输数字等) → 看到发布成功后', file=sys.stderr)
     print(f'  ⚠️  回到这里按 [Enter] 续跑 (超时 {CAPTCHA_TIMEOUT_SEC}s)', file=sys.stderr)
 
-    # 推 Lark 告警 (视频更新 bot 群 + @ 当前 assignee 邮箱). best-effort 不影响 input.
+    # 推 Lark 告警 (视频更新 bot 群 + @ 当前 assignee 邮箱). best-effort 不影响 wait.
     _push_lark_captcha_alert(captcha_type, seen_text)
 
-    ok = _wait_for_enter_with_timeout(CAPTCHA_TIMEOUT_SEC)
-    if not ok:
-        print(f'  [captcha] {CAPTCHA_TIMEOUT_SEC}s 内无人过验证码 → abort 本 row 转 needs_review, 不挡后续作品', file=sys.stderr)
+    # 双信号等运营: 黑窗口 Enter / VL 看到页面已跳走 (运营自己点了发送) / 超时
+    signal = _wait_for_captcha_done(CAPTCHA_TIMEOUT_SEC)
+    if signal == 'timeout':
+        h = CAPTCHA_TIMEOUT_SEC // 3600
+        m = (CAPTCHA_TIMEOUT_SEC % 3600) // 60
+        print(f'  [captcha] 超 {h}h{m}m 无人过 → abort 本 row 转 needs_review, 不挡后续作品', file=sys.stderr)
         raise SystemExit(10)
-    print('  [captcha] 已续跑')
+    print(f'  [captcha] 已续跑 (信号 = {signal})')
 
 
 def _resolve_lark_at_tag_for_current_assignee() -> str:
