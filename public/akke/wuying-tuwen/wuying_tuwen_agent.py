@@ -34,6 +34,7 @@ import os
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -89,6 +90,55 @@ if not SUPABASE_URL:
 if not _BEARER:
     print('❌ env missing: SUPABASE_SCOPED_JWT+ANON_KEY 或 SUPABASE_SERVICE_ROLE_KEY', file=sys.stderr)
     sys.exit(2)
+
+
+# ── 中心化 env 下发 (2026-06-26 加, 免运营手动改 .env) ─────────────────────
+# 拉私有 Supabase Storage bucket agent-config/wuying.json, 把里面的 env 覆盖到
+# os.environ. 当前下发的:
+#   - LARK_WEBHOOK_TUWEN_AUTO (验证码告警卡推到视频更新群)
+#   - LARK_USER_ID_MAP_JSON   (告警卡里真 @ 弹运营手机)
+# 想换 webhook / 加新运营 → 改本地 .env.local 后跑
+#   pnpm tsx scripts/upload-agent-env-overrides.ts
+# 运营下次重启 agent 自动拉新版, 完全无感知.
+#
+# fetch 失败 silent skip — 退回本地 .env 老值 (绝不 break agent 启动).
+def _fetch_env_overrides() -> None:
+    bucket = 'agent-config'
+    obj = 'wuying.json'
+    url = f'{SUPABASE_URL}/storage/v1/object/{bucket}/{obj}'
+    try:
+        req = urllib.request.Request(url, headers={
+            'apikey': _APIKEY,
+            'Authorization': f'Bearer {_BEARER}',
+        })
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            overrides = json.loads(resp.read().decode())
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            print('[env-override] supabase storage 没 wuying.json, skip (退回本地 .env)', file=sys.stderr)
+        else:
+            print(f'[env-override] http {e.code}, skip', file=sys.stderr)
+        return
+    except Exception as e:
+        print(f'[env-override] fetch failed ({type(e).__name__}: {e}), skip', file=sys.stderr)
+        return
+
+    if not isinstance(overrides, dict):
+        print('[env-override] payload 不是 JSON object, skip', file=sys.stderr)
+        return
+
+    # 中心化下发 = 权威值, 强制覆盖本地 .env (本地老/缺都用云端 fresh)
+    loaded_keys = []
+    for k, v in overrides.items():
+        if isinstance(v, (dict, list)):
+            v = json.dumps(v, ensure_ascii=False)
+        os.environ[str(k)] = str(v)
+        loaded_keys.append(str(k))
+    print(f'[env-override] loaded {len(loaded_keys)} keys from supabase: {sorted(loaded_keys)}', file=sys.stderr)
+
+
+_fetch_env_overrides()
+
 
 # ── Tuwen 配置 ─────────────────────────────────────────────────────────────
 ASSIGNEE = os.environ.get('AKKE_TUWEN_ASSIGNEE', '').strip()
