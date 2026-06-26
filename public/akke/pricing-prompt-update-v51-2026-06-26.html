@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Akke 破冰话术·提示词更新 v43 → v51（分品类报价）· 2026-06-26</title>
+<style>
+  :root{--ink:#1f2328;--muted:#6b7280;--line:#e5e7eb;--bg:#fafafa;--card:#fff;
+    --price:#0d9488;--branch:#2563eb;--warn:#b45309;--good:#16a34a;--soft:#7c3aed;}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif;
+    color:var(--ink);background:var(--bg);line-height:1.65;font-size:15px}
+  .wrap{max-width:960px;margin:0 auto;padding:32px 20px 80px}
+  header{border-bottom:3px solid var(--ink);padding-bottom:16px;margin-bottom:8px}
+  h1{font-size:26px;margin:0 0 6px}
+  .sub{color:var(--muted);font-size:14px}
+  .tag{display:inline-block;background:#111;color:#fff;border-radius:5px;padding:2px 9px;font-size:12px;margin-right:6px}
+  h2{font-size:20px;margin:38px 0 12px;padding-left:10px;border-left:5px solid var(--ink)}
+  h3{font-size:16px;margin:22px 0 8px;color:var(--muted)}
+  p{margin:8px 0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:12px 0;
+    box-shadow:0 1px 2px rgba(0,0,0,.03)}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;margin:10px 0}
+  th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+  th{background:#f3f4f6;font-weight:600}
+  tr:nth-child(even) td{background:#fbfbfb}
+  .num{font-weight:700;color:var(--price);white-space:nowrap}
+  .mkt{color:var(--muted);text-decoration:line-through;font-size:12.5px}
+  .branch{margin:10px 0;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .branch .h{background:#f3f4f6;padding:8px 14px;font-weight:600;font-size:14px;display:flex;justify-content:space-between;align-items:center}
+  .branch .pct{font-size:12px;color:var(--muted);font-weight:400}
+  .branch .b{padding:10px 14px}
+  .cmt{color:var(--muted);font-size:13px;margin-bottom:4px}
+  .cmt b{color:var(--ink)}
+  .reply{background:#f0fdf4;border-left:3px solid var(--good);padding:8px 12px;border-radius:0 6px 6px 0;font-size:14px}
+  .reply.soft{background:#f5f3ff;border-color:var(--soft)}
+  .reply.cmp{background:#fffbeb;border-color:var(--warn)}
+  .pill{display:inline-block;font-size:11px;padding:1px 7px;border-radius:99px;margin-left:6px;vertical-align:middle}
+  .pill.p{background:#ccfbf1;color:#0f766e}
+  .pill.b{background:#dbeafe;color:#1e40af}
+  .pill.s{background:#ede9fe;color:#5b21b6}
+  .note{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;font-size:13.5px;color:#92400e}
+  .ok{color:var(--good)} .ar{color:var(--muted)}
+  ul{margin:6px 0 6px 0;padding-left:22px} li{margin:3px 0}
+  code{background:#f3f4f6;padding:1px 5px;border-radius:4px;font-size:12.5px}
+  .foot{margin-top:40px;color:var(--muted);font-size:12.5px;border-top:1px solid var(--line);padding-top:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>破冰话术 · 提示词更新：按品类报价</h1>
+  <div class="sub">
+    <span class="tag">v43 → v51</span><span class="tag">2026-06-26 上线</span>
+    Langfuse <code>dm.ice_break.system</code> · 数字源 <code>src/lib/llm/pricing.ts · PRICE_MATRIX</code>
+  </div>
+</header>
+
+<h2>一、这次改了什么</h2>
+<div class="card">
+  <p><b>旧版（v43）</b>：所有"问价"评论一刀切报全屋定制柜体单价 <b>284 一平</b>。</p>
+  <p><b>问题</b>：抓取的 7089 条问价评论里，<b>~90% 问的是"整套/整装"</b>（"这一套多少钱""140平做下来多少钱"），全屋定制柜体本身只占 0.8%。用 284（柜体价）回答"整套装修多少钱"，等于把整装严重低报。</p>
+  <p><b>新版（v51）</b>：<span class="ok">按用户实际问的品类报对应价</span> —— 整装报整装价、柜体报柜体价、瓷砖报瓷砖价……代码确定性判类后把价格注入话术，不再让模型瞎猜。</p>
+</div>
+
+<h2>二、定价方法论：降 30% + 全网均价最低档修正（便宜但不假）</h2>
+<div class="card">
+  <p>每个品类的报价，<b>在市场主流价基础上降约 30%</b> 来吸引用户；但不是简单乘 0.7（那会跌破全网最低、显得"太假肯定有坑"），而是<b>用「全网均价的最低档」（刚需入门档真实价）做修正/兜底</b>：</p>
+  <ul>
+    <li><span class="ok">够便宜</span> —— 落在市场主流价的 6-7 折，比大多数人实际花的明显低。</li>
+    <li><span class="ok">不显假</span> —— 不跌破"全网均价最低档"这条真实地板价（确有人在这个价成交），客户查得到、对得上。</li>
+    <li><b>市场价对比锚</b>（"市场价约 X，我们 Y"）<b>只在客户比价/嫌贵时才挂</b>，平时干净报我们的价，不啰嗦。</li>
+  </ul>
+  <p class="cmt">例：硬装市场全包简单档 600–900/㎡ → 取最低档约 1000 主流的 7 折落到 <b>700/㎡</b>，既比主流便宜、又在全包真实价区间内。</p>
+</div>
+
+<h2>三、分品类价格表</h2>
+<p class="cmt">报价 = 全网均价最低档；市场主流仅作内部参照/比价时对比锚。⚠️ = 研究估算，待真实底价核（改 PRICE_MATRIX 一处即可）。</p>
+<table>
+  <tr><th>品类</th><th>市场主流(参照)</th><th>报价</th><th>计价口径</th></tr>
+  <tr><td>整装 / 全屋装修</td><td class="mkt">1000–1500/㎡</td><td class="num">650 元/㎡</td><td>建筑面积·全包</td></tr>
+  <tr><td>全屋定制 / 柜体</td><td class="mkt">~800/㎡(投影)</td><td class="num">284 元/㎡</td><td>房产证面积·含板材五金柜门安装</td></tr>
+  <tr><td>单组柜 / 衣柜</td><td class="mkt">~1000/㎡投影</td><td class="num">800 元/㎡投影</td><td>投影面积</td></tr>
+  <tr><td>硬装（全包）</td><td class="mkt">~1000/㎡</td><td class="num">700 元/㎡ ⚠️</td><td>建筑面积</td></tr>
+  <tr><td>瓷砖 / 地砖</td><td class="mkt">80–130/㎡</td><td class="num">50 元/㎡</td><td>材料价·铺贴另算</td></tr>
+  <tr><td>水电改造</td><td class="mkt">~150/㎡</td><td class="num">100 元/㎡ ⚠️</td><td>建筑面积·含工料</td></tr>
+  <tr><td>吊顶</td><td class="mkt">~110/㎡</td><td class="num">80 元/㎡</td><td>石膏板·含工</td></tr>
+  <tr><td>防水</td><td class="mkt">~70/㎡</td><td class="num">50 元/㎡</td><td>含工料</td></tr>
+  <tr><td>地板（强化）</td><td class="mkt">70–120/㎡</td><td class="num">50 元/㎡</td><td>材料·安装另算</td></tr>
+  <tr><td>油漆 / 墙面</td><td class="mkt">30–40/㎡</td><td class="num">20 元/㎡</td><td>含工料</td></tr>
+  <tr><td>厨卫 / 橱柜</td><td class="mkt">~700/米</td><td class="num">400 元/米起 ⚠️</td><td>延米</td></tr>
+  <tr><td>灯具</td><td class="mkt">~3000/套</td><td class="num">全屋 2000 元/套起 ⚠️</td><td>按套·单灯按款另报</td></tr>
+  <tr><td>沙发</td><td class="mkt">~2500/件</td><td class="num">1500 元/件起 ⚠️</td><td>按件·布艺三人位</td></tr>
+  <tr><td>窗帘</td><td class="mkt">~150/米</td><td class="num">60 元/米起 ⚠️</td><td>成品布·轨道另算</td></tr>
+  <tr><td>床垫</td><td class="mkt">~2000/张</td><td class="num">800 元/张起 ⚠️</td><td>按张</td></tr>
+  <tr><td>门窗</td><td colspan="3"><b>Akke 不做 → soft-pivot 不报价</b>（洞口预留帮算尺寸、找做窗的师傅）</td></tr>
+</table>
+
+<h2>四、按评论分支对应话术（v51 真实生成）</h2>
+<p class="cmt">客户昵称示例统一用「王姐」。<span class="pill p">价</span>价格分支　<span class="pill b">非价</span>非价格分支　<span class="pill s">soft</span>软转/不报价</p>
+
+<h3>A. 价格分支</h3>
+
+<div class="branch"><div class="h">整装 / 全屋装修 <span class="pct">~90% 问价</span></div><div class="b">
+  <div class="cmt">客户：<b>这一套140平多少钱 / 全屋装修多少钱一平</b></div>
+  <div class="reply">你好，王姐，全屋装修按建筑面积全包 <b>650 元/㎡</b>，你家是新房还是翻新？</div></div></div>
+
+<div class="branch"><div class="h">全屋定制 / 柜体</div><div class="b">
+  <div class="cmt">客户：<b>全屋定制多少钱一平</b></div>
+  <div class="reply">你好，王姐，全屋定制柜体按房产证面积 <b>284 元/㎡</b> 含板材五金安装，你家准备做多少平？</div></div></div>
+
+<div class="branch"><div class="h">单组柜 / 衣柜</div><div class="b">
+  <div class="cmt">客户：<b>做一个衣柜多少钱 / 柜子多少钱一平</b></div>
+  <div class="reply">你好，王姐，单组柜 <b>800 元/㎡投影</b>，你家衣柜打算做多大面积？</div></div></div>
+
+<div class="branch"><div class="h">硬装（全包）</div><div class="b">
+  <div class="cmt">客户：<b>硬装多少钱一平</b></div>
+  <div class="reply">你好，王姐，全屋硬装全包 <b>700 元/㎡</b>（按建筑面积），你家房子多少平？</div></div></div>
+
+<div class="branch"><div class="h">瓷砖</div><div class="b">
+  <div class="cmt">客户：<b>瓷砖多少钱一平</b></div>
+  <div class="reply">你好，王姐，瓷砖材料价 <b>50 元/㎡</b>（铺贴另算），你家准备贴多少平？</div></div></div>
+
+<div class="branch"><div class="h">水电改造</div><div class="b">
+  <div class="cmt">客户：<b>水电改造多少钱</b></div>
+  <div class="reply">你好，王姐，水电改造 <b>100 元/㎡</b> 含工料，你家面积大概多少？</div></div></div>
+
+<div class="branch"><div class="h">吊顶 / 防水 / 地板 / 墙面（单项硬装）</div><div class="b">
+  <div class="reply">吊顶：石膏板吊顶 <b>80 元/㎡</b> 含工，你家做多少平？</div>
+  <div class="reply" style="margin-top:6px">防水：防水 <b>50 元/㎡</b> 含工料，你家做多少平？</div>
+  <div class="reply" style="margin-top:6px">地板：地板 <b>50 元/㎡</b>（强化材料·安装另算），你家铺多少平？</div>
+  <div class="reply" style="margin-top:6px">墙面：乳胶漆含工料 <b>20 元/㎡</b>，你家墙面多少平？</div></div></div>
+
+<div class="branch"><div class="h">橱柜 / 灯具 / 沙发 / 窗帘 / 床垫（软装·延米·按件）</div><div class="b">
+  <div class="reply">橱柜：按延米 <b>400 元/米起</b>，你家橱柜做几米？</div>
+  <div class="reply" style="margin-top:6px">灯具：全屋灯具 <b>2000 元/套起</b>，单灯按款另报，你家几室几厅？</div>
+  <div class="reply" style="margin-top:6px">沙发：布艺三人位 <b>1500 元/件起</b>，你家客厅多大尺寸？</div>
+  <div class="reply" style="margin-top:6px">窗帘：<b>60 元/米起</b>（成品布·轨道另算），你家大概多少米？</div>
+  <div class="reply" style="margin-top:6px">床垫：<b>800 元/张起</b>，你家准备给哪个房间配？</div></div></div>
+
+<div class="branch"><div class="h">门窗 <span class="pct">Akke 不做</span> <span class="pill s">soft</span></div><div class="b">
+  <div class="cmt">客户：<b>断桥铝窗多少钱</b></div>
+  <div class="reply soft">你好，王姐，门窗洞口预留我装修时帮你算尺寸，水电瓷砖防水吊顶配套做，门窗品牌找做窗的师傅更准，你家几室几厅？<span class="ar">（不报型材参数/价格）</span></div></div></div>
+
+<h3>B. 非价格分支</h3>
+
+<div class="branch"><div class="h">资料钩（R）<span class="pct">~16% 问价中</span> <span class="pill b">非价</span></div><div class="b">
+  <div class="cmt">客户：<b>求一份装修避坑清单</b></div>
+  <div class="reply">你好，王姐，实拍案例和避坑手册可以发你，你家是新房还是翻新？<span class="ar">（先承诺发资料，再引导）</span></div></div></div>
+
+<div class="branch"><div class="h">地域可做（P）<span class="pct">~12%</span> <span class="pill b">非价</span></div><div class="b">
+  <div class="cmt">客户：<b>南宁能做吗</b></div>
+  <div class="reply">你好，王姐，南宁可以做，全屋定制支持上门量尺和设计，你家是新房还是翻新？</div></div></div>
+
+<div class="branch"><div class="h">联系方式豁免（W）<span class="pill b">非价</span></div><div class="b">
+  <div class="cmt">客户：<b>怎么加你微信</b></div>
+  <div class="reply">你好，王姐，你方便发个微信号过来吗 我让设计师加你，价格上能再让一档。<span class="ar">（只反问要客户号，我方号永不外发）</span></div></div></div>
+
+<div class="branch"><div class="h">比价 / 嫌贵（§C）<span class="pill p">价</span> <span class="pill s">点破口径</span></div><div class="b">
+  <div class="cmt">客户：<b>别家硬装300一平 你家是不是太贵了</b></div>
+  <div class="reply cmp">你好，王姐，别家硬装 300 一平确实听着便宜，<b>但多是清包或半包</b>，我们 700 元/㎡ 是<b>建筑面积·硬装全包</b>，<b>算总账更省心</b>，你家房子多大面积？<span class="ar">（只有比价时才挂市场对比 + 点破全包vs清包）</span></div></div></div>
+
+<div class="branch"><div class="h">自装党（DIY）<span class="pct">目标客户</span> <span class="pill b">非价</span></div><div class="b">
+  <div class="cmt">客户：<b>清包自己弄，不找装修公司</b></div>
+  <div class="reply">你好，王姐，清包自己弄挺省心的，<b>柜体板材这些材料我们可以直接供货，安装也能帮你安排</b>，你家准备先做哪一组柜子？<span class="ar">（认同自装，引申材料单供+装配单接，不打发）</span></div></div></div>
+
+<div class="branch"><div class="h">方案 / 知识（D）<span class="pct">~17%</span> <span class="pill b">非价</span></div><div class="b">
+  <div class="cmt">客户：<b>保温墙怎么处理不裂</b></div>
+  <div class="reply">你好，王姐，保温墙处理要从基层抓起，基层没做好是开裂主因，你家是新房还是翻新？<span class="ar">（先给方向判断再反问）</span></div></div></div>
+
+<div class="branch"><div class="h">材质选品（H）<span class="pct">~8%</span> <span class="pill b">非价</span></div><div class="b">
+  <div class="cmt">客户：<b>瓷砖什么牌子好</b>（问选品，不是问价）</div>
+  <div class="reply">你好，王姐，瓷砖按项目报 量过房才能给你拉清单 加微信发你具体方案，你家几室几厅？<span class="ar">（选品走"按项目报+加微信"；问价才报 50/㎡）</span></div></div></div>
+
+<div class="branch"><div class="h">纯灌水 / 无装修信号（G）<span class="pct">~1.5%</span> <span class="pill b">非价</span></div><div class="b">
+  <div class="cmt">客户：<b>哈哈哈笑死了</b>（搞笑视频下）</div>
+  <div class="reply">你好，王姐，哈哈哈笑死这个梗太有画面感了，宠物日常确实治愈。<span class="ar">（干净打发，不硬转装修、不挂装修钩）</span></div></div></div>
+
+<div class="note" style="margin-top:24px">
+  <b>说明</b>：价格数字单一事实源在代码 <code>PRICE_MATRIX</code>，改价只改一处、不动话术结构。⚠️ 7 个估算价（硬装/水电/沙发/橱柜/灯具/窗帘/床垫）待真实底价核准后会重算。比价/市场价话术目前靠模型判断，建议头几天人工瞄一眼运营审核队列里的比价类草稿。
+</div>
+
+<div class="foot">
+  Akke 智能获客 · 破冰话术提示词更新 · 生成 2026-06-26 · 上线 PR #584 / Langfuse production v51
+</div>
+
+</div>
+</body>
+</html>
