@@ -99,7 +99,7 @@
     <h2>🔧 本次更新 · 2026-06-26 · 漏斗五跳口径 + ③feed覆盖落库 + 取数维度全表</h2>
     <p class="hint">把潜在触达漏斗按 fanny 拍定口径重塑为 <b>①关注 → ②监控池 → ③今日feed刷到 → ④当天发新视频 → ⑤当天触达</b> 五跳；
       新建 <code>pt_feed_coverage</code> 表 + RPC（③，PR #566）让 watch 把「当天 feed 真刷到几个池内人」落库；
-      <a href="https://upio.ai/akke/reports/pt-summary">pt-summary</a> 每号 pill 重做 + 加折叠口径定义；本页新增下方 <b>②.5 取数维度全表</b>（每个数怎么定义/抓取/更新）。
+      <a href="https://upio.ai/akke/reports/pt-summary">pt-summary</a> 每号 pill 重做 + 加折叠口径定义；本页新增下方 <b>②.5 漏斗每个数 · 说人话</b>（大白话表格 + 折叠技术细节）。
       ③ 真数需无影重部署 watch 后攒一天。</p>
   </div>
 
@@ -335,43 +335,63 @@
     </div>
   </div>
 
-  <!-- 取数维度全表 (2026-06-26 新增) -->
+  <!-- 取数维度全表 (2026-06-26 新增, 6-26 改大白话) -->
   <div class="section" style="border-color:var(--green);border-width:2px">
-    <h2>②.5 取数维度全表 — 漏斗每个数：定义 / 数据源 / 如何抓取 / 如何更新</h2>
+    <h2>②.5 漏斗每个数 · 说人话</h2>
     <p class="hint">
-      fanny 2026-06-26 拍定的潜在触达漏斗（每个执行号一条）：
-      <b>①关注 → ②监控池 → ③今日 feed 刷到 → ④当天发新视频 → ⑤当天触达</b>，逐跳收窄（①⊇②⊇③⊇④⊇⑤）。
-      下面把每个数怎么来的（定义 / 落哪张表 / 怎么抓 / 怎么更新）逐个讲清。这套口径同步落到了
-      <a href="https://upio.ai/akke/reports/pt-summary">pt-summary</a> 的每号 pill + 折叠「口径定义」段。
+      潜在触达漏斗（每个号一条）：<b>①关注 → ②监控池 → ③今日刷到 → ④当天发新视频 → ⑤当天触达</b>。
+      一格比一格小（关注的人最多，真触达的最少）。下面用大白话讲每个数是啥、怎么来、多久更新一次。
     </p>
-    <div class="kb">
-
-      <div class="kbcard"><h3><span class="kbtag">①关注</span>following（feed 总来源池）</h3>
-        <div class="b"><b>定义：</b>该执行号在抖音真实关注的<b>所有</b>人（短剧号 / 同行 / 自然关注 / leads 全算）。= <code>accounts.following_count</code>。「我关注的人发新视频」才会进关注流被逮到，所以这是 feed 的总来源池、漏斗最宽一跳。</div>
-        <div class="f"><b>数据源：</b><code>accounts.following_count</code> + <code>account_follows</code> 表（明细 sec_uid）。&nbsp;<b>如何抓：</b>无影 Edge 登录抖音网页版 → <code>_grab_cookie.py</code>(browser_cookie3 抓含 sessionid 的新鲜 cookie) → <code>_probe_following_list_wuying.py</code> 翻 <code>following/list</code> 接口拉全部关注 sec_uid → mac <b>剥代理</b>(<code>NO_PROXY=*</code>)经 paste.rs 回传 → <code>sync-account-follows.ts</code> 写库。⚠️<code>following/list status_code=8</code> 根因=cookie 太旧(非端点锁死)，换新鲜 cookie 即通。&nbsp;<b>如何更新：</b>手动（cookie 新鲜时重跑探针+sync）；<code>cookie-expiry-watch</code> cron 按 cookie 年龄≥25天推预警(PR #565) @ 负责人提示该重抓。当前已入库：饭粒 <b>624</b> / 小星 <b>402</b>。</div></div>
-
-      <div class="kbcard"><h3><span class="kbtag">②监控池</span>monitored_targets（pool，高/中意向「该被盯」名单）</h3>
-        <div class="b"><b>定义：</b>从①关注里<b>筛出</b>的高/中意向、且「值得二次触达」的名单（<code>status=watching</code>）。两类 <code>reason</code>：<code>sent_no_reply</code>=DM 发了≥1天没回(高/中意向)；<code>dm_failed</code>=想 DM 但没成功联系上(<b>只收高意向</b>)。⊆①。</div>
-        <div class="f"><b>数据源：</b><code>monitored_targets</code> 表。&nbsp;<b>如何抓：</b>不抓——服务端 cron 从 <code>conversations</code>/<code>messages</code>/<code>comments</code>/<code>lead_claims</code>/<code>message_queue</code> 实时算出来。&nbsp;<b>如何更新：</b>cron <code>refresh-monitored-targets</code> 每小时(<code>0 * * * *</code>)重算 → UPSERT 进池 + reconcile（已回/转化/停的置 <code>dropped</code> 出库）+ 在途(message_queue active)豁免防双触达。新够格 lead 自动进、不符的自动出。无影 watch 直接读这张表当 lead 池（去人工摆渡）。</div></div>
-
-      <div class="kbcard"><h3><span class="kbtag">③今日刷到 ★新</span>pt_feed_coverage（M，feed 当天实际覆盖到的池内人数）</h3>
-        <div class="b"><b>定义：</b>当天 watch 在关注流(<code>follow/feed</code>)里<b>真实刷到</b>、且属于监控池的<b>去重人数</b>(M)。feed 由抖音决定刷出谁，关注 600+ 不代表当天都能刷到 → M⊆②，量出「池子里今天实际被 feed 覆盖几个人」。</div>
-        <div class="f"><b>数据源：</b><code>pt_feed_coverage</code>(org,account,date,distinct_authors) 表 ★ <b>PR #566 新建</b>。&nbsp;<b>如何抓：</b>无影 watch(<code>_realtime_touch_watch_wuying.py</code>)每轮拉 feed N 页，命中 pool 成员就并进<b>当日内存去重集合</b>（按北京时归运营日、跨天重置）。&nbsp;<b>如何更新：</b>watch 每轮把当日 distinct 人数经 RPC <code>log_feed_coverage</code> UPSERT <b>高水位</b>(GREATEST，防 watch 重启丢集合后回退)写库；<a href="https://upio.ai/akke/reports/pt-summary">pt-summary</a> 读它填③那格。⚠️表/RPC 已合，<b>需无影重部署 watch（饭粒+小星 update.bat 拉新 + 重启）+ 攒一天</b>，③ 才有真数；之前页面显示「待无影」即此。</div></div>
-
-      <div class="kbcard"><h3><span class="kbtag">④当天发新视频</span>pt_target_video_sightings（P 人 / Q 条）</h3>
-        <div class="b"><b>定义：</b>当天刷到的监控池对象里<b>真发了新视频</b>的人数(P)/视频条数(Q)。含 <code>actionable</code>(发布≤20min，去触达)+<code>expired</code>(超时，只为上页/分析、绝不触达)。</div>
-        <div class="f"><b>数据源：</b><code>pt_target_video_sightings</code> 表。&nbsp;<b>如何抓：</b>同一 watch——feed 里命中 pool 成员的<b>每条新视频</b>落一行 sighting(<code>aweme_id</code> 去重)，按「发布距今分钟」标 <code>gate=actionable/expired</code>。&nbsp;<b>如何更新：</b>watch 每条新视频经 RPC <code>log_sighting</code> 直写(going-forward；ON CONFLICT 幂等)；pt-summary 按当天 <code>detected_at</code>(北京时)聚合成「当天更新动态」。</div></div>
-
-      <div class="kbcard"><h3><span class="kbtag">⑤当天触达</span>second_touch_log（R，我们实际出手的条数）</h3>
-        <div class="b"><b>定义：</b>当天本号<b>实际完成触达</b>（点赞 + 评论1评视频 + 评论2搬当初 DM）的条数(R)。<code>e2e</code>=视频发布→三连完成的端到端分钟，达标线 ≤20min。</div>
-        <div class="f"><b>数据源：</b><code>second_touch_log</code> 表。&nbsp;<b>如何抓：</b>不抓——是我们的执行动作结果。无影 consume 脚本对 <code>actionable</code> 的 sighting 去抖音 GUI 点赞+双评论。&nbsp;<b>如何更新：</b>consume 完成经 RPC <code>log_second_touch</code>/<code>mark_second_touch</code> 写流水(含 e2e + 点赞/评论1/评论2 三步 status + <code>detected_at</code>「我们检测了」时刻)；发前 <code>claim_second_touch</code> 原子去重 RPC 防双触达，每人每天≤1次、累计满7次出库。</div></div>
-
-    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;line-height:1.65">
+      <thead>
+        <tr style="background:rgba(18,129,111,.08);text-align:left">
+          <th style="padding:9px 11px;border:1px solid var(--line);width:130px">漏斗这一格</th>
+          <th style="padding:9px 11px;border:1px solid var(--line)">这个数是啥（大白话）</th>
+          <th style="padding:9px 11px;border:1px solid var(--line);width:34%">怎么来 · 多久更新一次</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="padding:9px 11px;border:1px solid var(--line)"><b>①关注</b></td>
+          <td style="padding:9px 11px;border:1px solid var(--line)">这个号在抖音<b>总共关注了多少人</b>（短剧号、同行、自然关注、客户线索全算）。关注了，对方发新视频才会出现在我们刷的视频流里——所以这是最大的来源池。</td>
+          <td style="padding:9px 11px;border:1px solid var(--line)"><b>人工抓</b>：在云电脑登录抖音网页版，把关注名单导出来入库。cookie 约半个月过期，过期了重导一次（系统会提前提醒）。现已入库：饭粒 <b>624</b> / 小星 <b>402</b>。</td>
+        </tr>
+        <tr style="background:rgba(16,24,40,.015)">
+          <td style="padding:9px 11px;border:1px solid var(--line)"><b>②监控池</b></td>
+          <td style="padding:9px 11px;border:1px solid var(--line)">关注的人里，挑出<b>"高/中意向、值得再勾一次"</b>的名单。两种人：① 发过私信但 <b>1 天以上没回</b>的；② <b>想发私信却没发成</b>的（这种只收高意向）。</td>
+          <td style="padding:9px 11px;border:1px solid var(--line)"><b>系统全自动</b>：每小时重算一次。新符合的自动进，回复了 / 谈崩了 / 已成交的自动出。云电脑直接读这张名单，不用人工搬。</td>
+        </tr>
+        <tr>
+          <td style="padding:9px 11px;border:1px solid var(--line)"><b>③今日刷到</b> <span style="color:var(--green);font-size:11px">★新</span></td>
+          <td style="padding:9px 11px;border:1px solid var(--line)">今天我们刷视频流时，<b>真的刷到了监控池里几个人</b>（去重）。抖音随机推，关注 600 人不代表今天都刷得到，所以这个数总比监控池小。</td>
+          <td style="padding:9px 11px;border:1px solid var(--line)"><b>云电脑挂机自动数</b>，每天零点清零重数。⚠️ 现在还显示"<b>待无影</b>"——要先把云电脑脚本<b>更新一版</b>（饭粒+小星）才开始有数。</td>
+        </tr>
+        <tr style="background:rgba(16,24,40,.015)">
+          <td style="padding:9px 11px;border:1px solid var(--line)"><b>④当天发新视频</b></td>
+          <td style="padding:9px 11px;border:1px solid var(--line)">今天刷到的这些人里，<b>有几个真发了新视频、一共几条</b>。</td>
+          <td style="padding:9px 11px;border:1px solid var(--line)"><b>云电脑挂机自动记</b>，刷到一条记一条。</td>
+        </tr>
+        <tr>
+          <td style="padding:9px 11px;border:1px solid var(--line)"><b>⑤当天触达</b></td>
+          <td style="padding:9px 11px;border:1px solid var(--line)">今天我们<b>真给几条新视频做了动作</b>（点赞 + 评论1 评视频 + 评论2 搬当初的私信）。从视频发出到我们做完 ≤20 分钟算达标。</td>
+          <td style="padding:9px 11px;border:1px solid var(--line)"><b>云电脑自动做完自动记</b>。同一个人每天最多勾 1 次，累计勾满 7 次还不回就停（出库）。</td>
+        </tr>
+      </tbody>
+    </table>
     <div class="callout info" style="margin-top:14px">
-      <b>一句话串起来：</b>关注(①, 手抓 following/list)圈出总池 → cron 每小时把高/中意向筛进监控池(②) →
-      watch 7×24 盯 feed，把今天真刷到的池内人(③)、其中发了新视频的(④) 实时写库 → consume 对 ≤20min 的去三连，落触达流水(⑤)。
-      ①靠人手周期抓、②③④⑤ 全自动实时更新。
+      <b>一句话：</b>关注的人(①)是大池子 → 系统每小时挑出高意向的进监控池(②) → 云电脑 7×24 盯着刷视频流，今天真刷到谁(③)、谁发了新视频(④) 随手记下 → 对 20 分钟内的新视频去点赞+评论(⑤)。
+      <b>只有 ① 靠人工定期抓，②③④⑤ 全自动。</b>
     </div>
+    <details style="margin-top:12px;font-size:12px;color:var(--muted)">
+      <summary style="cursor:pointer;color:var(--green);font-weight:600">技术细节（表名 / 脚本 / 接口，给工程看）</summary>
+      <ul class="tight" style="margin-top:8px">
+        <li><b>①</b> <code>accounts.following_count</code>+<code>account_follows</code>。无影 Edge 登录 → <code>_grab_cookie.py</code>(browser_cookie3) → <code>_probe_following_list_wuying.py</code> 翻 <code>following/list</code> → mac 剥代理(<code>NO_PROXY=*</code>)paste.rs 回传 → <code>sync-account-follows.ts</code>。<code>status_code=8</code> 根因=cookie 太旧。<code>cookie-expiry-watch</code> cron 按年龄≥25天预警(PR#565)。</li>
+        <li><b>②</b> <code>monitored_targets</code>。cron <code>refresh-monitored-targets</code> 每小时(<code>0 * * * *</code>)从 conversations/messages/comments/lead_claims/message_queue 重算 UPSERT + reconcile(置 <code>dropped</code>) + 在途豁免防双触。reason=<code>sent_no_reply</code>/<code>dm_failed</code>(后者 CHECK 只收高意向)。watch 直接读。</li>
+        <li><b>③</b> <code>pt_feed_coverage</code>(org,account,date,distinct_authors) ★PR#566。watch(<code>_realtime_touch_watch_wuying.py</code>)每轮拉 feed，命中 pool 并入当日去重集合(北京时归日·跨天重置)，每轮经 RPC <code>log_feed_coverage</code> UPSERT 高水位(GREATEST 防重启回退)。<b>需无影 update.bat 重部署 watch 才有数。</b></li>
+        <li><b>④</b> <code>pt_target_video_sightings</code>。同一 watch 每条新视频(<code>aweme_id</code> 去重)经 RPC <code>log_sighting</code> 直写，标 <code>gate=actionable/expired</code>。pt-summary 按 <code>detected_at</code> 聚合。</li>
+        <li><b>⑤</b> <code>second_touch_log</code>。consume 脚本对 actionable sighting GUI 点赞+双评论，经 RPC <code>log_second_touch</code>/<code>mark_second_touch</code> 写流水(含 e2e + 三步 status)；<code>claim_second_touch</code> 原子去重防双触。</li>
+      </ul>
+    </details>
   </div>
 
   <!-- 卡点知识库 -->
