@@ -194,7 +194,8 @@
   <div class="notes">
     <b>口径说明</b>
     <ul>
-      <li><b>回复率（按人）＝ 分子 ÷ 分母</b>，默认统计窗口 <b>近 14 天滚动</b>（贴近期战况，非 v41 起累计；想换天数改后端 <code>REPLY_WINDOW_DAYS</code>）。<b>分子＝案例库窗口内回复案例数</b>（<code>/akke/cases/manifest.json</code> 里 <code>date≥窗口起点</code> 的案例，人工核的真实回复源）；<b>分母＝DB 该窗口被私信人数</b>（<code>messages.role=ai·sent</code> 的 distinct 会话）。</li>
+      <li><b>回复率（按人）＝ 分子 ÷ 分母</b>，统计窗口锚定 <b>v51 上线（2026-06-26 14:35）起</b>——攒当前 prompt 版本自己的回复率，不跟旧版本混。<b>分子＝案例库 v51 起回复案例数</b>（<code>/akke/cases/manifest.json</code> 里 <code>date≥2026-06-26</code> 的案例，人工核的真实回复源）；<b>分母＝DB v51 起被私信人数</b>（<code>messages.role=ai·sent</code> 的 distinct 会话）。</li>
+      <li><b>样本不足保护</b>：v51 刚上线、私信发量没起来时（被私信人数 &lt; <code>REPLY_MIN_SAMPLE=50</code>），头条显示「样本积累中 · X案例/Y被私信人」而非百分比——避免 n 太小甩出唬人的噪声率（如上线当天 1/3=33%）。攒够再出率。</li>
       <li><b>为何不用纯 SQL 数回复</b>：回复回流管道不完整（云电脑 GUI 通道无回执、<code>check-replies</code> cron 自 6/05 下线、<code>last_inbound_at</code> 已废弃），且 <code>role=customer</code> 混有 OCR/在线徽标假阳，<b>系统性失真</b>。故分子以案例库人工核为准；面板右侧「DB 自动回复信号」仅作参考、不进分子。</li>
       <li>案例库默认每条都算回复案例；若某条是无回复的话术质量样本，在 manifest 该条加 <code>"replied": false</code> 即从分子剔除。走势图只画每日私信发送量（回复时刻不可靠，不按日拆）。</li>
       <li><b>合格判定</b>＝ 复用线上 ice_break 同款 deterministic 硬规（<code>src/lib/llm/signals.ts</code>）扫已发话术，命中任一即不合格。监控只跑<b>无上下文 + 评论/地理上下文</b>的高精度子集（违禁开头/截断/套话/敷衍/越权报价/(R)泄价/地理矛盾/联系方式/地区可做未先行）；依赖昵称/品牌/装修阶段上下文的检查（自加后缀/杜撰资历/省名越权）因字段未持久化易误判，<b>不纳入</b>，故合格率偏宽松。</li>
@@ -282,9 +283,9 @@ function renderArch(a) {
 
 function renderReplyRate(rr) {
   const s = rr.sinceV41;
-  const w = rr.window || { days: 14, sinceDate: s.since.slice(0,10), contactedPeople: s.contactedPeople, dmCount: s.dmCount };
-  $("rrSince").textContent = `近 ${w.days} 天（${w.sinceDate} 起）`;
-  // 分子 = 案例库窗口内回复案例数（人工核·真实，date≥窗口起点、非 replied:false）；分母 = DB 该窗口被私信人数。
+  const w = rr.window || { days: 1, sinceDate: "2026-06-26", contactedPeople: s.contactedPeople, dmCount: s.dmCount, lowSample: false, minSample: 50 };
+  $("rrSince").textContent = `v51 上线（${w.sinceDate}）起 · 第 ${w.days} 天`;
+  // 分子 = 案例库窗口内回复案例数（人工核·真实，date≥v51上线日、非 replied:false）；分母 = DB v51 起被私信人数。
   let num = null, total = null;
   if (caseList) {
     const inWin = caseList.filter(c => (c.date || "") >= w.sinceDate);
@@ -293,15 +294,20 @@ function renderReplyRate(rr) {
   }
   const denom = w.contactedPeople;
   const hasCase = num != null;
+  const lowSample = !!w.lowSample;
   const rate = hasCase && denom ? +((num / denom) * 100).toFixed(2) : (denom ? +((s.repliedPeople/denom)*100).toFixed(2) : 0);
-  const heroSub = hasCase
-    ? `${num} 回复案例 / ${denom} 被私信人 · 近 ${w.days} 天`
-    : `案例库未加载 · 回退 DB 自动 ${s.repliedPeople}/${s.contactedPeople}`;
+  // 样本不足（被私信人数 < minSample）→ 不甩噪声百分比，显示「样本积累中」
+  const heroV = lowSample
+    ? `<div class="v" style="font-size:21px;color:var(--warn)">样本积累中</div>`
+    : `<div class="v">${rate}%</div>`;
+  const heroSub = lowSample
+    ? `v51 上线第 ${w.days} 天 · ${hasCase?num:"—"} 案例 / ${denom} 被私信人 · 满 ${w.minSample} 人才出率`
+    : (hasCase ? `${num} 回复案例 / ${denom} 被私信人 · v51 起` : `案例库未加载 · 回退 DB 自动 ${s.repliedPeople}/${s.contactedPeople}`);
   $("rrKpis").innerHTML = `
-    <div class="kpi hero-kpi"><div class="l">回复率（按人 · 近 ${w.days} 天）</div><div class="v">${rate}%</div><div class="sub">${heroSub}</div></div>
-    <div class="kpi"><div class="l">回复案例数 · 分子</div><div class="v">${hasCase ? num : "—"}</div><div class="sub">案例库人工核${hasCase ? `（窗口内 ${total} 条样本）` : "·未加载"}</div></div>
-    <div class="kpi"><div class="l">被私信人数 · 分母</div><div class="v">${denom}</div><div class="sub">DB·近 ${w.days} 天 distinct 会话</div></div>
-    <div class="kpi"><div class="l">私信条数 · 近 ${w.days} 天</div><div class="v">${w.dmCount}</div><div class="sub">v41 起累计 ${s.dmCount}</div></div>
+    <div class="kpi hero-kpi"><div class="l">回复率（按人 · v51 起）</div>${heroV}<div class="sub">${heroSub}</div></div>
+    <div class="kpi"><div class="l">回复案例数 · 分子</div><div class="v">${hasCase ? num : "—"}</div><div class="sub">案例库人工核${hasCase ? `（v51起 ${total} 条样本）` : "·未加载"}</div></div>
+    <div class="kpi"><div class="l">被私信人数 · 分母</div><div class="v">${denom}</div><div class="sub">DB·v51起 distinct 会话${lowSample?` · 满 ${w.minSample} 出率`:""}</div></div>
+    <div class="kpi"><div class="l">私信条数 · v51 起</div><div class="v">${w.dmCount}</div><div class="sub">v41 起累计 ${s.dmCount}</div></div>
     <div class="kpi"><div class="l">DB 自动回复信号</div><div class="v">${s.repliedPeople}</div><div class="sub">role=customer·含噪/漏·仅参考</div></div>`;
 
   const max = Math.max(1, ...rr.trend.map(t => t.dm));
