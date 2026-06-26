@@ -32,6 +32,7 @@ from datetime import datetime
 import pyautogui
 
 import douyin_dm_grounded as dm
+import wuying_window_lock as _wl  # 单窗口·DM优先串行锁(AKKE_WINDOW_LOCK=1 才生效，否则 no-op)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 try:
@@ -193,7 +194,8 @@ def main():
             print("\n========== [%d/%d] ==========" % (i, len(targets)))
             conf = None
             try:
-                status, conf = follow_one(t["name"], auto=not args.confirm, douyin_no=t.get("douyin_no", ""))
+                with _wl.window_turn('rb'):  # DM 在忙(.dm-want)则先在此等→DM 优先，关完让位；跟 consume 同款锁
+                    status, conf = follow_one(t["name"], auto=not args.confirm, douyin_no=t.get("douyin_no", ""))
             except Exception as e:
                 status = "error:%s" % str(e)[:60]
                 print("  ❌ 异常: %s" % e)
