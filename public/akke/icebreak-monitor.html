@@ -159,7 +159,7 @@
   <header class="hero">
     <span class="tag"><span class="dot" id="statusDot"></span><span id="updatedAt">加载中…</span></span>
     <h1>破冰提示词监控</h1>
-    <p class="subtitle">每日观测破冰话术的运转：当前提示词架构、用户回复率、各账号当天发出的话术（自动合格判定）、评论按分支聚合。数据直连生产库，最多落后 1 分钟。</p>
+    <p class="subtitle">每日观测破冰话术的运转：用户回复率、当前提示词架构、各账号当天发出的话术（自动合格判定）、评论按分支聚合。数据直连生产库，最多落后 1 分钟。</p>
     <div class="toolbar">
       <input type="date" id="datePick">
       <button id="refreshBtn">刷新</button>
@@ -169,15 +169,15 @@
 
   <div class="err-banner" id="errBanner"></div>
 
-  <!-- 1. 架构 -->
-  <h2>① 当前破冰提示词架构</h2>
-  <div class="panel" id="archPanel"><div class="empty">加载中…</div></div>
-
-  <!-- 2. 回复率 -->
-  <h2>② 用户回复率 <span class="hint" id="rrSince"></span></h2>
+  <!-- 1. 回复率 -->
+  <h2>① 用户回复率 <span class="hint" id="rrSince"></span></h2>
   <div class="kpis" id="rrKpis"></div>
   <h2 style="margin-top:24px">每日私信发送量 <span class="hint">近 7 天 · 紫色为今天</span></h2>
   <div class="panel tight" id="rrTrend"><div class="empty">加载中…</div></div>
+
+  <!-- 2. 架构 -->
+  <h2>② 当前破冰提示词架构</h2>
+  <div class="panel" id="archPanel"><div class="empty">加载中…</div></div>
 
   <!-- 3. 各账号话术 -->
   <h2>③ 当天各账号话术 + 合格判定 <span class="hint" id="acctHint"></span></h2>
@@ -194,8 +194,9 @@
   <div class="notes">
     <b>口径说明</b>
     <ul>
-      <li><b>回复率（按人）</b>＝ 回复人数 ÷ 被私信人数。回复信号取 <code>messages.role=customer</code>（<code>conversations.last_inbound_at</code> 已废弃停更，不用）；统计窗口为 <b>v41 上线（2026-06-05）起至今</b>累计。</li>
-      <li>回复消息的 <code>created_at</code> 是<b>入库时间</b>（scan 批量回写），不等于用户真实回复时刻，因此<b>不按日拆分回复率</b>；走势图只画每日私信发送量。</li>
+      <li><b>回复率（按人）＝ 分子 ÷ 分母</b>，统计窗口 <b>v41 上线（2026-06-05）起至今</b>累计。<b>分子＝案例库回复案例数</b>（<code>/akke/cases/manifest.json</code> 里 <code>date≥2026-06-05</code> 的案例，人工核的真实回复源）；<b>分母＝DB 被私信人数</b>（<code>messages.role=ai·sent</code> 的 distinct 会话）。</li>
+      <li><b>为何不用纯 SQL 数回复</b>：回复回流管道不完整（云电脑 GUI 通道无回执、<code>check-replies</code> cron 自 6/05 下线、<code>last_inbound_at</code> 已废弃），且 <code>role=customer</code> 混有 OCR/在线徽标假阳，<b>系统性失真</b>。故分子以案例库人工核为准；面板右侧「DB 自动回复信号」仅作参考、不进分子。</li>
+      <li>案例库默认每条都算回复案例；若某条是无回复的话术质量样本，在 manifest 该条加 <code>"replied": false</code> 即从分子剔除。走势图只画每日私信发送量（回复时刻不可靠，不按日拆）。</li>
       <li><b>合格判定</b>＝ 复用线上 ice_break 同款 deterministic 硬规（<code>src/lib/llm/signals.ts</code>）扫已发话术，命中任一即不合格。监控只跑<b>无上下文 + 评论/地理上下文</b>的高精度子集（违禁开头/截断/套话/敷衍/越权报价/(R)泄价/地理矛盾/联系方式/地区可做未先行）；依赖昵称/品牌/装修阶段上下文的检查（自加后缀/杜撰资历/省名越权）因字段未持久化易误判，<b>不纳入</b>，故合格率偏宽松。</li>
       <li><b>评论分支</b>由 <code>signals.ts</code> 判定函数对每条评论实时分类（W 联系方式豁免 / R 资料钩 / H 硬装软装 / G 双无信号 / 通用 4 步），优先级 W&gt;R&gt;H&gt;G&gt;通用，与线上 ice_break prompt 分支选择一致。</li>
     </ul>
@@ -208,11 +209,35 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&":"&amp;","<":
 const rateClass = (p) => p >= 90 ? "good" : p >= 70 ? "mid" : "bad";
 const $ = (id) => document.getElementById(id);
 
+// 案例库（同源 manifest）= 真实回复的人工核来源。分子取此，分母取 DB（见口径说明）。
+const CASE_MANIFEST = "/akke/cases/manifest.json";
+const V41_DATE = "2026-06-05"; // v41 上线日，案例库按 date 字段过滤
+let caseStats = { replied: null, total: null };
+
+async function loadCases() {
+  try {
+    const res = await fetch(CASE_MANIFEST + "?_t=" + Date.now(), { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const list = await res.json();
+    // 分子 = v41 起、非 replied:false 的案例数（案例库默认即回复案例，质量样本可标 replied:false 排除）
+    const inWin = list.filter(c => (c.date || "") >= V41_DATE);
+    caseStats = {
+      replied: inWin.filter(c => c.replied !== false).length,
+      total: inWin.length,
+    };
+  } catch (e) {
+    caseStats = { replied: null, total: null }; // 拉不到则回退 DB 自动口径
+  }
+}
+
 async function load(date) {
   const dot = $("statusDot");
   try {
     const q = date ? `?date=${date}&_t=${Date.now()}` : `?_t=${Date.now()}`;
-    const res = await fetch(API_BASE + q, { cache: "no-store" });
+    const [res] = await Promise.all([
+      fetch(API_BASE + q, { cache: "no-store" }),
+      loadCases(),
+    ]);
     if (!res.ok) throw new Error("HTTP " + res.status);
     const d = await res.json();
     if (d.error) throw new Error(d.error);
@@ -265,12 +290,20 @@ function renderArch(a) {
 function renderReplyRate(rr) {
   const s = rr.sinceV41;
   $("rrSince").textContent = "v41 上线（" + s.since.slice(0,10) + "）起累计";
+  // 分子 = 案例库回复案例数（人工核·真实）；分母 = DB 被私信人数。拉不到案例库则回退 DB 自动口径。
+  const num = caseStats.replied;
+  const denom = s.contactedPeople;
+  const hasCase = num != null;
+  const rate = hasCase && denom ? +((num / denom) * 100).toFixed(2) : s.ratePct;
+  const heroSub = hasCase
+    ? `${num} 回复案例 / ${denom} 被私信人`
+    : `${s.repliedPeople} 回复 / ${denom} 被私信（DB 自动·案例库未加载）`;
   $("rrKpis").innerHTML = `
-    <div class="kpi hero-kpi"><div class="l">回复率（按人）</div><div class="v">${s.ratePct}%</div><div class="sub">${s.repliedPeople} 回复 / ${s.contactedPeople} 被私信</div></div>
-    <div class="kpi"><div class="l">私信条数</div><div class="v">${s.dmCount}</div><div class="sub">role=ai · status=sent</div></div>
-    <div class="kpi"><div class="l">被私信人数</div><div class="v">${s.contactedPeople}</div><div class="sub">distinct 会话</div></div>
-    <div class="kpi"><div class="l">回复人数</div><div class="v">${s.repliedPeople}</div><div class="sub">出现 customer 消息</div></div>
-    <div class="kpi"><div class="l">回复条数</div><div class="v">${s.replyMsgCount}</div><div class="sub">role=customer 累计 · 今天 ${rr.today.replyMsgCount}</div></div>`;
+    <div class="kpi hero-kpi"><div class="l">回复率（按人）</div><div class="v">${rate}%</div><div class="sub">${heroSub}</div></div>
+    <div class="kpi"><div class="l">回复案例数 · 分子</div><div class="v">${hasCase ? num : "—"}</div><div class="sub">案例库人工核${hasCase ? `（含 ${caseStats.total} 条样本）` : "·未加载"}</div></div>
+    <div class="kpi"><div class="l">被私信人数 · 分母</div><div class="v">${denom}</div><div class="sub">DB distinct 会话</div></div>
+    <div class="kpi"><div class="l">私信条数</div><div class="v">${s.dmCount}</div><div class="sub">DB role=ai·sent</div></div>
+    <div class="kpi"><div class="l">DB 自动回复信号</div><div class="v">${s.repliedPeople}</div><div class="sub">role=customer·含噪/漏·仅参考</div></div>`;
 
   const max = Math.max(1, ...rr.trend.map(t => t.dm));
   const bars = rr.trend.map((t, i) => {
