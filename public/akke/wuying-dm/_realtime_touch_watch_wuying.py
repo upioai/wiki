@@ -121,7 +121,21 @@ def _default(name):
     return os.path.join(HERE, name)
 
 
+def _load_env():
+    """argparse 前把 .env 灌进 os.environ —— 否则 --account 默认值(读 AKKE_ACCOUNT_ID)拿不到值(空串)，
+    _setup_db 因 account 空直接返回 None → watch 退文件池【且 ③feed覆盖永不写库】(line `if db` 不成立)。
+    follow 脚本碰巧靠 import douyin_dm_grounded 顺带 load 了 .env 才没踩这坑；watch 只 import 标准库，必须自己先 load。"""
+    try:
+        from dotenv import load_dotenv
+        for p in (os.path.join(HERE, ".env"), os.path.join(os.path.dirname(HERE), ".env")):
+            if os.path.exists(p):
+                load_dotenv(p, override=False)
+    except Exception:
+        pass
+
+
 def main():
+    _load_env()  # 必须在 argparse 之前（--account 默认值依赖它）
     ap = argparse.ArgumentParser()
     ap.add_argument("--cookie", default=None, help="直接传 cookie 串（优先）")
     ap.add_argument("--cookie-file", default=None, help="cookie 文件路径（默认同目录 dy_cookie.txt）")
