@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>破冰提示词监控 · Akke</title>
+<style>
+  :root {
+    --bg: #0b0d12; --bg-elevated: #141821; --bg-deep: #1a1f2b;
+    --border: #242a38; --border-strong: #2f3646;
+    --text: #e4e7ed; --text-dim: #9ba3b4; --text-muted: #6b7384;
+    --accent: #8b5cf6; --accent-soft: rgba(139,92,246,.15);
+    --dm: #60a5fa; --dm-2: #38bdf8; --dm-soft: rgba(96,165,250,.14);
+    --rev: #a78bfa; --rev-2: #c084fc; --rev-soft: rgba(167,139,250,.14);
+    --ok: #34d399; --ok-soft: rgba(52,211,153,.13);
+    --warn: #fbbf24; --warn-soft: rgba(251,191,36,.13);
+    --danger: #f87171; --danger-soft: rgba(248,113,113,.13);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(139,92,246,.07), transparent 60%),
+      radial-gradient(1000px 500px at -10% 0%, rgba(96,165,250,.06), transparent 55%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px; line-height: 1.7; -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 1120px; margin: 0 auto; padding: 44px 22px 110px; }
+  .breadcrumb { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
+  .breadcrumb a { color: var(--text-dim); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--accent); }
+  .breadcrumb span { margin: 0 8px; color: var(--border-strong); }
+
+  header.hero { padding: 4px 0 26px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+  .tag { display:inline-flex; align-items:center; gap:7px; padding:4px 13px; border-radius:999px; background:var(--accent-soft); color:#c4b5fd; font-size:13px; font-weight:500; margin-bottom:14px; }
+  .tag .dot { width:7px; height:7px; border-radius:50%; background:var(--ok); animation:pulse 2.2s infinite; }
+  .tag .dot.err { background:var(--danger); animation:none; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(52,211,153,.5);} 70%{box-shadow:0 0 0 6px rgba(52,211,153,0);} 100%{box-shadow:0 0 0 0 rgba(52,211,153,0);} }
+  h1 { font-size: 38px; font-weight: 700; margin: 0 0 12px; letter-spacing: -0.02em; line-height: 1.15;
+    background: linear-gradient(135deg, #e4e7ed 20%, var(--accent) 75%, var(--rev-2) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .subtitle { font-size: 16px; color: var(--text-dim); margin: 0 0 18px; max-width: 780px; }
+  .toolbar { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  .toolbar input[type=date] { background:var(--bg-elevated); border:1px solid var(--border); color:var(--text); border-radius:9px; padding:7px 12px; font-family:inherit; font-size:14px; color-scheme:dark; }
+  .toolbar button { background:var(--accent-soft); border:1px solid var(--border-strong); color:#c4b5fd; border-radius:9px; padding:7px 16px; font-family:inherit; font-size:14px; cursor:pointer; transition:.18s; }
+  .toolbar button:hover { background:rgba(139,92,246,.25); }
+  .updated { font-size:13px; color:var(--text-muted); }
+
+  h2 { font-size:12px; font-weight:600; color:var(--text-muted); letter-spacing:.12em; text-transform:uppercase; margin:46px 0 16px; display:flex; align-items:baseline; gap:10px; }
+  h2 .hint { font-size:12px; color:var(--text-muted); letter-spacing:0; text-transform:none; font-weight:400; }
+
+  .panel { background:var(--bg-elevated); border:1px solid var(--border); border-radius:16px; padding:22px 24px; margin-bottom:16px; }
+  .panel.tight { padding:18px 20px; }
+
+  /* architecture */
+  .archhead { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:6px; }
+  .vbadge { font-size:22px; font-weight:700; color:var(--accent); letter-spacing:-.01em; }
+  .vmeta { font-size:13px; color:var(--text-dim); }
+  .vmeta code { background:var(--bg-deep); padding:1px 7px; border-radius:5px; color:#c4b5fd; font-size:12.5px; font-family:"SF Mono",Menlo,Consolas,monospace; }
+  .steps { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:18px 0 6px; }
+  @media (max-width:780px){ .steps{ grid-template-columns:1fr 1fr; } }
+  .step { background:var(--bg-deep); border:1px solid var(--border); border-radius:12px; padding:14px 15px; position:relative; }
+  .step .no { font-size:20px; font-weight:700; color:var(--accent); }
+  .step .nm { font-size:15px; font-weight:600; margin:2px 0 4px; }
+  .step .ch { font-size:11px; color:var(--ok); background:var(--ok-soft); padding:1px 7px; border-radius:5px; }
+  .step .ds { font-size:12.5px; color:var(--text-dim); margin-top:8px; line-height:1.6; }
+  .dimrow { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+  .dim { background:var(--bg-deep); border:1px solid var(--border); border-radius:9px; padding:8px 12px; font-size:13px; }
+  .dim b { color:var(--text); font-weight:600; }
+  .dim span { color:var(--text-muted); margin-left:6px; }
+  table.branch { width:100%; border-collapse:collapse; margin-top:6px; font-size:13.5px; }
+  table.branch th { text-align:left; color:var(--text-muted); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.06em; padding:8px 10px; border-bottom:1px solid var(--border); }
+  table.branch td { padding:9px 10px; border-bottom:1px solid var(--border); color:var(--text-dim); vertical-align:top; }
+  table.branch td:first-child { white-space:nowrap; }
+  .bcode { display:inline-block; font-weight:700; color:var(--accent); background:var(--accent-soft); border-radius:6px; padding:1px 8px; font-size:12.5px; }
+  .guards { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+  .guard { background:var(--bg-deep); border:1px solid var(--border); border-radius:8px; padding:7px 11px; font-size:12.5px; color:var(--text-dim); }
+  .guard b { color:var(--warn); font-weight:600; }
+
+  /* reply rate cards */
+  .kpis { display:grid; grid-template-columns:repeat(5,1fr); gap:13px; }
+  @media (max-width:880px){ .kpis{ grid-template-columns:repeat(2,1fr); } }
+  .kpi { background:var(--bg-elevated); border:1px solid var(--border); border-radius:14px; padding:18px 18px; position:relative; overflow:hidden; }
+  .kpi.hero-kpi { grid-column:span 1; }
+  .kpi.hero-kpi::before { content:""; position:absolute; inset:0 0 auto 0; height:3px; background:linear-gradient(90deg,var(--accent),var(--rev-2)); }
+  .kpi .l { font-size:12px; color:var(--text-muted); }
+  .kpi .v { font-size:30px; font-weight:700; margin-top:5px; font-variant-numeric:tabular-nums; letter-spacing:-.02em; }
+  .kpi.hero-kpi .v { color:var(--accent); font-size:38px; }
+  .kpi .sub { font-size:11.5px; color:var(--text-muted); margin-top:3px; }
+
+  /* bar chart */
+  .bars { display:flex; align-items:flex-end; gap:8px; height:140px; margin-top:8px; }
+  .barcol { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; }
+  .barcol .bval { font-size:11px; color:var(--text-dim); margin-bottom:4px; font-variant-numeric:tabular-nums; }
+  .barcol .bfill { width:60%; max-width:42px; background:linear-gradient(180deg,var(--dm),var(--dm-2)); border-radius:5px 5px 2px 2px; min-height:2px; transition:height .6s cubic-bezier(.22,1,.36,1); }
+  .barcol .blab { font-size:10.5px; color:var(--text-muted); margin-top:6px; }
+  .barcol.today .bfill { background:linear-gradient(180deg,var(--accent),var(--rev-2)); }
+
+  /* account cards */
+  .accts { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:880px){ .accts{ grid-template-columns:1fr; } }
+  .acct { background:var(--bg-elevated); border:1px solid var(--border); border-radius:14px; padding:16px 18px; }
+  .acct .ah { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; }
+  .acct .an { font-size:16px; font-weight:600; }
+  .acct .ar { font-size:12.5px; color:var(--text-dim); }
+  .acct .ar b { font-variant-numeric:tabular-nums; }
+  .ratepill { font-size:12px; font-weight:600; padding:2px 9px; border-radius:7px; }
+  .ratepill.good { background:var(--ok-soft); color:var(--ok); }
+  .ratepill.mid { background:var(--warn-soft); color:var(--warn); }
+  .ratepill.bad { background:var(--danger-soft); color:var(--danger); }
+  .ops { display:flex; flex-direction:column; gap:9px; max-height:520px; overflow-y:auto; padding-right:4px; }
+  .ops::-webkit-scrollbar { width:7px; } .ops::-webkit-scrollbar-thumb { background:var(--border-strong); border-radius:4px; }
+  .op { background:var(--bg-deep); border:1px solid var(--border); border-left:3px solid var(--ok); border-radius:9px; padding:10px 12px; }
+  .op.fail { border-left-color:var(--danger); }
+  .op .meta { display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin-bottom:5px; }
+  .btag { font-size:10.5px; font-weight:600; color:var(--accent); background:var(--accent-soft); border-radius:5px; padding:1px 7px; }
+  .itag { font-size:10.5px; border-radius:5px; padding:1px 7px; }
+  .itag.高意向 { color:var(--danger); background:var(--danger-soft); }
+  .itag.中意向 { color:var(--warn); background:var(--warn-soft); }
+  .itag.低意向 { color:var(--dm); background:var(--dm-soft); }
+  .itag.无关, .itag.未标注 { color:var(--text-muted); background:var(--bg-elevated); }
+  .vd { font-size:10.5px; font-weight:600; border-radius:5px; padding:1px 7px; }
+  .vd.pass { color:var(--ok); background:var(--ok-soft); }
+  .vd.fail { color:var(--danger); background:var(--danger-soft); }
+  .op .txt { font-size:13.5px; color:var(--text); line-height:1.6; }
+  .op .cmt { font-size:12px; color:var(--text-muted); margin-top:5px; padding-top:5px; border-top:1px dashed var(--border); }
+  .op .cmt b { color:var(--text-dim); font-weight:500; }
+  .op .hits { font-size:11.5px; color:var(--danger); margin-top:5px; }
+  .op .hits code { background:rgba(248,113,113,.1); color:#fca5a5; padding:0 5px; border-radius:4px; margin-right:5px; }
+
+  /* branch agg */
+  .branchgrid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:880px){ .branchgrid{ grid-template-columns:1fr; } }
+  .bbar { display:flex; align-items:center; gap:10px; margin:9px 0; }
+  .bbar .bn { width:128px; font-size:13px; flex:none; }
+  .bbar .bn .bcode { margin-right:6px; }
+  .bbar .track { flex:1; height:22px; background:var(--bg-deep); border-radius:6px; overflow:hidden; position:relative; }
+  .bbar .fill { height:100%; background:linear-gradient(90deg,var(--accent),var(--rev-2)); border-radius:6px; transition:width .6s cubic-bezier(.22,1,.36,1); }
+  .bbar .bc { width:96px; flex:none; text-align:right; font-size:12.5px; color:var(--text-dim); font-variant-numeric:tabular-nums; }
+  .intentrow { display:flex; gap:10px; flex-wrap:wrap; margin-top:6px; }
+  .ichip { background:var(--bg-deep); border:1px solid var(--border); border-radius:10px; padding:10px 14px; flex:1; min-width:90px; }
+  .ichip .iv { font-size:24px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .ichip .il { font-size:12px; color:var(--text-muted); margin-top:2px; }
+  .samples { margin-top:10px; }
+  .sample { background:var(--bg-deep); border:1px solid var(--border); border-radius:9px; padding:9px 12px; margin-top:7px; }
+
+  .notes { margin-top:42px; padding:20px 24px; background:var(--bg-elevated); border:1px solid var(--border); border-radius:14px; font-size:13.5px; color:var(--text-dim); line-height:1.75; }
+  .notes b { color:var(--text); }
+  .notes ul { margin:8px 0 0; padding-left:20px; } .notes li { margin:5px 0; }
+  code { background:var(--bg-deep); padding:1px 6px; border-radius:4px; font-size:.86em; color:#c4b5fd; font-family:"SF Mono",Menlo,Consolas,monospace; }
+  .err-banner { display:none; background:rgba(248,113,113,.1); border:1px solid rgba(248,113,113,.3); color:#fca5a5; border-radius:10px; padding:12px 16px; font-size:14px; margin:16px 0; }
+  .empty { color:var(--text-muted); font-size:14px; padding:20px; text-align:center; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="breadcrumb"><a href="/akke/">Akke 知识库</a><span>›</span>破冰提示词监控</div>
+  <header class="hero">
+    <span class="tag"><span class="dot" id="statusDot"></span><span id="updatedAt">加载中…</span></span>
+    <h1>破冰提示词监控</h1>
+    <p class="subtitle">每日观测破冰话术的运转：当前提示词架构、用户回复率、各账号当天发出的话术（自动合格判定）、评论按分支聚合。数据直连生产库，最多落后 1 分钟。</p>
+    <div class="toolbar">
+      <input type="date" id="datePick">
+      <button id="refreshBtn">刷新</button>
+      <span class="updated" id="dateLabel"></span>
+    </div>
+  </header>
+
+  <div class="err-banner" id="errBanner"></div>
+
+  <!-- 1. 架构 -->
+  <h2>① 当前破冰提示词架构</h2>
+  <div class="panel" id="archPanel"><div class="empty">加载中…</div></div>
+
+  <!-- 2. 回复率 -->
+  <h2>② 用户回复率 <span class="hint" id="rrSince"></span></h2>
+  <div class="kpis" id="rrKpis"></div>
+  <h2 style="margin-top:24px">每日私信发送量 <span class="hint">近 7 天 · 紫色为今天</span></h2>
+  <div class="panel tight" id="rrTrend"><div class="empty">加载中…</div></div>
+
+  <!-- 3. 各账号话术 -->
+  <h2>③ 当天各账号话术 + 合格判定 <span class="hint" id="acctHint"></span></h2>
+  <div class="accts" id="acctWrap"><div class="empty">加载中…</div></div>
+
+  <!-- 4. 评论分支聚合 -->
+  <h2>④ 评论分类聚合 + 各分支话术</h2>
+  <div class="branchgrid">
+    <div class="panel" id="branchBars"><div class="empty">加载中…</div></div>
+    <div class="panel" id="intentPanel"><div class="empty">加载中…</div></div>
+  </div>
+  <div id="branchSamples"></div>
+
+  <div class="notes">
+    <b>口径说明</b>
+    <ul>
+      <li><b>回复率（按人）</b>＝ 回复人数 ÷ 被私信人数。回复信号取 <code>messages.role=customer</code>（<code>conversations.last_inbound_at</code> 已废弃停更，不用）；统计窗口为 <b>v41 上线（2026-06-05）起至今</b>累计。</li>
+      <li>回复消息的 <code>created_at</code> 是<b>入库时间</b>（scan 批量回写），不等于用户真实回复时刻，因此<b>不按日拆分回复率</b>；走势图只画每日私信发送量。</li>
+      <li><b>合格判定</b>＝ 复用线上 ice_break 同款 deterministic 硬规（<code>src/lib/llm/signals.ts</code>）扫已发话术，命中任一即不合格。监控只跑<b>无上下文 + 评论/地理上下文</b>的高精度子集（违禁开头/截断/套话/敷衍/越权报价/(R)泄价/地理矛盾/联系方式/地区可做未先行）；依赖昵称/品牌/装修阶段上下文的检查（自加后缀/杜撰资历/省名越权）因字段未持久化易误判，<b>不纳入</b>，故合格率偏宽松。</li>
+      <li><b>评论分支</b>由 <code>signals.ts</code> 判定函数对每条评论实时分类（W 联系方式豁免 / R 资料钩 / H 硬装软装 / G 双无信号 / 通用 4 步），优先级 W&gt;R&gt;H&gt;G&gt;通用，与线上 ice_break prompt 分支选择一致。</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+const API_BASE = "https://akke.vercel.app/api/public/icebreak-monitor";
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c]));
+const rateClass = (p) => p >= 90 ? "good" : p >= 70 ? "mid" : "bad";
+const $ = (id) => document.getElementById(id);
+
+async function load(date) {
+  const dot = $("statusDot");
+  try {
+    const q = date ? `?date=${date}&_t=${Date.now()}` : `?_t=${Date.now()}`;
+    const res = await fetch(API_BASE + q, { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const d = await res.json();
+    if (d.error) throw new Error(d.error);
+    render(d);
+    dot.classList.remove("err");
+    $("updatedAt").textContent = "数据时间 " + new Date(d.generatedAt).toLocaleString("zh-CN", { hour12:false }) + (d.stale ? "（降级缓存）" : "");
+    $("errBanner").style.display = "none";
+  } catch (e) {
+    dot.classList.add("err");
+    $("updatedAt").textContent = "加载失败";
+    const b = $("errBanner"); b.style.display = "block"; b.textContent = "数据加载失败：" + e.message;
+  }
+}
+
+function render(d) {
+  $("dateLabel").textContent = "观测日：" + d.date;
+  renderArch(d.architecture);
+  renderReplyRate(d.replyRate);
+  renderAccounts(d.accountsToday, d.date, d.todayTotal, d.todayPassRatePct);
+  renderBranches(d.branches, d.intents);
+}
+
+function renderArch(a) {
+  const steps = a.steps.map(s => `
+    <div class="step">
+      <div class="no">${esc(s.no)}</div>
+      <div class="nm">${esc(s.name)} <span class="ch">${esc(s.chars)}</span></div>
+      <div class="ds">${esc(s.desc)}</div>
+    </div>`).join("");
+  const dims = a.dimensions.map(x => `<div class="dim"><b>${esc(x.name)}</b><span>${esc(x.desc)}</span></div>`).join("");
+  const branchRows = a.branches.map(b => `
+    <tr><td><span class="bcode">${esc(b.code)}</span> ${esc(b.name)}</td>
+        <td>${esc(b.trigger)}</td><td>${esc(b.constraint)}</td></tr>`).join("");
+  const guards = a.guards.map(g => `<div class="guard"><b>${esc(g.name)}</b> · ${esc(g.desc)}</div>`).join("");
+  $("archPanel").innerHTML = `
+    <div class="archhead">
+      <span class="vbadge">${esc(a.version)}</span>
+      <span class="vmeta">${esc(a.versionLabel)} · 上线 ${esc(a.launchedAt)} · 模型 <code>${esc(a.model)}</code> · 人设 ${esc(a.persona)}</span>
+    </div>
+    <div class="vmeta" style="margin-bottom:6px">${esc(a.oneLine)}</div>
+    <div class="steps">${steps}</div>
+    <div style="font-size:11px;color:var(--text-muted);letter-spacing:.1em;text-transform:uppercase;margin:18px 0 4px">维度模块</div>
+    <div class="dimrow">${dims}</div>
+    <div style="font-size:11px;color:var(--text-muted);letter-spacing:.1em;text-transform:uppercase;margin:18px 0 4px">评论分支</div>
+    <table class="branch"><thead><tr><th>分支</th><th>触发</th><th>话术约束</th></tr></thead><tbody>${branchRows}</tbody></table>
+    <div style="font-size:11px;color:var(--text-muted);letter-spacing:.1em;text-transform:uppercase;margin:18px 0 4px">deterministic 后置硬规</div>
+    <div class="guards">${guards}</div>`;
+}
+
+function renderReplyRate(rr) {
+  const s = rr.sinceV41;
+  $("rrSince").textContent = "v41 上线（" + s.since.slice(0,10) + "）起累计";
+  $("rrKpis").innerHTML = `
+    <div class="kpi hero-kpi"><div class="l">回复率（按人）</div><div class="v">${s.ratePct}%</div><div class="sub">${s.repliedPeople} 回复 / ${s.contactedPeople} 被私信</div></div>
+    <div class="kpi"><div class="l">私信条数</div><div class="v">${s.dmCount}</div><div class="sub">role=ai · status=sent</div></div>
+    <div class="kpi"><div class="l">被私信人数</div><div class="v">${s.contactedPeople}</div><div class="sub">distinct 会话</div></div>
+    <div class="kpi"><div class="l">回复人数</div><div class="v">${s.repliedPeople}</div><div class="sub">出现 customer 消息</div></div>
+    <div class="kpi"><div class="l">回复条数</div><div class="v">${s.replyMsgCount}</div><div class="sub">role=customer 累计 · 今天 ${rr.today.replyMsgCount}</div></div>`;
+
+  const max = Math.max(1, ...rr.trend.map(t => t.dm));
+  const bars = rr.trend.map((t, i) => {
+    const today = i === rr.trend.length - 1;
+    return `<div class="barcol ${today?"today":""}">
+      <div class="bval">${t.dm}</div>
+      <div class="bfill" style="height:${Math.round(t.dm/max*100)}%"></div>
+      <div class="blab">${t.date.slice(5)}</div></div>`;
+  }).join("");
+  $("rrTrend").innerHTML = `<div class="bars">${bars}</div>`;
+}
+
+function renderAccounts(accts, date, total, passPct) {
+  $("acctHint").textContent = `${date} · 共 ${total} 条 · 整体合格率 ${passPct}%`;
+  if (!accts || accts.length === 0) { $("acctWrap").innerHTML = `<div class="empty">${date} 暂无发送记录</div>`; return; }
+  $("acctWrap").innerHTML = accts.map(a => {
+    const ops = a.openers.map(o => `
+      <div class="op ${o.pass?"":"fail"}">
+        <div class="meta">
+          <span class="btag">${esc(o.branchLabel)}</span>
+          ${o.intentLabel?`<span class="itag ${esc(o.intentLabel)}">${esc(o.intentLabel)}</span>`:""}
+          <span class="vd ${o.pass?"pass":"fail"}">${o.pass?"✓ 合格":"✗ 不合格"}</span>
+          <span style="font-size:10.5px;color:var(--text-muted);margin-left:auto">${new Date(o.sentAt).toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit",hour12:false})}</span>
+        </div>
+        <div class="txt">${esc(o.opener)}</div>
+        ${o.comment?`<div class="cmt"><b>原评论：</b>${esc(o.comment)}</div>`:""}
+        ${o.hits.length?`<div class="hits">命中：${o.hits.map(h=>`<code>${esc(h.rule)}</code>${esc(h.detail)}`).join(" ")}</div>`:""}
+      </div>`).join("");
+    return `<div class="acct">
+      <div class="ah">
+        <div><div class="an">${esc(a.name)}</div><div class="ar">发出 <b>${a.total}</b> 条 · 合格 <b>${a.pass}</b> / 不合格 <b>${a.fail}</b></div></div>
+        <span class="ratepill ${rateClass(a.passRatePct)}">${a.passRatePct}%</span>
+      </div>
+      <div class="ops">${ops}</div>
+    </div>`;
+  }).join("");
+}
+
+function renderBranches(branches, intents) {
+  if (!branches || branches.length === 0) {
+    $("branchBars").innerHTML = `<div class="empty">暂无数据</div>`;
+    $("intentPanel").innerHTML = `<div class="empty">暂无数据</div>`;
+    $("branchSamples").innerHTML = ""; return;
+  }
+  const maxC = Math.max(1, ...branches.map(b => b.count));
+  $("branchBars").innerHTML = `<div style="font-size:13px;color:var(--text-dim);margin-bottom:10px">各分支条数 · 合格率</div>` +
+    branches.map(b => `
+      <div class="bbar">
+        <div class="bn"><span class="bcode">${esc(b.code)}</span>${esc(b.label)}</div>
+        <div class="track"><div class="fill" style="width:${Math.round(b.count/maxC*100)}%"></div></div>
+        <div class="bc">${b.count} 条 · <span style="color:var(--${rateClass(b.passRatePct)==='good'?'ok':rateClass(b.passRatePct)==='mid'?'warn':'danger'})">${b.passRatePct}%</span></div>
+      </div>`).join("");
+
+  $("intentPanel").innerHTML = `<div style="font-size:13px;color:var(--text-dim);margin-bottom:10px">评论意向分布（当天发出话术对应的评论）</div>
+    <div class="intentrow">${intents.map(i => `<div class="ichip"><div class="iv">${i.count}</div><div class="il">${esc(i.label)}</div></div>`).join("")}</div>`;
+
+  $("branchSamples").innerHTML = branches.map(b => `
+    <div class="panel tight" style="margin-top:12px">
+      <div style="font-size:14px;font-weight:600;margin-bottom:4px"><span class="bcode">${esc(b.code)}</span> ${esc(b.label)} · ${b.count} 条 · 合格率 ${b.passRatePct}%</div>
+      <div class="samples">${b.samples.map(s => `
+        <div class="sample">
+          <div class="op ${s.pass?"":"fail"}" style="border:0;border-left:3px solid var(--${s.pass?'ok':'danger'});background:transparent;padding:2px 0 2px 10px">
+            <div class="txt">${esc(s.opener)}</div>
+            ${s.comment?`<div class="cmt"><b>原评论：</b>${esc(s.comment)}</div>`:""}
+            ${s.hits.length?`<div class="hits">命中：${s.hits.map(h=>`<code>${esc(h.rule)}</code>`).join(" ")}</div>`:""}
+          </div>
+        </div>`).join("")}</div>
+    </div>`).join("");
+}
+
+$("refreshBtn").addEventListener("click", () => load($("datePick").value || null));
+$("datePick").addEventListener("change", () => load($("datePick").value || null));
+load(null);
+</script>
+</body>
+</html>
