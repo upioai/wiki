@@ -14,10 +14,14 @@
 搜索按【昵称】(GUI 搜不了 sec_uid)，OCR身份门防同名关错；sec_uid 仅做去重/日志。
 
 用法(无影，脚本目录)：
-  python _follow_grounded.py --pool special-follow-饭粒.json            # 关 30 个(日限)
+  python _follow_grounded.py --from-db                                  # 直读库(免摆渡·WI-2 P1·推荐)
+  python _follow_grounded.py --pool special-follow-饭粒.json            # 关 30 个(日限·老文件池)
   python _follow_grounded.py --pool special-follow-饭粒.json --limit 50 # 覆盖日限
   python _follow_grounded.py --pool special-follow-饭粒.json --confirm  # 逐个 y/n 确认
   python _follow_grounded.py --test "某昵称"                            # 只关 1 个验流程
+--from-db(P1 自动化)：cron refresh-monitored-targets 已做 ring 分配+7天窗口，本号要关的(dm_failed+no_owner)
+  直接进 monitored_targets，脚本读库取本号名单(.env 要 SUPABASE_*+AKKE_ORG_ID+AKKE_ACCOUNT_ID)。配 Windows
+  任务计划程序每天跑一次(见同目录 follow-daily.bat)，followed.json 跨天去重+DAILY_LIMIT 截断天然处理「关30就停」。
 输出: follow_log_YYYYMMDD.csv（name sec_uid status conf sent_at）+ followed.json(去重，跨天跳过已关)
 """
 import argparse
@@ -44,6 +48,59 @@ except Exception:
 C_FOLLOW = dm._coord("AKKE_C_FOLLOW", None)
 # 头部区域(归一化)：搜结果进主页后，关注/已关注按钮在右上。VL 限域省 token、避免点到别处。
 HEADER_REGION = (0.30, 0.05, 1.0, 0.38)
+
+
+def _setup_db(account):
+    """读 .env 组装 monitored_targets 直连配置（镜像 watch 的 _setup_db：scoped JWT / 回退 service）。
+    缺关键 env 返回 None → --from-db 直接报错退出（不静默降级，免误以为关了一批）。"""
+    try:
+        from dotenv import load_dotenv
+        for p in (os.path.join(HERE, ".env"), os.path.join(os.path.dirname(HERE), ".env")):
+            if os.path.exists(p):
+                load_dotenv(p, override=False)
+    except Exception:
+        pass
+    url = os.environ.get("SUPABASE_URL") or os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
+    scoped = os.environ.get("SUPABASE_SCOPED_JWT")
+    anon = os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY") or os.environ.get("SUPABASE_ANON_KEY")
+    service = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    org = os.environ.get("AKKE_ORG_ID")
+    if scoped and anon:
+        apikey, bearer = anon, scoped       # 受控 wuying_worker 角色（无影优先）
+    elif service:
+        apikey = bearer = service           # 回退 service_role
+    else:
+        return None
+    if not (url and org and account):
+        return None
+    return {"url": url.rstrip("/"), "apikey": apikey, "bearer": bearer, "org": org}
+
+
+def load_targets_db(db, account):
+    """从 monitored_targets 读本号 status=watching 且 reason in (dm_failed, no_owner) 的【要关注】名单。
+    sent_no_reply 不读（那是已关注·watch-only）。cron refresh-monitored-targets 已做 ring 分配+窗口，
+    这里只读分到本号的，免 mac 摆渡（WI-2 P1）。返回 [{name, sec_uid, douyin_no, comment_id}]，与文件池同形。
+    douyin_no 库里没有 → 空串退昵称搜（同文件池无号行为；大众名 wrong_user 风险照旧，v1 不补 enrich）。"""
+    import urllib.request
+    import urllib.parse
+    q = urllib.parse.urlencode({
+        "select": "douyin_user_id,nickname,source_comment_id",
+        "org_id": "eq.%s" % db["org"],
+        "account_id": "eq.%s" % account,
+        "status": "eq.watching",
+        "reason": "in.(dm_failed,no_owner)",
+    })
+    req = urllib.request.Request(
+        "%s/rest/v1/monitored_targets?%s" % (db["url"], q),
+        headers={"apikey": db["apikey"], "Authorization": "Bearer %s" % db["bearer"]})
+    rows = json.load(urllib.request.urlopen(req, timeout=30))
+    out = []
+    for r in rows:
+        sec = r.get("douyin_user_id")
+        if sec:
+            out.append({"name": r.get("nickname") or "", "sec_uid": sec,
+                        "douyin_no": "", "comment_id": r.get("source_comment_id") or ""})
+    return out
 
 
 def ensure_front(tries=3):
@@ -142,6 +199,10 @@ def follow_one(name, auto, douyin_no=""):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--pool", default=os.path.join(HERE, "special-follow-饭粒.json"))
+    ap.add_argument("--from-db", action="store_true",
+                    help="直读 monitored_targets(reason in dm_failed,no_owner) 取关注名单，免 mac 摆渡文件池（WI-2 P1）")
+    ap.add_argument("--account", default=os.environ.get("AKKE_ACCOUNT_ID", ""),
+                    help="--from-db 时按本号取名单（默认 AKKE_ACCOUNT_ID）")
     ap.add_argument("--test", default=None, help="只关 1 个昵称验流程")
     ap.add_argument("--limit", type=int, default=None, help="本次最多关几个(默认=dm.DAILY_LIMIT 防风控)")
     ap.add_argument("--confirm", action="store_true", help="逐个 y/n 确认")
@@ -153,6 +214,16 @@ def main():
 
     if args.test:
         targets = [{"name": args.test, "sec_uid": "", "douyin_no": ""}]
+    elif args.from_db:
+        if not args.account:
+            sys.exit("❌ --from-db 需要 --account=<id> 或 .env 的 AKKE_ACCOUNT_ID")
+        db = _setup_db(args.account)
+        if not db:
+            sys.exit("❌ --from-db 缺 .env：要 SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL + "
+                     "(SUPABASE_SCOPED_JWT+ANON_KEY 或 SUPABASE_SERVICE_ROLE_KEY) + AKKE_ORG_ID")
+        targets = load_targets_db(db, args.account)
+        print("  从库读关注名单 monitored_targets(dm_failed+no_owner)·本号 %s：%d 人（cron 已做 ring 分配+窗口）"
+              % (args.account[:8], len(targets)))
     else:
         if not os.path.exists(args.pool):
             sys.exit("lead 池不存在: %s（从 mac 摆渡 special-follow-饭粒[-enriched].json）" % args.pool)
