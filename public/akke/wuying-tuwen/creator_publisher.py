@@ -503,8 +503,46 @@ def click_publish(commit: bool = False) -> bool:
     return True
 
 
+CAPTCHA_TIMEOUT_SEC = int(os.environ.get('AKKE_TUWEN_CAPTCHA_TIMEOUT_SEC', '180'))  # 默认 3min
+
+
+def _wait_for_enter_with_timeout(timeout_sec: int) -> bool:
+    """Windows: 用 msvcrt 轮询键盘. 返回 True if Enter 按了, False if 超时.
+
+    替代裸 input() 阻塞 — input() 没法超时, 周末运营没盯云电脑会让 agent 死死挂着,
+    后面同 assignee 的 row 全堵 (sequential). 超时返回 False, 上层抛 SystemExit(10),
+    agent 把 row 标 needs_review 不挡下一条.
+    """
+    try:
+        import msvcrt  # type: ignore[import-not-found]
+    except ImportError:
+        # 非 Windows fallback: 退到裸 input (本地 Mac 开发, 真生产是 Windows 云电脑)
+        try:
+            input(f'  等待 [Enter] 续跑 (timeout 仅 Windows 生效, 此处无 timeout)... ')
+            return True
+        except (KeyboardInterrupt, EOFError):
+            return False
+
+    deadline = time.time() + timeout_sec
+    print(f'  [captcha] 等待 [Enter] 续跑 (超时 {timeout_sec}s 后 abort 转 needs_review)... ', flush=True)
+    last_print_at = 0
+    while time.time() < deadline:
+        if msvcrt.kbhit():
+            ch = msvcrt.getwch()
+            if ch in ('\r', '\n'):
+                return True
+            # 其它键吞掉, 继续等 Enter
+        # 每 30s 提醒一次剩余时间
+        remaining = int(deadline - time.time())
+        if remaining > 0 and remaining % 30 == 0 and remaining != last_print_at:
+            print(f'  [captcha] 还有 {remaining}s 等你过验证码 + Enter...', flush=True)
+            last_print_at = remaining
+        time.sleep(0.2)
+    return False
+
+
 def _detect_and_pause_for_captcha() -> None:
-    """点发布后检测验证码弹窗. 弹了 print 提示 + input() 阻塞等用户 Enter."""
+    """点发布后检测验证码弹窗. 弹了推 Lark 告警 + 等 Enter 续跑, 超时转 needs_review."""
     path, _ = _shot('_after_publish_check.png')
     b64 = base64.b64encode(Path(path).read_bytes()).decode()
     prompt = (
@@ -529,35 +567,68 @@ def _detect_and_pause_for_captcha() -> None:
     print('', file=sys.stderr)
     print(f'  ⚠️  【验证码弹窗】({captcha_type}) — 检测到: {seen_text}', file=sys.stderr)
     print('  ⚠️  请在 Edge 里手动过完验证码 (滑块拖到底/点字/输数字等) → 看到发布成功后', file=sys.stderr)
-    print('  ⚠️  回到这里按 [Enter] 续跑 verify_published 步骤', file=sys.stderr)
+    print(f'  ⚠️  回到这里按 [Enter] 续跑 (超时 {CAPTCHA_TIMEOUT_SEC}s)', file=sys.stderr)
 
-    # P3 #8: 推 Lark 告警让运营 30s 内回云电脑过验证码 (不影响主流程)
+    # 推 Lark 告警 (视频更新 bot 群 + @ 当前 assignee 邮箱). best-effort 不影响 input.
     _push_lark_captcha_alert(captcha_type, seen_text)
 
-    try:
-        input('  等待 [Enter] 续跑... ')
-    except (KeyboardInterrupt, EOFError):
-        print('  [captcha] 用户取消, abort', file=sys.stderr)
-        raise SystemExit(2)
+    ok = _wait_for_enter_with_timeout(CAPTCHA_TIMEOUT_SEC)
+    if not ok:
+        print(f'  [captcha] {CAPTCHA_TIMEOUT_SEC}s 内无人过验证码 → abort 本 row 转 needs_review, 不挡后续作品', file=sys.stderr)
+        raise SystemExit(10)
     print('  [captcha] 已续跑')
 
 
-def _push_lark_captcha_alert(captcha_type: str, seen_text: str) -> None:
-    """检测到验证码 → 推 Lark 卡到 LARK_WEBHOOK_AKKE_BOT 让运营 30s 内回去过.
+def _resolve_lark_at_tag_for_current_assignee() -> str:
+    """读 AKKE_TUWEN_ASSIGNEE + LARK_USER_ID_MAP_JSON, 返回 <at email="..."></at> 真 @ 标签.
 
-    Best-effort: webhook 没配或推送失败都不影响主流程 (input() 等运营 Enter 续跑).
+    没配 / 解析失败 → 退回纯文本 @{assignee} (Lark 自动匹配同名群成员).
     """
-    webhook = os.environ.get('LARK_WEBHOOK_AKKE_BOT', '').strip()
+    assignee = os.environ.get('AKKE_TUWEN_ASSIGNEE', '').strip()
+    if not assignee:
+        return '@运营'
+    try:
+        raw = os.environ.get('LARK_USER_ID_MAP_JSON', '').strip()
+        if raw:
+            id_map = json.loads(raw)
+            ident = id_map.get(assignee)
+            if ident:
+                if '@' in ident:
+                    return f'<at email="{ident}"></at>'
+                if ident.startswith('ou_'):
+                    return f'<at user_id="{ident}"></at>'
+    except Exception:
+        pass
+    return f'@{assignee}'
+
+
+def _push_lark_captcha_alert(captcha_type: str, seen_text: str) -> None:
+    """检测到验证码 → 推 Lark 卡到 LARK_WEBHOOK_TUWEN_AUTO (视频更新 bot 数据监控群).
+
+    2026-06-26 改:
+      - webhook LARK_WEBHOOK_AKKE_BOT → LARK_WEBHOOK_TUWEN_AUTO (所有 tuwen 卡统一走视频更新群)
+      - 卡里 <at email="..."> 真 @ 当前 assignee (从 AKKE_TUWEN_ASSIGNEE + LARK_USER_ID_MAP_JSON 解析)
+      - 提到 input timeout 后会自动 abort 转 needs_review, 不挡后续 row
+
+    Best-effort: webhook / map 没配都不影响主流程 (input 仍按超时等运营 Enter).
+    """
+    webhook = os.environ.get('LARK_WEBHOOK_TUWEN_AUTO', '').strip()
     if not webhook:
-        return  # webhook 没配, silent skip (本地测试常态)
+        # 老 env 兼容: 没 LARK_WEBHOOK_TUWEN_AUTO 时退回 AKKE_BOT (老 .env 未更新时不静默掉)
+        webhook = os.environ.get('LARK_WEBHOOK_AKKE_BOT', '').strip()
+    if not webhook:
+        return  # 两个都没配, silent skip (本地测试常态)
     if not webhook.startswith('http'):
         webhook = f'https://open.larksuite.com/open-apis/bot/v2/hook/{webhook}'
+
+    at_tag = _resolve_lark_at_tag_for_current_assignee()
+    assignee = os.environ.get('AKKE_TUWEN_ASSIGNEE', '').strip() or '?'
 
     payload = {
         'msg_type': 'interactive',
         'card': {
             'header': {
-                'title': {'tag': 'plain_text', 'content': '⚠️ 云电脑图文发布卡验证码'},
+                'title': {'tag': 'plain_text', 'content': f'⚠️ 云电脑图文发布卡验证码 · {assignee}'},
                 'template': 'red',
             },
             'elements': [
@@ -566,19 +637,19 @@ def _push_lark_captcha_alert(captcha_type: str, seen_text: str) -> None:
                     'text': {
                         'tag': 'lark_md',
                         'content': (
-                            f'**类型**: {captcha_type}\n'
+                            f'{at_tag} **类型**: {captcha_type}\n'
                             f'**抖音提示**: {seen_text or "(无)"}\n\n'
-                            f'**云电脑 agent 已暂停**, 请尽快回云电脑 (creator.douyin.com Edge 窗口)'
+                            f'**云电脑 agent 已暂停**, 请尽快回云电脑 (creator.douyin.com Edge 窗口) '
                             f'手动过完验证码 + 回 PowerShell 按 [Enter] 续跑.\n\n'
-                            f'若 5 分钟内未过, agent 会一直挂着等; 实在过不去可在 PowerShell Ctrl+C 让 row 失败'
-                            f'(30 分钟后 RPC 自动回 approved, 可重试).'
+                            f'**{CAPTCHA_TIMEOUT_SEC}s 内未过** → agent 自动 abort 本 row 转 needs_review, '
+                            f'不挡你后面同号其他作品发布. 之后可手动重发这条 slug.'
                         )
                     }
                 },
                 {
                     'tag': 'note',
                     'elements': [
-                        {'tag': 'plain_text', 'content': '🤖 cloudpc-tuwen / creator_publisher.py'}
+                        {'tag': 'plain_text', 'content': f'🤖 cloudpc-tuwen / creator_publisher.py · assignee={assignee}'}
                     ]
                 }
             ]

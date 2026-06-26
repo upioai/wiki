@@ -175,18 +175,22 @@ def process_one(row: dict) -> None:
     rc = proc.returncode
     print(f'  [tuwen] {disp_id[:8]} exit={rc}')
 
-    # status 映射 (2026-06-25 彻底修): exit 8 不等于真失败.
-    # creator_publisher step 7 verify_published 是 best-effort: URL 检测 + 多层 VL,
-    # 任一信号 hit 就 exit 0; 全部 miss 才 exit 8. exit 8 实际作品大概率已发出 (发布
-    # 按钮已点 + 表单已提交), 只是 agent 没自信确认. 应该标 needs_review 让运营抽查
-    # creator 后台「作品管理」, 不应该当 failed 让日报误判触发重发.
-    # 真失败 (exit 4/5/6/7) 仍标 failed.
+    # status 映射 (2026-06-25 彻底修 + 06-26 加 exit 10): 区分 3 类:
+    # - exit 0 = published (真成功)
+    # - exit 8 = needs_review (verify_published 多层信号没 hit, 发布按钮已点 + 表单已提交,
+    #   实际大概率已发, 抽查 creator 后台. 详 PR #548)
+    # - exit 10 = needs_review (新, 06-26): 弹了验证码 + agent 等了 CAPTCHA_TIMEOUT_SEC
+    #   没人按 Enter → 主动 abort 转 needs_review, 不挡同 assignee 后续 row.
+    # - 其它 rc (4/5/6/7) = failed (真错: NOT FOUND step 4/5/6/7)
     if rc == 0:
         status = 'published'
         err = None
     elif rc == 8:
         status = 'needs_review'
         err = '⚠ 发布按钮已点 + 表单已提交, 但 verify_published 多层信号都没 hit. 大概率已发出, 抽查 creator 后台「作品管理」确认. (creator_publisher exit 8)'
+    elif rc == 10:
+        status = 'needs_review'
+        err = '⚠ 弹验证码超时无人过 (3min), agent abort 转 needs_review. 之后可手动重发本 slug. (creator_publisher exit 10)'
     else:
         status = 'failed'
         err = f'creator_publisher exit {rc}'
