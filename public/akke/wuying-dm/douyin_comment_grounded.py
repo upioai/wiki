@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import csv
 import ctypes
+import json
 import os
 import random
 import re
@@ -468,7 +469,7 @@ def process(c, auto, times=None):
     return st, conf, liked, st2
 
 
-def main(contacts_csv, auto):
+def main(contacts_csv, auto, result_out=None):
     with open(contacts_csv, encoding='utf-8-sig') as f:
         contacts = list(csv.DictReader(f))
     if not contacts:
@@ -484,11 +485,18 @@ def main(contacts_csv, auto):
     print('   ⚠️ 公开评论：发完以抖音评论区气泡核对实发，不要只信本日志。')
 
     log = 'comment_log_%s.csv' % datetime.now().strftime('%Y%m%d')
+    # _aweme_id/_create_time/_detected_at 是消费端透传进来的隐藏列：以前不在 fields 里被
+    # extrasaction='ignore' 丢掉，导致 read_comment_log_row 的 _aweme_id 主键命中永远失败、
+    # log_second_touch 的 p_touched_video_aweme_id 永远 NULL（2026-06-26 修）。补进 fields 透传。
     fields = ['douyin_id', 'nickname', 'message', 'message2', 'has_works',
               '_comment_id', '_sec_uid', '_dispatch_id',
               'status', 'liked', 'status2', 'sent_at', '_ocr_confidence',
               # 三连分步完成时刻（second_touch_log 完整时间线用；早返回的步留空）
-              'like_at', 'comment1_at', 'comment2_at']
+              'like_at', 'comment1_at', 'comment2_at',
+              '_aweme_id', '_create_time', '_detected_at']
+    # --result-out：把每条三连结果按 _sec_uid 落一份确定性 JSON 给消费端直读（精确路径、
+    # 不带日期、不扫描、不被别的管道污染），取代隔着 comment_log_YYYYMMDD.csv 的脆弱二次回读。
+    results = {}
     first_write = not os.path.exists(log)
     with open(log, 'a', encoding='utf-8-sig', newline='') as f:
         w = csv.DictWriter(f, fieldnames=fields, extrasaction='ignore')
@@ -509,13 +517,23 @@ def main(contacts_csv, auto):
                     pyautogui.press('esc'); time.sleep(0.5)
                 except Exception:
                     pass
-            w.writerow({**c, 'status': status, 'liked': liked, 'status2': status2,
-                        'sent_at': datetime.now().isoformat(),
-                        '_ocr_confidence': '' if ocr_conf is None else '%.3f' % ocr_conf,
-                        'like_at': times.get('like_at', ''),
-                        'comment1_at': times.get('comment1_at', ''),
-                        'comment2_at': times.get('comment2_at', '')})
+            row = {**c, 'status': status, 'liked': liked, 'status2': status2,
+                   'sent_at': datetime.now().isoformat(),
+                   '_ocr_confidence': '' if ocr_conf is None else '%.3f' % ocr_conf,
+                   'like_at': times.get('like_at', ''),
+                   'comment1_at': times.get('comment1_at', ''),
+                   'comment2_at': times.get('comment2_at', '')}
+            w.writerow(row)
             f.flush()
+            sec = (c.get('_sec_uid') or '').strip()
+            if sec:
+                results[sec] = row   # 同人多行后写覆盖（与 comment_log hit[-1] 同口径）
+            if result_out:
+                try:
+                    json.dump(results, open(result_out, 'w', encoding='utf-8'),
+                              ensure_ascii=False)
+                except Exception as e:
+                    print('  ⚠️ 写 --result-out 失败: %s' % e)
             if i < len(contacts):
                 time.sleep(random.randint(MIN_INTERVAL, MAX_INTERVAL))
     print('\n✅ 完成. 日志: %s' % log)
@@ -525,11 +543,16 @@ if __name__ == '__main__':
     flags = [a for a in sys.argv[1:] if a.startswith('--')]
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     if not args:
-        print('用法: python douyin_comment_grounded.py contacts.csv [--confirm]', file=sys.stderr)
+        print('用法: python douyin_comment_grounded.py contacts.csv [--confirm] [--result-out=PATH]',
+              file=sys.stderr)
         print('      默认自动发(OCR门通过即发)；加 --confirm 才逐条 y/n 确认', file=sys.stderr)
+        print('      --result-out=PATH 把每条三连结果按 _sec_uid 落 JSON（消费端直读，去 CSV 回读）',
+              file=sys.stderr)
         sys.exit(2)
     if not dm.KEY:
         print('❌ 缺 ANTHROPIC_API_KEY / OPENROUTER_API_KEY', file=sys.stderr)
         sys.exit(2)
+    # --result-out=PATH（消费端确定性回读用）；缺省 None 维持旧行为（只写 comment_log）。
+    result_out = next((a.split('=', 1)[1] for a in flags if a.startswith('--result-out=')), None)
     # 默认自动发；--confirm 才逐条确认（--auto 仍兼容接受=默认行为）
-    main(args[0], auto='--confirm' not in flags)
+    main(args[0], auto='--confirm' not in flags, result_out=result_out)

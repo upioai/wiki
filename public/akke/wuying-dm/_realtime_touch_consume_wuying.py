@@ -265,6 +265,19 @@ def read_comment_log_row(aweme_id, sec):
     return hit[-1] if hit else {}
 
 
+def read_result_row(path, sec):
+    """读执行器 --result-out 落的确定性 JSON（{_sec_uid: row}），取本 sec 那行。
+    精确路径、无日期、不扫描、每条发前已清空 → 没有 comment_log 二次回读那些丢/串/漂的坑。
+    文件缺失/解析失败/无此 sec → {}（调用方回退 read_comment_log_row）。"""
+    if not path or not os.path.exists(path):
+        return {}
+    try:
+        data = json.load(open(path, encoding="utf-8"))
+    except Exception:
+        return {}
+    return data.get(sec) or {}
+
+
 def db_log(db, account, sec, comment_id, touch_seq, video_url, video_pub_iso, e2e_min, lr, detected_at=None):
     """直调 log_second_touch：INSERT 一行 second_touch_log（append-only，完整时间线）。
     lr = read_comment_log_row 的行（带 like_at/comment1_at/comment2_at + 各步 status）。
@@ -298,6 +311,8 @@ def main():
     ap.add_argument("--touched", default=_default("realtime-touch-touched.json"))
     ap.add_argument("--comment-script", default=_default("douyin_comment_grounded.py"))
     ap.add_argument("--csv-tmp", default=_default("realtime-touch-contacts.csv"))
+    ap.add_argument("--result-json", default=_default("realtime-touch-result.json"),
+                    help="执行器 --result-out 落点：每条三连结果按 _sec_uid 的确定性 JSON，db_log 直读")
     ap.add_argument("--log", default=_default("realtime-touch-consume.log"))
     ap.add_argument("--interval-sec", type=float, default=30)
     ap.add_argument("--max-detect-age-min", type=float, default=20,
@@ -485,7 +500,16 @@ def main():
                 continue
 
             # 调 douyin_comment_grounded.py 发三连（串行、等它跑完）
-            cmd = [sys.executable, args.comment_script, args.csv_tmp]
+            # --result-out：执行器把三连结果按 _sec_uid 落确定性 JSON，db_log 直读（取代隔着
+            # 带日期的 comment_log_YYYYMMDD.csv 二次扫描——文件丢/跨午夜/键漂移就全空，2026-06-26 修）。
+            # 每条发前先删旧结果文件，杜绝读到上一条的残留。
+            try:
+                if os.path.exists(args.result_json):
+                    os.remove(args.result_json)
+            except Exception:
+                pass
+            cmd = [sys.executable, args.comment_script, args.csv_tmp,
+                   "--result-out=" + args.result_json]
             if args.confirm:
                 cmd.append("--confirm")
             # ⏱️ 执行器硬超时（2026-06-16 教训：一次 GUI 卡死无超时把整条流水线冻了 10h、
@@ -518,9 +542,11 @@ def main():
                             emit(f"   ↩️ 回写DB(直连): touch_count={cr.get('touch_count')} "
                                  f"e2e={cr.get('last_e2e_minutes')}min ladder={cr.get('ladder_status')}")
                             # 顺带 INSERT 一行 second_touch_log（完整时间线：三连分步时刻 + 视频链接）。
-                            # 读 comment_log 拿 like_at/comment1_at/comment2_at + 各步 status；失败只告警。
+                            # 优先读执行器刚落的确定性 result JSON（按 _sec_uid，精确路径无歧义）；
+                            # 缺失才回退扫 comment_log_YYYYMMDD.csv（旧脆弱路径，文件丢/跨午夜会空）。
                             try:
-                                lr = read_comment_log_row(aweme_id, sec)
+                                lr = read_result_row(args.result_json, sec) \
+                                    or read_comment_log_row(aweme_id, sec)
                                 db_log(db, args.account, sec, cmt_id, cr.get("touch_count"),
                                        rec.get("video_url"), video_pub_iso, e2e_min, lr, det)
                                 emit(f"   🧾 流水落库 second_touch_log seq={cr.get('touch_count')} "
