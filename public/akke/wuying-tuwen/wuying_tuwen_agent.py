@@ -102,20 +102,32 @@ if not _BEARER:
 # 运营下次重启 agent 自动拉新版, 完全无感知.
 #
 # fetch 失败 silent skip — 退回本地 .env 老值 (绝不 break agent 启动).
+#
+# 2026-06-26 修: 必须用 service-role key 拉 Storage. scoped JWT (role=wuying_worker)
+# 没 Storage 读权限, 只能 RPC. 如果 .env 没 SUPABASE_SERVICE_ROLE_KEY, fallback 用
+# _BEARER (会失败但不 break), 此时只能走 .env 老值.
 def _fetch_env_overrides() -> None:
+    # Storage 需要 service-role, 不是 scoped JWT
+    storage_key = _SERVICE_KEY or _BEARER
+    if not storage_key:
+        print('[env-override] no key for storage fetch, skip', file=sys.stderr)
+        return
+
     bucket = 'agent-config'
     obj = 'wuying.json'
     url = f'{SUPABASE_URL}/storage/v1/object/{bucket}/{obj}'
     try:
         req = urllib.request.Request(url, headers={
-            'apikey': _APIKEY,
-            'Authorization': f'Bearer {_BEARER}',
+            'apikey': storage_key,
+            'Authorization': f'Bearer {storage_key}',
         })
         with urllib.request.urlopen(req, timeout=8) as resp:
             overrides = json.loads(resp.read().decode())
     except urllib.error.HTTPError as e:
         if e.code == 404:
             print('[env-override] supabase storage 没 wuying.json, skip (退回本地 .env)', file=sys.stderr)
+        elif e.code in (400, 401, 403):
+            print(f'[env-override] http {e.code} (.env 缺 SUPABASE_SERVICE_ROLE_KEY?), skip', file=sys.stderr)
         else:
             print(f'[env-override] http {e.code}, skip', file=sys.stderr)
         return
