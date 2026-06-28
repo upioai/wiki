@@ -43,6 +43,7 @@ const CATEGORIES = [
     label: 'TOOLS · GETTING STARTED',
     title: '工具入门',
     items: [
+      { slug: 'vercel-supabase', title: 'Vercel × Supabase', desc: '我们几乎每个产品都在用的两件套——前端托管 + 后端数据库：来历、能力全景，以及我们用了哪些、没用哪些、为什么。' },
       { slug: 'sql-python-intro', title: 'SQL 与 Python 入门', desc: '数据分析基础速成。' },
     ],
   },

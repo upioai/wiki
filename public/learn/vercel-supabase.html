@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vercel × Supabase 讲解 — upio.ai 知识分享</title>
+<meta name="description" content="Vercel 管「网站怎么上线、怎么跑」，Supabase 管「数据存哪、谁能动」。一篇讲清两者的来历、能力全景、典型场景，以及我们团队日常到底用到了哪些部分、哪些还没用上、为什么。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700;800&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+
+<style>
+:root {
+  --bg: #0a0d14; --bg-elevated: #131720; --bg-deep: #1a1f2b;
+  --border: #232936; --border-strong: #2f3646;
+  --text: #e8eaef; --text-dim: #9ba3b4; --text-muted: #6b7384;
+  --accent:   #8b5cf6; --accent-soft:   rgba(139, 92, 246, 0.15); --accent-strong: rgba(139, 92, 246, 0.35);
+  --accent-2: #60a5fa; --accent-2-soft: rgba(96, 165, 250, 0.13);
+  --accent-3: #34d399; --accent-3-soft: rgba(52, 211, 153, 0.14);
+  --warning:  #fbbf24; --warning-soft:  rgba(251, 191, 36, 0.14);
+  --danger:   #f87171; --danger-soft:   rgba(248, 113, 113, 0.14);
+  --font-display: 'Instrument Serif', 'Source Han Serif SC', Georgia, serif;
+  --font-ui:      'Inter Tight', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; padding: 0;
+  background: var(--bg); color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 15.5px; line-height: 1.7;
+  font-feature-settings: 'cv11', 'ss01', 'tnum';
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ──────────── Breadcrumb bar ──────────── */
+.crumb-bar {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(10, 13, 20, 0.82);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border-bottom: 1px solid var(--border);
+}
+.crumb-inner {
+  max-width: 1000px; margin: 0 auto;
+  padding: 11px 24px;
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--text-muted); letter-spacing: 0.04em;
+}
+.crumb-inner a { color: var(--text-dim); text-decoration: none; transition: color .2s; }
+.crumb-inner a:hover { color: var(--accent); }
+.crumb-inner .sep { margin: 0 8px; color: var(--border-strong); }
+.crumb-inner .cur { color: var(--text-dim); }
+
+/* ──────────── Layout ──────────── */
+.container { max-width: 920px; margin: 0 auto; padding: 52px 24px 100px; }
+
+/* ──────────── Hero ──────────── */
+header.hero { padding: 4px 0 38px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.tag {
+  display: inline-block; padding: 4px 12px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent);
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  margin-bottom: 18px;
+}
+h1 {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 58px; font-weight: 400;
+  margin: 0 0 18px; letter-spacing: -0.02em; line-height: 1.08;
+  background: linear-gradient(135deg, #f4f5f8 30%, var(--accent) 72%, var(--accent-2) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.subtitle {
+  font-size: 17px; color: var(--text-dim);
+  margin: 0 0 26px; max-width: 760px; line-height: 1.6;
+}
+.subtitle strong { color: var(--text); font-weight: 600; }
+.hero-meta {
+  display: flex; gap: 26px; flex-wrap: wrap;
+  font-family: var(--font-mono); font-size: 12px; color: var(--text-muted);
+}
+.hero-meta strong { color: var(--text-dim); font-weight: 500; }
+
+/* ──────────── Section head ──────────── */
+.section-head {
+  display: flex; gap: 22px; align-items: baseline;
+  padding-top: 30px; margin-top: 52px;
+  border-top: 1px solid var(--border);
+}
+.section-head .num {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 72px; line-height: 1; font-weight: 400;
+  color: var(--accent); flex-shrink: 0;
+}
+.section-head .meta { flex: 1; padding-top: 14px; }
+.section-head h2 {
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--text-muted); letter-spacing: 0.14em;
+  text-transform: uppercase; margin: 0 0 6px; font-weight: 700;
+}
+.section-head .lede {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 29px; line-height: 1.25; color: var(--text);
+}
+section { margin-bottom: 22px; }
+section > p { margin: 14px 0; color: var(--text-dim); }
+section > p strong { color: var(--text); font-weight: 600; }
+h3 {
+  font-family: var(--font-ui); font-size: 19px; font-weight: 600;
+  color: var(--text); margin: 34px 0 12px; letter-spacing: -0.01em;
+}
+code {
+  background: var(--bg-deep); padding: 1px 6px; border-radius: 4px;
+  font-size: 0.86em; color: #c4b5fd; font-family: var(--font-mono);
+}
+a { color: var(--accent-2); text-decoration: none; transition: color .2s; }
+a:hover { color: var(--accent); }
+
+/* ──────────── Callout ──────────── */
+.callout { border-radius: 10px; padding: 14px 18px; margin: 18px 0; font-size: 14px; line-height: 1.7; }
+.callout.info    { background: var(--accent-2-soft); border-left: 3px solid var(--accent-2); color: var(--text-dim); }
+.callout.info strong    { color: var(--accent-2); }
+.callout.warn    { background: var(--warning-soft); border-left: 3px solid var(--warning); color: var(--text-dim); }
+.callout.warn strong    { color: var(--warning); }
+.callout.success { background: var(--accent-3-soft); border-left: 3px solid var(--accent-3); color: var(--text-dim); }
+.callout.success strong { color: var(--accent-3); }
+.callout.purple  { background: var(--accent-soft); border-left: 3px solid var(--accent); color: var(--text-dim); }
+.callout.purple strong  { color: var(--accent); }
+
+/* ──────────── Two-product split (hero cards) ──────────── */
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 22px 0; }
+@media (max-width: 720px) { .split { grid-template-columns: 1fr; } }
+.prod {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 14px; padding: 22px 22px 20px; position: relative; overflow: hidden;
+  transition: border-color .2s, transform .2s;
+}
+.prod::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+.prod.p-vercel::before  { background: var(--accent-2); }
+.prod.p-supabase::before{ background: var(--accent-3); }
+.prod:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+.prod .p-name { font-family: var(--font-mono); font-size: 13px; font-weight: 800; letter-spacing: 0.04em; margin-bottom: 4px; }
+.prod.p-vercel .p-name  { color: var(--accent-2); }
+.prod.p-supabase .p-name{ color: var(--accent-3); }
+.prod .p-role { font-size: 13px; color: var(--text-muted); font-family: var(--font-mono); margin-bottom: 12px; }
+.prod .p-line { font-size: 14.5px; color: var(--text-dim); line-height: 1.65; margin: 0; }
+.prod .p-line b { color: var(--text); font-weight: 600; }
+
+/* ──────────── Timeline ──────────── */
+.tl { margin: 22px 0; border-left: 2px solid var(--border); padding-left: 0; }
+.tl-row { display: grid; grid-template-columns: 78px 1fr; gap: 16px; padding: 6px 0 18px 18px; position: relative; }
+.tl-row::before {
+  content: ''; position: absolute; left: -7px; top: 12px;
+  width: 11px; height: 11px; border-radius: 50%;
+  background: var(--bg); border: 2px solid var(--accent);
+}
+.tl-row.t2::before { border-color: var(--accent-3); }
+.tl-year { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--accent); padding-top: 7px; }
+.tl-row.t2 .tl-year { color: var(--accent-3); }
+.tl-body h4 { margin: 4px 0 4px; font-size: 15.5px; color: var(--text); font-weight: 600; }
+.tl-body p { margin: 0; font-size: 13.5px; color: var(--text-dim); line-height: 1.6; }
+
+/* ──────────── Capability cards ──────────── */
+.caps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 18px 0; }
+@media (max-width: 720px) { .caps { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 460px) { .caps { grid-template-columns: 1fr; } }
+.cap {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 12px; padding: 15px 16px; transition: border-color .2s, transform .2s;
+}
+.cap:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+.cap .c-sym { font-size: 20px; line-height: 1; margin-bottom: 8px; }
+.cap .c-name { font-size: 14.5px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.cap .c-sub { font-size: 12.5px; color: var(--text-dim); line-height: 1.55; }
+
+/* ──────────── Decision / usage table ──────────── */
+.dtable-wrap { overflow-x: auto; margin: 20px 0; border: 1px solid var(--border); border-radius: 12px; }
+.dtable { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 560px; }
+.dtable th, .dtable td { text-align: left; padding: 13px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.dtable tr:last-child td { border-bottom: none; }
+.dtable th {
+  font-family: var(--font-mono); font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.12em; color: var(--text-muted); font-weight: 700;
+  background: var(--bg-deep);
+}
+.dtable td { color: var(--text-dim); line-height: 1.55; }
+.dtable td.feat { color: var(--text); font-weight: 600; white-space: nowrap; }
+.dtable tbody tr:hover td { background: var(--bg-elevated); }
+.use { font-family: var(--font-mono); font-weight: 700; font-size: 12px; white-space: nowrap; }
+.use.yes  { color: var(--accent-3); }
+.use.part { color: var(--warning); }
+.use.no   { color: var(--text-muted); }
+
+/* ──────────── Flow (relay) ──────────── */
+.flow { display: flex; flex-direction: column; gap: 8px; margin: 20px 0; }
+.fstep {
+  display: flex; align-items: center; gap: 14px;
+  border: 1px solid var(--border); border-radius: 12px; padding: 13px 16px; background: var(--bg-elevated);
+}
+.fstep .who {
+  flex-shrink: 0; width: 92px; text-align: center; font-size: 11.5px; font-weight: 700;
+  font-family: var(--font-mono); border-radius: 8px; padding: 6px 4px; line-height: 1.3;
+}
+.who.w-cloud { background: var(--accent-3-soft); color: var(--accent-3); }
+.who.w-brain { background: var(--accent-soft); color: var(--accent); }
+.who.w-db    { background: var(--accent-2-soft); color: var(--accent-2); }
+.fstep .txt { font-size: 13.5px; color: var(--text-dim); line-height: 1.5; }
+.fstep .txt b { color: var(--text); font-weight: 600; }
+.farrow { text-align: center; color: var(--border-strong); font-size: 13px; line-height: .5; }
+
+/* ──────────── Versus pair ──────────── */
+.versus {
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch;
+  margin: 16px 0; background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+}
+@media (max-width: 560px) { .versus { grid-template-columns: 1fr; } }
+.vs-side { padding: 16px 18px; }
+.vs-side h4 { margin: 0 0 6px; font-size: 14px; font-weight: 700; font-family: var(--font-mono); letter-spacing: 0.01em; }
+.vs-side p { margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.6; }
+.vs-side.left h4 { color: var(--accent-2); }
+.vs-side.right h4 { color: var(--accent-3); }
+.vs-mid {
+  display: flex; align-items: center; justify-content: center; padding: 0 8px;
+  font-family: var(--font-display); font-style: italic; font-size: 18px; color: var(--text-muted);
+  border-left: 1px solid var(--border); border-right: 1px solid var(--border); background: var(--bg-deep);
+}
+@media (max-width: 560px) {
+  .vs-mid { border: none; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 6px; }
+}
+
+/* ──────────── Punchline ──────────── */
+.punchline {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 27px; line-height: 1.4; color: var(--text);
+  text-align: center; margin: 44px auto 8px; max-width: 740px;
+  padding: 28px 24px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+}
+.punchline .hl {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  font-weight: 400;
+}
+
+/* ──────────── Footer ──────────── */
+footer {
+  text-align: center; padding: 56px 0 0;
+  font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted);
+  letter-spacing: 0.06em; line-height: 1.8;
+}
+
+/* ──────────── Scroll reveal ──────────── */
+.reveal { opacity: 0; filter: blur(6px); transform: translateY(12px);
+  transition: opacity .6s ease-out, filter .6s ease-out, transform .6s ease-out; }
+.reveal.in-view { opacity: 1; filter: blur(0); transform: translateY(0); }
+
+@media (max-width: 560px) {
+  h1 { font-size: 40px; }
+  .section-head { gap: 14px; }
+  .section-head .num { font-size: 52px; }
+  .section-head .lede { font-size: 23px; }
+  .punchline { font-size: 21px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .reveal { opacity: 1 !important; filter: none !important; transform: none !important; }
+}
+</style>
+</head>
+
+<body>
+
+<nav class="crumb-bar">
+  <div class="crumb-inner">
+    <a href="/">upio.ai</a><span class="sep">/</span><a href="/learn">知识分享</a><span class="sep">/</span><span class="cur">Vercel × Supabase</span>
+  </div>
+</nav>
+
+<div class="container">
+
+  <header class="hero">
+    <span class="tag">工具入门 · 基建</span>
+    <h1>Vercel × Supabase</h1>
+    <p class="subtitle">这两个名字几乎在我们每个产品里都出现。简单说：<strong>Vercel 管「网站怎么上线、怎么跑」，Supabase 管「数据存哪、谁能动」</strong>。一个负责门面与运行，一个负责仓库与账本，拼起来，一个小团队不用自己买服务器、不用养运维，就能做出完整的线上产品。本文从来历讲到能力全景，再落到——<strong>我们到底用了哪些、哪些还没用上、为什么</strong>。</p>
+    <div class="hero-meta">
+      <span><strong>篇幅</strong> 6 章 · 约 9 分钟</span>
+      <span><strong>受众</strong> 全员 · 不需要写代码也能看懂</span>
+      <span><strong>主线</strong> 来历 · 能力全景 · 场景 · 我们用了什么 · 没用什么 · 一句话记忆</span>
+    </div>
+  </header>
+
+  <!-- ════════════ 00 ════════════ -->
+  <section style="margin-top:34px">
+    <p>先用一张图把两者摆清楚。它们不是竞争关系，而是<strong>一前一后的搭档</strong>：</p>
+    <div class="split reveal">
+      <div class="prod p-vercel">
+        <div class="p-name">VERCEL</div>
+        <div class="p-role">前端 / 全栈托管平台</div>
+        <p class="p-line">你写好的网站代码，<b>一推送，它就帮你部署上线</b>，自动配好网址、HTTPS、全球加速。还能跑一些轻量后端逻辑（接口、定时任务）。<br><br>类比：<b>开店的「门面 + 后厨 + 收银台」</b>——顾客看到的、点单跑腿的，都归它。</p>
+      </div>
+      <div class="prod p-supabase">
+        <div class="p-name">SUPABASE</div>
+        <div class="p-role">后端 / 数据库平台</div>
+        <p class="p-line">一个开箱即用的<b>数据库（PostgreSQL）</b>，外加现成的登录、文件存储、实时推送等后端能力。<b>数据长期存哪、谁能读写</b>，都由它管。<br><br>类比：<b>店铺的「仓库 + 账本 + 保险柜」</b>——东西存这、谁能动有规矩。</p>
+      </div>
+    </div>
+    <div class="callout purple">
+      <strong>一句话记住 ·</strong> Vercel = 让网站「跑起来、被人访问到」；Supabase = 让数据「存得住、有人管」。下面任何细节，都挂在这两句上。
+    </div>
+  </section>
+
+  <!-- ════════════ 01 ════════════ -->
+  <div class="section-head reveal" id="history">
+    <span class="num">01</span>
+    <div class="meta">
+      <h2>SECTION ONE · WHERE THEY CAME FROM</h2>
+      <div class="lede">它们各自从哪来</div>
+    </div>
+  </div>
+
+  <section>
+    <p>了解来历不是考古，而是能帮你<strong>记住它们最擅长什么</strong>——一个产品的「出身」往往决定了它今天最强的那块肌肉。</p>
+
+    <h3>Vercel：从「一行命令上线」长出来的</h3>
+    <div class="tl reveal">
+      <div class="tl-row">
+        <div class="tl-year">2015</div>
+        <div class="tl-body"><h4>以 ZEIT 起步，主打产品叫 Now</h4><p>创始人 Guillermo Rauch（也是开源框架 Next.js 的作者）。最初的卖点极简：开发者敲一行 <code>now</code>，就把网站推上线，不用碰服务器。</p></div>
+      </div>
+      <div class="tl-row">
+        <div class="tl-year">2020</div>
+        <div class="tl-body"><h4>改名 Vercel，与 Next.js 深度绑定</h4><p>从「部署工具」升级为「前端 / 全栈云平台」。因为自家就做 Next.js，所以 Vercel 上跑 Next.js 的体验是全行业最顺的——这也是我们几乎所有 Web 项目用 Next.js + Vercel 的根本原因。</p></div>
+      </div>
+    </div>
+    <div class="callout info"><strong>记住它的肌肉 ·</strong> Vercel 的基因是<strong>「部署体验」</strong>——把上线这件事做到极致简单。它最强的永远是「让网站快速、稳定地跑在全球各地」。</div>
+
+    <h3>Supabase：给最经典的数据库套上现成后端</h3>
+    <div class="tl reveal">
+      <div class="tl-row t2">
+        <div class="tl-year">2020</div>
+        <div class="tl-body"><h4>打着「开源的 Firebase 替代品」旗号成立</h4><p>Firebase 是 Google 的后端服务，好用但封闭、且不是关系型数据库。Supabase 反过来——<b>底子用最成熟、最通用的 PostgreSQL</b>，在它外面包一圈现成能力。</p></div>
+      </div>
+      <div class="tl-row t2">
+        <div class="tl-year">今天</div>
+        <div class="tl-body"><h4>一个数据库 + 一整套「不用自己写」的后端</h4><p>登录鉴权、文件存储、实时推送、自动生成的 API、向量搜索……都围着那个 Postgres 数据库长出来。开源、可自托管，数据始终是标准 SQL，迁走也不被绑死。</p></div>
+      </div>
+    </div>
+    <div class="callout success"><strong>记住它的肌肉 ·</strong> Supabase 的基因是<strong>「一个正经的数据库 + 省掉重复造轮子的后端」</strong>。核心永远是那张张数据表；其它能力都是围绕它的赠品。</div>
+  </section>
+
+  <!-- ════════════ 02 ════════════ -->
+  <div class="section-head reveal" id="capabilities">
+    <span class="num">02</span>
+    <div class="meta">
+      <h2>SECTION TWO · THE FULL TOOLBOX</h2>
+      <div class="lede">两个工具箱里，各装了什么</div>
+    </div>
+  </div>
+
+  <section>
+    <p>下面是它们各自<strong>对外提供的能力全景</strong>（不是我们用了多少，是它们「能干」多少）。先有这张地图，第 4、5 章「我们用了哪些 / 没用哪些」才看得明白。</p>
+
+    <h3>Vercel 工具箱</h3>
+    <div class="caps reveal">
+      <div class="cap"><div class="c-sym">🚀</div><div class="c-name">部署托管</div><div class="c-sub">连上 Git，一推送就自动构建、上线。</div></div>
+      <div class="cap"><div class="c-sym">🔭</div><div class="c-name">预览环境</div><div class="c-sub">每个改动 / PR 自动生成一个临时网址，先看效果再合并。</div></div>
+      <div class="cap"><div class="c-sym">🌍</div><div class="c-name">全球 CDN</div><div class="c-sub">静态资源缓存到离用户最近的节点，打开快。</div></div>
+      <div class="cap"><div class="c-sym">⚙️</div><div class="c-name">Serverless 函数</div><div class="c-sub">写后端接口，用时才起、用完即停，按量计费。</div></div>
+      <div class="cap"><div class="c-sym">⏰</div><div class="c-name">Cron 定时任务</div><div class="c-sub">配置文件里写好时间，平台到点帮你跑。</div></div>
+      <div class="cap"><div class="c-sym">🖼️</div><div class="c-name">图片优化</div><div class="c-sub">自动压缩、按设备给合适尺寸的图。</div></div>
+      <div class="cap"><div class="c-sym">⚡</div><div class="c-name">Edge / 中间件</div><div class="c-sub">在更靠近用户的边缘节点跑轻量逻辑（如改写、鉴权）。</div></div>
+      <div class="cap"><div class="c-sym">🗄️</div><div class="c-name">存储类（Blob/KV…）</div><div class="c-sub">官方的文件存储、键值缓存、配置中心。</div></div>
+      <div class="cap"><div class="c-sym">📊</div><div class="c-name">Analytics</div><div class="c-sub">网站访问量与性能（打开速度）监测。</div></div>
+      <div class="cap"><div class="c-sym">🤖</div><div class="c-name">AI Gateway</div><div class="c-sub">一个入口统一调多家大模型，带计费与容灾。</div></div>
+      <div class="cap"><div class="c-sym">🛡️</div><div class="c-name">Firewall / WAF</div><div class="c-sub">防 DDoS、按规则拦恶意流量。</div></div>
+      <div class="cap"><div class="c-sym">🧩</div><div class="c-name">微前端</div><div class="c-sub">把一个大站拆给多团队各自独立部署。</div></div>
+    </div>
+
+    <h3>Supabase 工具箱</h3>
+    <div class="caps reveal">
+      <div class="cap"><div class="c-sym">🐘</div><div class="c-name">Postgres 数据库</div><div class="c-sub">核心。一张张表存所有业务数据，标准 SQL。</div></div>
+      <div class="cap"><div class="c-sym">🔌</div><div class="c-name">自动 API</div><div class="c-sub">建好表，自动生成可调用的 REST / GraphQL 接口。</div></div>
+      <div class="cap"><div class="c-sym">🔐</div><div class="c-name">Auth 鉴权</div><div class="c-sub">注册登录、第三方登录、找回密码，开箱即用。</div></div>
+      <div class="cap"><div class="c-sym">📏</div><div class="c-name">RLS 行级权限</div><div class="c-sub">在数据库层规定「谁只能看自己那几行」。</div></div>
+      <div class="cap"><div class="c-sym">📡</div><div class="c-name">Realtime 实时</div><div class="c-sub">数据一变，前端立刻收到推送（无需轮询）。</div></div>
+      <div class="cap"><div class="c-sym">📦</div><div class="c-name">Storage 文件存储</div><div class="c-sub">存图片 / 视频 / 文件的对象桶，类似 S3。</div></div>
+      <div class="cap"><div class="c-sym">🔧</div><div class="c-name">Edge Functions</div><div class="c-sub">在 Supabase 侧跑自定义后端逻辑。</div></div>
+      <div class="cap"><div class="c-sym">🧭</div><div class="c-name">Vector 向量搜索</div><div class="c-sub">pgvector，做语义检索 / RAG 的地基。</div></div>
+      <div class="cap"><div class="c-sym">📨</div><div class="c-name">Queues 队列</div><div class="c-sub">任务排队、异步处理，削峰。</div></div>
+      <div class="cap"><div class="c-sym">🕑</div><div class="c-name">pg_cron 定时</div><div class="c-sub">在数据库里直接配定时任务。</div></div>
+      <div class="cap"><div class="c-sym">🌿</div><div class="c-name">Branching 分支</div><div class="c-sub">给数据库开「分支」，像 Git 一样改完再合并。</div></div>
+      <div class="cap"><div class="c-sym">🧰</div><div class="c-name">扩展生态</div><div class="c-sub">Postgres 上百个扩展即开即用。</div></div>
+    </div>
+
+    <div class="callout warn"><strong>注意 ·</strong> 工具箱里东西多，<strong>不代表都该用</strong>。能力越多，越要克制——只用解决当前问题那几样，剩下的知道它在那、需要时再取。下面就看我们的取舍。</div>
+  </section>
+
+  <!-- ════════════ 03 ════════════ -->
+  <div class="section-head reveal" id="scenarios">
+    <span class="num">03</span>
+    <div class="meta">
+      <h2>SECTION THREE · WHEN TO USE THEM</h2>
+      <div class="lede">什么场景，适合这套组合</div>
+    </div>
+  </div>
+
+  <section>
+    <p>不是所有项目都该用这套，但对<strong>我们这种「小团队、要快、不想养运维」</strong>的情况，它几乎是默认答案。典型适配场景：</p>
+
+    <div class="versus reveal">
+      <div class="vs-side left"><h4>✅ 很适合</h4><p>面向用户的 Web 产品 / 官网 / 后台、需要数据库存账号与业务数据、要频繁迭代上线、团队人少没专职运维。<b>—— 我们的产品基本都在这一类。</b></p></div>
+      <div class="vs-mid">vs</div>
+      <div class="vs-side right"><h4>⚠️ 未必合适</h4><p>需要长时间运行的重后台 / 常驻进程（如挂着浏览器自动化、跑大模型）、对单机性能 / 成本有极致要求的场景——这类我们会放到 <b>Fly.io</b> 这种能跑常驻服务的地方。</p></div>
+    </div>
+
+    <p>所以在我们这，常见的<strong>分工是三层</strong>：</p>
+    <div class="callout info">
+      <strong>典型分工 ·</strong>
+      <b style="color:var(--accent-2)">Vercel</b> 跑「门面 + 轻接口 + 定时任务」 ·
+      <b style="color:var(--accent-3)">Supabase</b> 当「唯一的数据真相源」 ·
+      <b>Fly.io</b> 跑「需要常驻、重活的后台」。三者通过 Supabase 这个数据库互相对齐。
+    </div>
+    <p>这也是为什么很多功能要<strong>「绕一下数据库」</strong>——不同机器之间，靠 Supabase 这张共享账本交接。这一点单独有一篇讲：<a href="/learn/autoreply-supabase-relay">自动回复为什么要「绕」数据库 →</a></p>
+  </section>
+
+  <!-- ════════════ 04 ════════════ -->
+  <div class="section-head reveal" id="we-use">
+    <span class="num">04</span>
+    <div class="meta">
+      <h2>SECTION FOUR · WHAT WE ACTUALLY USE</h2>
+      <div class="lede">我们日常，到底用到了哪些部分</div>
+    </div>
+  </div>
+
+  <section>
+    <p>把上面两个工具箱拿过来，<strong>勾一遍我们实际用到的</strong>。<span class="use yes">✅ 在用</span>　<span class="use part">◐ 部分项目用</span>　<span class="use no">○ 基本没用</span></p>
+
+    <h3>Vercel — 我们用了什么</h3>
+    <div class="dtable-wrap reveal">
+      <table class="dtable">
+        <thead><tr><th>能力</th><th>我们怎么用</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr><td class="feat">部署托管</td><td>所有 Web 项目（含 upio.ai 这个站本身）都靠它：推代码 → 自动上线，约一分钟生效。</td><td class="use yes">✅ 在用</td></tr>
+          <tr><td class="feat">预览环境</td><td>改动先在临时网址看效果、给团队 review，确认了再合并到正式站。</td><td class="use yes">✅ 在用</td></tr>
+          <tr><td class="feat">Serverless 函数</td><td>产品的后端接口（API 路由）大量跑在这——例如某个产品就有几十个接口。</td><td class="use yes">✅ 在用</td></tr>
+          <tr><td class="feat">Cron 定时任务</td><td>重度使用。我们的获客类产品里有几十个定时任务（巡检、跑批、生成）都挂在 Vercel Cron 上。</td><td class="use yes">✅ 在用</td></tr>
+          <tr><td class="feat">全球 CDN / 图片优化</td><td>跟着 Next.js 默认就吃到了，基本「免费白拿」，没特意配。</td><td class="use yes">✅ 在用</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Supabase — 我们用了什么</h3>
+    <div class="dtable-wrap reveal">
+      <table class="dtable">
+        <thead><tr><th>能力</th><th>我们怎么用</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr><td class="feat">Postgres 数据库</td><td>核心中的核心。所有业务数据——用户、聊天记录、任务状态、跑批结果——都存这。多个产品各有自己的库。</td><td class="use yes">✅ 在用</td></tr>
+          <tr><td class="feat">「中转台」用法</td><td>不同机器（云端服务器、云电脑、Fly 后台）之间靠它交接：一方写进表，另一方读出来接着干。数据库是它们的「公共信箱」。</td><td class="use yes">✅ 在用</td></tr>
+          <tr><td class="feat">状态机 + 审核闸</td><td>给每条记录打状态（待处理 / 可发 / 等人工）。比如 AI 生成的回复草稿先存库、过一道安全闸，敏感的拦下来等人看，不直接发。</td><td class="use yes">✅ 在用</td></tr>
+          <tr><td class="feat">Auth 鉴权</td><td>看项目——有的产品直接用 Supabase 登录体系，有的自建。不是全员统一。</td><td class="use part">◐ 部分项目</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout success"><strong>小结 ·</strong> 我们把 Vercel 当成<strong>「上线 + 接口 + 定时」三件套</strong>，把 Supabase 当成<strong>「唯一数据真相源 + 跨机器交接台」</strong>。两者最核心的肌肉，正好被我们吃得最透。</div>
+  </section>
+
+  <!-- ════════════ 05 ════════════ -->
+  <div class="section-head reveal" id="not-used">
+    <span class="num">05</span>
+    <div class="meta">
+      <h2>SECTION FIVE · WHAT WE SKIP</h2>
+      <div class="lede">哪些部分，我们还没用上 —— 以及为什么</div>
+    </div>
+  </div>
+
+  <section>
+    <p>「没用上」不等于「该用没用」。大多数是<strong>当前用不到，或我们用别的方式解决了</strong>。知道它们在那，等需要时能想起来，就够了。</p>
+
+    <h3>Vercel 里我们基本没碰的</h3>
+    <div class="dtable-wrap reveal">
+      <table class="dtable">
+        <thead><tr><th>能力</th><th>为什么没用</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr><td class="feat">存储类 Blob / KV</td><td>文件和数据我们统一放 Supabase / 别处，没必要再开一套 Vercel 自己的存储，避免数据散落。</td><td class="use no">○ 没用</td></tr>
+          <tr><td class="feat">AI Gateway</td><td>我们调大模型走 OpenRouter（统一入口、比价、容灾）已经够了，没叠 Vercel 这层。</td><td class="use no">○ 没用</td></tr>
+          <tr><td class="feat">Edge / 中间件</td><td>大部分逻辑放普通 Serverless 函数或 Fly 后台就够，边缘计算的低延迟需求还没到。</td><td class="use no">○ 没用</td></tr>
+          <tr><td class="feat">Firewall / 微前端</td><td>防护规模没到、团队也不大，这些「大厂级」能力暂时用不上。</td><td class="use no">○ 没用</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Supabase 里我们基本没碰的</h3>
+    <div class="dtable-wrap reveal">
+      <table class="dtable">
+        <thead><tr><th>能力</th><th>为什么没用 / 替代方案</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr><td class="feat">Realtime 实时</td><td>本可以「数据一变前端立刻知道」，但我们多数场景用<b>定时轮询</b>（每隔几分钟醒一次去查）就够，简单、可控、好排障。</td><td class="use no">○ 没用</td></tr>
+          <tr><td class="feat">Storage 文件桶</td><td>目前文件类需求不多，或放在了别的地方，没专门用它的对象存储。</td><td class="use no">○ 没用</td></tr>
+          <tr><td class="feat">Edge Functions</td><td>后端逻辑放 Vercel 函数或 Fly 后台，没必要再在 Supabase 侧跑一套。</td><td class="use no">○ 没用</td></tr>
+          <tr><td class="feat">Vector 向量搜索</td><td>还没做语义检索 / RAG。等要给 AI 接「长期知识库」时，这是第一个会启用的能力。</td><td class="use no">○ 未来候选</td></tr>
+          <tr><td class="feat">Queues 队列</td><td>用「数据库状态字段 + 定时轮询」土法实现了排队效果，量级没大到非上专业队列。</td><td class="use no">○ 没用</td></tr>
+          <tr><td class="feat">Branching 分支</td><td>改库直接走迁移脚本，团队小、协作冲突少，还没到要数据库分支的复杂度。</td><td class="use no">○ 没用</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout purple"><strong>一个值得记的取舍 ·</strong> 我们多处「用<b>定时轮询</b>代替<b>实时推送 / 队列</b>」。代价是慢几分钟，换来的是<strong>简单、可预测、出问题好查</strong>。小团队阶段，这种「土但稳」的选择往往是对的——别为还没出现的规模提前上复杂方案。</div>
+  </section>
+
+  <!-- ════════════ 06 ════════════ -->
+  <div class="section-head reveal" id="takeaway">
+    <span class="num">06</span>
+    <div class="meta">
+      <h2>SECTION SIX · TAKEAWAY</h2>
+      <div class="lede">一句话装进脑子</div>
+    </div>
+  </div>
+
+  <section>
+    <p>不用记那一长串功能名。把这页浓缩成一行，以后听到这两个词，脑子里浮现这句就够：</p>
+
+    <div class="punchline">
+      <span class="hl">Vercel 让网站跑起来，Supabase 让数据存得住</span>，<br>其余能力都是「需要时再取」的赠品。
+    </div>
+
+    <div class="callout success" style="margin-top:24px;">
+      <strong>速记 ·</strong>
+      <b style="color:var(--accent-2)">Vercel</b> = 部署上线 + 接口 + 定时任务（我们吃透的三件套）；
+      <b style="color:var(--accent-3)">Supabase</b> = 数据真相源 + 跨机器交接台 + 状态/审核闸；
+      重活常驻交给 <b>Fly.io</b>。三者靠那个数据库对齐。
+    </div>
+
+    <div class="callout info" style="margin-top:14px;">
+      <strong>延伸阅读 ·</strong> 想再深一点理解「为什么很多功能要绕数据库」，看 <a href="/learn/autoreply-supabase-relay">自动回复为什么要「绕」数据库 →</a>
+    </div>
+  </section>
+
+  <footer>
+    整理自团队基建栈分享 · upio.ai 知识分享<br>
+    讲解口径对齐团队实际用法 · 仅含架构与方法论，不含任何凭据 / 地址
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) { e.target.classList.add('in-view'); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.12, rootMargin: '0px 0px -6% 0px' });
+  document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
+})();
+</script>
+
+</body>
+</html>
