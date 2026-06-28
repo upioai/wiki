@@ -74,12 +74,12 @@
 
   <div class="tldr">
     <h2>📌 一句话总览</h2>
-    <p>这个周末四件主线：<b>① 给潜在触达 route-B 补数据闭环</b>（时区/分步状态/关注点赞全落库，且新建了「关注自动化 P1」让云电脑自己每天关人）；<b>② 按饭粒复审一轮轮打磨逐日战况页</b>（7 个 PR）；<b>③ 根治一批 DM 自动回复老毛病</b>（回声循环、卡单双发、首回误读）；<b>④ 抓取时延 P0 定调</b>（瓶颈是产能不是调参）。中间夹一条硬故障：<b style="color:#ffb4a8">夏夏(零星)号搜索软封</b>，已定位根因、给出解法、当前在等指纹重置后验证。</p>
+    <p>这个周末四件主线：<b>① 给潜在触达 route-B 补数据闭环</b>（时区/分步状态/关注点赞全落库，且新建了「关注自动化 P1」让云电脑自己每天关人）；<b>② 按饭粒复审一轮轮打磨逐日战况页</b>（7 个 PR）；<b>③ 根治一批 DM 自动回复老毛病</b>（回声循环、卡单双发、首回误读）；<b>④ 抓取时延 P0 定调</b>（瓶颈是产能不是调参）。中间夹两条客户可感故障并已处理：<b style="color:#ffb4a8">夏夏(零星)号搜索软封</b>（已定位根因+已解封）和 <b style="color:#ffb4a8">饭粒号重复发给已触达用户</b>（回声循环根治 #610/#612）。</p>
     <div class="stat">
       <div><b>40+</b>提交 / 06-26~28</div>
       <div><b>20+</b>已合并 PR</div>
       <div><b>8</b>个主题方向</div>
-      <div><b>1</b>条硬故障(软封)待收尾</div>
+      <div><b>2</b>条客户可感故障(软封/重复发)已处理</div>
     </div>
   </div>
 
@@ -101,11 +101,12 @@
     <p class="lead">关注的人发新视频 → 自动点赞 + 评论1(评视频) + 评论2(搬当初 DM)。周末主要堵「动作做了、库里却记不全」的洞，让 pt-summary 的数能信。</p>
 
     <div class="item star">
-      <div class="item-h"><span class="date">06-26 14:00</span><span class="t">★ 夏夏（零星/小星 <code>8af08f10</code>）抖音搜索软封</span><span class="badge b-prog">待收尾</span></div>
+      <div class="item-h"><span class="date">06-26 14:00</span><span class="t">★ 夏夏（零星/小星 <code>8af08f10</code>）抖音搜索软封</span><span class="badge b-done">已解封</span></div>
       <div class="row"><div class="k symptom">现象</div><div class="v"><b>6-26 下午约 14:00 发现</b>。分辨率明明已经修对（2560×1600），但这台抖音「<b>搜什么都搜不出来</b>」，跑 follow（关注动作）全部落到 <code>(非主页)sunshine</code>。</div></div>
       <div class="row"><div class="k cause">为什么</div><div class="v"><code>sunshine</code> 是抖音<b>搜索结果为空时的推荐位</b> → 搜索返回空 = 搜索被风控降权/软封（不是坐标、不是分辨率）。根因 = <b>克隆镜像共用抖音设备指纹</b>：云电脑基础镜像预装了抖音，多台从同一镜像克隆出来 → 共享同一设备指纹 → 搜索被集体软封（即使没高频狂发也会中）。佐证：这台<b>近 48h 发了 0 条 DM</b>，排除「近期狂发撞墙」。对照一筑：一筑搜得到对的人（只是偶尔落非主页，是 timing），<b>一筑没被封</b>。</div></div>
       <div class="row"><div class="k fix">怎么解</div><div class="v">按顺序试：① 跑 <code>reset-douyin-fingerprint.ps1</code> 清抖音客户端指纹（不动部署，先试这个）→ ② 不行就重登抖音 + 冷却 24-48h + 降频 → ③ 再不行重置无影实例 / 换号 → ④ 防复发：基础镜像别预装抖音，<b>逐台单独装登</b>。同时已做止血：Ctrl+C 停 DM；派单暂停（<code>accounts.dispatch_paused_until</code> 设到 6-27 13:00 BJT，心跳告警 watch 会自动跳过这台、不误报）。</div></div>
-      <div class="row"><div class="k now">现状·next</div><div class="v"><b>根因已坐实、止血已做，但还没解封。</b>软封期 follow/DM/二触都搜不出人 → 这台<b>先别跑关注</b>。下一步：跑 <code>reset-douyin-fingerprint.ps1</code> → <b>手动连搜 5-6 个号</b>验证（都搜得到=解封；还空=冷却 24-48h 降频，仍不行换号）→ 搜索恢复后再跑 follow → 修好后清 <code>dispatch_paused_until</code> 恢复派单。这台的「关注自动化 P1」也因此卡着没部署（见 A2）。</div></div>
+      <div class="row"><div class="k now">现状</div><div class="v"><b>已解封（饭粒确认）。</b>走的是手册路径：<code>reset-douyin-fingerprint.ps1</code> 清指纹 + 冷却/重登 → 手动连搜 5-6 个号验证搜索恢复。<span style="color:var(--faint)">（具体哪一步起效 / 解封确切时间在另一会话，此处按"已解封"记，细节待饭粒补正。）</span></div></div>
+      <div class="row"><div class="k now">next</div><div class="v">解封后这台可恢复跑 follow + 清 <code>dispatch_paused_until</code> 恢复派单；之前卡着的「关注自动化 P1」也可按一筑流程部署（见 A2）。<b>防复发（durable）</b>：基础镜像别预装抖音、逐台单独装登（克隆共指纹是软封根因，不解决会再犯）。</div></div>
     </div>
 
     <div class="item">
@@ -177,10 +178,12 @@
   <div class="cat" id="c">
     <div class="cat-h"><h2>C · DM 自动回复 & 首回误读根治</h2><span class="tag t-red">老毛病连根拔</span></div>
     <p class="lead">无影 / web DM 自动回复这周末拔了几类老毛病。</p>
-    <div class="item">
-      <div class="item-h"><span class="date">06-27</span><span class="pr">#610</span><span class="t">opener 自动回复回声循环</span><span class="badge b-done">双保险根治</span></div>
-      <div class="row"><div class="k symptom">现象</div><div class="v">自动回复把<b>自己刚发的 opener 又当成对方消息</b>回了一遍 → 自言自语、可能死循环。</div></div>
-      <div class="row"><div class="k fix">怎么解</div><div class="v">加双保险拦截（识别出是本号自己发的就不回）。</div></div>
+    <div class="item star">
+      <div class="item-h"><span class="date">06-27</span><span class="pr">#610</span><span class="t">★ 饭粒号重复发 opener 给已触达用户（回声循环）</span><span class="badge b-done">已根治·有尾巴</span></div>
+      <div class="row"><div class="k symptom">现象</div><div class="v">同一个<b>已经聊过的人</b>被重复发「哈哈这条挺多人催…」式 opener。<b>6-27 会话实锤：6/24、6/26 各给同一批已聊过的人发了一条同款 opener</b>——看着像「首触重发」，客户角度就是被骚扰。</div></div>
+      <div class="row"><div class="k cause">为什么</div><div class="v"><b>不是派单重发（去重是好的）。</b>是无影收件箱抓取把<b>我们自己发的蓝气泡误读成 <code>role=customer</code> 客户来信</b> → cron <code>dm-auto-reply</code> 当真生成 chatReply → gate 自动审批 approved → 无影发出 → capture 又把这条已发气泡读成 customer → <b>自己跟自己聊的回声循环</b>。6/26 上线的噪声闸没拦住，是因为云电脑发完<b>没回调 <code>complete_dm_reply</code></b>（草稿卡 <code>sending</code>）→ 拟回复从没写进 <code>messages(role=ai)</code> → 噪声闸 rule 9 比不到 → 漏判成 customer；另外 rule 5 只匹配「X小时<b>前</b>在线」漏了真实文案「X小时<b>内</b>在线」（内≠前）。</div></div>
+      <div class="row"><div class="k fix">怎么解</div><div class="v">PR #610（merge <code>85147a77</code>，已生产验证）三道：A 噪声闸 rule 9 除 <code>role=ai</code> 外再比 <code>dm_reply_drafts.draft</code>（近 14 天未弃）；B gate.ts <code>looksLikeOwnBubble</code> 识别本号口吻→转人工不自动发；C rule 5 改「前|内」都吃。止血：把非终态草稿 <code>UPDATE … SET status='needs_human'</code>（别用 discarded，挡不住重生）。</div></div>
+      <div class="row"><div class="k now">现状·尾巴</div><div class="v"><b>回声循环已根治、生产验证过。</b>⚠️ <b>仍有一条没根治</b>：capture 偶发<b>跨会话串台</b>（读错线程，把我方气泡落到别人会话里）——属 capture 归属 bug，已记录、另行排查。</div></div>
     </div>
     <div class="item">
       <div class="item-h"><span class="date">06-27</span><span class="pr">#611</span><span class="t">web(Edge) DM 昵称从头像位误读</span><span class="badge b-done">已修</span></div>
