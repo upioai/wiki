@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>装修场景该用哪套框架 · Akke 决策调研</title>
+<meta name="akke:task" content="2/8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0c11; --bg2:#0d1017; --panel:#11151d; --panel2:#161b25; --panel3:#1a2030;
+    --line:#1e2531; --line2:#2a3340;
+    --text:#e7eaf1; --dim:#aab2c2; --muted:#6f7889;
+    --good:#34d399; --warn:#fbbf24; --bad:#f87171; --info:#38bdf8;
+    /* 每页改这一个色相做家族区分；默认 Claude 橙 */
+    --accent:#C96442; --accent-soft:rgba(201,100,66,.13); --accent-line:rgba(201,100,66,.4);
+    --mono:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;
+    --cjk:'PingFang SC','Hiragino Sans GB','Microsoft YaHei',-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(1100px 560px at 12% -8%, var(--accent-soft), transparent 60%),
+      radial-gradient(900px 460px at 92% 0%, rgba(56,189,248,.05), transparent 55%),
+      var(--bg);
+    color:var(--text); font-family:var(--cjk);
+    -webkit-font-smoothing:antialiased; line-height:1.7; background-attachment:fixed;
+  }
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background-image:linear-gradient(rgba(255,255,255,.014) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.014) 1px,transparent 1px);
+    background-size:46px 46px;mask-image:radial-gradient(ellipse at 50% 20%, #000 35%, transparent 82%)}
+  .prog{position:fixed;top:0;left:0;height:3px;width:0;background:linear-gradient(90deg,var(--accent),var(--info));z-index:50;transition:width .1s}
+  .wrap{max-width:920px;margin:0 auto;padding:30px 26px 90px;position:relative;z-index:1}
+
+  /* brand bar */
+  .brand{display:flex;align-items:center;justify-content:space-between;font-family:var(--mono);
+    font-size:12px;letter-spacing:.16em;color:var(--muted);border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:26px}
+  .brand b{color:var(--text);font-weight:700}
+  .brand .r{color:var(--accent)}
+
+  /* crumb + hero */
+  .crumb{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin-bottom:14px}
+  .crumb .pill{display:inline-block;border:1px solid var(--accent-line);color:var(--accent);background:var(--accent-soft);
+    border-radius:6px;padding:2px 9px;margin-right:10px;letter-spacing:.08em}
+  h1{font-size:clamp(27px,4.2vw,42px);font-weight:700;margin:0 0 12px;letter-spacing:-.01em;line-height:1.12}
+  .lead{color:var(--dim);font-size:16px;max-width:720px;margin:0}
+
+  /* verdict badge */
+  .verdict{display:flex;align-items:flex-start;gap:14px;margin:26px 0 8px;padding:18px 20px;
+    background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--accent-line);border-radius:14px;
+    box-shadow:0 14px 40px -22px rgba(0,0,0,.9)}
+  .verdict .tag{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--accent);
+    border:1px solid var(--accent-line);border-radius:6px;padding:4px 8px;background:var(--accent-soft);white-space:nowrap;margin-top:2px}
+  .verdict .vtxt{font-size:17px;font-weight:600;color:var(--text);line-height:1.55}
+  .verdict .vtxt em{color:var(--accent);font-style:normal}
+
+  /* sections */
+  section{margin-top:38px}
+  h2{font-size:21px;font-weight:700;margin:0 0 16px;letter-spacing:-.01em;display:flex;align-items:center;gap:11px}
+  h2::before{content:"";width:4px;height:19px;border-radius:3px;background:var(--accent);flex:none}
+  h3{font-size:15.5px;font-weight:700;color:var(--text);margin:22px 0 9px}
+  p{margin:0 0 13px}
+  .wrap a{color:var(--info);text-decoration:none;border-bottom:1px solid rgba(56,189,248,.3)}
+  strong{color:#fff;font-weight:600}
+
+  /* callout (whether-brake / note) */
+  .note{border-left:3px solid var(--warn);background:linear-gradient(90deg,rgba(251,191,36,.08),transparent);
+    border-radius:0 10px 10px 0;padding:14px 18px;margin:18px 0;font-size:14.5px;color:var(--dim)}
+  .note b{color:var(--warn)}
+  .note.brake{border-color:var(--accent);background:linear-gradient(90deg,var(--accent-soft),transparent)}
+  .note.brake b{color:var(--accent)}
+
+  /* evidence chip (file:line) */
+  .ev{font-family:var(--mono);font-size:12px;color:var(--muted);background:var(--panel);border:1px solid var(--line);
+    border-radius:5px;padding:1px 7px;white-space:nowrap}
+
+  /* table */
+  .tbl{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;overflow:hidden;border-radius:12px;border:1px solid var(--line)}
+  .tbl th{background:var(--panel2);color:var(--dim);font-weight:600;text-align:left;padding:11px 14px;font-size:12.5px;
+    letter-spacing:.04em;border-bottom:1px solid var(--line2)}
+  .tbl td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top;color:var(--dim)}
+  .tbl tr:last-child td{border-bottom:none}
+  .tbl td:first-child{color:var(--text);font-weight:500}
+  .tbl tr:hover td{background:rgba(255,255,255,.012)}
+
+  /* cards grid */
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:18px 0}
+  .card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line2);border-radius:13px;padding:16px 17px}
+  .card .k{font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;margin-bottom:7px}
+  .card .v{font-size:15px;color:var(--text);line-height:1.5}
+  .card.x{border-color:rgba(248,113,113,.3)} .card.x .k{color:var(--bad)}
+  .card.ok{border-color:rgba(52,211,153,.3)} .card.ok .k{color:var(--good)}
+
+  /* verdict-pills inline */
+  .b{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.05em;padding:2px 8px;border-radius:5px;vertical-align:middle}
+  .b-no{color:var(--bad);background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3)}
+  .b-yes{color:var(--good);background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.3)}
+  .b-wait{color:var(--warn);background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.3)}
+
+  ul,ol{margin:0 0 14px;padding-left:22px}li{margin:6px 0;color:var(--dim)}li strong{color:#fff}
+
+  /* footer */
+  footer{margin-top:54px;border-top:1px solid var(--line);padding-top:18px;display:flex;flex-wrap:wrap;
+    justify-content:space-between;gap:16px;font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+  footer .lab{color:var(--muted);letter-spacing:.1em}footer b{color:var(--dim);font-weight:600}
+  .backrow{margin-top:26px;display:flex;flex-wrap:wrap;gap:10px}
+  .backrow a{font-family:var(--mono);font-size:12.5px;color:var(--dim);background:var(--panel);border:1px solid var(--line);
+    border-radius:8px;padding:7px 13px;text-decoration:none;border-bottom:1px solid var(--line)}
+  .backrow a:hover{border-color:var(--accent-line);color:var(--accent)}
+  @media(max-width:560px){.wrap{padding:22px 16px 70px}h1{font-size:25px}}
+</style>
+</head>
+<body>
+<div class="prog" id="prog"></div>
+<div class="wrap">
+  <div class="brand"><b>AKKE</b><span class="r">决策调研 · DECISION RESEARCH · 2026</span></div>
+
+  <div class="crumb"><span class="pill">任务 2 / 8</span>五大战略 · 主题4 AI 大脑选型</div>
+  <h1>装修场景该用哪套框架</h1>
+  <p class="lead">上一页（① 框架横评）把 LangGraph / Dify / n8n / CrewAI 这些主流编排框架横着比了一遍。这一页只回答一件事：<strong>全屋定制 / 装修这个具体场景，到底该不该引入新框架？</strong>这是要拍板的一页——不是泛泛对比，是落到 Akke 自己的代码栈和真实瓶颈上做取舍。</p>
+
+  <div class="verdict"><span class="tag">结论</span><div class="vtxt"><em>不引新框架。</em>Akke 现有代码栈够用且更优；装修场景真正的瓶颈是<strong>微信通路选型</strong>（个微 vs 企微）和<strong>报价数据源</strong>，框架一行都帮不上忙。把选框架的精力，全投到主题4 通路 PoC 和主题3 报价数据上。</div></div>
+
+  <!-- ===== 正文 sections ===== -->
+
+  <section>
+    <h2>决策：不该引，三条理由</h2>
+    <p>装修场景的需求实质，是把已经在抖音侧跑通的「评论 → 打分 → 起草 → 人审 → 触达」闭环，<strong>克隆到微信通路</strong>。这件事现有栈已经做到了，引框架不是加分项，而是先要拆掉一套已验证逻辑、再用更弱的抽象重搭——净亏。</p>
+    <div class="grid">
+      <div class="card ok">
+        <div class="k">理由 ① 编排环已全闭环</div>
+        <div class="v">装修场景 = 把抖音侧 DM-reply 流水线移植到微信。五大战略 WBS 主题4 明写走 <span class="ev">gate.ts</span> / <span class="ev">adjust.ts</span> / <span class="ev">chatReply</span> 三件套移植——引框架反而要先把这套已验证的确定性逻辑拆开重接。</div>
+      </div>
+      <div class="card ok">
+        <div class="k">理由 ② 真瓶颈不在编排</div>
+        <div class="v">WBS 的 0 号闸是「微信通路 个微 vs 企微 选型 PoC」，卡的是<strong>通道接入与合规</strong>，不是流程怎么连。框架解决不了一行通道问题——它假设你已经能发消息了。</div>
+      </div>
+      <div class="card ok">
+        <div class="k">理由 ③ 护城河会被冲掉</div>
+        <div class="v">60+ 确定性硬绑信号、价格护栏 clamp、<span class="ev">needs_human</span> 闸门、多租户 RLS、单测覆盖——这些是现有栈的护城河。塞进通用可视化框架的节点抽象里，等于自废武功。</div>
+      </div>
+    </div>
+    <p class="note"><b>一句话</b>：框架擅长的是「从零搭一条没人写过的流程」；Akke 的装修场景是「复制一条已经在生产跑稳的流程」。前者是框架主场，后者引框架只会增加迁移成本和回归风险。</p>
+  </section>
+
+  <section>
+    <h2>何时才值得重评</h2>
+    <p>「现在不引」不等于「永远不引」。下面三条触发线，<strong>任一长期成立</strong>，再把这个决策拿出来重评。当前三者均不成立。</p>
+    <table class="tbl">
+      <thead><tr><th style="width:34%">触发线</th><th style="width:33%">成立时该上的框架</th><th style="width:33%">当前状态</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>运营 / PM 需自己改 workflow 拓扑，且频率 ≥ 每周</td>
+          <td>可视化编排（Dify / n8n）才有 ROI——把改流程的权交给非工程</td>
+          <td><span class="b b-no">不成立</span> 拓扑由工程维护，改动月级、走 PR</td>
+        </tr>
+        <tr>
+          <td>分支爆炸到代码 if/else 难维护（>20 并行阶段 / 动态 DAG）</td>
+          <td>LangGraph 图抽象才划算——显式状态图比手写状态机清晰</td>
+          <td><span class="b b-no">不成立</span> 三阶段状态机（ice_break / nurture / decision）线性可控</td>
+        </tr>
+        <tr>
+          <td>要把「编排能力」本身作为产品，交付给租户自定义</td>
+          <td>需要可视化 builder 当产品功能（主题2 商户联盟走到这步）</td>
+          <td><span class="b b-no">不成立</span> 当前编排是内部能力，非对外交付物</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="note"><b>复评纪律</b>：这三条都是「长期成立」才触发——偶发一次的复杂需求不算，别为一个边缘 case 提前背上框架迁移债。</p>
+  </section>
+
+  <section>
+    <h2>不引框架，缺的几环用什么补</h2>
+    <p>框架不是凭空火的，它打包了一组真实能力：可视化、回放、节点测试、人审、调度。逐条对照——Akke 现有栈这几环<strong>已经各有承接，且多数更细</strong>。</p>
+    <table class="tbl">
+      <thead><tr><th style="width:24%">框架卖点</th><th style="width:46%">Akke 现有补法</th><th style="width:30%">引证</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>可视化编排</td>
+          <td>暂不需要——拓扑稳定、改动走工程。用 WBS / runbook 文档 + cron 清单描述流程足够</td>
+          <td><span class="ev">vercel.json</span> cron 清单</td>
+        </tr>
+        <tr>
+          <td>回放 / 调试</td>
+          <td>Langfuse trace 已全覆盖且更细——手动注入 OpenRouter cost + runBy 指纹，能查到是谁、花了多少</td>
+          <td><span class="ev">src/lib/observability.ts</span></td>
+        </tr>
+        <tr>
+          <td>节点测试</td>
+          <td>现有 vitest 回归——闸门、派单原语、LLM 纯函数都有单测，改动即跑</td>
+          <td><span class="ev">gate.test.ts</span> · <span class="ev">dispatch/shared.test.ts</span> · <span class="ev">llm.test.ts</span></td>
+        </tr>
+        <tr>
+          <td>人审队列</td>
+          <td><span class="ev">needs_human</span> 闸门 + dashboard 审批 + claim-leads RPC，已在生产跑（运营 5 人通道）</td>
+          <td>claim_leads_batch / mark_lead_contacted RPC</td>
+        </tr>
+        <tr>
+          <td>调度 / 重试</td>
+          <td>Vercel Cron + worker poller 的 <span class="ev">attempts</span> / <span class="ev">QUEUE_MAX_ATTEMPTS</span> + 双指标心跳（存活 + 业务 delta）</td>
+          <td><span class="ev">worker/services/queue.py</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <p>结论很直白：框架打包卖的五样能力，Akke <strong>已经自有五样的对应实现</strong>，且 Langfuse 的 cost/runBy 指纹、确定性信号硬绑这类细节，是通用框架给不了的。引框架是「用更粗的抽象换走更细的已有能力」。</p>
+  </section>
+
+  <section>
+    <h2>一句话给 Gus</h2>
+    <p class="note brake"><b>别在「选框架」上耗精力。</b>把这份力气直接投到主题4 的<strong>微信通路 PoC</strong>（个微 vs 企微，先把「能不能合规地发出去」这道 0 号闸打通）和主题3 的<strong>报价数据源</strong>——那才是装修场景真正卡住的地方。框架是流程稳定后的锦上添花，现在添的不是花，是迁移债。</p>
+  </section>
+
+  <div class="backrow">
+    <a href="/akke/ai-brain/1-workflow-frameworks">① 框架横评</a>
+    <a href="/akke/ai-brain/2-decor-framework">② 装修场景选型</a>
+    <a href="/akke/ai-brain/3-rag-modeling">③ RAG 行业建模</a>
+    <a href="/akke/ai-brain/4-user-modeling">④ 用户建模</a>
+  </div>
+
+  <footer>
+    <div><span class="lab">VERSION</span> <b>v1.0 — 2026-06-28</b></div>
+    <div><span class="lab">METHOD</span> <b>fan-out agent 调研 · 锚定仓库 · WHETHER 先行</b></div>
+    <div><span class="lab">OWNER</span> <b>Gus</b></div>
+  </footer>
+</div>
+<script>
+  var p=document.getElementById('prog');
+  addEventListener('scroll',function(){var h=document.documentElement;var sc=h.scrollTop/(h.scrollHeight-h.clientHeight);p.style.width=(sc*100)+'%'},{passive:true});
+</script>
+</body>
+</html>

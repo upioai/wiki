@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAG 向量库给行业建模？先验证再决定 · Akke 决策调研</title>
+<meta name="akke:task" content="3/8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0c11; --bg2:#0d1017; --panel:#11151d; --panel2:#161b25; --panel3:#1a2030;
+    --line:#1e2531; --line2:#2a3340;
+    --text:#e7eaf1; --dim:#aab2c2; --muted:#6f7889;
+    --good:#34d399; --warn:#fbbf24; --bad:#f87171; --info:#38bdf8;
+    /* 每页改这一个色相做家族区分；默认 Claude 橙 */
+    --accent:#f59e0b; --accent-soft:rgba(245,158,11,.13); --accent-line:rgba(245,158,11,.42);
+    --mono:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;
+    --cjk:'PingFang SC','Hiragino Sans GB','Microsoft YaHei',-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(1100px 560px at 12% -8%, var(--accent-soft), transparent 60%),
+      radial-gradient(900px 460px at 92% 0%, rgba(56,189,248,.05), transparent 55%),
+      var(--bg);
+    color:var(--text); font-family:var(--cjk);
+    -webkit-font-smoothing:antialiased; line-height:1.7; background-attachment:fixed;
+  }
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background-image:linear-gradient(rgba(255,255,255,.014) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.014) 1px,transparent 1px);
+    background-size:46px 46px;mask-image:radial-gradient(ellipse at 50% 20%, #000 35%, transparent 82%)}
+  .prog{position:fixed;top:0;left:0;height:3px;width:0;background:linear-gradient(90deg,var(--accent),var(--info));z-index:50;transition:width .1s}
+  .wrap{max-width:920px;margin:0 auto;padding:30px 26px 90px;position:relative;z-index:1}
+
+  /* brand bar */
+  .brand{display:flex;align-items:center;justify-content:space-between;font-family:var(--mono);
+    font-size:12px;letter-spacing:.16em;color:var(--muted);border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:26px}
+  .brand b{color:var(--text);font-weight:700}
+  .brand .r{color:var(--accent)}
+
+  /* crumb + hero */
+  .crumb{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin-bottom:14px}
+  .crumb .pill{display:inline-block;border:1px solid var(--accent-line);color:var(--accent);background:var(--accent-soft);
+    border-radius:6px;padding:2px 9px;margin-right:10px;letter-spacing:.08em}
+  h1{font-size:clamp(27px,4.2vw,42px);font-weight:700;margin:0 0 12px;letter-spacing:-.01em;line-height:1.12}
+  .lead{color:var(--dim);font-size:16px;max-width:720px;margin:0}
+
+  /* verdict badge */
+  .verdict{display:flex;align-items:flex-start;gap:14px;margin:26px 0 8px;padding:18px 20px;
+    background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--accent-line);border-radius:14px;
+    box-shadow:0 14px 40px -22px rgba(0,0,0,.9)}
+  .verdict .tag{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--accent);
+    border:1px solid var(--accent-line);border-radius:6px;padding:4px 8px;background:var(--accent-soft);white-space:nowrap;margin-top:2px}
+  .verdict .vtxt{font-size:17px;font-weight:600;color:var(--text);line-height:1.55}
+  .verdict .vtxt em{color:var(--accent);font-style:normal}
+
+  /* sections */
+  section{margin-top:38px}
+  h2{font-size:21px;font-weight:700;margin:0 0 16px;letter-spacing:-.01em;display:flex;align-items:center;gap:11px}
+  h2::before{content:"";width:4px;height:19px;border-radius:3px;background:var(--accent);flex:none}
+  h3{font-size:15.5px;font-weight:700;color:var(--text);margin:22px 0 9px}
+  p{margin:0 0 13px}
+  .wrap a{color:var(--info);text-decoration:none;border-bottom:1px solid rgba(56,189,248,.3)}
+  strong{color:#fff;font-weight:600}
+
+  /* callout (whether-brake / note) */
+  .note{border-left:3px solid var(--warn);background:linear-gradient(90deg,rgba(251,191,36,.08),transparent);
+    border-radius:0 10px 10px 0;padding:14px 18px;margin:18px 0;font-size:14.5px;color:var(--dim)}
+  .note b{color:var(--warn)}
+  .note.brake{border-color:var(--accent);background:linear-gradient(90deg,var(--accent-soft),transparent)}
+  .note.brake b{color:var(--accent)}
+
+  /* evidence chip (file:line) */
+  .ev{font-family:var(--mono);font-size:12px;color:var(--muted);background:var(--panel);border:1px solid var(--line);
+    border-radius:5px;padding:1px 7px;white-space:nowrap}
+
+  /* table */
+  .tbl{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;overflow:hidden;border-radius:12px;border:1px solid var(--line)}
+  .tbl th{background:var(--panel2);color:var(--dim);font-weight:600;text-align:left;padding:11px 14px;font-size:12.5px;
+    letter-spacing:.04em;border-bottom:1px solid var(--line2)}
+  .tbl td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top;color:var(--dim)}
+  .tbl tr:last-child td{border-bottom:none}
+  .tbl td:first-child{color:var(--text);font-weight:500}
+  .tbl tr:hover td{background:rgba(255,255,255,.012)}
+
+  /* cards grid */
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:18px 0}
+  .card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line2);border-radius:13px;padding:16px 17px}
+  .card .k{font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;margin-bottom:7px}
+  .card .v{font-size:15px;color:var(--text);line-height:1.5}
+  .card.x{border-color:rgba(248,113,113,.3)} .card.x .k{color:var(--bad)}
+  .card.ok{border-color:rgba(52,211,153,.3)} .card.ok .k{color:var(--good)}
+
+  /* verdict-pills inline */
+  .b{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.05em;padding:2px 8px;border-radius:5px;vertical-align:middle}
+  .b-no{color:var(--bad);background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3)}
+  .b-yes{color:var(--good);background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.3)}
+  .b-wait{color:var(--warn);background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.3)}
+
+  ul,ol{margin:0 0 14px;padding-left:22px}li{margin:6px 0;color:var(--dim)}li strong{color:#fff}
+
+  /* footer */
+  footer{margin-top:54px;border-top:1px solid var(--line);padding-top:18px;display:flex;flex-wrap:wrap;
+    justify-content:space-between;gap:16px;font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+  footer .lab{color:var(--muted);letter-spacing:.1em}footer b{color:var(--dim);font-weight:600}
+  .backrow{margin-top:26px;display:flex;flex-wrap:wrap;gap:10px}
+  .backrow a{font-family:var(--mono);font-size:12.5px;color:var(--dim);background:var(--panel);border:1px solid var(--line);
+    border-radius:8px;padding:7px 13px;text-decoration:none;border-bottom:1px solid var(--line)}
+  .backrow a:hover{border-color:var(--accent-line);color:var(--accent)}
+  @media(max-width:560px){.wrap{padding:22px 16px 70px}h1{font-size:25px}}
+</style>
+</head>
+<body>
+<div class="prog" id="prog"></div>
+<div class="wrap">
+  <div class="brand"><b>AKKE</b><span class="r">决策调研 · DECISION RESEARCH · 2026</span></div>
+
+  <div class="crumb"><span class="pill">任务 3 / 8</span>五大战略 · 主题4 AI 大脑选型</div>
+  <h1>RAG 向量库给行业建模？先验证再决定</h1>
+  <p class="lead">要不要上 pgvector / RAG，把「装修行业节奏 + 常见问题」做成知识库喂给 LLM？这是个典型的 HOW，但先得回答 WHETHER：RAG 到底能覆盖几成真实问题。</p>
+
+  <div class="verdict"><span class="tag">结论</span><div class="vtxt"><em>现阶段不上</em> <span class="b b-wait">先验证</span>。全屋定制约 <strong>80%</strong> 是订单特定问题（答案在 ERP 里），RAG 的天花板 ≈ <strong>20%</strong>；先做一个半天能跑完的验证实验，用数字拍板，别先上工程。</div></div>
+
+  <!-- ===== 正文 sections 在这里 ===== -->
+
+  <section>
+    <h2>先踩刹车：这是 HOW，但 WHETHER 还没回答</h2>
+    <div class="note brake">
+      <b>WHETHER 先行 ——</b> RAG 优化的是「<strong>通用问题答得准不准</strong>」：把行业知识切块、做向量检索、按相关性挑最相关的几条喂模型。但 Akke 真实对话里 80% 的问题<strong>压根不是通用问题</strong>——「我家这单进度到哪了」「尾款还差多少」「上次定的款式能改吗」，这些答案不在任何知识库，在客户那张订单里。给一道根本不存在于知识库的题写更好的答案，是在<strong>优化错的东西</strong>。所以先验 WHETHER（RAG 能覆盖几成真实问题）再谈 HOW（pgvector 怎么接），顺序反了就会白烧两周工程。
+    </div>
+  </section>
+
+  <section>
+    <h2>为什么现阶段不上：三条硬事实</h2>
+    <div class="grid">
+      <div class="card x">
+        <div class="k">① pgvector 从未启用</div>
+        <div class="v">两张知识表的 <code>vector(1536)</code> 列<strong>建表起就注释着</strong>，旁边写着「取消注释即可启用 RAG」。全仓唯一启用的 extension 是 <code>pg_net</code>，没有 vector。schema 早把路铺好，<strong>两年没人去取消注释</strong> —— 说明瓶颈从来不在 schema，而在「值不值得」。
+          <div style="margin-top:9px"><span class="ev">008_knowledge_base.sql:27,55</span></div>
+        </div>
+      </div>
+      <div class="card x">
+        <div class="k">② 现有知识「rarely referenced」</div>
+        <div class="v">代码注释<strong>自陈</strong>：V1 知识库在 ice_break / nurture 回复里「<strong>rarely referenced</strong>」。2026-04-26 团队还<strong>反向砍小</strong>注入量——每类 1-2 条 →1 条、字符 3000 →1500，因为知识块一大就<strong>稀释 persona</strong>、输出客服腔。方向是在<strong>减少</strong>知识注入，不是缺检索质量。同段注释把「Real RAG」明确列进 YAGNI。
+          <div style="margin-top:9px"><span class="ev">src/lib/llm.ts:226-229</span></div>
+        </div>
+      </div>
+      <div class="card x">
+        <div class="k">③ 内容稀薄 + 问题订单特定</div>
+        <div class="v">知识库内容极少（量级：十几条文档 + 十几条对话范例），<strong>全量塞进 1500 字都装得下</strong>——RAG「按相关性裁剪」的价值 ≈ 0，没有海量内容需要检索。而真实高频问题（进度 / 尾款 / 款式改动）答案在 <strong>ERP / 订单系统</strong>，不在知识库。综合算下来 RAG 能覆盖的真实问题<strong>顶天 ≈ 20%</strong>。
+          <div style="margin-top:9px"><span class="ev">knowledge_documents / conversation_examples</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>该做的不是上 pgvector，是先做最小验证实验</h2>
+    <p>不要凭直觉拍「20%」，用一个半天能跑完的实验把这个数<strong>测出来</strong>，再决定。</p>
+    <div class="card ok" style="margin:18px 0">
+      <div class="k">最小验证实验 · 1 人 1 天</div>
+      <div class="v">
+        <ol style="margin:8px 0 4px">
+          <li>抽 <strong>1 个真实 org</strong>，拉它<strong>近 1 个月</strong>的聊天记录（<code>conversations</code> + <code>messages</code> 按 <code>org_id</code> 过滤）。</li>
+          <li>人工逐条给客户提的问题打标，二选一：<strong>通用 FAQ</strong>（行业节奏 / 常见问题，RAG 答得了）vs <strong>订单特定</strong>（只有 ERP / 客户那张单子里有）。</li>
+          <li>算「通用 FAQ」占比，对照阈值拍板。</li>
+        </ol>
+        <div style="margin-top:10px;padding:11px 13px;border:1px solid var(--accent-line);border-radius:9px;background:var(--accent-soft)">
+          <strong>判定阈值：通用占比 ≥ 40% 才值得上 RAG。</strong><br>
+          <span style="color:var(--dim)">低于 40%（预期结果）→ RAG 天花板极低，把这两周工程预算改投 <strong>copilot 草拟 + 人审</strong>——复用现有 <code>confidence_score</code> + <code>pending_approval</code> 审批闸门，投入产出比远高于检索增强。</span>
+        </div>
+      </div>
+    </div>
+    <p style="color:var(--muted);font-size:14px">这一天换来的是「<strong>用真实数据拍板</strong>」而不是「先建 pgvector 索引、接 embedding pipeline、再发现没题可答」——比直接上 RAG 省两周。</p>
+  </section>
+
+  <section>
+    <h2>若验证过关（HOW，一句带过）</h2>
+    <p>万一打标结果通用占比真 <strong>≥ 40%</strong>：接 RAG 的工程成本极低——<code>CREATE EXTENSION vector</code> + 取消 <span class="ev">008_knowledge_base.sql:27,55</span> 那两行 <code>vector(1536)</code> 注释，<strong>无需改 schema</strong>，路早就铺好了。但那是 IF 之后的事，先把 IF 测出来。</p>
+  </section>
+
+  <div class="backrow">
+    <a href="/akke/ai-brain/1-workflow-frameworks">① 框架横评</a>
+    <a href="/akke/ai-brain/2-decor-framework">② 装修场景选型</a>
+    <a href="/akke/ai-brain/3-rag-modeling">③ RAG 行业建模</a>
+    <a href="/akke/ai-brain/4-user-modeling">④ 用户建模</a>
+  </div>
+
+  <footer>
+    <div><span class="lab">VERSION</span> <b>v1.0 — 2026-06-28</b></div>
+    <div><span class="lab">METHOD</span> <b>fan-out agent 调研 · 锚定仓库 · WHETHER 先行</b></div>
+    <div><span class="lab">OWNER</span> <b>Gus</b></div>
+  </footer>
+</div>
+<script>
+  var p=document.getElementById('prog');
+  addEventListener('scroll',function(){var h=document.documentElement;var sc=h.scrollTop/(h.scrollHeight-h.clientHeight);p.style.width=(sc*100)+'%'},{passive:true});
+</script>
+</body>
+</html>

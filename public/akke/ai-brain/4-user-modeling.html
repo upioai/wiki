@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>给用户建模：复用现有，别另起炉灶 · Akke 决策调研</title>
+<meta name="akke:task" content="4/8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0c11; --bg2:#0d1017; --panel:#11151d; --panel2:#161b25; --panel3:#1a2030;
+    --line:#1e2531; --line2:#2a3340;
+    --text:#e7eaf1; --dim:#aab2c2; --muted:#6f7889;
+    --good:#34d399; --warn:#fbbf24; --bad:#f87171; --info:#38bdf8;
+    /* 每页改这一个色相做家族区分；任务4 翠绿 */
+    --accent:#10b981; --accent-soft:rgba(16,185,129,.13); --accent-line:rgba(16,185,129,.4);
+    --mono:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;
+    --cjk:'PingFang SC','Hiragino Sans GB','Microsoft YaHei',-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(1100px 560px at 12% -8%, var(--accent-soft), transparent 60%),
+      radial-gradient(900px 460px at 92% 0%, rgba(56,189,248,.05), transparent 55%),
+      var(--bg);
+    color:var(--text); font-family:var(--cjk);
+    -webkit-font-smoothing:antialiased; line-height:1.7; background-attachment:fixed;
+  }
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background-image:linear-gradient(rgba(255,255,255,.014) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.014) 1px,transparent 1px);
+    background-size:46px 46px;mask-image:radial-gradient(ellipse at 50% 20%, #000 35%, transparent 82%)}
+  .prog{position:fixed;top:0;left:0;height:3px;width:0;background:linear-gradient(90deg,var(--accent),var(--info));z-index:50;transition:width .1s}
+  .wrap{max-width:920px;margin:0 auto;padding:30px 26px 90px;position:relative;z-index:1}
+
+  /* brand bar */
+  .brand{display:flex;align-items:center;justify-content:space-between;font-family:var(--mono);
+    font-size:12px;letter-spacing:.16em;color:var(--muted);border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:26px}
+  .brand b{color:var(--text);font-weight:700}
+  .brand .r{color:var(--accent)}
+
+  /* crumb + hero */
+  .crumb{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin-bottom:14px}
+  .crumb .pill{display:inline-block;border:1px solid var(--accent-line);color:var(--accent);background:var(--accent-soft);
+    border-radius:6px;padding:2px 9px;margin-right:10px;letter-spacing:.08em}
+  h1{font-size:clamp(27px,4.2vw,42px);font-weight:700;margin:0 0 12px;letter-spacing:-.01em;line-height:1.12}
+  .lead{color:var(--dim);font-size:16px;max-width:720px;margin:0}
+
+  /* verdict badge */
+  .verdict{display:flex;align-items:flex-start;gap:14px;margin:26px 0 8px;padding:18px 20px;
+    background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--accent-line);border-radius:14px;
+    box-shadow:0 14px 40px -22px rgba(0,0,0,.9)}
+  .verdict .tag{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--accent);
+    border:1px solid var(--accent-line);border-radius:6px;padding:4px 8px;background:var(--accent-soft);white-space:nowrap;margin-top:2px}
+  .verdict .vtxt{font-size:17px;font-weight:600;color:var(--text);line-height:1.55}
+  .verdict .vtxt em{color:var(--accent);font-style:normal}
+
+  /* sections */
+  section{margin-top:38px}
+  h2{font-size:21px;font-weight:700;margin:0 0 16px;letter-spacing:-.01em;display:flex;align-items:center;gap:11px}
+  h2::before{content:"";width:4px;height:19px;border-radius:3px;background:var(--accent);flex:none}
+  h3{font-size:15.5px;font-weight:700;color:var(--text);margin:22px 0 9px}
+  p{margin:0 0 13px}
+  .wrap a{color:var(--info);text-decoration:none;border-bottom:1px solid rgba(56,189,248,.3)}
+  strong{color:#fff;font-weight:600}
+
+  /* callout (whether-brake / note) */
+  .note{border-left:3px solid var(--warn);background:linear-gradient(90deg,rgba(251,191,36,.08),transparent);
+    border-radius:0 10px 10px 0;padding:14px 18px;margin:18px 0;font-size:14.5px;color:var(--dim)}
+  .note b{color:var(--warn)}
+  .note.brake{border-color:var(--accent);background:linear-gradient(90deg,var(--accent-soft),transparent)}
+  .note.brake b{color:var(--accent)}
+
+  /* evidence chip (file:line) */
+  .ev{font-family:var(--mono);font-size:12px;color:var(--muted);background:var(--panel);border:1px solid var(--line);
+    border-radius:5px;padding:1px 7px;white-space:nowrap}
+
+  /* table */
+  .tbl{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;overflow:hidden;border-radius:12px;border:1px solid var(--line)}
+  .tbl th{background:var(--panel2);color:var(--dim);font-weight:600;text-align:left;padding:11px 14px;font-size:12.5px;
+    letter-spacing:.04em;border-bottom:1px solid var(--line2)}
+  .tbl td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top;color:var(--dim)}
+  .tbl tr:last-child td{border-bottom:none}
+  .tbl td:first-child{color:var(--text);font-weight:500}
+  .tbl tr:hover td{background:rgba(255,255,255,.012)}
+
+  /* cards grid */
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:18px 0}
+  .card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line2);border-radius:13px;padding:16px 17px}
+  .card .k{font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;margin-bottom:7px}
+  .card .v{font-size:15px;color:var(--text);line-height:1.5}
+  .card.x{border-color:rgba(248,113,113,.3)} .card.x .k{color:var(--bad)}
+  .card.ok{border-color:rgba(52,211,153,.3)} .card.ok .k{color:var(--good)}
+
+  /* verdict-pills inline */
+  .b{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.05em;padding:2px 8px;border-radius:5px;vertical-align:middle}
+  .b-no{color:var(--bad);background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3)}
+  .b-yes{color:var(--good);background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.3)}
+  .b-wait{color:var(--warn);background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.3)}
+
+  ul,ol{margin:0 0 14px;padding-left:22px}li{margin:6px 0;color:var(--dim)}li strong{color:#fff}
+
+  /* footer */
+  footer{margin-top:54px;border-top:1px solid var(--line);padding-top:18px;display:flex;flex-wrap:wrap;
+    justify-content:space-between;gap:16px;font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+  footer .lab{color:var(--muted);letter-spacing:.1em}footer b{color:var(--dim);font-weight:600}
+  .backrow{margin-top:26px;display:flex;flex-wrap:wrap;gap:10px}
+  .backrow a{font-family:var(--mono);font-size:12.5px;color:var(--dim);background:var(--panel);border:1px solid var(--line);
+    border-radius:8px;padding:7px 13px;text-decoration:none;border-bottom:1px solid var(--line)}
+  .backrow a:hover{border-color:var(--accent-line);color:var(--accent)}
+  @media(max-width:560px){.wrap{padding:22px 16px 70px}h1{font-size:25px}}
+</style>
+</head>
+<body>
+<div class="prog" id="prog"></div>
+<div class="wrap">
+  <div class="brand"><b>AKKE</b><span class="r">决策调研 · DECISION RESEARCH · 2026</span></div>
+
+  <div class="crumb"><span class="pill">任务 4 / 8</span>五大战略 · 主题4 AI 大脑选型</div>
+  <h1>给用户建模：复用现有，别另起炉灶</h1>
+  <p class="lead">怎么对单个客户建模——判断他在哪个阶段、记住他说过什么、给他专属物料？关键问题不是"用什么新方案"，而是"Akke 现有栈已经覆盖了多少"。</p>
+
+  <div class="verdict"><span class="tag">结论</span><div class="vtxt"><em>复用并扩展现有 <code>memory.ts</code> + 阶段机 + conversation_examples</em> <span class="b b-yes">复用</span>。三块能力已两块半落地，缺口是窄的增量，不是空白。地基已浇好且在生产跑，任务4 是加房间不是重打地基。</div></div>
+
+  <!-- ===== 正文 sections 在这里 ===== -->
+
+  <section>
+    <h2>盘点 Akke 已有的三件套</h2>
+    <p>用户建模拆成三个能问出口的问题：他在哪一步、他说过什么、给他什么。逐一对账现状——</p>
+    <table class="tbl">
+      <thead>
+        <tr><th style="width:24%">维度</th><th style="width:42%">现状</th><th>落地证据</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>阶段评估<br><span style="color:var(--muted);font-weight:400">他在哪一步</span></td>
+          <td><span class="b b-yes">已落地</span> 四态 stage machine（ice_break / nurture / decision / store_invite），<code>chatReply</code> 按 stage 切系统提示词；<code>classifyDecorationStage</code> 给 lead 打装修阶段信号。</td>
+          <td><span class="ev">src/lib/llm.ts · chatReply</span> <span class="ev">classifyDecorationStage</span></td>
+        </tr>
+        <tr>
+          <td>记忆<br><span style="color:var(--muted);font-weight:400">记住他说过什么</span></td>
+          <td><span class="b b-yes">已落地（窄版）</span> 按 <code>(org_id, douyin_user_id)</code> 跨会话浅合并 <code>customer_profile</code> JSONB，取最近 3 会话、新值覆盖旧值、严格 org 隔离防跨租户泄漏——避免二次触达重问面积/预算/城市这个"最响的机器人信号"。</td>
+          <td><span class="ev">src/lib/memory.ts</span></td>
+        </tr>
+        <tr>
+          <td>专属物料<br><span style="color:var(--muted);font-weight:400">给他的针对性内容</span></td>
+          <td><span class="b b-wait">半落地</span> <code>conversation_examples</code>（18 条金牌、按 quality_score top-3 注入 <code>buildExampleBlock</code>）+ opener 线索富化；但这是<strong>全局优质示例</strong>不是按单客户量身——真物料库是 WBS 主题5 待建。</td>
+          <td><span class="ev">conversation_examples</span> <span class="ev">buildExampleBlock</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>决策：复用而非另起</h2>
+    <p>三块能力的数据载体都已就位，没有从零搭一套用户模型的理由。</p>
+    <div class="grid">
+      <div class="card ok">
+        <div class="k">数据载体已就位</div>
+        <div class="v"><code>conversations.customer_profile</code> JSONB、<code>conversations.stage</code>、<code>conversation_examples</code>——存阶段、存记忆、存示例的三张表都在生产里跑着。</div>
+      </div>
+      <div class="card x">
+        <div class="k">另起炉灶 = 重复劳动</div>
+        <div class="v">重写一遍还要重做多租户 RLS 隔离——<code>memory.ts</code> 已踩过"null org 不能 fall-through 跨租户读"的坑，新方案要把这个坑再趟一次。</div>
+      </div>
+      <div class="card ok">
+        <div class="k">已进主路径，非 demo</div>
+        <div class="v">阶段机 + 记忆已接进生产 <code>chatReply</code> 主链路，每条回复都在用，不是放在旁边的实验件。</div>
+      </div>
+    </div>
+    <div class="note brake"><b>判断</b>：地基（阶段 + 跨会话记忆 + org 隔离）已浇好且经过生产验证。在它之上加增量，比另搭一套"更全的用户模型"成本低一个量级，且不用重蹈隔离覆辙。</div>
+  </section>
+
+  <section>
+    <h2>缺口清单（增量补，不推倒）</h2>
+    <p>承认缺口，但每个缺口都是窄增量，挂在现有地基的下游，不需要推倒重来。</p>
+    <ol>
+      <li>
+        <span class="b b-wait">优先级低</span> <strong>记忆浅合并、无字段级溯源</strong>——<code>memory.ts</code> 注释自陈"which key came from which conv 需 schema change"。要等到必须解释"这条物料为什么推给他"时再补 provenance，现在不补。
+      </li>
+      <li>
+        <span class="b b-yes">这是正确取舍</span> <strong>记忆只存结构化 customer_profile、不回放历史原文</strong>——刻意防 token 爆炸 + 串味。别为"更全记忆"去回放原文，那是退步不是进步。
+      </li>
+      <li>
+        <span class="b b-no">真缺口</span> <strong>专属物料库（主题5）</strong>——这是真正的空白，但应建成阶段机<strong>下游</strong>，用已有 stage + customer_profile 当检索键，不另造一套用户模型。
+      </li>
+      <li>
+        <span class="b b-wait">可下沉</span> <strong>阶段流转目前靠 LLM 分类、无确定性转移规则</strong>——有确定性信号（已留微信 → decision、已邀约到店 → store_invite）的部分下沉到代码，省 token 更稳。
+      </li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>一句话收口</h2>
+    <div class="note brake"><b>收口</b>：用户建模的地基（阶段 + 跨会话记忆 + org 隔离）已浇好且在生产跑；任务4 是在地基上加房间（专属物料匹配 + 阶段确定性流转），不是重新打地基。</div>
+  </section>
+
+  <div class="backrow">
+    <a href="/akke/ai-brain/1-workflow-frameworks">① 框架横评</a>
+    <a href="/akke/ai-brain/2-decor-framework">② 装修场景选型</a>
+    <a href="/akke/ai-brain/3-rag-modeling">③ RAG 行业建模</a>
+    <a href="/akke/ai-brain/4-user-modeling">④ 用户建模</a>
+  </div>
+
+  <footer>
+    <div><span class="lab">VERSION</span> <b>v1.0 — 2026-06-28</b></div>
+    <div><span class="lab">METHOD</span> <b>fan-out agent 调研 · 锚定仓库 · WHETHER 先行</b></div>
+    <div><span class="lab">OWNER</span> <b>Gus</b></div>
+  </footer>
+</div>
+<script>
+  var p=document.getElementById('prog');
+  addEventListener('scroll',function(){var h=document.documentElement;var sc=h.scrollTop/(h.scrollHeight-h.clientHeight);p.style.width=(sc*100)+'%'},{passive:true});
+</script>
+</body>
+</html>
