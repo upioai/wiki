@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>「评论抓取慢」一页看懂 · 2026-06-25</title>
+<style>
+  :root{--ink:#1a1f36;--mut:#6b7280;--good:#16a34a;--warn:#d97706;--bad:#dc2626;--line:#e5e7eb;--bg:#f7f8fa;--card:#fff;--accent:#2563eb}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.7;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:880px;margin:0 auto;padding:32px 20px 80px}
+  h1{font-size:30px;line-height:1.3;margin-bottom:8px}
+  .sub{color:var(--mut);font-size:15px;margin-bottom:28px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+  .card h2{font-size:21px;margin-bottom:6px;display:flex;align-items:center;gap:9px}
+  .card h2 .n{background:var(--accent);color:#fff;width:30px;height:30px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;font-size:16px;flex:none}
+  .lead{color:var(--mut);font-size:14.5px;margin-bottom:16px}
+  .big{font-size:15.5px}
+  .kpi{display:flex;gap:12px;flex-wrap:wrap;margin:14px 0}
+  .kpi .box{flex:1;min-width:130px;background:var(--bg);border-radius:12px;padding:14px 16px;text-align:center}
+  .kpi .v{font-size:26px;font-weight:700}
+  .kpi .l{font-size:12.5px;color:var(--mut);margin-top:2px}
+  .v.bad{color:var(--bad)}.v.good{color:var(--good)}.v.warn{color:var(--warn)}
+  /* 三段条 */
+  .bar{display:flex;height:46px;border-radius:10px;overflow:hidden;margin:14px 0 6px;font-size:13px;font-weight:600;color:#fff}
+  .bar .seg{display:flex;align-items:center;justify-content:center;flex-direction:column;line-height:1.2}
+  .seg.find{background:var(--bad)}.seg.queue{background:#f59e0b}.seg.scan{background:var(--good)}
+  .barcap{font-size:12.5px;color:var(--mut);text-align:center}
+  /* 年龄时间轴 */
+  .tl{display:flex;margin:18px 0 6px;border-radius:10px;overflow:hidden;text-align:center;font-size:13px}
+  .tl div{padding:14px 8px;color:#fff}
+  .tl .c1{background:var(--bad);flex:2}.tl .c2{background:var(--good);flex:2}.tl .c3{background:var(--warn);flex:3}
+  .tl b{display:block;font-size:15px}
+  .tlx{display:flex;font-size:11.5px;color:var(--mut);text-align:center}
+  .tlx div:nth-child(1){flex:2}.tlx div:nth-child(2){flex:2}.tlx div:nth-child(3){flex:3}
+  .tag{display:inline-block;font-size:12px;padding:2px 9px;border-radius:20px;font-weight:600}
+  .tag.good{background:#dcfce7;color:var(--good)}.tag.bad{background:#fee2e2;color:var(--bad)}.tag.warn{background:#fef3c7;color:var(--warn)}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line)}
+  th{color:var(--mut);font-weight:600;font-size:12.5px}
+  .myth{background:#fff7ed;border-left:4px solid var(--warn);padding:12px 16px;border-radius:0 10px 10px 0;margin:10px 0}
+  .myth b{color:var(--warn)}
+  .truth{background:#f0fdf4;border-left:4px solid var(--good);padding:12px 16px;border-radius:0 10px 10px 0;margin:10px 0}
+  .truth b{color:var(--good)}
+  ul{padding-left:22px}li{margin:5px 0}
+  .foot{color:var(--mut);font-size:12.5px;text-align:center;margin-top:24px;line-height:1.8}
+  .pill{background:var(--accent);color:#fff;font-size:12px;padding:3px 10px;border-radius:20px}
+  .analogy{background:#eff6ff;border-radius:12px;padding:14px 18px;margin:12px 0;font-size:14.5px}
+  .analogy .t{font-weight:700;color:var(--accent);margin-bottom:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>「评论抓取慢」到底是怎么回事</h1>
+  <div class="sub">一页看懂 · 2026-06-25 · 目标：用户评论后 <b>5 分钟内</b>抓到 · <span class="pill">小白友好版</span></div>
+
+  <!-- 6-28 复测更新 -->
+  <div class="card" style="border:2px solid var(--bad);background:#fff5f5">
+    <h2><span class="n" style="background:var(--bad)">🔄</span>6-28 复测更新（3 天后重量）</h2>
+    <p class="lead">结构性结论全不变（①发现主导、三断崖、幼年期 recent-20 机制、高意向年龄混淆都成立），<b>但整体在恶化，还冒出一个新信号</b>。以下为最新数，下方 6-25 的表保留作历史对比。</p>
+    <table>
+      <tr><th>指标</th><th>6-25</th><th>6-28</th><th></th></tr>
+      <tr><td>中位延迟</td><td>33m</td><td><b>1.0h</b></td><td style="color:var(--bad)">🔴 恶化</td></tr>
+      <tr><td>≤5min 达标率</td><td>17%</td><td><b>10%</b></td><td style="color:var(--bad)">🔴 腰斩</td></tr>
+      <tr><td>&gt;4d 肥尾</td><td>15%</td><td><b>19%</b></td><td style="color:var(--bad)">🔴 变胖</td></tr>
+      <tr><td>p90</td><td>5.2d</td><td>5.7d</td><td style="color:var(--bad)">🔴 略恶化</td></tr>
+      <tr style="background:#fee2e2"><td><b>cold-intent 排队</b></td><td>7m</td><td><b>37m</b></td><td style="color:var(--bad)">🔴🔴 新信号</td></tr>
+      <tr><td>7-14d 甜区中位</td><td>14m</td><td>38m</td><td style="color:var(--bad)">🔴 甜区也慢</td></tr>
+    </table>
+    <div class="myth"><b>新信号要点：</b>cold-intent 的排队从 7 分钟飙到 37 分钟 = <b>pri=3 队列又开始堵</b>（旧毛病"cold-intent 垒墙"复发苗头）。它把"排队≈0"那条结论对 cold-intent 这条路打破了，也拖慢了甜区。<b>下一步该盯 pri 积压（③段 / _probe-cold-intent-starve），要压先调 env 不动 worker。</b></div>
+  </div>
+
+  <!-- 0 目标 -->
+  <div class="card">
+    <h2><span class="n">🎯</span>我们想做到的事</h2>
+    <p class="big">用户在抖音视频底下评论 → 我们的系统把这条评论抓进库（这样才能判断是不是潜在客户、去私信）。<b>越快越好，目标是 5 分钟内。</b>越晚抓到，越可能错过这个客户。</p>
+    <div class="kpi">
+      <div class="box"><div class="v bad">32<span style="font-size:15px">分钟</span></div><div class="l">现在的中位耗时<br>(目标 5min)</div></div>
+      <div class="box"><div class="v warn">17%</div><div class="l">真正 ≤5min 的<br>占比</div></div>
+      <div class="box"><div class="v bad">5.2<span style="font-size:15px">天</span></div><div class="l">最慢那 10%<br>(p90)</div></div>
+    </div>
+    <p class="lead">一半评论 30 分钟内能抓到，但有一条又粗又长的"尾巴"——<b>15% 的评论拖了 4 天以上</b>才抓到。问题就出在这条尾巴。</p>
+  </div>
+
+  <!-- 1 一条评论的旅程 -->
+  <div class="card">
+    <h2><span class="n">1</span>一条评论从"发出"到"被抓到"，时间花在哪</h2>
+    <p class="lead">这段时间 = 三步相加。我们逐一量了，结果非常清楚：</p>
+    <div class="bar">
+      <div class="seg find" style="flex:40">① 发现<br>≈全部</div>
+      <div class="seg queue" style="flex:8">② 排队<br>0-7m</div>
+      <div class="seg scan" style="flex:1">③</div>
+    </div>
+    <div class="barcap">① 多久轮到去扫这条视频 &nbsp;|&nbsp; ② 任务排队 0-7 分钟 &nbsp;|&nbsp; ③ 真正抓取 ≈ 0 分钟</div>
+    <div class="truth" style="margin-top:16px"><b>✅ 结论：</b>慢，几乎 100% 是 ①「多久轮到扫这条视频」。<b>排队和抓取本身都快得可以忽略</b>——所以<b>加机器、加服务器没用</b>，省下的功夫得花在"多久回去扫一次"上。</div>
+  </div>
+
+  <!-- 2 真正的病根：视频年龄 -->
+  <div class="card">
+    <h2><span class="n">2</span>真正的病根：看"视频多大了"</h2>
+    <p class="lead">把评论按"它所在视频的年龄"分组，规律一目了然——而且跟直觉<b>正好相反</b>：</p>
+    <div class="tl">
+      <div class="c1"><b>0 – 4 天</b>幼年期空窗</div>
+      <div class="c2"><b>7 – 14 天</b>甜区</div>
+      <div class="c3"><b>14 天以上</b>老化掉队</div>
+    </div>
+    <div class="tlx"><div>延迟 4–6 天 😱</div><div>延迟 13 分钟 ✅</div><div>延迟 1.4 小时 ⚠️</div></div>
+    <div class="analogy">
+      <div class="t">🎣 用钓鱼打比方</div>
+      新视频刚发出来的头几天，<b>没人去那个钓点撒网</b>（幼年期空窗）；等视频长到 7 天大、被系统列进"常去的钓点"了，才<b>每隔 2 小时去撒一次网</b>（甜区，13 分钟就抓到新评论）；可视频超过 14 天，又慢慢被移出"常去钓点"名单，撒网变稀（老化掉队）。
+    </div>
+    <p class="big"><b>那条 4 天的肥尾，主犯就是"幼年期空窗"</b>：新视频头几天的评论没被抓，一直攒着，等视频长到 7 天进了"常去钓点"，才被一次性补抓回来——所以显示成"延迟了 4-6 天"。</p>
+  </div>
+
+  <!-- 3 幼年期为什么没扫 -->
+  <div class="card">
+    <h2><span class="n">3</span>幼年期为什么没扫？（今天查实的）</h2>
+    <div class="myth"><b>一开始以为：</b>是不是这些号被扫得太少了？</div>
+    <div class="truth"><b>查完发现不是：</b>这些号<b>每 7 小时就被扫一次、今天都扫过</b>，一个没漏。全系统 1080 个号，每 5 小时就轮一圈，扫得很勤。</div>
+    <p class="big" style="margin-top:10px"><b>真正的原因：</b>系统每次扫一个号，<b>只看它「最近 20 条」视频</b>。一个高产的号一两天就能发 20 多条，<b>新视频很快被挤出"最近 20"</b>，系统就不再碰它的评论了——直到几天后被"常去钓点"机制重新捞回来。</p>
+    <p class="lead">👉 一句话：<b>不是扫得不勤，是每次只盯"最近 20 条"这个窗口太窄</b>，发得勤的号，新视频掉出窗口就进了空窗。</p>
+  </div>
+
+  <!-- 4 两个被推翻的误会 -->
+  <div class="card">
+    <h2><span class="n">4</span>顺手澄清两个误会</h2>
+    <div class="myth"><b>误会一：</b>最值钱的"高意向"客户被抓得最慢（看总数确实是 2 小时 vs 中意向 29 分钟）。</div>
+    <div class="truth"><b>真相：</b>在<b>同样年龄</b>的视频里，高意向和中意向一样快。高意向看着慢，只是因为它们更多长在老视频上——<b>是年龄的锅，不是"系统怠慢高意向"</b>。</div>
+    <div class="myth" style="margin-top:14px"><b>误会二：</b>给重要的号打了"VIP"标，就能被快速抓取。</div>
+    <div class="truth"><b>真相：</b>VIP 快道有个"只管 4 天内视频"的限制，而出 lead 的 VIP 视频<b>全都超过 4 天（中位 23 天）</b>——<b>VIP 标对老视频完全没用</b>。</div>
+  </div>
+
+  <!-- 5 顺带：98% 空跑虚惊 -->
+  <div class="card">
+    <h2><span class="n">5</span>插曲：那个吓人的「98% 空跑」其实没事</h2>
+    <p class="big">今天还顺手查了一个报警：老视频回扫有 <b>98% 都没抓到新评论</b>（空跑）。一看吓一跳，以为坏了。</p>
+    <div class="truth"><b>查实：不是火情。</b>老视频本来就很少冒新评论，98% 空跑是正常稳态。它每天仍能捞回 <b>11 条真 lead</b>（别的路捞不到的），烧的是本来也闲着的算力。<b>盯错了指标会虚惊——该看"捞到多少 lead"，不是"空跑率"。</b></div>
+  </div>
+
+  <!-- 6 总账 + 下一步 -->
+  <div class="card" style="border:2px solid var(--accent)">
+    <h2><span class="n">✅</span>总账 & 下一步</h2>
+    <p style="font-weight:600;margin-bottom:8px">已经排除的（不是这些的锅）：</p>
+    <ul>
+      <li>❌ 不是 worker / 服务器慢（抓取本身 0 分钟）</li>
+      <li>❌ 不是排队堵（0-7 分钟）</li>
+      <li>❌ 不是号被扫得太少（每 7 小时一次）</li>
+      <li>❌ 不是老视频回扫坏了（98% 空跑是正常的）</li>
+    </ul>
+    <p style="font-weight:600;margin:14px 0 8px">真正要拧的两个旋钮：</p>
+    <ul>
+      <li>🔧 <b>提高回扫频率</b>：把"还在出 lead 的视频"从每 30-120 分钟扫一次，提到每几分钟——但受产能限，只能挑一小批"热门视频"做（全部做不到）。</li>
+      <li>🔧 <b>补幼年期空窗</b>：别让新视频掉出"最近 20"就没人管，堵住那条 4 天的肥尾。</li>
+    </ul>
+    <div class="analogy" style="margin-top:14px"><div class="t">📌 一句话给老板</div>「评论抓得慢」不是机器不够快，是<b>"什么时候、回头去扫哪条视频"</b>的策略问题。机器一点不慢，慢在<b>没及时回头看新视频</b>。</div>
+  </div>
+
+  <!-- ============ 技术详情版 ============ -->
+  <div style="text-align:center;margin:40px 0 24px"><span style="background:var(--ink);color:#fff;padding:8px 22px;border-radius:24px;font-size:15px;font-weight:700">⬇ 技术详情版（给要看数的人）</span></div>
+
+  <!-- D1 全分布直方图 -->
+  <div class="card">
+    <h2><span class="n">D1</span>「评论→抓取」完整延迟分布（n=590）</h2>
+    <p class="lead">双峰：49% 在 30 分钟内秒到，但 15% 拖过 4 天。中位 33m · p90 5.2d · p99 6.9d · ≤5min 仅 17%。</p>
+    <table>
+      <tr><th>延迟区间</th><th>条数</th><th>占比</th><th>累计</th><th></th></tr>
+      <tr><td>≤2m</td><td>51</td><td>9%</td><td>9%</td><td style="color:var(--good)">秒到</td></tr>
+      <tr><td>2-5m</td><td>51</td><td>9%</td><td>17%</td><td style="color:var(--good)">达标线</td></tr>
+      <tr><td>5-15m</td><td>91</td><td>15%</td><td>33%</td><td></td></tr>
+      <tr><td>15-30m</td><td>96</td><td>16%</td><td>49%</td><td></td></tr>
+      <tr><td>30-60m</td><td>32</td><td>5%</td><td>54%</td><td></td></tr>
+      <tr><td>1-3h</td><td>49</td><td>8%</td><td>63%</td><td style="color:var(--mut)">中间塌陷</td></tr>
+      <tr><td>3-6h</td><td>21</td><td>4%</td><td>66%</td><td></td></tr>
+      <tr><td>6-12h</td><td>41</td><td>7%</td><td>73%</td><td></td></tr>
+      <tr><td>12-24h</td><td>9</td><td>2%</td><td>75%</td><td></td></tr>
+      <tr><td>1-2d</td><td>32</td><td>5%</td><td>80%</td><td></td></tr>
+      <tr><td>2-4d</td><td>27</td><td>5%</td><td>85%</td><td></td></tr>
+      <tr><td><b>&gt;4d</b></td><td><b>90</b></td><td><b>15%</b></td><td>100%</td><td style="color:var(--bad)">肥尾主犯</td></tr>
+    </table>
+  </div>
+
+  <!-- D2 三段按 path -->
+  <div class="card">
+    <h2><span class="n">D2</span>②排队 / ③扫描——按 path 逐条量（全 ≈0）</h2>
+    <table>
+      <tr><th>路径</th><th>样本</th><th>②排队 中位/p90</th><th>③扫描 中位/p90</th></tr>
+      <tr><td>tier-0 / 台账</td><td>782</td><td>0m / 0m</td><td>0m / 0m</td></tr>
+      <tr><td>fast-lane</td><td>175</td><td>1m / 1m</td><td>0m / 0m</td></tr>
+      <tr><td>cold-intent</td><td>43</td><td>7m / 15m</td><td>0m / 0m</td></tr>
+    </table>
+    <p class="lead">排队最多 7 分钟、扫描全是 0 → 延迟的 100% 在 ①发现，与 worker/队列无关，已坐实。</p>
+  </div>
+
+  <!-- D3 延迟×视频年龄(抓取时) -->
+  <div class="card">
+    <h2><span class="n">D3</span>延迟 × 视频年龄（抓取那一刻）</h2>
+    <table>
+      <tr><th>视频年龄</th><th>n</th><th>延迟中位</th><th>p90</th><th>≤5min</th><th>&gt;6h</th></tr>
+      <tr><td>&lt;4d</td><td>0</td><td colspan="4" style="color:var(--mut)">无（新视频上没捞到 lead，因早期评论都拖到老了才抓）</td></tr>
+      <tr style="background:#fef2f2"><td>4-7d</td><td>64</td><td><b>4.7d</b></td><td>6.4d</td><td>2%</td><td><b>94%</b></td></tr>
+      <tr style="background:#f0fdf4"><td>7-14d</td><td>232</td><td><b>14m</b></td><td>4.1d</td><td>25%</td><td>15%</td></tr>
+      <tr><td>&gt;14d</td><td>255</td><td>1.5h</td><td>1.4d</td><td>13%</td><td>31%</td></tr>
+    </table>
+  </div>
+
+  <!-- D4 冒烟的枪 Dig A -->
+  <div class="card">
+    <h2><span class="n">D4</span>冒烟的枪：延迟 × <i>评论发表时</i>视频年龄</h2>
+    <p class="lead">按"评论发出去那一刻视频多大"分桶——发在幼年期(头4天)的评论 100% 拖过 6h、要等 4-6 天；发在 7-14 天的 13 分钟就到。</p>
+    <table>
+      <tr><th>评论发表@视频龄</th><th>n</th><th>延迟中位</th><th>p90</th><th>&gt;6h</th></tr>
+      <tr style="background:#fef2f2"><td>&lt;6h</td><td>12</td><td><b>6.5d</b></td><td>6.7d</td><td>100%</td></tr>
+      <tr style="background:#fef2f2"><td>6h-1d</td><td>12</td><td>6.1d</td><td>6.7d</td><td>100%</td></tr>
+      <tr style="background:#fef2f2"><td>1-2d</td><td>18</td><td>5.2d</td><td>6.0d</td><td>100%</td></tr>
+      <tr style="background:#fff7ed"><td>2-4d</td><td>28</td><td>4.2d</td><td>6.7d</td><td>100%</td></tr>
+      <tr style="background:#fff7ed"><td>4-7d</td><td>24</td><td>2.6d</td><td>5.5d</td><td>83%</td></tr>
+      <tr style="background:#f0fdf4"><td>7-14d</td><td>212</td><td><b>13m</b></td><td>49m</td><td>7%</td></tr>
+      <tr><td>&gt;14d</td><td>254</td><td>1.4h</td><td>1.3d</td><td>28%</td></tr>
+    </table>
+  </div>
+
+  <!-- D5 高vs中 同年龄 -->
+  <div class="card">
+    <h2><span class="n">D5</span>「高意向更慢」被证伪——同年龄段对比</h2>
+    <table>
+      <tr><th>视频年龄</th><th>高意向 (n / 中位 / &gt;6h)</th><th>中意向 (n / 中位 / &gt;6h)</th></tr>
+      <tr><td>≤4d</td><td>0 / — / —</td><td>0 / — / —</td></tr>
+      <tr><td>4-7d</td><td>20 / 5.4d / 100%</td><td>44 / 4.4d / 91%</td></tr>
+      <tr><td>7-14d</td><td>22 / <b>13m</b> / 23%</td><td>211 / <b>14m</b> / 14%</td></tr>
+      <tr><td>&gt;14d</td><td>63 / 1.3h / 32%</td><td>200 / 1.7h / 30%</td></tr>
+    </table>
+    <p class="lead">同年龄段里高/中意向速度几乎一样。总数上"高意向 2h vs 中意向 29m"纯属年龄构成混淆，不是系统怠慢高意向。</p>
+  </div>
+
+  <!-- D6 长尾解剖 + VIP闸 -->
+  <div class="card">
+    <h2><span class="n">D6</span>长尾(&gt;6h, n=199) 解剖 + VIP 闸</h2>
+    <div class="kpi">
+      <div class="box"><div class="v">100%</div><div class="l">现都在 cold 轮里<br>(尾巴=进轮前空窗)</div></div>
+      <div class="box"><div class="v">42 / 85</div><div class="l">幼年期漏扫 / 发表时已老</div></div>
+      <div class="box"><div class="v warn">78</div><div class="l">fast-lane 退避中</div></div>
+    </div>
+    <table>
+      <tr><th>尾巴构成</th><th>条数</th><th>说明</th></tr>
+      <tr><td>VIP 视频</td><td>86</td><td>年龄中位 <b>23.4d</b>，<b>0 条 &lt;4d</b> → VIP 快道 4 天闸全挡外，VIP 标对老视频零作用</td></tr>
+      <tr><td>孤儿(无 source)</td><td>24</td><td>整号扫天然覆盖不到</td></tr>
+      <tr><td>cold 退避中</td><td>22</td><td>退避确实压着一小撮，非主因</td></tr>
+    </table>
+  </div>
+
+  <!-- D7 甲 源频率 -->
+  <div class="card">
+    <h2><span class="n">D7</span>甲：源扫描频率对比（证伪"扫太稀"）</h2>
+    <table>
+      <tr><th></th><th>早期漏扫组</th><th>对照·秒到组</th></tr>
+      <tr><td>样本 / 涉及源</td><td>40 条 / 23 源</td><td>290 条 / 64 源</td></tr>
+      <tr><td>tier 分布</td><td>全 tier-1</td><td>tier-0 ×7 / tier-1 ×57</td></tr>
+      <tr><td>整号扫频率(中位)</td><td><b>0.3 天/次 (~7h)</b></td><td>0.3 天/次</td></tr>
+      <tr><td>last_scraped 距今</td><td>0.0 天</td><td>0.0 天</td></tr>
+      <tr><td>近7d 没扫过的源</td><td>0 / 23</td><td>8 / 64</td></tr>
+    </table>
+    <p class="lead">系统级：活跃源 <b>1080</b> 个，整号扫 <b>6076 次/24h</b>（近7d 12598）→ 全系统每 <b>~5 小时</b>轮一圈。源扫得很勤，证伪"扫太稀"。</p>
+  </div>
+
+  <!-- D8 机制 + 三断崖 -->
+  <div class="card">
+    <h2><span class="n">D8</span>机制坐实 + 三个覆盖断崖</h2>
+    <p class="big"><b>整号扫每次只看「最近 20 条(tier-1) / 10 条(tier-0)」视频</b>（<code>worker/services/queue.py:640</code> <code>max_videos=20 if tier==1 else 10</code>）。高产号一两天发超 20 条，新视频被挤出窗口 → 整号扫不再碰 → 进空窗。</p>
+    <pre style="background:var(--ink);color:#e5e7eb;padding:16px;border-radius:10px;overflow-x:auto;font-size:13px;line-height:1.6">视频年龄:  0───4d────7d────────14d──────►
+           [幼年期空窗]  [甜区]      [老化掉队]
+延迟:        4-6 天!     13 分钟      1.4h+爬升
+病因:      掉出最近20    cold活跃轮   掉出14d窗
+           (断崖①·最肥)  (达标区)    (断崖②)</pre>
+  </div>
+
+  <!-- D9 cold-intent 98% 明细 -->
+  <div class="card">
+    <h2><span class="n">D9</span>插曲明细：cold-intent 98% 空跑核查</h2>
+    <div class="kpi">
+      <div class="box"><div class="v">3726</div><div class="l">近24h 完成活</div></div>
+      <div class="box"><div class="v bad">98%</div><div class="l">空跑率</div></div>
+      <div class="box"><div class="v good">11</div><div class="l">真 lead/天</div></div>
+      <div class="box"><div class="v">339</div><div class="l">扫/lead</div></div>
+    </div>
+    <ul>
+      <li>69 次 productive 扫共新插 73 条：高2 + 中9 = <b>11 真 lead</b>、低12、无关37、未打分13。</li>
+      <li>占全管线日 leads(~370-463) 约 <b>2.7%</b>，且全是别的路覆盖不到的老视频慢尾 lead。</li>
+      <li>退避(6-22上线)在转：streak≥1 的 858 个、<b>481 个正退避中</b>；钓点池近14d 1288 个(624 曾高意向)、近48h 342 个 → 池没枯。</li>
+      <li>结论：维持留观。空跑率是错的警报，该盯 lead 产出 + 对其它路径零伤害。</li>
+    </ul>
+  </div>
+
+  <!-- D10 认知修正 -->
+  <div class="card" style="border:2px solid var(--warn)">
+    <h2><span class="n">D10</span>本次排查翻过的案（一开始想错 → 最终正确）</h2>
+    <p class="lead">这次最大的价值在"纠偏"——好几个直觉/旧结论被数据推翻。最终正确的点：</p>
+    <table>
+      <tr><th>一开始以为</th><th>✅ 最终正确</th></tr>
+      <tr><td>98% 空跑 = cold-intent 坏了/钓点枯了</td><td>正常稳态。每天仍捞 11 真 lead、退避在转、池没枯 → <b>维持留观</b>，盯错指标才虚惊</td></tr>
+      <tr><td>慢是"老视频被冷落"(旧 memory 框)</td><td>不完整。真相是<b>幼年期空窗</b>——新视频头几天没扫，进了 cold 轮反而快(13m)</td></tr>
+      <tr><td>这些号被扫得太少</td><td>证伪。每 <b>7h</b> 扫一次、今天都扫过；病在<b>每次只看"最近 20 条"窗口太窄</b></td></tr>
+      <tr><td>高意向被系统怠慢(2h vs 29m)</td><td>年龄混淆。<b>同年龄段高/中一样快</b>，高意向只是更多长在老视频上</td></tr>
+      <tr><td>加机器/优化队列能提速</td><td>无关。②排队+③扫描 共 0-7m，<b>延迟 100% 在①发现</b></td></tr>
+      <tr><td>给号打 VIP 标能加速</td><td>无用。VIP 快道 4 天闸，出 lead 的 VIP 视频<b>全 &gt;4d(中位23d)</b>全被挡外</td></tr>
+      <tr><td>截图那 510 条超时是抓取慢</td><td>误判。那批抓取已 1-7min 达标，<b>卡在"发送·认错人没发"</b>，是发送问题不是抓取</td></tr>
+    </table>
+  </div>
+
+  <!-- D11 物理边界 + 旋钮 -->
+  <div class="card" style="border:2px solid var(--accent)">
+    <h2><span class="n">D11</span>5min 目标的物理边界 + 真正的旋钮</h2>
+    <div class="truth"><b>关键边界：「全池子 5 分钟」物理上做不到。</b> worker 满打 ~13-27 次扫/分钟；要让一批视频每 5min 扫一遍，最多只养得起 <b>~65-135 条</b>视频。而活跃钓点池 1288 条。<b>→ 5min 只能给一个挑准的"小热集合"，不可能全覆盖。</b></div>
+    <p style="font-weight:600;margin:12px 0 6px">所以真问题不是"扫快点"，是"<b>怎么预测哪几十条视频马上要出 lead</b>"（选择/预测问题）。两个旋钮：</p>
+    <ul>
+      <li>🔧 <b>提频(热集合)</b>：把热集合从每 30-120min 提到每 2-3min 扫一次 → 把①发现中位从 ~30min 压到分钟级。</li>
+      <li>🔧 <b>补幼年期窗口</b>：别让新视频掉出"最近 20"就没人管（堵断崖①，那条 4 天肥尾的主犯）。</li>
+      <li>⛔ <b>不碰 worker / 队列 / 不加机器</b>（贡献≈0）；<b>不做 B 方案</b>(快道 max_comments 50→150，会让每个活更慢、越治越糟，旧排查已坐死)。</li>
+    </ul>
+  </div>
+
+  <!-- D12 诚实交底 -->
+  <div class="card">
+    <h2><span class="n">D12</span>诚实交底：还没定死的 + 测量局限</h2>
+    <ul>
+      <li><b>幼年期"具体哪条视频哪天掉出窗口"未逐条坐实</b>——需要"乙"(给 <code>scrape_jobs</code> 加真 <code>video_id</code> 列+索引)才能追逐视频扫描史；现在 video_id 埋在 payload JSONB 里无索引，全表扫会卡死。</li>
+      <li><b>归因只有 cold-intent 的精确</b>：只有它在 payload 写了 video_id(593 条仅 22-28 条可逐条 join)；fast-lane / tier-0台账 都没写 → 这也是"乙"该还的债。</li>
+      <li><code>videos</code> 表<b>无"首次发现时间"列</b>，发现延迟暂算不出。</li>
+      <li>✅ <b>数据可信度</b>：<code>comment_time</code> 是精确到秒的 ISO 时间戳(非"X天前"日级四舍五入) → 那条几天的尾巴是<b>真延迟</b>，不是解析假象。</li>
+    </ul>
+  </div>
+
+  <div class="foot">
+    数据口径：近 24h 高/中意向评论 590-600 条，评论时间为精确时间戳。<br>
+    诊断脚本（gitignore）：_diag-capture-leg-fine / _diag-capture-forensics / _diag-jia-source-cadence。<br>
+    本页为今日排查的小白友好总结，技术细节见 memory: project_akke_scrape_latency_legbc_followup。
+  </div>
+
+</div>
+</body>
+</html>
