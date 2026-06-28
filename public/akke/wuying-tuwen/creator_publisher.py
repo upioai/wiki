@@ -668,7 +668,15 @@ def _push_lark_captcha_alert(captcha_type: str, seen_text: str) -> None:
         # 老 env 兼容: 没 LARK_WEBHOOK_TUWEN_AUTO 时退回 AKKE_BOT (老 .env 未更新时不静默掉)
         webhook = os.environ.get('LARK_WEBHOOK_AKKE_BOT', '').strip()
     if not webhook:
-        return  # 两个都没配, silent skip (本地测试常态)
+        # 2026-06-28: 修"跳验证码没提醒". 两个 webhook 都没配时, 之前 silent return — 验证码弹了
+        # 运营完全无感知, 作品卡死在 needs_review. 现在至少大字打 stderr (进 agent 日志留痕),
+        # 并明确告诉怎么修. 无人值守下日志没人盯仍会漏, 所以根治是给云电脑配上 webhook.
+        print('', file=sys.stderr)
+        print('  🚨🚨🚨 [captcha] 检测到验证码, 但 LARK_WEBHOOK_TUWEN_AUTO / LARK_WEBHOOK_AKKE_BOT 都没配!', file=sys.stderr)
+        print(f'  🚨 类型={captcha_type} · 抖音提示={seen_text or "(无)"} — 无法推 Lark 告警!', file=sys.stderr)
+        print('  🚨 请立刻回云电脑 (creator.douyin.com Edge 窗口) 人工过验证码 + 按 [Enter] 续跑.', file=sys.stderr)
+        print('  🚨 根治: 在云电脑 worker/scripts/wuying-dm/.env 或 supabase agent-config/wuying.json 配 LARK_WEBHOOK_TUWEN_AUTO', file=sys.stderr)
+        return  # 仍无法推送, 但已留痕 (非静默)
     if not webhook.startswith('http'):
         webhook = f'https://open.larksuite.com/open-apis/bot/v2/hook/{webhook}'
 
