@@ -20,7 +20,10 @@
   归一化坐标(measure_nav.py 在无影上量);未配则整段跳过。有没有作品用 VL 实时判。
 I/O 契约与 douyin_dm.py --auto 一致:
   contacts.csv 列: douyin_id(=昵称搜索词) nickname message has_works _comment_id _sec_uid _dispatch_id
-  sent_log_YYYYMMDD.csv 列: 上述 + status sent_at _ocr_confidence
+  sent_log_YYYYMMDD.csv 列: 上述 + status follow_status like_status sent_at _ocr_confidence
+          follow_status: followed / already / click_no_effect / not_found / failed / '' (身份门没过没走到关注)
+          like_status:   liked / no_works / no_coords / click_no_effect / failed / ''
+          —— 关注/点赞是 best-effort 不阻断私信，但状态落库便于事后诊断「关没关上」(2026-06-28)
   status: sent / unverified / rejected / wrong_user / cancelled / aborted / error:<msg>
           (rejected = 发后检测到对方拒收/无法送达系统提示，不计入成功)
           (unverified = 点了发送但对话区没出现含本文案的我方气泡 → 大概率没真发出
@@ -847,8 +850,11 @@ def process(c):
         return 'blocked_%s' % _modal_type, conf
 
     # 发私信前先关注用户 + 点赞最新作品(都 best-effort:坐标未采/失败都不阻断私信)
-    print('  [关注] %s' % follow_user())
-    print('  [点赞] %s' % like_latest_work(nick))
+    # 关注/点赞结果落进 c → 写进 sent_log（关注状态此前只 print 到控制台、捞不回，2026-06-28 持久化）
+    c['follow_status'] = follow_user()
+    print('  [关注] %s' % c['follow_status'])
+    c['like_status'] = like_latest_work(nick)
+    print('  [点赞] %s' % c['like_status'])
 
     # 私信按钮：模板匹配优先，未命中回退固定坐标 C_DM（已关注态量，打开右侧聊天面板）
     click_match_or_norm('dm_button.png', C_DM[0], C_DM[1], wait=4.0, label='私信按钮')
@@ -1071,7 +1077,8 @@ def main(contacts_csv):
     log = 'sent_log_%s.csv' % datetime.now().strftime('%Y%m%d')
     fields = ['douyin_id', 'nickname', 'message', 'has_works',
               '_comment_id', '_sec_uid', '_dispatch_id',
-              'status', 'sent_at', '_ocr_confidence', '_ocr_seen', '_captcha_sample']
+              'status', 'follow_status', 'like_status',
+              'sent_at', '_ocr_confidence', '_ocr_seen', '_captcha_sample']
     first_write = not os.path.exists(log)
     with open(log, 'a', encoding='utf-8-sig', newline='') as f:
         w = csv.DictWriter(f, fieldnames=fields, extrasaction='ignore')
