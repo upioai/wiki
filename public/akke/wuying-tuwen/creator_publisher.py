@@ -171,16 +171,20 @@ def paste_image_paths(image_paths: list[str]) -> None:
     对话框打开后焦点默认在文件名输入框, 不用再点.
     """
     path_str = ' '.join(f'"{p}"' for p in image_paths)
-    print(f'  [picker] 粘贴 {len(image_paths)} 个路径: {path_str[:120]}...')
-    # 文件对话框打开后焦点默认在文件名框, 但 Windows 会把【上次的文件名】预填进去.
-    # 直接 Ctrl+V 会【追加】在旧值后面 (2026-06-29 实测: 旧值 "101759" + 新路径 →
-    # 文件名非法 → 回车提交不了 → 对话框卡死、图一张没传 → 后续 fill_title NOT FOUND → exit 5).
-    # 修: 先 Ctrl+A 全选 + Delete 清掉预填, 再粘贴.
+    print(f'  [picker] 输入 {len(image_paths)} 个路径: {path_str[:120]}...')
+    # 文件对话框焦点默认在文件名框. Windows 会把【上次的文件名】预填进去, 先 Ctrl+A + Delete 清掉.
     pyautogui.hotkey('ctrl', 'a'); time.sleep(0.2)
     pyautogui.press('delete'); time.sleep(0.2)
-    pyperclip.copy(path_str)
-    time.sleep(0.4)
-    pyautogui.hotkey('ctrl', 'v'); time.sleep(0.6)
+    # 用 SendInput 逐字符键入路径, 【不走剪贴板】.
+    # 2026-06-29 实测: 无影/云电脑上 pyperclip + Ctrl+V 粘进去是空的 → 对话框卡死、4 张图一张没传 →
+    # 后续 fill_title NOT FOUND → exit 5。DM 通道早有结论「SendInput 是无影上唯一可靠输入」
+    # (见 douyin_dm_grounded.type_text 注释), 图文这块此前漏改。回退保留剪贴板兜底。
+    try:
+        type_unicode(path_str)
+    except Exception as e:
+        print(f'  [picker] SendInput 键入失败({e}), 回退剪贴板', file=sys.stderr)
+        pyperclip.copy(path_str); time.sleep(0.4); pyautogui.hotkey('ctrl', 'v')
+    time.sleep(0.6)
     pyautogui.press('enter')
     print(f'  [picker] 回车提交, 等图片上传 {UPLOAD_WAIT}s')
     time.sleep(UPLOAD_WAIT)
