@@ -143,6 +143,35 @@
     <p class="lead" style="margin-top:14px;color:var(--mut)"><b>诚实交底：</b>6/15 的 job 级原始数据已被每日 prune 清掉，上表 6/15 列引用当时 deepdive 报告/memory 记录值；#643 的<b>产出改善（≤5min 从 16% → 目标 高~50%/中+高~61%）需上线后攒几小时才看得到</b>，约 22:11 自动复跑验收，不在此表硬编。②③ 步、吞吐、退避、5+5 均为今天实测。</p>
   </div>
 
+  <!-- ============ tier / pri 分级参考 ============ -->
+  <div class="card">
+    <h2><span class="n">📚</span>名词参考：号的 tier 分级 &amp; 任务的 pri 优先级</h2>
+    <p class="lead">上面反复出现 tier-0/tier-1、pri=0/1/3/5。这张卡一次讲清——它俩是两套不同的东西：<b>tier 是"号"的分级（决定多久去扫这个号）</b>，<b>pri 是"每个抓取任务"的优先级（决定 worker 先抓谁）</b>。</p>
+
+    <p style="margin:12px 0 6px;font-size:15.5px"><b>① tier：号源分级</b>（`source_accounts.tier`）</p>
+    <table>
+      <tr><th></th><th>tier-0（普通号）</th><th>tier-1（好号 / 在产货）</th></tr>
+      <tr><td>是什么</td><td>大多数号，很少出 lead</td><td>近期持续冒高/中意向的号</td></tr>
+      <tr><td>谁去扫 / 多久</td><td><code>/api/cron/scrape</code>，<b>每小时</b>挑最久没抓的 150 个</td><td><code>/api/cron/scrape-hot</code>，<b>每源 30min</b>（在产货的缩到 <b>10min</b>）</td></tr>
+      <tr><td>每次看几条视频</td><td><b>10 条</b></td><td><b>20 条</b>（`queue.py:640`）</td></tr>
+      <tr><td>整号扫任务的 pri</td><td>pri=5（慢道）</td><td>pri=3</td></tr>
+      <tr><td>升 / 降级</td><td colspan="2">近期冒高/中意向 → 自动升 tier-1；连续没产出 → 自动降回 tier-0（#365 对称 auto-demote）</td></tr>
+    </table>
+
+    <p style="margin:16px 0 6px;font-size:15.5px"><b>② pri：抓取任务优先级</b>（`scrape_jobs.priority`，<b>数字越小越优先</b>，worker 按 pri 从小到大领）</p>
+    <table>
+      <tr><th>pri</th><th>谁用它</th><th>含义</th></tr>
+      <tr style="background:#f0fdf4"><td><b>0</b><br>最优先</td><td>高/中意向视频注入快道、VIP 回扫、UI 手动</td><td>插最前。<b>#643 后：这批"在产货"的不再被退避踢出、每 3min 必扫</b></td></tr>
+      <tr><td><b>1</b></td><td>常规 fresh-catch 单视频快道（近期产新鲜评论的视频）</td><td>次优先</td></tr>
+      <tr><td><b>3</b></td><td>tier-1 整号扫、cold-intent 老视频回扫、rescan-recent</td><td>中</td></tr>
+      <tr style="background:#fef2f2"><td><b>5</b><br>最低</td><td>tier-0 每小时整号扫、hot-rotation、默认值</td><td>慢道（只在 0/1/3 都空时才轮到 → 积压能到十几小时）</td></tr>
+    </table>
+
+    <div class="truth"><b>两者怎么配合 + 防饿死：</b>worker 领单 = <code>WHERE pending ORDER BY priority ASC, scheduled_at ASC</code>（pri 小的先、同 pri 先到先得）。为防 pri=5 永远轮不到，有 <b>aging</b>：一个任务每多等 6 小时，优先级自动升一级（最高升到 pri=1），<code>migration 20260615144043</code>。<br><span style="color:var(--mut);font-size:13px">所以"快慢分道"= 快活(pri 0/1 单视频，5.8s)和慢活(pri 3/5 整号扫，23-211s)分开排，快活永远先走、不被慢活堵（#363 把 tier-1 整号从 pri=1 降到 3 就是为这个）。</span></div>
+
+    <p class="lead" style="margin-top:12px;color:var(--mut)">📌 跟本次时效的关系：这轮 #643 动的是 <b>pri=0 高/中意向快道</b>那一档——不改它的优先级，只是<b>不再让它被空跑退避临时踢出快道</b>，让"正在出客户"的视频稳定每 3min 被扫到。tier 分级、aging、其它 pri 档全没动。</p>
+  </div>
+
   <!-- 6-28 复测更新 -->
   <div class="card" style="border:2px solid var(--warn);background:#fffbeb">
     <h2><span class="n" style="background:var(--warn)">🔄</span>6-28 复测 → 6-29 复核（数字波动，非真恶化）</h2>
