@@ -1028,23 +1028,33 @@ def _verify_bubble(msg):
 
     VL 异常/不确定 → 保守按【已发】(返回 True),不重蹈旧 _is_sent 的假阴性漏发
     (2026-05-31 实测查"输入框空没空"假阴性高;此处查"气泡里有没有我的字"是更强的正向
-    信号,但仍只在【明确说没有】时才判 unverified)。"""
+    信号,但仍只在【明确说没有】时才判 unverified)。
+
+    2026-06-29：实测气泡渲染/VL 单次调用有时机竞态,同一条干净文案 ~半数被单次核对假阴性
+    （气泡其实已在、第一次截图/读图没赶上）。改为【最多 3 次:miss 后等 1.5s 重新截图再核】,
+    任一次命中即记 sent。retry 只补救"气泡在但没读到",全程无气泡仍判 unverified —— 不放松
+    真失败判定、不增加假阳性漏判。"""
     snippet = (msg or '').strip()[:16]
     if not snippet:
         return True
-    try:
-        p, _ = _shot('_bubble_check.png')
-        d = _pjson(_vision(base64.b64encode(open(p, 'rb').read()).decode(),
-            '这是抖音PC私信聊天窗口截图。对话区里【右侧、我自己发出的那一排消息气泡】中,'
-            '最新一条是否包含这段文字：「%s」?只看右侧自己发的气泡,左侧对方发来的不算。'
-            '只回严格JSON:{"bubble_found":true/false}' % snippet))
-        found = bool(d.get('bubble_found', False))
-        if not found:
-            print('  [验证] 对话区未见我方气泡含「%s」→ 判 unverified(大概率没真发出,回池可重发)' % snippet)
-        return found
-    except Exception as e:
-        print('  [warn] 气泡验证异常(保守按已发,避免假阴性漏发): %s' % e)
-        return True
+    for attempt in range(3):
+        try:
+            p, _ = _shot('_bubble_check.png')
+            d = _pjson(_vision(base64.b64encode(open(p, 'rb').read()).decode(),
+                '这是抖音PC私信聊天窗口截图。对话区里【右侧、我自己发出的那一排消息气泡】中,'
+                '最新一条是否包含这段文字：「%s」?只看右侧自己发的气泡,左侧对方发来的不算。'
+                '只回严格JSON:{"bubble_found":true/false}' % snippet))
+            if bool(d.get('bubble_found', False)):
+                if attempt > 0:
+                    print('  [验证] 第%d次核对命中气泡含「%s」→ sent' % (attempt + 1, snippet))
+                return True
+        except Exception as e:
+            print('  [warn] 气泡验证异常(保守按已发,避免假阴性漏发): %s' % e)
+            return True
+        if attempt < 2:
+            time.sleep(1.5)
+    print('  [验证] 3次核对均未见我方气泡含「%s」→ 判 unverified(大概率没真发出,回池可重发)' % snippet)
+    return False
 
 
 def _is_sent():
