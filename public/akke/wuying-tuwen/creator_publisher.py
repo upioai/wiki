@@ -172,6 +172,12 @@ def paste_image_paths(image_paths: list[str]) -> None:
     """
     path_str = ' '.join(f'"{p}"' for p in image_paths)
     print(f'  [picker] 粘贴 {len(image_paths)} 个路径: {path_str[:120]}...')
+    # 文件对话框打开后焦点默认在文件名框, 但 Windows 会把【上次的文件名】预填进去.
+    # 直接 Ctrl+V 会【追加】在旧值后面 (2026-06-29 实测: 旧值 "101759" + 新路径 →
+    # 文件名非法 → 回车提交不了 → 对话框卡死、图一张没传 → 后续 fill_title NOT FOUND → exit 5).
+    # 修: 先 Ctrl+A 全选 + Delete 清掉预填, 再粘贴.
+    pyautogui.hotkey('ctrl', 'a'); time.sleep(0.2)
+    pyautogui.press('delete'); time.sleep(0.2)
     pyperclip.copy(path_str)
     time.sleep(0.4)
     pyautogui.hotkey('ctrl', 'v'); time.sleep(0.6)
