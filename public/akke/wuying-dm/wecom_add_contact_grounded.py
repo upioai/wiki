@@ -4,6 +4,11 @@
 镜像 douyin_dm_grounded.py 的范式：每步截图 → Qwen VL 定位元素 → 点击，自适应分辨率；
 身份门(OCR)保留：搜到的卡片必须匹配目标姓名/号，否则不加，防加错人。
 
+企业微信按号加好友真实流程(2026-06-29 实测)：
+  搜索框打手机号/微信号 → 点下拉里「网络查找手机号/邮箱」→ 弹出人物卡片 →
+  点「添加到通讯录」→「发送添加申请」弹框填验证语 → 发送。
+  漏掉「网络查找」这步会一直 not_found。
+
 用法:
   python wecom_add_contact_grounded.py _wecom_add_xxx.csv   # 批量加好友
   python wecom_add_contact_grounded.py --capture            # 首次/换分辨率：采集搜索框等模板
@@ -465,9 +470,20 @@ def process(c):
     click_fixed_or_vl(C_SEARCH, '企业微信顶部的搜索输入框', wait=0.8, label='搜索框',
                       region=(0.0, 0.0, 0.6, 0.12))
     type_text(search_key)
-    time.sleep(2.0)   # 等搜索结果加载
+    time.sleep(1.5)
 
-    # 2) 判定结果状态 + 身份门
+    # 2) 点搜索框下方「网络查找手机号/邮箱」那一条 —— 企业微信按号加好友的必经一步，
+    #    点了才会发起网络查找、弹出人物卡片(有"添加到通讯录")。漏这步会一直 not_found。
+    try:
+        click_fixed_or_vl(
+            C_RESULT,
+            '搜索框正下方下拉列表里"网络查找手机号/邮箱"或"搜索:%s"那一条' % search_key,
+            wait=1.2, label='网络查找入口', region=(0.0, 0.04, 0.55, 0.7))
+    except RuntimeError:
+        print('  [网络查找] 没找到"网络查找"入口，可能已直接出结果或该号搜不到')
+    time.sleep(3.0)   # 网络查找有往返，等卡片加载出来
+
+    # 3) 判定结果状态 + 身份门（此时人物卡片/添加按钮应已出现）
     state, conf, seen = classify_search_result(name, search_key)
     print('  [result] state=%s conf=%.2f seen=%r' % (state, conf, seen))
     if state == 'already':
@@ -478,10 +494,6 @@ def process(c):
     if state == 'cannot_add':
         path, _ = _shot('_wecom_result.png')
         return '加不上', conf, seen, _save_result_sample('cannot_add', path)
-
-    # 3) 进结果卡片(若有固定坐标点卡片，否则结果通常已展开)
-    if C_RESULT:
-        click_norm(C_RESULT[0], C_RESULT[1], wait=1.5, label='结果卡片')
 
     # 4) 点「添加到通讯录 / 添加」
     try:
@@ -604,7 +616,7 @@ def calibrate():
     print('屏幕分辨率: %dx%d' % (W, H))
     items = [
         ('AKKE_WECOM_C_SEARCH', '顶部「搜索」输入框中心'),
-        ('AKKE_WECOM_C_RESULT', '搜索结果里第一条匹配的用户卡片'),
+        ('AKKE_WECOM_C_RESULT', '搜索框下方「网络查找手机号/邮箱」那一条(打完号才出现)'),
         ('AKKE_WECOM_C_ADD', '「添加到通讯录」/「添加」按钮'),
         ('AKKE_WECOM_C_VERIFY_INPUT', '“发送添加申请”弹框里的验证语输入框'),
         ('AKKE_WECOM_C_SEND', '“发送/确定”申请按钮'),
