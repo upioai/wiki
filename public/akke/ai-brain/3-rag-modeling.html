@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RAG 向量库给行业建模？先验证再决定 · Akke 决策调研</title>
+<title>微信工作流要不要上 RAG 行业建模？先验证再决定 · Akke 决策调研</title>
 <meta name="akke:task" content="3/8">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -200,153 +200,176 @@
   <div class="series">
     <a href="/akke/ai-brain/1-workflow-frameworks">① 框架横评</a>
     <a href="/akke/ai-brain/2-decor-framework">② 装修场景选型</a>
-    <a class="cur" href="/akke/ai-brain/3-rag-modeling">③ RAG 行业建模</a>
+    <a href="/akke/ai-brain/3-rag-modeling" class="cur">③ RAG 行业建模</a>
     <a href="/akke/ai-brain/4-user-modeling">④ 用户建模</a>
   </div>
 
-  <div class="crumb"><span class="pill">任务 3 / 8</span>五大战略 · 主题4 AI 大脑选型调研</div>
-  <h1>RAG 向量库给行业建模？先验证再决定</h1>
-  <p class="lead">问题不是"RAG 好不好"，而是"Akke 的真实问题里，RAG 能答的那一类占多大比例"。全屋定制是高客单、低频、重服务——客户问得最多的是"我家这单进度到哪了""尾款怎么算""上次说的款式改了没"，答案在 ERP / 订单系统里，不在一份静态知识库里。先用半天的验证实验拿到一个数字，再决定要不要上向量库。</p>
+  <div class="crumb"><span class="pill">任务 3 / 8</span>五大战略 · 主题4 · 微信自动化工作流（加V后两场景）</div>
+  <h1>微信工作流要不要上 RAG 行业建模？先验证再决定</h1>
+  <p class="lead">抖音获客→加微信→「小艳」人设在微信里自动/半自动回复、维系关系、聊到到店。问题不是「RAG 行不行」，而是「微信里的准客户到底问什么」——而那个答案，决定了 RAG 是解药还是稀释剂。</p>
 
-  <div class="verdict"><span class="tag">结论</span><div class="vtxt"><em>现阶段不上</em> <span class="b b-wait">先验证</span>　估算约 <strong>80%</strong> 的真实问题是"订单特定"问题（答案在 ERP），RAG 能覆盖的通用问题天花板 ≈ <strong>20%</strong>。先做半天的验证实验，用真实聊天记录算出"通用 FAQ 占比"这个数字来拍板——≥40% 才上 RAG，否则把同样的工时投到能查订单的 copilot 上。</div></div>
+  <div class="verdict"><span class="tag">结论</span><div class="vtxt"><em>现阶段不上</em> <span class="b b-wait">先验证</span>：微信对话更偏关系维系 + 订单特定，RAG 通用 FAQ 天花板 ≈ 20%；叠加企微 kf 的 48h / 5 条窗口 = 每条回复都更该精准。先抽真实微信 / kf 聊天记录做分类验证（通用 FAQ ≥ 40% 才上 RAG）。</div></div>
 
+  <!-- ===== KPI ===== -->
   <div class="kpis">
-    <div class="kpi"><div class="n">≈20%</div><div class="k"><b>RAG 可覆盖率</b>（通用 FAQ 类问题估算上限）</div></div>
-    <div class="kpi"><div class="n">31</div><div class="k">知识库现有条数（<b>13</b> 文档 + <b>18</b> 对话示例）</div></div>
-    <div class="kpi"><div class="n sm">否</div><div class="k">pgvector 扩展<b>是否启用</b>（从未 CREATE EXTENSION vector）</div></div>
-    <div class="kpi"><div class="n">40%</div><div class="k"><b>验证阈值</b>：通用占比 ≥ 此值才上 RAG</div></div>
+    <div class="kpi"><div class="n">≈20%</div><div class="k">RAG <b>可覆盖率</b>估计（通用 FAQ 部分）</div></div>
+    <div class="kpi"><div class="n">31<span style="font-size:16px"> 条</span></div><div class="k">现有知识库总量（<b>13 文档 + 18 对话</b>）</div></div>
+    <div class="kpi"><div class="n sm">否</div><div class="k">pgvector <b>启用状态</b>（向量列仍注释）</div></div>
+    <div class="kpi"><div class="n sm">48h / 5 条</div><div class="k">企微 kf <b>发送窗口</b>约束（errcode 45047）</div></div>
+    <div class="kpi"><div class="n">40%</div><div class="k">放行 RAG 的<b>验证阈值</b>（通用占比）</div></div>
   </div>
 
+  <!-- ===== §1 ===== -->
   <section>
-    <h2><span class="no">§1</span> WHETHER 先行：先问"是不是对的问题"</h2>
-    <p class="h2sub">技术方案评估的第一道闸不是"哪套 RAG 框架好"，而是"RAG 解的那个问题在 Akke 占多大盘子"。</p>
-    <p>RAG（检索增强生成）擅长的事情很具体：把一堆<strong>静态的、通用的</strong>文档切块、向量化，用户问通用问题时按语义相似度召回最相关的几块喂给模型，让"通用问题答得更准、不胡编"。这套机制有一个隐含前提——<strong>答案存在于某份可以预先写好的文档里</strong>。</p>
-    <div class="note brake"><b>刹车点：</b>Akke 的真实问题大多不满足这个前提。"我家这单做到哪一步了""上次定的颜色还能改吗""尾款什么时候付"——这些问题的答案不在任何一份静态文档里，而是在<strong>这一个客户、这一张订单的实时状态</strong>里。给这类问题配 RAG，等于在给错的题写标准答案：检索得再准，知识库里也根本没有"张女士这单的进度"这条记录。把 RAG 当成行业建模的主力，是先选了工具再找问题。</div>
-    <p>所以本报告的结构是：先用图表把"问题盘子"拆开（§2、§3），看 RAG 能管的那块到底多大；再列三条仓库里的硬事实说明现在为什么不上（§4）；补一段行业语境佐证这不是 Akke 个例（§5）；最后给一个半天就能做完、用数字拍板的验证实验（§6）。</p>
+    <h2><span class="no">§1</span> WHETHER 先行：别给错题写答案</h2>
+    <p class="h2sub">在问「用哪套 RAG / 怎么 embedding / 切多大 chunk」之前，先回答「这道题是不是 RAG 能答的题」。</p>
+    <p>RAG（检索增强生成）解决的是一类很具体的问题：<strong>当答案散落在一堆非结构化文字里、模型记不住或会编</strong>时，先检索相关片段、再让模型据此作答。它天然适配「产品规格、工艺说明、行业 FAQ」这类<strong>静态、文档型</strong>知识。</p>
+    <p>但微信工作流的对话对象不是路人——是<strong>已经从抖音加到微信的准客户</strong>。他们问的不是「全屋定制是什么」，而是「<em>我那单</em>进度到哪了 / <em>上次说的</em>那个改动行不行 / 这周能不能<em>到店</em>看」。这些问题的答案不在任何文档里，在订单 / ERP / 上下文里。</p>
+    <div class="note brake"><b>刹车点：</b>微信里给错题写答案，比抖音 DM 代价更高。RAG 能把「行业知识」答得更顺，但准客户的高频问题根本不在知识库——这时候堆知识不是增益，是<strong>稀释</strong>：挤占有限的 prompt 预算、冲淡「小艳」语气、还可能拿行业泛答去糊弄一个本该查订单的具体问题。先验证「题型分布」，再决定要不要这味药。</div>
   </section>
 
+  <!-- ===== §2 HERO ring ===== -->
   <section>
-    <h2><span class="no">§2</span> 核心图表：问题覆盖率分解</h2>
-    <p class="h2sub">一张图说清楚——RAG 能答的"通用问题"只占整个问题盘子的一小角。</p>
-    <div class="fig"><div class="ft">图1 · RAG 可覆盖率分解（估算）</div>
+    <h2><span class="no">§2</span> 覆盖率分解：RAG 能接住多少？</h2>
+    <p class="h2sub">把准客户的提问拆成两类——RAG 能答的「通用 / 行业」 vs 只有上下文 / ERP 才有的「订单 / 关系特定」。</p>
+    <div class="fig"><div class="ft">图1 · 微信准客户提问的 RAG 可覆盖率（估计）</div>
       <div class="ringwrap">
-        <div class="ring" style="--p:20;--c1:var(--accent);--c2:var(--line2)"><div class="rc"><div class="pv">20%</div><div class="pl">RAG 可答</div></div></div>
+        <div class="ring" style="--p:20;--c1:var(--accent);--c2:var(--line2)"><div class="rc"><div class="pv">≈20%</div><div class="pl">RAG 可覆盖</div></div></div>
         <div class="rlegend">
-          <div class="li"><span class="sw" style="background:var(--accent)"></span><b>通用 FAQ（RAG 可答）≈20%</b>　— 行业节奏 / 工艺 / 流程 / 报价逻辑等"对谁都一样"的问题，答案能预先写进知识库</div>
-          <div class="li"><span class="sw" style="background:var(--line2)"></span><b>订单特定（只有 ERP 有）≈80%</b>　— 进度 / 尾款 / 款式 / 工期 / 改动等"每个客户每张单都不一样"的问题，答案是实时状态，不在任何静态文档里</div>
+          <div class="li"><span class="sw" style="background:var(--accent)"></span><b style="color:var(--text)">通用 / 行业 FAQ ≈ 20%</b>——工艺、节奏、流程、报价口径；静态文档型，RAG 可答</div>
+          <div class="li"><span class="sw" style="background:var(--line2)"></span><b style="color:var(--text)">订单 / 关系特定 ≈ 80%</b>——「我那单进度 / 上次说的 / 到店时间 / 款式改动」；只有上下文 / ERP 有</div>
+          <div class="li" style="color:var(--muted);font-size:12px;margin-top:4px">※ 20% 为方向性估计，非实测；§6 给出落地验证方法把它替换成真数字。</div>
         </div>
       </div>
-      <div class="cap">数据性质：内部估算，非外部 benchmark；§6 的验证实验就是为了把这个估算换成 Akke 自己的真实数字。环形比例对应"现阶段不上 RAG"的核心论据——优化的是那 20%，付出的成本却压在整个系统上。</div>
+      <div class="cap">口径：以「加微后准客户」为对象（非抖音陌生评论）。RAG 的天花板 = 通用 FAQ 占比；这一块越小，上 RAG 的边际收益越低。</div>
     </div>
+    <p>结论很直接：<strong>RAG 的上限，就是通用 FAQ 在提问里的占比。</strong>如果这块只有 ~20%，那么即便 RAG 做到完美，它也只能改善五分之一的对话——而剩下 80% 的订单 / 关系问题，RAG 不仅帮不上，检索回来的行业泛答还可能被模型当成「答案」糊上去。</p>
   </section>
 
+  <!-- ===== §3 problem routing ===== -->
   <section>
-    <h2><span class="no">§3</span> 问题住在哪：路由分流 + 类型占比</h2>
-    <p class="h2sub">把"用户问题"按答案的所在地分流，就能看出哪条路 RAG 接得上、哪条接不上。</p>
-    <div class="fig"><div class="ft">图2 · 问题路由：答案住在知识库还是 ERP</div>
-      <div class="flow arrows" style="align-items:center">
-        <div class="fstep acc" style="flex:1 1 150px"><div class="fi">INPUT</div><div class="fn">用户问题</div><div class="fd">客户在私信 / 评论里抛出的真实提问</div></div>
-        <div class="flow vflow" style="flex:2 1 320px">
-          <div class="fstep"><div class="fi">ROUTE A · 知识库可答</div><div class="fn">通用问题 <span class="b b-yes">RAG 接得上</span></div><div class="fd">行业节奏（多久能装完）/ 工艺（板材环保等级）/ 流程（10 步服务）/ 报价逻辑（按投影面积还是展开面积）——对每个客户答案都一样</div></div>
-          <div class="fstep gate"><div class="fi">ROUTE B · 只有 ERP 有</div><div class="fn">订单特定 <span class="b b-no">RAG 接不上</span></div><div class="fd">我这单进度 / 尾款金额 / 选的款式 / 预计工期 / 上次改动有没有生效——答案是这一张订单的实时状态，知识库里根本没有</div></div>
-        </div>
+    <h2><span class="no">§3</span> 微信场景为何更不适合 RAG</h2>
+    <p class="h2sub">两个叠加因素：①加微客户的问题更订单 / 关系特定；②企微 kf 的 48h/5 条窗口让「堆知识稀释」的代价更高。</p>
+
+    <div class="fig"><div class="ft">图2 · 准客户提问的路由：谁该查知识库，谁该查订单</div>
+      <div class="flow arrows">
+        <div class="fstep acc"><div class="fi">INPUT</div><div class="fn">加微准客户提问</div><div class="fd">已是高意向、问的多是「我那单 / 上次说的」</div></div>
+        <div class="fstep"><div class="fi">ROUTE A · RAG 可答</div><div class="fn">知识库可答</div><div class="fd">行业节奏 · 工艺做法 · 服务流程 · 报价口径</div></div>
+        <div class="fstep gate"><div class="fi">ROUTE B · RAG 答不了</div><div class="fn">只有上下文 / ERP 有</div><div class="fd">我那单进度 · 上次说的改动 · 到店时间 · 款式调整 · 尾款</div></div>
       </div>
-      <div class="cap">RAG 只能服务 Route A。Route B 需要的是"按客户 ID / 订单号去结构化系统里查一条精确记录"，这是确定性查询（SQL / API），不是语义相似度检索——向量召回反而会拿回"语义相近但事实错误"的记录。</div>
+      <div class="cap">Route A 是 RAG 的主场；Route B 要的是订单查询 / 对话记忆（text-to-SQL / API），不是向量检索。两条路混在一个知识库里，反而让模型分不清该「查文档」还是「查那单」。</div>
     </div>
 
-    <div class="fig"><div class="ft">图3 · 问题类型占比估算</div>
+    <div class="fig"><div class="ft">图3 · 加微准客户提问类型占比（估计，订单 / 关系类显著更长）</div>
       <div class="bars">
-        <div class="barrow"><div class="bl">订单进度 / 工期</div><div class="bt"><div class="bf m" style="width:30%"></div></div><div class="bv">~30%</div></div>
-        <div class="barrow"><div class="bl">尾款 / 报价细算</div><div class="bt"><div class="bf m" style="width:22%"></div></div><div class="bv">~22%</div></div>
-        <div class="barrow"><div class="bl">款式 / 改动确认</div><div class="bt"><div class="bf m" style="width:18%"></div></div><div class="bv">~18%</div></div>
-        <div class="barrow"><div class="bl">售后 / 上门</div><div class="bt"><div class="bf m" style="width:10%"></div></div><div class="bv">~10%</div></div>
-        <div class="barrow"><div class="bl">通用工艺 / 选材</div><div class="bt"><div class="bf g" style="width:12%"></div></div><div class="bv">~12%</div></div>
-        <div class="barrow"><div class="bl">通用流程 / 报价逻辑</div><div class="bt"><div class="bf g" style="width:8%"></div></div><div class="bv">~8%</div></div>
+        <div class="barrow"><div class="bl">订单 / 进度（我那单到哪了）</div><div class="bt"><div class="bf r" style="width:38%"></div></div><div class="bv">~38%</div></div>
+        <div class="barrow"><div class="bl">关系 / 上下文（上次说的）</div><div class="bt"><div class="bf m" style="width:26%"></div></div><div class="bv">~26%</div></div>
+        <div class="barrow"><div class="bl">到店 / 预约（能不能到店看）</div><div class="bt"><div class="bf m" style="width:16%"></div></div><div class="bv">~16%</div></div>
+        <div class="barrow"><div class="bl">通用 / 行业 FAQ（工艺/流程）</div><div class="bt"><div class="bf g" style="width:20%"></div></div><div class="bv">~20%</div></div>
       </div>
-      <div class="cap">绿色 = RAG 可答的通用类（合计 ≈20%）；黄色 = 订单特定类（合计 ≈80%）。占比为内部估算，§6 验证实验会用真实聊天记录逐条打标替换。结论方向明确：订单特定类条条都比通用类长。</div>
+      <div class="cap">方向性估计，待 §6 实测替换。要点不在精确数字，而在量级：订单 + 关系 + 到店三类（Route B）合计 ~80%，远超 RAG 能接的通用 FAQ。</div>
     </div>
+
+    <div class="note info"><b>两点要命的叠加：</b>①<strong>加微客户的问题更订单 / 关系特定</strong>——他们已经是准客户，不再问「你们是干嘛的」，只问「我这单怎么样」，这部分 RAG 结构上答不了；②<strong>48h / 5 条窗口让稀释代价翻倍</strong>——企微 kf 在客户发消息后 48 小时内最多只能下行 5 条（超限 errcode 45047）。每一条回复都是稀缺资源，越该精准命中那一单，越不该塞一段「检索来的行业泛答」把宝贵的回复额度浪费在答非所问上。</div>
   </section>
 
+  <!-- ===== §4 three hard facts ===== -->
   <section>
-    <h2><span class="no">§4</span> 三条"现在不上"的硬事实</h2>
-    <p class="h2sub">不是"将来也不上"，而是"现在上 RAG 性价比极低"——三条都来自仓库现状核验。</p>
+    <h2><span class="no">§4</span> 三条「现在不上」的硬事实（仓库核验）</h2>
+    <p class="h2sub">不是「RAG 不好」，而是「按现状上 RAG，连地基都没浇」——三条都来自仓库实查。</p>
     <div class="grid">
       <div class="card x">
-        <div class="k">事实① · 基建从未启用</div>
-        <div class="v">pgvector 扩展<strong>从未启用</strong>。全仓唯一的 <span class="ev">CREATE EXTENSION</span> 是 <strong>pg_net</strong>（<span class="ev">20260622152041_…webhook.sql:21</span>）；<code>vector(1536)</code> 列只是预留注释，挂在 <span class="ev">008_knowledge_base.sql:27,55</span>，从没解开。上 RAG 的第一步基建都还没动。</div>
+        <div class="k">① pgvector 从未启用</div>
+        <div class="v"><strong>向量检索的底座根本没装。</strong>全仓唯一的 <span class="ev">CREATE EXTENSION</span> 是 <span class="ev">pg_net</span>；<code>vector(1536)</code> 列在 <span class="ev">008_knowledge_base.sql:27,55</span> 两处都还是注释行。要上 RAG，第一步得先 <code>CREATE EXTENSION vector</code> 并取消注释。</div>
       </div>
       <div class="card x">
-        <div class="k">事实② · 注入被反向砍小</div>
-        <div class="v">知识注入不是"召回不够"，是<strong>本来就 rarely referenced</strong>。<span class="ev">llm.ts:228</span> 注释自述知识库"rarely referenced by ice_break/nurture replies"；2026-04 还<strong>主动砍小</strong>——每类条数 <span class="ev">1-2 → 1</span>、字符上限 <span class="ev">3000 → 1500</span>，因为知识块一大就稀释 PERSONA 语气出客服腔。产品的反向决策是"少塞"，不是"塞不够想上 RAG 多塞"。</div>
+        <div class="k">② 知识注入「rarely referenced」</div>
+        <div class="v"><strong>现有全量注入已被证明用处不大，还被反向砍小。</strong>代码注释自陈知识库 <span class="ev">llm.ts:228 "rarely referenced"</span>；2026-04 把每轮注入从 1-2 条砍到 1 条、字符上限 <span class="ev">3000 → 1500</span>（<code>KNOWLEDGE_CHAR_LIMIT</code>），因为知识块会稀释 PERSONA 语气。</div>
       </div>
       <div class="card x">
-        <div class="k">事实③ · 内容稀薄 + 问题订单特定</div>
-        <div class="v">知识库总共 <strong>31 条</strong>（<span class="ev">13 文档 + 18 对话</span>，来源一份 41 页 PDF + 金牌对话截图）。31 条 × 全量注入根本不需要"相关性裁剪"——RAG 的核心价值（从海量块里挑相关的）在这个体量上<strong>≈ 0</strong>。叠加 §2/§3 的订单特定占比，裁剪价值更趋近于零。</div>
+        <div class="k">③ 内容稀薄 + 问题订单特定</div>
+        <div class="v"><strong>检索没东西可检，且检了也答不到点。</strong>知识库共 <span class="ev">31 条</span>（13 文档 + 18 对话），体量撑不起向量召回；更根本的是准客户的问题多为订单特定——根因不是「检索质量差」，是「答案压根不在知识库」。</div>
       </div>
     </div>
-    <div class="note"><b>读法：</b>这三条是叠乘关系——基建没装（②要先装 pgvector）、内容用不上（注入被主动砍小）、体量撑不起检索（31 条无需裁剪）。任何一条单独都不致命，三条叠在一起说明"现在上 RAG"是把工程预算投在一个还没被验证过的瓶颈上。</div>
+    <div class="note"><b>合起来看：</b>地基（pgvector）没浇、现有的全量注入已被实测「rarely referenced」并主动缩量、内容只有 31 条且问题偏订单特定。在这三条同时成立时上 RAG，是给一个低频问题装重型基建。</div>
   </section>
 
+  <!-- ===== §5 industry context ===== -->
   <section>
-    <h2><span class="no">§5</span> 行业语境：这不是 Akke 个例</h2>
-    <p class="h2sub">"客服问题大多是订单特定、RAG 天花板低"是垂直服务领域的普遍结构，不是 Akke 的特殊情况。</p>
-    <p>多份行业分析指出，RAG 的能力边界恰恰落在"通用知识 vs 事务型数据"这条线上。RAG 跑在<strong>非结构化的知识文档</strong>上（切块→向量→语义召回）；而客服里最高频、最高优先级的问题——订单交付、支付、账户状态——本质是<strong>事务型/结构化数据</strong>，住在 CRM / 订单 / 计费系统里，靠精确查询而非语义相似度来答 <span class="src">K2view · What is RAG</span>。语义检索对"我的订单状态"这类精确事务查询是错配：它会拿回"语义相近但事实错误"的记录，正是 RAG 本想避免的幻觉风险 <span class="src">K2view · What is RAG</span>。</p>
-    <p>关于占比，行业观察也一致：订单状态、退货资格、物流时效这类<strong>事务型问题构成客服量的主体</strong>，且因为答案能直接从数据系统取，反而是 AI 最容易答准的部分；真正"知识型"的细分问题对纯 RAG 一直是难点 <span class="src">Glassix · Customer Inquiries</span> <span class="src">ProProfs · CS Problems 2026</span>。垂直场景里 vanilla RAG 的失效模式也被反复记录：语义错配、把细微诉求压成模板答案、证据散落在多处难以拼合 <span class="src">StackAI · RAG Limitations 2026</span> <span class="src">Faktion · RAG Failure Modes</span>。社区给出的方向是 <strong>agentic RAG</strong>——在检索之外接"调订单/账户工具"的能力 <span class="src">Redis · Agentic RAG</span>，这恰好印证了本报告的判断：要服务那 80%，需要的是<strong>能查订单的工具调用</strong>，不是更大的向量库。</p>
-    <div class="note info"><b>落到 Akke：</b>全屋定制比通用电商更极端——高客单、低频、重服务意味着每个客户的"这一单"上下文极重、生命周期极长，订单特定问题占比只会更高、不会更低。行业证据把 §2 的方向（不是精确数字）夯实了：先建"查订单"的能力，而非先建"通用知识库"。</div>
+    <h2><span class="no">§5</span> 行业语境：RAG 的边界在哪</h2>
+    <p class="h2sub">这不是 Akke 独有的坑——RAG 在垂直服务 / 客服领域的覆盖局限，是被反复印证的共识。</p>
+    <p><strong>RAG 擅长非结构化文本，不擅长事务型数据。</strong>RAG 检索的是与提问语义相近的文本片段，适合「答案能从已有文字里综合出来」的问题；一旦答案需要从结构化字段精确取值（如订单状态），它就力不从心——业界普遍认为 RAG 对结构化数据的准确率常低于 60%，且最常见的失败模式正是「相关内容缺失（missing content）」，即问了一个文档里根本没有答案的问题。<span class="src">DreamFactory · API-First Alternative to RAG 2025</span> <span class="src">arXiv 2502.14930 RAGVA in Practice</span></p>
+    <p><strong>订单 / 进度类问题属于「事务型」，要的是查询而非检索。</strong>客服领域对「订单状态」这类问题的主流做法是 text-to-SQL / API 直连结构化库与实时账户数据，把自然语言翻译成精确查询、返回确定字段值；而不是丢进向量库做相似度召回。换句话说，准客户「我那单到哪了」这种问题，正确解法是接订单系统，不是 RAG。<span class="src">Janea Systems · SQL-to-RAG Pipeline 2025</span> <span class="src">AI21 · RAG for Structured Data 2025</span></p>
+    <p><strong>「加微后的准客户」问题更偏订单特定，是关系阶段的必然。</strong>RAG 客服的价值集中在「售前 / 通用答疑」——回答能从公司文档里综合出来的问题。一旦客户进入「已成交 / 进行中」的关系阶段，提问就从「是什么」转向「我的那一单怎样了」，重心从知识库迁移到交易 / 交互数据（service requests、purchases、进度）。微信工作流的对象恰好全是后者。<span class="src">Gladly · RAG for Customer Service 2025</span> <span class="src">Salesforce · What is RAG 2025</span></p>
+    <div class="note info"><b>一句话：</b>RAG 是「文档问答」的答案，不是「订单问答」的答案。微信工作流里 ~80% 是订单问答——所以问题不是 RAG 做得好不好，而是这道题压根不该交给 RAG。</div>
   </section>
 
+  <!-- ===== §6 minimal validation experiment ===== -->
   <section>
-    <h2><span class="no">§6</span> 最小验证实验：用数字拍板</h2>
-    <p class="h2sub">不靠拍脑袋。半天工时、一个 org、一个明确阈值，把"≈20%"换成 Akke 自己的真实数字。</p>
-    <div class="fig"><div class="ft">图4 · 验证实验流程（1 人 · 1 天）</div>
+    <h2><span class="no">§6</span> 最小验证实验：用真数据替换那个 20%</h2>
+    <p class="h2sub">所有「20% / 80%」都是估计。上不上 RAG，不该靠拍脑袋，而该靠一份 1 人 1 天就能做完的分类标注。</p>
+    <div class="fig"><div class="ft">图4 · 「先验证再决定」实验流程（1 人 · 约 1 天）</div>
       <div class="flow arrows">
-        <div class="fstep"><div class="fi">STEP 1 · 取样</div><div class="fn">抽 1 个 org 近 1 个月</div><div class="fd">导出该客户全部真实聊天记录（私信 + 评论回复）</div></div>
-        <div class="fstep"><div class="fi">STEP 2 · 打标</div><div class="fn">人工逐条分类</div><div class="fd">每条问题打两类之一：通用 FAQ / 订单特定（进度·尾款·款式·工期·改动）</div></div>
-        <div class="fstep"><div class="fi">STEP 3 · 计算</div><div class="fn">算通用占比</div><div class="fd">通用 FAQ 条数 ÷ 总问题条数 = 通用占比</div></div>
-        <div class="fstep gate"><div class="fi">STEP 4 · 拍板</div><div class="fn">对阈值 40%</div><div class="fd">≥40% → 上 RAG；&lt;40% → 不上，把工时投到能查订单的 copilot</div></div>
+        <div class="fstep acc"><div class="fi">STEP 1 · 抽样</div><div class="fn">抽真实记录</div><div class="fd">取 1 个 org 近 1 个月<strong>微信 / kf 聊天记录</strong>（加微后的真实对话）</div></div>
+        <div class="fstep"><div class="fi">STEP 2 · 打标</div><div class="fn">人工逐条分类</div><div class="fd">每条客户提问标「通用 FAQ」 or「订单 / 关系特定」二选一</div></div>
+        <div class="fstep"><div class="fi">STEP 3 · 算占比</div><div class="fn">算通用 FAQ 占比</div><div class="fd">通用 FAQ 条数 ÷ 总提问条数 = RAG 真实天花板</div></div>
+        <div class="fstep gate"><div class="fi">STEP 4 · 分流</div><div class="fn">阈值判定</div><div class="fd">≥ 40% → 上 RAG；&lt; 40% → 投 copilot 精准草拟</div></div>
       </div>
-      <div class="cap">工作量：1 人 1 天。阈值 40% 是决策线——低于它，RAG 优化的盘子太小，相同工程预算投在"订单查询 copilot"上回报更高。这一步把 §2 的估算（≈20%）变成可问责的真实数字，决策不再靠争论。</div>
+      <div class="cap">阈值 40%：通用 FAQ 至少占四成，RAG 才有足够题面值得装基建；低于 40% 说明真正的瓶颈在订单 / ERP 接入与对话记忆，钱应投在那里。</div>
     </div>
     <div class="split">
-      <div class="col pro"><h4>✓ 通用占比 ≥ 40%（过关）</h4><ul>
-        <li>说明通用问题真有规模，RAG 有发挥空间</li>
-        <li>进 §7 的 HOW：解开 008 的两行注释、装 pgvector</li>
-        <li>先在这一个 org 上小范围验证召回质量再铺开</li>
+      <div class="col pro"><h4>✓ 通用 FAQ ≥ 40% → 上 RAG</h4><ul>
+        <li>题面够大，向量召回的边际收益能覆盖基建成本</li>
+        <li>走 §7 的「取消注释 + 装 extension」最小路径，无需改 schema</li>
+        <li>先在通用 FAQ 子集灰度，看人工接管率是否真降</li>
       </ul></div>
-      <div class="col con"><h4>✗ 通用占比 &lt; 40%（不过关）</h4><ul>
-        <li>RAG 天花板被实测确认偏低，现阶段不上</li>
-        <li>把工时投到"按订单号查进度/尾款"的工具调用</li>
-        <li>知识库保持现状的全量注入（31 条无需检索）</li>
+      <div class="col con"><h4>✗ 通用 FAQ &lt; 40% → 投 copilot 精准草拟</h4><ul>
+        <li>瓶颈在订单 / 关系问答，RAG 答不了，装了也白装</li>
+        <li>钱投在：接订单系统（text-to-SQL/API）+ 跨会话客户记忆</li>
+        <li>给运营做「精准草拟 + 一键发」copilot，比自动答更省那 5 条窗口</li>
       </ul></div>
     </div>
+    <div class="note"><b>工作量：</b>抽样 + 标注 + 算占比，<strong>1 人约 1 天</strong>。这一天的成本，远低于「先把 pgvector 上了、灌完 embedding、才发现 RAG 只能接住 20% 提问」的返工。先验证，再决定。</div>
   </section>
 
+  <!-- ===== §7 if pass HOW ===== -->
   <section>
-    <h2><span class="no">§7</span> 若过关的 HOW（一句话）</h2>
-    <p class="h2sub">验证过关后，技术落地极轻——schema 早就预留好了。</p>
-    <div class="note info"><b>一句话：</b>跑一句 <code>CREATE EXTENSION IF NOT EXISTS vector;</code>，再解开 <span class="ev">008_knowledge_base.sql:27,55</span> 那两行 <code>embedding vector(1536)</code> 注释即可——<strong>无需改 schema</strong>，建库时就为这一天留好了位置。但顺序不能反：先做 §6 拿到数字，再动这一句。</div>
+    <h2><span class="no">§7</span> 若过关：HOW（一句话）</h2>
+    <p class="h2sub">验证通过后，落地路径短到一句话——schema 早就预留好了。</p>
+    <div class="card acc">
+      <div class="k">最小落地路径 · 无需改 schema</div>
+      <div class="v"><code>CREATE EXTENSION IF NOT EXISTS vector;</code> + 取消 <span class="ev">008_knowledge_base.sql:27,55</span> 两行 <code>embedding vector(1536)</code> 注释 → 回填 embedding → 把 <code>buildKnowledgeSection()</code> 的全量注入换成 top-k 向量召回。双表（<code>knowledge_documents</code> / <code>conversation_examples</code>）结构当初就为此预留，<strong>不动 schema</strong>。</div>
+    </div>
+    <p style="color:var(--muted);font-size:13.5px">注：HOW 之所以只值一句话，正因为难点从来不在工程，而在 §6 那个「通用 FAQ 占比」到底够不够 40%。先量它。</p>
   </section>
 
+  <!-- ===== sources ===== -->
   <section>
     <h2><span class="no">§</span> 资料来源</h2>
-    <p class="h2sub">仓库硬事实（<span class="ev">.ev</span> 已就地核验）+ 联网行业语境（<span class="src">.src</span>）。</p>
-    <h3>仓库核验</h3>
-    <ul>
-      <li><span class="ev">supabase/migrations/008_knowledge_base.sql:27,55</span> — <code>vector(1536)</code> 预留注释（两表各一行，均未解开）</li>
-      <li><span class="ev">supabase/migrations/20260622152041_dm_inbound_generate_webhook.sql:21</span> — 全仓唯一 <code>CREATE EXTENSION</code>（pg_net，非 vector）</li>
-      <li><span class="ev">src/lib/llm.ts:226-238</span> — 知识注入 "rarely referenced" + 2026-04 反向砍小（1-2→1 条 / 3000→1500 字）</li>
-      <li><span class="ev">docs/claude-memory/project_akke_knowledge_base.md</span> — 31 条种子（13 文档 + 18 对话）+ AI 大脑调研结论 + 验证门</li>
-    </ul>
-    <h3>联网行业语境</h3>
-    <ul>
-      <li><a href="https://www.k2view.com/what-is-retrieval-augmented-generation">K2view — What is RAG（非结构化知识 vs 结构化事务数据的检索分工）</a></li>
-      <li><a href="https://www.stackai.com/blog/rag-limitations">StackAI — RAG Limitations: 7 Critical Challenges 2026</a></li>
-      <li><a href="https://www.faktion.com/post/common-failure-modes-of-rag-how-to-fix-them-for-enterprise-use-cases">Faktion — Common Failure Modes of RAG</a></li>
-      <li><a href="https://redis.io/blog/agentic-rag-how-enterprises-are-surmounting-the-limits-of-traditional-rag/">Redis — Agentic RAG: surmounting the limits of traditional RAG</a></li>
-      <li><a href="https://www.glassix.com/article/how-to-respond-to-customer-inquiries">Glassix — How to Respond to Customer Inquiries（事务型问题占客服量主体）</a></li>
-      <li><a href="https://www.proprofsdesk.com/blog/customer-service-problems/">ProProfs — Customer Service Problems 2026</a></li>
-    </ul>
-    <div class="note"><b>数据诚实声明：</b>本报告的 ≈20% / 80% 与图3 各类占比为 <strong>Akke 内部估算</strong>，非外部 benchmark。联网来源用于佐证"事务型问题主导、RAG 天花板受限"这一结构性方向；具体数字以 §6 验证实验的真实打标结果为准。</div>
+    <div class="grid">
+      <div class="card">
+        <div class="k">仓库核验（.ev）</div>
+        <div class="v">
+          · <span class="ev">008_knowledge_base.sql:27,55</span> vector(1536) 注释未启用<br>
+          · <span class="ev">20260622152041_…:21</span> 全仓唯一 CREATE EXTENSION = pg_net<br>
+          · <span class="ev">llm.ts:228</span> 知识注入 "rarely referenced"<br>
+          · <span class="ev">llm.ts</span> KNOWLEDGE_CHAR_LIMIT 3000→1500<br>
+          · <span class="ev">project_akke_knowledge_base.md</span> 31 条 + 40% 验证门
+        </div>
+      </div>
+      <div class="card">
+        <div class="k">联网调研（.src）</div>
+        <div class="v">
+          · <a href="https://blog.dreamfactory.com/api-first-alternative-rag-structured-data">DreamFactory — API-First Alternative to RAG</a><br>
+          · <a href="https://www.janeasystems.com/blog/sql-to-rag-pipeline">Janea — SQL-to-RAG Pipeline</a><br>
+          · <a href="https://www.ai21.com/knowledge/rag-for-structured-data/">AI21 — RAG for Structured Data</a><br>
+          · <a href="https://www.gladly.ai/blog/retrieval-augmented-generation-for-customer-service/">Gladly — RAG for Customer Service</a><br>
+          · <a href="https://www.salesforce.com/agentforce/what-is-rag/">Salesforce — What is RAG</a><br>
+          · <a href="https://arxiv.org/pdf/2502.14930">arXiv 2502.14930 — RAGVA in Practice</a><br>
+          · <a href="https://developers.weixin.qq.com/community/develop/doc/000c8615880108b5158c3f7cc51c00">微信开放社区 — 客服消息 48h/5 条限制（45047）</a>
+        </div>
+      </div>
+    </div>
   </section>
 
   <footer>
