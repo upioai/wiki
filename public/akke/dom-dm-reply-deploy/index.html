@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>私信回复 DOM 自动化 · 部署指南</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#eef1f5;color:#1c2330;font:15px/1.65 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;padding:24px 14px}
+  .wrap{max-width:840px;margin:0 auto}
+  .hero{background:linear-gradient(135deg,#0891b2,#0e7490);color:#fff;border-radius:16px;padding:24px 26px;margin-bottom:18px}
+  .hero h1{font-size:23px;margin-bottom:6px}
+  .hero .sub{font-size:14px;opacity:.93}
+  .hero .tag{display:inline-block;background:#16a34a;color:#fff;font-size:12px;font-weight:700;border-radius:20px;padding:4px 12px;margin-top:12px}
+  h2{font-size:16px;color:#fff;background:#0e7490;border-radius:9px;padding:9px 14px;margin:26px 0 12px}
+  h2 .n{opacity:.55;margin-right:8px}
+  h3{font-size:15px;margin:15px 0 7px;color:#0e7490}
+  p{margin:8px 0}
+  code{background:#e6f3f6;border-radius:5px;padding:1px 6px;font-size:12.5px;font-family:ui-monospace,Menlo,Consolas,monospace;word-break:break-word}
+  pre{background:#0f1623;color:#d6e2f0;border-radius:9px;padding:13px 15px;margin:8px 0;overflow-x:auto;font:12.5px/1.6 ui-monospace,Menlo,Consolas,monospace}
+  pre .c{color:#6b7a90}
+  .hl{font-weight:700;color:#0e7490}
+  .opbox{background:#ecfeff;border:1px solid #a5e3ef;border-left:6px solid #0891b2;border-radius:10px;padding:14px 18px;margin:12px 0}
+  .opbox>b{color:#0e7490;display:block;margin-bottom:6px;font-size:14.5px}
+  .opnum{display:inline-block;background:#0891b2;color:#fff;font-weight:800;border-radius:50%;width:22px;height:22px;text-align:center;line-height:22px;font-size:13px;margin-right:7px}
+  .logmark{background:#0f1623;color:#a7f3d0;border-radius:7px;padding:9px 13px;margin:8px 0;font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;border-left:4px solid #16a34a}
+  .flowline{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:10px 0;font-size:13px}
+  .flowline .nd{background:#e6f7fb;border:1px solid #a5e3ef;border-radius:8px;padding:6px 11px}
+  .flowline .ar{color:#94a3b8;font-weight:700}
+  table{width:100%;border-collapse:collapse;background:#fff;border-radius:11px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06);margin:8px 0;font-size:13.5px}
+  td,th{padding:10px 13px;text-align:left;border-bottom:1px solid #eef0f3;vertical-align:top}
+  th{background:#f7f8fa;color:#6b7280;font-weight:600;font-size:12.5px}
+  tr:last-child td{border-bottom:none}
+  .note{border-left:4px solid #0891b2;background:#ecfeff;border-radius:8px;padding:11px 14px;margin:10px 0;font-size:13.5px}
+  .warn{border-left:4px solid #dc2626;background:#fef2f2;border-radius:8px;padding:11px 14px;margin:10px 0;font-size:13.5px}
+  .warn b{color:#dc2626}
+  ul{margin:6px 0 0 20px}li{margin:6px 0;font-size:14px}
+  footer{color:#9aa3b2;font-size:12px;margin-top:28px;text-align:center;border-top:1px solid #dde1e7;padding-top:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <h1>私信回复 DOM 自动化 · 部署指南</h1>
+    <div class="sub">读客户私信回复 → 自动起草 · 把旧的「截图 + AI 视觉」换成直接读网页 DOM · 无影云电脑</div>
+    <span class="tag">已上线生产</span>
+  </div>
+
+  <!-- ① 是什么 -->
+  <h2><span class="n">①</span>这套是什么</h2>
+  <p>poll agent 每轮自动扫私信会话列表，判断哪个客户回了，写回库触发自动起草回复。<b>旧做法</b>靠截图 + AI 视觉(VL)读列表、逐个点开红点会话(会把人标已读、还会读错昵称塌缩整轮)；<b>新做法</b>用 Playwright 连一个<b>隐形 Edge</b> 直接读 DOM。</p>
+  <table>
+    <tr><th></th><th>旧 VL 版</th><th>新 DOM 版</th></tr>
+    <tr><td>读列表</td><td>截图喂 AI 视觉</td><td><span class="hl">直接读 conversation-item</span></td></tr>
+    <tr><td>昵称</td><td>OCR 会读错</td><td>精确到 emoji</td></tr>
+    <tr><td>标已读</td><td>逐个点开会标已读</td><td><span class="hl">全程不点、永不标已读</span></td></tr>
+    <tr><td>花费</td><td>每轮烧 VL</td><td>零 AI 花费</td></tr>
+  </table>
+
+  <!-- ② 原理 -->
+  <h2><span class="n">②</span>怎么判一个会话是不是客户回复</h2>
+  <div class="flowline">
+    <span class="nd">读 conversation-item</span><span class="ar">→</span>
+    <span class="nd">①红点闸</span><span class="ar">→</span>
+    <span class="nd">②是我们 DM 过的人?</span><span class="ar">→</span>
+    <span class="nd">③预览≠我方/系统/噪声?</span><span class="ar">→</span>
+    <span class="nd">record_dm_inbound</span>
+  </div>
+  <ul>
+    <li><b>① 红点闸</b>：<span class="hl">无红点 = 没新回复，直接跳过</span>（权威信号，运营确认"新回复才有红点"）</li>
+    <li><b>② match</b>：昵称不在本账号已发名单里 → 群/陌生人，排除</li>
+    <li><b>③ 过滤链</b>：预览是我方话术 / 系统提示 / 时间戳噪声 / spam → 跳过</li>
+    <li>命中真回复 → 写回库（服务端 1 小时去重 + 中央闸防重复/噪声）</li>
+  </ul>
+
+  <!-- ③ 前置 -->
+  <h2><span class="n">③</span>前置</h2>
+  <ul>
+    <li>Windows 无影云电脑，目录 <code>C:\akke-wuying\wuying-dm</code>，跑着 <code>wuying_poll_agent.py</code></li>
+    <li><code>.env</code> 有 <code>SUPABASE_*</code> + <code>AKKE_ACCOUNT_ID</code></li>
+    <li>Edge 已装；抖音网页版账号能登</li>
+  </ul>
+
+  <!-- ④ 部署 3 步 -->
+  <h2><span class="n">④</span>部署 3 步</h2>
+
+  <div class="opbox">
+    <b><span class="opnum">1</span>装依赖</b>
+    <pre><span class="hl">py -m pip install playwright uiautomation</span></pre>
+  </div>
+
+  <div class="opbox">
+    <b><span class="opnum">2</span>起隐形 Edge（首次用可见窗口登录抖音、点开一次私信，之后隐形起）</b>
+    <pre>$edge="C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+if(!(Test-Path $edge)){$edge="C:\Program Files\Microsoft\Edge\Application\msedge.exe"}
+<span class="hl">Start-Process $edge -ArgumentList '--headless=new','--remote-debugging-port=9222','--user-data-dir=C:\akke-edge-debug','https://www.douyin.com'</span></pre>
+    <p style="font-size:13px;margin-top:4px">验证：浏览器开 <code>http://127.0.0.1:9222/json/version</code> 有 JSON = 通。</p>
+  </div>
+
+  <div class="opbox">
+    <b><span class="opnum">3</span>配 .env 3 个开关 + 重启 poll agent</b>
+    <pre><span class="hl">AKKE_DM_AUTOREPLY_CAPTURE=1</span>   <span class="c"># 开捕获腿(没有=根本不跑捕获)</span>
+<span class="hl">AKKE_WEB_DM_USE_DOM=1</span>         <span class="c"># 捕获走 DOM 版(不设=走旧 VL)</span>
+<span class="hl">AKKE_WEB_DM_DOM_COMMIT=1</span>      <span class="c"># 真写库(不设=只打印不写, 适合先观察)</span></pre>
+    <p style="font-size:13px;margin-top:4px">改完<span class="hl">必须重启 poll agent</span>（<code>py wuying_poll_agent.py</code>）才生效。</p>
+  </div>
+
+  <!-- ④.5 关机后重启 -->
+  <h2><span class="n">⑤</span>云电脑关机 / 重启后 · 恢复</h2>
+  <div class="warn"><b>云电脑一关机，隐形 Edge 和 poll agent 都没了</b> —— 重启后必须手动拉起这两个，否则不再捕获回复。</div>
+  <div class="opbox">
+    <b><span class="opnum">1</span>拉起隐形 Edge（登录态在 C:\akke-edge-debug，自动带着）</b>
+    <pre><span class="hl">Start-Process "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" -ArgumentList '--headless=new','--remote-debugging-port=9222','--user-data-dir=C:\akke-edge-debug','https://www.douyin.com'</span></pre>
+  </div>
+  <div class="opbox">
+    <b><span class="opnum">2</span>等约 10 秒，验证：<code>http://127.0.0.1:9222/json/version</code> 有 JSON</b>
+  </div>
+  <div class="opbox">
+    <b><span class="opnum">3</span>起 poll agent</b>
+    <pre>cd C:\akke-wuying\wuying-dm
+<span class="hl">py wuying_poll_agent.py</span></pre>
+  </div>
+  <div class="note"><b>万一登录过期</b>（捕获一直 <code>conversation-item 0</code> / 报没登录）：关掉 headless Edge，用<b>可见</b>窗口起（去掉 <code>--headless=new</code>），重新登录抖音 + 点开一次私信，再切回 headless。Cookie 一般撑 15-30 天。</div>
+
+  <!-- ⑥ 验证 -->
+  <h2><span class="n">⑥</span>验证</h2>
+  <h3>1) 看日志走没走 DOM</h3>
+  <p>重启后看 DM 黑窗，每轮出现（有 <code>[DOM]</code> 就对）：</p>
+  <div class="logmark">=== web capture[DOM]&nbsp;&nbsp;(COMMIT 写回) ===<br>&nbsp;&nbsp;conversation-item 11 个 / 有红点 X 个 / 命中客户回复 0 条</div>
+
+  <h3>2) 验真回复能抓到</h3>
+  <p>用测试号给本账号发一条消息（产生红点），下一轮日志应出现：</p>
+  <div class="logmark">&nbsp;&nbsp;[红点] 测试号昵称: 你发的内容…<br>&nbsp;&nbsp;[inbound] 测试号昵称: 你发的内容…</div>
+  <div class="note"><b>先观察再写库</b>：想稳妥可先只设 <code>AKKE_WEB_DM_USE_DOM=1</code>、<b>不设</b> <code>AKKE_WEB_DM_DOM_COMMIT</code>，日志会显示 <code>(DRY-RUN, 不写库)</code>，确认判得对再加 COMMIT 那行重启。</div>
+
+  <!-- ⑦ 排查 -->
+  <h2><span class="n">⑦</span>排查</h2>
+  <table>
+    <tr><th>现象</th><th>处理</th></tr>
+    <tr><td>日志还是旧的 <code>web capture[红点像素检测]</code></td><td><code>AKKE_WEB_DM_USE_DOM</code> 没读到 → 确认 .env 加了 + <span class="hl">重启了 poll agent</span></td></tr>
+    <tr><td><code>连不上 CDP / 没找到 douyin 页</code></td><td>隐形 Edge 没起/被关 → 重跑第 2 步，<code>/json/version</code> 验</td></tr>
+    <tr><td><code>conversation-item 0 + ❌ 弃权</code></td><td>该轮面板没挂上 → 自动重开；<b>持续</b> 0 才需查（不会误判成全员没回复）</td></tr>
+    <tr><td>明明有红点回复却没抓到</td><td>把那条会话样子反馈给开发，可能要调红点检测；不会静默漏报成"没回复"</td></tr>
+    <tr><td>传文件下坏</td><td>用 <code>curl.exe -o</code>，别用 iwr</td></tr>
+  </table>
+
+  <!-- ⑧ 回退 -->
+  <h2><span class="n">⑧</span>回退</h2>
+  <div class="opbox">
+    <b>删一行 + 重启即回旧 VL 版</b>
+    <pre><span class="c"># .env 删掉 / 改 0:</span>  <span class="hl">AKKE_WEB_DM_USE_DOM</span>
+<span class="c"># 然后重启:</span>  py wuying_poll_agent.py</pre>
+  </div>
+
+  <footer>
+    私信回复 DOM 自动化 · 部署指南 · 2026-06-29<br>
+    配套：完整操作手册（含首触派单）<code>dom-automation-ops-manual-2026-06-29.html</code> · 锚点 <code>reference_douyin_web_dm_dom_anchors.md</code>
+  </footer>
+
+</div>
+</body>
+</html>

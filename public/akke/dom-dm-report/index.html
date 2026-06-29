@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>抖音私信 DOM 自动化 · 0-1 复盘报告（2026-06-29）</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#eef1f5;color:#1c2330;font:15px/1.65 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;padding:24px 14px}
+  .wrap{max-width:920px;margin:0 auto}
+  .hero{background:linear-gradient(135deg,#4338ca,#6d28d9);color:#fff;border-radius:18px;padding:26px 28px;margin-bottom:18px;box-shadow:0 6px 24px rgba(67,56,202,.25)}
+  .hero h1{font-size:25px;margin-bottom:6px}
+  .hero .sub{font-size:14.5px;opacity:.92;margin-bottom:14px}
+  .live{display:inline-block;background:#16a34a;color:#fff;font-size:12.5px;font-weight:700;border-radius:20px;padding:4px 13px;letter-spacing:.5px}
+  .live::before{content:"●";margin-right:6px;animation:blink 1.4s infinite}
+  @keyframes blink{50%{opacity:.35}}
+  .hero .line{font-size:14px;opacity:.95;margin-top:12px;background:rgba(255,255,255,.13);border-radius:10px;padding:11px 14px;line-height:1.55}
+  .kpi{display:flex;gap:12px;margin-bottom:22px;flex-wrap:wrap}
+  .kpi div{flex:1;min-width:120px;background:#fff;border-radius:13px;padding:15px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  .kpi b{display:block;font-size:27px;line-height:1.15}
+  .kpi .c1{color:#4338ca}.kpi .c2{color:#16a34a}.kpi .c3{color:#d97706}.kpi .c4{color:#0891b2}
+  .kpi span{font-size:12px;color:#8a93a3;display:block;margin-top:3px}
+  h2{font-size:16px;color:#fff;background:#1c2330;border-radius:9px;padding:9px 14px;margin:30px 0 14px;letter-spacing:.4px}
+  h2 .n{opacity:.5;margin-right:8px}
+  h3{font-size:15px;margin:16px 0 8px;color:#3730a3}
+  p{margin:8px 0}
+  .card{background:#fff;border-radius:13px;padding:18px 20px;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:14px}
+  table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06);margin:8px 0;font-size:13.5px}
+  td,th{padding:10px 13px;text-align:left;border-bottom:1px solid #eef0f3;vertical-align:top}
+  th{background:#f7f8fa;color:#6b7280;font-weight:600;font-size:12.5px;white-space:nowrap}
+  tr:last-child td{border-bottom:none}
+  code{background:#eef1f5;border-radius:5px;padding:1px 6px;font-size:12.5px;font-family:ui-monospace,Menlo,Consolas,monospace;word-break:break-word}
+  .b{display:inline-block;font-size:11.5px;font-weight:700;border-radius:6px;padding:2px 8px;color:#fff;white-space:nowrap}
+  .b-done{background:#16a34a}.b-fix{background:#0891b2}.b-block{background:#6b7280}.b-todo{background:#d97706}.b-safe{background:#4338ca}
+  .cmp{display:flex;gap:14px;flex-wrap:wrap}
+  .cmp .col{flex:1;min-width:260px;border-radius:13px;padding:18px 20px;color:#fff}
+  .cmp .web{background:linear-gradient(135deg,#16a34a,#15803d)}
+  .cmp .pc{background:linear-gradient(135deg,#64748b,#475569)}
+  .cmp h4{font-size:16px;margin-bottom:4px}
+  .cmp .tag{font-size:12px;opacity:.9;margin-bottom:10px}
+  .cmp ul{margin:0 0 0 17px;font-size:13.5px}.cmp li{margin:5px 0}
+  .cmp .verdict{margin-top:11px;background:rgba(255,255,255,.16);border-radius:8px;padding:9px 11px;font-size:13.5px;font-weight:600}
+  /* flow diagram */
+  .flow{background:#0f1623;border-radius:14px;padding:22px;color:#d6e2f0;font:13px/1.5 ui-monospace,Menlo,Consolas,monospace;overflow-x:auto}
+  .flow .box{background:#1b2536;border:1px solid #2d3b52;border-radius:8px;padding:9px 13px;margin:7px auto;max-width:560px;text-align:center}
+  .flow .box.hl{border-color:#6366f1;background:#262a4d}
+  .flow .box.green{border-color:#16a34a;background:#14301f}
+  .flow .box.red{border-color:#dc2626;background:#3a1717}
+  .flow .arrow{text-align:center;color:#6b7a90;font-size:15px;margin:1px}
+  .flow .gate{background:#241c12;border:1px dashed #b4762a;border-radius:8px;padding:10px 14px;margin:7px auto;max-width:600px}
+  .flow .gate b{color:#f0b86e}
+  .flow .gate div{font-size:12.5px;color:#c9b89c;margin:3px 0}
+  .flow .lbl{color:#6b7a90;font-size:12px;text-align:center;margin:2px}
+  .tl{position:relative;padding-left:24px;margin:6px 0}
+  .tl::before{content:"";position:absolute;left:7px;top:4px;bottom:4px;width:2px;background:#d6dae2}
+  .tl .step{position:relative;margin:13px 0}
+  .tl .step::before{content:"";position:absolute;left:-21px;top:4px;width:11px;height:11px;border-radius:50%;background:#6366f1;border:2px solid #fff;box-shadow:0 0 0 1px #d6dae2}
+  .tl .step.bug::before{background:#dc2626}
+  .tl .step b{font-size:14px}
+  .tl .step .d{font-size:13.5px;color:#5b6472;margin-top:2px}
+  .callout{border-left:4px solid #6366f1;background:#f0f1ff;border-radius:8px;padding:12px 15px;margin:12px 0;font-size:14px}
+  .callout b{color:#4338ca}
+  .win{border-left:4px solid #16a34a;background:#effaf2;border-radius:8px;padding:12px 15px;margin:12px 0;font-size:14px}
+  .win b{color:#15803d}
+  ul.todo{list-style:none;margin:0}
+  ul.todo li{background:#fff;border-radius:10px;padding:12px 15px;margin:9px 0;box-shadow:0 1px 3px rgba(0,0,0,.06);display:flex;gap:12px;align-items:flex-start}
+  ul.todo .pri{flex:none;font-size:11px;font-weight:700;border-radius:6px;padding:3px 9px;color:#fff;margin-top:1px}
+  .p1{background:#dc2626}.p2{background:#d97706}.p3{background:#6b7280}
+  ul.todo .t b{font-size:14px}ul.todo .t div{font-size:13px;color:#5b6472;margin-top:2px}
+  footer{color:#9aa3b2;font-size:12px;margin-top:30px;text-align:center;border-top:1px solid #dde1e7;padding-top:14px}
+  .em{background:#fff7ed;color:#9a3412;border-radius:4px;padding:0 5px;font-weight:600}
+  /* 黄色荧光标记 */
+  .hl{background:linear-gradient(180deg,transparent 52%,#fde047 52%);padding:0 3px;font-weight:700;border-radius:2px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+  .opbox{background:#fffbe6;border:1px solid #fde047;border-left:6px solid #facc15;border-radius:10px;padding:14px 18px;margin:12px 0}
+  .opbox>b{color:#92660a;display:block;margin-bottom:6px;font-size:14.5px}
+  .opbox pre{margin:8px 0 4px}
+  .opnum{display:inline-block;background:#facc15;color:#3a2c00;font-weight:800;border-radius:50%;width:22px;height:22px;text-align:center;line-height:22px;font-size:13px;margin-right:7px}
+  .logmark{background:#0f1623;color:#a7f3d0;border-radius:7px;padding:9px 13px;margin:8px 0;font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;border-left:4px solid #16a34a}
+  .flowline{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:10px 0;font-size:13.5px}
+  .flowline .nd{background:#f0f1ff;border:1px solid #c7d2fe;border-radius:8px;padding:6px 11px}
+  .flowline .ar{color:#94a3b8;font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ════ HERO ════ -->
+  <div class="hero">
+    <h1>抖音私信 DOM 自动化 · 0-1 复盘报告</h1>
+    <div class="sub">无影云电脑 · 把私信回复捕获从「截图 + AI 视觉 + 像素找点」换成「直接读浏览器 DOM」· 2026-06-29</div>
+    <span class="live">PATH B 已上线生产</span>
+    <div class="line">
+      <b>一句话：</b>旧方案靠 AI 看截图猜元素（会错、烧钱、分辨率一变就偏）。新方案让程序直接读网页 DOM 结构按元素取数据——<b>昵称精确到 emoji、零 AI 花费、零分辨率漂移</b>。浏览器端已验证上线；PC 客户端端调试口被字节焊死，维持原状。
+    </div>
+  </div>
+
+  <!-- ════ KPI ════ -->
+  <div class="kpi">
+    <div><b class="c1">193</b><span>已触达 leads（本账号）</span></div>
+    <div><b class="c2">0</b><span>误判（跨全部验证轮）</span></div>
+    <div><b class="c4">11→1</b><span>badcase 已修 / 待发送侧</span></div>
+    <div><b class="c3">5</b><span>下一步优化项</span></div>
+  </div>
+
+  <!-- ════ ① 两端结论 ════ -->
+  <h2><span class="n">①</span>两端结论：浏览器走 DOM，PC 维持原状</h2>
+  <p>同一个目标（自动读私信判客户回没回），两个界面，结论完全不同——这是整件事最重要的战略判断。</p>
+  <div class="cmp">
+    <div class="col web">
+      <h4>🌐 浏览器端（Edge 网页版）</h4>
+      <div class="tag">标准 Chromium · CDP 可挂</div>
+      <ul>
+        <li>Playwright <code>connect_over_cdp</code> 接管已登录的调试版 Edge</li>
+        <li>私信有整套语义锚点 <code>data-e2e</code>：<code>conversation-item</code> / <code>msg-input</code> / <code>msg-item-content</code></li>
+        <li>无 canvas、无 shadow DOM</li>
+        <li><code>navigator.webdriver=false</code>（接管现成 Edge，不翻自动化旗）</li>
+      </ul>
+      <div class="verdict">✅ DOM 自动化（本方案）· 已上线</div>
+    </div>
+    <div class="col pc">
+      <h4>🖥️ PC 客户端（douyin.exe）</h4>
+      <div class="tag">CEF 套壳 · 有反调试守护</div>
+      <ul>
+        <li>是 CEF（Chromium 内嵌），但 release 版调试口默认关</li>
+        <li>有专门的 <code>douyin_guard.exe</code> 反调试守护进程盯着</li>
+        <li>全端口空扫无 CDP；带 flag 重启也大概率被掐</li>
+        <li><code>imSaasContainerId</code> 是 UIA AutomationId，证明不了 CDP 可挂</li>
+      </ul>
+      <div class="verdict">⛔ DOM 判死 · 维持 UIA 读 + 像素发</div>
+    </div>
+  </div>
+  <div class="callout"><b>关键判断：</b>不追求"两端统一一套核心"——那是幻想。浏览器端拿确定收益，PC 端不押宝。</div>
+
+  <!-- ════ ② 0-1 原理图 ════ -->
+  <h2><span class="n">②</span>0-1 逻辑原理图</h2>
+  <h3>整体架构</h3>
+  <div class="flow">
+    <div class="box">运营手机/账号 已 DM 过 193 个 leads（库里有 opener + conversation_id）</div>
+    <div class="arrow">│</div>
+    <div class="box green">调试版 Edge :9222（已登录抖音，私信浮层）<br><span style="color:#7d8aa0">msedge --remote-debugging-port=9222 --user-data-dir=C:\akke-edge-debug</span></div>
+    <div class="arrow">│ Playwright connect_over_cdp（接管，不新开）</div>
+    <div class="box hl">poll agent 每轮 → capture_dom()</div>
+    <div class="lbl">↓ 不点任何会话 · 不标已读 · 只读 DOM</div>
+    <div class="box">读 N 个 <code style="color:#9db4d6">[data-e2e="conversation-item"]</code><br>→ 精确昵称 + 预览（innerText）+ 未读红点（计算样式判抖音红）</div>
+    <div class="arrow">│ 逐条过判回复链</div>
+    <div class="gate">
+      <b>判回复过滤链（任一不过即跳过）</b>
+      <div>① <b>红点闸</b>：无红点 → 跳过（非新回复）<span style="color:#7d8aa0"> ← 根治"我方多发消息误判"</span></div>
+      <div>② <b>match_name</b>：不在 193 人里 → 跳过<span style="color:#7d8aa0"> ← 排除群 / 陌生人</span></div>
+      <div>③ <b>we_sent_last</b>：预览=我方 opener → 跳过</div>
+      <div>④ <b>系统提示 / 时间戳噪声 / spam</b> → 跳过</div>
+    </div>
+    <div class="arrow">│ 命中真客户回复</div>
+    <div class="box hl">record_dm_inbound（写回）</div>
+    <div class="lbl">↓ 服务端双重兜底</div>
+    <div class="box">DB：1h 同内容去重 + <code style="color:#9db4d6">dm_inbound_is_noise</code> 中央闸（拦时间戳/系统/回声）</div>
+    <div class="arrow">▼</div>
+    <div class="box green">写入 messages(role=customer) → 触发后续起草回复</div>
+  </div>
+  <div class="win"><b>与旧 VL 版的本质差异：</b>旧版逐个<b>点开</b>红点会话用 AI 读截图（顺手把人标已读、还会读错昵称塌缩整轮）；新版<b>全程不点</b>、直接读 DOM → 永不标已读、昵称精确、零 AI 调用。</div>
+
+  <!-- ════ ③ 建设历程 + bug ════ -->
+  <h2><span class="n">③</span>建设历程 · 做了什么 · 踩了哪些 bug</h2>
+  <div class="card">
+    <div class="tl">
+      <div class="step"><b>调研开源方案</b><div class="d">GitHub 扒了 DouYin_Spider（协议逆向）/ MediaCrawler（CDP）/ DouYinSparkFlow（Playwright 发私信）。判断：协议逆向更脆（风控一改全崩 + 无 license），选 <b>DOM 自动化</b>。</div></div>
+      <div class="step"><b>两轮独立评估定方案</b><div class="d">技术可行性 + 工程契约/风控两个视角拷打，收敛出：<b>读先于发 · 留 VL 只做风控弹窗检测 · 红点做权威闸</b>。推翻了原方案"砍掉所有 VL / 两端统一 CDP / fill() 发送"三个错误。</div></div>
+      <div class="step bug"><b>BUG：PC 客户端调试口焊死</b><div class="d">探针发现 <code>douyin_guard.exe</code> 反调试 + 全端口空扫 → PC 端 DOM 判死，维持 UIA+像素。</div></div>
+      <div class="step"><b>浏览器端探针：DOM 锚点可行性</b><div class="d">实测私信有稳定 <code>data-e2e</code>（conversation-item 等），无 canvas/shadow → 浏览器端 DOM 绿灯。</div></div>
+      <div class="step"><b>建读侧捕获器 + 默认 dry-run</b><div class="d"><code>douyin_dm_web_capture_dom.py</code>：读 conversation-item，复用旧过滤链，默认只打印不写库。</div></div>
+      <div class="step bug"><b>BUG：我方多发消息被误判成客户回复</b><div class="d">「小艳子🍭」预览是我方第二条话术，<code>we_sent_last</code> 只比对一条 opener、漏判 → 误当回复。<b>用红点闸根治</b>（无红点=非新回复，直接跳过）。</div></div>
+      <div class="step bug"><b>BUG：群消息有红点</b><div class="d">2 个粉丝群有未读红点 → <code>match_name</code> 在 193 人里找不到，天然排除。</div></div>
+      <div class="step"><b>测试号真回复验证全链</b><div class="d">测试号发「4室两厅」→ 红点检测秒抓 → 走完过滤链到 <code>[inbound]</code>。端到端打通。</div></div>
+      <div class="step bug"><b>BUG：冷启动面板未挂载</b><div class="d">Edge 重启后私信没开、conversation-item=0 → <code>_ensure_panel</code> 自动点「私信」入口挂上，实测重启后自动开成功。</div></div>
+      <div class="step"><b>接编排上线（path B）</b><div class="d">poll agent 加 <code>AKKE_WEB_DM_USE_DOM=1</code> 路由开关，重启后日志出现 <code>web capture[DOM]</code> → 生产运行中。</div></div>
+    </div>
+  </div>
+
+  <!-- ════ ④ 统计数据 ════ -->
+  <h2><span class="n">④</span>批量化执行 · 统计数据</h2>
+  <table>
+    <tr><th>维度</th><th>数据</th><th>说明</th></tr>
+    <tr><td>已触达 leads（本账号）</td><td><b>193</b> 人</td><td>by_name：库里 role=ai/status=sent 的去重客户</td></tr>
+    <tr><td>活跃会话（私信首屏）</td><td><b>11</b> 个</td><td>当前 DOM 里的 conversation-item</td></tr>
+    <tr><td>红点检测准确率</td><td><b>100%</b></td><td>2 群红点 + 1 测试号真回复，全部正确识别</td></tr>
+    <tr><td>判回复误判（假阳性）</td><td class="em">0 / 全部验证轮</td><td>跨 ~8 次 dry-run + 测试号真回复 + 冷启动，0 误判</td></tr>
+    <tr><td>砍掉的整层开销</td><td><b>截图 + VL 调用 + OCR + 模板匹配 + 像素红点</b></td><td>→ 零 VL 花费 / 零分辨率漂移 / 昵称 emoji 级精确</td></tr>
+    <tr><td>上线时间 · 范围</td><td>2026-06-29 16:47 · 1 台</td><td>admin/野荞机，写库模式生产运行</td></tr>
+    <tr><td>生产捕获回复量</td><td>累积中</td><td>今日刚上线，待真客户回复自然流入</td></tr>
+  </table>
+  <div class="callout"><b>注：</b>系统今天才切到生产，"捕获了 X 条回复"这类长期数据正在积累。上面是<b>规模 + 验证期实测</b>，准确性已由 0 误判 + 测试号真回复闭环证明。</div>
+
+  <!-- ════ ⑤ Badcase 分类 ════ -->
+  <h2><span class="n">⑤</span>Badcase 分类 · 根因 · 优化方式 · 进展</h2>
+
+  <h3>A. 判回复准确性（最关键——错了就把我方话写成客户回复 / 漏真回复）</h3>
+  <table>
+    <tr><th>Badcase</th><th>根因</th><th>优化方式</th><th>进展</th></tr>
+    <tr><td>我方多发的第二条话术被当客户回复（小艳子🍭）</td><td><code>we_sent_last</code> 只比对库里一条 opener，对不上就误判</td><td><b>红点闸</b>：无未读红点=非新回复，直接跳过，不靠预览猜</td><td><span class="b b-done">已根治</span></td></tr>
+    <tr><td>群消息有红点被当回复</td><td>群也会有未读</td><td><code>match_name</code> 在 193 人里找不到群 → 排除</td><td><span class="b b-done">已修</span></td></tr>
+    <tr><td>会话→客户身份没有 sec_uid 当 join key</td><td>conversation-item 里只有昵称+头像，无 <code>/user/</code> 链接</td><td>用 DOM <b>精确昵称</b>匹配（比旧 OCR 昵称稳）；不点会话（防标已读）</td><td><span class="b b-fix">已解</span> · 待升级</td></tr>
+  </table>
+
+  <h3>B. DOM 稳定性</h3>
+  <table>
+    <tr><th>Badcase</th><th>根因</th><th>优化方式</th><th>进展</th></tr>
+    <tr><td>红点检测押 hash class 不稳</td><td>抖音 class 名每次构建变（<code>.J7x9k2</code>）</td><td>不押 class：按<b>计算样式</b>找抖音红 <code>rgb(254,44,85)</code> 的小元素（VL 像素检测的 DOM 等价）</td><td><span class="b b-done">已修</span></td></tr>
+    <tr><td>冷启动 conversation-item=0（IM 未挂载）</td><td>Edge 重启后私信浮层没开</td><td><code>_ensure_panel</code> 自动点 <code>im-entry</code> 开浮层；<b>只点「私信」图标、绝不点会话头像</b></td><td><span class="b b-done">已验</span></td></tr>
+    <tr><td>"私信列表要点用户头像才出来"（运营观察）</td><td>那是肉眼视觉渲染；点头像=进具体会话=标已读</td><td>Playwright 读 <b>DOM</b> 不是读画面——点「私信」后 conversation-item 已在 DOM 里，不需点头像</td><td><span class="b b-safe">澄清·非问题</span></td></tr>
+  </table>
+
+  <h3>C. 数据安全（防错写 / 防重复 / 防静默漏）</h3>
+  <table>
+    <tr><th>Badcase</th><th>根因</th><th>优化方式</th><th>进展</th></tr>
+    <tr><td>不标已读 → 同条预览每轮重读 → 可能重复写</td><td>DOM 版故意不点会话（防毁未读信号）</td><td>服务端兜底：<code>record_dm_inbound</code> 1h 同内容 no-op + <code>dm_inbound_is_noise</code> 中央闸</td><td><span class="b b-done">已兜底</span></td></tr>
+    <tr><td>selector 失效会系统性打穿整批</td><td>抖音改版 → 选择器全失效</td><td>安全闸：<code>conversation-item=0</code> → <b>弃权 + 告警</b>，绝不当"全员没回复"误判</td><td><span class="b b-safe">安全闸</span></td></tr>
+    <tr><td>Draft.js 输入框 <code>fill()</code> 会发空（发送侧）</td><td>React 受控富文本，fill 不触发 state、发送键置灰</td><td>改 <code>pressSequentially</code> + 发送前断言发送键 enabled</td><td><span class="b b-todo">待发送侧用</span></td></tr>
+  </table>
+
+  <h3>D. 工程 / 运维</h3>
+  <table>
+    <tr><th>Badcase</th><th>根因</th><th>优化方式</th><th>进展</th></tr>
+    <tr><td>文件传到云电脑后内容损坏 / 不更新</td><td>PowerShell <code>iwr</code> 转码坏文件</td><td>一律 <code>curl.exe -o</code> 下载，下完核字节数</td><td><span class="b b-done">已知</span></td></tr>
+    <tr><td><code>.bat</code> 里中文乱码成乱命令</td><td>cmd 用 GBK 读 .bat，非 ASCII 全乱</td><td>启动脚本一律纯英文 ASCII</td><td><span class="b b-done">已修</span></td></tr>
+    <tr><td>改 .env 后不生效</td><td>python-dotenv 只在启动时读</td><td>改 env 后必须重启 poll agent</td><td><span class="b b-done">流程</span></td></tr>
+  </table>
+
+  <!-- ════ ⑥ 下一步 ════ -->
+  <h2><span class="n">⑥</span>下一步待做优化列表</h2>
+  <ul class="todo">
+    <li><span class="pri p1">P1</span><div class="t"><b>长列表滚动覆盖</b><div>当前只读首屏 11 个 conversation-item；若活跃会话多、回复在列表下方且未渲染，可能漏。加滚动/懒加载覆盖全部活跃会话，或确认抖音是否全量挂载。</div></div></li>
+    <li><span class="pri p1">P1</span><div class="t"><b>监控 conversation-item=0 弃权频率</b><div>发送腿用 pyautogui 导航走同一个 Edge 后，私信面板可能没回来 → 该轮弃权。盯日志，若频繁则给 <code>_ensure_panel</code> 加重试/等待。</div></div></li>
+    <li><span class="pri p2">P2</span><div class="t"><b>sec_uid join key 升级</b><div>昵称匹配怕撞名。对"已匹配且确实要读回复"的会话，点开一次取 dialog header 的 <code>/user/</code> 链接拿 sec_uid（那时本就要读回复），比昵称更稳。</div></div></li>
+    <li><span class="pri p2">P2</span><div class="t"><b>推广到其他云电脑</b><div>饭粒/夏夏/零星等机：正式发布代码 → 各机 <code>update.bat</code> 拉 → 配调试版 Edge + 4 个 env + 重启 poll agent。</div></div></li>
+    <li><span class="pri p3">P3</span><div class="t"><b>VL 读侧退役</b><div>DOM 版稳定运行几天后，旧 <code>douyin_dm_web_capture.py</code> 的 VL 读侧下线；VL 只保留<b>风控弹窗检测</b>（滑块/人脸/字符码，DOM 接不了）。</div></div></li>
+    <li><span class="pri p3">P3</span><div class="t"><b>发送侧 DOM 化（阶段3 · 可选暂缓）</b><div>把发私信也 DOM 化（Draft.js <code>pressSequentially</code> + 断言发送键）。收益小、引入指纹风险，且现固定坐标发送是最不坏的一段——暂不做。</div></div></li>
+  </ul>
+
+  <!-- ════ ⑦ 第一个落地案例 ════ -->
+  <h2><span class="n">⑦</span>第一个落地案例 · 首触派单 + DOM 捕获回复（已上线）</h2>
+  <div class="callout"><b>这是本方案第一个真实跑起来的案例</b>：野荞机（admin / account 9535e31c）整条私信链于 2026-06-29 切到 DOM——<b>给新 lead 发招呼（首触派单）</b> 和 <b>读客户回复+自动起草（DOM 捕获回复）</b> 都在隐形 Edge 里跑。下面是这个案例端到端怎么搭起来的，<span class="hl">黄色 = 关键操作 / 关键设置</span>。后续推广到饭粒/夏夏/零星等机就是复制这套。</div>
+  <p style="font-size:13px;color:#8a93a3">（本案例对应的：逻辑原理图见 <b>②</b>；批量统计 + Badcase + 优化进展见 <b>④⑤</b>；下一步优化见 <b>⑥</b>。）</p>
+
+  <h3>一、云电脑关机 / 重启后 · 恢复（每次开机必做）</h3>
+  <p><b>云电脑一关机，隐形 Edge 和 poll agent 都没了</b> —— 不手动拉起就既不发也不捕获。重启后按顺序跑这两条：</p>
+  <div class="opbox">
+    <b><span class="opnum">1</span>先拉起隐形 Edge（读和发都靠它，后台无窗口）</b>
+    <pre>Start-Process "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" -ArgumentList <span class="hl">'--headless=new','--remote-debugging-port=9222','--user-data-dir=C:\akke-edge-debug'</span>,'https://www.douyin.com'</pre>
+  </div>
+  <div class="opbox">
+    <b><span class="opnum">2</span>再起 poll agent（首触派单 + 捕获回复都在它里面）</b>
+    <pre>cd C:\akke-wuying\wuying-dm
+<span class="hl">py wuying_poll_agent.py</span></pre>
+  </div>
+
+  <div class="callout" style="border-left-color:#dc2626;background:#fef2f2"><b style="color:#dc2626">登录过期兜底</b>：若起 Edge 后捕获一直 <code>conversation-item 0</code> / 报没登录，说明 cookie 过期了 → 关掉 headless Edge，用<b>可见</b>窗口起（命令去掉 <span class="hl">--headless=new</span>），<span class="hl">重新登录抖音 + 点开一次私信</span>，再切回 headless。Cookie 一般撑 15-30 天。</div>
+
+  <h3>二、首触派单（给新 lead 自动发招呼 · 走 DOM）</h3>
+  <div class="flowline">
+    <span class="nd">poll agent claim 新 lead</span><span class="ar">→</span>
+    <span class="nd">写 contacts.csv</span><span class="ar">→</span>
+    <span class="nd">douyin_dm_web_send_dom.py</span><span class="ar">→</span>
+    <span class="nd">sec_uid 进主页点「私信」</span><span class="ar">→</span>
+    <span class="nd">打字+点发送键</span><span class="ar">→</span>
+    <span class="nd">写 sent_log</span>
+  </div>
+  <p>靠这一行 env 切换（poll agent 派单/回读/状态映射全不用改）：</p>
+  <div class="opbox">
+    <b>.env 设置</b>
+    <pre><span class="hl">AKKE_DM_SCRIPT=douyin_dm_web_send_dom.py</span>   # 从 grounded 改成 DOM 发送器</pre>
+  </div>
+  <p>跑起来日志会出现（看到就是首触在 DOM 发）：</p>
+  <div class="logmark">=== DOM 批量发送: N 条 (间隔 20-45s) ===<br>&nbsp;&nbsp;[sent] 张三: 你好，张三。全屋定制按建筑面积…</div>
+  <p style="font-size:13.5px;color:#5b6472"><b>注</b>：DOM 首触<span class="hl">只发 DM、不做关注/点赞</span>（关注是软封最大的雷，少做更安全）；按 sec_uid 直达<span class="hl">天生不撞名</span>，省了 OCR 身份门。</p>
+
+  <h3>三、DOM 捕获自动化回复（读客户回复 + 自动起草 · 走 DOM）</h3>
+  <div class="flowline">
+    <span class="nd">每轮 capture</span><span class="ar">→</span>
+    <span class="nd">读 conversation-item</span><span class="ar">→</span>
+    <span class="nd">红点闸 + 判回复链</span><span class="ar">→</span>
+    <span class="nd">record_dm_inbound 写回</span><span class="ar">→</span>
+    <span class="nd">起草回复</span>
+  </div>
+  <div class="opbox">
+    <b>.env 设置（3 个）</b>
+    <pre><span class="hl">AKKE_DM_AUTOREPLY_CAPTURE=1</span>   # 开捕获腿(没有=根本不跑捕获)
+<span class="hl">AKKE_WEB_DM_USE_DOM=1</span>         # 捕获走 DOM 版(不设=走旧 VL)
+<span class="hl">AKKE_WEB_DM_DOM_COMMIT=1</span>      # 真写库(不设=只打印不写)</pre>
+  </div>
+  <p>日志会出现（看到 <code>[DOM]</code> = 捕获走 DOM；有真回复会出 <code>[inbound]</code>）：</p>
+  <div class="logmark">=== web capture[DOM]&nbsp;&nbsp;(COMMIT 写回) ===<br>&nbsp;&nbsp;conversation-item 11 个 / 有红点 1 个 / 命中客户回复 0 条</div>
+  <p style="font-size:13.5px;color:#5b6472"><b>注</b>：DOM 捕获<span class="hl">全程不点会话、永不标已读</span>，不污染未读信号；红点是权威闸，无红点不当回复。</p>
+
+  <h3>四、.env 全清单（首触 + 捕获一起开）</h3>
+  <div class="opbox">
+    <b>C:\akke-wuying\wuying-dm\.env</b>
+    <pre><span class="hl">AKKE_DM_SCRIPT=douyin_dm_web_send_dom.py</span>   # 首触派单走 DOM(含 web → 路由对)
+<span class="hl">AKKE_WEB_DM_USE_DOM=1</span>                     # 捕获走 DOM
+<span class="hl">AKKE_WEB_DM_DOM_COMMIT=1</span>                  # 捕获真写库
+<span class="hl">AKKE_DM_AUTOREPLY_CAPTURE=1</span>               # 开捕获腿
+AKKE_DM_MIN/MAX_INTERVAL=20/45                # (可选)首触发送间隔抖动</pre>
+  </div>
+  <p style="font-size:13px;color:#8a93a3">改完 .env <span class="hl">必须重启 poll agent</span> 才生效（python-dotenv 只在启动读）。</p>
+
+  <h3>五、回退（出问题一键回旧版）</h3>
+  <div class="opbox">
+    <b>改 2 处 + 重启即回 VL/像素老路</b>
+    <pre><span class="hl">AKKE_DM_SCRIPT=douyin_dm_web_grounded.py</span>   # 首触回 pyautogui 版
+# 删掉 / 改 0:  AKKE_WEB_DM_USE_DOM            # 捕获回 VL 版</pre>
+  </div>
+
+  <footer>
+    抖音私信 DOM 自动化 · 0-1 复盘 · 2026-06-29 · 浏览器端已上线生产 / PC 端维持现状<br>
+    代码：<code>worker/scripts/wuying-dm/douyin_dm_web_capture_dom.py</code> · 设计与部署：<code>docs/progress/dom-automation-routeA-2026-06-29.html</code>
+  </footer>
+
+</div>
+</body>
+</html>
