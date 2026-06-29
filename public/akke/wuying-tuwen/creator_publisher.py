@@ -102,7 +102,30 @@ def goto_creator_upload(wait: float = 5.0) -> None:
     pyautogui.press('delete'); time.sleep(0.2)
     type_unicode(CREATOR_UPLOAD_URL); time.sleep(0.5)
     pyautogui.press('enter')
+    # 上一条任务中途失败会留脏表单 (图已传 / 草稿未存); Ctrl+L 跳转时浏览器会弹
+    # 「离开此网站?未保存的更改将丢失」确认框. 不处理就卡在旧脏页 → 本条 tab/上传区
+    # NOT FOUND (exit 4 连锁, 2026-06-29 夏夏日志实测). Enter = 默认「离开」按钮, 放行跳转.
+    # ⚠ 绝不能用 Esc 关这个框 (Esc = 取消 = 留在脏页, 反而坐实连锁失败).
+    time.sleep(1.2)
+    pyautogui.press('enter')
     time.sleep(wait)
+
+
+def locate_retry(desc, region=None, tries=3, wait=1.4):
+    """locate 带重试: 每次重新截图再问 VL.
+
+    治两类瞬时失败: ① 页面/popover 还没渲染完 (NOT FOUND) ② VL 对小字偶发假阴性
+    (尤其 2560 高分屏小字, 见 douyin_dm_grounded._shot_crop 注释). 单次 locate 无重试
+    是 2026-06-29 大面积 exit 4/5/65 的放大器之一.
+    """
+    for k in range(tries):
+        pt = locate(desc, region=region)
+        if pt is not None:
+            return pt
+        if k < tries - 1:
+            print(f'  retry locate ({k + 1}/{tries}) in {wait:.1f}s...')
+            time.sleep(wait)
+    return None
 
 
 def click_image_tab() -> bool:
@@ -111,7 +134,7 @@ def click_image_tab() -> bool:
     部分入口默认就是图文 tab (URL default-tab=3 已经选了), 找不到也不抛错;
     后续上传按钮失败再回头报错.
     """
-    pt = locate(
+    pt = locate_retry(
         '抖音创作服务平台发布页【顶部 tab 栏】里的「发布图文」或「发图文」tab 按钮('
         '通常在「发布视频」tab 旁边, 可能带相机/图片图标). 不要选「发布视频」.',
         region=(0.10, 0.05, 0.90, 0.30),
@@ -127,7 +150,7 @@ def click_image_tab() -> bool:
 
 def click_upload_button() -> bool:
     """页面中央大块「点击或拖拽图片」/「上传图片」上传区. 点击会弹 Windows 文件对话框."""
-    pt = locate(
+    pt = locate_retry(
         '抖音发布页正文区中央的【图片上传按钮/拖拽区域】(大块虚线边框, '
         '里面有「点击或拖拽上传图片」或「上传图片」文案, 或者一个大 + 号图标). '
         '注意不要选页面顶部的 tab 按钮.',
@@ -159,7 +182,7 @@ def paste_image_paths(image_paths: list[str]) -> None:
 
 def fill_title(title: str) -> bool:
     """图文「作品标题」输入框 (限 20 字内, 必填)."""
-    pt = locate(
+    pt = locate_retry(
         '抖音发布页里的【作品标题输入框】(单行输入框, 上方或左侧有「标题」字样, '
         '通常在图片预览区下方、正文描述框上方, 字数限制 20 字). '
         '不要选下方的多行正文描述框.',
@@ -182,7 +205,7 @@ def fill_body(body: str) -> bool:
     必须按 Enter 选第一个建议才会把 #xxx 转成蓝色话题链接; 不选则只是普通文本.
     所以 body 不是一次性键入, 而是按 # 分段键入, 每个 #xxx 后等浮层 + Enter.
     """
-    pt = locate(
+    pt = locate_retry(
         '抖音发布页里的【作品描述/正文输入框】(多行大文本区域, 在标题输入框下方, '
         '可能带「输入内容, 让更多人看到吧」或「分享此刻的想法」占位文字, '
         '支持 # 话题 / @ 提及). 不要选上方单行的标题框.',
@@ -217,6 +240,29 @@ def fill_body(body: str) -> bool:
     return True
 
 
+def _verify_schedule_value(at_str: str) -> bool:
+    """VL 看【定时发布时间框】是否已显示目标时间 — 判断"直接键入"是否生效."""
+    try:
+        path, (W, H) = _shot('_schedule_verify.png')
+        from PIL import Image
+        with Image.open(path) as im:
+            crop = im.crop((int(0.25 * W), int(0.50 * H), int(0.75 * W), int(0.95 * H)))
+            cpath = os.path.join('screenshots', '_schedule_verify_crop.png')
+            crop.save(cpath)
+        b64 = base64.b64encode(open(cpath, 'rb').read()).decode()
+        prompt = (
+            '这是抖音创作发布页的定时发布设置区截图. '
+            '判断【定时发布时间输入框】里显示的日期时间, 是否就是 "%s" '
+            '(年-月-日 和 时:分 都要一致, 允许秒位/格式细微差异). '
+            '只回严格JSON: {"match": true 或 false}' % at_str
+        )
+        d = _pjson(_vision(b64, prompt))
+        return bool(d.get('match'))
+    except Exception as e:
+        print(f'  [schedule] 键入校验异常 ({type(e).__name__}: {e}), 保守当未生效', file=sys.stderr)
+        return False
+
+
 def set_schedule(at_str: str) -> bool:
     """设定时发布:
       1. 滚到「发布设置」段 (发布时间行可见)
@@ -239,7 +285,7 @@ def set_schedule(at_str: str) -> bool:
     print('  [schedule] 已滚到发布设置段')
 
     # 2. 点「定时发布」单选按钮
-    pt = locate(
+    pt = locate_retry(
         '抖音 creator 发布页【发布时间】行里的【定时发布单选按钮】(单选圆点 + 「定时发布」三个字), '
         '在「立即发布」单选按钮的右边. 不要选左边的「立即发布」.',
         region=(0.10, 0.50, 0.70, 0.95),
@@ -251,19 +297,35 @@ def set_schedule(at_str: str) -> bool:
     print(f'  [schedule] 已点「定时发布」单选 @ ({pt[0]},{pt[1]})')
 
     # 3. 点右侧时间输入框 (datepicker 日历控件弹出)
-    pt = locate(
+    pt_box = locate_retry(
         '抖音 creator 发布页里的【定时发布时间输入框】(细长输入框, 框里显示 "YYYY-MM-DD HH:MM" '
         '形如 "2026-06-22 19:05" 的默认时间, 右边带日历图标), 在「定时发布」单选按钮右边.',
         region=(0.25, 0.55, 0.70, 0.95),
     )
-    if pt is None:
+    if pt_box is None:
         return False
-    pyautogui.click(pt[0], pt[1])
+    pyautogui.click(pt_box[0], pt_box[1])
     time.sleep(1.2)
-    print(f'  [schedule] 已点时间输入框 @ ({pt[0]},{pt[1]}), datepicker 应该弹出')
+    print(f'  [schedule] 已点时间输入框 @ ({pt_box[0]},{pt_box[1]})')
 
-    # 4. datepicker 默认显示当月, 跨月先点 ">" 翻页到目标月
-    # creator 允许 +14 天 = 最多跨 1 个月. 但我们 cap 12 防意外
+    # 4. 【优先】直接往时间框键入完整日期时间 — 绕开最脆的"日历点日期格".
+    # 2026-06-29 夏夏日志实测: 翻月/点日期格 VL 常 miss (exit 65), 而时间框多支持直接 type.
+    # 键入还能顺带把【时分】也设准 (旧日历路径只点日期, 时间留 creator 默认 +2h, 不精确).
+    pyautogui.hotkey('ctrl', 'a'); time.sleep(0.2)
+    pyautogui.press('delete'); time.sleep(0.3)
+    type_unicode(at_str); time.sleep(0.6)
+    pyautogui.press('enter'); time.sleep(0.8)
+    # 点屏幕左侧空白处 blur, 持久化输入
+    sw, sh = pyautogui.size()
+    pyautogui.click(int(sw * 0.10), int(sh * 0.50)); time.sleep(0.6)
+    if _verify_schedule_value(at_str):
+        print(f'  [schedule] 直接键入生效 → {at_str}')
+        _shot('_schedule_typed.png')
+        return True
+    print('  [schedule] 直接键入未生效, 回退【日历点选】路径', file=sys.stderr)
+
+    # 4b. 回退: 重新点开时间框 → datepicker 翻月 → 点日期格 (全部带重试)
+    pyautogui.click(pt_box[0], pt_box[1]); time.sleep(1.2)
     from datetime import datetime as _dt
     at_dt = _dt.strptime(at_str, '%Y-%m-%d %H:%M')
     now = _dt.now()
@@ -276,7 +338,7 @@ def set_schedule(at_str: str) -> bool:
         return False
 
     for i in range(months_ahead):
-        pt_next = locate(
+        pt_next = locate_retry(
             '抖音 creator datepicker 日历控件【顶部右侧】的【向右箭头 ">"】(下一月切换按钮), '
             '在年月文字(形如 "2026年 6月") 的右边, 通常是 ">" 或 "›" 这种箭头符号. '
             '注意不要选左侧的 "<" (上一月).',
@@ -289,9 +351,9 @@ def set_schedule(at_str: str) -> bool:
         time.sleep(0.5)
         print(f'  [schedule] 翻到下个月 ({i + 1}/{months_ahead})')
 
-    # 5. 点目标日期格
+    # 点目标日期格
     target_day = at_dt.day
-    pt = locate(
+    pt = locate_retry(
         f'抖音 creator 发布页弹出的【日期选择器(datepicker)】里, 数字「{target_day}」的日期格. '
         f'日历控件顶部应显示「{at_dt.year}年 {at_dt.month}月」. '
         f'中间是 7 列日历表(日 一 二 三 四 五 六), 每行 7 个数字日期格. '

@@ -22,7 +22,7 @@ import time
 import pyautogui
 
 # 复用 grounded 的视觉原语(截图/VL/JSON 解析/置前)与 inbox 的匹配/写库。
-from douyin_dm_grounded import _shot, _vision, _pjson, focus_douyin, locate
+from douyin_dm_grounded import _shot, _vision, _pjson, focus_douyin, locate, type_unicode
 from douyin_inbox_uia import load_sent_dms, match_name, SYS_NOTICE, _is_noise_preview
 
 # 相关性过滤(同 douyin_dm_autoreply)：互粉/涨粉 spam 剔除，其余真回复一律放行。
@@ -38,6 +38,14 @@ AUTOOPEN = os.environ.get("AKKE_WEB_DM_AUTOOPEN", "0").lower() in ("1", "true", 
 # 顶部【私信图标】固定坐标(归一化 0~1 "x,y")。量法:鼠标移到图标上跑 measure one-liner。
 # 设了它,AUTOOPEN 就点这个固定坐标开私信浮层(比 VL 定位稳)。
 _C_DM_ICON = os.environ.get("AKKE_WEB_C_DM_ICON", "").strip()
+# 可选：每轮 capture 前把当前标签【导回抖音主页】。默认【关】(空串)——实测导回后 focus_douyin
+# 仍会在多个"抖音"标签里乱抓到别的用户主页、白导且扰民。改用「开私信框后滚到列表最顶」复位
+# (见 capture 顶部 scroll-up)。私信浮层是全局的、在任何抖音页都能开，本不依赖底层标签。
+# 真要用导主页：.env 设 AKKE_WEB_DM_HOME_URL=https://www.douyin.com/(或校准图标时所在的页面)。
+_HOME_URL = os.environ.get("AKKE_WEB_DM_HOME_URL", "").strip()
+_HOME_WAIT = float(os.environ.get("AKKE_WEB_DM_HOME_WAIT", "3.5"))
+# 开私信框后、扫描前先把会话列表向上滚回【最顶】的次数(新回复冒泡到顶；上轮可能停在列表中部)。
+_TOP_SCROLLS = int(os.environ.get("AKKE_WEB_DM_TOP_SCROLLS", "6"))
 # 滚动会话列表时鼠标悬停位置(归一化 0~1 of 屏宽高)。默认左中(列表通常在左)；
 # 若第一版滚不动(列表在别处)，.env 设 AKKE_WEB_DM_LIST_X/Y 调，不用重传脚本。
 # 私信会话列表面板在屏幕的【右侧】(实测约 0.74~0.94 宽，左边是背景个人主页、最右是打开的聊天框)。
@@ -117,6 +125,24 @@ def we_sent_last(preview: str, sent: str) -> bool:
     return s.startswith(p) or p.startswith(s)
 
 
+def _goto_home():
+    """Ctrl+L 地址栏直达抖音主页，把首触通道(process_web)残留的【用户主页】标签重置到干净页。
+    复用 goto_profile 同款 type_unicode 注入【绕中文 IME】(typewrite 会被输入法吞字 → 残缺 URL
+    被 Edge 当搜索词)。整页重载顺带清掉残留私信浮层。best-effort,失败不抛、不阻断本轮捕获。"""
+    if not _HOME_URL:
+        return
+    try:
+        pyautogui.hotkey("ctrl", "l"); time.sleep(0.8)
+        pyautogui.hotkey("ctrl", "a"); time.sleep(0.2)
+        pyautogui.press("delete"); time.sleep(0.2)
+        type_unicode(_HOME_URL); time.sleep(0.4)
+        pyautogui.press("enter")
+        time.sleep(_HOME_WAIT)
+        print(f"  [home] 已导回主页 {_HOME_URL}")
+    except Exception as e:  # noqa: BLE001
+        print(f"  [home] 导航主页失败(继续本轮): {e}")
+
+
 def open_inbox():
     """点顶部【私信图标】打开右侧会话列表浮层。AKKE_WEB_DM_AUTOOPEN=1 才跑。
     优先用固定坐标 AKKE_WEB_C_DM_ICON(稳)，没配才回退 VL 定位。全程程序自己 focus，
@@ -125,6 +151,7 @@ def open_inbox():
         return
     focus_douyin()
     time.sleep(0.8)
+    _goto_home()  # 先把首触残留的【用户主页】标签导回干净主页，私信图标坐标才稳
     if _C_DM_ICON:
         try:
             xs, ys = _C_DM_ICON.split(",")
@@ -285,6 +312,14 @@ def capture():
 
     W, H = pyautogui.size()
     mx, my = int(W * _LX), int(H * _LY)
+    # 复位：把会话列表向上滚回【最顶】再开扫。新回复的会话冒泡到列表顶部；上一轮可能把列表
+    # 停在中部 → 不复位会从中间开始、漏掉顶部最新回复。鼠标悬在列表上猛向上滚几次到顶。
+    if _TOP_SCROLLS > 0:
+        pyautogui.moveTo(mx, my)
+        for _ in range(_TOP_SCROLLS):
+            pyautogui.scroll(1500)
+            time.sleep(0.15)
+        time.sleep(0.6)
     seen = set()
     inbound = 0
     empty = 0
