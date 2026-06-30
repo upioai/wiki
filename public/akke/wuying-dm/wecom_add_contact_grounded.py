@@ -33,8 +33,9 @@ I/O 契约:
   ANTHROPIC_API_KEY 或 OPENROUTER_API_KEY  — VL 身份门/定位用
   AKKE_OCR_MODEL(默认 qwen vl) / AKKE_OCR_BASE_URL / AKKE_OCR_MIN_CONFIDENCE
   AKKE_WECOM_VERIFY_MSG  — 加好友验证语全局默认(CSV 没带 verify_msg 时用)
-  AKKE_WECOM_SELF_NAME   — 本账号显示名(如 全屋定制小夏)，验证语里 {me} 占位符自动填它；
-                           没设可跑 --whoami 让 VL 识别一次写回 .env
+  AKKE_WECOM_SELF_NAME   — 本账号显示名(如 全屋定制小夏)，验证语里 {me} 占位符填它。
+                           不用手设：发送时未设会自动 VL 识别一次并写回 .env 缓存；
+                           想固定/识别不准时再手设或跑 --whoami。
   AKKE_WECOM_C_SEARCH 等固定坐标(可选,--capture/--calibrate 写入)
   AKKE_DAILY_LIMIT(默认 20,加好友比 DM 更敏感,起步小) / AKKE_MIN_INTERVAL / AKKE_MAX_INTERVAL
 """
@@ -565,6 +566,9 @@ def main(contacts_csv):
     print('   ⚠️ 加好友敏感，日限 %d，间隔 %d-%ds；先看着跑前几条确认 UI 流程对。' % (
         DAILY_LIMIT, MIN_INTERVAL, MAX_INTERVAL))
 
+    # 验证语 {me} 自称：env 没设就自动识别一次（写回 .env 缓存），无需运营手动配。
+    ensure_self_name()
+
     log = 'sent_log_wecom_%s.csv' % datetime.now().strftime('%Y%m%d')
     fields = ['search_key', 'name', 'province', '_source_id',
               'status', 'sent_at', '_ocr_confidence', '_ocr_seen', '_captcha_sample']
@@ -661,13 +665,10 @@ def calibrate():
     return 0
 
 
-def whoami():
-    """VL 自动识别当前登录的企业微信账号显示名，写回 .env 的 AKKE_WECOM_SELF_NAME。
-    一次性跑：python wecom_add_contact_grounded.py --whoami
-    识别不准就手动在 .env 写 AKKE_WECOM_SELF_NAME=全屋定制小夏 即可（最稳）。"""
+def _detect_self_name():
+    """VL 识别当前登录企微账号显示名，返回 name 或 ''（不写 env、不打印结论，供自动/手动复用）。"""
     if not KEY:
-        print('❌ 缺 ANTHROPIC_API_KEY / OPENROUTER_API_KEY，无法 VL 识别', file=sys.stderr)
-        return 2
+        return ''
     focus_wecom()
     time.sleep(1.0)
     # 点左下角「我/头像」区域把个人信息露出来，再截图识别（不同版本位置略有差异，VL 兜底）
@@ -683,14 +684,45 @@ def whoami():
          '只回严格JSON:{"name":"显示名","found":true或false}。看不到填found=false。')
     try:
         d = _pjson(_vision(b64, p))
+        if not d.get('found', False):
+            return ''
         name = str(d.get('name', '')).strip()
-        if not d.get('found', False) or not name:
-            print('❌ 没识别到账号名，请手动在 .env 写 AKKE_WECOM_SELF_NAME=<你的企微名>', file=sys.stderr)
-            return 1
-    except Exception as e:
-        print('❌ VL 识别失败: %s，请手动在 .env 写 AKKE_WECOM_SELF_NAME' % e, file=sys.stderr)
+    except Exception:
+        return ''
+    try:
+        pyautogui.press('esc')
+    except Exception:
+        pass
+    return name
+
+
+def ensure_self_name():
+    """发送前确保拿到本账号名：env 已设直接用；没设就自动 VL 识别一次并写回 .env 缓存。
+    识别不到也不报错——验证语退化成不带自称的版本（仍可发）。"""
+    global SELF_NAME
+    if SELF_NAME:
+        print('  自称账号名：%s（来自 AKKE_WECOM_SELF_NAME）' % SELF_NAME)
+        return
+    print('  未设 AKKE_WECOM_SELF_NAME，自动识别本账号名…')
+    nm = _detect_self_name()
+    if nm:
+        SELF_NAME = nm
+        _write_env_kv({'AKKE_WECOM_SELF_NAME': nm})  # 缓存，下次免识别
+        print('  ✓ 自动识别账号名「%s」，验证语 {me} 将填它（已写 .env 缓存，下次直接用）。' % nm)
+    else:
+        print('  ⚠️ 没自动识别到账号名，验证语将不带自称；要带就在 .env 写 AKKE_WECOM_SELF_NAME=你的企微名。')
+
+
+def whoami():
+    """手动跑一次 VL 识别并写回 .env（可选；正常发送时会自动识别，无需先跑这个）。
+    一次性：python wecom_add_contact_grounded.py --whoami"""
+    if not KEY:
+        print('❌ 缺 ANTHROPIC_API_KEY / OPENROUTER_API_KEY，无法 VL 识别', file=sys.stderr)
+        return 2
+    name = _detect_self_name()
+    if not name:
+        print('❌ 没识别到账号名，请手动在 .env 写 AKKE_WECOM_SELF_NAME=<你的企微名>', file=sys.stderr)
         return 1
-    pyautogui.press('esc')
     _write_env_kv({'AKKE_WECOM_SELF_NAME': name})
     print('✅ 识别到账号名「%s」，已写入 .env 的 AKKE_WECOM_SELF_NAME。' % name)
     print('   下次加好友时验证语里的 {me} 会自动填成它。识别不准就手动改这行。')
