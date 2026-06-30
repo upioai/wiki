@@ -163,13 +163,31 @@ AKKE_WECOM_CLAIM_LIMIT=<span class="y">1</span>   <span class="dim"># 第一天�
     <p style="font-size:13px;color:#8a93a3;margin-top:6px">这几样都对，就把 <code>AKKE_WECOM_CLAIM_LIMIT</code> 改成 5、重启，放手让它自己跑。<b>看到 <code>加不上/搜不到</code> 别慌</b>——很多号没开手机号搜索，正常，不占配额、会自动跳下一条。</p>
   </div>
 
-  <h2>⑦ 节奏 · 怎么查自己今天发了几条</h2>
+  <h2>⑦ 节奏怎么调（配额 / 频率 / 一轮几条）</h2>
   <div class="box flow">
-    <b>日限默认 20 条 / 天，发满自动待机（加好友比发消息敏感，慢点不容易被封）。</b>
-    <p style="font-size:14px;margin-top:4px">想看进度：让 PM 跑 <code>scripts/wecom-acceptance-by-template.ts</code> 出「每条话术 已发/已通过/通过率」。注意通过率要等对方<b>真点了通过</b>、有人回写「已通过」才准。</p>
+    <b>三个旋钮都在 <code>.env</code> 里，改完 <b>Ctrl+C 停掉、重新 <code>python -u wecom_add_agent.py</code></b> 才生效。</b>
+    <table style="box-shadow:none;margin-top:8px">
+      <tr><th>想调什么</th><th>改这行</th><th>说明</th></tr>
+      <tr><td><b>一天最多发几条</b>（配额）</td><td><code>AKKE_WECOM_DAILY_LIMIT=20</code></td><td>一天最多发几条好友请求，发满当天自动待机到明天。<b>加好友敏感，别贪多</b>，先 20 看几天封不封再往上加。<code>加不上/搜不到</code> 不占这个数。</td></tr>
+      <tr><td><b>一轮领几条</b>（批量）</td><td><code>AKKE_WECOM_CLAIM_LIMIT=5</code></td><td>每轮去池子捞几条来处理。第一天先 1 盯着，稳了改 5。</td></tr>
+      <tr><td><b>多久跑一轮</b>（频率）</td><td><code>AKKE_WECOM_POLL_INTERVAL=300</code></td><td>单位秒，默认 300=5 分钟跑一轮。<b>一般不用改</b>——一批内每条之间本来就随机停 40–120 秒防风控，缩短轮询不会更快、反增风险。</td></tr>
+    </table>
+    <p style="font-size:13px;color:#8a93a3;margin-top:8px">实际速度 ≈ 一轮领 N 条、一条一条发（每条间隔 40–120 秒）、发完歇 5 分钟再来。想发快点：调大 <code>CLAIM_LIMIT</code> 比缩短轮询有用，但都别太猛。</p>
   </div>
 
-  <h2>⑧ 最容易踩的坑（出问题先看这里）</h2>
+  <h2>⑧ 怎么查进度 · 通过率（“已通过”要手动标）</h2>
+  <div class="box warn">
+    <b>⚠️ 重要：agent 只会自动写 <code>已发请求</code> / <code>加不上</code>。"对方点了通过"它看不到——目前要<b>人工</b>把通过的标成 <code>已通过</code>。</b>
+    <p style="font-size:14px;margin-top:6px">为什么：加好友是对方隔几小时/几天才点通过，脚本没有"自动扫我的客户名单看谁通过了"的能力（这是还没做的增强）。所以：</p>
+    <ol style="margin-top:2px">
+      <li><b>通过率一开始显示低 / 为 0 是正常的</b>，不是没人通过，是还没人去标 <code>已通过</code>。</li>
+      <li>想要通过率准：隔段时间让<b>运营对着企微"我的客户"</b>看谁通过了，把这些线索标成 <code>已通过</code>（PM 用 <code>scripts/writeback-enterprise-lead.ts --source-id=… --status=已通过</code> 批量回写）。</li>
+      <li>统计：PM 跑 <code>scripts/wecom-acceptance-by-template.ts</code> 出「每条话术 已发 / 已通过 / 通过率」，看哪条话术更易过。</li>
+    </ol>
+    <p style="font-size:13px;color:#8a93a3;margin-top:6px">查自己今天发了几条：在数据库看 <code>enterprise_leads</code> 里 <code>claimed_by=你的名字 + add_status=已发请求</code> 的当天条数；或问 PM。</p>
+  </div>
+
+  <h2>⑨ 最容易踩的坑（出问题先看这里）</h2>
   <div class="box red">
     <b>逐条对照：</b>
     <ol style="margin-top:2px">
