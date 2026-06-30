@@ -566,8 +566,13 @@ def main(contacts_csv):
     print('   ⚠️ 加好友敏感，日限 %d，间隔 %d-%ds；先看着跑前几条确认 UI 流程对。' % (
         DAILY_LIMIT, MIN_INTERVAL, MAX_INTERVAL))
 
-    # 验证语 {me} 自称：env 没设就自动识别一次（写回 .env 缓存），无需运营手动配。
-    ensure_self_name()
+    # 验证语 {me} 自称：仅当名单/默认话术里真有占位符时才解析（自动识别一次写回 .env）。
+    #   当前 3 条话术不含 {me} → 跳过，省掉无谓的 VL 识别。
+    needs_self = any(
+        any(tok in (c.get('verify_msg') or '') for tok in _SELF_TOKENS) for c in contacts
+    ) or any(tok in VERIFY_MSG for tok in _SELF_TOKENS)
+    if needs_self:
+        ensure_self_name()
 
     log = 'sent_log_wecom_%s.csv' % datetime.now().strftime('%Y%m%d')
     fields = ['search_key', 'name', 'province', '_source_id',
