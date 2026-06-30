@@ -237,8 +237,42 @@
     <li><span class="pri p3">P3</span><div class="t"><b>发送侧 DOM 化（阶段3 · 可选暂缓）</b><div>把发私信也 DOM 化（Draft.js <code>pressSequentially</code> + 断言发送键）。收益小、引入指纹风险，且现固定坐标发送是最不坏的一段——暂不做。</div></div></li>
   </ul>
 
-  <!-- ════ ⑦ 第一个落地案例 ════ -->
-  <h2><span class="n">⑦</span>第一个落地案例 · 首触派单 + DOM 捕获回复（已上线）</h2>
+  <!-- ════ ⑦ 时效压缩方案 ════ -->
+  <h2><span class="n">⑦</span>时效压缩方案 · 回复→自动回复压到 ~15–40s（规划中）</h2>
+  <div class="callout"><b>目标</b>：把「客户回复 → 自动回复发出」的端到端时延从当前 <b>~3–7min</b> 压到 <b>~15–40s</b>。<span class="hl">硬 15s 不能当承诺</span>——下面三条是物理墙，方案是逼近下限、不是消灭它。</div>
+
+  <h3>为什么硬 15s 做不到（先认清物理墙）</h3>
+  <table>
+    <tr><th>物理墙</th><th>约束</th><th>对策</th></tr>
+    <tr><td>Vercel cron 最小粒度 1min</td><td>起草挂在 <code>/api/cron/dm-auto-reply</code> <code>*/5</code> 上，光提频也到不了 15s</td><td><b>起草改事件触发</b>（搬出 cron，见改动①）</td></tr>
+    <tr><td>单 Edge 窗口串行</td><td><code>AKKE_WINDOW_LOCK</code>：首触/二触/RC 与自动回复共用一个抖音窗口，有批在发(每条20–45s)时回复排队</td><td>autoreply 轮内最高优先级；有 pending 回复时让首触让位</td></tr>
+    <tr><td>每轮 DOM 读 + chatReply 各几秒</td><td>单轮闭环物理下限 ~8–12s</td><td>无法消除——决定了 15s 是地板不是天花板</td></tr>
+  </table>
+
+  <h3>改动清单（捕获→起草→发送 收敛成单轮闭环）</h3>
+  <ul class="todo">
+    <li><span class="pri p1">核心</span><div class="t"><b>① 起草改事件触发（去掉 0–5min cron 等待）</b><div>新建 <code>POST /api/dm-reply/draft-one</code>（入参单个 <code>conversation_id</code>，内部复用 <code>ensureInboundVerdict → generateDraftForConversation → gateDraft</code>，即 <code>processAwaitingReplies</code> 抽单条版，逻辑零新增）。捕获脚本 <code>douyin_dm_web_capture_dom.py</code> 命中真回复、<code>record_dm_inbound</code> 写完后<span class="hl">同步 POST 它</span>（~2–5s 拿到 approved）。<b>高危路径，走 PR。</b></div></div></li>
+    <li><span class="pri p1">P1</span><div class="t"><b>② 同轮发送（不等下一轮）</b><div><code>both</code> 模式本就在同一 pass 扫 <code>approved</code> 发出；改动①已在本 pass 前段把 approved 写好 → <span class="hl">同轮直接发</span>，省掉一整轮 60s。把「内联起草」排在「扫 approved 发送」之前即可。</div></div></li>
+    <li><span class="pri p1">P1</span><div class="t"><b>③ 捕获真按 15s 跑</b><div>云电脑 <code>.env</code> 加 <span class="hl">AKKE_POLL_INTERVAL=15</span> + <span class="hl">AKKE_DM_AUTOREPLY_INTERVAL=15</span>，改完重启 poll agent。<b>只设后者无效</b>——捕获嵌在 poll 主循环里，每轮末 <code>sleep(POLL_INTERVAL)</code>，有效节奏 = <code>max(两者)</code>，缺 <code>AKKE_POLL_INTERVAL</code> 时 15s 被默认 60s 压死。</div></div></li>
+    <li><span class="pri p2">兜底</span><div class="t"><b>④ 保留 */5 cron 做降级网</b><div>inline POST 网络抖动/失败时，<code>cron/dm-auto-reply</code> 仍每 5min 兜底补起草。<span class="hl">别删</span>——删了内联失败就成单点漏回。</div></div></li>
+  </ul>
+
+  <h3>改完后的时间账（空窗 = 窗口没在跑首触批）</h3>
+  <table>
+    <tr><th>子步骤</th><th>改前</th><th>改后</th></tr>
+    <tr><td>捕获读到 inbound</td><td>~60s</td><td><b>~15s</b>（改动③）</td></tr>
+    <tr><td>起草调度等待</td><td>0–5min</td><td><b>~0</b>（改动① 事件触发）</td></tr>
+    <tr><td>chatReply 起草 + gate</td><td>几秒</td><td>几秒</td></tr>
+    <tr><td>发出</td><td>等下一轮 ~60s</td><td><b>同轮</b>（改动②）</td></tr>
+    <tr><td><b>合计</b></td><td><b>~3–7min</b></td><td><b>~15–40s</b></td></tr>
+  </table>
+
+  <div class="callout" style="border-left-color:#dc2626;background:#fef2f2"><b style="color:#dc2626">两个必须接受的权衡</b><div style="margin-top:6px"><b>① 抢窗口</b>：要回复稳定 15–40s，得在「有 pending 回复」时<b>暂停首触派单</b>（autoreply 抢不了进行中的发送，只能让下一批让位）。有首触批占窗时回复退化到分钟级。<br><b>② 风控</b>：每条 15s 内秒回、节奏机械 → 像 bot。建议留 <span class="hl">5–15s 随机抖动</span>，别真做到 0 延迟。</div></div>
+
+  <p style="font-size:13px;color:#8a93a3">（落地顺序：改动① 收益最大先做；改动③ 改云电脑 <code>.env</code> 即可；改动②④ 随①一起。本节为规划，未上线。）</p>
+
+  <!-- ════ ⑧ 第一个落地案例 ════ -->
+  <h2><span class="n">⑧</span>第一个落地案例 · 首触派单 + DOM 捕获回复（已上线）</h2>
   <div class="callout"><b>这是本方案第一个真实跑起来的案例</b>：野荞机（admin / account 9535e31c）整条私信链于 2026-06-29 切到 DOM——<b>给新 lead 发招呼（首触派单）</b> 和 <b>读客户回复+自动起草（DOM 捕获回复）</b> 都在隐形 Edge 里跑。下面是这个案例端到端怎么搭起来的，<span class="hl">黄色 = 关键操作 / 关键设置</span>。后续推广到饭粒/夏夏/零星等机就是复制这套。</div>
   <p style="font-size:13px;color:#8a93a3">（本案例对应的：逻辑原理图见 <b>②</b>；批量统计 + Badcase + 优化进展见 <b>④⑤</b>；下一步优化见 <b>⑥</b>。）</p>
 
