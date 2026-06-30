@@ -98,7 +98,7 @@
     <p style="margin:18px 0 6px;font-size:17px"><b>🔧 三、怎么做</b></p>
     <ul style="line-height:1.9">
       <li><b>第一刀（已提 PR #643，低风险）</b>：让"正在出高/中意向客户"的热门视频<b>默认不再被退避踢出</b>、每 3 分钟必扫一次。它们就这 ~64 个，每轮全扫也只多花约 21 次/分，机器完全扛得住。<br><span style="color:var(--mut);font-size:13.5px">预期：≤5min 从 16% → <b>高 ~50% / 中+高 ~61%</b>。出问题一个开关即可回退。</span></li>
-      <li><b>第二刀（要更高才做）</b>：把范围更大的"近期活跃视频"（约 983 个）也提频。受 5 分钟产能预算限制，要够到 80%+ 得先扩 worker 抓取产能；<b>而且扩产能靠"加并发"，不是"加采集号"</b>（号不是瓶颈）。这是独立一摊活、想清楚再做。</li>
+      <li><b>第二刀（要更高才做）</b>：把范围更大的"<b>近 48 小时产过评论的视频</b>"（约 983 个）也提频。受 5 分钟产能预算限制，要够到 80%+ 得先扩 worker 抓取产能；<b>而且扩产能靠"加并发"，不是"加采集号"</b>（号不是瓶颈）。这是独立一摊活、想清楚再做。</li>
       <li>⛔ <b>不做</b>：加采集号（没用、号不缺）、加机器/套代理（撞单 IP、慢 19 倍，都回滚过）、把单视频抓取量 50→150（越治越糟，早坐死）。</li>
     </ul>
     <div class="truth"><b>一句话给老板：</b>抓得慢不是机器不行，是<b>"正在上鱼的钓点被一个省错了地方的省力规矩晾着"</b>。第一刀把这个规矩对热门视频关掉，低风险、可回退，就能把达标率翻 3-4 倍；想冲更高再单独投入扩产能。</div>
@@ -120,9 +120,9 @@
       </tr>
       <tr>
         <td><b>② 排队</b></td>
-        <td>worker 按优先级认领，<b>0-7 分钟</b>。</td>
-        <td>不变，<b>0-7 分钟</b>。</td>
-        <td>按 path 实测中位 0-7min（`_diag-capture-leg-fine` D2）。</td>
+        <td>worker 按优先级认领：<b>快道（lead 走这条）~0-1min</b>；cold-intent 老视频回扫最多 7min。</td>
+        <td>不变。</td>
+        <td>按 path 实测中位：tier-0/台账 0min、<b>fast-lane 1min</b>、cold-intent 7min（`_diag-capture-leg-fine` D2）。<b>跟 ≤5min lead 相关的快道 ~0-1min</b>，"7min"是与此无关的老视频慢路。</td>
       </tr>
       <tr>
         <td><b>③ 扫描</b></td>
@@ -174,11 +174,11 @@
     <p style="margin:12px 0 6px;font-size:15.5px"><b>① tier：号源分级</b>（`source_accounts.tier`）</p>
     <table>
       <tr><th></th><th>tier-0（普通号）</th><th>tier-1（好号 / 在产货）</th></tr>
-      <tr><td>是什么</td><td>大多数号，很少出 lead</td><td>近期持续冒高/中意向的号</td></tr>
-      <tr><td>谁去扫 / 多久</td><td><code>/api/cron/scrape</code>，<b>每小时</b>挑最久没抓的 150 个</td><td><code>/api/cron/scrape-hot</code>，<b>每源 30min</b>（在产货的缩到 <b>10min</b>）</td></tr>
-      <tr><td>每次看几条视频</td><td><b>10 条</b></td><td><b>20 条</b>（`queue.py:640`）</td></tr>
+      <tr><td>是什么</td><td>大多数号，很少出 lead</td><td><b>近 10 天「高+中意向」≥ 10 条</b>的号</td></tr>
+      <tr><td>谁去扫 / 多久</td><td><code>/api/cron/scrape</code>，<b>每小时</b>挑最久没抓的 150 个</td><td><code>/api/cron/scrape-hot</code>，<b>每源 30min</b>（其中近 6h 产过高/中意向的缩到 <b>10min</b>）</td></tr>
+      <tr><td>每轮看几条 / 抓几条</td><td>看 10 条、<b>全抓</b>（5 新+5 回扫，刚好 10）</td><td><b>看 20 条，但每轮只真抓其中 10 条</b>（5 新+5 回扫，`queue.py:640,734-741`）→ 这就是"20≠5+5"：20 是看到的清单、10 是真去抓的，剩 10 条这轮跳过</td></tr>
       <tr><td>整号扫任务的 pri</td><td>pri=5（慢道）</td><td>pri=3</td></tr>
-      <tr><td>升 / 降级</td><td colspan="2">近期冒高/中意向 → 自动升 tier-1；连续没产出 → 自动降回 tier-0（#365 对称 auto-demote）</td></tr>
+      <tr><td>升 / 降级（每天 01:00 自动）</td><td colspan="2"><b>升 tier-1</b>：近 <b>10 天</b>「高+中意向」<b>≥ 10 条</b>；<b>降回 tier-0</b>：近 <b>7 天</b>「高+中」<b>= 0 条</b>（#365 对称 auto-demote；env 可调）</td></tr>
     </table>
 
     <p style="margin:16px 0 6px;font-size:15.5px"><b>② pri：抓取任务优先级</b>（`scrape_jobs.priority`，<b>数字越小越优先</b>，worker 按 pri 从小到大领）</p>
@@ -191,6 +191,17 @@
     </table>
 
     <div class="truth"><b>两者怎么配合 + 防饿死：</b>worker 领单 = <code>WHERE pending ORDER BY priority ASC, scheduled_at ASC</code>（pri 小的先、同 pri 先到先得）。为防 pri=5 永远轮不到，有 <b>aging</b>：一个任务每多等 6 小时，优先级自动升一级（最高升到 pri=1），<code>migration 20260615144043</code>。<br><span style="color:var(--mut);font-size:13px">所以"快慢分道"= 快活(pri 0/1 单视频，5.8s)和慢活(pri 3/5 整号扫，23-211s)分开排，快活永远先走、不被慢活堵（#363 把 tier-1 整号从 pri=1 降到 3 就是为这个）。</span></div>
+
+    <p style="margin:16px 0 6px;font-size:15.5px"><b>③ 其它高频黑话</b></p>
+    <table>
+      <tr><th>词</th><th>意思</th></tr>
+      <tr><td><b>产能</b></td><td>worker 每分钟能抓多少个视频（抓取吞吐量）。实测 <b>59-130 个/分钟</b>（≈每 5min 扫 300-650 个）。"产能够不够"= 要扫的视频会不会多到 worker 扫不过来。</td></tr>
+      <tr><td><b>空跑</b></td><td>去扫一个视频、<b>结果没抓到新评论</b>（白扫一趟）。</td></tr>
+      <tr><td><b>空跑退避</b></td><td>省力机制：一个视频<b>连续 3 次空跑</b>，就判它"安静了"，把它从 3min 快道<b>暂时挂起 6-30min</b>（每多空跑一轮挂更久、封顶 30min），免得反复白扫。副作用：正在"一阵一阵"冒评论的热视频会被误挂 → #643 对热集合关掉它。</td></tr>
+      <tr><td><b>慢尾</b></td><td>最慢的那一小撮评论（长尾），不是平均、是极端值。</td></tr>
+      <tr><td><b>p50 / p90 / p99</b></td><td>把所有评论按耗时从快到慢排队，第 50%/90%/99% 那条的耗时。<b>p50=中位</b>（一半比它快）、<b>p90=最慢 10%</b>、<b>p99=最慢 1%</b>。"慢尾 p99 ~20min"=最慢的 1% 要等约 20 分钟。</td></tr>
+      <tr><td><b>整号扫 / 单视频快道</b></td><td>整号扫=去一个号主页翻一圈、批量抓多条视频（慢，23-211s）；单视频快道=只抓某一条视频的新评论（快，~6.7s）。</td></tr>
+    </table>
 
     <p class="lead" style="margin-top:12px;color:var(--mut)">📌 跟本次时效的关系：这轮 #643 动的是 <b>pri=0 高/中意向快道</b>那一档——不改它的优先级，只是<b>不再让它被空跑退避临时踢出快道</b>，让"正在出客户"的视频稳定每 3min 被扫到。tier 分级、aging、其它 pri 档全没动。</p>
   </div>
