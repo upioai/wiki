@@ -209,6 +209,18 @@ def main():
     ap.add_argument("--done", default=os.path.join(HERE, "followed.json"), help="已关 sec_uid 去重(跨天跳过)")
     args = ap.parse_args()
 
+    # .env account 兜底：--account 默认在 argparse 时读 shell env（此刻 .env 尚未加载）→ 常为空，
+    # 会让 --from-db 误判「需要 --account」直接退出。先加载 .env 再兜底取。
+    if not args.account:
+        try:
+            from dotenv import load_dotenv
+            for _p in (os.path.join(HERE, ".env"), os.path.join(os.path.dirname(HERE), ".env")):
+                if os.path.exists(_p):
+                    load_dotenv(_p, override=False)
+        except Exception:
+            pass
+        args.account = os.environ.get("AKKE_ACCOUNT_ID", "")
+
     if not dm.KEY:
         sys.exit("❌ 缺 ANTHROPIC_API_KEY / OPENROUTER_API_KEY（OCR身份门+VL定位要）")
 

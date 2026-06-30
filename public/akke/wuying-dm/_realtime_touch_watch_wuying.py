@@ -154,6 +154,18 @@ def main():
     ap.add_argument("--duration-min", type=float, default=1440)
     args = ap.parse_args()
 
+    # .env account 兜底：--account 默认在 argparse 时读 shell env（此刻 .env 尚未加载）→ 常为空，
+    # 会让 _setup_db 因 account 空误返 None → 掉文件模式 + ③feed覆盖不写。先加载 .env 再兜底取。
+    if not args.account:
+        try:
+            from dotenv import load_dotenv
+            for _p in (os.path.join(HERE, ".env"), os.path.join(os.path.dirname(HERE), ".env")):
+                if os.path.exists(_p):
+                    load_dotenv(_p, override=False)
+        except Exception:
+            pass
+        args.account = os.environ.get("AKKE_ACCOUNT_ID", "")
+
     cookie = pfw.load_cookie(args)  # 从 --cookie / --cookie-file / 同目录 dy_cookie.txt 读
     if not cookie:
         print("没找到 cookie（--cookie / --cookie-file / 同目录 dy_cookie.txt 都空）"); return

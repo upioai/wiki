@@ -123,6 +123,11 @@ def capture():
     # web(Edge 网页版)通道：UIA 树与 PC 客户端完全不同(无 imSaasContainerId/浮层易失/徽标混淆)
     # → 改用 VL 视觉读私信列表(douyin_dm_web_capture)。同 send() 的 _dm_script_is_web 惯例。
     if "web" in os.environ.get("AKKE_DM_SCRIPT", "").lower():
+        # AKKE_WEB_DM_USE_DOM=1 → DOM 版(connect_over_cdp 读 conversation-item，红点闸，无 VL/OCR/截图)。
+        # 默认关=维持 VL 版，零行为变化。DOM 版前置：调试版 Edge(9222)、AKKE_WEB_DM_DOM_COMMIT=1 才写库。
+        if os.environ.get("AKKE_WEB_DM_USE_DOM", "").lower() in ("1", "true", "yes"):
+            from douyin_dm_web_capture_dom import capture_dom
+            return capture_dom()
         from douyin_dm_web_capture import capture as web_capture
         return web_capture()
     _goto_dm_inbox()  # 量了 AKKE_C_DM_INBOX 才点开收件箱；没量=假设已停在列表
