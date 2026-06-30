@@ -161,6 +161,23 @@
     <div class="truth"><b>读法：</b>不在热视频里时<b>两者一样慢（都 12%）</b>；差距全在"<b>在每 3min 热视频里，高意向被秒抓 42% vs 中意向只 20%</b>"。即 #643 的提速集中在"真正在火的热视频"上，而<b>高意向更吃这块</b>——它常爆在正被高频扫的活跃突发里、下一 tick 就抓到；中意向更多落在视频较安静的时段。<span style="color:var(--mut);font-size:13px">（注：高意向 n 偏小有噪声；"同一快道内高比中更快"的确切机理待更多数据坐实。数据依据：`_diag-hi-vs-mid-why.ts`，近 3 天、跑数 6-30 19:00。）</span></div>
   </div>
 
+  <!-- ============ 计算逻辑 分子÷分母 ============ -->
+  <div class="card">
+    <h2><span class="n">🧮</span>每个数怎么算的（分子 ÷ 分母）</h2>
+    <p class="lead"><b>共同基础——"目标评论"的定义</b>：`comments` 表里 `intent_label ∈ {高意向, 中意向}`、`comment_time` 非空、`video_id` 非空的评论。<b>T1 = `created_at`(入库时刻) − `comment_time`(评论发布)</b>。</p>
+    <div class="myth"><b>⚠️ 最重要的一句（关于分母）：</b>所有百分比的<b>分母 = "我们已抓到入库的评论"</b>，<b>不是"抖音上实际存在的评论"</b>。没抓到的评论不在 `comments` 表里 → 不进任何分母、我们也看不见。所以这些 % 读作"<b>在我们捞到的评论中，多少是 ≤5min 的</b>"。对最新一天还有额外乐观偏差：当天发的、还没抓到的慢评论暂不在分母 → 拉高比例，<b>满日后才稳</b>。</div>
+    <table>
+      <tr><th>指标</th><th>分子</th><th>分母</th></tr>
+      <tr><td><b>≤5min%</b>（目标表）</td><td>T1 ≤ 5min 的目标评论数</td><td>近 7 天<b>按入库时间</b>(`created_at`≥7d前)的目标评论数</td></tr>
+      <tr><td><b>≤5min%</b>（by-day 每天）</td><td>当天 T1 ≤ 5min 的目标评论数</td><td><b>按发布日</b>(`comment_time` 北京)分桶后、当天的目标评论数</td></tr>
+      <tr><td><b>物理上限 / 天花板</b>（预测器命中率）</td><td>"评论到达前 H 小时内、该视频有过对应信号(高/中 或 任意评论 的入库)"的目标评论数 = 理论上可提前预测到的</td><td>近 7 天目标评论数</td></tr>
+      <tr><td><b>在热视频里 ≤5min</b>（高42%/中20%）</td><td>在注入集内 且 T1 ≤ 5min 的条数</td><td>在注入集内的目标评论数（注入集 = 评论到达前 6h 该视频已有高/中入库）</td></tr>
+      <tr><td><b>热集合扫描频率</b>（中位 38 次/个）</td><td colspan="2">非比例，是<b>中位数</b>：近 6h 产高/中意向的去重视频，各自近 60min 被完成的 `scrape_video`(按 payload.url 匹配)次数，取这组数的中位</td></tr>
+      <tr><td><b>leads / 天</b></td><td colspan="2">非比例，是<b>计数</b>：`created_at` 落在该天的目标评论数</td></tr>
+    </table>
+    <p class="lead" style="color:var(--mut);font-size:13px">两套窗口约定别混：<b>目标表</b>按"入库时间"取近 7d（看整体水位）；<b>by-day</b>按"发布日"分天（看每天趋势、对齐 #643 拐点）。脚本：`_diag-le5-split` / `_diag-le5-byday` / `_diag-predictor-ceiling-5min` / `_diag-hi-vs-mid-why`（均直查生产 `comments` 表）。</p>
+  </div>
+
   <!-- ============ 6-15 → 6-29 全流程对比 ============ -->
   <div class="card" style="border:2px solid var(--accent)">
     <h2><span class="n">🔬</span>评论→抓取 全流程：6/15 原始 vs 今天（6/29 #643 后）逐步对比</h2>
