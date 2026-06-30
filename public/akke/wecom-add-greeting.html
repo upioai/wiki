@@ -42,7 +42,7 @@
 <body>
 <div class="wrap">
   <h1>企微加好友的打招呼话术</h1>
-  <p class="date">兔宝宝全屋定制 · 客户线索加微信 · 按线索从 3 条话术选最匹配的一条 · 2026-06-30</p>
+  <p class="date">兔宝宝全屋定制 · 客户线索加微信 · 自动加好友流程的「话术」一环 · 按线索从 3 条话术选最匹配的一条 · 2026-06-30</p>
 
   <div class="banner">
     <b>一句话：3 条话术，拉单时按每个客户的备注，自动挑最匹配的一条。</b>
@@ -99,41 +99,35 @@
     <p style="font-size:13px;color:#8a93a3;margin-top:8px">想全员统一发同一条、不按线索选：拉单时加 <code>--no-personalize</code>，所有人都用默认话术2。</p>
   </div>
 
-  <!-- ── 3. 设置 + 调用 ── -->
-  <h2>③ 设置 + 怎么调用（给设置自动添加的同事）</h2>
-
-  <div class="box flow">
-    <b>A. 一次性准备（云电脑，每台机做一次）</b>
-    <ol>
-      <li>企业微信 PC <b>登录、最大化、前台</b>；<b>锁定分辨率</b>（别开自适应缩放）。</li>
-      <li>输入法切 <b>英文模式</b>（中文 IME 会抢搜索词首字 → 搜错人）。</li>
-      <li><code>worker/scripts/wuying-dm/.env</code> 要有 <code>OPENROUTER_API_KEY</code>（搜到人后 AI 核身份用）。</li>
-      <li>双击 <code>update.bat</code> 拉最新脚本。</li>
-      <li>首次标坐标：<code>python wecom_add_contact_grounded.py --calibrate</code>（搜一个能加的人、把「发送添加申请」弹框开出来，依次点 5 个按钮）。</li>
-    </ol>
-    <p style="font-size:13px;color:#8a93a3;margin-top:6px">这 3 条话术不带自称，<b>不用设账号名</b>。（后续若改成带自称的话术，再设 <code>AKKE_WECOM_SELF_NAME</code> 或让脚本自动识别。）</p>
+  <!-- ── 3. 话术怎么接进发送流程（接口契约）── -->
+  <h2>③ 话术怎么接进发送流程（给重搭流程的同事）</h2>
+  <div class="box note">
+    <b>话术不在发送环节生成 —— 拉单时就按备注选好、写进名单 CSV 了，发送只管照名单发。</b>
+    <p style="font-size:14.5px;margin-top:4px">同事重搭发送流程时，脚本读名单 CSV，按下面这张表对接（重点是 <code>verify_msg</code> 列）：</p>
+    <table style="box-shadow:none;margin-top:6px">
+      <tr><th>名单 CSV 列</th><th>是什么 / 怎么用</th></tr>
+      <tr><td><code>verify_msg</code></td><td><b>这条线索要发的验证话术</b>（已按备注选好整条、≤50字）。填验证语时 <b>优先用它</b>；为空才回退默认 env <code>AKKE_WECOM_VERIFY_MSG</code>。</td></tr>
+      <tr><td><code>search_key</code></td><td>搜人用：微信号优先，否则手机号</td></tr>
+      <tr><td><code>name</code> / <code>note</code></td><td>姓名 / 备注（核身份、参考）</td></tr>
+      <tr><td><code>_source_id</code></td><td>回写状态 / 通过率统计的唯一键</td></tr>
+    </table>
+    <p style="font-size:14px;margin-top:8px">现成的 <code>wecom_add_contact_grounded.py</code> <b>已经是这么读的</b>——沿用它，话术零改动直接通；换新脚本就照 <code>verify_msg</code> 这条接（<b>别漏，漏了就全发默认话术了</b>）。</p>
   </div>
 
   <div class="box flow">
-    <b>B. 怎么调用（每次要发，就这 3 步）</b>
-    <ol>
-      <li><b>本机拉单</b>（运营电脑）——这步自动按备注选好话术、写进 CSV：
-        <pre><span class="dim"># 先预览每条选了哪句话术（不拉单、不占线索）</span>
+    <b>怎么生成带话术的名单（本机拉单 · 话术在这步选好）</b>
+    <pre><span class="dim"># 先预览每条选了哪句话术（不拉单、不占线索）</span>
 pnpm tsx scripts/claim-enterprise-leads.ts --limit=5 --by=<span class="ok">你的名字</span> --dry-run
-<span class="dim"># 没问题就正式拉：软认领 + 导出云电脑要吃的 CSV（已带话术）</span>
+<span class="dim"># 没问题就正式拉：导出带 verify_msg 的 CSV，传云电脑给发送脚本吃</span>
 pnpm tsx scripts/claim-enterprise-leads.ts --limit=5 --by=<span class="ok">你的名字</span></pre>
-      </li>
-      <li><b>把 CSV 传到云电脑</b>（paste.rs / 共享盘 → <code>worker/scripts/wuying-dm/</code> 下）。含手机号明文，别外发、别进 git。</li>
-      <li><b>云电脑发</b>：<code>python wecom_add_contact_grounded.py 那个CSV</code> → 自动搜人 → 核身份 → 填该行话术 → 发申请。先看着跑前 2-3 条确认流程对。</li>
-    </ol>
-    <p style="font-size:13px;color:#8a93a3;margin-top:6px">加完把 <code>sent_log_wecom_*.csv</code> 传回本机回写状态：<code>pnpm tsx scripts/writeback-enterprise-lead.ts --from-sent-log=...</code>（通过率统计要靠它，见下）。</p>
+    <p style="font-size:13px;color:#8a93a3;margin-top:6px">云电脑端整套设置（登录 / 锁分辨率 / 输入法 / <code>--calibrate</code> 标坐标）属于<b>发送流程那一环</b>，看 runbook <code>docs/runbooks/wecom-add-contact-cloudpc.md</code>。这 3 条话术不带自称，不用设账号名。</p>
   </div>
 
   <div class="box warn">
     <b>想换话术 / 全员统一一句？</b>
     <ol style="margin-top:2px">
       <li><b>全员统一、不按线索选</b>：拉单时加 <code>--no-personalize</code>，所有人都用默认话术2。</li>
-      <li><b>改这 3 条话术的文案</b>：找 Claude 改 <code>scripts/claim-enterprise-leads.ts</code> 里的 <code>T1 / T2 / T3</code> 三个常量（注意每条 ≤50 字），推一下即可。</li>
+      <li><b>改这 3 条话术的文案</b>：找 Claude 改 <code>scripts/claim-enterprise-leads.ts</code> 里的 <code>T1 / T2 / T3</code> 三个常量（每条 ≤50 字），推一下即可。</li>
     </ol>
   </div>
 
