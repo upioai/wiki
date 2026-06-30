@@ -99,8 +99,8 @@
     <p style="font-size:13px;color:#8a93a3;margin-top:8px">想全员统一发同一条、不按线索选：拉单时加 <code>--no-personalize</code>，所有人都用默认话术2。</p>
   </div>
 
-  <!-- ── 3. 设置流程 ── -->
-  <h2>③ 完整设置流程</h2>
+  <!-- ── 3. 设置 + 调用 ── -->
+  <h2>③ 设置 + 怎么调用（给设置自动添加的同事）</h2>
 
   <div class="box flow">
     <b>A. 一次性准备（云电脑，每台机做一次）</b>
@@ -115,18 +115,18 @@
   </div>
 
   <div class="box flow">
-    <b>B. 日常：拉单 → 加 → 回写</b>
+    <b>B. 怎么调用（每次要发，就这 3 步）</b>
     <ol>
-      <li><b>本机拉单</b>（运营电脑）——话术在这步按备注选好、写进 CSV：
+      <li><b>本机拉单</b>（运营电脑）——这步自动按备注选好话术、写进 CSV：
         <pre><span class="dim"># 先预览每条选了哪句话术（不拉单、不占线索）</span>
 pnpm tsx scripts/claim-enterprise-leads.ts --limit=5 --by=<span class="ok">你的名字</span> --dry-run
-<span class="dim"># 满意了正式拉：软认领 + 导出云电脑要吃的 CSV（带话术）</span>
+<span class="dim"># 没问题就正式拉：软认领 + 导出云电脑要吃的 CSV（已带话术）</span>
 pnpm tsx scripts/claim-enterprise-leads.ts --limit=5 --by=<span class="ok">你的名字</span></pre>
       </li>
-      <li><b>把 CSV 传到云电脑</b>（paste.rs / 共享盘，放 <code>worker/scripts/wuying-dm/</code> 下）。CSV 含手机号/微信号明文，别外发、别进 git。</li>
-      <li><b>云电脑自动加</b>：<code>python wecom_add_contact_grounded.py 那个CSV</code>。发送时取该行话术 → 填进验证框发出。先看着跑前 2-3 条确认流程对。</li>
-      <li><b>回写</b>：把 <code>sent_log_wecom_*.csv</code> 传回本机，<code>pnpm tsx scripts/writeback-enterprise-lead.ts --from-sent-log=...</code>。</li>
+      <li><b>把 CSV 传到云电脑</b>（paste.rs / 共享盘 → <code>worker/scripts/wuying-dm/</code> 下）。含手机号明文，别外发、别进 git。</li>
+      <li><b>云电脑发</b>：<code>python wecom_add_contact_grounded.py 那个CSV</code> → 自动搜人 → 核身份 → 填该行话术 → 发申请。先看着跑前 2-3 条确认流程对。</li>
     </ol>
+    <p style="font-size:13px;color:#8a93a3;margin-top:6px">加完把 <code>sent_log_wecom_*.csv</code> 传回本机回写状态：<code>pnpm tsx scripts/writeback-enterprise-lead.ts --from-sent-log=...</code>（通过率统计要靠它，见下）。</p>
   </div>
 
   <div class="box warn">
@@ -134,8 +134,17 @@ pnpm tsx scripts/claim-enterprise-leads.ts --limit=5 --by=<span class="ok">你�
     <ol style="margin-top:2px">
       <li><b>全员统一、不按线索选</b>：拉单时加 <code>--no-personalize</code>，所有人都用默认话术2。</li>
       <li><b>改这 3 条话术的文案</b>：找 Claude 改 <code>scripts/claim-enterprise-leads.ts</code> 里的 <code>T1 / T2 / T3</code> 三个常量（注意每条 ≤50 字），推一下即可。</li>
-      <li><b>临时固定一句兜底</b>：云电脑 <code>.env</code> 写 <code>AKKE_WECOM_VERIFY_MSG=你的话术</code>（CSV 没带话术时才用）。</li>
     </ol>
+  </div>
+
+  <!-- ── 4. 按话术看通过率 ── -->
+  <h2>④ 按话术看通过率</h2>
+  <div class="box note">
+    <b>哪条话术更容易被通过，一条命令看</b>
+    <p style="font-size:14.5px">每条 lead 拉单时选了哪条话术<b>已记进库</b>。等回写过「已通过」后，跑：</p>
+    <pre>pnpm tsx scripts/wecom-acceptance-by-template.ts --by=<span class="ok">你的名字</span></pre>
+    <p style="font-size:14.5px">输出每条话术的 <b>已发 / 已通过 / 通过率</b>，谁高谁低一目了然，据此调话术或调配比。</p>
+    <p style="font-size:13px;color:#8a93a3;margin-top:6px">注：<b>通过率 = 已通过 ÷ 已发请求</b>。加好友是对方隔几小时/几天才点通过，所以得先有人把「对方通过了」回写成 <code>已通过</code>，这数才准。</p>
   </div>
 
   <footer>
