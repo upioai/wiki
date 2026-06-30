@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex,nofollow,noarchive" />
+<title>抖音 DOM 自动化回复 · 旅程汇总 · 实时</title>
+<style>
+  :root{--bg:#f5f7fb;--paper:#fff;--ink:#1f2937;--muted:#5f6b7a;--faint:#9aa4b2;--line:#e2e7ef;
+    --blue:#2563eb;--purple:#6d4cb9;--green:#12816f;--red:#c0392b;--yellow:#ad6200;
+    --green-s:#e7f5f1;--red-s:#fcebe9;--yellow-s:#fdf3e3;--shadow:0 10px 28px rgba(31,41,55,.08)}
+  *{box-sizing:border-box}
+  body{margin:0;color:var(--ink);background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;line-height:1.55;font-size:13px}
+  .wrap{width:min(1240px,calc(100% - 32px));margin:0 auto;padding:28px 0 80px}
+  .header{margin-bottom:20px}
+  .title{font-size:24px;font-weight:700;margin:0;letter-spacing:-.3px}
+  .subtitle{color:var(--muted);margin-top:6px;font-size:12.5px}
+  .empty{color:var(--faint);text-align:center;padding:30px 0}
+  .datebar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0 4px}
+  .datebar button{font-size:12px;padding:6px 12px;border:1px solid var(--line);background:#fff;border-radius:8px;cursor:pointer;color:var(--ink)}
+  .datebar button:hover{background:#f1f4f9} .datebar button:disabled{opacity:.4;cursor:not-allowed}
+  .datebar input[type=date]{font-size:13px;padding:5px 10px;border:1px solid var(--line);border-radius:8px;font-family:inherit}
+  .datebar .dphint{font-size:11px;color:var(--faint)}
+  .mode-tabs{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .mode-tabs button{border:0;border-radius:0;padding:6px 14px;background:#fff;font-weight:600}
+  .mode-tabs button.active{background:var(--blue);color:#fff}
+  .mode-tabs button.active:hover{background:var(--blue)}
+  .db-controls{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .db-controls .tilde{color:var(--faint);font-size:13px}
+  .liveflag{font-size:11px;color:var(--green);font-weight:600;background:var(--green-s);border-radius:999px;padding:3px 10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <h1 class="title">抖音 DOM 自动化回复 · 旅程汇总</h1>
+    <div class="subtitle" id="sub">加载中…</div>
+    <div class="datebar">
+      <div class="mode-tabs">
+        <button id="mode-day" class="active" onclick="setMode('day')">单日</button>
+        <button id="mode-range" onclick="setMode('range')">区间</button>
+      </div>
+      <span id="day-controls" class="db-controls">
+        <button id="prevb" onclick="goDay(-1)">◀ 前一天</button>
+        <input type="date" id="dp" onchange="goDate(this.value)" />
+        <button id="nextb" onclick="goDay(1)">后一天 ▶</button>
+        <button id="todayb" onclick="goToday()">今天</button>
+        <button onclick="reload()">↻ 立即刷新</button>
+        <span class="liveflag" id="liveflag" style="display:none">🟢 每 30 分钟自动刷新</span>
+      </span>
+      <span id="range-controls" class="db-controls" style="display:none">
+        起 <input type="date" id="rf" />
+        <span class="tilde">~</span>
+        止 <input type="date" id="rt" />
+        <button onclick="applyRange()">查看区间</button>
+      </span>
+      <span class="dphint" id="dphint">今天的数据每 30 分钟自动刷新一次（点 ↻立即刷新 看当下最新）；可往回切看昨天/前天</span>
+    </div>
+  </div>
+  <div id="app"><div class="empty">加载中…</div></div>
+</div>
+<script>
+  // 活数据后端（Akke Vercel 公开只读 API）。壳页静态托管在 upioai/wiki，跨域 CORS 已放行 upio.ai。
+  var API = "https://akke.vercel.app/api/public/dm-autoreply-journey";
+  var REFRESH_MS = 30 * 60 * 1000; // 30min
+  var timer = null;
+  var curMode = "day";
+  var curDate = "";
+  var curFrom = "", curTo = "";
+  var curIsToday = false;
+
+  var DATA_START = "2026-06-18"; // dm_reply_drafts 表上线日，之前无自动回复数据
+
+  function fmtRangeLabel(from, to){
+    function md(d){ var p=d.split("-"); return p[1].replace(/^0/,"")+"/"+p[2].replace(/^0/,""); }
+    var n = Math.round((new Date(to+"T00:00:00+08:00") - new Date(from+"T00:00:00+08:00"))/86400000) + 1;
+    return md(from) + "–" + md(to) + "（" + n + "天）";
+  }
+  function bjtToday(){ return new Date(Date.now() + 8*3600000).toISOString().slice(0,10); }
+  function shiftDate(d, n){
+    var t = new Date(d + "T00:00:00+08:00");
+    t.setTime(t.getTime() + n*86400000);
+    return new Date(t.getTime() + 8*3600000).toISOString().slice(0,10);
+  }
+  function fmtClock(iso){
+    if(!iso) return "—";
+    var d = new Date(new Date(iso).getTime() + 8*3600000);
+    function p(n){ return String(n).padStart(2,"0"); }
+    return p(d.getUTCHours())+":"+p(d.getUTCMinutes());
+  }
+
+  function syncNav(){
+    var today = bjtToday();
+    var nb = document.getElementById("nextb"); if(nb) nb.disabled = (curDate >= today);
+    var pb = document.getElementById("prevb"); if(pb) pb.disabled = (curDate <= DATA_START);
+    var tb = document.getElementById("todayb"); if(tb) tb.disabled = (curDate >= today);
+    var lf = document.getElementById("liveflag"); if(lf) lf.style.display = curIsToday ? "" : "none";
+    var dp = document.getElementById("dp"); if(dp){ dp.value = curDate; dp.max = today; }
+  }
+
+  function render(j){
+    document.getElementById("app").innerHTML = j.html || '<div class="empty">当日无数据</div>';
+    var sub = document.getElementById("sub");
+    if(sub){
+      if(j.isRange){
+        sub.innerHTML = fmtRangeLabel(j.from, j.to) + " 合计（BJT 各天 00:00–23:59）· 当日草稿 " + (j.total||0)
+          + " 条 · 更新于 " + fmtClock(j.generatedAt);
+      } else {
+        sub.innerHTML = curDate + "（BJT 00:00–23:59）· 当日草稿 " + (j.total||0) + " 条 · "
+          + (j.isToday ? "每 30 分钟自动刷新 · " : "") + "更新于 " + fmtClock(j.generatedAt);
+      }
+    }
+    filterCases();
+  }
+
+  // ── 案例表筛选（账号 / 状态，纯前端显示隐藏行）──
+  function filterCases(){
+    var fa=document.getElementById("f-account"), fs=document.getElementById("f-status");
+    if(!fa||!fs) return;
+    var wa=fa.value, ws=fs.value, shown=0, total=0;
+    document.querySelectorAll("table.cases tbody tr").forEach(function(tr){
+      if(!tr.dataset.status) return; // 跳过空态行
+      total++;
+      var ok=(!wa||tr.dataset.account===wa)&&(!ws||tr.dataset.status===ws);
+      tr.style.display=ok?"":"none";
+      if(ok)shown++;
+    });
+    var cnt=document.getElementById("f-count");
+    if(cnt)cnt.textContent="显示 "+shown+" / 共 "+total+" 条";
+  }
+  window.filterCases=filterCases;
+
+  function load(date){
+    curDate = date;
+    document.getElementById("app").innerHTML = '<div class="empty">加载中…</div>';
+    fetch(API + "?date=" + date + "&_t=" + Date.now(), { cache:"no-store" })
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if(j.error){ document.getElementById("app").innerHTML = '<div class="empty">加载失败：' + j.error + '</div>'; return; }
+        curIsToday = !!j.isToday;
+        syncNav();
+        render(j);
+        scheduleAuto();
+      })
+      .catch(function(e){ document.getElementById("app").innerHTML = '<div class="empty">网络错误：' + e + '</div>'; });
+  }
+  function reload(){ if(curMode === "range" && curFrom && curTo) loadRange(curFrom, curTo); else load(curDate || bjtToday()); }
+  function scheduleAuto(){
+    if(timer){ clearInterval(timer); timer = null; }
+    if(curMode === "day" && curIsToday){ timer = setInterval(function(){ load(bjtToday()); }, REFRESH_MS); }
+  }
+  function goToday(){ var t = bjtToday(); if(curMode !== "day" || t !== curDate){ curMode = "day"; load(t); } }
+  function goDate(d){ if(d && (curMode !== "day" || d !== curDate) && d <= bjtToday()){ curMode = "day"; load(d); } }
+  function goDay(n){
+    var t = shiftDate(curDate || bjtToday(), n);
+    if(t > bjtToday() || t < DATA_START) return;
+    curMode = "day"; load(t);
+  }
+
+  function setMode(m){
+    curMode = m;
+    document.getElementById("mode-day").classList.toggle("active", m === "day");
+    document.getElementById("mode-range").classList.toggle("active", m === "range");
+    document.getElementById("day-controls").style.display = (m === "day") ? "" : "none";
+    document.getElementById("range-controls").style.display = (m === "range") ? "" : "none";
+    var hint = document.getElementById("dphint");
+    if(m === "range"){
+      if(timer){ clearInterval(timer); timer = null; }
+      var today = bjtToday();
+      var rf = document.getElementById("rf"), rt = document.getElementById("rt");
+      rf.max = today; rf.min = DATA_START; rt.max = today; rt.min = DATA_START;
+      var end = (curDate && curDate <= today) ? curDate : today;
+      var start = shiftDate(end, -4); if(start < DATA_START) start = DATA_START;
+      rt.value = end; rf.value = start;
+      if(hint) hint.innerHTML = "选起止日看区间合计（含首尾两天，<b>最多 14 天</b>）；KPI / 案例 / 归因全部按区间重算。区间不自动刷新。";
+    } else {
+      if(hint) hint.textContent = "今天的数据每 30 分钟自动刷新一次（点 ↻立即刷新 看当下最新）；可往回切看昨天/前天";
+      load(curDate || bjtToday());
+    }
+  }
+  window.setMode = setMode;
+
+  function applyRange(){
+    var rf = document.getElementById("rf").value, rt = document.getElementById("rt").value;
+    if(!rf || !rt){ alert("请选起始日和结束日"); return; }
+    if(rf > rt){ alert("起始日不能晚于结束日"); return; }
+    if(rt > bjtToday()){ alert("结束日不能晚于今天"); return; }
+    var span = Math.round((new Date(rt+"T00:00:00+08:00") - new Date(rf+"T00:00:00+08:00"))/86400000) + 1;
+    if(span > 14){ alert("区间最多 14 天，当前 " + span + " 天"); return; }
+    loadRange(rf, rt);
+  }
+  window.applyRange = applyRange;
+
+  function loadRange(from, to){
+    curMode = "range"; curFrom = from; curTo = to; curIsToday = false;
+    if(timer){ clearInterval(timer); timer = null; }
+    document.getElementById("app").innerHTML = '<div class="empty">加载中…（区间 ' + fmtRangeLabel(from, to) + '）</div>';
+    fetch(API + "?from=" + from + "&to=" + to + "&_t=" + Date.now(), { cache:"no-store" })
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if(j.error){ document.getElementById("app").innerHTML = '<div class="empty">加载失败：' + j.error + '</div>'; return; }
+        render(j);
+      })
+      .catch(function(e){ document.getElementById("app").innerHTML = '<div class="empty">网络错误：' + e + '</div>'; });
+  }
+  window.loadRange = loadRange;
+
+  // 大章节折叠：点标题收起/展开内容。document 级委托，innerHTML 重渲染后仍有效。
+  document.addEventListener("click", function(e){
+    var t = e.target.closest ? e.target.closest(".section-title") : null;
+    if(t){ var sec = t.closest(".section"); if(sec) sec.classList.toggle("collapsed"); }
+  });
+
+  load(bjtToday());
+</script>
+</body>
+</html>
