@@ -17,8 +17,9 @@
 依赖:  pip install pyautogui pyperclip pillow opencv-python pygetwindow
 
 I/O 契约:
-  输入 CSV 列: search_key(手机号或微信号) name province _source_id
-               —— claim-enterprise-leads.ts 产出，search_key 已是微信号优先否则手机号
+  输入 CSV 列: search_key(手机号或微信号) name province _source_id [note] [verify_msg]
+               —— claim-enterprise-leads.ts 产出，search_key 已是微信号优先否则手机号。
+               verify_msg 为该行个性化验证语(含自称占位符 {me})；缺列/为空则回退全局 AKKE_WECOM_VERIFY_MSG。
   输出 sent_log_wecom_YYYYMMDD.csv 列: 上述 + status sent_at _ocr_confidence _ocr_seen _captcha_sample
   status: 已发请求 / already(已是好友) / not_found(搜不到) / 加不上(找到但加不了) /
           wrong_user(身份门没过) / cancelled / aborted / error:<msg>
@@ -31,7 +32,9 @@ I/O 契约:
 环境(.env 同目录):
   ANTHROPIC_API_KEY 或 OPENROUTER_API_KEY  — VL 身份门/定位用
   AKKE_OCR_MODEL(默认 qwen vl) / AKKE_OCR_BASE_URL / AKKE_OCR_MIN_CONFIDENCE
-  AKKE_WECOM_VERIFY_MSG  — 加好友验证语(默认见下)
+  AKKE_WECOM_VERIFY_MSG  — 加好友验证语全局默认(CSV 没带 verify_msg 时用)
+  AKKE_WECOM_SELF_NAME   — 本账号显示名(如 全屋定制小夏)，验证语里 {me} 占位符自动填它；
+                           没设可跑 --whoami 让 VL 识别一次写回 .env
   AKKE_WECOM_C_SEARCH 等固定坐标(可选,--capture/--calibrate 写入)
   AKKE_DAILY_LIMIT(默认 20,加好友比 DM 更敏感,起步小) / AKKE_MIN_INTERVAL / AKKE_MAX_INTERVAL
 """
@@ -97,6 +100,29 @@ VERIFY_MSG = os.environ.get(
     'AKKE_WECOM_VERIFY_MSG',
     '您好，之前在平台上联系过您，方便加个微信详细沟通一下哈~',
 )
+# 验证语里自称占位符 {me} 替换成本机登录的企微账号名（如「全屋定制小夏」）。
+# 来源：env AKKE_WECOM_SELF_NAME（一次性设最稳）→ 没设则 --whoami VL 自动识别一次写回 .env。
+SELF_NAME = (os.environ.get('AKKE_WECOM_SELF_NAME', '') or '').strip()
+_SELF_TOKENS = ('{me}', '[您的姓名]', '[你的姓名]', '[你名字]', '[名字]')
+
+
+def fill_self_name(msg: str) -> str:
+    """把验证语里的自称占位符换成本账号名；账号名常自带「全屋定制/兔宝宝」，去掉相邻重复；
+    没配账号名时优雅收掉残留标点（不留「兔宝宝的，」这种）。"""
+    if not msg:
+        return msg
+    import re
+    name = SELF_NAME
+    for tok in _SELF_TOKENS:
+        msg = msg.replace(tok, name)
+    if name:
+        # 账号名含品牌词时去重相邻重复：兔宝宝的兔宝宝小艳→兔宝宝小艳；全屋定制全屋定制→全屋定制
+        msg = re.sub(r'兔宝宝的?(兔宝宝)', r'\1', msg)
+        msg = re.sub(r'(全屋定制)\1', r'\1', msg)
+    else:
+        # 没账号名：「我是兔宝宝的，给您…」→「我是兔宝宝，给您…」
+        msg = msg.replace('兔宝宝的，', '兔宝宝，')
+    return msg
 
 pyautogui.FAILSAFE = False
 pyautogui.PAUSE = 0.4
@@ -503,10 +529,13 @@ def process(c):
         return '加不上', conf, seen, _save_result_sample('cannot_add', path)
 
     # 5) 填验证语(若弹出验证框)，发送申请
+    #    优先用该行 verify_msg(claim 脚本按备注个性化生成、含 {me} 占位符)，没有才回退全局默认。
+    msg = (c.get('verify_msg') or '').strip() or VERIFY_MSG
+    msg = fill_self_name(msg)
     try:
         click_fixed_or_vl(C_VERIFY_INPUT, '“发送添加申请”弹框里的验证消息输入框', wait=1.0,
                           label='验证语输入框')
-        type_text(VERIFY_MSG)
+        type_text(msg)
     except RuntimeError:
         print('  [verify] 没找到验证语输入框(可能无需验证)，直接尝试发送')
     try:
@@ -632,6 +661,42 @@ def calibrate():
     return 0
 
 
+def whoami():
+    """VL 自动识别当前登录的企业微信账号显示名，写回 .env 的 AKKE_WECOM_SELF_NAME。
+    一次性跑：python wecom_add_contact_grounded.py --whoami
+    识别不准就手动在 .env 写 AKKE_WECOM_SELF_NAME=全屋定制小夏 即可（最稳）。"""
+    if not KEY:
+        print('❌ 缺 ANTHROPIC_API_KEY / OPENROUTER_API_KEY，无法 VL 识别', file=sys.stderr)
+        return 2
+    focus_wecom()
+    time.sleep(1.0)
+    # 点左下角「我/头像」区域把个人信息露出来，再截图识别（不同版本位置略有差异，VL 兜底）
+    try:
+        click_el('企业微信左下角“我”或当前登录用户的头像', wait=1.5,
+                 region=(0.0, 0.82, 0.18, 1.0))
+    except Exception:
+        pass
+    path, _ = _shot('_wecom_whoami.png')
+    b64 = base64.b64encode(open(path, 'rb').read()).decode()
+    p = ('这是企业微信PC客户端截图。请识别【当前登录账号本人】的显示名/昵称'
+         '(通常在个人信息卡片或左下角，不是聊天对象的名字)。'
+         '只回严格JSON:{"name":"显示名","found":true或false}。看不到填found=false。')
+    try:
+        d = _pjson(_vision(b64, p))
+        name = str(d.get('name', '')).strip()
+        if not d.get('found', False) or not name:
+            print('❌ 没识别到账号名，请手动在 .env 写 AKKE_WECOM_SELF_NAME=<你的企微名>', file=sys.stderr)
+            return 1
+    except Exception as e:
+        print('❌ VL 识别失败: %s，请手动在 .env 写 AKKE_WECOM_SELF_NAME' % e, file=sys.stderr)
+        return 1
+    pyautogui.press('esc')
+    _write_env_kv({'AKKE_WECOM_SELF_NAME': name})
+    print('✅ 识别到账号名「%s」，已写入 .env 的 AKKE_WECOM_SELF_NAME。' % name)
+    print('   下次加好友时验证语里的 {me} 会自动填成它。识别不准就手动改这行。')
+    return 0
+
+
 def capture():
     """模板采集：把鼠标悬停到“搜索框/添加按钮/发送申请”上，抓裁剪图存 templates-wecom/。
     模板匹配比 VL 稳，锁分辨率后只采一次。"""
@@ -655,6 +720,8 @@ def capture():
 if __name__ == '__main__':
     flags = [a for a in sys.argv[1:] if a.startswith('--')]
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
+    if '--whoami' in flags:
+        sys.exit(whoami())
     if '--capture' in flags:
         sys.exit(capture())
     if '--calibrate' in flags:
@@ -663,6 +730,7 @@ if __name__ == '__main__':
         print('用法: python wecom_add_contact_grounded.py _wecom_add_xxx.csv', file=sys.stderr)
         print('      python wecom_add_contact_grounded.py --calibrate  # 首次：标 5 个按钮坐标', file=sys.stderr)
         print('      python wecom_add_contact_grounded.py --capture    # 可选：采模板图', file=sys.stderr)
+        print('      python wecom_add_contact_grounded.py --whoami     # 可选：VL 识别本账号名写 .env', file=sys.stderr)
         sys.exit(2)
     if not KEY:
         print('❌ 缺 ANTHROPIC_API_KEY / OPENROUTER_API_KEY（身份门/定位需要）', file=sys.stderr)
