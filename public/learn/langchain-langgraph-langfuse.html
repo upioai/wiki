@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LangChain · LangGraph · Langfuse 讲解 — upio.ai 知识分享</title>
+<meta name="description" content="三个都带 lang 的名字最容易搞混。一句话：LangChain 帮你「搭」AI 应用，LangGraph 帮你「编排」复杂流程，Langfuse 帮你「看清」AI 在干嘛、花了多少、好不好。本文讲清三者区别，再落到我们 Akke 项目到底用了哪个、没用哪个、为什么——以及 Langfuse 里还有哪些很有用但我们还没用上的能力。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700;800&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+
+<style>
+:root {
+  --bg: #0a0d14; --bg-elevated: #131720; --bg-deep: #1a1f2b;
+  --border: #232936; --border-strong: #2f3646;
+  --text: #e8eaef; --text-dim: #9ba3b4; --text-muted: #6b7384;
+  --accent:   #8b5cf6; --accent-soft:   rgba(139, 92, 246, 0.15); --accent-strong: rgba(139, 92, 246, 0.35);
+  --accent-2: #60a5fa; --accent-2-soft: rgba(96, 165, 250, 0.13);
+  --accent-3: #34d399; --accent-3-soft: rgba(52, 211, 153, 0.14);
+  --warning:  #fbbf24; --warning-soft:  rgba(251, 191, 36, 0.14);
+  --danger:   #f87171; --danger-soft:   rgba(248, 113, 113, 0.14);
+  --font-display: 'Instrument Serif', 'Source Han Serif SC', Georgia, serif;
+  --font-ui:      'Inter Tight', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; padding: 0;
+  background: var(--bg); color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 15.5px; line-height: 1.7;
+  font-feature-settings: 'cv11', 'ss01', 'tnum';
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ──────────── Breadcrumb bar ──────────── */
+.crumb-bar {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(10, 13, 20, 0.82);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border-bottom: 1px solid var(--border);
+}
+.crumb-inner {
+  max-width: 1000px; margin: 0 auto;
+  padding: 11px 24px;
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--text-muted); letter-spacing: 0.04em;
+}
+.crumb-inner a { color: var(--text-dim); text-decoration: none; transition: color .2s; }
+.crumb-inner a:hover { color: var(--accent); }
+.crumb-inner .sep { margin: 0 8px; color: var(--border-strong); }
+.crumb-inner .cur { color: var(--text-dim); }
+
+/* ──────────── Layout ──────────── */
+.container { max-width: 920px; margin: 0 auto; padding: 52px 24px 100px; }
+
+/* ──────────── Hero ──────────── */
+header.hero { padding: 4px 0 38px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.tag {
+  display: inline-block; padding: 4px 12px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent);
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  margin-bottom: 18px;
+}
+h1 {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 56px; font-weight: 400;
+  margin: 0 0 18px; letter-spacing: -0.02em; line-height: 1.08;
+  background: linear-gradient(135deg, #f4f5f8 28%, var(--accent) 64%, var(--accent-2) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.subtitle {
+  font-size: 17px; color: var(--text-dim);
+  margin: 0 0 26px; max-width: 770px; line-height: 1.6;
+}
+.subtitle strong { color: var(--text); font-weight: 600; }
+.hero-meta {
+  display: flex; gap: 26px; flex-wrap: wrap;
+  font-family: var(--font-mono); font-size: 12px; color: var(--text-muted);
+}
+.hero-meta strong { color: var(--text-dim); font-weight: 500; }
+
+/* ──────────── Section head ──────────── */
+.section-head {
+  display: flex; gap: 22px; align-items: baseline;
+  padding-top: 30px; margin-top: 52px;
+  border-top: 1px solid var(--border);
+}
+.section-head .num {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 72px; line-height: 1; font-weight: 400;
+  color: var(--accent); flex-shrink: 0;
+}
+.section-head .meta { flex: 1; padding-top: 14px; }
+.section-head h2 {
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--text-muted); letter-spacing: 0.14em;
+  text-transform: uppercase; margin: 0 0 6px; font-weight: 700;
+}
+.section-head .lede {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 29px; line-height: 1.25; color: var(--text);
+}
+section { margin-bottom: 22px; }
+section > p { margin: 14px 0; color: var(--text-dim); }
+section > p strong { color: var(--text); font-weight: 600; }
+h3 {
+  font-family: var(--font-ui); font-size: 19px; font-weight: 600;
+  color: var(--text); margin: 34px 0 12px; letter-spacing: -0.01em;
+}
+code {
+  background: var(--bg-deep); padding: 1px 6px; border-radius: 4px;
+  font-size: 0.86em; color: #c4b5fd; font-family: var(--font-mono);
+}
+a { color: var(--accent-2); text-decoration: none; transition: color .2s; }
+a:hover { color: var(--accent); }
+
+/* ──────────── Callout ──────────── */
+.callout { border-radius: 10px; padding: 14px 18px; margin: 18px 0; font-size: 14px; line-height: 1.7; }
+.callout.info    { background: var(--accent-2-soft); border-left: 3px solid var(--accent-2); color: var(--text-dim); }
+.callout.info strong    { color: var(--accent-2); }
+.callout.warn    { background: var(--warning-soft); border-left: 3px solid var(--warning); color: var(--text-dim); }
+.callout.warn strong    { color: var(--warning); }
+.callout.success { background: var(--accent-3-soft); border-left: 3px solid var(--accent-3); color: var(--text-dim); }
+.callout.success strong { color: var(--accent-3); }
+.callout.purple  { background: var(--accent-soft); border-left: 3px solid var(--accent); color: var(--text-dim); }
+.callout.purple strong  { color: var(--accent); }
+
+/* ──────────── Three-product split (hero cards) ──────────── */
+.split3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin: 22px 0; }
+@media (max-width: 760px) { .split3 { grid-template-columns: 1fr; } }
+.prod {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 14px; padding: 20px 20px 18px; position: relative; overflow: hidden;
+  transition: border-color .2s, transform .2s;
+}
+.prod::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+.prod.p-lc::before { background: var(--accent); }
+.prod.p-lg::before { background: var(--accent-2); }
+.prod.p-lf::before { background: var(--accent-3); }
+.prod:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+.prod .p-name { font-family: var(--font-mono); font-size: 13px; font-weight: 800; letter-spacing: 0.02em; margin-bottom: 4px; }
+.prod.p-lc .p-name { color: var(--accent); }
+.prod.p-lg .p-name { color: var(--accent-2); }
+.prod.p-lf .p-name { color: var(--accent-3); }
+.prod .p-role { font-size: 12.5px; color: var(--text-muted); font-family: var(--font-mono); margin-bottom: 12px; }
+.prod .p-line { font-size: 13.5px; color: var(--text-dim); line-height: 1.6; margin: 0; }
+.prod .p-line b { color: var(--text); font-weight: 600; }
+.prod .p-kin {
+  margin-top: 13px; padding-top: 11px; border-top: 1px dashed var(--border-strong);
+  font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); letter-spacing: 0.02em;
+}
+
+/* ──────────── Metaphor banner ──────────── */
+.meta-banner {
+  display: flex; gap: 16px; align-items: flex-start;
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px 18px; margin: 20px 0;
+}
+.meta-banner .m-sym { font-size: 30px; line-height: 1; flex-shrink: 0; }
+.meta-banner .m-body { font-size: 14px; color: var(--text-dim); line-height: 1.65; }
+.meta-banner .m-body b { color: var(--text); font-weight: 600; }
+
+/* ──────────── Capability cards ──────────── */
+.caps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 18px 0; }
+@media (max-width: 720px) { .caps { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 460px) { .caps { grid-template-columns: 1fr; } }
+.cap {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 12px; padding: 15px 16px; transition: border-color .2s, transform .2s;
+}
+.cap:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+.cap .c-sym { font-size: 20px; line-height: 1; margin-bottom: 8px; }
+.cap .c-name { font-size: 14.5px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.cap .c-sub { font-size: 12.5px; color: var(--text-dim); line-height: 1.55; }
+
+/* ──────────── Decision / usage table ──────────── */
+.dtable-wrap { overflow-x: auto; margin: 20px 0; border: 1px solid var(--border); border-radius: 12px; }
+.dtable { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 580px; }
+.dtable th, .dtable td { text-align: left; padding: 13px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.dtable tr:last-child td { border-bottom: none; }
+.dtable th {
+  font-family: var(--font-mono); font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.12em; color: var(--text-muted); font-weight: 700;
+  background: var(--bg-deep);
+}
+.dtable td { color: var(--text-dim); line-height: 1.55; }
+.dtable td.feat { color: var(--text); font-weight: 600; white-space: nowrap; }
+.dtable tbody tr:hover td { background: var(--bg-elevated); }
+.nm { font-family: var(--font-mono); font-weight: 700; font-size: 12px; white-space: nowrap; }
+.nm.lc { color: var(--accent); }
+.nm.lg { color: var(--accent-2); }
+.nm.lf { color: var(--accent-3); }
+.use { font-family: var(--font-mono); font-weight: 700; font-size: 12px; white-space: nowrap; }
+.use.yes  { color: var(--accent-3); }
+.use.part { color: var(--warning); }
+.use.no   { color: var(--text-muted); }
+
+/* ──────────── Versus pair ──────────── */
+.versus {
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch;
+  margin: 16px 0; background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+}
+@media (max-width: 560px) { .versus { grid-template-columns: 1fr; } }
+.vs-side { padding: 16px 18px; }
+.vs-side h4 { margin: 0 0 6px; font-size: 14px; font-weight: 700; font-family: var(--font-mono); letter-spacing: 0.01em; }
+.vs-side p { margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.6; }
+.vs-side.left h4 { color: var(--accent-3); }
+.vs-side.right h4 { color: var(--text-muted); }
+.vs-mid {
+  display: flex; align-items: center; justify-content: center; padding: 0 8px;
+  font-family: var(--font-display); font-style: italic; font-size: 18px; color: var(--text-muted);
+  border-left: 1px solid var(--border); border-right: 1px solid var(--border); background: var(--bg-deep);
+}
+@media (max-width: 560px) {
+  .vs-mid { border: none; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 6px; }
+}
+
+/* ──────────── Punchline ──────────── */
+.punchline {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 26px; line-height: 1.42; color: var(--text);
+  text-align: center; margin: 44px auto 8px; max-width: 760px;
+  padding: 28px 24px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+}
+.punchline .hl {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 50%, var(--accent-3) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  font-weight: 400;
+}
+
+/* ──────────── Footer ──────────── */
+footer {
+  text-align: center; padding: 56px 0 0;
+  font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted);
+  letter-spacing: 0.06em; line-height: 1.8;
+}
+
+/* ──────────── Scroll reveal ──────────── */
+.reveal { opacity: 0; filter: blur(6px); transform: translateY(12px);
+  transition: opacity .6s ease-out, filter .6s ease-out, transform .6s ease-out; }
+.reveal.in-view { opacity: 1; filter: blur(0); transform: translateY(0); }
+
+@media (max-width: 560px) {
+  h1 { font-size: 38px; }
+  .section-head { gap: 14px; }
+  .section-head .num { font-size: 52px; }
+  .section-head .lede { font-size: 23px; }
+  .punchline { font-size: 21px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .reveal { opacity: 1 !important; filter: none !important; transform: none !important; }
+}
+</style>
+</head>
+
+<body>
+
+<nav class="crumb-bar">
+  <div class="crumb-inner">
+    <a href="/">upio.ai</a><span class="sep">/</span><a href="/learn">知识分享</a><span class="sep">/</span><span class="cur">LangChain · LangGraph · Langfuse</span>
+  </div>
+</nav>
+
+<div class="container">
+
+  <header class="hero">
+    <span class="tag">Agent · AI 工程</span>
+    <h1>LangChain · LangGraph · Langfuse</h1>
+    <p class="subtitle">三个名字都带 <code>lang</code>，最容易搞混。一句话先记住：<strong>LangChain 帮你「搭」AI 应用，LangGraph 帮你「编排」复杂流程，Langfuse 帮你「看清」AI 在干嘛、花了多少钱、好不好</strong>。前两个是一家人（干活的），第三个是另一回事（监工记账的）。本文讲清三者区别，再落到我们的 <strong>Akke</strong> 项目——到底用了哪个、没用哪个、为什么，以及 Langfuse 里还有哪些很有用、但我们还没用上的能力。</p>
+    <div class="hero-meta">
+      <span><strong>篇幅</strong> 7 章 · 约 11 分钟</span>
+      <span><strong>受众</strong> 全员 · 不需要写代码也能看懂</span>
+      <span><strong>主线</strong> 破误区 · 三者是什么 · 一表对比 · 我们用了什么 · 没用什么 · 一句话记忆</span>
+    </div>
+  </header>
+
+  <!-- ════════════ 00 ════════════ -->
+  <section style="margin-top:34px">
+    <p>先把三个名字一字排开，破掉最常见的误会：很多人以为这是「三选一」，其实<strong>它们分属两个不同的层</strong>——前两个负责「让 AI 干活」，第三个负责「盯着 AI 干活」。</p>
+    <div class="split3 reveal">
+      <div class="prod p-lc">
+        <div class="p-name">LangChain</div>
+        <div class="p-role">应用开发库 · 搭</div>
+        <p class="p-line">一套<b>调模型、读文档、记历史、接工具</b>的现成积木，把它们拼成「链」，快速搭出一个 AI 应用。</p>
+        <div class="p-kin">家族成员 · 干活层</div>
+      </div>
+      <div class="prod p-lg">
+        <div class="p-name">LangGraph</div>
+        <div class="p-role">流程编排库 · 编排</div>
+        <p class="p-line">LangChain 同一家出的，专管<b>复杂流程</b>：用「流程图」描述 AI 的多步工作，能分支、能回头、能循环。</p>
+        <div class="p-kin">家族成员 · 干活层</div>
+      </div>
+      <div class="prod p-lf">
+        <div class="p-name">Langfuse</div>
+        <div class="p-role">可观测平台 · 看清</div>
+        <p class="p-line">跟前两个<b>不是一类</b>。它不帮你干活，帮你<b>看清</b>：每次模型调用花了多少、说了啥、慢不慢、对不对。</p>
+        <div class="p-kin">外来户 · 监工层</div>
+      </div>
+    </div>
+    <div class="callout purple">
+      <strong>一句话破误区 ·</strong> LangChain / LangGraph 是「<b style="color:var(--accent)">写应用、编流程</b>」的工具；Langfuse 是「<b style="color:var(--accent-3)">监工 + 记账 + 质检</b>」的工具。它们不冲突——你完全可以一边用 LangChain 写应用，一边用 Langfuse 盯着它。<strong>下面任何细节，都挂在「干活层 vs 监工层」这条线上。</strong>
+    </div>
+  </section>
+
+  <!-- ════════════ 01 ════════════ -->
+  <div class="section-head reveal" id="langchain">
+    <span class="num">01</span>
+    <div class="meta">
+      <h2>SECTION ONE · LANGCHAIN</h2>
+      <div class="lede">LangChain：搭 AI 应用的「标准积木盒」</div>
+    </div>
+  </div>
+
+  <section>
+    <div class="meta-banner reveal">
+      <div class="m-sym">🧱</div>
+      <div class="m-body">类比：<b>一盒乐高标准积木</b>。要做一个「会查资料、记得上文、能调工具」的 AI 应用，本来每块都得自己造；LangChain 把这些常用块做成现成件，你照着拼起来——所以叫 <b>Chain（链）</b>：把「取数据 → 喂给模型 → 处理输出」串成一条链。</div>
+    </div>
+
+    <p>它 <strong>2022 年底</strong> 随着 ChatGPT 的热潮爆火，是最早一批「让普通开发者也能快速搭大模型应用」的工具。它解决的核心痛点是：<strong>调一次模型容易，但要把模型和外部世界（文档、数据库、搜索、工具）接起来、还要记住对话，每个人都重复造轮子</strong>。LangChain 把这些封装成标准模块：</p>
+
+    <div class="caps reveal">
+      <div class="cap"><div class="c-sym">🔌</div><div class="c-name">模型接入</div><div class="c-sub">一套写法接各家大模型，换模型不用改一堆代码。</div></div>
+      <div class="cap"><div class="c-sym">📄</div><div class="c-name">文档加载 / 切分</div><div class="c-sub">把 PDF、网页、表格读进来，切成模型能吃的小块。</div></div>
+      <div class="cap"><div class="c-sym">🧠</div><div class="c-name">记忆 Memory</div><div class="c-sub">帮应用记住前几轮聊了什么，多轮对话不失忆。</div></div>
+      <div class="cap"><div class="c-sym">🔍</div><div class="c-name">检索 / RAG</div><div class="c-sub">先去知识库找相关资料，再让模型基于资料回答。</div></div>
+      <div class="cap"><div class="c-sym">🛠️</div><div class="c-name">工具 / Agent</div><div class="c-sub">让模型能「调用工具」——查天气、算数、搜数据库。</div></div>
+      <div class="cap"><div class="c-sym">⛓️</div><div class="c-name">链 Chain</div><div class="c-sub">把上面这些串成一条流水线，一步接一步跑。</div></div>
+    </div>
+
+    <div class="callout info"><strong>记住它的定位 ·</strong> LangChain = <strong>「快速搭一个 LLM 应用的全家桶」</strong>。优点是上手快、模块全；代价是封装多、概念多，简单需求用它反而「绕」——这也是它后来被一些人吐槽「太重」的原因。</div>
+  </section>
+
+  <!-- ════════════ 02 ════════════ -->
+  <div class="section-head reveal" id="langgraph">
+    <span class="num">02</span>
+    <div class="meta">
+      <h2>SECTION TWO · LANGGRAPH</h2>
+      <div class="lede">LangGraph：给复杂流程画「地铁线路图」</div>
+    </div>
+  </div>
+
+  <section>
+    <div class="meta-banner reveal">
+      <div class="m-sym">🗺️</div>
+      <div class="m-body">类比：<b>一张地铁线路图</b>。简单任务是一条直线（A → B → C）；但「让 AI 自己想、自己决定下一步」的复杂任务会<b>分叉、绕圈、走回头路</b>。LangGraph 让你把流程画成「图」——一个个<b>站点（节点）</b>、之间的<b>线路（边）</b>，再加一个所有站点共享的<b>状态（记事板）</b>，让 AI 照着图有序地走。</div>
+    </div>
+
+    <p>LangGraph 是 LangChain 团队 <strong>2024 年</strong> 推出的「下一代」编排工具。背景是：当大家开始做 <strong>Agent（能自己规划、循环、调用工具的 AI）</strong> 时，发现 LangChain 那种「一条直链」不够用了——真正的 agent 要能「试一下不行就回头再试」「根据结果决定走哪条路」。这种<strong>会绕圈、有分支的流程，用「图」来描述最自然</strong>：</p>
+
+    <div class="caps reveal">
+      <div class="cap"><div class="c-sym">⏺️</div><div class="c-name">节点 Node</div><div class="c-sub">流程里的一个步骤，比如「调一次模型」「查一次数据库」。</div></div>
+      <div class="cap"><div class="c-sym">↪️</div><div class="c-name">边 Edge</div><div class="c-sub">步骤之间怎么走，可以根据结果有条件地分叉。</div></div>
+      <div class="cap"><div class="c-sym">📝</div><div class="c-name">状态 State</div><div class="c-sub">一块全程共享的记事板，每步都能读写，串起整个流程。</div></div>
+      <div class="cap"><div class="c-sym">🔁</div><div class="c-name">循环 Loop</div><div class="c-sub">支持「不满意就回头重来」——直链做不到的关键能力。</div></div>
+      <div class="cap"><div class="c-sym">⏸️</div><div class="c-name">人工介入</div><div class="c-sub">可以中途暂停、等人确认，再继续往下走。</div></div>
+      <div class="cap"><div class="c-sym">💾</div><div class="c-name">持久化</div><div class="c-sub">流程跑一半断了能续上，适合长任务。</div></div>
+    </div>
+
+    <div class="callout info"><strong>记住它的定位 ·</strong> LangGraph = <strong>「用流程图编排复杂、会绕圈的 AI 工作流」</strong>。它和 LangChain 是一家人：LangChain 给你积木块，LangGraph 给你「把块组织成复杂流程」的图框架。<strong>需求越像「AI 自己绕圈做决定」，它越有价值；需求越像「按固定步骤走一遍」，它越是杀鸡用牛刀。</strong></div>
+  </section>
+
+  <!-- ════════════ 03 ════════════ -->
+  <div class="section-head reveal" id="langfuse">
+    <span class="num">03</span>
+    <div class="meta">
+      <h2>SECTION THREE · LANGFUSE</h2>
+      <div class="lede">Langfuse：AI 应用的「行车记录仪 + 账单 + 质检」</div>
+    </div>
+  </div>
+
+  <section>
+    <div class="meta-banner reveal">
+      <div class="m-sym">🎥</div>
+      <div class="m-body">类比：<b>装在 AI 应用上的行车记录仪 + 账单 + 质检台</b>。它<b>不开车（不帮你干活）</b>，但把每一趟行程录下来：走了哪条路、烧了多少油（花了多少钱）、开得稳不稳（快不快、有没有出错）、到没到目的地（输出对不对）。出了问题，回放这段录像就知道哪儿错了。</div>
+    </div>
+
+    <p>这就是 <strong>「LLM 可观测性（Observability）」</strong>——和前两个完全不同的维度。前两个帮你<strong>把 AI 应用造出来</strong>；Langfuse 帮你在应用<strong>上线之后，看清它到底在干嘛</strong>。因为大模型有个要命的特点：<strong>它是个黑盒，同样的输入可能给不同输出，还按字数烧钱</strong>。没有观测，你就是「闭着眼开车」——不知道哪条对话翻车了、不知道这个月为什么账单暴涨、不知道改了提示词到底变好还是变差。Langfuse 把这些变得「看得见」：</p>
+
+    <div class="caps reveal">
+      <div class="cap"><div class="c-sym">🔬</div><div class="c-name">Tracing 追踪</div><div class="c-sub">把每次模型调用的输入、输出、耗时完整录下来，可回放。</div></div>
+      <div class="cap"><div class="c-sym">💰</div><div class="c-name">成本 / Token</div><div class="c-sub">每次调用花了多少钱、用了多少 token，一笔笔记账。</div></div>
+      <div class="cap"><div class="c-sym">📋</div><div class="c-name">Prompt 管理</div><div class="c-sub">把提示词托管在平台上、带版本，改词不用改代码重新上线。</div></div>
+      <div class="cap"><div class="c-sym">⭐</div><div class="c-name">Scores 打分</div><div class="c-sub">给输出质量打分（机器判 / 人判 / 用户反馈），盯住好坏。</div></div>
+      <div class="cap"><div class="c-sym">🧪</div><div class="c-name">Datasets 评测</div><div class="c-sub">攒一批测试样本，改动前后各跑一遍，比出「变好还是变差」。</div></div>
+      <div class="cap"><div class="c-sym">💬</div><div class="c-name">Sessions 会话</div><div class="c-sub">把同一段多轮对话的多次调用归到一起，整段一起看。</div></div>
+    </div>
+
+    <div class="callout success"><strong>记住它的定位 ·</strong> Langfuse = <strong>「上线后看清 AI：花了多少、说了啥、好不好」</strong>。它是<strong>开源、可自托管</strong>的（也有云端版）。注意：它和你用什么搭应用<strong>无关</strong>——用 LangChain 搭也好、用自家代码搭也好，都能接上它来观测。</div>
+  </section>
+
+  <!-- ════════════ 04 ════════════ -->
+  <div class="section-head reveal" id="compare">
+    <span class="num">04</span>
+    <div class="meta">
+      <h2>SECTION FOUR · ONE TABLE</h2>
+      <div class="lede">一张表，彻底看懂三者区别</div>
+    </div>
+  </div>
+
+  <section>
+    <p>把三者并排放，区别一目了然。<strong>最关键的一栏是「属于哪层」</strong>——前两个是干活层、可以二选一甚至一起用；Langfuse 是监工层，和前两个不冲突、可以叠加。</p>
+
+    <div class="dtable-wrap reveal">
+      <table class="dtable">
+        <thead><tr><th>维度</th><th><span class="nm lc">LangChain</span></th><th><span class="nm lg">LangGraph</span></th><th><span class="nm lf">Langfuse</span></th></tr></thead>
+        <tbody>
+          <tr><td class="feat">属于哪层</td><td>干活层（搭）</td><td>干活层（编排）</td><td>监工层（看清）</td></tr>
+          <tr><td class="feat">一句话</td><td>搭 AI 应用的积木盒</td><td>编排复杂流程的流程图</td><td>观测 AI 的记录仪+账单</td></tr>
+          <tr><td class="feat">解决什么</td><td>不想重复造调模型、读文档、记忆、工具的轮子</td><td>让 AI 多步、分支、循环地有序工作</td><td>上线后看不见花了多少、好不好、哪翻车</td></tr>
+          <tr><td class="feat">用它的时机</td><td>快速搭原型、需要现成模块多</td><td>做会自己绕圈决策的 Agent</td><td>任何认真上线、要控成本和质量的 AI 应用</td></tr>
+          <tr><td class="feat">和另两个关系</td><td>LangGraph 的「积木来源」</td><td>LangChain 的「升级版编排」</td><td>独立一层，和前两个可叠加</td></tr>
+          <tr><td class="feat">Akke 用不用</td><td><span class="use no">○ 没用</span></td><td><span class="use no">○ 没用</span></td><td><span class="use yes">✅ 在用</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout warn"><strong>最该记住的一点 ·</strong> 「用不用 LangChain / LangGraph」和「用不用 Langfuse」是<strong>两个独立的问题</strong>。Akke 的答案就是一个典型组合：<strong>干活层不用它俩（用自家代码），监工层用 Langfuse</strong>。下面两章分别讲为什么。</div>
+  </section>
+
+  <!-- ════════════ 05 ════════════ -->
+  <div class="section-head reveal" id="we-use-langfuse">
+    <span class="num">05</span>
+    <div class="meta">
+      <h2>SECTION FIVE · WHY WE USE LANGFUSE</h2>
+      <div class="lede">Akke 用了 Langfuse —— 用到了哪些、还没用上哪些</div>
+    </div>
+  </div>
+
+  <section>
+    <p>先说<strong>为什么需要</strong>。Akke 是抖音获客平台：从评论里发现高意向客户，再让 AI 自动写开场白、养客对话直到成交。这意味着<strong>每天有大量 AI 调用在自动跑、还在直接花钱、还直接面对真实客户</strong>。这种场景没有观测就是「裸奔」——所以我们接了 Langfuse：每条 AI 生成的消息都串上一个「追踪号」，从客户评论 → 抓取 → 生成开场白 → 对话，全链路可回放，花了多少、质量如何一目了然。</p>
+
+    <h3>Langfuse — 我们用到了什么</h3>
+    <div class="dtable-wrap reveal">
+      <table class="dtable">
+        <thead><tr><th>能力</th><th>我们怎么用</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr><td class="feat">Tracing 追踪</td><td>核心。每次调模型都包一层，输入输出、耗时全录；业务记录里也存了追踪号，能从一条消息直接跳到那次调用的「录像」。</td><td class="use yes">✅ 在用</td></tr>
+          <tr><td class="feat">Prompt 管理</td><td>提示词托管在 Langfuse 上、带版本和「正式 / 测试」标签，运营改话术不必改代码重新发版；万一拉取失败，自动回退到代码里的备用词并告警。</td><td class="use yes">✅ 在用</td></tr>
+          <tr><td class="feat">Sessions 会话</td><td>把同一个客户的多轮对话归到一个会话里，整段一起看，而不是一条条孤立地看。</td><td class="use yes">✅ 在用</td></tr>
+          <tr><td class="feat">采样控成本</td><td>量大的「意向分析」类调用按 ~10% 抽样记录，重要的「对话 / 反向评论」全量记录——既看得见关键路径，又不超出套餐额度。</td><td class="use yes">✅ 在用</td></tr>
+          <tr><td class="feat">Scores 打分</td><td>给开场白自动打三个质量分（是否合格 / 切不切题 / 有没有钩子），不合格的当场重生成。<b>但目前只覆盖开场白这一处。</b></td><td class="use part">◐ 用了一部分</td></tr>
+          <tr><td class="feat">成本 / Token</td><td>token 用量会被采集，但<b>实际的成本统计是我们自己另算的</b>（因为模型供应商那边回报的金额是 0，我们用本地价目表回算）。</td><td class="use part">◐ 自建为主</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Langfuse 里还没用上、但很有用的</h3>
+    <p>Langfuse 的能力远不止上面这些。下面这几项<strong>现在没用上，但价值很高，是后续值得补的</strong>：</p>
+    <div class="dtable-wrap reveal">
+      <table class="dtable">
+        <thead><tr><th>能力</th><th>能带来什么 · 为什么值得补</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr><td class="feat">业务结果回写</td><td>把「客户回了没 / 加没加微信 / 成没成交」这些<b>真实结果</b>回写成分数，挂到对应的 AI 调用上。这样就能反推「哪种开场白真的带来回复」，而不只看 AI 自评的质量分。打分这套管线我们已经有了，只差把业务结果接上去——<b>性价比最高的一项</b>。</td><td class="use no">○ 未来候选</td></tr>
+          <tr><td class="feat">用户反馈打分</td><td>让一线运营在看到 AI 草稿时一键「赞 / 踩」，反馈直接进 Langfuse。真人对真实场景的判断，是改进话术最快的信号源。目前完全没接。</td><td class="use no">○ 没用</td></tr>
+          <tr><td class="feat">Datasets 回归评测</td><td>攒一批「标准考题」，每次改提示词 / 换模型前后各跑一遍，用机器自动比出「这次改动是变好还是变差」，避免凭感觉调。<b>我们在开发期的脚本里跑过，但还没变成上线前的固定动作。</b>把它制度化，能挡住「改了个词结果偷偷变差」这类坑。</td><td class="use part">◐ 仅离线试过</td></tr>
+          <tr><td class="feat">人工标注队列</td><td>把一批 AI 输出排进队列，组织人工逐条打标签（好 / 坏 / 哪里不对），沉淀成高质量评测集和改进依据。适合阶段性做一轮质量盘点，目前没用。</td><td class="use no">○ 没用</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout success"><strong>小结 ·</strong> 我们把 Langfuse 当成<strong>「AI 的行车记录仪 + 提示词后台」</strong>，追踪、改词、分会话、控成本这几样吃得最透。<strong>下一步最划算的补强，是把「业务结果」和「上线前回归评测」接进来</strong>——让我们不只看 AI「自我感觉良不良好」，而是看它「有没有真的带来客户回复」。</div>
+  </section>
+
+  <!-- ════════════ 06 ════════════ -->
+  <div class="section-head reveal" id="we-skip">
+    <span class="num">06</span>
+    <div class="meta">
+      <h2>SECTION SIX · WHY WE SKIP THE OTHER TWO</h2>
+      <div class="lede">Akke 没用 LangChain / LangGraph —— 为什么，以及何时才该上</div>
+    </div>
+  </div>
+
+  <section>
+    <p>「没用」不是没听说过，而是<strong>认真评估后主动不用</strong>。Akke 调大模型是<strong>直接用官方 SDK、指向 OpenRouter（统一调多家模型的入口）</strong>，编排则是<strong>自家代码写的「状态机流水线」</strong>——并没有交给 LangChain / LangGraph。原因有三：</p>
+
+    <div class="versus reveal">
+      <div class="vs-side left"><h4>✅ 我们的实际情况</h4><p>① 编排是「按固定步骤走」：抓评论 → 分析意向 → 生成草稿 → 过审核 → 发送，由代码和定时任务驱动，<b>不需要 AI 自己绕圈做决定</b>。<br>② 模型调用基本是「问一次答一次」，<b>不是反复调用工具的 agent 循环</b>。</p></div>
+      <div class="vs-mid">所以</div>
+      <div class="vs-side right"><h4>⚠️ 引入它俩反而亏</h4><p>把已经手写好、跑得很稳的流程，改写成 LangGraph 的「图」语法，<b>是纯重构、没有新增能力</b>；还得把现有的 Langfuse 观测、数据库对齐全部重接一遍。<b>投入大、收益负</b>——典型的为了用框架而用框架。</p></div>
+    </div>
+
+    <p>第三个原因更根本：<strong>多一层框架，就多一层黑盒和依赖</strong>。我们现在「调模型 + 编排」全是自家几百行能完全看懂、能随时改的代码，出问题直接定位；套上一个大框架，等于把这部分交给别人的抽象，排障和定制都变难。<strong>对追求「简单、可控、好排障」的小团队，这笔账不划算。</strong></p>
+
+    <h3>那什么时候才真的该上 LangGraph？</h3>
+    <div class="callout info">
+      <strong>判断线 ·</strong> 当出现下面这些信号，再考虑引入「图编排」也不迟：<br>
+      ① AI 需要<b>自己规划多步、并根据中间结果决定下一步</b>（真正的 agent，而非固定流水线）；<br>
+      ② 流程里有大量<b>分支、循环、回退</b>，用代码的 if/else 已经写到自己都绕晕；<br>
+      ③ 需要<b>跑一半暂停、等人工确认再继续</b>，且这种长流程很多。<br>
+      —— 在那之前，<b>「自家代码状态机 + Langfuse 观测」是更轻、更稳的组合</b>。
+    </div>
+
+    <div class="callout purple"><strong>一个值得记的取舍 ·</strong> 选不选一个框架，标准不是「它火不火、强不强」，而是<strong>「它解决的问题，是不是我现在真有的问题」</strong>。LangGraph 很强，但 Akke 没有「AI 要自己绕圈决策」这个问题——所以对我们，<strong>不用，才是对的工程判断</strong>。</div>
+  </section>
+
+  <!-- ════════════ 07 ════════════ -->
+  <div class="section-head reveal" id="takeaway">
+    <span class="num">07</span>
+    <div class="meta">
+      <h2>SECTION SEVEN · TAKEAWAY</h2>
+      <div class="lede">一句话装进脑子</div>
+    </div>
+  </div>
+
+  <section>
+    <p>不用记那一堆概念。把这页浓缩成一行，以后听到这三个词，脑子里浮现这句就够：</p>
+
+    <div class="punchline">
+      <span class="hl">前两个帮 AI 干活，第三个帮你看清 AI</span>；<br>Akke 干活用自家代码，看清用 Langfuse。
+    </div>
+
+    <div class="callout success" style="margin-top:24px;">
+      <strong>速记 ·</strong>
+      <b style="color:var(--accent)">LangChain</b> = 搭 AI 应用的积木盒；
+      <b style="color:var(--accent-2)">LangGraph</b> = 编排复杂流程的流程图（同一家，升级版）；
+      <b style="color:var(--accent-3)">Langfuse</b> = 看清 AI 的记录仪 + 账单 + 提示词后台（另一层，可叠加）。
+    </div>
+
+    <div class="callout info" style="margin-top:14px;">
+      <strong>Akke 的组合 ·</strong> 干活层<b>不用</b> LangChain / LangGraph（自家状态机流水线更轻更可控）；监工层<b>用</b> Langfuse（追踪 + 改词 + 分会话 + 控成本）。下一步最划算的补强：把<b>业务结果回写</b>和<b>上线前回归评测</b>接进来。
+    </div>
+
+    <div class="callout warn" style="margin-top:14px;">
+      <strong>延伸阅读 ·</strong> 想理解我们为什么偏爱「自家代码 + 绕数据库」而不是套大框架，看 <a href="/learn/autoreply-supabase-relay">自动回复为什么要「绕」数据库 →</a> 与 <a href="/learn/vercel-supabase">Vercel × Supabase →</a>
+    </div>
+  </section>
+
+  <footer>
+    整理自团队 AI 工程栈分享 · upio.ai 知识分享<br>
+    讲解口径对齐 Akke 实际用法 · 仅含架构与方法论，不含任何凭据 / 地址
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) { e.target.classList.add('in-view'); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.12, rootMargin: '0px 0px -6% 0px' });
+  document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
+})();
+</script>
+
+</body>
+</html>

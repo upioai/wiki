@@ -29,6 +29,7 @@ const CATEGORIES = [
     label: 'AGENT · AI ENGINEERING',
     title: 'Agent · AI 工程',
     items: [
+      { slug: 'langchain-langgraph-langfuse', title: 'LangChain · LangGraph · Langfuse', desc: '三个都带 lang 的名字怎么分？前两个帮 AI 干活、第三个帮你看清 AI——结合 Akke 讲我们用了哪个、没用哪个、为什么。' },
       { slug: 'claude-tag',       title: 'Claude Tag · Slack 队友', desc: '把 Claude 拉进 Slack 当常驻队友：@一下就接活、会主动盯事（Opus 4.8）。' },
       { slug: 'hermes-agent',     title: 'Hermes Agent 框架',  desc: '团队自研 Agent 系统讲解。' },
       { slug: 'loop-engineering', title: 'Loop Engineering',    desc: 'Agent 循环工程方法论。' },
