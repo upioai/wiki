@@ -53,18 +53,56 @@
       <tr><th></th><th>手动版（旧）</th><th>无人值守 agent（本教程）</th></tr>
       <tr><td>谁触发</td><td>你本机敲命令拉单 → 传文件到云电脑 → 云电脑敲命令发</td><td><span class="tag g">起一次就行</span> 云电脑常驻，每 5min 自己一轮</td></tr>
       <tr><td>你要做啥</td><td>每批都要拉、传、发三步</td><td>盯第一轮没问题就放手</td></tr>
-      <tr><td>话术</td><td colspan="2">都一样：按客户备注从 3 条里自动选最匹配（见 <a href="https://upio.ai/akke/wecom-add-greeting">话术页</a>），无备注用默认话术2</td></tr>
+      <tr><td>话术</td><td colspan="2">都一样：按客户备注自动从 3 条里选最匹配（下面 ②讲）。不用你手打，发出去的就是选好的那条。</td></tr>
     </table>
   </div>
 
-  <h2>② 不会重复加 · 怎么分配的（重点）</h2>
-  <div class="box note">
-    <b>每台云电脑只领「还没人领」的线索，领到就锁在自己名下 —— 数据库层面原子锁，物理上不可能两个人领到同一条。</b>
-    <p style="font-size:14.5px;margin-top:4px">所以多个同事同时跑，各领各的一批，<b>绝不会两个企业微信号去加同一个人</b>。你要做的只有一件事：<b>在 <code>.env</code> 里填你自己的名字（别跟别人重名）+ 你自己的 key</b>。剩下系统自动分。</p>
-    <p style="font-size:13px;color:#8a93a3;margin-top:8px">技术上：<code>claim_enterprise_leads</code> 用 <code>FOR UPDATE SKIP LOCKED</code> 原子认领；崩了/没发完的下轮自己重领重试，不丢不重。</p>
+  <h2>② 话术怎么分（按客户备注自动选 1 条）</h2>
+  <div class="box flow">
+    <b>每条线索在数据库里都带一条「备注」（销售之前跟进留下的）。agent 读这条备注，按下面规则自动挑话术——不用你管。</b>
+    <table style="box-shadow:none;margin-top:8px">
+      <tr><th>客户备注长这样</th><th>自动发哪条</th><th>话术原文（≤50字）</th></tr>
+      <tr>
+        <td>新房 / 毛坯 / 刚交房 / 还没开工 / 想要优惠 / 价格敏感</td>
+        <td><span class="tag y">话术1</span><br>补贴+样板房</td>
+        <td>装修喜讯：加微申领每平方补贴300块，装修全屋定制兔宝宝ENF级多层实木 征集样板房</td>
+      </tr>
+      <tr>
+        <td>想了解价格 / 要全包整装 / 旧房翻新 / 想动工　<b>＋ 没备注 / 看不出意图 → 也走这条</b></td>
+        <td><span class="tag g">话术2</span><br><b>默认</b></td>
+        <td>您好 活动568每平米（原价868） 兔宝宝ENF多层板全屋定制 包设计安装 假一赔三</td>
+      </tr>
+      <tr>
+        <td>问材料 / 比品牌（兔宝宝·千年舟·莫干山）/ 关注环保 / 要详细配置报价</td>
+        <td><span class="tag b">话术3</span><br>多品牌+配置</td>
+        <td>兔宝宝/千年舟/莫干山全屋定制样板房 ENF多层板598每平（原价898）假一赔三 加微发报价配置</td>
+      </tr>
+      <tr>
+        <td><b>死号</b>：备注写「空号/无效号」且这条<b>没有微信号</b></td>
+        <td><span class="tag r">不加</span></td>
+        <td>直接跳过、标「无效」，不浪费一次加好友</td>
+      </tr>
+    </table>
+    <p style="font-size:13px;color:#8a93a3;margin-top:8px">想看完整话术说明（为啥这么写）：<a href="https://upio.ai/akke/wecom-add-greeting">话术页</a>。想改文案：找 PM 改源头 3 条，别在云电脑本地改（会被更新覆盖）。</p>
   </div>
 
-  <h2>③ 开跑前，准备这 5 样</h2>
+  <h2>③ 线索怎么分给每个人（不会重复加 · 重点）</h2>
+  <div class="box note">
+    <b>一句话：所有人共用一个线索池；每台云电脑每轮去池子里「捞还没人领的几条」，捞到就盖上自己的名字章，别人再也捞不到这几条。</b>
+    <div style="background:#f8fafc;border-radius:8px;padding:12px 14px;margin-top:10px;font-size:14px">
+      <b>举个例子（池子里现有 300 条「待加」，三台同时跑）：</b>
+      <ol style="margin:6px 0 0 18px">
+        <li><b>夏夏</b>的 agent 这一轮捞 5 条没人领的 → 盖上「夏夏」章 → 这 5 条变成夏夏的，别人看不到了。</li>
+        <li>同一时刻 <b>饭粒</b>的 agent 也在捞，但它只会捞到<b>另外 5 条</b>（夏夏盖过章的它直接跳过）→ 你俩<b>永远不会加到同一个客户</b>。</li>
+        <li><b>野荞</b>同理，再捞另外 5 条。三个人各干各的，池子越捞越少。</li>
+        <li>你名下加完的（已发请求/加不上）就结了；<b>没加完的</b>（比如崩了、或这轮搜不到先跳过的）下一轮<b>你自己的 agent 优先重新捞回来</b>，不会丢、也不会被别人抢。</li>
+      </ol>
+    </div>
+    <p style="font-size:14.5px;margin-top:10px">所以你要做的<b>只有一件事</b>：在 <code>.env</code> 里 <code>AKKE_WECOM_OPERATOR</code> 填<b>你自己的名字、而且和同事都不一样</b>（饭粒 / 夏夏 / 野荞…）——这就是"盖章"用的名字。<b>重名了系统就分不清谁是谁、统计也会串</b>。其余系统自动分，你不用手动划分谁加哪些。</p>
+    <p style="font-size:13px;color:#8a93a3;margin-top:8px">技术上：<code>claim_enterprise_leads</code> 用 <code>FOR UPDATE SKIP LOCKED</code> 原子认领，"捞 + 盖章"是一步到位、并发也不会两台领到同一条。</p>
+  </div>
+
+  <h2>④ 开跑前，准备这 5 样</h2>
   <table>
     <tr><th>要的东西</th><th>是什么 / 哪来</th></tr>
     <tr><td><span class="tag b">云电脑环境</span></td><td>企业微信 PC 已登录；Python 3.12；装好依赖 <code>pip install pyautogui pyperclip pillow opencv-python python-dotenv pygetwindow</code></td></tr>
@@ -74,7 +112,7 @@
     <tr><td><code>OpenRouter key</code></td><td><code>sk-or…</code>，AI 选话术 + 加好友时看屏幕用。云电脑一般<b>已经有了</b>（跟发抖音 DM 共用）。</td></tr>
   </table>
 
-  <h2>④ 开跑（3 步搞定，第 4 步可选）</h2>
+  <h2>⑤ 开跑（3 步搞定，第 4 步可选）</h2>
   <div class="step"><div class="n">1</div><div class="c">
     <b>拿两个脚本</b>，放到云电脑 <code>worker/scripts/wuying-dm/</code> 下（找 PM 要 paste.rs 链接 / 共享盘）：
     <pre><span class="dim"># 两个都要，缺一不可</span>
@@ -101,7 +139,7 @@ AKKE_WECOM_CLAIM_LIMIT=<span class="y">1</span>   <span class="dim"># 第一天�
     <b>（可选，一般不用）真定位点歪了再采坐标</b>：万一看到它点错地方/老搜不到，先手动搜个能加的人、把「发送添加申请」弹框开出来，再跑 <code>python wecom_add_contact_grounded.py --capture</code> 按提示采一遍。<b>没问题就跳过这步。</b>
   </div></div>
 
-  <h2>⑤ 盯第一轮，看这 4 样对不对</h2>
+  <h2>⑥ 盯第一轮，看这 4 样对不对</h2>
   <div class="box note">
     <ol style="margin-top:2px">
       <li>开头打印 <code>org=… operator=你的名字 …</code> = 连上数据库了。</li>
@@ -112,13 +150,13 @@ AKKE_WECOM_CLAIM_LIMIT=<span class="y">1</span>   <span class="dim"># 第一天�
     <p style="font-size:13px;color:#8a93a3;margin-top:6px">这几样都对，就把 <code>AKKE_WECOM_CLAIM_LIMIT</code> 改成 5、重启，放手让它自己跑。<b>看到 <code>加不上/搜不到</code> 别慌</b>——很多号没开手机号搜索，正常，不占配额、会自动跳下一条。</p>
   </div>
 
-  <h2>⑥ 节奏 · 怎么查自己今天发了几条</h2>
+  <h2>⑦ 节奏 · 怎么查自己今天发了几条</h2>
   <div class="box flow">
     <b>日限默认 20 条 / 天，发满自动待机（加好友比发消息敏感，慢点不容易被封）。</b>
     <p style="font-size:14px;margin-top:4px">想看进度：让 PM 跑 <code>scripts/wecom-acceptance-by-template.ts</code> 出「每条话术 已发/已通过/通过率」。注意通过率要等对方<b>真点了通过</b>、有人回写「已通过」才准。</p>
   </div>
 
-  <h2>⑦ 最容易踩的坑（出问题先看这里）</h2>
+  <h2>⑧ 最容易踩的坑（出问题先看这里）</h2>
   <div class="box red">
     <b>逐条对照：</b>
     <ol style="margin-top:2px">
