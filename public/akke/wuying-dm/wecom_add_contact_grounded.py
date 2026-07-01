@@ -514,7 +514,10 @@ def process(c):
     state, conf, seen = classify_search_result(name, search_key)
     print('  [result] state=%s conf=%.2f seen=%r' % (state, conf, seen))
     if state == 'already':
-        return 'already', conf, seen, ''
+        # already 是纯 VL 视觉猜测(看到"发消息"而非"添加"就判已是好友)，会误判非好友。
+        # 存截图留证，供 agent 侧转人工核(2026-07-01 实证 2 条非好友被误判为已是好友)。
+        path, _ = _shot('_wecom_result.png')
+        return 'already', conf, seen, _save_result_sample('already', path)
     if state == 'not_found':
         path, _ = _shot('_wecom_result.png')
         return 'not_found', conf, seen, _save_result_sample('not_found', path)
