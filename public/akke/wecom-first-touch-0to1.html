@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>企微好友单聊 AI 主动首触 + 自动代回 · 0→1 部署报告（2026-07-01）</title>
+<style>
+  :root{
+    --bg:#0b0d12;--panel:#141821;--deep:#1a1f2b;--bd:#242a38;--bd2:#2f3646;
+    --tx:#e4e7ed;--dim:#9ba3b4;--mut:#6b7384;
+    --acc:#8b5cf6;--accs:rgba(139,92,246,.14);
+    --info:#60a5fa;--ok:#34d399;--oks:rgba(52,211,153,.12);
+    --warn:#f87171;--warns:rgba(248,113,113,.12);
+    --hl:#fde047;--hls:rgba(253,224,71,.14);--mid:#fbbf24;--mids:rgba(251,191,36,.12);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--tx);font-size:15px;line-height:1.7;
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:960px;margin:0 auto;padding:44px 22px 110px}
+  h1{font-size:34px;font-weight:800;margin:0 0 6px;letter-spacing:-.02em}
+  .sub{color:var(--dim);font-size:14px;margin-bottom:8px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 4px}
+  .chip{padding:4px 12px;border-radius:999px;font-size:12.5px;font-weight:600}
+  .c-acc{background:var(--accs);color:var(--acc)}.c-ok{background:var(--oks);color:var(--ok)}
+  .c-info{background:rgba(96,165,250,.12);color:var(--info)}.c-mid{background:var(--mids);color:var(--mid)}
+  .c-warn{background:var(--warns);color:var(--warn)}
+  section{margin:48px 0 0}
+  .secno{font-size:12px;color:var(--acc);letter-spacing:.16em;text-transform:uppercase;font-weight:700}
+  h2{font-size:25px;font-weight:800;margin:4px 0 16px;letter-spacing:-.01em}
+  h3{font-size:17px;font-weight:700;margin:24px 0 10px}
+  .panel{background:var(--panel);border:1px solid var(--bd);border-radius:14px;padding:20px 24px;margin:0 0 14px}
+  .lede{color:var(--dim);border-left:2px solid var(--bd2);padding-left:14px;margin:0 0 18px;font-size:15px}
+  .lede em{color:var(--tx);font-style:normal;font-weight:600}
+  .dm{display:flex;margin:8px 0}.dm.me{justify-content:flex-end}
+  .bub{max-width:80%;padding:12px 16px;border-radius:14px;font-size:14.5px;line-height:1.55;white-space:pre-wrap}
+  .dm.me .bub{background:linear-gradient(135deg,var(--acc),#7c3aed);color:#fff;border-bottom-right-radius:4px}
+  .dm.cust .bub{background:var(--deep);border:1px solid var(--bd2);border-bottom-left-radius:4px}
+  .mt{font-size:11.5px;color:var(--mut);margin:2px 2px 10px}
+  .mt.r{text-align:right}
+  .flow{display:flex;flex-direction:column;gap:0;margin:8px 0}
+  .frow{display:flex;align-items:stretch;gap:10px;flex-wrap:wrap}
+  .fbox{flex:1;min-width:150px;background:var(--deep);border:1px solid var(--bd2);border-radius:10px;padding:12px 14px}
+  .fbox .ft{font-size:13.5px;font-weight:700;color:var(--tx)}
+  .fbox .fd{font-size:12px;color:var(--mut);margin-top:3px;line-height:1.45}
+  .fbox.cloud{border-color:rgba(96,165,250,.4)}.fbox.cloud .ft{color:var(--info)}
+  .fbox.cron{border-color:rgba(139,92,246,.4)}.fbox.cron .ft{color:var(--acc)}
+  .fbox.ok{border-color:rgba(52,211,153,.4)}.fbox.ok .ft{color:var(--ok)}
+  .farr{display:flex;align-items:center;justify-content:center;color:var(--acc);font-size:20px;padding:6px 0}
+  .leg{font-size:12px;color:var(--mut);margin-top:8px}
+  .leg b{color:var(--info)}.leg i{color:var(--acc);font-style:normal}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin:6px 0}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--bd);vertical-align:top}
+  th{color:var(--mut);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+  td .bad{color:var(--warn);font-weight:600}
+  .st{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:700;white-space:nowrap}
+  .st.done{background:var(--oks);color:var(--ok)}.st.prog{background:var(--mids);color:var(--mid)}
+  .st.wait{background:var(--warns);color:var(--warn)}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:6px 0 14px}
+  .stat{background:var(--deep);border:1px solid var(--bd);border-radius:10px;padding:14px;text-align:center}
+  .stat .n{font-size:28px;font-weight:800;color:var(--acc);line-height:1}
+  .stat .l{font-size:11.5px;color:var(--mut);margin-top:6px}
+  @media(max-width:640px){.stats{grid-template-columns:repeat(2,1fr)}}
+  .todo{background:var(--panel);border:1px solid var(--bd);border-radius:10px;padding:6px 8px;margin:8px 0}
+  .ti{display:flex;gap:12px;padding:11px 12px;border-bottom:1px solid var(--bd);align-items:flex-start}
+  .ti:last-child{border-bottom:none}
+  .ti .ico{flex:0 0 22px;font-size:15px}
+  .ti .body{flex:1}.ti .body b{color:var(--tx)}.ti .body .d{color:var(--dim);font-size:13px}
+  .ti.key{background:var(--hls);border-radius:8px;border:1px solid rgba(253,224,71,.35)}
+  .ti.key .body b{color:var(--hl)}
+  .keytag{display:inline-block;background:var(--hl);color:#1a1500;font-weight:800;font-size:10.5px;padding:1px 7px;border-radius:4px;margin-left:6px;vertical-align:1px}
+  mark{background:var(--hls);color:var(--hl);padding:0 4px;border-radius:3px;font-weight:600}
+  code{background:#0e1117;border:1px solid var(--bd);border-radius:4px;padding:1px 5px;font-size:12.5px;color:var(--info);font-family:ui-monospace,Menlo,monospace}
+  .note{font-size:12.5px;color:var(--mut);margin-top:8px}
+  .fnl{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;margin:4px 0}
+  .pri{display:flex;gap:10px;margin:8px 0;flex-wrap:wrap}
+  .pcard{flex:1;min-width:180px;background:var(--deep);border:1px solid var(--bd2);border-radius:10px;padding:12px 14px}
+  .pcard .pt{font-weight:700;font-size:14px}.pcard .pd{font-size:12px;color:var(--mut);margin-top:4px}
+  .pcard.p1{border-color:rgba(52,211,153,.5)}.pcard.p1 .pt{color:var(--ok)}
+  .pcard.p2{border-color:rgba(96,165,250,.45)}.pcard.p2 .pt{color:var(--info)}
+  .pcard.p3{border-color:rgba(251,191,36,.4)}.pcard.p3 .pt{color:var(--mid)}
+  footer{margin-top:54px;padding-top:22px;border-top:1px solid var(--bd);color:var(--mut);font-size:12.5px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>企微好友单聊 AI 主动首触 + 自动代回 · 0→1</h1>
+  <div class="sub">方案B · 企业微信 PC 客户端 GUI 自动化 · 无影云电脑通道 · 上线灰度 2026-07-01 · PR #679/#680/#686/#689/#691/#692/#695/#698/#702 已合 main</div>
+  <div class="chips">
+    <span class="chip c-ok">✅ 首触端到端真发验通</span>
+    <span class="chip c-ok">✅ 代回话术验通（有大有小口径）</span>
+    <span class="chip c-info">新好友通过 → 自动主动打招呼</span>
+    <span class="chip c-info">已加好友回消息 → AI 代回</span>
+    <span class="chip c-acc">2 道防误回护栏</span>
+    <span class="chip c-mid">中性称呼 · 不猜性别</span>
+    <span class="chip c-warn">主号无隔离 · 日限 20 灰度</span>
+  </div>
+
+  <!-- 01 第一个案例 -->
+  <section>
+    <div class="secno">01 / 第一个案例</div>
+    <h2>首触 + 代回，真实链路产物</h2>
+    <p class="lede">这些都是<em>真实链路跑出来的原样话术</em>（云电脑 GUI 读发 / 端点直调），不是示意。首触面对的是<em>已经加了企微好友、但我方还没开口</em>的人；代回面对的是<em>已加好友、回了消息</em>的人——两边都不再向客户要微信号。</p>
+
+    <div class="panel">
+      <h3 style="margin-top:0">① 首触 — 新好友刚通过，我方主动打第一句</h3>
+      <div class="dm me"><div class="bub">你好呀，我是小文，做全屋定制好几年了。咱们家房子是新房还是翻新呢？</div></div>
+      <div class="mt r">小文（云电脑真发实测）· 中性招呼(无哥/姐) · 不要微信 · 不提视频 · 只问一个 · 钉死一条</div>
+
+      <h3>② 代回 — 客户问价（有大有小柜体口径，非抖音整装）</h3>
+      <div class="dm cust"><div class="bub">你们做衣柜吗？多少钱</div></div>
+      <div class="dm me"><div class="bub">您家大概哪个城市呀？咱们家是全国连锁，各地都有门店，能就近安排对接。
+
+衣柜当然做，全屋柜体定制都是 568 元/投影㎡，江浙沪京深另加 100 元/㎡。
+
+您要是方便说下面积和户型，我帮您大概算个数，比干聊价格更准哈。</div></div>
+      <div class="mt r">小文 · 568/投影 口径 · 问面积城市 · 引导就近门店</div>
+
+      <h3>③ 代回 — 客户问「怎么加你们微信」（关键：已是好友，不再抛号）</h3>
+      <div class="dm cust"><div class="bub">怎么加你们微信</div></div>
+      <div class="dm me"><div class="bub">您这不已经加上了吗～咱们现在就是在企业微信上聊呢
+
+您是想了解哪方面呀？我让设计师直接对接也一样的
+
+您家房子是在哪个城市呀？咱们就近安排门店看看</div></div>
+      <div class="mt r">小文 · <mark>正确识别「已经加上了」</mark>，不再抛 Homedz3791 / 备注抖音名 — badcase #7 修复后效果</div>
+    </div>
+  </section>
+
+  <!-- 02 逻辑原理图 -->
+  <section>
+    <div class="secno">02 / 0→1 逻辑原理</div>
+    <h2>GUI I/O 在云电脑，大脑 / DB / 成本全在云端</h2>
+    <p class="lede">云电脑 Python 只做<em>看屏幕 + 点鼠标打字</em>；<em>认人、生成话术、落库、算成本</em>全在 TS 端点。云电脑（国内 IP）连不上 Vercel，走 <b>Fly 中转</b>纯透传。</p>
+
+    <div class="panel">
+      <div class="flow">
+        <div class="frow">
+          <div class="fbox cloud"><div class="ft">① 风控门</div><div class="fd">工作时间 9-21 · 日限 20 · 时限 8 · 每客户连发 ≤6 · 随机间隔 25-70s</div></div>
+          <div class="farr">→</div>
+          <div class="fbox cloud"><div class="ft">② 抢窗口</div><div class="fd">ctypes 硬置前 + 最大化；<b>没铺满屏就跳过本轮</b>（不往错位窗口瞎点）</div></div>
+          <div class="farr">→</div>
+          <div class="fbox cloud"><div class="ft">③ VL 读屏</div><div class="fd">截图 → 看有无未读 → 点开最上会话 → 读会话状态（新好友? 客户消息? 发送方?）</div></div>
+        </div>
+        <div class="farr">↓ 分流</div>
+        <div class="frow">
+          <div class="fbox"><div class="ft">④A 新好友待首触</div><div class="fd">会话只有「已添加/可以开始聊天了」系统提示、无真人对话 → <code>action:opener</code></div></div>
+          <div class="fbox"><div class="ft">④B 客户回了消息</div><div class="fd">最新一条是客户发的 → 过两道护栏 → <code>action:generate</code></div></div>
+        </div>
+        <div class="farr">↓ Fly 中转（纯透传，绕 Vercel 大陆不可达）</div>
+        <div class="frow">
+          <div class="fbox cron"><div class="ft">⑤ TS 端点 · chatReply</div><div class="fd">按 persona（销售身份壳）认人 → 首触走<b>企微专属 opener prompt</b>（早退，不套抖音 ice_break）/ 代回走<b>有大有小 nurture/decision 规则</b> → 幂等去重 → Langfuse 计费</div></div>
+        </div>
+        <div class="farr">↓ 回话术</div>
+        <div class="frow">
+          <div class="fbox ok"><div class="ft">⑥ GUI 发送</div><div class="fd">点输入框 → 逐字 Unicode 打字（绕 IME）→ Enter。<b>首触钉死单条</b>；代回按换行最多 3 段</div></div>
+          <div class="farr">→</div>
+          <div class="fbox ok"><div class="ft">⑦ confirm 落库</div><div class="fd">只在真发出后才记 AI 消息（显式失败）+ 记入「我方近发文案」缓冲（供护栏①）</div></div>
+        </div>
+      </div>
+      <div class="leg"><b>蓝=云电脑 GUI</b> · <i>紫=云端大脑</i> · 绿=发送落库。首触与代回<b>同一个 loop、同一套发送/风控</b>，只在第③步分流。</div>
+    </div>
+
+    <h3>三道确定性护栏（不靠 LLM / VL 自觉）</h3>
+    <div class="pri">
+      <div class="pcard p1"><div class="pt">护栏① 防自问自答</div><div class="pd">读到的「客户消息」若 == 我方近发文案 → 判 VL 发送方误判，跳过（否则会回复自己、连发）</div></div>
+      <div class="pcard p2"><div class="pt">护栏② 防误读联系人</div><div class="pd">读到的「消息」若 == 会话名 → VL 把联系人标题/空会话当消息了，跳过</div></div>
+      <div class="pcard p3"><div class="pt">护栏③ 窗口校验</div><div class="pd">企微没铺满屏（抢窗口失败）→ 本轮不动作，避免坐标落偏点空</div></div>
+    </div>
+  </section>
+
+  <!-- 03 批量化 & badcase -->
+  <section>
+    <div class="secno">03 / 灰度状态 · Badcase · 优化</div>
+    <h2>首日上线灰度 + 9 类 badcase 全数收敛</h2>
+    <p class="lede">功能 <em>2026-07-01 当日</em>上线真发，仍在<em>灰度初期</em>——规模化数据待积累。下面是灰度口径与首批验证；badcase 表是这轮 0→1 <em>真实踩到并已修</em>的问题。</p>
+
+    <div class="stats">
+      <div class="stat"><div class="n">20 / 8</div><div class="l">日限 / 时限（灰度从严）</div></div>
+      <div class="stat"><div class="n">1 条</div><div class="l">首触钉死单条，等回复再续</div></div>
+      <div class="stat"><div class="n">9 类</div><div class="l">badcase 已收敛</div></div>
+      <div class="stat"><div class="n">3 道</div><div class="l">确定性防误回护栏</div></div>
+    </div>
+    <p class="note">灰度策略：主号无隔离，日限 20 / 时限 8 / 工作时间 9-21 / 随机间隔起步，稳定后再放量。首触与代回验证均已通过（真发 + 端点直测）。规模化 KPI（首触触达率 / 客户回复率 / 加微→到店转化）随真实客流积累后补。</p>
+
+    <h3>Badcase → 根因 → 优化 → 进展</h3>
+    <table>
+      <thead><tr><th>现象（badcase）</th><th>根因</th><th>优化方式</th><th>进展</th></tr></thead>
+      <tbody>
+        <tr><td class="bad">首触问客户「发个微信号我让设计师加你」</td><td>复用抖音 ice_break，其核心目标就是把人导到微信；但企微里已是好友</td><td>首触<b>早退企微专属 opener prompt</b>，完全不套抖音模板</td><td><span class="st done">#691 已修</span></td></tr>
+        <tr><td class="bad">首触编造「刷到你家装修的视频了」</td><td>ice_break 的视频引用 + temp 0.8 波动，脑补不存在的上下文</td><td>专属 prompt 明写「对客户一无所知」+ 禁编造视频/评论/户型</td><td><span class="st done">#689/#691 已修</span></td></tr>
+        <tr><td class="bad">把女生客户叫「X 哥」</td><td>从昵称猜性别，企微对客户零可靠信息，必翻车</td><td>首触<b>一律中性「你好/你好呀」</b>，禁加哥/姐/老板等性别身份后缀</td><td><span class="st done">#691 已修</span></td></tr>
+        <tr><td class="bad">首触发成好几条气泡</td><td>发送函数按换行拆气泡（代回要的行为）</td><td>首触 <code>single_bubble</code>：换行并空格<b>钉死一条</b></td><td><span class="st done">#692 已修</span></td></tr>
+        <tr><td class="bad">客户没回复，连发好几条（自问自答）</td><td>VL 偶把我方已发消息的发送方判反、读成客户消息</td><td><b>护栏①</b>：读到 == 我方近发文案 → 跳过（确定性）</td><td><span class="st done">#695 已修</span></td></tr>
+        <tr><td class="bad">对着联系人名 / 空会话乱回复</td><td>VL 把会话标题当成客户消息，<code>is_external</code> 也判错</td><td><b>护栏②</b>：消息 == 会话名 → 跳过</td><td><span class="st done">#698 已修</span></td></tr>
+        <tr><td class="bad">代回冒「加微信 Homedz3791/备注抖音名/DM/前面聊过」</td><td>会话被自问自答灌了假历史 + base 带品牌微信号，LLM 顺手抖音收口</td><td>企微 nurture/decision 红线<b>硬禁</b>加微信/DM/编造前情 + <b>清污染会话</b></td><td><span class="st done">#702 + 清库 已修</span></td></tr>
+        <tr><td class="bad">鼠标偶尔没点到输入框</td><td>无影上 pygetwindow 抢窗口不稳，窗口没真最大化 → 坐标落偏</td><td>ctypes 硬置前+最大化 + <b>护栏③</b>没铺满屏就跳过</td><td><span class="st done">已修</span></td></tr>
+        <tr><td class="bad">生僻字昵称读错（巭孬嫑勥烎→奚舜翼舜炎）</td><td>VL 认生僻字精度不足</td><td>中性称呼缓解（拿不准就只「你好」不硬叫名）；根治待换更强 VL</td><td><span class="st prog">缓解 · 待根治</span></td></tr>
+      </tbody>
+    </table>
+    <p class="note">运维教训：<code>.env</code> 被 PowerShell <code>Set-Content</code> 按系统 ANSI 重写、损坏了 UTF-8（中文注释成非法字节）→ <code>load_dotenv</code> 整体失败静默回退。已改用 .NET UTF-8 无 BOM 读写；改 .env 一律走字节安全方式。</p>
+  </section>
+
+  <!-- 04 下一步 -->
+  <section>
+    <div class="secno">04 / 下一步待做</div>
+    <h2>优化列表</h2>
+    <div class="todo">
+      <div class="ti key"><div class="ico">🎯</div><div class="body"><b>首触触达率监控<span class="keytag">KEY</span></b><div class="d">有多少新好友通过后被成功首触、多少漏（VL 没检出 / 抢窗口失败跳过）。没有这个就不知道覆盖率。</div></div></div>
+      <div class="ti"><div class="ico">📊</div><div class="body"><b>数据看板</b><div class="d">每日首触量 / 代回量 / 护栏跳过率 / 客户回复率 / 加微→到店转化，落公开日报页。</div></div></div>
+      <div class="ti"><div class="ico">🔤</div><div class="body"><b>VL 名字精度</b><div class="d">生僻字/emoji 昵称读错 → 换更强 VL 或加「名字置信度低就不叫名、只用你好」的确定性判定。</div></div></div>
+      <div class="ti"><div class="ico">🧑‍🤝‍🧑</div><div class="body"><b>is_external 内部号误判</b><div class="d">内部同事企微号偶被当外部客户 → 加内部号白/黑名单，护栏兜底。</div></div></div>
+      <div class="ti"><div class="ico">🚨</div><div class="body"><b>心跳告警</b><div class="d">loop 挂了 / 连续异常自停（写 STOP）/ 登录过期 → 推 Lark，别等运营发现才知道停了。</div></div></div>
+      <div class="ti"><div class="ico">👥</div><div class="body"><b>persona 覆盖补齐</b><div class="d">现有 4 个身份壳（小夏/小范/小文/小武）；阳阳等未注册的销售号接入前要先补 persona，否则回退默认。</div></div></div>
+      <div class="ti"><div class="ico">🧹</div><div class="body"><b>防污染长效机制</b><div class="d">自动识别/清理 VL 误读产生的脏会话，避免假历史再污染代回话术。</div></div></div>
+      <div class="ti"><div class="ico">🧠</div><div class="body"><b>代回多轮上下文质量</b><div class="d">记住客户给过的户型/面积/城市，别重复问；把话题稳步推向到店。</div></div></div>
+      <div class="ti"><div class="ico">⏱️</div><div class="body"><b>首触节奏拟人化</b><div class="d">好友通过后随机延迟几分钟再打招呼，更像真人、降风控风险。</div></div></div>
+    </div>
+  </section>
+
+  <footer>企微好友单聊 AI 主动首触 + 自动代回 · 0→1 部署报告 · 2026-07-01 上线灰度 · 内部文档，勿外传</footer>
+
+</div>
+</body>
+</html>
