@@ -118,6 +118,18 @@
     </table>
   </div>
 
+  <div class="card">
+    <h3 style="margin-top:0">代码级根因 · 已定位到具体函数 <span class="pill p-green">已提 PR #690</span></h3>
+    <table>
+      <tr><th>元凶</th><td><code>goto_home()</code>（<code>douyin_dm_grounded.py</code>，2026-06-12 专门写来治此 bug——点左侧「推荐」把搜索框钉回稳定位置，docstring 明写「每条搜人前调一次」）<b class="fail">是死代码，整个文件从没被调用过</b>。</td></tr>
+      <tr><th>触发链</th><td><code>process()</code> 每条只调 <code>reset_to_home()</code>（Esc+关聊天），<b>不回首页</b>。代码自己注释（C_SEARCH 处）就写「结果页时顶部搜索框会挪位」→ 上一条停在结果页 → 固定 <code>C_SEARCH</code> 坐标点空 → 打字/回车没执行 → <b>上一条残留结果还在 → 点第一条 = 残留人</b>（SHUI/小读知新）。</td></tr>
+      <tr><th>双重坑</th><td>① <code>goto_home()</code> 在 <code>process()</code> 里没接线；② 就算接上，它 <code>if not C_HOME: return</code> —— 零星机没量 <code>AKKE_C_HOME</code> 也是 no-op。<b>两个都得修。</b></td></tr>
+      <tr><th>顺带澄清</th><td>早先怀疑 <code>C_HOME</code> 导致跳创作者中心——<b>不可能</b>，因为 goto_home 根本没被调，设不设 C_HOME 都无效（这也解释了当时「删了还跳」）。</td></tr>
+      <tr><th class="ok">修法①（代码）</th><td><b>PR #690</b>：<code>process()</code> 每条搜索前加 <code>goto_home()</code>。guarded：没量 C_HOME 时 no-op、零风险。</td></tr>
+      <tr><th class="p-blue">修法②（机器）</th><td>云电脑 .env 量 <code>AKKE_C_HOME</code>（左侧「推荐」按钮坐标）才激活。两个都到位后，搜索框每条钉回稳定位，残留页链断掉。</td></tr>
+    </table>
+  </div>
+
   <!-- ========== 问题二 ========== -->
   <h2>问题二 · DM 自动回复：不回复 + 数据群不推 + 老跳投稿</h2>
   <p class="note">今天的主战场，拆成 4 个子问题。</p>
