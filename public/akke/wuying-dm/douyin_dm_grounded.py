@@ -809,6 +809,12 @@ def process(c):
                 print('  [非主页重试] 第%d条 第%d次重试(重新导航+加长等待，等页面落稳)' % (i + 1, attempt))
             focus_douyin()
             reset_to_home()  # 每条/每次开头强制回干净首页(关残留聊天面板+Esc清浮层)，防连环卡死(2026-06-09)
+            # 2026-06-12 写的 goto_home 一直没接线(死代码)：只 reset_to_home(Esc+关聊天) 不回首页,
+            # 上一条停在【搜索结果页】时顶部搜索框会挪位(见 C_SEARCH 注释)→ 固定坐标点空 → 打字/回车
+            # 没执行 → 残留的上条结果还在 → 点第一条=残留人。实测零星 72h/70 条 wrong_user 里 50% 是
+            # 搜A落B、且反复粘在 SHUI×10/小读知新×9 等少数页。goto_home 点左侧「推荐」把搜索框钉回已知
+            # 位置根治此链。guarded：没量 AKKE_C_HOME 时 no-op，行为不变、零风险。
+            goto_home()
             click_norm(C_SEARCH[0], C_SEARCH[1], wait=1.2, label='搜索框')
             type_text(query)
             # committed 中文 + Enter 即触发搜索。前置：云电脑切英文输入模式，否则中文 IME 抢首字 → 搜错人。
