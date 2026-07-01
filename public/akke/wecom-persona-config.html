@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>企微 AI 回复 · 配置你的销售身份</title>
+<style>
+  :root{--bg:#0b0e14;--card:#151a23;--line:#242c39;--txt:#e8ebf1;--mut:#8b95a7;--blue:#5b9dff;--green:#37d399;--amber:#f5b545;--red:#f06363}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:-apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif;line-height:1.7}
+  .wrap{max-width:760px;margin:0 auto;padding:34px 20px 80px}
+  .kick{color:var(--blue);font-weight:600;letter-spacing:.5px;font-size:13px}
+  h1{font-size:26px;margin:8px 0 6px}
+  .sub{color:var(--mut);font-size:15px}
+  .warn{background:rgba(245,181,69,.1);border:1px solid rgba(245,181,69,.4);border-radius:12px;padding:12px 16px;margin:18px 0;font-size:14.5px}
+  .warn b{color:var(--amber)}
+  .keys{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}
+  .keys .k{flex:1;min-width:150px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;text-align:center}
+  .keys .k .n{font-weight:700;font-size:15px} .keys .k .v{color:var(--green);font-family:ui-monospace,monospace;font-size:15px;margin-top:4px}
+  .step{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 20px;margin:16px 0}
+  .step .sh{font-weight:700;font-size:16px;display:flex;align-items:center;gap:10px}
+  .step .sh .b{width:26px;height:26px;line-height:26px;text-align:center;border-radius:50%;background:var(--blue);color:#08101f;font-weight:800;font-size:14px}
+  .step p{color:var(--mut);font-size:14px;margin:8px 0 0}
+  pre{background:#080a0f;border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow-x:auto;margin:12px 0 0}
+  code{font-family:ui-monospace,Menlo,monospace;font-size:13px;color:#cbd6e6;white-space:pre}
+  .ok{color:var(--green)}
+  .hl{color:var(--amber);font-weight:600}
+  .foot{color:#5a6474;font-size:12.5px;margin-top:34px;border-top:1px solid var(--line);padding-top:14px}
+  a{color:var(--blue)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="kick">有大有小 · 企业微信 AI 自动代回</div>
+  <h1>配置你的销售身份（每人 3 分钟）</h1>
+  <div class="sub">现在企微自动回复支持 4 个销售身份。<b>你必须在自己云电脑上配一下"你是谁"</b>，否则 AI 会用错身份（自称成都小艳、报错价）。</div>
+
+  <div class="warn">⚠️ 下面全部在<b>你云电脑（远程桌面）里的 PowerShell</b> 做，<b>不是</b>你本机电脑。</div>
+
+  <div class="keys">
+    <div class="k"><div class="n">饭粒</div><div class="v">xiaofan</div></div>
+    <div class="k"><div class="n">野荞</div><div class="v">xiaowen</div></div>
+    <div class="k"><div class="n">Gus</div><div class="v">xiaowu</div></div>
+    <div class="k"><div class="n">夏夏</div><div class="v">xiaoxia</div></div>
+  </div>
+
+  <div class="step">
+    <div class="sh"><span class="b">1</span>先确认</div>
+    <p>云电脑上企业微信 <b>已打开、已登录你的号、窗口没最小化到托盘</b>（这是截屏自动化，看不见窗口就没法工作）。</p>
+  </div>
+
+  <div class="step">
+    <div class="sh"><span class="b">2</span>配置身份 + 开真发</div>
+    <p>把<span class="hl">第 1 行的 key 改成你自己的</span>，然后<b>整段</b>粘进 PowerShell 回车：</p>
+    <pre><code>$MY_PERSONA = "xiaofan"    # ← 改成你的：野荞 xiaowen / Gus xiaowu / 夏夏 xiaoxia
+
+$f = "C:\akke-wecom\.env"
+Copy-Item $f "$f.bak" -Force
+$L = Get-Content $f
+$kv = @{ "AKKE_WECOM_PERSONA" = $MY_PERSONA; "AKKE_WECOM_DRY_RUN" = "0"; "AKKE_WECOM_DAILY_LIMIT" = "5" }
+foreach ($k in $kv.Keys) {
+  if ($L -match "^$k=") { $L = $L -replace "^$k=.*", "$k=$($kv[$k])" } else { $L += "$k=$($kv[$k])" }
+}
+$L | Set-Content $f -Encoding UTF8
+Select-String $f -Pattern "PERSONA|DRY_RUN|DAILY_LIMIT"</code></pre>
+    <p><span class="ok">✅ 最后应打印 3 行</span>：你的 <code>AKKE_WECOM_PERSONA=xxx</code> / <code>DRY_RUN=0</code> / <code>DAILY_LIMIT=5</code>。（前面会自动备份成 .env.bak，改坏能回滚）</p>
+  </div>
+
+  <div class="step">
+    <div class="sh"><span class="b">3</span>重启生效</div>
+    <p>整段粘进去：</p>
+    <pre><code>Get-CimInstance Win32_Process | ?{ $_.CommandLine -like '*wecom_reply_loop*' } | %{ Stop-Process -Id $_.ProcessId -Force }
+Remove-Item C:\akke-wecom\wecom_reply_STOP -ErrorAction SilentlyContinue
+cd C:\akke-wecom; .\start-wecom-reply.bat</code></pre>
+  </div>
+
+  <div class="step">
+    <div class="sh"><span class="b">4</span>验活</div>
+    <p>弹出的黑窗里看到 <code>DRY_RUN=False</code> + 在滚动扫描 = 成功。日限先 <b>5 条</b>小流量，盯前几条回复对不对（<b>用"您"、说漳州、报 568</b>）。把第 2 步的 3 行输出 + 黑窗截图发群，让夏夏/Claude 核一遍。</p>
+  </div>
+
+  <div class="warn">⚠️ <b>任何报错别硬来</b>——找不到 <code>C:\akke-wecom\.env</code>（那台没部署过，要走首次部署）/ 401 / 连接超时，把报错发群 @夏夏 找 Claude。</div>
+
+  <div class="foot">配置指南 ｜ 详细排查手册见 <a href="https://upio.ai/akke/cloud-pc-wecom-autoreply-deploy">cloud-pc-wecom-autoreply-deploy</a> ｜ 2026-07-01</div>
+</div>
+</body>
+</html>
