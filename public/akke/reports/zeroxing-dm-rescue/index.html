@@ -77,7 +77,7 @@
       <tr><th class="fail">失败方案 ③</th><td>归咎 <code>C_HOME</code> 跳创作者中心 → 用户说「还是跳」，<span class="fail">错误归因</span>。</td></tr>
       <tr><th class="ok">成功根因</th><td><code>AKKE_C_SEARCH</code> 坐标漂移（实测 527,19 vs 默认 432,25，X 偏约 250px）→ 搜索框点击落到了视频上 → 空搜索 → 根本搜不到人。<b>默认坐标只在 2560×1620 有效，这台是 2560×1600。</b></td></tr>
       <tr><th class="ok">解法</th><td>逐点重量 9 个坐标写进 <code>.env</code> 重启 → <b class="ok">发送 0 → 64%</b>。</td></tr>
-      <tr><th>剩余</th><td>~36% wrong_user 中，大部分是已知的 ~38% <b>short_id 不可搜天花板</b>（抖音号形态决定搜不到，非本次能治）。</td></tr>
+      <tr><th>剩余</th><td>剩余 wrong_user 原以为是 short_id 天花板——<b>72h 逐条深挖推翻了此说</b>（100% sec_uid、0 短号）。真因是搜索/身份读取流程 bug，<b class="ok">可修</b>，见下「派单失败原因分布 · 深挖」。</td></tr>
     </table>
   </div>
 
@@ -101,9 +101,21 @@
     <p style="margin-bottom:4px"><b>回答夏夏两个点：</b></p>
     <ol>
       <li><b class="ok">没有 <code>dm_panel_failed</code>，也没有任何没归类的漏网原因。</b>所有 skip 干净落在 3 类：wrong_user / expired / unverified。</li>
-      <li><b>但有个值得深挖的信号：</b><code>wrong_user(非主页)</code> 占到 <b>74%</b>，<b class="fail">高于已知的 ~38% short_id 天花板</b>；原始日志里多条 skip 反复落到同一个 <code>@小读知新</code> 非主页——疑似<b>搜索页没清干净、重复落到上一个缓存主页</b>（B2 页面状态坑的变体）。真正「漏网」的不是缺原因类别，而是 wrong_user 本身偏高，值得单独排查。</li>
+      <li><b>wrong_user(非主页) 占 74% 偏高</b>——我逐条深挖了 72h 的 70 条，<b class="fail">推翻了 short_id 天花板说</b>，真因是搜索/身份读取流程 bug（详见下方「深挖」专表）。真正「漏网」的不是缺原因类别，而是这个可修的 bug 在压制可达线索。</li>
     </ol>
-    <p class="note">口径：<code>dispatch_queue</code> 按 <code>completed_at</code> 窗口、<code>error_message</code> 归类；expired 属新鲜闸主动跳过不计失败。sent 占比是跨窗口均值，低于修复瞬时的 64% 峰值（含修复前时段 + 大量不可搜 short_id）。</p>
+    <p class="note">口径：<code>dispatch_queue</code> 按 <code>completed_at</code> 窗口、<code>error_message</code> 归类；expired 属新鲜闸主动跳过不计失败。sent 占比是跨窗口均值，低于修复瞬时的 64% 峰值（含修复前时段；且大部分 wrong_user 实为搜索流程 bug 而非不可达，见下方深挖）。</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">深挖 · wrong_user 真因（72h / 70 条逐条交叉分析）<span class="pill p-red">推翻天花板说</span></h3>
+    <table>
+      <tr><th>目标是否重投</th><td>70 条 = 70 个<b>不同</b>目标，<b>无一重试</b> → 不是同几个号被反复投。</td></tr>
+      <tr><th>目标 ID 形态</th><td><b class="ok">100% sec_uid（MS4..），0 个纯数字短号</b> → <b class="fail">根本不是 short_id 不可搜天花板</b>。</td></tr>
+      <tr><th>搜 A 落到谁</th><td>搜 A <b>落到别人 B 的主页 = 35 条（50%）</b>；搜自己落到自己非主页 = 仅 <b>1 条</b>。</td></tr>
+      <tr><th>落地页高度集中</th><td><code>SHUI</code>×10、<code>小读知新</code>×9、<code>鱼破冰</code>×5、<code>(空白页)</code>×46——这几个「粘性页」<b>本身都不在派单队列里</b>（不是前一个目标），却<b>跨 8 小时对不同目标反复出现</b>。</td></tr>
+      <tr><th class="ok">定性结论</th><td>连「珩妈 带娃玩」这种不生僻的名字都落到 SHUI → <b>排除纯重名歧义</b>，坐实<b class="fail">搜索/身份读取流程 bug</b>：搜索框没清干净 / 结果没刷新就读身份，反复停在少数粘性页。<b class="ok">可修，不是不可达天花板。</b></td></tr>
+      <tr><th class="p-blue">建议（P1）</th><td><code>douyin_dm_grounded</code> 搜索腿加：清空搜索框 → 等结果刷新 → 确认目标名匹配再读身份。修好能挽回一大块 74% 的 wrong_user。少量超生僻名（emoji/单字）确有重名歧义、半结构性挽不回。</td></tr>
+    </table>
   </div>
 
   <!-- ========== 问题二 ========== -->
@@ -191,6 +203,7 @@
   <div class="card">
     <ol>
       <li><span class="pill p-red">P0</span> 端到端验证：等一条真客户回复走完到数据群绿卡（长 watcher 盯着）。</li>
+      <li><span class="pill p-red">P1</span> 修 <code>douyin_dm_grounded</code> 搜索腿：清空搜索框→等结果刷新→确认目标名匹配再读身份。当前 74% wrong_user 大头是它（50% 搜 A 落 B、粘性页），修好挽回可达线索——比 short_id 天花板影响大得多。</li>
       <li><span class="pill p-amber">P1</span> DM 的 <code>start-dm-routeb.bat</code> 换干净英文版（PowerShell 内联，以后双击一键起）。</li>
       <li><span class="pill p-blue">P2</span> 正解硬化：捕获前强制切稳定页，根治 B2 首页误触。</li>
       <li><span class="pill p-blue">P2</span>（可选）治 B4 时间戳误读为回复。</li>
