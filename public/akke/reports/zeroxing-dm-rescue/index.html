@@ -81,6 +81,31 @@
     </table>
   </div>
 
+  <!-- ========== 派单失败原因分布(夏夏核对) ========== -->
+  <h2>派单失败原因分布 <span class="pill p-blue">夏夏核对 · dispatch_queue 权威口径</span></h2>
+  <div class="card">
+    <p class="note">夏夏问：日志里 skip 那几行写的是 <code>wrong_user</code> 还是 <code>dm_panel_failed</code>？有没有别的漏网原因？<br>
+    答：取 <code>dispatch_queue.error_message</code>（比肉眼看黑窗全）归类如下——</p>
+    <table>
+      <tr>
+        <td style="color:var(--muted);font-size:12px">原因</td>
+        <td style="color:var(--muted);font-size:12px">近24h</td>
+        <td style="color:var(--muted);font-size:12px">近48h</td>
+        <td style="color:var(--muted);font-size:12px">性质</td>
+      </tr>
+      <tr><td><b class="fail">wrong_user（非主页·身份闸）</b></td><td>25 · 66%</td><td>70 · 74%</td><td>搜到的名字落非主页，身份闸不过</td></tr>
+      <tr><td>expired（评论&gt;10min·新鲜闸）</td><td>4 · 11%</td><td>13 · 14%</td><td>主动跳过，<b>非失败</b></td></tr>
+      <tr><td class="ok">sent 成功</td><td>8 · 21%</td><td>9 · 9%</td><td>—</td></tr>
+      <tr><td>unverified（未验证）</td><td>1 · 3%</td><td>3 · 3%</td><td>边角</td></tr>
+    </table>
+    <p style="margin-bottom:4px"><b>回答夏夏两个点：</b></p>
+    <ol>
+      <li><b class="ok">没有 <code>dm_panel_failed</code>，也没有任何没归类的漏网原因。</b>所有 skip 干净落在 3 类：wrong_user / expired / unverified。</li>
+      <li><b>但有个值得深挖的信号：</b><code>wrong_user(非主页)</code> 占到 <b>74%</b>，<b class="fail">高于已知的 ~38% short_id 天花板</b>；原始日志里多条 skip 反复落到同一个 <code>@小读知新</code> 非主页——疑似<b>搜索页没清干净、重复落到上一个缓存主页</b>（B2 页面状态坑的变体）。真正「漏网」的不是缺原因类别，而是 wrong_user 本身偏高，值得单独排查。</li>
+    </ol>
+    <p class="note">口径：<code>dispatch_queue</code> 按 <code>completed_at</code> 窗口、<code>error_message</code> 归类；expired 属新鲜闸主动跳过不计失败。sent 占比是跨窗口均值，低于修复瞬时的 64% 峰值（含修复前时段 + 大量不可搜 short_id）。</p>
+  </div>
+
   <!-- ========== 问题二 ========== -->
   <h2>问题二 · DM 自动回复：不回复 + 数据群不推 + 老跳投稿</h2>
   <p class="note">今天的主战场，拆成 4 个子问题。</p>
