@@ -51,7 +51,7 @@ if hasattr(sys.stdout, 'reconfigure'):
 WORK_DIR = Path(__file__).resolve().parent
 os.chdir(WORK_DIR)
 
-AGENT_VERSION = '2026-06-30+wecom-add-unattended-v2-recheck'
+AGENT_VERSION = '2026-07-02+wecom-add-unattended-v3-breaker'
 
 try:
     from dotenv import load_dotenv
@@ -87,6 +87,49 @@ RECHECK_SCRIPT = os.environ.get('AKKE_WECOM_RECHECK_SCRIPT', 'wecom_accept_scan.
 
 # 本会话内每个号上次复查时间（内存，重启清零）；实现"每号每 COOLDOWN_H 最多复查一次 + 轮转"。
 _last_recheck: dict[str, datetime] = {}
+
+# ── 熔断：连续 N 条"搜不到"(not_found=账号被搜索风控的典型信号)就自动停手 ──
+# 背景(2026-07-02 实证)：日限 20 卡的是"成功发出"数,搜不到不算数 → 账号被风控时永远凑不满 20,
+# agent 闷头狂搜(一天 119 次/成功 2 次),既空烧号池又往死里锤已被限的账号。加熔断：连续搜不到
+# 到阈值就落哨兵文件 + 退出;重启时见哨兵直接退,人工核实账号恢复、删掉哨兵才继续。
+BREAKER_ON = os.environ.get('AKKE_WECOM_BREAKER', '1') != '0'
+BREAKER_MAX = int(os.environ.get('AKKE_WECOM_BREAKER_MAX', '10'))     # 连续搜不到多少条就熔断
+ALERT_WEBHOOK = (os.environ.get('AKKE_WECOM_ALERT_WEBHOOK') or '').strip()  # 可选:配了才推告警到群
+BREAKER_FLAG = WORK_DIR / '_breaker_tripped.flag'                     # 熔断哨兵;人工删除才恢复
+_consec_notfound = 0                                                  # 连续搜不到计数(内存)
+
+
+def _push_alert(text: str) -> None:
+    """熔断告警(可选):配了 AKKE_WECOM_ALERT_WEBHOOK 才推。webhook 走 .env 不落脚本
+    (脚本会镜像到公共 wiki,硬编码 webhook 会泄露)。"""
+    if not ALERT_WEBHOOK:
+        return
+    hook = ALERT_WEBHOOK if ALERT_WEBHOOK.startswith('http') else \
+        'https://open.larksuite.com/open-apis/bot/v2/hook/' + ALERT_WEBHOOK
+    try:
+        card = {'msg_type': 'interactive', 'card': {
+            'header': {'title': {'tag': 'plain_text', 'content': '🚨 企微加好友 · 熔断告警'},
+                       'template': 'red'},
+            'elements': [{'tag': 'div', 'text': {'tag': 'lark_md', 'content': text}}]}}
+        urllib.request.urlopen(urllib.request.Request(
+            hook, data=json.dumps(card).encode(),
+            headers={'Content-Type': 'application/json'}), timeout=10)
+    except Exception as e:
+        print('  [breaker] 告警推送失败: %s' % e, file=sys.stderr)
+
+
+def _trip_breaker(reason: str) -> None:
+    """落哨兵 + 告警 + 退出。"""
+    msg = ('**%s** 账号疑似被风控:%s。agent 已自动熔断暂停。\n'
+           '请检查账号,恢复后删除云电脑上的 `%s` 再重启。' % (
+               OPERATOR or '(未知运营)', reason, BREAKER_FLAG.name))
+    try:
+        BREAKER_FLAG.write_text('%s %s' % (datetime.now().isoformat(), reason), encoding='utf-8')
+    except Exception:
+        pass
+    print('\n🚨🚨 熔断触发:%s 🚨🚨\n%s\n' % (reason, msg), file=sys.stderr)
+    _push_alert(msg)
+    sys.exit(0)
 
 # ── 3 条话术 + 选择规则：原样移植 scripts/claim-enterprise-leads.ts(同源同字，别各写一份)──
 T1 = '装修喜讯：加微申领每平方补贴300块，装修全屋定制兔宝宝ENF级多层实木 征集样板房'   # 42字·补贴+样板房
@@ -319,6 +362,7 @@ def run_grounded(csv_path: Path) -> int:
 
 # ── 发请求主流程 ────────────────────────────────────────────────────────────
 def add_step(org: str):
+    global _consec_notfound
     done = daily_done(org)
     remaining = DAILY_LIMIT - done
     print('[%s] 今日已发请求 %d / 上限 %d → 剩余 %d' % (
@@ -376,7 +420,8 @@ def add_step(org: str):
             _retry_count[sid] = _retry_count.get(sid, 0) + 1
             print('  [warn] %s 在 sent_log 没找到(GUI 没跑到?)，留待加重试' % sid)
             continue
-        mapped = map_gui_status(row.get('status') or '')
+        raw = row.get('status') or ''
+        mapped = map_gui_status(raw)
         if mapped:
             writeback(org, sid, mapped[0], mapped[1])
             _retry_count.pop(sid, None)
@@ -384,6 +429,13 @@ def add_step(org: str):
             _retry_count[sid] = _retry_count.get(sid, 0) + 1
             print('  [retry] %s status=%s 瞬时态，不回写，留待加(第%d次)' % (
                 sid, row.get('status'), _retry_count[sid]))
+        # 熔断计数:成功发出→清零;连续"搜不到"到阈值→判账号被风控,自动停手
+        if raw == '已发请求':
+            _consec_notfound = 0
+        elif raw == 'not_found':
+            _consec_notfound += 1
+            if BREAKER_ON and _consec_notfound >= BREAKER_MAX:
+                _trip_breaker('连续 %d 条搜不到(疑似搜索被限)' % _consec_notfound)
 
 
 # ── 复查支线：已发请求 → 已通过（不扫名单，逐条复搜看是否已成好友）─────────────
@@ -479,7 +531,14 @@ def main():
         org, OPERATOR, PROVINCE or '(全部)', DAILY_LIMIT, CLAIM_LIMIT, POLL_INTERVAL))
     print('复查支线: %s (每轮复查 %d 条发出>%dh 的已发请求 → 已通过)' % (
         '开' if RECHECK_ON else '关', RECHECK_LIMIT, RECHECK_MIN_AGE_H))
+    print('熔断: %s (连续 %d 条搜不到自动停手%s)' % (
+        '开' if BREAKER_ON else '关', BREAKER_MAX,
+        ' + 推告警' if ALERT_WEBHOOK else ''))
     print('前置: 企业微信PC前台最大化 + 分辨率锁 + 已 --capture 标坐标 + 输入法英文\n')
+    if BREAKER_FLAG.exists():
+        print('🚨 检测到熔断哨兵 %s(上次因账号疑似被风控自动停手)。' % BREAKER_FLAG.name)
+        print('   账号恢复后删除该文件再重启;现在退出,不再空烧号池/锤账号。')
+        sys.exit(0)
     while True:
         try:
             tick(org)
