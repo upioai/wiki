@@ -95,6 +95,7 @@ _last_recheck: dict[str, datetime] = {}
 BREAKER_ON = os.environ.get('AKKE_WECOM_BREAKER', '1') != '0'
 BREAKER_MAX = int(os.environ.get('AKKE_WECOM_BREAKER_MAX', '10'))     # 连续搜不到多少条就熔断
 ALERT_WEBHOOK = (os.environ.get('AKKE_WECOM_ALERT_WEBHOOK') or '').strip()  # 可选:配了才推告警到群
+ALERT_AT_OPENID = (os.environ.get('AKKE_WECOM_ALERT_AT_OPENID') or '').strip()  # 可选:本运营 open_id,告警时@他
 BREAKER_FLAG = WORK_DIR / '_breaker_tripped.flag'                     # 熔断哨兵;人工删除才恢复
 _consec_notfound = 0                                                  # 连续搜不到计数(内存)
 
@@ -119,10 +120,17 @@ def _push_alert(text: str) -> None:
 
 
 def _trip_breaker(reason: str) -> None:
-    """落哨兵 + 告警 + 退出。"""
-    msg = ('**%s** 账号疑似被风控:%s。agent 已自动熔断暂停。\n'
-           '请检查账号,恢复后删除云电脑上的 `%s` 再重启。' % (
-               OPERATOR or '(未知运营)', reason, BREAKER_FLAG.name))
+    """落哨兵 + 告警(@本人 + 操作指引) + 退出。"""
+    at = ('<at id=%s></at> ' % ALERT_AT_OPENID) if ALERT_AT_OPENID else ''
+    msg = (
+        '%s**%s** 的企微加好友账号疑似被风控(%s),agent 已自动停手。\n'
+        '\n**怎么办:**\n'
+        '1. 别急着重启,先让账号歇 **24 小时以上**。\n'
+        '2. 之后在企业微信里**手动搜一个你确定能搜到的手机号**试:\n'
+        '   · 能出人物卡片(有"添加")= 恢复了 → 删掉云电脑上的 `%s`,重启 agent。\n'
+        '   · 还是"找不到该用户" = 还在限,继续等,别开。\n'
+        '3. 拿不准就找 PM,别硬开(硬搜会加剧风控甚至封号)。'
+        % (at, OPERATOR or '(未知运营)', reason, BREAKER_FLAG.name))
     try:
         BREAKER_FLAG.write_text('%s %s' % (datetime.now().isoformat(), reason), encoding='utf-8')
     except Exception:
