@@ -47,6 +47,7 @@ const CATEGORIES = [
       { slug: 'vercel-supabase', title: 'Vercel × Supabase', desc: '我们几乎每个产品都在用的两件套——前端托管 + 后端数据库：来历、能力全景，以及我们用了哪些、没用哪些、为什么。' },
       { slug: 'nextjs-nodejs-python', title: 'Next.js · Node.js · Python', desc: 'Akke 是用哪几种语言搭起来的？用「一条请求的旅程」串起 TypeScript / Next.js / Node.js / Python，全员不写代码也能看懂同事每天在改什么。' },
       { slug: 'sql-python-intro', title: 'SQL 与 Python 入门', desc: '数据分析基础速成。' },
+      { slug: 'pr-git-worktree', title: 'PR 与 Git Worktree', desc: '合并前的检查点，和多会话并行开发的隔离工具——结合 Akke 最近 3 天的真实提交举例。' },
     ],
   },
   {
