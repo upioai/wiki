@@ -36,6 +36,7 @@ const CATEGORIES = [
       { slug: 'fde',              title: 'FDE 前线部署工程师',  desc: 'Anthropic 的 FDE 角色解读。' },
       { slug: 'ai-harness',       title: 'AI Harness 精要',     desc: 'Agent harness 框架要点。' },
       { slug: 'fable5',           title: 'Claude Fable 5',      desc: '新模型能力介绍。' },
+      { slug: 'claude-model-picker', title: 'Sonnet 5 / Opus 4.8 / Fable 5 怎么选', desc: '在 Claude Code 里写 Akke 代码时，什么活儿配哪一档模型——一页决策图，含定价、速度与 Akke 任务对照。' },
       { slug: 'scheduling-terms', title: 'Cron / Routine / Schedule 辨析', desc: '定时·事件·常驻：一堆易混的自动化机制怎么选。' },
       { slug: 'autoreply-supabase-relay', title: '自动回复为什么"绕"数据库', desc: '客户回复→数据库中转→生成→发送：为什么不一步到位。' },
     ],
