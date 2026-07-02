@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>企业微信加好友 · 通过率诊断 — Akke × 有大有小</title>
+<style>
+  :root{
+    --bg:#0a0b10; --bg2:#11131c; --panel:#161926; --panel2:#1c2030;
+    --line:#262b3d; --ink:#e8eaf2; --sub:#9aa0b8; --dim:#6b7192;
+    --purple:#a78bfa; --purple-d:#7c3aed;
+    --cyan:#38bdf8; --green:#34d399; --amber:#fbbf24; --red:#f87171; --pink:#f472b6;
+    --mono:"SF Mono",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:radial-gradient(1200px 800px at 80% -10%,#2a1520 0%,transparent 55%),radial-gradient(1000px 700px at -10% 20%,#0d1f2c 0%,transparent 50%),var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.65;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 24px}
+  a{color:var(--cyan);text-decoration:none}
+
+  header.hero{padding:80px 0 36px;position:relative}
+  .kicker{font-family:var(--mono);font-size:12px;letter-spacing:.26em;color:var(--red);text-transform:uppercase;margin-bottom:18px}
+  .hero h1{font-size:clamp(32px,5vw,54px);line-height:1.1;font-weight:800;letter-spacing:-.02em;background:linear-gradient(120deg,#fff 10%,#fca5a5 55%,#fbbf24 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero .lead{margin-top:20px;font-size:18px;color:var(--sub);max-width:780px}
+  .hero .lead b{color:var(--ink);font-weight:600}
+  .hero .lead .hl{color:var(--amber);font-weight:600}
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-top:38px}
+  .metric{background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);border-radius:14px;padding:18px 20px}
+  .metric .n{font-size:26px;font-weight:800;font-family:var(--mono)}
+  .metric .n.red{color:var(--red)} .metric .n.amber{color:var(--amber)} .metric .n.green{color:var(--green)} .metric .n.cyan{color:var(--cyan)}
+  .metric .l{font-size:12.5px;color:var(--dim);margin-top:5px}
+
+  section{padding:48px 0;border-top:1px solid var(--line)}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:8px}
+  .sec-no{font-family:var(--mono);font-size:13px;color:var(--purple-d);border:1px solid var(--purple-d);border-radius:6px;padding:2px 8px;flex:none}
+  h2{font-size:clamp(22px,3vw,28px);font-weight:750;letter-spacing:-.01em}
+  .sec-sub{color:var(--sub);font-size:15px;margin:6px 0 24px;max-width:840px}
+
+  .grid{display:grid;gap:16px}
+  .g2{grid-template-columns:1fr 1fr}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:820px){.g2,.g3{grid-template-columns:1fr}}
+
+  .card{background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);border-radius:14px;padding:20px 22px}
+  .card h3{font-size:16px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:9px}
+  .card p{font-size:14px;color:var(--sub)}
+  .b-purple{border-left:3px solid var(--purple)} .b-cyan{border-left:3px solid var(--cyan)}
+  .b-green{border-left:3px solid var(--green)} .b-amber{border-left:3px solid var(--amber)}
+  .b-red{border-left:3px solid var(--red)} .b-pink{border-left:3px solid var(--pink)}
+
+  code{font-family:var(--mono);font-size:12.5px;background:#0d0f18;border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:#c4b5fd}
+
+  ul.clean{list-style:none;margin-top:8px}
+  ul.clean li{position:relative;padding:6px 0 6px 22px;font-size:14px;color:var(--sub);border-bottom:1px dashed var(--line)}
+  ul.clean li:last-child{border-bottom:none}
+  ul.clean li::before{content:"";position:absolute;left:4px;top:14px;width:6px;height:6px;border-radius:50%;background:var(--purple)}
+  ul.clean li b{color:var(--ink);font-weight:600}
+
+  /* FUNNEL */
+  .funnel{margin-top:14px}
+  .fbar{display:flex;align-items:center;gap:14px;margin:9px 0}
+  .fbar .cap{width:132px;flex:none;font-size:13px;color:var(--sub);text-align:right}
+  .fbar .cap b{color:var(--ink);display:block;font-size:13.5px}
+  .fbar .track{flex:1;height:34px;background:#0d0f18;border:1px solid var(--line);border-radius:8px;overflow:hidden;position:relative}
+  .fbar .fill{height:100%;display:flex;align-items:center;padding-left:12px;font-family:var(--mono);font-size:12.5px;font-weight:700;color:#08090d;white-space:nowrap;border-radius:7px 0 0 7px}
+  .fill.total{background:linear-gradient(90deg,#818cf8,#a78bfa)}
+  .fill.wait{background:linear-gradient(90deg,#475569,#64748b);color:#e8eaf2}
+  .fill.fail{background:linear-gradient(90deg,#dc2626,#f87171)}
+  .fill.sent{background:linear-gradient(90deg,#d97706,#fbbf24)}
+  .fill.pass{background:linear-gradient(90deg,#059669,#34d399)}
+
+  /* BARS */
+  .bars{margin-top:12px}
+  .brow{display:flex;align-items:center;gap:12px;margin:8px 0;font-size:13px}
+  .brow .bl{width:210px;flex:none;color:var(--sub)}
+  .brow .bt{flex:1;height:22px;background:#0d0f18;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+  .brow .bf{height:100%;background:linear-gradient(90deg,#dc2626,#f87171);border-radius:5px 0 0 5px}
+  .brow .bv{width:78px;flex:none;font-family:var(--mono);font-size:12.5px;color:var(--ink);text-align:right}
+
+  .tbl{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:10px;overflow:hidden;border-radius:12px;border:1px solid var(--line)}
+  .tbl th{background:#12151f;text-align:left;padding:11px 14px;color:var(--purple);font-weight:600;font-size:12.5px}
+  .tbl td{padding:11px 14px;border-top:1px solid var(--line);color:var(--sub);vertical-align:top}
+  .tbl tr:nth-child(even) td{background:#0e1017}
+  .tbl td b{color:var(--ink)}
+  .tbl td.num{font-family:var(--mono);text-align:right}
+  .up{color:var(--red);font-weight:700}
+
+  .callout{background:linear-gradient(100deg,rgba(124,58,237,.10),rgba(56,189,248,.06));border:1px solid rgba(167,139,250,.25);border-radius:14px;padding:18px 22px;margin:20px 0}
+  .callout.warn{background:linear-gradient(100deg,rgba(248,113,113,.10),rgba(251,191,36,.05));border-color:rgba(248,113,113,.30)}
+  .callout.good{background:linear-gradient(100deg,rgba(52,211,153,.10),rgba(56,189,248,.05));border-color:rgba(52,211,153,.28)}
+  .callout .t{font-weight:700;font-size:15px;margin-bottom:6px;display:flex;gap:8px;align-items:center}
+  .callout p{font-size:14px;color:var(--sub)}
+  .callout p+p{margin-top:8px}
+
+  .who{display:inline-block;font-family:var(--mono);font-size:10.5px;padding:2px 9px;border-radius:20px;margin-left:8px;vertical-align:middle}
+  .who.a{background:rgba(251,191,36,.14);color:var(--amber);border:1px solid rgba(251,191,36,.3)}
+  .who.b{background:rgba(56,189,248,.14);color:var(--cyan);border:1px solid rgba(56,189,248,.3)}
+
+  footer{padding:44px 0 70px;border-top:1px solid var(--line);color:var(--dim);font-size:13px}
+  footer b{color:var(--sub)}
+  .toc{display:flex;gap:8px;flex-wrap:wrap;margin-top:28px}
+  .toc a{font-size:12.5px;font-family:var(--mono);color:var(--sub);border:1px solid var(--line);border-radius:20px;padding:5px 13px;transition:.15s}
+  .toc a:hover{border-color:var(--purple);color:var(--purple)}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker">Akke × 有大有小 · 企业微信加好友诊断</div>
+    <h1>加好友通过率为什么这么低？</h1>
+    <p class="lead">近三天我们把「有大有小」的 <b>401</b> 条客户名单导入系统，用云电脑逐条加企业微信好友。结果通过率很不理想——但拆开看，<span class="hl">「低」其实是两个问题叠在一起</span>：一是<b>大部分请求根本发不出去</b>（在通讯录里搜不到人），二是<b>发出去的请求，「是否通过」这个状态我们还没回填</b>，所以系统里显示的通过率被严重低估。这份报告把每个数字拉到底，供双方对齐下一步。</p>
+
+    <div class="metrics">
+      <div class="metric"><div class="n cyan">401</div><div class="l">导入名单总数<br>客户 / 均属「有大有小」</div></div>
+      <div class="metric"><div class="n red">68%</div><div class="l">加不上率<br>已尝试 338 中 230 条失败</div></div>
+      <div class="metric"><div class="n amber">94%</div><div class="l">加不上里因「搜不到」<br>疑似客户没开手机号搜索</div></div>
+      <div class="metric"><div class="n red">0</div><div class="l">名单里标为「已通过」<br>—— 状态回填缺失（见 §4）</div></div>
+      <div class="metric"><div class="n green">21</div><div class="l">实际已在企微对话的客户<br>说明确有人通过，只是没记</div></div>
+    </div>
+
+    <div class="toc">
+      <a href="#tldr">① 结论先行</a>
+      <a href="#funnel">② 全链路漏斗</a>
+      <a href="#why">③ 加不上的原因</a>
+      <a href="#trend">④ 逐日趋势</a>
+      <a href="#gap">⑤ 通过率为何显示 0%</a>
+      <a href="#next">⑥ 建议 · 待讨论</a>
+    </div>
+  </div>
+</header>
+
+<!-- ① TL;DR -->
+<section id="tldr">
+  <div class="wrap">
+    <div class="sec-head"><span class="sec-no">01</span><h2>结论先行：「通过率低」是两件事</h2></div>
+    <p class="sec-sub">如果只看一句「通过率低」，容易把两个性质完全不同的问题混在一起。它们的解法也不一样，所以必须拆开谈。</p>
+    <div class="grid g2">
+      <div class="card b-red">
+        <h3><span style="color:var(--red)">●</span> 问题 A · 真问题：请求发不出去</h3>
+        <p>已经动手加的 <b>338</b> 条里，<b style="color:var(--red)">230 条（68%）加不上</b>——绝大多数（94%）是<b>在企业微信里按手机号搜不到这个人</b>。请求连发都发不出去，谈不上通过不通过。这是漏斗最顶端的真实流失，也是当前最该解决的。</p>
+      </div>
+      <div class="card b-amber">
+        <h3><span style="color:var(--amber)">●</span> 问题 B · 度量问题：通过没被记下来</h3>
+        <p>发出去的 <b>103</b> 条好友请求，系统里 <b style="color:var(--amber)">0 条</b>被标成「已通过」。但同期<b>已经有 21 位客户加上企微、正在对话</b>——说明通过是真实发生的，只是<b>「通过」这个状态没人回填到名单上</b>。所以「0% 通过率」是记漏了，不是真的没人通过。</p>
+      </div>
+    </div>
+    <div class="callout warn">
+      <div class="t">🎯 一句话</div>
+      <p>能不能<b>把请求发出去</b>，卡在客户的隐私设置和名单质量（问题 A，需甲方一起推动）；发出去之后<b>通过率到底多少</b>，目前算不准，得先把回填补上（问题 B，我方工程侧补齐）。在补齐之前，任何「通过率 = X%」都不可信。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ② FUNNEL -->
+<section id="funnel">
+  <div class="wrap">
+    <div class="sec-head"><span class="sec-no">02</span><h2>全链路漏斗：401 条名单去哪了</h2></div>
+    <p class="sec-sub">数据来自 <code>enterprise_leads</code> 表加好友状态机，截至 2026-07-02。每一层都是真实计数，非估算。</p>
+    <div class="funnel">
+      <div class="fbar"><div class="cap"><b>导入名单</b>全部</div><div class="track"><div class="fill total" style="width:100%">401 · 100%</div></div></div>
+      <div class="fbar"><div class="cap"><b>待加</b>还没轮到</div><div class="track"><div class="fill wait" style="width:15.7%">63 · 16%</div></div></div>
+      <div class="fbar"><div class="cap"><b>已尝试</b>动过手</div><div class="track"><div class="fill total" style="width:84.3%">338 · 84%</div></div></div>
+      <div class="fbar"><div class="cap"><b>加不上</b>搜不到 / 失败</div><div class="track"><div class="fill fail" style="width:57.4%">230 · 占尝试 68%</div></div></div>
+      <div class="fbar"><div class="cap"><b>无效</b>无手机无微信</div><div class="track"><div class="fill fail" style="width:1.2%;min-width:64px">5</div></div></div>
+      <div class="fbar"><div class="cap"><b>已发请求</b>待对方通过</div><div class="track"><div class="fill sent" style="width:25.7%">103 · 占尝试 30%</div></div></div>
+      <div class="fbar"><div class="cap"><b>已通过</b>系统记录</div><div class="track"><div class="fill pass" style="width:2px;min-width:56px">0</div></div></div>
+      <div class="fbar"><div class="cap"><b>实际在聊</b>企微会话</div><div class="track"><div class="fill pass" style="width:5.2%;min-width:64px">≥ 21</div></div></div>
+    </div>
+    <div class="callout">
+      <div class="t">📖 怎么读这张图</div>
+      <p><b>84% 的名单已经动过手</b>，其中 <b>68% 卡在「加不上」</b>——这是最大的一段流失。真正把请求送到客户面前的只有 <b>103 条（占已尝试的 30%）</b>。最后两行是矛盾点：系统记录「已通过 = 0」，但实际已有 <b>≥21 位客户</b>在企微里对话，证明通过在发生、只是没被记进名单（详见 §5）。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ③ WHY -->
+<section id="why">
+  <div class="wrap">
+    <div class="sec-head"><span class="sec-no">03</span><h2>「加不上」的 230 条，到底卡在哪</h2></div>
+    <p class="sec-sub">逐条记录了失败原因，聚合如下。一个原因几乎吃掉了全部。</p>
+    <div class="bars">
+      <div class="brow"><div class="bl">搜不到（疑似没开手机号搜索）</div><div class="bt"><div class="bf" style="width:100%"></div></div><div class="bv">216 · 94%</div></div>
+      <div class="brow"><div class="bl">搜到了但卡片打不开</div><div class="bt"><div class="bf" style="width:3.7%;background:linear-gradient(90deg,#d97706,#fbbf24)"></div></div><div class="bv">8 · 3%</div></div>
+      <div class="brow"><div class="bl">系统误判好友关系（已修正）</div><div class="bt"><div class="bf" style="width:1.4%;background:#64748b"></div></div><div class="bv">3 · 1%</div></div>
+      <div class="brow"><div class="bl">未记原因</div><div class="bt"><div class="bf" style="width:1.4%;background:#64748b"></div></div><div class="bv">3 · 1%</div></div>
+    </div>
+
+    <div class="callout warn">
+      <div class="t">🔑 根因：名单几乎只有手机号，而客户没开「手机号搜索」</div>
+      <p>加企业微信好友主要靠「按手机号搜人」。但 <b>401 条名单里只有 11 条（2.7%）带微信号</b>，绝大多数（388 条带手机号）<b>只能靠手机号去搜</b>。于是我们只能按手机号搜——而微信 / 企业微信默认<b>可以关掉「允许通过手机号找到我」</b>，一旦客户关了，我们就<b>在通讯录里彻底搜不到这个人</b>，请求根本发不出去。</p>
+      <p>这解释了为什么 94% 的失败都是「搜不到」：不是话术问题、不是操作问题，是<b>触达通道在客户那一侧被隐私设置挡死了</b>。</p>
+    </div>
+
+    <div class="grid g3" style="margin-top:6px">
+      <div class="card b-cyan"><h3>2.7%</h3><p>名单里带微信号的比例（11 / 401）。带微信号的加人成功率通常远高于按手机号搜。</p></div>
+      <div class="card b-amber"><h3>手机号搜索</h3><p>是客户可自行关闭的隐私开关。我方无法绕过，只能从客户侧引导打开、或改用客户主动加。</p></div>
+      <div class="card b-purple"><h3>话术非瓶颈</h3><p>目前加人验证语基本只用了一套模板（T2 占 318 / 329 已选模板）。在「搜不到」占 94% 的前提下，换话术对通过率影响有限——先解决「搜得到」。</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ④ TREND -->
+<section id="trend">
+  <div class="wrap">
+    <div class="sec-head"><span class="sec-no">04</span><h2>逐日趋势：失败率还在上升</h2></div>
+    <p class="sec-sub">按加好友动作发生的日期（中国时区）统计。随着名单越用越深，「加不上」占比越来越高。</p>
+    <table class="tbl">
+      <thead><tr><th>日期</th><th style="text-align:right">当日已尝试</th><th style="text-align:right">已发请求</th><th style="text-align:right">加不上</th><th style="text-align:right">无效</th><th style="text-align:right">当日加不上率</th></tr></thead>
+      <tbody>
+        <tr><td>06-30</td><td class="num">57</td><td class="num">22</td><td class="num">31</td><td class="num">4</td><td class="num">54%</td></tr>
+        <tr><td>07-01</td><td class="num">134</td><td class="num">59</td><td class="num">75</td><td class="num">0</td><td class="num">56%</td></tr>
+        <tr><td>07-02</td><td class="num">146</td><td class="num">22</td><td class="num">124</td><td class="num">0</td><td class="num"><span class="up">85% ↑</span></td></tr>
+        <tr><td><b>合计</b></td><td class="num"><b>338</b></td><td class="num"><b>103</b></td><td class="num"><b>230</b></td><td class="num"><b>5</b></td><td class="num"><b>68%</b></td></tr>
+      </tbody>
+    </table>
+    <div class="callout warn">
+      <div class="t">⚠️ 注意 07-02 的跳变</div>
+      <p>07-02 单日 146 条里 124 条加不上（<b>85%</b>），比前两天明显恶化。可能是当天处理的这批名单质量更差（更集中在没开手机号搜索的客户），也可能是名单里靠后的部分本身更难触达。这条趋势说明：<b>继续硬加下去，通过率只会更低</b>——需要从名单侧或触达方式上换打法。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ⑤ GAP -->
+<section id="gap">
+  <div class="wrap">
+    <div class="sec-head"><span class="sec-no">05</span><h2>为什么系统里通过率显示 0%</h2></div>
+    <p class="sec-sub">这是最容易被误读的一块，单独讲清楚。</p>
+    <div class="grid g2">
+      <div class="card b-amber">
+        <h3>系统口径的算法</h3>
+        <p>系统对「通过率」的定义是：<code>已通过 ÷ (已发请求 + 已通过)</code>。目前 <b>已通过 = 0</b>、已发请求 = 103，所以算出来 <b>0 ÷ 103 = 0%</b>。</p>
+        <p style="margin-top:8px">问题在于：<b>「已通过」这个状态需要有人 / 有程序在客户点了「接受」之后回填进名单</b>。客户接受往往是几小时甚至几天后的事，而我们目前<b>没有把这一步接回来</b>——名单里没有任何一条被更新成「已通过」。</p>
+      </div>
+      <div class="card b-green">
+        <h3>真实世界的反证</h3>
+        <p>同一时间段，企业微信里<b>已经有 21 位「有大有小」客户加上并正在对话</b>（06-30 有 9 位、07-01 有 5 位、07-02 有 7 位，均已被 AI 自动接待）。</p>
+        <p style="margin-top:8px">这 21 位就是「通过确实在发生」的硬证据。保守地说，通过率的<b>下限约为 21 / 103 ≈ 20%</b>（且这还没算上 07-01、07-02 刚发出、客户尚未来得及点开的请求）。<b>真实通过率大概率明显高于 0%</b>，只是名单状态没跟上。</p>
+      </div>
+    </div>
+    <div class="callout good">
+      <div class="t">✅ 结论</div>
+      <p>「0% 通过率」是<b>统计口径缺陷</b>，不是业务现实。在把「已通过」回填补齐之前，请不要用这个 0% 去评估触达效果。真正确定无疑的坏消息只有一个——<b>68% 的请求根本没发出去（问题 A）</b>，那才是当前要一起攻的点。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ⑥ NEXT -->
+<section id="next">
+  <div class="wrap">
+    <div class="sec-head"><span class="sec-no">06</span><h2>下一步建议 · 待双方讨论</h2></div>
+    <p class="sec-sub">按「谁能推动」分成两栏。<span class="who a">甲方侧</span> 是「有大有小」对自己客户有话语权、能改善的；<span class="who b">我方侧</span> 是 Akke 工程 / 运营要补的。</p>
+
+    <div class="grid g2">
+      <div class="card b-amber">
+        <h3>甲方侧 <span class="who a">有大有小</span></h3>
+        <ul class="clean">
+          <li><b>名单尽量补微信号</b>：现在 97% 只有手机号。有微信号可以直接加，绕开「手机号搜索被关」的墙——这是提升通过量最直接的一招。</li>
+          <li><b>在客户触点引导「加我们」</b>：下单 / 售后 / 客服环节，让客户<b>主动扫码加</b>或引导客户<b>打开「允许通过手机号搜索」</b>。客户主动加的通过率天然接近 100%。</li>
+          <li><b>提前告知客户会有企微添加</b>：客户知道「厂家会加企微跟进」时，接受率明显更高，也更少被当骚扰忽略。</li>
+          <li><b>名单新鲜度 / 有效性</b>：07-02 加不上率飙到 85%，需一起看这批名单来源与质量。</li>
+        </ul>
+      </div>
+      <div class="card b-cyan">
+        <h3>我方侧 <span class="who b">Akke</span></h3>
+        <ul class="clean">
+          <li><b>补齐「已通过」回填</b>：定期核对企微好友列表 / 加成功后写回状态，让通过率能被真实衡量。这是当前最优先的工程项——不补，任何通过率数字都是错的。</li>
+          <li><b>「搜不到」自动降级策略</b>：手机号搜不到时，改走「客户主动加」通道（发二维码 / 短信引导），而不是反复硬搜。</li>
+          <li><b>加人话术 A/B</b>：目前基本只用一套模板，回填补齐后再对比不同验证语的通过率（当前谈这个为时尚早）。</li>
+          <li><b>把这份看板做成实时页</b>：让双方随时看到最新漏斗，而不是靠人工拉数。</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout">
+      <div class="t">🧭 讨论顺序建议</div>
+      <p>① 先对齐「0% 是记漏、不是真没人通过」这个前提；② 聚焦真问题——<b>如何让请求发得出去</b>（补微信号 + 客户侧引导，甲方主导）；③ 我方并行补回填，让下一轮复盘能拿到真实通过率再谈优化。</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p><b>数据来源</b>：Akke 生产库 <code>enterprise_leads</code> 加好友状态机 · 组织「有大有小」 · 统计截至 <b>2026-07-02</b>（近三日：06-30 ~ 07-02）。</p>
+    <p style="margin-top:8px"><b>口径说明</b>：本页为脱敏聚合视图，不含任何客户姓名 / 手机号 / 微信号 / 运营人员姓名。「通过率」按系统定义 <code>已通过 ÷ (已发请求 + 已通过)</code>；「实际在聊」= 同期 <code>wecom_chat</code> 通道已建立的企微会话数。所有数字均为逐条查库实测，非估算。</p>
+    <p style="margin-top:10px;color:var(--dim)">Akke × 有大有小 · 企业微信加好友通过率诊断 · 内部对齐用</p>
+  </div>
+</footer>
+
+</body>
+</html>
