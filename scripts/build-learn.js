@@ -39,6 +39,7 @@ const CATEGORIES = [
       { slug: 'claude-model-picker', title: 'Sonnet 5 / Opus 4.8 / Fable 5 怎么选', desc: '在 Claude Code 里写 Akke 代码时，什么活儿配哪一档模型——一页决策图，含定价、速度与 Akke 任务对照。' },
       { slug: 'scheduling-terms', title: 'Cron / Routine / Schedule 辨析', desc: '定时·事件·常驻：一堆易混的自动化机制怎么选。' },
       { slug: 'autoreply-supabase-relay', title: '自动回复为什么"绕"数据库', desc: '客户回复→数据库中转→生成→发送：为什么不一步到位。' },
+      { slug: 'enterprise-brain-distillation', title: '有大有小 · 企业 AI 大脑', desc: '从 41 页企业手册与金牌销售对话，蒸馏出一颗"管得住嘴"的 AI 大脑——搭建、训练与护栏全景（甲方分享版深色 Deck）。' },
     ],
   },
   {
