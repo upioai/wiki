@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 测试对话 vs 金牌实际案例 · 对比分析</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --card:#fff; --ink:#1a1d24; --sub:#6b7280; --line:#e7e9ee;
+    --green:#12a150; --amber:#d98a00; --red:#dc2626; --blue:#2563eb;
+    --green-bg:#e8f7ee; --amber-bg:#fdf4e3; --red-bg:#fdeaea;
+    --cu:#d6e4ff; --cu-ink:#0b2a5e; --go:#dff3e4; --go-ink:#0d3d20;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+    line-height:1.65;padding:16px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:900px;margin:0 auto}
+  header{text-align:center;padding:20px 14px 8px}
+  header h1{font-size:22px;letter-spacing:.3px}
+  header .meta{color:var(--sub);font-size:13px;margin-top:6px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:18px;margin:14px 0;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+  .verdict{background:linear-gradient(135deg,#eaf1fe,#e8f7ee);border:1px solid #cfe0f8}
+  .verdict h2{font-size:17px;margin-bottom:6px}
+  .verdict .big{font-size:18px;font-weight:700;color:#0b3a8f;margin:4px 0}
+  .verdict p{font-size:14px;color:#374151;margin-top:6px}
+  .legend{font-size:13px;color:#4b5563}
+  .legend .k{display:inline-flex;align-items:center;gap:5px;margin:3px 12px 3px 0}
+  .dot{width:11px;height:11px;border-radius:3px;display:inline-block}
+  .dot.cu{background:var(--cu)} .dot.go{background:var(--go)}
+  h2.sec{font-size:16px;margin:24px 6px 4px;color:#111}
+  h2.sec span{color:var(--sub);font-weight:400;font-size:13px;margin-left:6px}
+
+  .colhead{display:grid;grid-template-columns:1fr 1fr;gap:12px;position:sticky;top:0;z-index:10;
+    margin:6px 0 2px}
+  @media(max-width:640px){.colhead{grid-template-columns:1fr 1fr;gap:8px}}
+  .colhead .h{border-radius:10px;padding:8px 10px;text-align:center;font-size:13px;font-weight:700;border:1px solid}
+  .colhead .h.ai{background:#eaf1fe;color:#0b3a8f;border-color:#cfe0f8}
+  .colhead .h.gold{background:#eaf7ef;color:#0f6b34;border-color:#cfe8d8}
+  .colhead .h small{display:block;font-weight:400;color:var(--sub);font-size:11px;margin-top:1px}
+
+  .turn{border:1px solid var(--line);border-radius:14px;overflow:hidden;margin:12px 0;background:#fff}
+  .qbar{padding:9px 14px;background:#fafbfc;border-bottom:1px solid var(--line);font-size:13.5px}
+  .qbar .lab{font-size:11px;color:var(--sub);font-weight:700;letter-spacing:.4px;margin-right:6px}
+  .qbar .q{font-weight:600}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:0}
+  @media(max-width:640px){.cols{grid-template-columns:1fr}}
+  .col{padding:12px 14px}
+  .col.ai{background:#fbfcff}
+  .col.gold{border-left:1px solid var(--line);background:#fafdfb}
+  @media(max-width:640px){.col.gold{border-left:0;border-top:1px solid var(--line)}}
+  .col .hd{font-size:11.5px;font-weight:700;margin-bottom:6px}
+  .col.ai .hd{color:#0b3a8f} .col.gold .hd{color:#0f6b34}
+  .msg{border-radius:12px;padding:9px 11px;font-size:14px;margin-bottom:5px}
+  .msg.cu{background:var(--cu);color:var(--cu-ink);position:relative;margin-top:8px;margin-right:4px}
+  .msg.go{background:var(--go);color:var(--go-ink)}
+  /* 荧光黄出处角标：浮在对话气泡右上角 */
+  .badges{position:absolute;top:-9px;right:-6px;display:flex;gap:5px;z-index:5}
+  .cx{position:relative;width:20px;height:20px;border-radius:50%;
+    background:#e5ff00;color:#171a12;
+    font-size:11.5px;font-weight:800;line-height:20px;text-align:center;
+    cursor:pointer;user-select:none;
+    border:1.5px solid rgba(0,0,0,.72);
+    box-shadow:0 0 0 2px #fff, 0 0 9px rgba(196,224,0,.9);
+    transition:transform .15s ease, box-shadow .15s ease}
+  .cx:hover{transform:scale(1.25);
+    box-shadow:0 0 0 2px #fff, 0 0 14px 2px rgba(210,240,0,1)}
+  .note{padding:9px 14px;border-top:1px solid var(--line);background:#fcfcfd;font-size:12.5px;color:#4b5563}
+  .note b{color:#1a1d24}
+  .tick{font-weight:700}.tick.g{color:var(--green)}.tick.m{color:var(--amber)}
+
+  .analysis li{font-size:14px;margin:7px 0 7px 18px}
+  .analysis b{color:#111}
+  .foot{text-align:center;color:var(--sub);font-size:12px;padding:20px 0 8px}
+
+  /* 出处浮层 */
+  #ov{position:fixed;inset:0;background:rgba(20,25,35,.5);display:none;z-index:60;
+    align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(2px)}
+  #ov.show{display:flex}
+  #ovbox{background:#fff;border-radius:16px;max-width:460px;width:100%;padding:18px 18px 16px;
+    box-shadow:0 12px 40px rgba(0,0,0,.28);animation:pop .16s ease}
+  @keyframes pop{from{transform:translateY(8px) scale(.98);opacity:.4}to{transform:none;opacity:1}}
+  #ovbox .oh{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px}
+  #ovbox .ot{font-size:15px;font-weight:700;color:#0b3a8f}
+  #ovbox .ox{cursor:pointer;color:var(--sub);font-size:20px;line-height:1;border:0;background:none}
+  #ovbox .oqlab{font-size:11px;color:var(--sub);font-weight:700;margin-top:4px}
+  #ovbox .oq{background:#f7fbf8;border-left:3px solid #86c9a2;border-radius:0 8px 8px 0;
+    padding:9px 12px;font-size:13.5px;color:#245c3b;margin:3px 0 8px}
+  #ovbox .or{font-size:13.5px;color:#4b5563}
+  #ovbox .otag{display:inline-block;font-size:11px;color:var(--sub);border:1px solid var(--line);
+    border-radius:6px;padding:1px 8px;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>AI 测试对话 vs 金牌实际案例 · 对比分析</h1>
+    <div class="meta">两段真机对话 ↔ 金牌真实成交案例 · 以 AI 测试对话为基准、逐句标出处 · 2026-07-02</div>
+  </header>
+
+  <div class="card verdict">
+    <h2>🏁 一句话结论</h2>
+    <div class="big">两段真机对话都紧贴金牌打法：案例一 10 轮全对上；案例二 13 轮里只在「推拉门报价」踩了一个会引发加价争议的硬伤。</div>
+    <p>左边是<b>我们跑的 AI 测试对话（客户「橘枳」）</b>，客户问的问题跟金牌<b>实际成交案例</b>几乎一样，就是拿真实案例来测 AI 学没学到位。
+    每句 AI 话术<b>右上角有个荧光黄出处角标</b>（①②…），<b>点一下</b>能看到它对应金牌的哪句真实原话、又踩了哪条知识规则。
+    右边是<b>金牌真实成交对话</b>做对照。<b>案例一</b>对应金牌案例[4]（约到店促成），<b>案例二</b>对应金牌案例[5]（详细咨询→预约到店）。</p>
+  </div>
+
+  <div class="card legend">
+    <div style="font-weight:700;margin-bottom:6px">怎么看这一页</div>
+    <span class="k"><span class="dot cu"></span>左·AI 测试对话＝<b>基准</b>（点气泡右上角<b style="background:#e5ff00;color:#171a12;padding:0 5px;border-radius:4px">荧光黄角标</b>看它学自金牌哪句 + 哪条规则）</span>
+    <span class="k"><span class="dot go"></span>右·金牌实际成交对话（案例[4]）＝对照</span>
+    <div style="margin-top:6px">每轮底部有一句<b>对照点评</b>：<span class="tick g">✓</span> 对上金牌 · <span class="tick m">≈</span> 有小偏差 · <span style="color:var(--red);font-weight:700">✗</span> 与金牌口径冲突。</div>
+    <div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)">快速跳转：
+      <a href="#c1" style="color:#0b3a8f;font-weight:700;text-decoration:none">🅰 案例一（约到店促成）</a> ·
+      <a href="#c2" style="color:#0b3a8f;font-weight:700;text-decoration:none">🅱 案例二（详细咨询·最完整）</a></div>
+  </div>
+
+  <h2 class="sec" id="c1">🅰 案例一 · 加微→约到店促成 <span>· AI 测试 ↔ 金牌案例[4] · 逐轮对照</span></h2>
+
+  <div class="colhead">
+    <div class="h ai">🤖 AI 测试对话<small>橘枳 · 07-02 真机跑</small></div>
+    <div class="h gold">🏅 金牌实际成交<small>案例[4] 真实对话</small></div>
+  </div>
+
+  <!-- T1 -->
+  <div class="turn">
+    <div class="qbar"><span class="lab">开场</span><span class="q">（刚加微信）</span></div>
+    <div class="cols">
+      <div class="col ai"><div class="hd">🤖 AI</div>
+        <div class="msg cu">您好呀，有大有小全屋定制的～刚加您，是想看定制柜还是全屋装修呀？<span class="badges"><span class="cx" data-s="s_open_case" title="金牌·案例[4] 开场">1</span><span class="cx" data-s="s_open_rule" title="规则·ice_break">2</span></span></div>
+      </div>
+      <div class="col gold"><div class="hd">🏅 金牌</div>
+        <div class="msg go">您好呀，如何称呼</div>
+        <div class="msg go">你可以先看一下我们的配置，把三大品牌任选都这个价，五金采用的是悍高…</div>
+        <div class="msg go">我们是兔宝宝千年舟莫干山 ENF 级实木多层板全屋定制，原价 868，现在样板房征集价 568 元/投影</div>
+      </div>
+    </div>
+    <div class="note"><span class="tick g">✓</span> 都是<b>自报品牌 + 抛一个钩子</b>开场。AI 更聚焦（先问需求方向），金牌一上来直接甩配置和价格。</div>
+  </div>
+
+  <!-- T2 -->
+  <div class="turn">
+    <div class="qbar"><span class="lab">客户问</span><span class="q">你们五金是用啥牌</span></div>
+    <div class="cols">
+      <div class="col ai"><div class="hd">🤖 AI</div>
+        <div class="msg cu">用悍高，耐用不生锈，您这边是哪个城市呀，我帮您查下最近个门店<span class="badges"><span class="cx" data-s="s_hg_case" title="金牌·案例[4] 五金">1</span><span class="cx" data-s="s_hg_kb" title="知识库·五金">2</span></span></div>
+      </div>
+      <div class="col gold"><div class="hd">🏅 金牌</div>
+        <div class="msg go">悍高的</div>
+      </div>
+    </div>
+    <div class="note"><span class="tick g">✓</span> 五金＝<b>悍高</b>（真实品牌，没编）。AI 还补了卖点「耐用不生锈」并顺势问城市——比金牌只回俩字更主动。</div>
+  </div>
+
+  <!-- T3 -->
+  <div class="turn">
+    <div class="qbar"><span class="lab">客户问</span><span class="q">你们怎么有我电话啊</span></div>
+    <div class="cols">
+      <div class="col ai"><div class="hd">🤖 AI</div>
+        <div class="msg cu">您之前在抖音留过信息，我们才有幸联系上您，您家大概多少平呀<span class="badges"><span class="cx" data-s="s_phone_case" title="金牌·案例[4] 电话来源">1</span></span></div>
+      </div>
+      <div class="col gold"><div class="hd">🏅 金牌</div>
+        <div class="msg go">你在网上报名我们装修建材，所以我们也打电话问问定制的需不需</div>
+      </div>
+    </div>
+    <div class="note"><span class="tick g">✓</span> 电话来源口径一致（<b>抖音/网上报名</b>），把敏感问题化解掉，还顺势问了面积。</div>
+  </div>
+
+  <!-- T4 -->
+  <div class="turn">
+    <div class="qbar"><span class="lab">客户问</span><span class="q">会帮忙设计吗</span></div>
+    <div class="cols">
+      <div class="col ai"><div class="hd">🤖 AI</div>
+        <div class="msg cu">当然，下定后设计师一对一出方案，改到满意为止，您房子在哪个城市呢<span class="badges"><span class="cx" data-s="s_design_case" title="金牌·案例[4] 一条龙">1</span><span class="cx" data-s="s_design_rule" title="规则·量尺出图">2</span></span></div>
+      </div>
+      <div class="col gold"><div class="hd">🏅 金牌</div>
+        <div class="msg go">设计安装售后一条龙</div>
+      </div>
+    </div>
+    <div class="note"><span class="tick m">≈</span> 都答「有设计服务」。AI 补了「下定后设计师一对一」的口径（符合出图规则），但这轮<b>又问了一次城市</b>——客户还没说，尚可。</div>
+  </div>
+
+  <!-- T5 -->
+  <div class="turn">
+    <div class="qbar"><span class="lab">客户问</span><span class="q">厦门，你们有门店吗</span></div>
+    <div class="cols">
+      <div class="col ai"><div class="hd">🤖 AI</div>
+        <div class="msg cu">有，厦门市思明区台北路海西金谷广场 T1-11 楼就是咱们家总部门店，您方便哪天过来看看？<span class="badges"><span class="cx" data-s="s_store_case" title="金牌·案例[4] 真实地址">1</span><span class="cx" data-s="s_store_733" title="提交 #733 禁编门店">2</span></span></div>
+      </div>
+      <div class="col gold"><div class="hd">🏅 金牌</div>
+        <div class="msg go">有，厦门市思明区台北路海西金谷广场 T1-11 楼有大有小</div>
+      </div>
+    </div>
+    <div class="note"><span class="tick g">✓ 关键亮点</span> 报的是<b>库里真实的厦门总部地址</b>，跟金牌一字不差，还顺势约到店。（探针测试里问「任丘有店吗」AI 会编店——但只要库里有真实地址，AI 就能报对。）</div>
+  </div>
+
+  <!-- T6 -->
+  <div class="turn">
+    <div class="qbar"><span class="lab">客户问</span><span class="q">你们是自己工厂加工的吗</span></div>
+    <div class="cols">
+      <div class="col ai"><div class="hd">🤖 AI</div>
+        <div class="msg cu">咱们家是工厂直供模式，省掉中间差价，厦门门店就能看工艺和板材，您定个时间过来瞧瞧？<span class="badges"><span class="cx" data-s="s_factory_case" title="金牌·案例[4] 自有工厂">1</span><span class="cx" data-s="s_factory_c5" title="金牌·案例[5] 工厂直供">2</span></span></div>
+      </div>
+      <div class="col gold"><div class="hd">🏅 金牌</div>
+        <div class="msg go">有自己的加工厂</div>
+      </div>
+    </div>
+    <div class="note"><span class="tick g">✓</span> 自有工厂＝对。AI 把它讲成<b>「工厂直供、省中间差价」</b>的价值点（学的是案例[5] 那套话术），比金牌只回一句更有说服力。</div>
+  </div>
+
+  <!-- T7 -->
+  <div class="turn">
+    <div class="qbar"><span class="lab">客户说</span><span class="q">我只想做厨房和 2 个房间</span></div>
+    <div class="cols">
+      <div class="col ai"><div class="hd">🤖 AI</div>
+        <div class="msg cu">可以的，您把户型图发我，我让设计师按您需求出方案，您看哪天方便去厦门门店详谈？<span class="badges"><span class="cx" data-s="s_scope_case" title="金牌·案例[4] 收需求引导到店">1</span><span class="cx" data-s="s_scope_rule" title="规则·先到店量尺">2</span></span></div>
+      </div>
+      <div class="col gold"><div class="hd">🏅 金牌</div>
+        <div class="msg go">可以的，展厅这边有板材工艺五金这些可以先来了解，然后我们面对面沟通一下细节，想怎么做，什么需求</div>
+      </div>
+    </div>
+    <div class="note"><span class="tick g">✓</span> 都是<b>收下需求 + 引导到店详谈</b>。AI 要户型图、金牌邀来展厅面聊，思路一致。</div>
+  </div>
+
+  <!-- T8 -->
+  <div class="turn">
+    <div class="qbar"><span class="lab">客户问</span><span class="q">你那边有展厅吗</span></div>
+    <div class="cols">
+      <div class="col ai"><div class="hd">🤖 AI</div>
+        <div class="msg cu">厦门总店就在海西金谷广场 T1-11 楼，有完整展厅和样板间，您随时来看都行，我先让设计师把方案理一下？<span class="badges"><span class="cx" data-s="s_hall_case" title="金牌·案例[4] 有展厅">1</span><span class="cx" data-s="s_hall_c5" title="金牌·案例[5] 样板间">2</span></span></div>
+      </div>
+      <div class="col gold"><div class="hd">🏅 金牌</div>
+        <div class="msg go">厦门有展厅</div>
+        <div class="msg go">这个地址（再发一次门店定位）</div>
+      </div>
+    </div>
+    <div class="note"><span class="tick g">✓</span> 都确认「有展厅」。AI 补了「完整展厅 + 样板间」并再次推动到店，信息更全。</div>
+  </div>
+
+  <!-- T9 -->
+  <div class="turn">
+    <div class="qbar"><span class="lab">客户问</span><span class="q">你们价格是多少，有活动吗</span></div>
+    <div class="cols">
+      <div class="col ai"><div class="hd">🤖 AI</div>
+        <div class="msg cu">柜体 568 一平投影，含设计安装，厦门这边不用加价，您把户型发我，我让设计师出详细方案？<span class="badges"><span class="cx" data-s="s_price_c5" title="金牌·案例[5] 568 投影价">1</span><span class="cx" data-s="s_price_rule" title="规则·报价克制/地区价">2</span></span></div>
+      </div>
+      <div class="col gold"><div class="hd">🏅 金牌</div>
+        <div class="msg go">原价 868 元，现在样板房征集活动补贴 300 元，只要 568 元</div>
+        <div class="msg go">投影面积来算 · 含悍高阻尼轨道</div>
+      </div>
+    </div>
+    <div class="note"><span class="tick g">✓</span> 价格锚点＝<b>568/投影㎡</b>，一致；AI 还点出「厦门不用加价」（地区价规则），细价交设计师、不堆砌，节奏克制。</div>
+  </div>
+
+  <!-- T10 -->
+  <div class="turn">
+    <div class="qbar"><span class="lab">客户说</span><span class="q">你下午在吗 / 我过去看看</span></div>
+    <div class="cols">
+      <div class="col ai"><div class="hd">🤖 AI</div>
+        <div class="msg cu">好嘞，您到了联系我，我让设计师准备好方案等您，地址发您了哈？<span class="badges"><span class="cx" data-s="s_close_case" title="金牌·案例[4] 接应促成">1</span><span class="cx" data-s="s_close_rule" title="规则·约到店促成">2</span></span></div>
+      </div>
+      <div class="col gold"><div class="hd">🏅 金牌</div>
+        <div class="msg go">有 · 你这边几点过来呢</div>
+        <div class="msg go">张姐姐，要到了或者找不到就给我打语音，我下去接你</div>
+      </div>
+    </div>
+    <div class="note"><span class="tick g">✓ 促成收口</span> 客户主动说「过去看看」，AI <b>确认接应 + 让设计师备好方案 + 发地址</b>，把人稳稳接到店门口，跟金牌打法一致。</div>
+  </div>
+
+  <h2 class="sec">案例一 · 汇总分析 <span>· 这条路径 AI 学到了几成金牌</span></h2>
+  <div class="card analysis">
+    <ul>
+      <li><b>✅ 关键动作全对上（10/10 轮）：</b>悍高五金、抖音获客解释、一条龙设计、<b>厦门真实门店地址</b>、自有工厂/工厂直供、568 投影价+地区不加价、收需求引导到店、最后接应促成——金牌这条路径的每个关键动作，AI 都答对了口径。</li>
+      <li><b>✅ 比金牌真人更规整：</b>金牌真实对话是碎片化、跳跃、有错字（真人一边忙一边回）；AI 每句都完整、有礼貌，而且<b>每一轮都在往「约到店」推</b>，节奏感更强。</li>
+      <li><b>✅ 最值得说的一点——真实地址就报对：</b>之前探针测试里，客户问「河北任丘有店吗」AI 会编「任丘也有门店」（库里没有）。但这条对话客户是<b>厦门</b>，库里有真实地址，AI 就<b>原样报对、还约到店</b>。说明硬伤只出在「库里没有的城市」，补上门店清单（#733）后可收口。</li>
+      <li><b>≈ 小毛病 1｜反复问城市：</b>AI 在五金、设计两轮都挂了句「哪个城市呀」，客户一说「厦门」后其实不用再问；金牌不会重复。</li>
+      <li><b>≈ 小毛病 2｜邀约密度偏高：</b>AI 几乎每轮结尾都带一个「过来看看？瞧瞧？理一下？」的邀约问号，连着看略显套路；金牌更松弛、该邀约时才邀约。</li>
+    </ul>
+  </div>
+
+  <h2 class="sec" id="c2">🅱 案例二 · 详细咨询→预约到店 <span>· AI 测试 ↔ 金牌案例[5]（最完整）· 逐轮对照</span></h2>
+
+  <div class="colhead">
+    <div class="h ai">🤖 AI 测试对话<small>橘枳 · 07-02 真机跑</small></div>
+    <div class="h gold">🏅 金牌实际成交<small>案例[5] 真实对话</small></div>
+  </div>
+
+  <!-- B1 -->
+  <div class="turn">
+    <div class="qbar"><span class="lab">开场</span><span class="q">（刚加微信）</span></div>
+    <div class="cols">
+      <div class="col ai"><div class="hd">🤖 AI</div>
+        <div class="msg cu">您好呀，有大有小全屋定制的～刚加您，是想看定制柜还是全屋装修呀？<span class="badges"><span class="cx" data-s="s2_open_case" title="金牌·案例[5] 开场">1</span><span class="cx" data-s="s2_open_rule" title="规则·ice_break">2</span></span></div>
+      </div>
+      <div class="col gold"><div class="hd">🏅 金牌</div>
+        <div class="msg go">我们是有大有小全屋定制，兔宝宝 ENF 多层实木板，原价 868 现在小区样板房专供只要 568，加微发价格和产品资料</div>
+      </div>
+    </div>
+    <div class="note"><span class="tick g">✓</span> 同一套开场：自报品牌+样板房 568 钩子。AI 先收窄需求方向，金牌直接甩配置。</div>
+  </div>
+
+  <!-- B2 -->
+  <div class="turn">
+    <div class="qbar"><span class="lab">客户问</span><span class="q">衣柜做吗</span></div>
+    <div class="cols">
+      <div class="col ai"><div class="hd">🤖 AI</div>
+        <div class="msg cu">做呀，全屋柜子都做，衣柜橱柜这些是咱们家主力。您家大概多大平方呀，我帮您估个大概。<span class="badges"><span class="cx" data-s="s2_wardrobe_case" title="金牌·案例[5] 衣柜/主营">1</span><span class="cx" data-s="s2_area_rule" title="规则·先收面积">2</span></span></div>
+      </div>
+      <div class="col gold"><div class="hd">🏅 金牌</div>
+        <div class="msg go">衣柜怎么算？→ 原价 868 元，现在样板房征集活动补贴 300 元，只要 568 元 · 投影面积来算</div>
+      </div>
+    </div>
+    <div class="note"><span class="tick g">✓</span> 都确认衣柜能做。AI 先要面积再估价，金牌直接报 568；思路一致。</div>
+  </div>
+
+  <!-- B3 -->
+  <div class="turn">
+    <div class="qbar"><span class="lab">客户问</span><span class="q">怎么算</span></div>
+    <div class="cols">
+      <div class="col ai"><div class="hd">🤖 AI</div>
+        <div class="msg cu">投影面积来算的，568 一平，含设计安装售后全包。您那边是哪个城市呀？我帮您查下最近的门店。<span class="badges"><span class="cx" data-s="s2_calc_case" title="金牌·案例[5] 568投影">1</span><span class="cx" data-s="s2_price_rule" title="规则·报价克制">2</span></span></div>
+      </div>
+      <div class="col gold"><div class="hd">🏅 金牌</div>
+        <div class="msg go">投影面积来算 · 568 落地是这样，抽屉全屋累计每三个平方送一个抽屉，含悍高阻尼轨道</div>
+      </div>
+    </div>
+    <div class="note"><span class="tick g">✓</span> 568/投影全包口径一致。金牌还带了「每三平送抽屉」的赠品钩子，AI 这轮没抛（可后续补）。</div>
+  </div>
+
+  <!-- B4 -->
+  <div class="turn">
+    <div class="qbar"><span class="lab">客户问</span><span class="q">用什么板材</span></div>
+    <div class="cols">
+      <div class="col ai"><div class="hd">🤖 AI</div>
+        <div class="msg cu">兔宝宝、莫干山、千年舟任选，全系 ENF 级无醛板，PUR 封边。环保检验全合格，咱们是全额赔付的。<span class="badges"><span class="cx" data-s="s2_mat_case" title="金牌·案例[5] 板材配置">1</span><span class="cx" data-s="s2_env_case" title="金牌·案例[5] 环保全额退">2</span><span class="cx" data-s="s2_mat_rule" title="规则·板材不编造">3</span></span></div>
+      </div>
+      <div class="col gold"><div class="hd">🏅 金牌</div>
+        <div class="msg go">兔宝宝莫干山千年舟 ENF 多层实木柜体+双面 PET 门板，挂衣杆，悍高二段力阻尼铰链，抽屉阻尼轨道</div>
+        <div class="msg go">环保不达标直接全额退，假一赔三，这些都写在合同里面</div>
+      </div>
+    </div>
+    <div class="note"><span class="tick m">≈</span> 三大品牌+ENF+环保赔付都对上。金牌口径是「双面 PET 门板+悍高铰链」，AI 换成讲「PUR 封边」、没提悍高五金——不算错，但金牌那套配置细节更能打。</div>
+  </div>
+
+  <!-- B5 -->
+  <div class="turn">
+    <div class="qbar"><span class="lab">客户问</span><span class="q">门用推拉的可以吗</span></div>
+    <div class="cols">
+      <div class="col ai"><div class="hd">🤖 AI</div>
+        <div class="msg cu">可以做推拉门，单扇宽度建议别超 80 公分，推起来顺一点。您家衣柜大概放哪个位置呀？我让设计师实际尺寸出给您配。<span class="badges"><span class="cx" data-s="s2_slide_gold" title="金牌·案例[5] 推拉门+280">1</span><span class="cx" data-s="s2_slide_rule" title="规则·不漏加价项">2</span></span></div>
+      </div>
+      <div class="col gold"><div class="hd">🏅 金牌</div>
+        <div class="msg go">可以，但是只做一片门板的推拉门会比较容易变形，所以推拉门工艺会繁琐一些，也会比较贵，每平方加 280</div>
+      </div>
+    </div>
+    <div class="note"><span style="color:var(--red);font-weight:700">✗ 关键差异</span> 金牌明确讲了<b>推拉门易变形、每平方加 280</b>；AI 只给了「宽度别超 80」的建议，<b>没提加价、也没提变形风险</b>——为下一轮的报价错误埋了雷。</div>
+  </div>
+
+  <!-- B6 -->
+  <div class="turn">
+    <div class="qbar"><span class="lab">客户问</span><span class="q">568 是做对开门的对不</span></div>
+    <div class="cols">
+      <div class="col ai"><div class="hd">🤖 AI</div>
+        <div class="msg cu">568 是投影平方全包价，对开门、推拉门都会在内，工艺不同不加价。您家柜体位置定了吗？我帮您对好尺寸，设计师量尺后出方案更准。<span class="badges"><span class="cx" data-s="s2_open2_gold" title="金牌·案例[5] 对开门/明码实价">1</span><span class="cx" data-s="s2_consist_rule" title="规则·报价不打架">2</span></span></div>
+      </div>
+      <div class="col gold"><div class="hd">🏅 金牌</div>
+        <div class="msg go">咱们这边都是全国统一，明码实价的，公开透明，真正能做到童叟无欺 · 是的（568 做对开门）</div>
+      </div>
+    </div>
+    <div class="note"><span style="color:var(--red);font-weight:700">✗ 硬伤·最该修</span> AI 说「推拉门也在内、<b>不加价</b>」，跟金牌「推拉门每平方 +280」<b>直接冲突</b>。这不是话术风格问题，是<b>报价口径错</b>，签约后必生加价争议——本页最优先修的一处。</div>
+  </div>
+
+  <!-- B7 -->
+  <div class="turn">
+    <div class="qbar"><span class="lab">客户问</span><span class="q">漳州有门店吗</span></div>
+    <div class="cols">
+      <div class="col ai"><div class="hd">🤖 AI</div>
+        <div class="msg cu">有，漳州在龙文区居然之家二楼，您得空可以先过去看看实物。<span class="badges"><span class="cx" data-s="s2_zz_store" title="金牌·案例[5] 漳州真实门店">1</span><span class="cx" data-s="s2_store_733" title="提交 #733 报真实地址">2</span></span></div>
+      </div>
+      <div class="col gold"><div class="hd">🏅 金牌</div>
+        <div class="msg go">有 → 居然之家(漳州龙文商场)龙江中路 7-24 号 → 在芗城区</div>
+      </div>
+    </div>
+    <div class="note"><span class="tick g">✓</span> 报了<b>真实漳州门店（居然之家）</b>、没编店。地址细节（AI「龙文区二楼」vs 金牌「龙文商场龙江中路/芗城区」）略有出入，建议核准到门牌再对外。</div>
+  </div>
+
+  <!-- B8 -->
+  <div class="turn">
+    <div class="qbar"><span class="lab">客户问</span><span class="q">厨房吊柜，餐边柜，床有做吗</span></div>
+    <div class="cols">
+      <div class="col ai"><div class="hd">🤖 AI</div>
+        <div class="msg cu">这些都做呀，厨房吊柜、餐边柜、床带储物，咱们全屋定制都包。您家户型定了吗？我让设计师按您实际尺寸出方案。<span class="badges"><span class="cx" data-s="s2_cat_case" title="金牌·案例[5] 品类全包">1</span></span></div>
+      </div>
+      <div class="col gold"><div class="hd">🏅 金牌</div>
+        <div class="msg go">都有做 · 榻榻米有做</div>
+      </div>
+    </div>
+    <div class="note"><span class="tick g">✓</span> 全品类能做，一致；AI 顺势要户型、引导量尺出方案。</div>
+  </div>
+
+  <!-- B9 -->
+  <div class="turn">
+    <div class="qbar"><span class="lab">客户问</span><span class="q">价格都是按投影算吗</span></div>
+    <div class="cols">
+      <div class="col ai"><div class="hd">🤖 AI</div>
+        <div class="msg cu">对，全按投影面积算，568 一平，含设计安装全包。漳州店设计师量完尺，会给您出详细清单。<span class="badges"><span class="cx" data-s="s2_calc2_case" title="金牌·案例[5] 统一投影价">1</span><span class="cx" data-s="s2_detail_rule" title="规则·细价交设计师">2</span></span></div>
+      </div>
+      <div class="col gold"><div class="hd">🏅 金牌</div>
+        <div class="msg go">一样的投影面积来算</div>
+      </div>
+    </div>
+    <div class="note"><span class="tick g">✓</span> 口径统一，细价交给到店量尺后的详细清单，节奏克制。</div>
+  </div>
+
+  <!-- B10 -->
+  <div class="turn">
+    <div class="qbar"><span class="lab">客户问</span><span class="q">沙发卡座准备做多深呀（要看房子宽度吧）</span></div>
+    <div class="cols">
+      <div class="col ai"><div class="hd">🤖 AI</div>
+        <div class="msg cu">卡座深度一般 40-50 公分舒服，太浅坐不住，太深储物不便。您家那边宽度多少？我让设计师按实际空间排布，避免碰腿。<span class="badges"><span class="cx" data-s="s2_kaz_case" title="金牌·案例[5] 卡座算法">1</span><span class="cx" data-s="s2_kaz_rule" title="规则·专业设计建议">2</span></span></div>
+      </div>
+      <div class="col gold"><div class="hd">🏅 金牌</div>
+        <div class="msg go">连沙发卡座正常是拆成两部分来算 · 卡座垫没做，可以找做窗帘的一起做</div>
+      </div>
+    </div>
+    <div class="note"><span class="tick g">✓ 亮点</span> AI 给的深度建议（40-50 公分、避免碰腿）<b>比金牌更贴心专业</b>；不过<b>没提金牌那句计价口径「卡座拆两部分算、垫子另找」</b>，商务细节略缺。</div>
+  </div>
+
+  <!-- B11 -->
+  <div class="turn">
+    <div class="qbar"><span class="lab">客户说</span><span class="q">价格合适我就全屋一次性做（厨房吊柜/餐边柜/衣柜/床/客厅卡座）</span></div>
+    <div class="cols">
+      <div class="col ai"><div class="hd">🤖 AI</div>
+        <div class="msg cu">您这想法很好呀，全屋做整体性好、省心也省预算。我让漳州店设计师给您出一次性方案，您看什么时候方便过去量尺？<span class="badges"><span class="cx" data-s="s2_whole_case" title="金牌·案例[5] 全屋一次性/性价比">1</span><span class="cx" data-s="s2_visitclose_rule" title="规则·促成到店量尺">2</span></span></div>
+      </div>
+      <div class="col gold"><div class="hd">🏅 金牌</div>
+        <div class="msg go">不敢说最低价但一定是性价比高的…环保不达标全额退、假一赔三，写在合同里；柜门柜体六面防伪防潮</div>
+      </div>
+    </div>
+    <div class="note"><span class="tick g">✓</span> 承接全屋意向、讲整体性+省预算，并<b>引导到漳州店量尺</b>，促成到位。金牌这里补了「性价比+合同保障」的信任话术，AI 可择机加。</div>
+  </div>
+
+  <!-- B12 -->
+  <div class="turn">
+    <div class="qbar"><span class="lab">客户问</span><span class="q">制作周期要多久</span></div>
+    <div class="cols">
+      <div class="col ai"><div class="hd">🤖 AI</div>
+        <div class="msg cu">正常 20 天左右，量完尺确认方案就下生产。您定好时间，我让门店提前排期。<span class="badges"><span class="cx" data-s="s2_period_case" title="金牌·案例[5] 20天周期">1</span></span></div>
+      </div>
+      <div class="col gold"><div class="hd">🏅 金牌</div>
+        <div class="msg go">生产周期正常是 20 天左右</div>
+      </div>
+    </div>
+    <div class="note"><span class="tick g">✓</span> 20 天周期一致，还补了「量尺确认后下生产、提前排期」的推进钩子。</div>
+  </div>
+
+  <!-- B13 -->
+  <div class="turn">
+    <div class="qbar"><span class="lab">客户问</span><span class="q">可以多色搭配吧 / 我直接去门店吗</span></div>
+    <div class="cols">
+      <div class="col ai"><div class="hd">🤖 AI</div>
+        <div class="msg cu">可以，一般加两三个点缀色就挺好，多了容易乱。您有喜欢的颜色搭配吗？我让设计师出稿时一并考虑。<span class="badges"><span class="cx" data-s="s2_color_case" title="金牌·案例[5] 2-3配色">1</span></span></div>
+        <div class="msg cu">您报个时间，我先跟漳州店约好，免得设计师不在店。到店直接对接，省得您跑空。<span class="badges"><span class="cx" data-s="s2_visit_case" title="金牌·案例[5] 到店对接">1</span><span class="cx" data-s="s2_visit_rule" title="规则·到店优先">2</span></span></div>
+      </div>
+      <div class="col gold"><div class="hd">🏅 金牌</div>
+        <div class="msg go">正常一个加 2-3 个颜色就够了，太多颜色就会有点乱</div>
+        <div class="msg go">可以，或者有来厦门总部我接待您 · 上门量房统一安排在到店确定意向之后</div>
+      </div>
+    </div>
+    <div class="note"><span class="tick g">✓ 收口</span> 配色建议（2-3 个）跟金牌一字不差；末尾<b>先约门店、避免客户跑空</b>，把线上意向稳稳导到到店，收口漂亮。</div>
+  </div>
+
+  <h2 class="sec">案例二 · 汇总分析 <span>· 13 轮里对了几成、错在哪</span></h2>
+  <div class="card analysis">
+    <ul>
+      <li><b>✅ 绝大多数对上（12/13 轮）：</b>568 投影全包、三大品牌+ENF、真实漳州门店、全品类可做、20 天周期、2-3 配色、约到店量尺促成——一条长咨询走下来，口径基本贴住金牌。</li>
+      <li><b>✅ 有超过金牌的地方：</b>卡座给了「40-50 公分、避免碰腿」的专业深度建议，比金牌只讲「拆两部分算」更贴心；每轮都在稳稳往到店推。</li>
+      <li><b>✗ 一个真实硬伤 · 推拉门报价（B5+B6）：</b>金牌明确「推拉门易变形、<b>每平方 +280</b>」，AI 两次都说「推拉门也在内、<b>不加价</b>」。这是<b>报价口径错</b>，不是措辞问题——客户照 568 下单、到量尺才被告知推拉门要加钱，极易投诉。<b>本页最该修的一处，建议进知识库/规则硬绑。</b></li>
+      <li><b>≈ 小瑕疵：</b>① 漳州门店地址细节与金牌略有出入（龙文区二楼 vs 龙江中路/芗城区），建议核到门牌；② 金牌的几个「钩子」AI 没接（每三平送抽屉、性价比+合同保障话术），可择机补强。</li>
+    </ul>
+  </div>
+
+  <div class="foot">
+    左·基准：AI 测试对话截图（客户橘枳 · <code>chatReply</code> 线上同款代码 · 2026-07-02 真机）<br>
+    右·对照：<code>gold-sales-test-playbook.html</code> 案例[4]（有大有小 · 金牌真实成交对话）· 出处溯源至案例[4]/[5] + 话术规则<br>
+    对比人：夏夏 · 2026-07-02
+  </div>
+
+</div>
+
+<!-- 出处浮层 -->
+<div id="ov"><div id="ovbox">
+  <div class="oh"><div class="ot" id="ovt"></div><button class="ox" id="ovx">×</button></div>
+  <div class="oqlab">金牌真实原话 / 规则原文</div>
+  <div class="oq" id="ovq"></div>
+  <div class="or" id="ovr"></div>
+  <div class="otag" id="ovtag"></div>
+</div></div>
+
+<script>
+// AI 每句话术的出处：t=出处名, q=金牌真实原话/规则原文, r=为什么这么说, tag=来源
+var SRC = {
+  s_open_case:{t:"金牌·案例[4]｜开场",q:"「您好呀，如何称呼」+「你可以先看一下我们的配置…五金采用悍高」+「原价868现在样板房568元/投影」",r:"金牌开场＝自报品牌+抛配置价格钩子。AI 学的是同一套开场逻辑，只是先收窄需求方向（定制柜还是全屋）。",tag:"来源：gold 剧本 案例[4]"},
+  s_open_rule:{t:"规则·ice_break｜破冰阶段",q:"破冰阶段：一句话自报品牌+抛钩子，别一上来问一堆问题。",r:"小艳 persona 的 ice_break 阶段口径，控制开场信息量、留邀约钩子。",tag:"来源：chatReply stage=ice_break"},
+
+  s_hg_case:{t:"金牌·案例[4]｜五金品牌",q:"「五金采用的是悍高，去年上市品牌 耐用,使用寿命长」/「悍高的」",r:"五金＝悍高是真实配置。AI 照实报，还补了「耐用不生锈」卖点。",tag:"来源：gold 剧本 案例[4]"},
+  s_hg_kb:{t:"知识库·五金",q:"五金品牌以知识库真实信息为准（悍高），不得编造其他品牌。",r:"五金是写进合同的配置，必须来自库、不能瞎报。",tag:"来源：知识库 / prompt 规则"},
+
+  s_phone_case:{t:"金牌·案例[4]｜电话来源",q:"「你在网上报名我们装修建材，所以我们也打电话问问定制的需不需」",r:"客户警惕「怎么有我电话」，金牌用「抖音/网上报名」化解。AI 口径一致，还顺势问面积推进。",tag:"来源：gold 剧本 案例[4]"},
+
+  s_design_case:{t:"金牌·案例[4]｜一条龙",q:"「设计安装售后一条龙」",r:"金牌一句话概括服务闭环。AI 展开成「下定后设计师一对一、改到满意」，更具体。",tag:"来源：gold 剧本 案例[4]"},
+  s_design_rule:{t:"规则·量尺出图",q:"设计/方案在下定确认意向后由设计师出，先量尺/理需求再出图，不空口许马上发图。",r:"把「设计服务」和「下定后出方案」绑定，既给承诺又埋到店钩子。",tag:"来源：DB / prompt 规则"},
+
+  s_store_case:{t:"金牌·案例[4]｜真实门店地址",q:"「厦门市思明区台北路海西金谷广场T1-11楼有大有小」（金牌全程只报这个真实地址）",r:"金牌只报库里真实存在的厦门总部地址，AI 一字不差照报。",tag:"来源：gold 剧本 案例[4]"},
+  s_store_733:{t:"提交 #733｜禁编门店",q:"门店从「禁编止血」升级为「按知识库清单报真实地址」——有清单报真址，没有就诚实说「帮您查最近门店」。",r:"这条真实对话里客户是厦门（库里有），AI 正确报真址；探针里问「任丘」（库里没有）才会编。补清单即可收口。",tag:"来源：commit 1c026caf (#733)"},
+
+  s_factory_case:{t:"金牌·案例[4]｜自有工厂",q:"「有自己的加工厂」",r:"金牌只回一句。AI 升级成「工厂直供、省中间差价」的价值话术。",tag:"来源：gold 剧本 案例[4]"},
+  s_factory_c5:{t:"金牌·案例[5]｜工厂直供话术",q:"「咱们家是工厂直供价，去掉中间差价，同样配置能省…」（工厂直供＝价值点）",r:"AI 把「有工厂」讲成「直供省差价」，学的是案例[5] 这套增值话术。",tag:"来源：gold 剧本 案例[5]"},
+
+  s_scope_case:{t:"金牌·案例[4]｜收需求引导到店",q:"「可以的，展厅这边有板材工艺五金这些可以先来了解，然后我们面对面沟通一下细节，想怎么做，什么需求」",r:"客户缩小范围（只做厨房+2房），金牌不纠结范围、直接邀到展厅面聊。AI 同思路，先要户型图再约到店。",tag:"来源：gold 剧本 案例[4]"},
+  s_scope_rule:{t:"规则·先到店量尺",q:"上门量房统一安排在到店了解产品、确定意向之后；先要户型/到店详谈，再谈量尺出方案。",r:"案例[5] 金牌原话：「咱们上门量房统一安排在您到门店…确定装修意向之后」。AI 遵循这个到店优先节奏。",tag:"来源：gold 剧本 案例[5] + 规则"},
+
+  s_hall_case:{t:"金牌·案例[4]｜有展厅",q:"「厦门有展厅」+「这个地址」（再发一次门店定位）",r:"金牌确认有展厅并再抛地址。AI 补「完整展厅+样板间」并继续推到店。",tag:"来源：gold 剧本 案例[4]"},
+  s_hall_c5:{t:"金牌·案例[5]｜样板间了解产品",q:"「展厅这边有板材工艺五金这些可以先来了解」——用样板间/展厅承接「眼见为实」。",r:"AI 讲「样板间」是承接金牌「到店眼见为实」的逻辑。",tag:"来源：gold 剧本 案例[5]"},
+
+  s_price_c5:{t:"金牌·案例[5]｜568 投影价",q:"「原价868现在样板房征集活动补贴300元，只要568元」+「投影面积来算」+「含悍高阻尼轨道」",r:"价格锚点＝568/投影㎡，是金牌真实报价口径。AI 照报，且把总价/细价交给设计师。",tag:"来源：gold 剧本 案例[5]/[4]"},
+  s_price_rule:{t:"规则·报价克制 + 地区价",q:"报价单气泡克制、给锚点即可、细价交设计师、不前后打架；江浙沪京深等地区+100，厦门本地不加价。",r:"#711 收节奏、#722 治报价打架。AI 一句给锚点+点出厦门不加价，符合地区价规则。",tag:"来源：PR #711 / #722 + 地区价规则"},
+
+  s_close_case:{t:"金牌·案例[4]｜接应促成",q:"「你这边几点过来呢」+「张姐姐，要到了或者找不到就给我打语音，我下去接你」+ 促成「考虑怎么样了，这个码下午就要失效了」",r:"客户答应到店后，金牌确认时间+安排接应+催促成。AI 同样接应+备方案+发地址，把人接到店门口。",tag:"来源：gold 剧本 案例[4]"},
+  s_close_rule:{t:"规则·约到店促成",q:"客户表露到店意向时：确认到店时间、准备好方案、给清晰地址，临门再轻推一把。",r:"decision 阶段的促成节奏，目的把线上意向落成到店。",tag:"来源：chatReply stage=decision"},
+
+  // ===== 案例二（对应金牌案例[5]）=====
+  s2_open_case:{t:"金牌·案例[5]｜开场",q:"「我们是有大有小全屋定制，兔宝宝ENF多层实木板，原价868现在小区样板房专供只要568，加微发价格和产品资料」",r:"金牌开场＝自报品牌+样板房568钩子+发资料。AI 学的是同一套，只是先收窄需求方向。",tag:"来源：gold 剧本 案例[5]"},
+  s2_open_rule:{t:"规则·ice_break｜破冰阶段",q:"破冰阶段：一句话自报品牌+抛钩子，别一上来问一堆问题。",r:"小艳 persona ice_break 阶段口径，控制开场信息量、留邀约钩子。",tag:"来源：chatReply stage=ice_break"},
+  s2_wardrobe_case:{t:"金牌·案例[5]｜衣柜主营",q:"客户问「衣柜怎么算？」金牌：「原价868，现在样板房征集活动补贴300元，只要568元」「投影面积来算」",r:"衣柜/橱柜是主营品类。AI 先确认能做再收面积，金牌直接抛价，思路一致。",tag:"来源：gold 剧本 案例[5]"},
+  s2_area_rule:{t:"规则·先收面积",q:"报总价前先拿到面积/户型，用投影面积口径估算，不脱离尺寸空报总价。",r:"面积是算价前提，先收面积再估，避免报错。",tag:"来源：DB / prompt 规则"},
+  s2_calc_case:{t:"金牌·案例[5]｜568投影全包",q:"「投影面积来算」「568落地是这样，抽屉是全屋累计每三个平方送一个抽屉」「含悍高阻尼轨道」",r:"568/投影是核心报价锚点，金牌还带「每三平送抽屉」赠品钩子。AI 口径对，赠品钩子这轮没抛。",tag:"来源：gold 剧本 案例[5]"},
+  s2_price_rule:{t:"规则·报价克制",q:"报价单气泡克制、给锚点即可、细价交设计师/到店量尺后出清单，不堆砌不前后打架。",r:"#711 收节奏、#722 治报价打架。给锚点即可，别倒一大段。",tag:"来源：PR #711 / #722"},
+  s2_mat_case:{t:"金牌·案例[5]｜板材配置",q:"「兔宝宝莫干山千年舟ENF多层实木柜体+双面PET门板，挂衣杆，悍高二段力阻尼铰链，抽屉的阻尼轨道」",r:"三大品牌+ENF是真实配置。金牌口径突出「双面PET门板+悍高铰链」；AI 换讲「PUR封边」、没提悍高。",tag:"来源：gold 剧本 案例[5]"},
+  s2_env_case:{t:"金牌·案例[5]｜环保全额退",q:"「环保不达标直接全额退。假一赔三。这些都是直接写在合同里面的」「柜门柜体六面防伪防潮」",r:"环保赔付是信任话术，AI 的「全额赔付」对上了金牌口径。",tag:"来源：gold 剧本 案例[5]"},
+  s2_mat_rule:{t:"规则·板材不编造",q:"板材品牌/环保等级/五金以知识库真实信息为准，不得自行编造。",r:"板材五金是写进合同的配置，必须来自库。",tag:"来源：知识库 / prompt 规则"},
+  s2_slide_gold:{t:"金牌·案例[5]｜推拉门要加钱",q:"「可以，但是只做一片门板的推拉门会比较容易变形，所以推拉门工艺会繁琐一些，也会比较贵，每平方加280」",r:"金牌明确告知推拉门易变形+每平方加280。AI 这轮只说「宽度别超80」，漏了加价和变形风险——埋雷。",tag:"来源：gold 剧本 案例[5]"},
+  s2_slide_rule:{t:"规则·不漏加价项",q:"涉及加价工艺（推拉门+280、护墙板打底等）必须主动、如实告知，不能只报568全包价把加价项藏起来。",r:"藏加价项＝签约后加钱＝投诉。必须前置说清。",tag:"来源：报价一致性规则（应硬绑进库）"},
+  s2_open2_gold:{t:"金牌·案例[5]｜对开门/明码实价",q:"「568是做对开门是不是？」金牌：「咱们这边都是全国统一，明码实价的，公开透明，真正能做到童叟无欺」「是的」",r:"金牌确认568=对开门全包，但推拉门另加280（见上一轮）。AI 却说推拉门也不加价，与此冲突。",tag:"来源：gold 剧本 案例[5]"},
+  s2_consist_rule:{t:"规则·报价不打架",q:"同一配置前后报价必须一致；有加价项（推拉门+280）时不能说「都在内不加价」。",r:"#722 治报价打架。这轮 AI 正是踩了这条——推拉门口径自相矛盾。",tag:"来源：PR #722 + 报价一致性规则"},
+  s2_zz_store:{t:"金牌·案例[5]｜漳州真实门店",q:"「漳州有门店吗？」金牌：「有」→「居然之家(漳州龙文商场)龙江中路7-24号」→「在芗城区」",r:"金牌报真实漳州门店地址。AI 也报了居然之家（真实、没编），但细节写成「龙文区二楼」，与金牌门牌略有出入。",tag:"来源：gold 剧本 案例[5]"},
+  s2_store_733:{t:"提交 #733｜按清单报真实地址",q:"门店从「禁编止血」升级为「按知识库清单报真实地址」——有清单报真址，没有就诚实说「帮您查最近门店」。",r:"漳州库里有真实门店，AI 报对；只是地址细节需核准到门牌再对外。",tag:"来源：commit 1c026caf (#733)"},
+  s2_cat_case:{t:"金牌·案例[5]｜品类全包",q:"「厨房吊柜，餐边柜，有做吗？」「床呢？」金牌：「都有做」「榻榻米有做」",r:"全屋定制品类全包。AI 一致，并顺势要户型引导量尺。",tag:"来源：gold 剧本 案例[5]"},
+  s2_calc2_case:{t:"金牌·案例[5]｜统一投影价",q:"「价格怎么算？」金牌：「一样的投影面积来算」（所有品类统一口径）",r:"全品类统一按投影算，AI 口径一致，细价交到店后详细清单。",tag:"来源：gold 剧本 案例[5]"},
+  s2_detail_rule:{t:"规则·细价交设计师",q:"具体清单/总价在到店量尺后由设计师出，线上只给单价锚点，不线上硬算总价。",r:"到店量尺出清单，既准又把人导到店。",tag:"来源：DB / prompt 规则"},
+  s2_kaz_case:{t:"金牌·案例[5]｜卡座算法",q:"「卡座沙发按投影算吗？」金牌：「连沙发卡座正常是拆成两部分来算」；「卡座垫没做，可以找做窗帘的一起做」",r:"金牌讲的是卡座的计价口径（拆两部分、垫子另找）。AI 换成给深度设计建议，专业但少了计价口径。",tag:"来源：gold 剧本 案例[5]"},
+  s2_kaz_rule:{t:"规则·专业设计建议",q:"可给基于常识的设计建议（卡座深度40-50、避免碰腿），但涉及计价/收费口径仍以知识库为准。",r:"设计建议加分，但别替代金牌的计价口径。",tag:"来源：DB / prompt 规则"},
+  s2_whole_case:{t:"金牌·案例[5]｜全屋一次性+信任",q:"「不敢说是最低价，但一定是性价比高的…enf级环保等级，环保不达标直接全额退。假一赔三，写在合同里面」",r:"客户表露全屋一次性做的意向，金牌用性价比+合同保障承接。AI 讲整体性+省预算并引导量尺，方向一致。",tag:"来源：gold 剧本 案例[5]"},
+  s2_visitclose_rule:{t:"规则·促成到店量尺",q:"客户露出全屋/成交意向时，引导到店量尺出方案，把线上意向落成到店动作。",r:"decision 阶段促成节奏：意向→约到店量尺。",tag:"来源：chatReply stage=decision"},
+  s2_period_case:{t:"金牌·案例[5]｜制作周期",q:"「制作周期要多久？」金牌：「生产周期正常是20天左右」",r:"20天周期是真实口径，AI 照报并补「量尺确认后下生产、提前排期」。",tag:"来源：gold 剧本 案例[5]"},
+  s2_color_case:{t:"金牌·案例[5]｜2-3配色",q:"「可以多色搭配吧」金牌：「正常一个加2-3个颜色就够了，太多颜色就会有点乱」",r:"配色建议2-3个，AI 与金牌几乎一字不差。",tag:"来源：gold 剧本 案例[5]"},
+  s2_visit_case:{t:"金牌·案例[5]｜到店对接",q:"「到时候直接去门店吗？」金牌：「可以，或者有来厦门总部我接待您」；「上门量房统一安排在到店确定意向之后」",r:"金牌把客户导到店对接/量房安排在到店后。AI「先约门店、避免跑空」是同一逻辑。",tag:"来源：gold 剧本 案例[5]"},
+  s2_visit_rule:{t:"规则·到店优先",q:"上门量房统一安排在到店了解产品、确定意向之后；先约门店、避免客户跑空。",r:"到店优先节奏，既提效率又把意向锁在到店。",tag:"来源：gold 剧本 案例[5] + 规则"}
+};
+var ov=document.getElementById('ov');
+function showSrc(id){var d=SRC[id];if(!d)return;
+  document.getElementById('ovt').textContent=d.t;
+  document.getElementById('ovq').textContent=d.q;
+  document.getElementById('ovr').textContent=d.r;
+  document.getElementById('ovtag').textContent=d.tag;
+  ov.classList.add('show');}
+function hideSrc(){ov.classList.remove('show');}
+document.querySelectorAll('.cx').forEach(function(el){
+  el.addEventListener('click',function(){showSrc(el.getAttribute('data-s'));});
+});
+document.getElementById('ovx').addEventListener('click',hideSrc);
+ov.addEventListener('click',function(e){if(e.target===ov)hideSrc();});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')hideSrc();});
+</script>
+</body>
+</html>
