@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>云电脑跑个人微信自动化 · 风控识别信号全景与应对（2026-07）</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2230; --line:#2a3340;
+    --txt:#e6edf3; --dim:#9aa7b4; --mut:#6e7b8a;
+    --grn:#3fb950; --red:#f85149; --yel:#d29922; --blu:#58a6ff; --pur:#bc8cff;
+    --grn-bg:rgba(63,185,80,.12); --red-bg:rgba(248,81,73,.12);
+    --yel-bg:rgba(210,153,34,.12); --blu-bg:rgba(88,166,255,.12);
+    --pur-bg:rgba(188,140,255,.12);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    line-height:1.7;font-size:15px}
+  .wrap{max-width:1080px;margin:0 auto;padding:40px 24px 80px}
+  header{border-bottom:1px solid var(--line);padding-bottom:24px;margin-bottom:12px}
+  .eyebrow{color:var(--mut);font-size:13px;letter-spacing:.08em;text-transform:uppercase}
+  h1{font-size:30px;line-height:1.3;margin:8px 0 14px}
+  h2{font-size:22px;margin:46px 0 16px;padding-top:8px;display:flex;align-items:center;gap:10px}
+  h2 .num{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;
+    border-radius:8px;background:var(--blu-bg);color:var(--blu);font-size:15px;font-weight:700;flex:none}
+  h3{font-size:17px;margin:24px 0 10px}
+  p{margin:10px 0}
+  .lead{font-size:16px;color:var(--dim)}
+  .kbd{font-family:"SF Mono",monospace;font-size:12px;color:var(--dim)}
+  code{background:#1f2530;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px;
+    font-family:"SF Mono",Menlo,Consolas,monospace;color:#e6c07b;word-break:break-all}
+  b{color:var(--txt)}
+  .verdict{background:linear-gradient(135deg,var(--panel2),#1a2030);border:1px solid var(--line);
+    border-left:4px solid var(--red);border-radius:12px;padding:20px 24px;margin:24px 0}
+  .verdict strong{color:var(--red)}
+  .callout{border-radius:10px;padding:14px 18px;margin:16px 0;border:1px solid var(--line)}
+  .c-red{background:var(--red-bg);border-color:rgba(248,81,73,.4)}
+  .c-grn{background:var(--grn-bg);border-color:rgba(63,185,80,.4)}
+  .c-yel{background:var(--yel-bg);border-color:rgba(210,153,34,.4)}
+  .c-blu{background:var(--blu-bg);border-color:rgba(88,166,255,.4)}
+  .c-pur{background:var(--pur-bg);border-color:rgba(188,140,255,.4)}
+  /* 证据强度胶囊 */
+  .ev{display:inline-block;font-size:11px;font-weight:800;padding:1px 6px;border-radius:5px;vertical-align:middle;
+    font-family:"SF Mono",Menlo,monospace;letter-spacing:.02em}
+  .ev-a{background:var(--grn-bg);color:var(--grn);border:1px solid rgba(63,185,80,.35)}
+  .ev-b{background:var(--blu-bg);color:var(--blu);border:1px solid rgba(88,166,255,.35)}
+  .ev-c{background:var(--yel-bg);color:var(--yel);border:1px solid rgba(210,153,34,.35)}
+  .ev-d{background:var(--red-bg);color:var(--red);border:1px solid rgba(248,81,73,.35)}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;font-size:13px;color:var(--dim);
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin:18px 0}
+  .legend span{white-space:nowrap}
+  table{width:100%;border-collapse:collapse;margin:18px 0;font-size:13.5px}
+  th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+  th{background:var(--panel);color:var(--dim);font-weight:600}
+  tr:nth-child(even) td{background:rgba(255,255,255,.012)}
+  .yes{color:var(--grn);font-weight:600}
+  .nope{color:var(--red);font-weight:600}
+  .maybe{color:var(--yel);font-weight:600}
+  /* 信号分层块 */
+  .layer{border:1px solid var(--line);border-left-width:4px;border-radius:12px;padding:6px 20px 16px;margin:18px 0;background:var(--panel)}
+  .layer.l-env{border-left-color:var(--pur)}
+  .layer.l-cli{border-left-color:var(--red)}
+  .layer.l-beh{border-left-color:var(--yel)}
+  .layer.l-cnt{border-left-color:var(--blu)}
+  .layer h3{margin:14px 0 8px;display:flex;align-items:center;gap:8px}
+  .layer h3 .lb{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:2px 8px;border-radius:6px}
+  .l-env h3 .lb{background:var(--pur-bg);color:var(--pur)}
+  .l-cli h3 .lb{background:var(--red-bg);color:var(--red)}
+  .l-beh h3 .lb{background:var(--yel-bg);color:var(--yel)}
+  .l-cnt h3 .lb{background:var(--blu-bg);color:var(--blu)}
+  ul{margin:8px 0;padding-left:20px}
+  li{margin:6px 0}
+  pre{background:#0a0e14;border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow-x:auto;
+    font-family:"SF Mono",Menlo,Consolas,monospace;font-size:12.5px;line-height:1.55;color:#c9d4e0}
+  .risk{font-size:13.5px;margin:7px 0;padding-left:22px;position:relative}
+  .risk::before{content:"";position:absolute;left:6px;top:9px;width:7px;height:7px;border-radius:50%}
+  .risk.hi::before{background:var(--red)} .risk.md::before{background:var(--yel)} .risk.lo::before{background:var(--grn)}
+  /* 时间线 */
+  .tl{border-left:2px solid var(--line);margin:20px 0 6px;padding:0}
+  .tl .ev-row{padding:0 0 20px 24px;position:relative}
+  .tl .ev-row .dot{position:absolute;left:-7px;top:5px;width:12px;height:12px;border-radius:50%;background:var(--blu);border:2px solid var(--bg)}
+  .tl .ev-row .d{font-family:"SF Mono",monospace;font-size:12px;color:var(--blu);font-weight:700}
+  .tl .ev-row b{color:var(--txt)}
+  /* 载体对比卡 */
+  .cols{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin:20px 0}
+  @media(max-width:820px){.cols{grid-template-columns:1fr}}
+  .card{border:1px solid var(--line);border-radius:12px;padding:16px 18px;background:var(--panel)}
+  .card .h{font-size:15px;font-weight:700;margin-bottom:2px}
+  .card .sub{font-size:12px;color:var(--mut);margin-bottom:10px}
+  .card.best{border-color:rgba(63,185,80,.4);background:linear-gradient(135deg,rgba(63,185,80,.06),transparent)}
+  .card.worst{border-color:rgba(248,81,73,.4);background:linear-gradient(135deg,rgba(248,81,73,.06),transparent)}
+  .toc{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:22px 0;font-size:14px}
+  .toc a{color:var(--blu);text-decoration:none;display:inline-block;margin:3px 14px 3px 0}
+  .toc a:hover{text-decoration:underline}
+  .foot{margin-top:52px;padding-top:20px;border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+  .foot a{color:var(--dim)}
+  .pin{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:20px;background:var(--red-bg);color:var(--red);vertical-align:middle}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Akke · 入门·架构 · 风控专题</div>
+  <h1>云电脑跑个人微信自动化<br>会撞上哪些风控 · 识别信号全景与应对</h1>
+  <p class="lead">把「在云电脑/云桌面上用自动化操作<b>个人微信</b>（非企业微信）做营销触达」这件事，拆成腾讯风控实际会抓的每一层信号——环境、客户端、行为、内容——逐条标注证据强度、说明 GUI 自动化能躲掉哪些躲不掉哪些，附真实封号案例、官方反自动化时间线，以及工程上能做的护栏。<span class="kbd">2026-07-03</span></p>
+</header>
+
+<div class="legend">
+  <span><b>证据强度：</b></span>
+  <span><span class="ev ev-a">A</span> 官方文档 / 权威安全参考 / 判例</span>
+  <span><span class="ev ev-b">B</span> 多点独立来源一致</span>
+  <span><span class="ev ev-c">C</span> 单点来源 / 经验值</span>
+  <span><span class="ev ev-d">D</span> 传闻 / 厂商话术，不可当据</span>
+</div>
+
+<div class="verdict">
+  <strong>一句话结论：</strong>个人微信对自动化是<b>「零容忍 + 有罪推定」</b>，跟企业微信的「合规经营 + 阶梯限流」是两套逻辑——个人微信<b>没有任何官方自动化接口</b>，所有自动化在官方定义里都算「外挂」。GUI 自动化（模板匹配 + 模拟键鼠、不注入进程）能躲掉<b>「非官方客户端 / hook」</b>这条腿，但躲不掉另外三条：<b>注入输入标志</b>（<code>LLMHF_INJECTED</code>，本地确定性信号 <span class="ev ev-a">A</span>）、<b>行为节奏</b>、<b>环境指纹</b>。而云电脑最大的先天短板是机房 IP 和虚拟化特征。真正的战场在<b>腾讯服务端的设备指纹与行为模型</b>，本地改几个寄存器骗不过去。
+</div>
+
+<div class="toc">
+  <b style="color:var(--dim);font-size:13px">目录　</b>
+  <a href="#s1">1 风控逻辑</a>
+  <a href="#s2">2 检测信号全景</a>
+  <a href="#s3">3 GUI 自动化能躲多少</a>
+  <a href="#s4">4 云电脑的先天短板</a>
+  <a href="#s5">5 真实封号案例</a>
+  <a href="#s6">6 官方反自动化时间线</a>
+  <a href="#s7">7 反制手段 × 是否失效</a>
+  <a href="#s8">8 封号梯度与后果</a>
+  <a href="#s9">9 工程护栏与试水</a>
+  <a href="#s10">10 诚实边界</a>
+</div>
+
+<h2 id="s1"><span class="num">1</span>先读懂：个人微信的风控逻辑</h2>
+<p>动手前必须建立三个认知，否则容易把「个人微信」和网上大量「企业微信防封话术」混为一谈——两者不是一套规则。</p>
+<div class="callout c-red">
+  <b>① 官方立场：个人微信全站禁自动化。</b>《微信个人账号使用规范》逐字点名「微信群控、微信机器人」「通过非腾讯授权的第三方软件 / 插件 / 外挂登录使用」「虚拟定位、批量打招呼、自动化批量操作」——全部是违规定义本身。个人微信<b>没有任何官方 API 出口</b>，不存在「合规的自动化」。<span class="ev ev-a">A</span>
+</div>
+<div class="callout c-yel">
+  <b>② 检测是多维综合，不是单个开关。</b>现代风控核心是<b>「行为模式 + 环境一致性」的加权综合判定</b>，不是「检测到非官方客户端」这一个布尔值。把设备指纹伪装得再好，自动化的节奏规律性、缺乏真人操作轨迹是<b>独立的、难以伪造</b>的命中维度。<span class="ev ev-b">B</span>
+</div>
+<div class="callout c-blu">
+  <b>③ 服务端才是战场。</b>微信的设备识别走「云 + 端」架构：客户端 SDK 采集多维硬件/网络/环境信号上传，<b>服务端解密 + 加权算出唯一 device ID</b>。靠信号冗余抗单点篡改——改几项本地寄存器、清注册表，服务端算出来往往还是同一指纹。这决定了「本地反检测」多为治标。<span class="ev ev-b">B</span>（指纹厂商综述，防御方视角）
+</div>
+
+<h2 id="s2"><span class="num">2</span>检测信号全景（四层）</h2>
+<p>把风控会抓的信号按「离你多近」分四层。每条标证据强度；标 <span class="ev ev-c">C</span>/<span class="ev ev-d">D</span> 的表示是经验值或厂商话术，别当铁律。</p>
+
+<div class="layer l-env">
+  <h3><span class="lb">环境层</span>你跑在什么机器 / 什么网络上</h3>
+  <table>
+    <tr><th style="width:30%">信号</th><th>技术细节</th><th style="width:8%">强度</th></tr>
+    <tr><td><b>CPUID hypervisor 位</b></td><td>任意进程执行 <code>CPUID</code>（EAX=1），返回 ECX 第 31 位 = 1 即处于虚拟机，裸机为 0。这是「是不是 VM」最干净的判据</td><td><span class="ev ev-a">A</span></td></tr>
+    <tr><td><b>Hypervisor 厂商串</b></td><td><code>CPUID</code> leaf 0x40000000 返回 <code>KVMKVMKVM</code> / <code>VMwareVMware</code> / <code>Microsoft Hv</code> 等签名；VMware 还有 0x5658 backdoor 端口</td><td><span class="ev ev-a">A</span></td></tr>
+    <tr><td><b>网卡 MAC / VM 痕迹</b></td><td>MAC OUI 前缀 VMware <code>00:0C:29</code>、VirtualBox <code>08:00:27</code>、Hyper-V <code>00:15:5D</code>；注册表 <code>VMware Tools</code> 键、<code>vmtoolsd.exe</code>、SMBIOS 序列号含 "VMWARE"</td><td><span class="ev ev-a">A</span></td></tr>
+    <tr><td><b>虚拟 GPU / 传感器缺失</b></td><td>虚拟 GPU 名（<code>Microsoft Basic Render Driver</code> / 半虚拟化设备）、云桌面无重力/光线传感器、分辨率+DPI 非常见组合</td><td><span class="ev ev-b">B</span></td></tr>
+    <tr><td><b class="nope">机房 IP（云电脑先天短板）</b></td><td>ASN type = <code>hosting</code> 判为 IDC；阿里/腾讯云出口段是已知机房 IP，风险分天然高（70+ 可直接拉黑）。IP 归属地 ≠ 手机号归属地、多号共用一个出口，都是强关联信号</td><td><span class="ev ev-a">A</span>/<span class="ev ev-b">B</span></td></tr>
+    <tr><td><b class="nope">服务端设备指纹关联</b></td><td>同设备短时多注册、一号多设备登录都会被识别关联——这正是「一号一机」要对抗的核心。本地改指纹基本无效（见 §1③）</td><td><span class="ev ev-b">B</span></td></tr>
+  </table>
+</div>
+
+<div class="layer l-cli">
+  <h3><span class="lb">客户端层</span>你怎么操作微信这个程序</h3>
+  <table>
+    <tr><th style="width:30%">信号</th><th>技术细节</th><th style="width:8%">强度</th></tr>
+    <tr><td><b>非官方客户端 / DLL 注入 / hook</b></td><td>逆向注入微信进程改内存、加载非官方 DLL、iPad/Mac 协议号——官方明文违规，社区经验封号率极高。<b>GUI 自动化不碰这条</b></td><td><span class="ev ev-b">B</span></td></tr>
+    <tr><td><b>多开互斥体</b></td><td>微信用命名互斥体 <code>_WeChat_App_Instance_Identity_Mutex_Name</code> 判定是否已运行；多开工具需伪造，留破绽</td><td><span class="ev ev-b">B</span></td></tr>
+    <tr><td><b class="nope">注入输入标志 <span class="pin">GUI 躲不掉</span></b></td><td><code>SendInput</code>/<code>keybd_event</code> 产生的事件被 Windows 自动打 <code>LLMHF_INJECTED</code>/<code>LLKHF_INJECTED</code> 标志位；任意进程用低级钩子读 <code>MSLLHOOKSTRUCT.flags</code> 即可判定「这是注入的、非人手输入」。微信客户端若装此钩子就能识别</td><td><span class="ev ev-a">A</span></td></tr>
+  </table>
+  <div class="callout c-red" style="margin-top:6px">
+    <b>这是本专题最尖的一条技术发现：</b><code>LLMHF_INJECTED</code> 是 <b>GUI 自动化（模板匹配 + SendInput）唯一躲不掉的本地确定性信号</b>（Microsoft 官方 <code>MSLLHOOKSTRUCT</code> 文档 <span class="ev ev-a">A</span>）。「不注入进程」能躲掉客户端完整性/hook 检测，但注入输入标志照样被本地读到。要「输入」这一维也干净，只有<b>真人手操</b>（物理鼠标/触屏）或硬件级注入——软件剥离标志又得加新钩子层，等于新破绽。
+  </div>
+</div>
+
+<div class="layer l-beh">
+  <h3><span class="lb">行为层</span>你的操作节奏像不像真人</h3>
+  <p style="margin:6px 0 2px;font-size:14px;color:var(--dim)">官方规范明确点名「打招呼频次、地域异常、频繁加好友/被加/加群拉群」。以下阈值多为社区经验值（<span class="ev ev-c">C</span>），会随风控迭代漂移，<b>不可当硬编码常量</b>。</p>
+  <div class="risk hi"><b>加好友过频</b>：1 小时加 &gt;40 人 / 1 分钟被 &gt;60 人主动加 → 直接亮红灯 <span class="ev ev-c">C</span></div>
+  <div class="risk hi"><b>「加人次数 &gt; 聊天次数」</b>→ 进风险管控（业内共识：主动加人数应低于当天真实对话数）<span class="ev ev-b">B</span></div>
+  <div class="risk hi"><b>机械节奏 / 无真人轨迹</b>：点击间隔规律、鼠标直线瞬移、7×24 无休、坐标固定——服务端行为模型的直接输入，与是否注入进程无关 <span class="ev ev-b">B</span></div>
+  <div class="risk md"><b>同 IP 多号消息相似度高</b>、各号每日消息量差异异常 → 批量嫌疑 <span class="ev ev-b">B</span></div>
+  <div class="risk md"><b>新号高危期</b>：注册后 24–72h 最严，第 7 天 / 第 30 天二次审核；满 3 个月才倾向按老号对待 <span class="ev ev-b">B</span></div>
+</div>
+
+<div class="layer l-cnt">
+  <h3><span class="lb">内容/账号层</span>你发什么、被不被举报、号有多重</h3>
+  <div class="risk hi"><b>被举报是首要触发器</b>：约 90% 的私域封号来自「用户举报」，不是纯频率——陌生人营销的投诉率是最大杀器 <span class="ev ev-b">B</span></div>
+  <div class="risk md"><b>营销话术 / 诱导引流</b>：垃圾营销、机器生成批量内容、冒充身份加好友后发推广、诱导加微引流第三方——官方明列违规 <span class="ev ev-a">A</span></div>
+  <div class="risk md"><b>账号权重低</b>：无实名/绑卡/朋友圈历史的新号，与黑灰产画像高度重合，容错最低 <span class="ev ev-b">B</span></div>
+  <div class="risk md"><b>号池特征</b>：批量注册、租号/买号、代解封——官方明文禁止，命中即高危 <span class="ev ev-a">A</span></div>
+</div>
+
+<h2 id="s3"><span class="num">3</span>GUI 自动化到底能躲多少</h2>
+<p>你们现有跑抖音/企微那套<b>「模板匹配 + SendInput，不注入进程」</b>的 GUI RPA，平移到个人微信时——能躲掉的和躲不掉的，一张表说清。这决定了「不碰客户端」到底买到多少安全。</p>
+<table>
+  <tr><th style="width:34%">风控维度</th><th style="width:12%">不碰客户端能躲?</th><th>为什么</th></tr>
+  <tr><td>DLL 注入 / 内存 hook 检测</td><td><span class="yes">✅ 能躲</span></td><td>外部进程不改微信内存、不加载非官方 DLL，完整性校验抓不到——这是 GUI RPA 相对 hook 的<b>主要优势</b></td></tr>
+  <tr><td>多开互斥体 / 协议特征</td><td><span class="yes">✅ 能躲</span></td><td>用官方客户端正常单开、走正常 UI，无协议层伪造</td></tr>
+  <tr><td><b>注入输入标志 LLMHF_INJECTED</b></td><td><span class="nope">❌ 躲不掉</span></td><td>SendInput 的事件本地可被读出「非人手」（<span class="ev ev-a">A</span>）。这是软件自动化的天花板</td></tr>
+  <tr><td><b>行为节奏 / 轨迹</b></td><td><span class="nope">❌ 躲不掉</span></td><td>服务端看不到你的进程，但看得到操作节奏；拟人化只降概率不消除</td></tr>
+  <tr><td><b>环境指纹（CPUID/IP/设备）</b></td><td><span class="nope">❌ 躲不掉</span></td><td>RPA 不改变载体指纹，跑在哪台机器，虚拟化 + IP 信号照样在</td></tr>
+</table>
+<div class="callout c-yel">
+  <b>净判断：</b>GUI 自动化把「被抓到改客户端」这条腿基本躲干净了，<b>但不等于「不可识别」</b>。它买到的是「避开腾讯打击最凶的 hook/协议层」，代价是全部风险压到<b>环境 + 行为</b>两处——而这两处恰恰是个人微信比抖音、企微都更敏感的地方。
+</div>
+
+<h2 id="s4"><span class="num">4</span>云电脑的三个先天短板 + 载体对比</h2>
+<p>同一套自动化，跑在不同「载体」上被识别的难度差很多。云电脑（x86 虚拟机）夹在中间——比模拟器强，但明显弱于真 ARM 云手机。</p>
+<div class="cols">
+  <div class="card best">
+    <div class="h">☁️📱 云手机（真 ARM）</div>
+    <div class="sub">被识别难度：最低</div>
+    <p style="font-size:13.5px">云端真实 ARM 安卓机，无 x86 模拟器/hypervisor 破绽，传感器/GPU 更真，每实例独立参数 + IP。<span class="ev ev-b">B</span></p>
+  </div>
+  <div class="card">
+    <div class="h">💻 云电脑（x86 虚拟）</div>
+    <div class="sub">被识别难度：中</div>
+    <p style="font-size:13.5px">CPUID/SMBIOS/MAC/机房 IP 全套破绽，需逐项隐藏；即便藏好固件层，<b>服务端指纹仍难骗</b>。<span class="ev ev-b">B</span></p>
+  </div>
+  <div class="card worst">
+    <div class="h">🖥️ PC 模拟器</div>
+    <div class="sub">被识别难度：最高</div>
+    <p style="font-size:13.5px">安卓模拟器跑在 x86 = 双层虚拟，模拟器特征 + 虚拟化特征叠加，最易抓。V2EX 实证：新号模拟器登录未进主页即永封。<span class="ev ev-b">B</span></p>
+  </div>
+</div>
+<h3>云电脑绕不开的三个短板</h3>
+<div class="risk hi"><b>机房 IP</b>：出口是 IDC 段，风险分先天高；与手机号归属地不符是强信号。缓解只能靠一号一住宅/4G 代理，但住宅代理池被滥用后同样进黑名单 <span class="ev ev-a">A</span>/<span class="ev ev-b">B</span></div>
+<div class="risk hi"><b>共享镜像 = 相同设备指纹 = 连坐封号</b>：从同一镜像批量开号，指纹高度相似，<b>一号违规牵连整批</b>。这是 Akke 在抖音上已经栽过的坑（见关联页），个人微信只会更狠 <span class="ev ev-b">B</span></div>
+<div class="risk md"><b>虚拟化特征需逐项隐藏</b>：改完 <code>hypervisor.cpuid.v0=FALSE</code> 等会让 VMware Tools 失效，且只治固件层、治不了服务端指纹和 IP，是持续的军备竞赛 <span class="ev ev-b">B</span></div>
+
+<h2 id="s5"><span class="num">5</span>真实封号案例 + 滞后性</h2>
+<p>最扎实的可核验样本是 V2EX 上的个人实录（全部<b>个人微信</b>）。注意一个反直觉规律：<b>老号不是登录即封，而是养一阵、放心了、放量后才集中触发</b>。</p>
+<table>
+  <tr><th style="width:12%">时间</th><th style="width:24%">环境 / 账号</th><th>结果与时间线特征</th><th style="width:8%">强度</th></tr>
+  <tr><td>2021-10</td><td>KVM 里 Windows VM，<b>官方版</b>微信，绑美国号</td><td><b>稳定用 5 个月后</b>才开始弹封禁，连封三次，终判「使用第三方客户端/插件」永久封。楼中多人同样永封、申诉全是模板回复。<b>典型滞后封号</b></td><td><span class="ev ev-b">B</span></td></tr>
+  <tr><td>2025-09</td><td>多端登录（iPhone+Mac+安卓+NAS 里 Linux VM）</td><td>主设备提示「频繁操作」被限登，反而只有 Linux VM 能登。跟帖怀疑腾讯按<b>硬件 UUID 识别设备</b>（改 MAC 无效）。同帖另有「<b>新注册号 3 小时内永久封</b>」——新号秒级、老号滞后，时间差明显</td><td><span class="ev ev-c">C</span></td></tr>
+  <tr><td>2025-03</td><td>虚拟机双开 2 个微信</td><td>一个号提示「该账号无法提供服务」。自测结论：国内实名号在 VM/Linux 能用，<b>国外号在 VM 一律「无法提供服务」</b>——可能是号码属性而非纯 VM 检测，注意归因</td><td><span class="ev ev-c">C</span></td></tr>
+  <tr><td>—</td><td>十年老号 + 手机端 Xposed 插件</td><td>平时用没事，<b>换绑手机号（敏感操作）时被触发</b>封号，走投诉平台才解</td><td><span class="ev ev-c">C</span></td></tr>
+</table>
+<div class="callout c-blu">
+  <b>滞后性归纳（<span class="ev ev-c">C</span> 级经验）：</b>新号秒级~小时级即封；老号 + 非官方环境可稳定数月，但往往在<b>版本更新、换绑、放量操作</b>后集中触发。「一觉醒来发现被封」多是<b>发现时间</b>而非封禁时刻。<b>这意味着「试水跑了两周没事」不代表安全——真正的考验在放量之后。</b>
+</div>
+<p style="font-size:13.5px;color:var(--mut)">诚实缺口：<b>云手机批量跑微信小号被封</b>只搜到营销/攻略类泛论，没有一条带时间戳/截图的可核验个人实录；<b>不编</b>。企业微信批量封号案例（如 20 子账号 120 次/分钟被全封）来自 SCRM 厂商软文（<span class="ev ev-d">D</span>），且是企微不是个人微信，未混入上表。</p>
+
+<h2 id="s6"><span class="num">6</span>官方反自动化时间线（2018→2026）</h2>
+<p>腾讯这些年在系统性抬高 PC 端自动化成本。看清方向：<b>UI 自绘化 + 收缩可自动化接口 + 强制拉平版本 + 主动清退</b>。</p>
+<div class="tl">
+  <div class="ev-row"><span class="dot"></span><span class="d">2018-06</span> — 深圳腾讯以「使用外挂/非官方客户端/模拟器」为由<b>封禁大批用户</b>（Android Xposed 用户为主）。「装插件即高风险」叙事起点。<span class="ev ev-b">B</span></div>
+  <div class="ev-row"><span class="dot"></span><span class="d">2020-05</span> — <b>WeTool 被封禁并永久停运</b>，大量社群账号被封，官方理由「恶意营销/破坏生态」，劝迁企业微信。私域第三方运营工具时代终结。<span class="ev ev-a">A</span>/<span class="ev ev-b">B</span></div>
+  <div class="ev-row"><span class="dot"></span><span class="d">2024-10</span> — 微信 <b>4.0（Windows/Mac）底层 UI 框架统一重写</b>，改「自绘 + 跨平台」（整个 App 作为单块画布绘制，不再用原生控件）。这是后续 UIAutomation 失效的<b>根因</b>。<span class="ev ev-a">A</span>/<span class="ev ev-b">B</span></div>
+  <div class="ev-row"><span class="dot"></span><span class="d">2025-06</span> — 中央网信办「<b>清朗·整治 AI 技术滥用</b>」专项，累计处置违规小程序/应用/智能体 3500+ 款。<span class="ev ev-a">A</span></div>
+  <div class="ev-row"><span class="dot"></span><span class="d">2025-11</span> — 微信 <b>4.1.5.16 起进一步收缩 UIAutomation 控件树</b>，升级后 UI 树仅残留 1–2 个基础节点，基于 uiautomation 的脚本全部失效；改为「<b>条件暴露</b>」——仅当检测到无障碍客户端接入才加载完整树。<span class="ev ev-b">B</span>/<span class="ev ev-c">C</span>（来源多为卖「恢复方案」的 RPA 厂商）</div>
+  <div class="ev-row"><span class="dot"></span><span class="d">持续</span> — 微信 4.x <b>后台强制静默更新</b>：关掉「自动升级」仍会强升，过旧客户端无法登录。持续拉平版本 = 压缩魔改/旧版脚本生存空间。需删/改名 <code>WeixinUpdate.exe</code> 才能真正锁版本。<span class="ev ev-b">B</span></div>
+</div>
+<p style="font-size:13.5px;color:var(--mut)">历史锚点：2019 年前后曾传「半小时封 3000 万号」——<b>腾讯已否认该具体数字</b>，仅确认在打击外挂。引用需说明是被辟谣的传言。另有「2025 全网封号 2300 万」等聚合站数字，页面内部前后矛盾、无腾讯一手佐证，判 <span class="ev ev-d">D</span> 不采用。</p>
+
+<h2 id="s7"><span class="num">7</span>反制手段 × 是否已失效（总对照）</h2>
+<p>把「风控抓什么」对到「工程上怎么降低误伤」，并诚实标注每个反制是否已被反制。<b>目的是合规地降低误伤，不是包装成「不可检测」——凡打「零封号」的都是话术。</b></p>
+<table>
+  <tr><th style="width:32%">风控信号</th><th style="width:30%">反制手段</th><th>是否已失效 / 局限</th></tr>
+  <tr><td>CPUID hypervisor 位 / 厂商串</td><td><code>hypervisor.cpuid.v0=FALSE</code> / <code>kvm=off,hv_vendor</code></td><td class="maybe">部分有效；会让 VMware Tools 失效；云手机（真 ARM）天然无此项</td></tr>
+  <tr><td>MAC OUI / VM 注册表 / vmtoolsd</td><td>改 MAC、清 VM 注册表、卸载 Tools</td><td class="maybe">有效但易遗漏残留，单项治标</td></tr>
+  <tr><td><b>服务端「云+端」指纹关联</b></td><td>一号一独立镜像/实例</td><td class="nope"><b>本地指纹修改基本无效</b>——服务端加权冗余抗单点篡改；只有隔离实例才有效</td></tr>
+  <tr><td>机房 IDC IP / 归属地不符 / 共用出口</td><td>一号一住宅/4G 代理、对齐归属地</td><td class="maybe">有效，但住宅代理池被滥用后同样进黑名单；IDC 出口是先天短板</td></tr>
+  <tr><td><b>LLMHF_INJECTED 注入标志</b></td><td>剥离标志的低级钩子 / 真人手操 / 硬件级输入</td><td class="nope">软件注入难根治（剥离=新破绽）；<b>GUI RPA 躲不掉</b></td></tr>
+  <tr><td>行为节奏（频率/相似度/轨迹/无休）</td><td>拟人延时、随机轨迹、限频、工作时间门</td><td class="maybe">长期对抗，可降概率不能消除</td></tr>
+  <tr><td>DLL 注入 / 内存完整性</td><td>用 GUI RPA 不注入进程</td><td class="yes">对 RPA 有效——这是 RPA 相对 hook 的核心优势</td></tr>
+  <tr><td>新号 7 日/30 日高危期、加人&gt;聊天</td><td>养号：完整资料、绑定、老号互动、控频</td><td class="yes">有效降权，业内共识</td></tr>
+</table>
+
+<h2 id="s8"><span class="num">8</span>封号梯度与后果</h2>
+<p>官方只说「视情节」，不公布固定天数。阶梯处置 + 关联封号 + 异常解封不予解封，是官方规范原文（<span class="ev ev-a">A</span>）。</p>
+<pre>删除/屏蔽违规信息 → 警告 → 限制部分功能（加好友/发消息/登录）
+  → 禁止使用部分或全部功能 → 永久封号 → 回收账号
+  ⤷ 关联处罚：可封禁「与该主体相关的账号」（同主体多号连坐）
+  ⤷ 用非官方客户端继续用 → 永久限制登录
+  ⤷ 异常/违规方式解封 → 再次封号，不予正常解封</pre>
+<div class="callout c-red">
+  <b>为什么「批量小号 + 云电脑」的损失是成批的：</b>封号后<b>好友关系链、聊天记录、养号沉没成本（每号 15–30 天）一次性全灭</b>；资产（零钱）能取回，关系链救不回。共享镜像 + 共用 IP 让风控把一批号识别为同一主体，<b>一号出事牵连整批</b>。损失不是「1 个号」而是「N 个号 ×（养号时间 + 客户资产）」。<span class="ev ev-a">A</span>/<span class="ev ev-b">B</span>
+</div>
+
+<h2 id="s9"><span class="num">9</span>工程护栏与试水（若要推进）</h2>
+<p>个人微信自动化在官方规范层面本质违规，护栏只能<b>降低而非消除</b>封号概率。若决定做，以下六条护栏缺一条都会显著抬高封号率——外加两条法律红线不可越。</p>
+<table>
+  <tr><th style="width:5%">#</th><th style="width:28%">护栏</th><th>做法</th></tr>
+  <tr><td>1</td><td><b>一号一镜像一指纹</b></td><td>杜绝克隆镜像共享设备指纹；基础镜像<b>绝不预装微信</b>，逐台单独装登</td></tr>
+  <tr><td>2</td><td><b>一号一 IP + 归属地匹配</b></td><td>优先住宅/4G 代理而非机房 IP；号在真机原生注册养 1–2 周再迁</td></tr>
+  <tr><td>3</td><td><b>锁死客户端环境</b></td><td>删/改名 <code>WeixinUpdate.exe</code> 锁版本；钉死分辨率+DPI+缩放，否则模板匹配偏位、自升级废坐标</td></tr>
+  <tr><td>4</td><td><b>频率卡死 + 人工闸</b></td><td>老号主动加 ≤20–30/天、间隔随机、<b>加人数 &lt; 当日真实对话数</b>；新号前 30 天纯养不触达；高风险动作走人工审批</td></tr>
+  <tr><td>5</td><td><b>合规触达内容</b></td><td>每条营销明示身份 + 提供一键退订（PIPL 24 条 / 广告法 43 条硬要求）；去同质化；绝不诱导引流</td></tr>
+  <tr><td>6</td><td><b>客户资产落自有 CRM</b></td><td>在取得同意前提下把客户信息沉到自有库，<b>不依赖微信关系链</b>——对冲成批封号唯一的护城河</td></tr>
+</table>
+<div class="callout c-red">
+  <b>两条法律红线（越过 = 从「封号级」升级到「刑事级」）：</b>① 绝不批量买卖/交换用户信息；② 绝不规模化爬库牟利。刑事重锤几乎全落在外挂开发/销售方，但运营方一旦碰这两条会打开「侵犯公民个人信息罪」的口子。
+</div>
+<h3>分期试水（用真实封号率决定要不要往下走）</h3>
+<div class="tl">
+  <div class="ev-row"><span class="dot"></span><b>P0 · 试水基建</b>：1 个非主力小号，搭好六护栏，纯养号 + 登录态心跳，不做任何触达。验证云环境能否稳定挂住登录不掉线/不判异常。</div>
+  <div class="ev-row"><span class="dot"></span><b>P1 · 自动回复</b>：小号加几个自己人当好友，跑单聊 AI 代回（平移企微方案 B 的 loop + chatReply）。复用成本最低的一块，验证微信 UI 的定位/输入通路。</div>
+  <div class="ev-row"><span class="dot"></span><b>P2 · 加好友 + 点赞</b>：主动触达是封号最敏感项，放最后，用 P0/P1 攒的号龄扛。实测 2–4 周封号率——但记住 §5 的滞后性，<b>放量后才是真考验</b>，主力号绝不上。</div>
+</div>
+
+<h2 id="s10"><span class="num">10</span>诚实边界（查不到的明说）</h2>
+<ul>
+  <li><b>微信 PC 端确切的设备指纹算法与存储字段</b>——无公开逆向坐实。已知本地锚点是注册表 <code>Tencent\WeChat</code>、<code>%APPDATA%\Tencent\WeChat</code>、<code>config.data</code>，但「清哪些能重置指纹」未证实。相关处标 <span class="ev ev-c">C</span> 或「查不到」。</li>
+  <li><b>协议号 vs hook vs GUI 的权威量化封号概率</b>——查不到 A/B 级数据，网上所有百分比（32%/3%/&gt;80%）均为 <span class="ev ev-c">C</span>/<span class="ev ev-d">D</span> 利益相关来源。</li>
+  <li><b>「玄武」反外挂 / 15 分钟封号 / 全网封号 2300 万</b>——<span class="ev ev-d">D</span> 级单点，无旁证，不引用。</li>
+  <li><b>云手机批量跑微信被封的可核验个人实录</b>——查不到硬案例，只搜到厂商话术，不编。</li>
+  <li>大量「防封阈值数字」实为<b>企业微信</b>规则，与个人微信不是一套；本页凡引用已尽力剥离并标注。</li>
+</ul>
+
+<div class="foot">
+  <p><b>本页性质：</b>风控调研专题，供 Akke 团队评估「云电脑自动化个人微信」的风险决策用。数字与阈值多为社区经验值，会随腾讯风控迭代漂移，<b>不可当硬编码常量长期依赖</b>。</p>
+  <p><b>关联页：</b><a href="/akke/wechat-personal-vs-enterprise-eval-2026-06-26">个人 vs 企业微信 · 双路线评估</a> · <a href="/akke/anti-risk-control">Akke 防风控架构总览</a> · <a href="/akke/cloudpc-risk-control-strategy">抖音账号风控应对策略</a></p>
+  <p><b>主要来源：</b>微信个人账号使用规范（weixin.qq.com/agreement）· Checkpoint Evasions / Microsoft MSLLHOOKSTRUCT 文档 · 顶象设备指纹综述 · ping0.cc IP 风控 · V2EX 封号实录 t/811646·t/1159076 · WeTool 停运（界面/36氪）· 微信 4.0/4.1.5 官方更新 · 网信办清朗行动。逐条证据强度见正文标注。</p>
+  <p class="kbd">2026-07-03 · Akke 风控专题</p>
+</div>
+
+</div>
+</body>
+</html>
