@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>个人微信自动化 · 开源工具与服务全景扫描 · Akke 调研（2026-07-03）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0c11; --bg2:#0d1017; --panel:#11151d; --panel2:#161b25; --panel3:#1a2030;
+    --line:#1e2531; --line2:#2a3340; --line3:#374151;
+    --text:#e7eaf1; --dim:#aab2c2; --muted:#6f7889;
+    --good:#34d399; --warn:#fbbf24; --bad:#f87171; --info:#38bdf8; --violet:#a78bfa;
+    --accent:#14b8a6; --accent-soft:rgba(20,184,166,.13); --accent-line:rgba(20,184,166,.4); --accent-rgb:20,184,166;
+    --mono:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;
+    --cjk:'PingFang SC','Hiragino Sans GB','Microsoft YaHei',-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;scroll-behavior:smooth}
+  body{
+    background:
+      radial-gradient(1100px 560px at 12% -8%, var(--accent-soft), transparent 60%),
+      radial-gradient(900px 460px at 92% 0%, rgba(56,189,248,.05), transparent 55%),
+      var(--bg);
+    color:var(--text); font-family:var(--cjk);
+    -webkit-font-smoothing:antialiased; line-height:1.72; background-attachment:fixed;
+  }
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background-image:linear-gradient(rgba(255,255,255,.014) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.014) 1px,transparent 1px);
+    background-size:46px 46px;mask-image:radial-gradient(ellipse at 50% 16%, #000 32%, transparent 80%)}
+  .prog{position:fixed;top:0;left:0;height:3px;width:0;background:linear-gradient(90deg,var(--accent),var(--info));z-index:50;transition:width .1s}
+  .wrap{max-width:1000px;margin:0 auto;padding:30px 26px 90px;position:relative;z-index:1}
+
+  .brand{display:flex;align-items:center;justify-content:space-between;font-family:var(--mono);
+    font-size:12px;letter-spacing:.16em;color:var(--muted);border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:24px}
+  .brand b{color:var(--text);font-weight:700}.brand .r{color:var(--accent)}
+
+  .crumb{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin-bottom:14px}
+  .crumb .pill{display:inline-block;border:1px solid var(--accent-line);color:var(--accent);background:var(--accent-soft);
+    border-radius:6px;padding:2px 9px;margin-right:10px;letter-spacing:.08em}
+  h1{font-size:clamp(26px,4.2vw,42px);font-weight:700;margin:0 0 13px;letter-spacing:-.012em;line-height:1.14}
+  .lead{color:var(--dim);font-size:16px;max-width:780px;margin:0}
+
+  .verdict{display:flex;align-items:flex-start;gap:14px;margin:26px 0 8px;padding:18px 20px;
+    background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--accent-line);border-radius:14px;
+    box-shadow:0 14px 40px -22px rgba(0,0,0,.9)}
+  .verdict .tag{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--accent);
+    border:1px solid var(--accent-line);border-radius:6px;padding:4px 8px;background:var(--accent-soft);white-space:nowrap;margin-top:2px}
+  .verdict .vtxt{font-size:16.5px;font-weight:600;color:var(--text);line-height:1.6}.verdict .vtxt em{color:var(--accent);font-style:normal}
+
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:13px;margin:20px 0 6px}
+  .kpi{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line2);border-radius:13px;padding:15px 16px}
+  .kpi .n{font-family:var(--mono);font-size:26px;font-weight:700;color:var(--accent);line-height:1.1}
+  .kpi .n.sm{font-size:18px}
+  .kpi .k{font-size:12px;color:var(--dim);margin-top:8px;line-height:1.45}
+  .kpi .k b{color:var(--text)}
+
+  section{margin-top:42px}
+  h2{font-size:21px;font-weight:700;margin:0 0 6px;letter-spacing:-.01em;display:flex;align-items:center;gap:11px;scroll-margin-top:20px}
+  h2::before{content:"";width:4px;height:20px;border-radius:3px;background:var(--accent);flex:none}
+  h2 .no{font-family:var(--mono);font-size:13px;color:var(--muted);font-weight:500}
+  .h2sub{color:var(--muted);font-size:13.5px;margin:0 0 16px 15px}
+  h3{font-size:15.5px;font-weight:700;color:var(--text);margin:24px 0 10px}
+  p{margin:0 0 13px}.wrap a{color:var(--info);text-decoration:none;border-bottom:1px solid rgba(56,189,248,.3)}
+  strong{color:#fff;font-weight:600}
+
+  .note{border-left:3px solid var(--warn);background:linear-gradient(90deg,rgba(251,191,36,.08),transparent);
+    border-radius:0 10px 10px 0;padding:14px 18px;margin:18px 0;font-size:14px;color:var(--dim)}
+  .note b{color:var(--warn)}
+  .note.brake{border-color:var(--accent);background:linear-gradient(90deg,var(--accent-soft),transparent)}.note.brake b{color:var(--accent)}
+  .note.info{border-color:var(--info);background:linear-gradient(90deg,rgba(56,189,248,.08),transparent)}.note.info b{color:var(--info)}
+  .note.bad{border-color:var(--bad);background:linear-gradient(90deg,rgba(248,113,113,.08),transparent)}.note.bad b{color:var(--bad)}
+
+  .ev{font-family:var(--mono);font-size:11.5px;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:1px 7px;white-space:nowrap}
+  .src{font-family:var(--mono);font-size:11px;color:var(--muted);background:rgba(56,189,248,.06);border:1px solid rgba(56,189,248,.22);border-radius:5px;padding:1px 8px}
+
+  .fig{background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line2);border-radius:15px;padding:20px 20px 16px;margin:20px 0}
+  .fig .ft{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:15px;display:flex;align-items:center;gap:8px}
+  .fig .ft::before{content:"▣";color:var(--accent)}
+  .cap{font-size:12px;color:var(--muted);margin-top:13px;border-top:1px dashed var(--line2);padding-top:10px}
+
+  .mtx{width:100%;border-collapse:collapse;font-size:13px}
+  .mtx th{color:var(--dim);font-weight:600;text-align:center;padding:9px 7px;font-size:11.5px;border-bottom:1px solid var(--line2);vertical-align:bottom}
+  .mtx th:first-child{text-align:left}
+  .mtx td{padding:9px 7px;border-bottom:1px solid var(--line);text-align:center;color:var(--dim)}
+  .mtx td:first-child{text-align:left;color:var(--text);font-weight:600;white-space:nowrap}
+  .mtx tr:last-child td{border-bottom:none}
+  .mtx .self{background:var(--accent-soft)}
+  .dots{font-family:var(--mono);letter-spacing:1px;font-size:12.5px}
+  .dots .on{color:var(--accent)} .dots .off{color:var(--line3)}
+  .rate{font-family:var(--mono);font-size:12px;font-weight:600}
+  .rate.hi{color:var(--good)}.rate.mid{color:var(--warn)}.rate.lo{color:var(--bad)}
+
+  .bars{display:flex;flex-direction:column;gap:11px;margin:4px 0}
+  .barrow{display:grid;grid-template-columns:170px 1fr 64px;align-items:center;gap:12px}
+  .barrow .bl{font-size:12.5px;color:var(--dim);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .barrow .bt{height:13px;background:var(--panel3);border-radius:7px;overflow:hidden;position:relative}
+  .barrow .bf{height:100%;border-radius:7px;background:linear-gradient(90deg,var(--accent),rgba(var(--accent-rgb),.55));box-shadow:0 0 12px rgba(var(--accent-rgb),.4)}
+  .barrow .bf.g{background:linear-gradient(90deg,var(--good),rgba(52,211,153,.5));box-shadow:0 0 12px rgba(52,211,153,.3)}
+  .barrow .bf.r{background:linear-gradient(90deg,var(--bad),rgba(248,113,113,.5))}
+  .barrow .bf.m{background:linear-gradient(90deg,var(--warn),rgba(251,191,36,.5))}
+  .barrow .bv{font-family:var(--mono);font-size:12px;color:var(--text);font-weight:600;text-align:right}
+
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:16px 0}
+  .split .col{border-radius:13px;padding:15px 16px;border:1px solid var(--line2);background:var(--panel)}
+  .split .col.pro{border-color:rgba(52,211,153,.28)}.split .col.con{border-color:rgba(248,113,113,.26)}
+  .split .col h4{margin:0 0 9px;font-size:12.5px;font-family:var(--mono);letter-spacing:.06em}
+  .split .col.pro h4{color:var(--good)}.split .col.con h4{color:var(--bad)}
+  .split .col ul{margin:0;padding-left:17px}.split .col li{font-size:12.5px;margin:5px 0}
+
+  .scores{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:13px;margin:16px 0}
+  .scard{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line2);border-radius:13px;padding:16px;text-align:center}
+  .scard .sn{font-family:var(--mono);font-size:24px;font-weight:700;line-height:1}
+  .scard .sn.hi{color:var(--good)}.scard .sn.mid{color:var(--warn)}.scard .sn.lo{color:var(--bad)}
+  .scard .sm{font-size:11px;color:var(--muted);font-family:var(--mono)}
+  .scard .st{font-size:12.5px;color:var(--text);font-weight:600;margin-top:8px}
+
+  .tbl{width:100%;border-collapse:collapse;margin:16px 0;font-size:13px;overflow:hidden;border-radius:12px;border:1px solid var(--line)}
+  .tbl th{background:var(--panel2);color:var(--dim);font-weight:600;text-align:left;padding:10px 13px;font-size:11.5px;letter-spacing:.04em;border-bottom:1px solid var(--line2)}
+  .tbl td{padding:10px 13px;border-bottom:1px solid var(--line);vertical-align:top;color:var(--dim)}
+  .tbl tr:last-child td{border-bottom:none}.tbl td:first-child{color:var(--text);font-weight:500}
+  .tbl tr:hover td{background:rgba(255,255,255,.012)}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin:18px 0}
+  .card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line2);border-radius:13px;padding:16px 17px}
+  .card .k{font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;margin-bottom:7px}
+  .card .v{font-size:13px;color:var(--dim);line-height:1.55}.card .v strong{color:#fff}
+  .card.x{border-color:rgba(248,113,113,.3)}.card.x .k{color:var(--bad)}
+  .card.ok{border-color:rgba(52,211,153,.3)}.card.ok .k{color:var(--good)}
+  .card.acc{border-color:var(--accent-line)}.card.acc .k{color:var(--accent)}
+
+  .b{display:inline-block;font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.05em;padding:2px 8px;border-radius:5px;vertical-align:middle}
+  .b-no{color:var(--bad);background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3)}
+  .b-yes{color:var(--good);background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.3)}
+  .b-wait{color:var(--warn);background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.3)}
+  .b-dead{color:var(--muted);background:rgba(111,120,137,.12);border:1px solid rgba(111,120,137,.3)}
+
+  .flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:10px}
+  .fstep{flex:1 1 120px;min-width:110px;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line2);
+    border-radius:11px;padding:12px 13px;position:relative}
+  .fstep .fi{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.08em}
+  .fstep .fn{font-size:13px;font-weight:600;color:var(--text);margin:3px 0 4px}
+  .fstep .fd{font-size:11px;color:var(--muted);line-height:1.45}
+  .fstep.acc{border-color:var(--accent-line)}.fstep.acc .fn{color:var(--accent)}
+  .fstep.gate{border-color:rgba(251,191,36,.4)}.fstep.gate .fn{color:var(--warn)}
+  .fstep.bad{border-color:rgba(248,113,113,.4)}.fstep.bad .fn{color:var(--bad)}
+  .flow.arrows .fstep:not(:last-child)::after{content:"→";position:absolute;right:-13px;top:50%;transform:translateY(-50%);
+    color:var(--line3);font-size:15px;z-index:2}
+
+  ul,ol{margin:0 0 14px;padding-left:22px}li{margin:6px 0;color:var(--dim)}li strong{color:#fff}
+
+  footer{margin-top:56px;border-top:1px solid var(--line);padding-top:18px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px;font-family:var(--mono);font-size:11px;color:var(--muted)}
+  footer .lab{color:var(--muted);letter-spacing:.1em}footer b{color:var(--dim);font-weight:600}
+  @media(max-width:620px){.wrap{padding:22px 16px 70px}h1{font-size:24px}.split{grid-template-columns:1fr}.barrow{grid-template-columns:100px 1fr 46px}}
+</style>
+</head>
+<body>
+<div class="prog" id="prog"></div>
+<div class="wrap">
+  <div class="brand"><b>AKKE</b><span class="r">工具调研 · TOOL LANDSCAPE SCAN · 2026</span></div>
+
+  <div class="crumb"><span class="pill">云电脑通道</span>个人微信自动化 · GitHub / HuggingFace 工具与服务全景</div>
+  <h1>个人微信自动化 · 开源工具与服务全景扫描</h1>
+  <p class="lead">云电脑（无影）现在全量跑<strong>个人微信</strong>——企业微信「新客户添加」提醒被隐藏导致漏单，团队因此强推个人微信通道。这页扫描 GitHub / HuggingFace 上所有相关的开源框架、插件、商业服务，回答一个问题：<strong>有没有比 Akke 现用的「模板匹配 + 模拟输入」GUI 自动化更好、或值得借鉴的东西？</strong>方法：3 个 agent 并行联网核实（WebSearch/WebFetch 实测抓取，非训练记忆），命中 1 处 AI 摘要幻觉已剔除标注。</p>
+
+  <div class="verdict"><span class="tag">结论</span><div class="vtxt">个人微信自动化<strong>没有官方 API</strong>，所有工具——无论开源还是商业——都在同一个「非官方」风险类别里。真正决定风险高低的不是「个人 vs 企业」标签，而是<em>机制分层</em>：Hook 注入 &gt; 协议仿真 &gt; UI 自动化，风险递减。Akke 现用的模板匹配 + 模拟输入正好落在风险信号最少的 UI 自动化一类——但 HuggingFace 上<strong>没有任何直接可用资源</strong>，GitHub 上也<strong>没有明显优于自建方案的现成替代</strong>，2026 年以来 Hook/协议仿真类项目大面积「暴雷」（删库/腰斩/被腾讯法务函点名），反而印证了 Akke 当前路线是相对稳妥的选择。</div></div>
+
+  <div class="kpis">
+    <div class="kpi"><div class="n">0</div><div class="k">HuggingFace <b>直接可用资源</b>——Models/Spaces 搜「wechat/微信」均空</div></div>
+    <div class="kpi"><div class="n">3</div><div class="k">机制大类：<b>Hook 注入 / 协议仿真 / UI 自动化</b>，风险递减</div></div>
+    <div class="kpi"><div class="n sm">6,748★</div><div class="k">WeChatFerry — 现存最大 Hook 项目，<b>封死在 WeChat 3.9.x</b></div></div>
+    <div class="kpi"><div class="n sm">已死</div><div class="k">gewechat — 2026-02 被<b>腾讯法务函腰斩</b>（协议仿真开山项目）</div></div>
+    <div class="kpi"><div class="n sm">45.7k★</div><div class="k">CowAgent（原 chatgpt-on-wechat）— 应用层最大项目</div></div>
+    <div class="kpi"><div class="n sm">01-29</div><div class="k">腾讯官方打击公告<b>点名「模拟按键自动化」</b>——Akke 机制被点名</div></div>
+  </div>
+
+  <!-- ============ §1 ============ -->
+  <section>
+    <h2><span class="no">01</span>先分清「打法」，这比「开源/商业」标签重要</h2>
+    <p class="h2sub">个人微信自动化不是一个东西，是三种机制外加一条已死的老路，风险和维护成本完全不同。</p>
+
+    <p>市面上所有「微信机器人」项目，不管挂什么名字，落地机制只有三种（外加一条 2017-2019 年被腾讯堵死的老协议）。<strong>机制决定风险，不是品牌决定风险</strong>——同样叫「微信机器人」，Hook 注入类和 UI 自动化类的封号信号完全不是一个量级。</p>
+
+    <div class="fig"><div class="ft">图1 · 四条路线 · 机制与现状速览</div>
+      <div class="flow arrows">
+        <div class="fstep bad"><div class="fi">路线①</div><div class="fn">Hook 注入</div><div class="fd">DLL 注入微信进程内存，读写消息。检测面 = 进程完整性校验/反调试。生态 2026 年集体不稳。</div></div>
+        <div class="fstep bad"><div class="fi">路线②</div><div class="fn">协议仿真（iPad协议）</div><div class="fd">服务端冒充官方 iPad 客户端登录。检测面 = 服务端行为模型。开山项目 gewechat 已被法务函腰斩。</div></div>
+        <div class="fstep acc"><div class="fi">路线③</div><div class="fn">UI 自动化（Akke 现用）</div><div class="fd">驱动真实客户端界面，模拟键鼠/screen-read，不改进程/不仿协议。检测面 = 账号行为信号。</div></div>
+        <div class="fstep"><div class="fi">路线④（已死）</div><div class="fn">老网页协议</div><div class="fd">itchat/wechaty 早期依赖的 Web 微信协议，2017-2019 被腾讯堵死，新号完全登不上。</div></div>
+      </div>
+      <div class="cap">对照组：企微 kf 官方 API 是唯一「官方合规代答外部客户」路线，但仅限企业微信、且卡 ICP 备案（详见 <a href="/akke/ai-brain/1-workflow-frameworks">《微信自动回复工作流 · 框架横评》</a>）。本页只覆盖<strong>个人微信</strong>这三条非官方路线。</div>
+    </div>
+
+    <div class="fig"><div class="ft">图2 · 三大机制 × 六维对照</div>
+      <table class="mtx"><thead><tr>
+        <th>机制</th><th>代表项目</th><th>检测面</th><th>2026 生态稳定性</th><th>命中 Akke 现用方式</th><th>2026 现状</th>
+      </tr></thead><tbody>
+        <tr><td>Hook 注入</td><td>WeChatFerry / ntchat</td>
+          <td><span class="dots" title="进程级"><span class="on">●●●●</span><span class="off">○</span></span></td>
+          <td><span class="rate lo">差</span></td>
+          <td><span class="b b-no">否</span></td>
+          <td><span class="b b-wait">部分存活·版本锁死</span></td></tr>
+        <tr><td>协议仿真</td><td>gewechat / WeChatPadPro</td>
+          <td><span class="dots" title="服务端行为模型"><span class="on">●●●</span><span class="off">○○</span></span></td>
+          <td><span class="rate lo">差</span></td>
+          <td><span class="b b-no">否</span></td>
+          <td><span class="b b-no">开山项目已死</span></td></tr>
+        <tr class="self"><td>UI 自动化</td><td>wxauto / pywechat（Akke 同类）</td>
+          <td><span class="dots" title="账号行为级"><span class="on">●●</span><span class="off">○○○</span></span></td>
+          <td><span class="rate mid">中·改版脆弱</span></td>
+          <td><span class="b b-yes">是·同类</span></td>
+          <td><span class="b b-wait">代表项目已停更·仍有继任者</span></td></tr>
+        <tr><td>老网页协议</td><td>itchat / wechaty 免费 puppet</td>
+          <td>N/A（协议已死）</td>
+          <td><span class="rate lo">已死</span></td>
+          <td><span class="b b-no">否</span></td>
+          <td><span class="b b-dead">2017-2019 起新号无法登录</span></td></tr>
+      </tbody></table>
+      <div class="cap">封号风险信号强弱 = 检测面复杂度：Hook 注入改了进程内存，能被完整性校验/模块扫描直接抓到；协议仿真在服务端有一整套行为模型可比对；UI 自动化没有进程或协议异常可查，只剩「账号行为」这一层能看（发送频率/被举报/设备与地理位置一致性）。</div>
+    </div>
+
+    <div class="note brake"><b>给 Akke 的第一句话：</b>不要因为「个人微信」四个字就把 Hook/协议仿真类工具和 Akke 现在的 GUI 自动化混为一谈——<a href="/akke/ai-brain/1-workflow-frameworks">此前的框架横评</a>把「wechaty 个微」判了「不考虑」（14/100 分），针对的正是路线①②这类高封号风险打法；Akke 实际在跑的路线③是完全不同的风险等级，本页会把这个区分讲透。</div>
+  </section>
+
+  <!-- ============ §2 ============ -->
+  <section>
+    <h2><span class="no">02</span>路线① Hook 注入类 — 2026 年集体不稳定</h2>
+    <p class="h2sub">DLL 注入微信客户端进程，读写内存里的消息。技术上最强大，但 2026 年这条生态频繁「暴雷」。</p>
+
+    <table class="tbl"><thead><tr><th>项目</th><th>GitHub</th><th>★ / License</th><th>机制</th><th>2026 现状</th><th>封号 / 风险证据</th></tr></thead>
+    <tbody>
+      <tr><td>WeChatFerry (wcferry)</td><td><a href="https://github.com/lich0821/WeChatFerry">lich0821/WeChatFerry</a></td><td>6,748 / MIT</td><td>DLL 注入（spy.dll），protobuf RPC</td><td>活跃但<strong>锁死在 WeChat 3.9.12.51</strong>，2025-05 曾整仓删除 10 个月后才恢复</td><td>Issue #422/#426：反复被风控限制、只读监听是否安全无人解答 <span class="ev">.ev issue-422</span></td></tr>
+      <tr><td>ComWeChatRobot</td><td><a href="https://github.com/ljc545w/ComWeChatRobot">ljc545w/ComWeChatRobot</a></td><td>1,816 / 无声明</td><td>COM 组件 Hook</td><td><strong>已归档</strong>，2023 起冻结，锁死 2022 年版本微信</td><td>Issue #171：官方安全警告 + 强制登出，直接归因 Hook 检测</td></tr>
+      <tr><td>ntchat</td><td>smallevilbeast/ntchat（原仓已 404）</td><td>PyPI 冻结 v0.1.20</td><td>闭源 Hook DLL</td><td><strong>作者删库跑路</strong>，无任何说明</td><td>删库本身就是信号；分支 <a href="https://github.com/bumandpunk/ntchat-wx">ntchat-wx</a>（124★）也在停滞，微信已到 4.x 仍锁在 3.6.0.18</td></tr>
+      <tr><td>ntwork</td><td><a href="https://github.com/dev-kang/ntwork">dev-kang/ntwork</a></td><td>202 / MIT</td><td>Hook DLL</td><td>已死，PyPI 包被<strong>整体下架</strong>（备份仓：ntwork-bin-backup）</td><td>目标是<strong>企业微信</strong>非个人微信，超出本页范围</td></tr>
+    </tbody></table>
+
+    <div class="note bad"><b>模式：</b>四个 Hook 项目里三个已经死透（ComWeChatRobot 归档 / ntchat 删库 / ntwork 下架），唯一存活的 WeChatFerry 也被腾讯版本更新反复打断，且 GitHub Discussion #68 确认它<strong>永久卡在 3.9.x</strong>——账号一旦被强制升级到 4.x 客户端，这条路直接失效，没有修复路径。这不只是封号风险，是<strong>基础设施本身就不稳定</strong>，选它意味着团队要长期投入维护对抗腾讯的版本更新。</div>
+  </section>
+
+  <!-- ============ §3 ============ -->
+  <section>
+    <h2><span class="no">03</span>路线② 协议仿真（iPad 协议）— 开山项目已被法务函腰斩</h2>
+    <p class="h2sub">服务端冒充官方 iPad 客户端登录。2026-02 迎来一次真正的「合法性死刑」，不是技术失效。</p>
+
+    <div class="fig"><div class="ft">图3 · gewechat 的死亡通知（原文摘录）</div>
+      <p style="font-size:14px;margin:0">gewechat（<a href="https://github.com/Devo919/Gewechat">Devo919/Gewechat</a>，3,472★，Apache-2.0）README 的 H1 标题目前是：</p>
+      <p style="font-size:15px;color:var(--warn);font-weight:600;margin:10px 0;padding:10px 14px;background:rgba(251,191,36,.08);border-radius:8px">「因相关法律原因，本项目不再维护及可用」</p>
+      <p style="font-size:14px;margin:0">并直接链接腾讯官方<a href="https://mp.weixin.qq.com/s/A6h4ZLTE2EPrY7kJ5fHE2g">《针对违规获取及利用微信终端用户数据行为的打击公告》</a>。这是<strong>一手证据</strong>，不是社区传言——2026 年腾讯对协议仿真类工具的执法已经从「封号」升级到「法务函腰斩项目」。</p>
+      <div class="cap">此前该项目自己的 README 就写过「该项目会因无人维护导致封号，请谨慎使用」；Issue 记录显示<strong>纯被动监听</strong>也曾在 7 天内触发封号。</div>
+    </div>
+
+    <table class="tbl"><thead><tr><th>项目</th><th>GitHub</th><th>★ / License</th><th>现状</th><th>备注</th></tr></thead>
+    <tbody>
+      <tr><td>WeChatPadPro</td><td><a href="https://github.com/WeChatPadPro/WeChatPadPro">WeChatPadPro/WeChatPadPro</a></td><td>2,469 / 未声明</td><td>活跃（2026-06-02 有提交），gewechat 事实上的继任者</td><td>README <strong>自曝四级封号阶梯</strong>（1天→7天→30天→永久，顶级申诉成功率&lt;10%）——最具体的自报风险数据；继承与 gewechat 相同的法律风险类别，只是还没被点名</td></tr>
+      <tr><td>「ipad协议」营销仓库</td><td>如 wechat2ipad 等</td><td>—</td><td>非真实开源，README 实为销售页</td><td>报价 ¥5000/套 + ¥200/月/号，遇到不熟悉的「ipad协议」仓库先当付费代理商城，不要当开源项目</td></tr>
+      <tr><td>Wechaty 核心框架</td><td><a href="https://github.com/wechaty/wechaty">wechaty/wechaty</a></td><td>22,900 / Apache-2.0</td><td>活跃但发版停滞（v0.56 起停在 2021）</td><td>本身只是抽象层，真正的协议实现在下面的 puppet 里，见下表</td></tr>
+      <tr><td>↳ puppet-padlocal（付费）</td><td><a href="https://github.com/wechaty/puppet-padlocal">wechaty/puppet-padlocal</a></td><td>763 / Apache-2.0</td><td>客户端仓库 2023-07 起停滞，<strong>付费商城 pad-local.com 目前打不开</strong>（多个「网站宕机」issue 至 2026-06）</td><td>Issue #626：3 年付费老客户中等发送量后收到官方警告；运营方是 VC 背景的句子互动</td></tr>
+      <tr><td>↳ puppet-wechat4u（免费）</td><td><a href="https://github.com/wechaty/puppet-wechat4u">wechaty/puppet-wechat4u</a></td><td>129 / Apache-2.0</td><td><strong>确认失效</strong>，官方标注 Alpha</td><td>自己的 release notes 写「大多数用户会遇到官方封号通知，无已知解法」</td></tr>
+      <tr><td>↳ puppet-xp（免费）</td><td><a href="https://github.com/wechaty/puppet-xp">wechaty/puppet-xp</a></td><td>549 / Apache-2.0</td><td>puppet 家族里最近还有更新（2025-07），官方仍标 Alpha</td><td>本质是 Hook 注入（归入路线①），单一未核实的知乎说法称封号率 &gt;80%</td></tr>
+    </tbody></table>
+
+    <div class="note bad"><b>不要把「开源接微信」项目当框架选型对象：</b>LangBot / dify-on-wechat 这类应用层项目底层依赖的正是本节的 gewechat / WeChatPadPro / WeChatFerry——它们自己也在被这条生态的不稳定性反复折腾（LangBot 的 gewechat 适配器已降级进 legacy 目录）。<a href="/akke/ai-brain/1-workflow-frameworks">前次框架横评</a>已定论「大脑层不引框架」，这里进一步印证：<strong>连「通道层」这些开源项目自己都在这条不稳定的协议仿真/Hook 地基上打转</strong>，没有谁找到了更稳的路。</div>
+  </section>
+
+  <!-- ============ §4 ============ -->
+  <section>
+    <h2><span class="no">04</span>路线③ UI 自动化（无侵入）— Akke 现用方式的同类项目</h2>
+    <p class="h2sub">驱动真实客户端界面 + 模拟键鼠输入，不碰进程内存、不仿协议。这是唯一和 Akke 当前方式同构的路线。</p>
+
+    <table class="tbl"><thead><tr><th>项目</th><th>GitHub</th><th>★ / License</th><th>现状</th><th>备注</th></tr></thead>
+    <tbody>
+      <tr><td>wxauto</td><td><a href="https://github.com/cluic/wxauto">cluic/wxauto</a></td><td>7,151 / Apache-2.0</td><td><strong>作者已停止维护</strong>（commit 标题直接写「停止维护」，README 改名「wxauto (2021-2025)」）</td><td>曾是这条路线里最成熟的项目；社区反馈 WeChat 4.0 界面重构（Windows UI Automation 依赖的窗口结构变了）是停更的直接原因，<strong>失效模式是「改版打断」不是「封号」</strong></td></tr>
+      <tr><td>↳ wxauto4（继任）</td><td><a href="https://github.com/cluic/wxauto4">cluic/wxauto4</a></td><td>217 / —</td><td>活跃（2025-10），但据 V2EX 讨论过 WeChat 4.0.5 后又断过一次</td><td>同一作者延续维护，同样的架构脆弱性模式在重演</td></tr>
+      <tr><td>pywechat</td><td><a href="https://github.com/Hello-Mr-Crab/pywechat">Hello-Mr-Crab/pywechat</a></td><td>1,658 / 自定义许可</td><td><strong>目前最活跃</strong>——最近一次提交是本次调研前一天（2026-07-02）</td><td>基于 pywinauto，README 明确写「不涉及逆向 Hook 操作」；同时支持 WeChat 3.9.12.x 和 4.1.6.x，是唯一明确跟上 4.x 的选项</td></tr>
+      <tr><td>wechat-automation-api</td><td><a href="https://github.com/LAVARONG/wechat-automation-api">LAVARONG/wechat-automation-api</a></td><td>152 / —</td><td>活跃（2026-06）</td><td>Flask 包了一层 uiautomation，规模小，同一家族</td></tr>
+    </tbody></table>
+
+    <div class="fig"><div class="ft">图4 · UI 自动化路线的失效模式和 Hook/协议仿真完全不同</div>
+      <div class="split">
+        <div class="col pro"><h4>✓ UI 自动化（路线③）</h4><ul>
+          <li>没有进程注入、没有协议冒充，服务端看到的是真实官方客户端</li>
+          <li>公开记录里<strong>没有一个项目的 issue 区能找到直接的「因此被封号」一手报告</strong>（wxauto/pywechat 均未见）</li>
+          <li>失效原因是<strong>界面改版</strong>，可修复、可持续跟进，不是账号损失</li>
+        </ul></div>
+        <div class="col con"><h4>✗ 但不是零风险</h4><ul>
+          <li>2026-01-29 腾讯官方打击公告<strong>明确点名</strong>「利用模拟按键、自动化脚本…实现自动回复」——这正是 UI 自动化的技术描述</li>
+          <li>检测面从「进程/协议」转移到「账号行为」：发送频率、被举报、设备与地理位置不一致、新号/久未使用号</li>
+          <li>wxauto 停更本身说明这条路线需要<strong>持续投入</strong>跟进客户端改版，不是一劳永逸</li>
+        </ul></div>
+      </div>
+      <div class="cap">来源：wxauto/pywechat/wechat-automation-api 三仓库 README + Issue 区实测抓取；腾讯 2026-01-29/30 打击公告见第 8 节。</div>
+    </div>
+
+    <div class="note brake"><b>对 Akke 的实际意义：</b>这条路线没有「更好的现成替代」可以迁移过去——pywechat 本质上和 Akke 自建的模板匹配是同一类打法，只是换了个作者、换了个客户端定位方式（UI Automation 树 vs 模板匹配截图）。<strong>值得做的不是「换工具」，而是持续跟踪 pywechat 这类项目应对 WeChat 4.x 改版的思路</strong>（它是目前唯一明确验证过 4.1.6.x 兼容性的项目），反哺 Akke 自己模板匹配方案的坐标更新节奏。</div>
+  </section>
+
+  <!-- ============ §5 ============ -->
+  <section>
+    <h2><span class="no">05</span>应用层机器人框架 — 「大脑 + 微信通道」打包方案</h2>
+    <p class="h2sub">这些项目自带 LLM 对话逻辑 + 微信通道适配，Akke 已有自己的大脑（chatReply），只看通道层踩坑情报有没有参考价值。</p>
+
+    <table class="tbl"><thead><tr><th>项目</th><th>GitHub</th><th>★ / License</th><th>依赖的微信机制</th><th>现状</th><th>踩坑情报</th></tr></thead>
+    <tbody>
+      <tr><td>CowAgent（原 chatgpt-on-wechat）</td><td><a href="https://github.com/zhayujie/CowAgent">zhayujie/CowAgent</a></td><td>45,754 / MIT</td><td>宣传页称「官方 API」，但实测是 WeChatFerry 路线</td><td>最活跃（2026-07-01 有提交）</td><td>Issue #2606「被微信封号」、#2568 明确劝退 WeChatFerry 适配器——<strong>营销话术和 issue 区证词矛盾</strong>，别信「安全可用」的宣传语</td></tr>
+      <tr><td>LangBot</td><td><a href="https://github.com/langbot-app/LangBot">langbot-app/LangBot</a></td><td>16,618 / Apache-2.0</td><td>WeChatPadPro（协议仿真），gewechat 适配器已降级 legacy</td><td>目前<strong>维护最活跃</strong>的通用微信 Bot 框架（2026-07-02，v4.10.5）</td><td>文档自己写「异地警告，没有代理慎用」；封号风险 issue 长期无维护者回应</td></tr>
+      <tr><td>dify-on-wechat</td><td><a href="https://github.com/hanfangyuan4396/dify-on-wechat">hanfangyuan4396/dify-on-wechat</a></td><td>2,800 / MIT</td><td>WeChatFerry（唯一剩下的路）</td><td>停滞，2025-04 后只有文档改动</td><td>README 直接写死「itchat 与 gewechat 均已无法使用」</td></tr>
+      <tr><td>BotFlow（原 WeChatRobot）</td><td><a href="https://github.com/lich0821/BotFlow">lich0821/BotFlow</a></td><td>1,960 / License 已移除</td><td>WeChatFerry</td><td><strong>已停止维护</strong>，末次提交标题直接写「final commit」</td><td>README「因不可抗因素，项目停止维护」，原因未说明</td></tr>
+      <tr><td>XYBotV2</td><td><a href="https://github.com/HenryXiaoYang/XYBotV2">HenryXiaoYang/XYBotV2</a></td><td>810 / GPL-3.0</td><td>闭源第三方包（疑似协议仿真）</td><td><strong>已归档</strong></td><td>维护者原话「没有 100% 稳定的微信机器人」；归档前 10 天还有未修复的多用户登录崩溃</td></tr>
+      <tr><td>wechat-bot</td><td><a href="https://github.com/wangrongding/wechat-bot">wangrongding/wechat-bot</a></td><td>11,130 / MIT</td><td>Wechaty 免费 puppet（默认）+ padlocal 付费可选</td><td>活跃（2026-06）</td><td>README 自曝「默认协议有微信警告或封号风险」</td></tr>
+      <tr><td>WeClone</td><td><a href="https://github.com/xming521/WeClone">xming521/WeClone</a></td><td>18,055 / AGPL-3.0</td><td>不是实时中继，是<strong>用自己聊天记录微调 LLM</strong>再接前端</td><td>很活跃（2026-06-27）</td><td>路线不同（人设克隆而非实时代答），如果 Akke 未来想做「数字分身」型人设可参考，不是当前场景的直接选项</td></tr>
+      <tr><td>nanobot</td><td><a href="https://github.com/HKUDS/nanobot">HKUDS/nanobot</a></td><td>~45,000 / MIT</td><td>宣称支持微信通道，具体机制<strong>未独立核实</strong></td><td>活跃（v0.2.2，2026-06-23）</td><td>作者团队 HKUDS 主业是 RAG 研究非即时通讯 Bot，机制细节标记待核实，公开引用前建议再查一遍</td></tr>
+    </tbody></table>
+
+    <div class="note info"><b>一句话：</b>这类项目对 Akke 没有直接复用价值——<a href="/akke/ai-brain/1-workflow-frameworks">此前框架横评</a>已经定论「大脑层不引框架，chatReply 已是成品」，本轮调研进一步确认：这些项目的通道层全部踩在路线①②的坑里（WeChatFerry 版本锁死 / gewechat 已死 / 协议仿真封号阶梯），<strong>没有一个提供了 Akke 尚未见过的新机制</strong>。唯一有参考价值的是它们各自 issue 区累积的踩坑情报，已经在第 2-3 节引用。</div>
+  </section>
+
+  <!-- ============ §6 ============ -->
+  <section>
+    <h2><span class="no">06</span>商业 / SaaS 服务 — 营销话术常混淆「个微 / 企微」</h2>
+    <p class="h2sub">没有一家在官网明确说自己用什么机制，这个「不说」本身就是一个值得注意的模式。</p>
+
+    <h3>个人微信 Hook/协议仿真机制类（和路线①②同一风险等级）</h3>
+    <div class="grid">
+      <div class="card x"><div class="k">知更AI / ChatWave</div><div class="v">第三方评测称用「协议模拟(GeweChat)」，限时 ¥499/年（原价¥1,680）</div></div>
+      <div class="card x"><div class="k">微桔管家 / E云管家</div><div class="v">个微 API + Webhook 中转，需常驻本地代理进程，定价不公开</div></div>
+      <div class="card x"><div class="k">有机云 / 聚合智能 / 语聚AI</div><div class="v">机制均未披露，官网只留销售电话，报价不透明</div></div>
+      <div class="card ok"><div class="k">美言</div><div class="v">本类别<strong>定价最透明</strong>：基础版 ¥2,888/年 ～ L3 版 ¥20,888/年起（30-400 并发会话档位）</div></div>
+    </div>
+
+    <h3>企业微信官方 API 类（容易被话术混淆成「个人微信」）</h3>
+    <div class="grid">
+      <div class="card"><div class="k">微伴助手 / 探马SCRM / 尘锋SCRM</div><div class="v">均<strong>只做企业微信</strong>，AI 功能多是数据提取或人工触发话术，非自主代答</div></div>
+      <div class="card"><div class="k">卫瓴科技</div><div class="v">官网自称「个人微信SCRM」，实测机制是腾讯官方「企微连接个微」桥接——是<strong>企业号触达个人用户</strong>，不是自动化个人账号本身，标签具有误导性</div></div>
+      <div class="card"><div class="k">芝麻小客服</div><div class="v">仅走公众号/小程序/视频号/微信客服官方通道，定价公开（客服系统 ¥1,380-8,950/年）</div></div>
+    </div>
+
+    <h3>UI 自动化 / RPA 类（对照 Akke 现用打法）</h3>
+    <div class="grid">
+      <div class="card acc"><div class="k">企微WorkTool</div><div class="v">安卓无障碍服务（官方 OS API，无 root 无 hook），<a href="https://github.com/gallonyin/worktool">开源核心免费</a>；GitHub README 与官方文档对「是否支持个微」表述矛盾，未能核实清楚</div></div>
+      <div class="card acc"><div class="k">亿达客RPA</div><div class="v">自称「模拟人工」非协议注入，属于路线③同类，是否 LLM 驱动未标注</div></div>
+    </div>
+
+    <h3>云控机 / 真机厂商（和 Akke「云电脑」模式最像的对照组）</h3>
+    <div class="grid">
+      <div class="card"><div class="k">云客工作手机</div><div class="v">真实/MDM 管控的小米华为OPPO/vivo 安卓机群，「数智员工」24h AI 自动回复是<strong>旗舰主打功能</strong>，业务模式和 Akke 云电脑最接近，只是载体是手机不是 PC</div></div>
+      <div class="card x"><div class="k">红鹰工作手机</div><div class="v">三个域名均连接失败（apiweixin.cn / hongyingwork.com / workpc.cn），无法核实，不建议引用其任何宣传数字</div></div>
+    </div>
+    <div class="note bad"><b>核实到不存在的项目：</b>早期检索出现的「PowerMatrix 个人微信 AI 客服」查无实体，所有命中都是营销listicle 复用同一话术、无法溯源到真实公司——<strong>疑似 SEO 幻觉内容</strong>，不要作为竞品引用。同样查无独立官网的还有千帆SCRM / 尚脉SCRM / 布谷鸟SCRM。</div>
+  </section>
+
+  <!-- ============ §7 ============ -->
+  <section>
+    <h2><span class="no">07</span>HuggingFace 扫描结果 — 直白结论：没有</h2>
+    <p class="h2sub"><code>huggingface.co/models?search=微信</code> 和 <code>/spaces?search=微信</code> 返回<strong>空结果</strong>。这不是找漏了，是这条赛道压根不在 HuggingFace 的覆盖范围里。</p>
+
+    <table class="tbl"><thead><tr><th>类型</th><th>命中</th><th>结论</th></tr></thead>
+    <tbody>
+      <tr><td>自动化/机器人模型</td><td>无</td><td>HuggingFace 是模型托管站，不是自动化工具站——这条赛道的项目全在 GitHub</td></tr>
+      <tr><td>WeChat 相关 Spaces</td><td>~15 个 chatgpt-on-wechat 的 fork demo</td><td>全部<strong>当前打不开</strong>（Runtime error / Build error / Sleeping），只是套壳老项目，非原创资源</td></tr>
+      <tr><td>「微信聊天」数据集</td><td>Humbleguava/Personal_Wechat_Msg、Sanbei101/wechat-zl</td><td>均为<strong>合成人设对话数据</strong>（LLM 微调用），不是真实抓取的微信消息，不能用于消息分类训练</td></tr>
+      <tr><td>微信团队自研模型</td><td>opencv/qrcode_wechatqrcode（二维码识别）、WePOINTS 系列（多模态通用LLM）</td><td>都是腾讯微信 AI 团队的<strong>通用研究产出</strong>，跟聊天自动化无关</td></tr>
+    </tbody></table>
+
+    <div class="note info"><b>如果 Akke 想给截图判读加模型：</b>没有「微信专用」OCR 模型这回事，只能用通用中文 OCR——<a href="https://huggingface.co/PaddlePaddle/chinese_cht_PP-OCRv3_mobile_rec">PaddleOCR 系</a> / <a href="https://huggingface.co/blog/baidu/ppocrv5">PP-OCRv5</a> 是目前 HuggingFace 上最成熟的通用中文识别选项，对 WeChat UI 没有任何针对性优势，跟识别任何其他中文界面截图是同一个难度。</div>
+  </section>
+
+  <!-- ============ §8 ============ -->
+  <section>
+    <h2><span class="no">08</span>腾讯 2026 年执法动态 & 检测信号对照</h2>
+    <p class="h2sub">2026 年的执法姿态比往年更激进——从「封号」升级到「法务函 + DMCA 批量扫荡」。</p>
+
+    <div class="grid">
+      <div class="card x"><div class="k">2026-01-29/30 官方打击公告</div><div class="v">三家独立媒体佐证（新浪财经/腾讯新闻/游民星空），<strong>明确点名</strong>「利用模拟按键、自动化脚本等手段操控微信，实现'自动回复'‘管理聊天记录’‘批量加好友’‘虚拟定位’」——这就是 UI 自动化的技术描述，也点名了「辅助服务读取」这类无障碍服务方案</div></div>
+      <div class="card x"><div class="k">2026-01 DMCA 批量扫荡</div><div class="v">同月对 30+ 个 GitHub 仓库（主要是本地微信数据库解密类工具）同时发起 DMCA 下架，仅一个工作日的反通知窗口——比往年更国际化、更协同</div></div>
+      <div class="card"><div class="k">2020 杭州互联网法院判例</div><div class="v">腾讯诉「聚客通」群控软件不正当竞争案，判赔 258 万——法律界至今引用为工具运营者的责任基线：<strong>暴露面不只是账号被封，工具的开发/分发方也可能担民事责任</strong></div></div>
+      <div class="card acc"><div class="k">2026-03 官方 ClawBot 插件</div><div class="v">腾讯自己发了一个桥接 OpenClaw 框架的官方插件，但明确声明「不启用微信自动化、不能读取聊天记录」——传递的信号：<strong>官方允许的 AI 集成故意收得很窄</strong>，第三方自动化被点名当作重点打击对象</div></div>
+    </div>
+
+    <div class="fig"><div class="ft">图5 · 三类机制的检测信号层级</div>
+      <table class="mtx"><thead><tr><th>机制</th><th>检测层级</th><th>典型触发信号</th><th>可操作缓解手段</th></tr></thead><tbody>
+        <tr><td>Hook 注入</td><td>进程级</td><td>内存完整性校验 / 反调试 / 模块列表扫描</td><td>几乎无法缓解——检测的是注入行为本身</td></tr>
+        <tr><td>协议仿真</td><td>服务端行为模型</td><td>登录设备指纹异常 / 会话行为模式不符真实客户端</td><td>极难缓解——腾讯服务端有完整对照基线</td></tr>
+        <tr class="self"><td>UI 自动化（Akke）</td><td>账号行为级</td><td>发送节奏机械 / 被对方举报 / 设备与常用地理位置不一致 / 新号或久未登录号突然高频操作</td><td><strong>可操作</strong>：打字节奏拟人化、账号信任度分层、设备位置一致性</td></tr>
+      </tbody></table>
+      <div class="cap">来源：yage.ai 2026-03-27 技术调研（<a href="https://yage.ai/share/wechat-uia-platform-feasibility-survey-20260327.html">原文</a>）+ wxauto 社区 FAQ（<a href="https://www.cnblogs.com/zhangapple/p/19025149">原文</a>）+ WeChatFerry/gewechat 各自 issue 区一手报告。</div>
+    </div>
+
+    <div class="note brake"><b>唯一被多源印证的可操作杠杆：</b>逐字模拟打字节奏（而非整段瞬发）+ 账号信任度分层（老号/实名号优先跑自动化，新号/异常设备位置谨慎）。这和 <a href="/akke/cloud-pc-wechat-personal-risk-control.html">《云电脑跑个人微信 · 风控识别信号全景》</a> 已有的四层护栏清单结论一致——本页不重复展开，直接引用即可。</div>
+  </section>
+
+  <!-- ============ §9 ============ -->
+  <section>
+    <h2><span class="no">09</span>给 Akke 的结论</h2>
+    <p class="h2sub">调研没有找到「更好的现成替代」，真正能做的动作在账号/行为层，不在换工具。</p>
+
+    <div class="scores">
+      <div class="scard"><div class="sn lo">不建议</div><div class="sm">HOOK / 协议仿真</div><div class="st">风险更高 + 2026 年生态集体不稳定</div></div>
+      <div class="scard"><div class="sn hi">维持现状</div><div class="sm">UI 自动化</div><div class="st">Akke 自建方案已是这条路线该有的形态</div></div>
+      <div class="scard"><div class="sn mid">值得盯</div><div class="sm">pywechat</div><div class="st">唯一验证过 WeChat 4.x 兼容的同类项目</div></div>
+      <div class="scard"><div class="sn hi">真正该做</div><div class="sm">账号/行为加固</div><div class="st">打字节奏 + 账号分层 + 设备一致性</div></div>
+    </div>
+
+    <ol>
+      <li><strong>不要迁移到 Hook 或协议仿真类工具</strong>——WeChatFerry 锁死版本、gewechat 被法务函腰斩、ntchat 删库跑路，2026 年这条生态比 Akke 自己的方案更不稳定，迁移是净负收益。</li>
+      <li><strong>UI 自动化没有更好的现成替代</strong>——wxauto/pywechat 和 Akke 现用打法同构，没有本质更优的开源项目；唯一有参考价值的是持续跟踪 pywechat 应对 WeChat 4.x 改版的思路，反哺 Akke 自己的坐标更新节奏。</li>
+      <li><strong>真正能做的是账号/行为层加固</strong>：打字节奏拟人化、账号信任度分层（新号/异常设备位置的账号谨慎跑自动化）、话术避免机械腔调降低被举报概率——这些是本轮调研里唯一被多源证据印证的可操作杠杆，已经在 <a href="/akke/cloud-pc-wechat-personal-risk-control.html">风控专题页</a> 有更完整的四层护栏清单，直接执行即可，不需要另起一套。</li>
+      <li><strong>HuggingFace 这条线可以关掉</strong>——没有任何直接可用资源，如果未来需要截图 OCR，走通用中文 OCR 模型（PaddleOCR/PP-OCRv5）就够了，不用期待「微信专用模型」出现。</li>
+    </ol>
+
+    <div class="note info"><b>没有重新论证「要不要用个人微信」：</b>这一层业务决策已经由团队基于「企业微信新客户提醒被隐藏、实际漏单」的现实做出，本页只回答「个人微信自动化这条路上有什么工具」。如果想重新评估个人 vs 企业微信的取舍，<a href="/akke/wechat-personal-vs-enterprise-eval-2026-06-26">已有独立评估页</a>，别在这页里混着说。</div>
+  </section>
+
+  <!-- ============ Sources ============ -->
+  <section>
+    <h2><span class="no">10</span>资料来源</h2>
+    <p class="h2sub">全部为 3 个 agent 今日联网实测抓取（GitHub API / repo 页面 / issue 页面 / 官方公告），1 处 AI 摘要幻觉已核实剔除。</p>
+    <div class="grid">
+      <div class="card acc"><div class="k">Hook 注入类</div><div class="v"><a href="https://github.com/lich0821/WeChatFerry">WeChatFerry</a> · <a href="https://github.com/ljc545w/ComWeChatRobot">ComWeChatRobot</a> · <a href="https://github.com/bumandpunk/ntchat-wx">ntchat-wx</a></div></div>
+      <div class="card acc"><div class="k">协议仿真类</div><div class="v"><a href="https://github.com/Devo919/Gewechat">gewechat</a>（<a href="https://mp.weixin.qq.com/s/A6h4ZLTE2EPrY7kJ5fHE2g">腾讯法务函</a>）· <a href="https://github.com/WeChatPadPro/WeChatPadPro">WeChatPadPro</a> · <a href="https://github.com/wechaty/wechaty">wechaty</a> 全家桶</div></div>
+      <div class="card acc"><div class="k">UI 自动化类</div><div class="v"><a href="https://github.com/cluic/wxauto">wxauto</a> · <a href="https://github.com/cluic/wxauto4">wxauto4</a> · <a href="https://github.com/Hello-Mr-Crab/pywechat">pywechat</a></div></div>
+      <div class="card acc"><div class="k">应用层框架</div><div class="v"><a href="https://github.com/zhayujie/CowAgent">CowAgent</a> · <a href="https://github.com/langbot-app/LangBot">LangBot</a> · <a href="https://github.com/hanfangyuan4396/dify-on-wechat">dify-on-wechat</a> · <a href="https://github.com/HKUDS/nanobot">nanobot</a></div></div>
+      <div class="card"><div class="k">腾讯执法动态</div><div class="v">新浪财经 / 腾讯新闻 / 游民星空（2026-01-29/30 公告）· <a href="https://yage.ai/share/wechat-uia-platform-feasibility-survey-20260327.html">yage.ai 检测机制调研</a></div></div>
+      <div class="card"><div class="k">HuggingFace 核实</div><div class="v">huggingface.co Models/Spaces/Datasets 站内搜索「wechat / 微信」实测抓取，2026-07-03</div></div>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px">与本页相关的其余 Akke 内部研究：<a href="/akke/wechat-personal-vs-enterprise-eval-2026-06-26">个人 vs 企业微信双路线评估</a>（2026-06-26）· <a href="/akke/cloud-pc-wechat-personal-risk-control.html">云电脑个人微信风控识别信号全景</a>（2026-07）· <a href="/akke/ai-brain/1-workflow-frameworks">微信自动回复工作流框架横评</a>（2026-06-29）。</p>
+  </section>
+
+  <footer>
+    <div><span class="lab">VERSION</span> <b>v1.0 — 2026-07-03</b></div>
+    <div><span class="lab">METHOD</span> <b>3-agent 并行联网核实 · WebSearch/WebFetch 实测 · 1 处 AI 摘要幻觉已剔除</b></div>
+    <div><span class="lab">OWNER</span> <b>Gus</b></div>
+  </footer>
+</div>
+<script>
+  var p=document.getElementById('prog');
+  addEventListener('scroll',function(){var h=document.documentElement;var sc=h.scrollTop/(h.scrollHeight-h.clientHeight);p.style.width=(sc*100)+'%'},{passive:true});
+</script>
+</body>
+</html>
