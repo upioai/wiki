@@ -50,7 +50,7 @@ os.chdir(WORK_DIR)
 # ── 版本标记 ─────────────────────────────────────────────────────────────────
 # 云电脑不装 git、update.bat 只下载 raw .py，运行时取不到 git SHA。故硬编码版本串，
 # 每次有意义改动手动 bump（日期+特性名），启动横幅打印 → 运营/PM 一眼核对"是不是最新版"。
-AGENT_VERSION = '2026-06-24+captcha-char-sample'
+AGENT_VERSION = '2026-07-03+reply-priority'
 
 try:
     from dotenv import load_dotenv
@@ -351,6 +351,17 @@ def claim_batch() -> list[dict]:
         'p_limit': CLAIM_LIMIT,
     })
     return data or []
+
+
+def pending_approved_replies() -> int:
+    """本号待发的已审批自动回复条数——「自动回复绝对优先」的闸(2026-07-03)。
+    >0 时: 路线 D 不等捕获间隔立即插队跑发送腿, 且本轮跳过一触/二触/RC。
+    查询失败一律当 0——闸失灵宁可照常派单, 别让一次网络抖动饿死一触。"""
+    try:
+        rows = _get(f'dm_reply_drafts?select=id&status=eq.approved&account_id=eq.{ACCOUNT_ID}&limit=5')
+        return len(rows or [])
+    except Exception:
+        return 0
 
 
 def write_contacts_csv(rows: list[dict], handle_map: dict | None = None,
@@ -968,20 +979,29 @@ def main():
     print(f'work_dir={WORK_DIR}')
 
     _last_autoreply = 0.0   # 收件箱捕获节流时戳(0=启动后第一轮先扫一次,之后每 DM_AUTOREPLY_INTERVAL 扫)
+    _yield_streak = 0       # 「自动回复优先」连续让位轮数(显式暴露, 防 approved 卡死静默饿死一触)
     while True:
         try:
             t0 = time.time()
             did_work = False
 
             # 路线 D：DM 自动回复(轮内最优先 — 活跃对话客户在等，优先级 自动回复>一触>二触；PR4)。
-            #   ① 进程内排在一触/二触之前先跑；② 接窗口锁置 .dm-want → 跨进程 route-B 让位。
+            #   ① 进程内排在一触/二触之前先跑；② 接窗口锁置 .dm-want → 跨进程 route-B 让位；
+            #   ③ 绝对优先(2026-07-03)：有待发已审批回复时不等捕获间隔、立即插队只跑发送腿；
+            #      清完之前本轮跳过一触/二触/RC(见路线 A 前的让位闸；批中让位在 send 脚本里)。
             #   mode 由 AKKE_DM_AUTOREPLY_MODE 控：capture=只读捕获(零发送风险)；both(默认)=捕获+发已审批回复。
-            if DM_AUTOREPLY_CAPTURE_ENABLED and (time.time() - _last_autoreply) >= DM_AUTOREPLY_INTERVAL:
-                _last_autoreply = time.time()
-                _ar_mode = os.environ.get('AKKE_DM_AUTOREPLY_MODE', 'both')
+            _pending = pending_approved_replies()
+            _due = (time.time() - _last_autoreply) >= DM_AUTOREPLY_INTERVAL
+            if DM_AUTOREPLY_CAPTURE_ENABLED and (_due or _pending):
+                if _due:
+                    _last_autoreply = time.time()
+                    _ar_mode = os.environ.get('AKKE_DM_AUTOREPLY_MODE', 'both')
+                else:
+                    _ar_mode = 'send'   # 没到捕获点但有待发回复 → 插队只跑发送腿, 快进快出
                 _iv = DM_AUTOREPLY_INTERVAL
                 _iv_h = f'{_iv//3600}h' if _iv >= 3600 else (f'{_iv//60}min' if _iv >= 60 else f'{_iv}s')
-                print(f'[{datetime.now():%H:%M:%S}] 收件箱捕获(每{_iv_h}一次) mode={_ar_mode}')
+                _note = f'  待发回复={_pending}(插队)' if _pending else ''
+                print(f'[{datetime.now():%H:%M:%S}] 收件箱捕获(每{_iv_h}一次) mode={_ar_mode}{_note}')
                 try:
                     with _wl.dm_batch():   # 置 .dm-want → route-B 让位(autoreply 优先于一触/二触)
                         # 硬超时：捕获挂死不能拖垮整个 poll 循环（见 DM_AUTOREPLY_TIMEOUT_SEC）。
@@ -992,6 +1012,19 @@ def main():
                           file=sys.stderr)
                 except Exception as e:
                     print(f'!! dm-autoreply ({_ar_mode}) error: {e}', file=sys.stderr)
+
+            # 让位闸(2026-07-03)：发送腿跑完仍有待发回复(刚失败/又进新单) → 本轮不派一触/二触/RC。
+            if DM_AUTOREPLY_CAPTURE_ENABLED:
+                _still = pending_approved_replies()
+                if _still:
+                    _yield_streak += 1
+                    print(f'[{datetime.now():%H:%M:%S}] 仍有 {_still} 条待发自动回复 → 本轮让位, 跳过一触/二触/RC (x{_yield_streak})')
+                    if _yield_streak % 10 == 0:
+                        print(f'!! 自动回复让位已连续 {_yield_streak} 轮——去查 dm_reply_drafts 里 approved 是不是卡死(发送腿一直清不掉)',
+                              file=sys.stderr)
+                    time.sleep(POLL_INTERVAL)
+                    continue
+            _yield_streak = 0
 
             # 路线 A：DM 私信（现有）
             claimed = claim_batch()
