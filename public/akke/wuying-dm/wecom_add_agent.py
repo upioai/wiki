@@ -94,6 +94,7 @@ _last_recheck: dict[str, datetime] = {}
 # 到阈值就落哨兵文件 + 退出;重启时见哨兵直接退,人工核实账号恢复、删掉哨兵才继续。
 BREAKER_ON = os.environ.get('AKKE_WECOM_BREAKER', '1') != '0'
 BREAKER_MAX = int(os.environ.get('AKKE_WECOM_BREAKER_MAX', '10'))     # 连续搜不到多少条就熔断
+RETIRE_N = int(os.environ.get('AKKE_WECOM_NOTFOUND_RETIRE_N', '2'))   # 几个不同账号都搜不到才退池(加不上)
 ALERT_WEBHOOK = (os.environ.get('AKKE_WECOM_ALERT_WEBHOOK') or '').strip()  # 可选:配了才推告警到群
 ALERT_AT_OPENID = (os.environ.get('AKKE_WECOM_ALERT_AT_OPENID') or '').strip()  # 可选:本运营 open_id,告警时@他
 BREAKER_FLAG = WORK_DIR / '_breaker_tripped.flag'                     # 熔断哨兵;人工删除才恢复
@@ -350,6 +351,20 @@ def writeback(org: str, source_id: str, status: str, note: str | None) -> None:
         print('  [warn] 回写失败 %s: %s' % (source_id, e), file=sys.stderr)
 
 
+def record_not_found(org: str, source_id: str, account: str) -> str:
+    """搜不到计一票(按不同账号去重)：够 RETIRE_N 票→加不上退池，否则→待加留池换别的账号复验。
+    返回新的 add_status。防单账号/被风控账号一次搜不到就把好号误踢出全队池子。"""
+    try:
+        r = _req('rpc/record_enterprise_not_found', method='POST',
+                 data={'p_org_id': org, 'p_source_id': source_id,
+                       'p_account': account, 'p_retire_n': RETIRE_N})
+        # RPC 返回标量 TEXT(新 add_status)
+        return r if isinstance(r, str) else (r[0] if isinstance(r, list) and r else '待加')
+    except Exception as e:
+        print('  [warn] 搜不到计票失败 %s: %s' % (source_id, e), file=sys.stderr)
+        return '?'
+
+
 def read_sent_log() -> dict:
     log = WORK_DIR / ('sent_log_wecom_%s.csv' % datetime.now().strftime('%Y%m%d'))
     out = {}
@@ -429,14 +444,21 @@ def add_step(org: str):
             print('  [warn] %s 在 sent_log 没找到(GUI 没跑到?)，留待加重试' % sid)
             continue
         raw = row.get('status') or ''
-        mapped = map_gui_status(raw)
-        if mapped:
-            writeback(org, sid, mapped[0], mapped[1])
+        if raw == 'not_found':
+            # 搜不到不直接判加不上:计一票(按不同账号去重),够 RETIRE_N 票才退池,
+            # 否则留待加换别的账号复验。防单账号/被风控账号误踢好号(2026-07-02 教训)。
+            new_status = record_not_found(org, sid, OPERATOR)
+            print('  ↳ %s 搜不到计票 → %s' % (sid, new_status))
             _retry_count.pop(sid, None)
         else:
-            _retry_count[sid] = _retry_count.get(sid, 0) + 1
-            print('  [retry] %s status=%s 瞬时态，不回写，留待加(第%d次)' % (
-                sid, row.get('status'), _retry_count[sid]))
+            mapped = map_gui_status(raw)
+            if mapped:
+                writeback(org, sid, mapped[0], mapped[1])
+                _retry_count.pop(sid, None)
+            else:
+                _retry_count[sid] = _retry_count.get(sid, 0) + 1
+                print('  [retry] %s status=%s 瞬时态，不回写，留待加(第%d次)' % (
+                    sid, row.get('status'), _retry_count[sid]))
         # 熔断计数:成功发出→清零;连续"搜不到"到阈值→判账号被风控,自动停手
         if raw == '已发请求':
             _consec_notfound = 0
