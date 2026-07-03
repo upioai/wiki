@@ -44,8 +44,39 @@ CDP = "http://127.0.0.1:9222"
 SEND_BTN = '[class*="e2e-send-msg-btn"]'
 WORK_DIR = Path(__file__).resolve().parent
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv(WORK_DIR / ".env")   # 独立跑时也能读库(被 poll agent 调用时继承其 env, 双保险)
+except ImportError:
+    pass
+
 DO_FOLLOW = os.environ.get("AKKE_WEB_DO_FOLLOW", "1") == "1"
 DO_LIKE = os.environ.get("AKKE_WEB_DO_LIKE", "1") == "1"
+# 批中让位(2026-07-03): 首触批发送间隙检测到新审批的自动回复 → 剩余行写 aborted 回池、终止本批,
+# 让 poll agent 下一轮先发回复(自动回复绝对优先)。AKKE_DM_YIELD_TO_REPLY=0 关。
+YIELD_TO_REPLY = os.environ.get("AKKE_DM_YIELD_TO_REPLY", "1") == "1"
+
+
+def _pending_replies() -> int:
+    """本号待发已审批自动回复条数(让位闸)。查询失败当 0——别让网络抖动腰斩正常批。"""
+    import json as _json
+    import urllib.request as _rq
+    base = os.environ.get("SUPABASE_URL") or os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
+    scoped = os.environ.get("SUPABASE_SCOPED_JWT")
+    anon = os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY") or os.environ.get("SUPABASE_ANON_KEY")
+    service = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    account = os.environ.get("AKKE_ACCOUNT_ID")
+    apikey, bearer = (anon, scoped) if (scoped and anon) else (service, service)
+    if not (base and apikey and account):
+        return 0
+    try:
+        req = _rq.Request(
+            f"{base}/rest/v1/dm_reply_drafts?select=id&status=eq.approved&account_id=eq.{account}&limit=5",
+            headers={"apikey": apikey, "Authorization": f"Bearer {bearer}"})
+        with _rq.urlopen(req, timeout=6) as resp:
+            return len(_json.loads(resp.read().decode() or "[]"))
+    except Exception:
+        return 0
 
 
 def _norm(s: str) -> str:
@@ -300,6 +331,17 @@ def run_batch(csv_path: str) -> int:
             return 1
         page = dy[0]
         for idx, r in enumerate(rows):
+            # 批中让位: 有新审批的自动回复 → 剩余行 aborted 回池(不计配额可重发), 终止本批。
+            # 首行不检查(poll agent 进批前已做过让位闸), 从第 2 行起每行发前查一次。
+            if YIELD_TO_REPLY and idx > 0 and _pending_replies() > 0:
+                remain = rows[idx:]
+                print(f"  !! 检测到待发自动回复 → 让位: 剩余 {len(remain)} 条 aborted 回池, 终止本批")
+                for r2 in remain:
+                    row2 = {k: (r2.get(k) or "") for k in _SENT_LOG_FIELDS[:7]}
+                    row2.update(status="aborted", sent_at=datetime.now().isoformat(),
+                                _ocr_confidence="", _ocr_seen="")
+                    results.append(row2)
+                break
             sec = (r.get("_sec_uid") or "").strip()
             msg = r.get("message") or ""
             nick = r.get("nickname") or ""
