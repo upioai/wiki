@@ -40,6 +40,7 @@ const CATEGORIES = [
       { slug: 'scheduling-terms', title: 'Cron / Routine / Schedule 辨析', desc: '定时·事件·常驻：一堆易混的自动化机制怎么选。' },
       { slug: 'autoreply-supabase-relay', title: '自动回复为什么"绕"数据库', desc: '客户回复→数据库中转→生成→发送：为什么不一步到位。' },
       { slug: 'enterprise-brain-distillation', title: '有大有小 · 企业 AI 大脑', desc: '从 41 页企业手册与金牌销售对话，蒸馏出一颗"管得住嘴"的 AI 大脑——搭建、训练与护栏全景（甲方分享版深色 Deck）。' },
+      { slug: 'ai-golden-salesperson', title: '让 AI 像金牌销售一样说话', desc: '"更有精气神"拆成 5 个可执行维度——人设密度、去客服腔、消息节奏、真实语料喂养、销售推进框架，每一维配开源研究依据，对照 Akke 企微 AI 代回的真实做法。' },
     ],
   },
   {
