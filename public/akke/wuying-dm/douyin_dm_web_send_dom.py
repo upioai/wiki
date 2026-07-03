@@ -5,18 +5,27 @@
   A 回复老客户 / B 首触新 lead —— 用 sec_uid【进对方主页→点「私信」开聊天框】这条【通用】路径
   (不管有没有老会话都能开); 没 sec_uid 时回退【会话列表按昵称点击】。
 
-锚点(reference_douyin_web_dm_dom_anchors):
+锚点(reference_douyin_web_dm_dom_anchors + 2026-07-03 关注/点赞实测):
   进会话(通用): goto /user/<sec_uid> → 点文本「私信」按钮 → 内嵌聊天框出现
   进会话(兜底): 点 [data-e2e="conversation-item"](按昵称)
   输入框      : [contenteditable](Draft.js), press_sequentially 逐字键入
   发送键      : [class*="e2e-send-msg-btn"](抖音自埋稳定标记, 红圆↑)
   确认发出    : [data-e2e="msg-item-content"] 最后几条气泡含本文案
+  关注        : [data-e2e="user-info-follow-btn"](取可见项, 文本=「关注」才点, 已关注跳过)
+  点赞        : 点第一个作品 a[href*="/video/"] → 弹层是 feed 滑列(前/当前/后各一个 digg),
+                用 [data-e2e="feed-active-video"] 圈定当前视频的 [data-e2e="video-player-digg"];
+                完事 Escape 关弹层([data-e2e="modal-video-container"] 消失为准)
+
+首触前「关注+点赞第一个作品」(2026-07-03 补, 镜像 douyin_dm_web_grounded 2026-06-17 语义):
+  批量首触(run_batch)默认开; best-effort 失败不阻断私信; AKKE_WEB_DO_FOLLOW=0 / AKKE_WEB_DO_LIKE=0 关。
+  回复老客户路径【不】做(重复点=取关/取赞); 单发模式加 --engage 才做。
 
 安全: 默认 dry-run(打开会话+打字+定位发送键但【不点】, 完事清空); 加 --send 才真发。
-前置: 隐形 Edge :9222(headless)已登录。
+前置: 调试版 Edge :9222 已登录。
 用法:
   py douyin_dm_web_send_dom.py --sec=<sec_uid> --msg="你好"            # B/A 通用, dry-run
   py douyin_dm_web_send_dom.py --sec=<sec_uid> --msg="你好" --send     # 真发
+  py douyin_dm_web_send_dom.py --sec=<sec_uid> --msg="你好" --engage   # dry-run + 真关注/点赞(测试)
   py douyin_dm_web_send_dom.py --nick="昵称" --msg="你好"              # 兜底: 列表点击(回复老客户)
 """
 from __future__ import annotations
@@ -34,6 +43,9 @@ except ImportError:
 CDP = "http://127.0.0.1:9222"
 SEND_BTN = '[class*="e2e-send-msg-btn"]'
 WORK_DIR = Path(__file__).resolve().parent
+
+DO_FOLLOW = os.environ.get("AKKE_WEB_DO_FOLLOW", "1") == "1"
+DO_LIKE = os.environ.get("AKKE_WEB_DO_LIKE", "1") == "1"
 
 
 def _norm(s: str) -> str:
@@ -64,8 +76,80 @@ def _verify_bubble(page, message: str) -> bool:
     return any(m and (m in _norm(t) or (_norm(t) in m and len(_norm(t)) >= 4)) for t in texts)
 
 
-def open_via_profile(page, sec_uid: str) -> bool:
-    """B/A 通用: 进对方主页 → 点「私信」开聊天框。返回输入框是否出现。
+def _follow_profile(page) -> str:
+    """主页点「关注」([data-e2e="user-info-follow-btn"], 有隐藏副本, 只点可见那个)。
+    文本非「关注/回关」(已关注/互相关注/请求中)一律跳过——再点会变成取关。best-effort 不抛。"""
+    try:
+        btns = page.locator('[data-e2e="user-info-follow-btn"]')
+        for i in range(btns.count()):
+            b = btns.nth(i)
+            try:
+                if not b.is_visible():
+                    continue
+                t = _norm(b.inner_text(timeout=1000))
+                if t in ("关注", "回关"):
+                    b.click(timeout=3000)
+                    page.wait_for_timeout(900)
+                    return "followed"
+                return f"skip({t[:6]})"
+            except Exception:
+                continue
+        return "no_btn"
+    except Exception as e:
+        return f"error({str(e)[:40]})"
+
+
+def _like_first_work(page) -> str:
+    """点开主页第一个作品弹层 → 点赞当前视频 → Escape 关弹层。
+    弹层是 feed 滑列, 前/当前/后视频各有一个 video-player-digg → 必须用 feed-active-video 圈定,
+    圈不到就退「在视口内的那个」。无已赞检测 → 只在首触路径跑一次, 别对同一人重复跑。"""
+    modal = '[data-e2e="modal-video-container"]'
+    status = "no_works"
+    try:
+        works = page.locator('a[href*="/video/"]:visible')
+        if works.count() == 0:
+            return "no_works"
+        works.first.click(timeout=3000)
+        page.wait_for_timeout(3500)
+        cand = page.locator('[data-e2e="feed-active-video"] [data-e2e="video-player-digg"]')
+        target = cand.first if cand.count() else None
+        if target is None:
+            vh = (page.viewport_size or {}).get("height", 900)
+            all_d = page.locator('[data-e2e="video-player-digg"]')
+            for i in range(all_d.count()):
+                bb = all_d.nth(i).bounding_box()
+                if bb and 0 <= bb["y"] <= vh:
+                    target = all_d.nth(i)
+                    break
+        if target is None:
+            status = "no_digg"
+        else:
+            target.click(timeout=3000)
+            page.wait_for_timeout(900)
+            status = "liked"
+    except Exception as e:
+        status = f"error({str(e)[:40]})"
+    # 无论成败都要把弹层关掉, 不然挡住「私信」按钮
+    try:
+        for _ in range(3):
+            if page.locator(modal).count() == 0:
+                break
+            page.keyboard.press("Escape")
+            page.wait_for_timeout(1000)
+    except Exception:
+        pass
+    return status
+
+
+def _engage_profile(page) -> None:
+    """首触前关注+点赞(镜像 web_grounded 语义: 全 best-effort, 失败不阻断后面的私信)。"""
+    f = _follow_profile(page) if DO_FOLLOW else "off"
+    lk = _like_first_work(page) if DO_LIKE else "off"
+    print(f"    [engage] follow={f} like={lk}")
+
+
+def open_via_profile(page, sec_uid: str, engage: bool = False) -> bool:
+    """B/A 通用: 进对方主页 → (首触: 关注+点赞) → 点「私信」开聊天框。返回输入框是否出现。
     关键(实测): headless 下主页加载慢, 必须【等 networkidle + 多等】再点, 点早了不触发;
     点不出输入框就再等再点(最多 3 次)。"""
     try:
@@ -76,6 +160,9 @@ def open_via_profile(page, sec_uid: str) -> bool:
         page.wait_for_load_state("networkidle", timeout=10000)
     except Exception:
         pass
+    if engage:
+        page.wait_for_timeout(1500)   # 头部按钮/作品格再稳一拍
+        _engage_profile(page)
     if _find_input(page):
         return True
     # 等「私信」按钮真出现, 再点; 点完用 wait_for(可见) 等输入框冒出来(别死等固定秒), 重试 6 次。
@@ -124,14 +211,15 @@ def open_conversation(page, nick: str) -> bool:
     return False
 
 
-def send_dom(page, message: str, commit: bool, sec_uid: str = "", nick: str = "") -> str:
+def send_dom(page, message: str, commit: bool, sec_uid: str = "", nick: str = "", engage: bool = False) -> str:
     """发 message。sec_uid 优先(通用), 否则 nick 列表兜底。commit=False 只打字不发。
+    engage=True(首触批量)则进主页后先关注+点赞再开私信; 回复路径保持 False。
     返回: sent / unverified / dry_ok / no_conversation / no_input / no_send_btn / error:*"""
     if not message.strip():
         return "error:empty_message"
     opened = False
     if sec_uid:
-        opened = open_via_profile(page, sec_uid)
+        opened = open_via_profile(page, sec_uid, engage=engage)
         if not opened and nick:
             opened = open_conversation(page, nick)
     elif nick:
@@ -218,7 +306,8 @@ def run_batch(csv_path: str) -> int:
             if not sec:
                 status = "no_secuid"
             else:
-                status = _map_status(send_dom(page, msg, True, sec_uid=sec, nick=nick))
+                # 首触批量: engage=True 先关注+点赞再发(镜像 PC/web_grounded 版流程)
+                status = _map_status(send_dom(page, msg, True, sec_uid=sec, nick=nick, engage=True))
             row = {k: (r.get(k) or "") for k in _SENT_LOG_FIELDS[:7]}
             row.update(status=status, sent_at=datetime.now().isoformat(), _ocr_confidence="", _ocr_seen="")
             results.append(row)
@@ -245,18 +334,19 @@ def main():
     nick = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--nick=")), "")
     msg = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--msg=")), "")
     commit = "--send" in sys.argv
+    engage = "--engage" in sys.argv
     if (not sec and not nick) or not msg:
-        sys.exit('用法: py douyin_dm_web_send_dom.py --sec=<sec_uid>|--nick="昵称" --msg="内容" [--send]')
+        sys.exit('用法: py douyin_dm_web_send_dom.py --sec=<sec_uid>|--nick="昵称" --msg="内容" [--send] [--engage]')
 
-    print(f"=== DOM 发送 {'(真发 --send)' if commit else '(DRY-RUN 不发)'} ===")
+    print(f"=== DOM 发送 {'(真发 --send)' if commit else '(DRY-RUN 不发)'}{' +关注/点赞(--engage)' if engage else ''} ===")
     print(f"  目标: {('sec='+sec[:24]+'…') if sec else ('nick='+nick)}\n  内容: {msg!r}")
     with sync_playwright() as p:
         browser = p.chromium.connect_over_cdp(CDP)
         pages = [pg for c in browser.contexts for pg in c.pages]
         dy = [pg for pg in pages if "douyin.com" in (pg.url or "")]
         if not dy:
-            sys.exit("✗ 没找到 douyin.com 页(隐形 Edge 开着吗?)")
-        status = send_dom(dy[0], msg, commit, sec_uid=sec, nick=nick)
+            sys.exit("✗ 没找到 douyin.com 页(调试版 Edge 开着吗?)")
+        status = send_dom(dy[0], msg, commit, sec_uid=sec, nick=nick, engage=engage)
     print(f"\n→ 结果: {status}")
     if status.startswith("dry_ok"):
         print("  ✅ 开会话+打字+发送键定位都成(没发)。加 --send 真发。")
