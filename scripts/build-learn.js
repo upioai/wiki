@@ -46,6 +46,7 @@ const CATEGORIES = [
     label: 'TOOLS · GETTING STARTED',
     title: '工具入门',
     items: [
+      { slug: 'mac-for-ai', title: '为什么 Mac 更适合做 AI', desc: 'AI 时代的日常 = 终端里的 Agent + 想跑就跑的本地模型：macOS 的 Unix 底子和 Apple Silicon 统一内存各接住一半，也诚实讲清 Mac 什么时候不是答案。' },
       { slug: 'vercel-supabase', title: 'Vercel × Supabase', desc: '我们几乎每个产品都在用的两件套——前端托管 + 后端数据库：来历、能力全景，以及我们用了哪些、没用哪些、为什么。' },
       { slug: 'nextjs-nodejs-python', title: 'Next.js · Node.js · Python', desc: 'Akke 是用哪几种语言搭起来的？用「一条请求的旅程」串起 TypeScript / Next.js / Node.js / Python，全员不写代码也能看懂同事每天在改什么。' },
       { slug: 'sql-python-intro', title: 'SQL 与 Python 入门', desc: '数据分析基础速成。' },
