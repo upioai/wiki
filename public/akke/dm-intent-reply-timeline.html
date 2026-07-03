@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>抖音私信回复率 · 意向分层长时间线分析</title>
+<style>
+  :root{--ink:#1a1d24;--sub:#5b6472;--line:#e5e8ee;--bg:#fbfcfe;--card:#fff;
+    --hi:#e8833a;--mid:#2f7ed8;--lo:#9aa3b0;--good:#1f9d63;--bad:#d9455f;--warn:#c9821b;--shade:#eef0f4;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.7 -apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:940px;margin:0 auto;padding:32px 20px 80px}
+  h1{font-size:26px;line-height:1.3;margin:0 0 6px;letter-spacing:-.01em}
+  .meta{color:var(--sub);font-size:13px;margin-bottom:24px}
+  h2{font-size:19px;margin:40px 0 12px;padding-top:8px;letter-spacing:-.01em}
+  h3{font-size:15px;margin:22px 0 6px;color:var(--ink)}
+  p{margin:10px 0}
+  .sub{color:var(--sub)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:16px 0}
+  .tldr{background:linear-gradient(180deg,#fff,#f7f9fc);border:1px solid var(--line);border-left:4px solid var(--mid)}
+  .tldr ul{margin:8px 0 0;padding-left:20px}.tldr li{margin:7px 0}
+  .warnbox{background:#fff8ee;border:1px solid #f0dcae;border-left:4px solid var(--warn)}
+  .kbad{color:var(--bad);font-weight:600}.kgood{color:var(--good);font-weight:600}.kwarn{color:var(--warn);font-weight:600}
+  b.hi{color:var(--hi)}b.mid{color:var(--mid)}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;margin:8px 0}
+  .tblwrap{overflow-x:auto}
+  th,td{padding:7px 9px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  thead th{font-size:12px;color:var(--sub);font-weight:600;border-bottom:2px solid #d7dbe3}
+  tbody tr:hover{background:#f6f8fb}
+  .blind td{color:#9aa3b0;background:#fafbfc}
+  .rate{font-variant-numeric:tabular-nums;font-weight:600}
+  .bar{display:inline-block;height:9px;border-radius:3px;vertical-align:middle;margin-left:6px}
+  .tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:20px;font-weight:600;vertical-align:middle}
+  .tag.blind{background:#eceef2;color:#727b88}.tag.live{background:#e3f4ea;color:#1f9d63}
+  figure{margin:16px 0}
+  svg{max-width:100%;height:auto;display:block}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--sub);margin-top:6px}
+  .legend .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle}
+  .foot{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:var(--sub);font-size:12.5px}
+  code{background:#eef0f4;padding:1px 5px;border-radius:4px;font-size:12.5px}
+  .big{font-size:30px;font-weight:700;letter-spacing:-.02em;line-height:1}
+  .statrow{display:flex;gap:14px;flex-wrap:wrap;margin:10px 0}
+  .stat{flex:1;min-width:150px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .stat .lbl{font-size:12px;color:var(--sub);margin-bottom:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>抖音私信回复率 · 意向分层长时间线分析</h1>
+<div class="meta">数据窗口 2026-04-16 → 2026-07-03（12 周）· 口径：<code>conversations</code> 已触达 ÷ <code>messages.role=customer</code> 回复 · 全渠道全时段 · 生成 2026-07-03</div>
+
+<div class="card tldr">
+  <b>一句话结论</b>
+  <ul>
+    <li>整条时间线要拆成两个纪元：<b>前 8 周（4/16–6/4）是"捕获盲区"</b>——回复几乎全记成 0，<span class="kbad">不是没人回，是系统没在记回复</span>；<b>只有近 4 周（6/11 起）的数字才是真能看的</b>。</li>
+    <li>近 4 周可测窗口里，<b class="mid">中意向回复率(3.8%)明显高于高意向(1.3%)</b>，且这次样本够大——<span class="kbad">z=3.3，统计显著</span>。这跟我 4 周小样本时说的"噪声"结论<b>不一样了</b>：数据一拉长、样本一变大，"中&gt;高"更像真信号，不能再一句噪声带过。</li>
+    <li>但它仍被<b>捕获覆盖不均</b>混淆，绝对回复数还只是几十条量级——<span class="kwarn">值得开一个干净对照实验去证实，还不足以据此重写意向打分</span>。</li>
+    <li>无论哪个纪元，回复率一旦能测都在<b>个位数</b>（全时段 0.8%，最好的周 ~4-6%）——这是陌生冷 DM 的渠道天花板，压着它的是"折叠+opener"，不是意向层级。</li>
+    <li><b class="mid">低意向近乎不触达</b>（近 4 周 0-1 条），全时段 0 回复——分流是对的。</li>
+  </ul>
+</div>
+
+<div class="statrow">
+  <div class="stat"><div class="lbl">全时段 高意向</div><div class="big" style="color:var(--hi)">0.8%</div><div class="sub">3322 触达 / 26 回复</div></div>
+  <div class="stat"><div class="lbl">全时段 中意向</div><div class="big" style="color:var(--mid)">0.8%</div><div class="sub">4968 触达 / 39 回复</div></div>
+  <div class="stat"><div class="lbl">全时段 低意向</div><div class="big" style="color:var(--lo)">0.0%</div><div class="sub">2209 触达 / 0 回复</div></div>
+  <div class="stat"><div class="lbl">近4周可测 中 vs 高</div><div class="big"><span style="color:var(--mid)">3.8%</span> <span style="font-size:18px;color:var(--sub)">vs</span> <span style="color:var(--hi)">1.3%</span></div><div class="sub">z=3.3 显著</div></div>
+</div>
+
+<h2>一、最重要的一件事：时间线分成"看不见"和"看得见"两个纪元</h2>
+<p>把 12 周的回复率画出来，最刺眼的不是哪条线高哪条低，而是<b>前 8 周所有意向的回复率几乎贴着 0</b>，然后在第 9-10 周（6 月中）突然"长出来"。</p>
+<p>这个跳变<b>不是"回复率暴涨 40 倍"</b>，而是<b>"我们终于开始记录回复了"</b>。原因链条前面几轮已经查清：<code>check-replies</code> 这个 cron 是空转（no-op），入站回复只有在有人手动扫收件箱 + 跑 <code>sync-inbound-replies</code> 时才写进 <code>last_inbound_at</code>/<code>role=customer</code>；6 月中这套手动扫 + 后来的浏览器 DOM 捕获才陆续把回复落库。所以：</p>
+
+<figure>
+<svg viewBox="0 0 820 340" role="img" aria-label="12周意向回复率折线图">
+  <!-- capture-blind shaded region: W2..W8 -->
+  <rect x="50" y="28" width="478" height="254" fill="#eef0f4"/>
+  <text x="60" y="46" font-size="12" fill="#8a93a1">捕获盲区（信号≈0，非真实回复率）</text>
+  <!-- axes -->
+  <line x1="50" y1="282" x2="800" y2="282" stroke="#c9cfd8"/>
+  <line x1="50" y1="28" x2="50" y2="282" stroke="#c9cfd8"/>
+  <!-- y gridlines 0/2/4/6/8 % -->
+  <g font-size="11" fill="#9aa3b0">
+    <line x1="50" y1="282" x2="800" y2="282" stroke="#eceef2"/><text x="30" y="286">0%</text>
+    <line x1="50" y1="219.5" x2="800" y2="219.5" stroke="#eceef2"/><text x="30" y="223">2%</text>
+    <line x1="50" y1="157" x2="800" y2="157" stroke="#eceef2"/><text x="30" y="161">4%</text>
+    <line x1="50" y1="94.5" x2="800" y2="94.5" stroke="#eceef2"/><text x="30" y="98">6%</text>
+    <line x1="50" y1="32" x2="800" y2="32" stroke="#eceef2"/><text x="30" y="36">8%</text>
+  </g>
+  <!-- x labels (weeks W2..W12) -->
+  <g font-size="10.5" fill="#9aa3b0" text-anchor="middle">
+    <text x="60" y="300">4/23</text><text x="204" y="300">5/07</text><text x="348" y="300">5/21</text>
+    <text x="492" y="300">6/04</text><text x="636" y="300">6/18</text><text x="780" y="300">7/02</text>
+  </g>
+  <!-- mid line (blue) -->
+  <polyline fill="none" stroke="#2f7ed8" stroke-width="2.5"
+    points="60,282 132,282 204,282 276,269.5 348,282 420,278.9 492,282 564,250.7 636,100.7 708,175.7 780,138.2"/>
+  <!-- high line (orange) -->
+  <polyline fill="none" stroke="#e8833a" stroke-width="2.5"
+    points="60,282 132,282 204,282 276,282 348,282 420,263.7 492,263.7 564,269.5 636,210.1 708,260.2 780,153.9"/>
+  <!-- dots mid -->
+  <g fill="#2f7ed8">
+    <circle cx="564" cy="250.7" r="3.5"/><circle cx="636" cy="100.7" r="4.5"/><circle cx="708" cy="175.7" r="3.5"/><circle cx="780" cy="138.2" r="3.5"/>
+  </g>
+  <!-- dots high -->
+  <g fill="#e8833a">
+    <circle cx="420" cy="263.7" r="3"/><circle cx="492" cy="263.7" r="3"/><circle cx="564" cy="269.5" r="3"/><circle cx="636" cy="210.1" r="4"/><circle cx="708" cy="260.2" r="3"/><circle cx="780" cy="153.9" r="3.5"/>
+  </g>
+  <!-- annotations -->
+  <text x="636" y="92" font-size="11" fill="#2f7ed8" text-anchor="middle" font-weight="600">中 5.8%</text>
+  <line x1="528" y1="28" x2="528" y2="282" stroke="#b7c0cc" stroke-dasharray="3,3"/>
+  <text x="536" y="44" font-size="11" fill="#1f9d63" font-weight="600">← 捕获开始工作</text>
+</svg>
+<div class="legend">
+  <span><span class="dot" style="background:var(--hi)"></span>高意向回复率</span>
+  <span><span class="dot" style="background:var(--mid)"></span>中意向回复率</span>
+  <span class="sub">（W1 因样本仅 7 条、100% 为测试期异常，未入图）</span>
+</div>
+</figure>
+
+<p class="sub">读图要点：灰色区（4/23–6/4）不是"回复率真的是 0"，是"回复没被记录"。真正能拿来比较的只有右侧 6/11 之后。而右侧一露出来，<b class="mid">蓝线（中）就基本压着橙线（高）</b>。</p>
+
+<h2>二、12 周全量明细</h2>
+<div class="tblwrap">
+<table>
+<thead><tr><th>周 / 起始</th><th>纪元</th><th>高 触达</th><th>高 回复率</th><th>中 触达</th><th>中 回复率</th><th>低 触达</th><th>全部回复率</th></tr></thead>
+<tbody>
+<tr class="blind"><td>W1 · 4/16</td><td><span class="tag blind">测试</span></td><td>5</td><td class="rate">100%*</td><td>2</td><td class="rate">100%*</td><td>0</td><td class="rate">100%*</td></tr>
+<tr class="blind"><td>W2 · 4/23</td><td><span class="tag blind">盲区</span></td><td>190</td><td class="rate">0%</td><td>60</td><td class="rate">0%</td><td>111</td><td class="rate">0%</td></tr>
+<tr class="blind"><td>W3 · 4/30</td><td><span class="tag blind">盲区</span></td><td>149</td><td class="rate">0%</td><td>110</td><td class="rate">0%</td><td>201</td><td class="rate">0%</td></tr>
+<tr class="blind"><td>W4 · 5/07</td><td><span class="tag blind">盲区</span></td><td>44</td><td class="rate">0%</td><td>46</td><td class="rate">0%</td><td>120</td><td class="rate">0%</td></tr>
+<tr class="blind"><td>W5 · 5/14</td><td><span class="tag blind">盲区</span></td><td>211</td><td class="rate">0%</td><td>268</td><td class="rate">0.4%</td><td>455</td><td class="rate">0.1%</td></tr>
+<tr class="blind"><td>W6 · 5/21</td><td><span class="tag blind">盲区</span></td><td>228</td><td class="rate">0%</td><td>358</td><td class="rate">0%</td><td>377</td><td class="rate">0%</td></tr>
+<tr class="blind"><td>W7 · 5/28</td><td><span class="tag blind">盲区</span></td><td>876</td><td class="rate">0.6%</td><td>1132</td><td class="rate">0.1%</td><td>393</td><td class="rate">0.2%</td></tr>
+<tr class="blind"><td>W8 · 6/04</td><td><span class="tag blind">盲区</span></td><td>782</td><td class="rate">0.6%</td><td>2101</td><td class="rate">0.0%</td><td>551</td><td class="rate">0.1%</td></tr>
+<tr><td>W9 · 6/11</td><td><span class="tag live">可测</span></td><td>234</td><td class="rate">0.4%</td><td>202</td><td class="rate" style="color:var(--mid)">1.0%</td><td>1</td><td class="rate">0.7%</td></tr>
+<tr><td>W10 · 6/18</td><td><span class="tag live">可测</span></td><td>261</td><td class="rate" style="color:var(--hi)">2.3%</td><td>329</td><td class="rate" style="color:var(--mid)">5.8%</td><td>0</td><td class="rate">4.4%</td></tr>
+<tr><td>W11 · 6/25</td><td><span class="tag live">可测</span></td><td>293</td><td class="rate">0.7%</td><td>295</td><td class="rate" style="color:var(--mid)">3.4%</td><td>0</td><td class="rate">5.6%</td></tr>
+<tr><td>W12 · 7/02</td><td><span class="tag live">可测·未满</span></td><td>49</td><td class="rate" style="color:var(--hi)">4.1%</td><td>65</td><td class="rate" style="color:var(--mid)">4.6%</td><td>0</td><td class="rate">5.2%</td></tr>
+</tbody>
+</table>
+</div>
+<p class="sub">* W1 仅 7 条会话、100% 为初始化测试期异常，不计入分析。W12 为当前未满周。"全部回复率"含"无关"与"无源自然来私信"两桶，故 W10-W12 略高于高/中（详见第四节）。</p>
+
+<h2 style="color:var(--mid)">三、深挖：高意向为什么反而回复更低？（结论：这次不是噪声）</h2>
+<p>把可测的 4 周（W9-W12）合起来算：</p>
+<div class="statrow">
+  <div class="stat"><div class="lbl">高意向</div><div class="big" style="color:var(--hi)">1.3%</div><div class="sub">11 回复 / 837 触达</div></div>
+  <div class="stat"><div class="lbl">中意向</div><div class="big" style="color:var(--mid)">3.8%</div><div class="sub">34 回复 / 891 触达</div></div>
+  <div class="stat"><div class="lbl">双比例检验</div><div class="big kbad">z=3.3</div><div class="sub">&gt;1.96，统计显著</div></div>
+</div>
+<p><b>诚实地修正我之前的话</b>：我在只看云电脑近 4 周（<code>dispatch_queue</code>）的小样本时，说过"高&lt;中是噪声、符号每周翻"。<b>把口径换成全渠道、时间线拉长、样本从几百涨到近 1800 之后，"中&gt;高"稳定出现、且统计显著（z=3.3）</b>。四周里三周中明显高于高（W9/W10/W11），一周持平（W12）。这已经<b>不能再当噪声</b>——它更像一个真实存在的效应。</p>
+
+<h3>可能的真实原因（待验证的假设）</h3>
+<ul>
+  <li><b>高意向多来自爆款视频的评论区</b>：评论一句"多少钱"就被判高意向，但这类人是几百条评论里的一个，早被同行私信过、或本就是随口一问 → 冷 DM 触达他反而更难回。</li>
+  <li><b>中意向更多是真正在逛的中段用户</b>：被戳一下愿意回。</li>
+  <li><b>或者是捕获覆盖偏差</b>：如果中意向的会话恰好更多落在"被扫过"的账号/时段，回复被记下来的比例就偏高——这是最大的混淆项。</li>
+</ul>
+
+<div class="card warnbox">
+  <b>为什么还不能据此改意向打分</b>
+  <ul style="margin:8px 0 0;padding-left:20px">
+    <li><b>捕获覆盖不均</b>：回复能不能被记，取决于那个号那阵子有没有被扫，这会系统性地抬高/压低某一层。</li>
+    <li><b>绝对数仍小</b>：高 11 条、中 34 条，一个 W10（中 19 条）就占了中的一半，去掉它显著性会掉。</li>
+    <li><b>两套口径打架</b>：云电脑 <code>dispatch_queue</code> 近 4 周算出来高≈中，全渠道 <code>conversations</code> 算出来中&gt;高。谁对，得等捕获修好后的干净数据。</li>
+  </ul>
+  <p style="margin:10px 0 0"><b>正确动作</b>：开一个对照实验——<b>同一批 lead、同一套 opener，只把"高 vs 中"当唯一变量拆开发</b>，在捕获已修好的号上跑，攒到每层几百条回复再下结论。不是现在就去改 scoring。</p>
+</div>
+
+<h2>四、两个容易误读的桶</h2>
+<h3>低意向：近乎不发，全时段 0 回复</h3>
+<p>低意向全时段 2209 触达 / <b>0 回复</b>，且从 W9 起基本停发（近 4 周 0-1 条）。说明系统已经把低意向排除在触达之外——这是对的，不用管。</p>
+<h3>"无源自然来私信"把"全部回复率"抬高了</h3>
+<p>有一小撮会话（26 条）没有关联到打分评论，回复率高达 <b>92.3%</b>（24/26）——这些几乎都是<b>用户主动私信我们</b>的（不是我们冷发的）。它们混在"全部"口径里，是 W10-W12"全部回复率(4-6%)"高于"高/中"的原因。做冷触达分析时应把它单列、排除——它证明了一件事：<b>只要是用户主动来的，回复率天差地别（90%+ vs 冷发的个位数）</b>，这正是"焐热渠道"价值的侧证。</p>
+
+<h2>五、结论 + 下一步</h2>
+<p><b>把整条时间线读完，真正的故事是三层：</b></p>
+<ol>
+  <li><b>过去大半年我们其实"看不见"回复</b>——不是回复率为 0，是捕获没在工作。所以历史上任何"回复率低/高"的判断都建立在残缺数据上。</li>
+  <li><b>能看见的近 4 周，回复率是低个位数（3-6%）</b>，且<b class="mid">中意向稳定高于高意向（3.8% vs 1.3%，显著）</b>——这是一个新的、值得认真对待的信号，但被捕获覆盖混淆，需对照实验证实。</li>
+  <li><b>压着回复率的是渠道结构</b>（陌生冷 DM 被折叠、无红点）<b>和 opener 质量</b>，不是意向层级本身。真正能破的杠杆是"焐热渠道"（那 26 条自然来私信 90%+ 回复就是证据）和缩短 opener。</li>
+</ol>
+
+<div class="card">
+  <b>2026-07-03 已落地</b>：把 <b>饭粒 + 零星（小星/夏夏）</b>两台云电脑的私信从"客户端 GUI"切到<b>浏览器 DOM 版</b>——① 发送按 sec_uid 直达主页，治"发错人"；② <b>DOM 每轮读私信列表把回复写库，第一次让捕获常态化</b>。这意味着<b>从下周（W13）起，回复率终于是"测得准"的</b>，上面那个"中&gt;高"才有条件被干净地证实或推翻。
+  <p style="margin:10px 0 0"><b>接下来</b>：① 捕获稳定后跑"高 vs 中"对照实验；② opener 砍短（现状 56% 超 60 字、第一条就报价+要微信）；③ 试"先反评焐热再私信"的两触路径，对比纯冷。</p>
+</div>
+
+<div class="foot">
+  方法：<code>conversations</code>（org 内全部已触达会话，跨手机/云电脑/worker 全渠道）按 <code>created_at</code> 分周；分子 = 该会话是否有 <code>messages.role=customer</code>（对方回复的 canonical 口径）；意向来自会话关联评论的 <code>intent_label</code>。<b>已知局限</b>：回复捕获在 6 月中前几乎未写库（盲区），近 4 周捕获覆盖仍不均——本页所有"回复率"是<b>能测到的下界</b>，真实回复率只会更高不会更低。显著性为两比例 z 检验。W12 为未满周。
+</div>
+
+</div>
+</body>
+</html>
