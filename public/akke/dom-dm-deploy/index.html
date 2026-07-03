@@ -72,6 +72,7 @@
     <span class="nd">过审后 DOM 自动回过去</span>
   </div>
   <p>发多少、发给谁、话术内容全部由服务端控制（每分钟最多 1 条、每小时满 10 停 1 小时、每日封顶）——<b>这台机只是手</b>。相比老的「抖音 PC 客户端 + 截图 AI 视觉」方案：不用量坐标、不用校准模板、不用切输入法、昵称读取精确到 emoji、读列表不烧一分钱 AI。</p>
+  <div class="note"><b>自动回复绝对优先（正在聊的客户 &gt; 新客首触）</b>：只要有已审批待发的回复，agent 会①不等扫描间隔<b>立即插队</b>发回复；②回复没清完，<b>本轮不发首触</b>；③首触批发到一半来了新回复，<b>中断剩余首触让位</b>——被中断的单子自动回池、之后重发，不会丢。这些全自动，不用任何操作。</div>
 
   <!-- ② 前置 -->
   <h2><span class="n">②</span>前置条件（缺哪个先补哪个）</h2>
@@ -112,10 +113,10 @@ foreach($f in $files){ curl.exe -fsS -o $f "$b/$f"; "{0}  {1}" -f (Get-Item $f).
   <p>逐个核对字节数（对不上 = 下载不全，重跑那一个）：</p>
   <table>
     <tr><th>文件</th><th>字节数</th><th>干什么的</th></tr>
-    <tr><td><code>wuying_poll_agent.py</code></td><td>52526</td><td>主循环（领单 + 调度收发）</td></tr>
+    <tr><td><code>wuying_poll_agent.py</code></td><td>54601</td><td>主循环（领单 + 调度收发，自动回复绝对优先）</td></tr>
     <tr><td><code>douyin_dm_autoreply.py</code></td><td>12279</td><td>自动回复编排（捕获 + 回发）</td></tr>
     <tr><td><code>douyin_dm_web_capture_dom.py</code></td><td>13137</td><td>DOM 读会话列表（收）</td></tr>
-    <tr><td><code>douyin_dm_web_send_dom.py</code></td><td>15974</td><td>DOM 发私信（发，含发前关注+点赞）</td></tr>
+    <tr><td><code>douyin_dm_web_send_dom.py</code></td><td>18327</td><td>DOM 发私信（发前关注+点赞，批中给回复让位）</td></tr>
     <tr><td><code>douyin_dm_web_capture.py</code></td><td>20386</td><td>被上面复用的过滤链</td></tr>
     <tr><td><code>douyin_dm_web_reply.py</code></td><td>2611</td><td>回复发送入口</td></tr>
     <tr><td><code>douyin_dm_web_grounded.py</code></td><td>24901</td><td>web 兜底发送</td></tr>
@@ -208,7 +209,7 @@ cd C:\akke-wuying\wuying-dm
 py -u wuying_poll_agent.py</pre>
   </div>
   <p>启动横幅应长这样（<b>必须有 <code>v=</code></b>，没有 = 脚本是老版本，回第③步重下）：</p>
-  <div class="logmark">=== wuying_poll_agent  v=2026-06-24+captcha-char-sample  account=xxxxxxxx…  every 15s  claim=2  second_touch=off  rc=off ===</div>
+  <div class="logmark">=== wuying_poll_agent  v=2026-07-03+reply-priority  account=xxxxxxxx…  every 15s  claim=2  second_touch=off  rc=off ===</div>
   <p>这个黑窗<b>保持开着别关</b>。⚠️ 黑窗被鼠标点过会进「选择模式」冻结输出（看着像卡死）——按一下回车就恢复。</p>
   <div class="opbox">
     <b><span class="opnum">2</span>（可选）开机自启：登录后自动拉 agent</b>
@@ -222,7 +223,7 @@ Set-Content -Path $s -Encoding ascii -Value @('@echo off','cd /d C:\akke-wuying\
   <table>
     <tr><th>#</th><th>验什么</th><th>怎么验 / 预期</th></tr>
     <tr><td>1</td><td>捕获在跑</td><td>黑窗每轮出 <code>web capture[DOM] … conversation-item N 个</code>（不是 ECONNREFUSED、不是 0）</td></tr>
-    <tr><td>2</td><td>真回复抓得到</td><td>用测试号给本机账号发条私信（产生红点），下一轮日志出 <code>[红点] 昵称: 内容</code> + <code>[inbound] 昵称: 内容</code></td></tr>
+    <tr><td>2</td><td>真回复抓得到 + 优先回</td><td>用测试号给本机账号发条私信（产生红点），下一轮日志出 <code>[红点] 昵称: 内容</code> + <code>[inbound] 昵称: 内容</code>；回复草稿过审后日志出 <code>待发回复=N(插队)</code>（不等间隔立即发），期间若跳过首触会打 <code>本轮让位, 跳过一触/二触/RC</code>——都是设计行为</td></tr>
     <tr><td>3</td><td>首触发得出</td><td>等服务端派单（自动的），黑窗出 <code>=== DOM 批量发送: N 条 ===</code>，每条先 <code>[engage] follow=followed like=liked</code>（发前自动关注+点赞，对方没作品显示 <code>no_works</code> 正常）再 <code>[sent] 昵称: 文案</code>；肉眼开抖音网页版私信列表确认真有气泡</td></tr>
     <tr><td>4</td><td>回写落库</td><td>把 2、3 的日志整段发给 PM / 在群里说一声，让有库权限的人查一眼 <code>messages</code>/<code>dispatch_queue</code> 对上（部署期一次即可）</td></tr>
   </table>
@@ -268,6 +269,8 @@ py -u wuying_poll_agent.py</pre>
     <tr><td>横幅没有 <code>v=</code></td><td>脚本是老版本 → 第⑧步「更新脚本」</td></tr>
     <tr><td>黑窗没输出像卡死</td><td>鼠标点过进了选择模式 → 按回车解冻</td></tr>
     <tr><td>下载的文件只有十几字节</td><td>404 页被写进文件 → 删掉，确认镜像 200 后重下</td></tr>
+    <tr><td>日志 <code>本轮让位, 跳过一触/二触/RC</code> / 首触批中 <code>让位: 剩余 N 条 aborted 回池</code></td><td>正常：自动回复绝对优先，被让位的首触单自动回池、之后重发，不用管</td></tr>
+    <tr><td><code>!! 自动回复让位已连续 N 轮</code> 告警</td><td>某条已审批回复一直发不出去、卡住了首触 → 把日志发群里@开发查 <code>dm_reply_drafts</code>；临时绕过：<code>.env</code> 加 <code>AKKE_DM_YIELD_TO_REPLY=0</code> + 重启 agent（只关批中让位）</td></tr>
     <tr><td>有红点却没抓到 / 抓错</td><td>把那轮日志 + 会话截图发群里@开发，别自己改脚本</td></tr>
   </table>
 
