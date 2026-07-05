@@ -89,6 +89,10 @@ DPI_AWARE = os.environ.get('AKKE_DPI_AWARE', '1') == '1'
 # URL 通道默认信任 sec_uid:落到个人主页即发,不强求昵称精确匹配(改名/派单旧昵称容错)。
 # =0 退回严格昵称匹配(抖音号搜索通道老行为)。详见 process_web 身份门。
 TRUST_SECUID = os.environ.get('AKKE_WEB_TRUST_SECUID', '1') == '1'
+# 面板身份门也信任 sec_uid：sec_uid 地址栏直达已唯一锁人，面板再用 VL 读昵称二次校验
+# 遇花体/emoji/长名会读错 → 假阴性 wrong_chat 拒发(2026-07-05 Yᗜangঞᩚ→YOang)。
+# 与主页门 TRUST_SECUID 对称。=0 退回严格面板拦截。
+TRUST_SECUID_ON_PANEL = os.environ.get('AKKE_WEB_TRUST_SECUID_ON_PANEL', '1') == '1'
 
 
 def _set_dpi_aware():
@@ -314,8 +318,13 @@ def process_web(c, confirm=False):
         print('  [跳过] 私信面板没打开 → dm_panel_failed(回池可重发)')
         return 'dm_panel_failed', conf
     if not hmatch and hconf >= 0.6:
-        print('  [跳过] 私信面板对话对象≠目标 seen=%r → wrong_chat 防发错人, 不发' % hseen)
-        return 'wrong_chat', conf
+        # sec_uid 直达已唯一锁人 → 面板名字门降级为软告警(治花体/emoji/长名 VL 误读)。
+        # 抖音号搜索通道(无 sec)仍严格拦防发错人。气泡验证 _verify_bubble 仍是最终防线。
+        if sec and TRUST_SECUID and TRUST_SECUID_ON_PANEL:
+            print('  [软告警] 面板昵称未匹配 seen=%r，但 sec_uid 直达已锁人 → 照发' % hseen)
+        else:
+            print('  [跳过] 私信面板对话对象≠目标 seen=%r → wrong_chat 防发错人, 不发' % hseen)
+            return 'wrong_chat', conf
 
     # ④ 发送前人工确认(spike 用 --confirm)
     if confirm:
