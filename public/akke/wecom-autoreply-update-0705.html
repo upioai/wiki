@@ -35,6 +35,13 @@
   li b{color:var(--tx)}
   .tag{display:inline-block;font-size:11px;font-weight:700;padding:0 6px;border-radius:5px;background:var(--deep);border:1px solid var(--bd2);color:var(--dim);margin-left:4px}
   code{background:var(--deep);border:1px solid var(--bd);border-radius:5px;padding:1px 5px;font-size:12.5px;color:var(--info);font-family:ui-monospace,Menlo,monospace}
+  pre.cmd{background:#0e1219;border:1px solid var(--bd2);border-radius:9px;padding:12px 14px;overflow-x:auto;font-size:12.5px;line-height:1.7;color:#cdd6e6;font-family:ui-monospace,Menlo,monospace;margin:8px 0;white-space:pre-wrap;word-break:break-all}
+  pre.cmd .c{color:var(--mut)}
+  .kv{width:100%;border-collapse:collapse;font-size:13px;margin:6px 0}
+  .kv td{padding:7px 10px;border-bottom:1px solid var(--bd);vertical-align:top}
+  .kv td:first-child{color:var(--info);white-space:nowrap;font-family:ui-monospace,Menlo,monospace;font-size:11.5px}
+  h3{font-size:15px;font-weight:750;margin:20px 0 4px}
+  .cm2{color:var(--mut);font-size:12.5px;margin:2px 0 4px}
   .hl{background:var(--mids);border:1px solid rgba(251,191,36,.32);border-radius:10px;padding:12px 16px;font-size:13.5px;color:var(--dim);margin:12px 0}
   .hl b{color:var(--mid)}
   .box{border:1px solid var(--bd);border-radius:12px;overflow:hidden;margin:14px 0}
@@ -133,15 +140,32 @@
       </div>
     </div>
 
-    <h3 style="font-size:15px;margin:18px 0 4px">云电脑更新清单（每台都要做）</h3>
-    <div class="steps">
-      <div class="step"><b>现在（#760 合并前）</b>：找 PM 拿最新 <code>wecom_reply_loop.py</code>（当前应为 <code>v2026-07-02.11</code>）覆盖到 <code>C:\akke-wecom</code>。</div>
-      <div class="step"><b>#760 合并后</b>：改为双击 <code>update-wecom.bat</code> 一键自取最新（自动备份、免找 PM）。</div>
-      <div class="step"><b>重启</b>：双击 <code>start-wecom-reply.bat</code> 重新拉起。</div>
-      <div class="step"><b>核对版本</b>：看黑窗启动行打印的 VERSION，是不是最新（<code>v2026-07-02.11</code>，#761 合并后会到 <code>v2026-07-05.x</code>）。</div>
-      <div class="step"><b>验活</b>：确认 <code>wecom_reply_status.json</code> 心跳在动 / 黑窗日志在滚。有问题走 <code>/cloudpc-wecom-autoreply-restart</code>。</div>
-    </div>
-    <div class="hl"><b>一句话给运营：</b>这周服务端的话术升级你们自动就有了；但<b>云电脑上的读屏/心跳升级，得每台机跑一次更新 + 重启</b>才算数——否则等于没更新。</div>
+    <h3>① 更新云电脑上的 loop（每台机都要做）</h3>
+    <div class="cm2">在云电脑打开 PowerShell，整段复制粘贴运行——自动备份旧版、拉取最新（token-free，不用找 PM）：</div>
+    <pre class="cmd">cd C:\akke-wecom
+Copy-Item wecom_reply_loop.py wecom_reply_loop.py.bak -Force   <span class="c"># 备份，出错可改名回滚</span>
+iwr https://raw.githubusercontent.com/upioai/wiki/main/public/akke/wecom-chat/wecom_reply_loop.py -OutFile wecom_reply_loop.py</pre>
+    <div class="cm2">拉取失败等 30s 重试；持续失败才找 PM（可能 GitHub 被挡）。#760 合并后会多一个 <code>update-wecom.bat</code>，双击即自动完成这步。</div>
+
+    <h3>② 重启 + 验证</h3>
+    <ul>
+      <li>关掉正在跑的黑窗 → 双击 <code>start-wecom-reply.bat</code> 重新拉起。</li>
+      <li>看启动行版本号：<code>… 主循环启动 v2026-07-02.11 …</code>——<b>对上才算更新成功</b>（#761 合并后会到 <code>v2026-07-05.x</code>）。</li>
+      <li>确认 <code>wecom_reply_status.json</code> 心跳在动 / 日志在滚。卡住走 <code>/cloudpc-wecom-autoreply-restart</code>。</li>
+    </ul>
+
+    <h3>③ 首次装机 / 换机才要配的（老机器已配好，跳过）</h3>
+    <table class="kv">
+      <tr><td>WECOM_CHAT_ENDPOINT</td><td><code>https://akke-worker-prod.fly.dev/wecom/chat/reply</code>（固定别改）</td></tr>
+      <tr><td>AKKE_WECOM_PERSONA</td><td>本机绑的销售号：<code>xiaoxia</code> / <code>xiaofan</code> / <code>xiaowen</code></td></tr>
+      <tr><td>WECOM_CHAT_SECRET</td><td>大脑端点密钥——<b>真值不公开，找团队内部（Lark）取</b>，所有机器同一个值</td></tr>
+      <tr><td>ANTHROPIC_API_KEY</td><td>你的 OpenRouter key（<code>sk-or-v1-…</code>，给 AI 读消息用）</td></tr>
+      <tr><td>坐标 C_INPUT / C_SEND / C_SESSION1</td><td>本机跑 <code>measure_wecom_coords.py</code> 量（每台分辨率不同，必须量自己的）</td></tr>
+      <tr><td>AKKE_WECOM_DRY_RUN</td><td><code>1</code>=空跑验证（只读不发）/ <code>0</code>=真发</td></tr>
+    </table>
+    <div class="cm2">新机器完整装机流程（装企微 / Python / bootstrap / 量坐标）→ <a href="https://upio.ai/akke/cloud-pc-wecom-autoreply-deploy">部署手册</a>。</div>
+
+    <div class="hl"><b>一句话给运营：</b>话术升级你们自动就有；<b>在每台云电脑跑一次上面①的命令 + ②重启</b>，这周的读屏/心跳升级才真吃到——不做就还是旧版。</div>
   </section>
 
   <div class="foot">
