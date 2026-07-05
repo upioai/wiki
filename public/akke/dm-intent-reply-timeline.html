@@ -65,6 +65,29 @@
   </ul>
 </div>
 
+<div class="card">
+  <b>先看懂几个词（页面里的英文字段 = 人话）</b>
+  <p class="sub" style="margin:4px 0 0">这些是数据库里的字段名，全页会反复出现，先对一眼再往下读就顺了。</p>
+  <div class="tblwrap" style="margin-top:8px">
+  <table>
+  <thead><tr><th>英文字段</th><th>就是这个意思</th></tr></thead>
+  <tbody>
+  <tr><td><code>conversations</code>（会话）</td><td>我们跟某个抖音用户的一整段对话，记一行。本页说的"<b>触达</b>"就是数它。</td></tr>
+  <tr><td><code>messages</code>（消息）</td><td>对话里每来回一条消息，记一行。</td></tr>
+  <tr><td><code>role=customer</code></td><td>消息的"角色 = 客户"——<b>对方发给我们的</b>，也就是"<b>回复</b>"。</td></tr>
+  <tr><td><code>role=ai</code></td><td>"角色 = ai"——<b>我们（机器人小艳）发出去的</b>那条。</td></tr>
+  <tr><td><code>sent_at</code>（发出时间）</td><td>这条 DM <b>真正发出去的时刻</b>。为空 = 还没真发出（只是草稿在排队）。<b>"实发 DM"就是靠它判断的。</b></td></tr>
+  <tr><td><code>last_inbound_at</code></td><td>这段对话<b>最近一次收到对方来信的时间</b>。是另一种记录"客户回复"的信号，靠人工扫收件箱写进去的。</td></tr>
+  <tr><td><code>union 口径</code></td><td>把两种"回复"信号（<code>role=customer</code> 和 <code>last_inbound_at</code>）<b>并起来一起算</b>，补上各自漏掉的。</td></tr>
+  <tr><td><code>intent_label</code>（意向标签）</td><td>机器给每条评论打的分层：高 / 中 / 低意向 / 无关。</td></tr>
+  <tr><td><code>comment_id</code></td><td>这段对话关联的那条抖音评论的编号。为空 = 没关联评论（多半是客户<b>主动私信</b>来的）。</td></tr>
+  <tr><td><code>douyin_user_id</code> / sec_uid</td><td>抖音用户的唯一编号（发 DM 直达他主页靠它，不会发错人）。</td></tr>
+  <tr><td><code>dispatch_queue</code>（派单队列）</td><td>云电脑要发的 DM 排队的地方。</td></tr>
+  </tbody>
+  </table>
+  </div>
+</div>
+
 <div class="statrow">
   <div class="stat"><div class="lbl">全时段 高意向</div><div class="big" style="color:var(--hi)">0.8%</div><div class="sub">3322 触达 / 26 回复</div></div>
   <div class="stat"><div class="lbl">全时段 中意向</div><div class="big" style="color:var(--mid)">0.8%</div><div class="sub">4968 触达 / 39 回复</div></div>
@@ -156,9 +179,10 @@
 </div>
 
 <div class="card" style="margin:8px 0">
-  <b>z=3.3 是什么意思？</b>（一句话看懂）
-  <p style="margin:6px 0 0">这是<b>双比例 z 检验</b>的检验值，用来判断两个比例（中 3.8% vs 高 1.3%）的差距是"<b>真有差</b>"还是"<b>样本少、碰巧凑出来的</b>"。z 值 = 两个比例相差了几个"标准误"。规矩：<b>|z|&gt;1.96 就算"统计显著"</b>（95% 置信、误报率 &lt;5%）。<b>z=3.3 意味着：假如高、中其实没差别，光靠运气抖出这么大的差，概率只有约 1/1000</b>——所以这个差"几乎不是随机噪声"。</p>
-  <p style="margin:8px 0 0"><b class="kwarn">但要划重点：统计显著 ≠ 结论正确。</b>z 检验只回答"是不是随机巧合"，<b>不回答"你的分母对不对"</b>。这里 z=3.3 确实说明"中&gt;高"不是碰巧——可它建在一个<b>错的分母</b>（触达≠实发 DM）上。<b>分母修对后差距消失（4.8% vs 4.7%），z=3.3 也就失去意义了</b>。这正是为什么下面没停在"显著"就下结论，而是一路挖到分母。</p>
+  <b>z=3.3 是什么意思？</b>（不用术语，打个比方）
+  <p style="margin:6px 0 0">我们看到中意向(3.8%)比高意向(1.3%)更爱回。问题是：<b>这真是"中比高强"，还是人少的时候碰巧凑出来的？</b>好比两个人各抛硬币——甲抛 10 次出 6 个正面、乙 10 次出 4 个正面，你还不敢说甲的硬币更好，因为才 10 次、很可能是运气；但要是各抛 1 万次还是这个比例，那就不是运气了。</p>
+  <p style="margin:8px 0 0"><b>z 就是"这有多不像碰运气"的一个分数</b>：数越大，越不像巧合。经验线是 <b>z 超过大约 2，就可以信"不是运气"</b>。<b>z=3.3 = 假如高、中其实一样，纯靠运气抖出这么大的差，机会只有大约千分之一</b>——所以单看这组数字，差距像是真的。</p>
+  <p style="margin:8px 0 0"><b class="kwarn">但最关键一句：z 只能帮你排除"人太少、碰巧"，它管不了"你一开始就数错了对象"。</b>这里 z=3.3 说明"中&gt;高"不是碰巧没错——可这个差是拿<b>错的分母</b>算的（把"排了队、根本没发出去的 DM"也当成发过了）。<b>换成"真发出去的 DM"重算，差距当场消失（4.8% vs 4.7%）</b>，z=3.3 也就没意义了。所以下面没停在"显著"，而是一路查到分母。</p>
 </div>
 
 <h3>按周拆——"中&gt;高"是否每周都成立？</h3>
