@@ -146,6 +146,20 @@
     <tr><td>C · 读 thread 兜底 <span class="b" style="background:#0891b2">二期</span></td><td>有活动的会话开一次 thread 读近几条气泡全抓</td><td class="ok">同窗口极快连发也全抓、最彻底（改动最大）</td></tr>
   </table>
   <div class="win"><b>推荐 B 为主，C 作二期</b>：B 不牺牲单条速度就把「抢答/忽略后续」根治。<b>注意</b>：B 只解决「连发合并」，<span class="hl">对「1 分钟太慢」没帮助</span>——那是发出段的事（优化 C + 发出段提速）。</div>
+
+  <h3>方案 B · 连发 3 条的时效（<span class="hl">近 24h 实测</span>拼，从「最后一条」算起）</h3>
+  <p>例：客户连发 <code>在吗</code> → <code>想问下</code> → <code>全屋多少钱</code>。方案 B 把起点钉在<b>最后一条（第 3 条）</b>、不抢答。B 不改各段耗时，所以时效＝当前端到端实测、锚到第 3 条。下面数字全是库里直查（sent 草稿 n=11，近 24h）：</p>
+  <table>
+    <tr><th>段 / 操作</th><th>实测（秒）</th><th>连发 3 条场景里</th></tr>
+    <tr><td>捕获段（客户发出 → 我们捕获写库）</td><td class="mid">~5–15s（未埋点·估）</td><td>前 2 条也各走一遍</td></tr>
+    <tr><td>① 起草 ΔA（写库 → 草稿 ready）</td><td>min 7 · <b>中位 9</b> · max 17</td><td>msg1/msg2 各烧一次（并行客户打字 → 被作废），msg3 这次进关键路径</td></tr>
+    <tr><td class="bad">② 发送 ΔC（草稿 ready → 发出）</td><td>min 43 · <b class="bad">中位 74</b> · max 163</td><td><b>瓶颈，跟连发几条无关</b></td></tr>
+    <tr><td><b>端到端（写库 → 发出）</b></td><td>min <b>60</b> · 中位 <b class="bad">83</b> · max <b>295（≈5min）</b></td><td>从 msg3 被我们捕获算</td></tr>
+  </table>
+  <div class="warn"><b>连发 3 条 · 实测结论</b>：从「最后一条被我们捕获」到「回复发出」＝ <span class="hl">最快 ~60s / 典型 ~83s / 最慢 ~295s（约 5 分钟）</span>（近 24h n=11）。再加捕获段 ~5–15s，才是从客户真发完第 3 条算起。</div>
+  <div class="callout"><b>怎么读这组数</b>：① <b>大头是发送段 ΔC（中位 74s）</b>，跟连发几条无关——要快得靠「发出段提速」+ 优化 C 的 #778 DOM（<b>还没上机验证</b>，上了应降）；② 起草很快（9s），B 的代价是 msg1/msg2 各多烧一次 ~9s 起草的 <b>token</b>（并行客户打字，<b>不加最终延迟</b>）；③ <b>单条消息 = 同一组数</b>——B 不给单条加固定等待，这正是它比「定时去抖 A」强的地方。</div>
+  <div class="warn"><b>口径诚实说明</b>：以上是<b>当前实测</b>（发送还走 VL、#778 未上机、方案 B 未开发）。#778 DOM 上机 + 发出段提速 + B 落地后，<b>ΔC 应显著下降</b>，届时重测更新——不提前编数。</div>
+
   <div class="warn"><b>状态：方案 B（连发合并）+ 发出段提速，均已定位、未开发。</b>改动碰 <code>api/cron</code>（高危路径）→ 定稿后走 PR + CI。</div>
 
   <footer>Akke · 抖音私信自动化回复 · 2026-07-06 ｜ PR #773 护栏 · #776 漏读 · #778 发送切 DOM · #779 回声误判 ｜ 数据 DB 直查</footer>
