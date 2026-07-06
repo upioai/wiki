@@ -59,6 +59,7 @@ const CATEGORIES = [
     title: '网络 · 科学上网',
     items: [
       { slug: 'self-hosted-vpn', title: '自建科学上网节点', desc: '协议·选 IP·客户端·排障：自建节点的完整脱敏科普。' },
+      { slug: 'cloud-device-network', title: '云电脑 / 云手机连不上？先查代理', desc: '云电脑、云手机时不时打不开、连不上网络，九成是本机代理软件的 fake-IP 模式挡住了 UDP——一眼认出症状 + 三步修复。' },
     ],
   },
   {

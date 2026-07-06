@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>云电脑 / 云手机连不上？先查代理软件 — upio.ai 知识分享</title>
+<meta name="description" content="云电脑、云手机时不时打不开、连不上网络，多半不是云端故障，而是本机的代理软件（Clash / Shadowrocket / Surge）fake-IP 模式挡住了 UDP。这篇教你一眼认出症状，并用三步把它修好。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700;800&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+
+<style>
+:root {
+  --bg: #0a0d14; --bg-elevated: #131720; --bg-deep: #1a1f2b;
+  --border: #232936; --border-strong: #2f3646;
+  --text: #e8eaef; --text-dim: #9ba3b4; --text-muted: #6b7384;
+  --accent:   #8b5cf6; --accent-soft:   rgba(139, 92, 246, 0.15);
+  --accent-2: #60a5fa; --accent-2-soft: rgba(96, 165, 250, 0.13);
+  --accent-3: #34d399; --accent-3-soft: rgba(52, 211, 153, 0.14);
+  --warning:  #fbbf24; --warning-soft:  rgba(251, 191, 36, 0.14);
+  --danger:   #f87171; --danger-soft:   rgba(248, 113, 113, 0.14);
+  --font-display: 'Instrument Serif', 'Source Han Serif SC', Georgia, serif;
+  --font-ui:      'Inter Tight', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; padding: 0;
+  background: var(--bg); color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 15.5px; line-height: 1.7;
+  font-feature-settings: 'cv11', 'ss01', 'tnum';
+  -webkit-font-smoothing: antialiased;
+}
+.crumb-bar {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(10, 13, 20, 0.82);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border-bottom: 1px solid var(--border);
+}
+.crumb-inner {
+  max-width: 920px; margin: 0 auto; padding: 11px 24px;
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--text-muted); letter-spacing: 0.04em;
+}
+.crumb-inner a { color: var(--text-dim); text-decoration: none; transition: color .2s; }
+.crumb-inner a:hover { color: var(--accent); }
+.crumb-inner .sep { margin: 0 8px; color: var(--border-strong); }
+.crumb-inner .cur { color: var(--text-dim); }
+
+.container { max-width: 860px; margin: 0 auto; padding: 52px 24px 100px; }
+
+header.hero { padding: 4px 0 34px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.tag {
+  display: inline-block; padding: 4px 12px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent);
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 18px;
+}
+h1 {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 50px; font-weight: 400; margin: 0 0 16px;
+  letter-spacing: -0.02em; line-height: 1.1;
+  background: linear-gradient(135deg, #f4f5f8 28%, var(--accent) 70%, var(--accent-2) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.subtitle { font-size: 16.5px; color: var(--text-dim); margin: 0 0 24px; max-width: 720px; line-height: 1.65; }
+.subtitle strong { color: var(--text); font-weight: 600; }
+.hero-meta { display: flex; gap: 24px; flex-wrap: wrap; font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); }
+.hero-meta strong { color: var(--text-dim); font-weight: 500; }
+
+.section-head { display: flex; gap: 20px; align-items: baseline; padding-top: 28px; margin-top: 48px; border-top: 1px solid var(--border); }
+.section-head .num { font-family: var(--font-display); font-style: italic; font-size: 64px; line-height: 1; font-weight: 400; color: var(--accent); flex-shrink: 0; }
+.section-head .meta { flex: 1; padding-top: 12px; }
+.section-head h2 { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); letter-spacing: 0.14em; text-transform: uppercase; margin: 0 0 6px; font-weight: 700; }
+.section-head .lede { font-family: var(--font-display); font-style: italic; font-size: 26px; line-height: 1.3; color: var(--text); }
+section { margin-bottom: 20px; }
+section > p { margin: 14px 0; color: var(--text-dim); }
+section > p strong { color: var(--text); font-weight: 600; }
+h3 { font-family: var(--font-ui); font-size: 17.5px; font-weight: 600; color: var(--text); margin: 30px 0 10px; letter-spacing: -0.01em; }
+code { background: var(--bg-deep); padding: 1px 6px; border-radius: 4px; font-size: 0.86em; color: #c4b5fd; font-family: var(--font-mono); }
+a { color: var(--accent-2); text-decoration: none; transition: color .2s; }
+a:hover { color: var(--accent); }
+
+.callout { border-radius: 10px; padding: 14px 18px; margin: 16px 0; font-size: 14px; line-height: 1.7; }
+.callout.info    { background: var(--accent-2-soft); border-left: 3px solid var(--accent-2); color: var(--text-dim); }
+.callout.info strong    { color: var(--accent-2); }
+.callout.warn    { background: var(--warning-soft); border-left: 3px solid var(--warning); color: var(--text-dim); }
+.callout.warn strong    { color: var(--warning); }
+.callout.purple  { background: var(--accent-soft); border-left: 3px solid var(--accent); color: var(--text-dim); }
+.callout.purple strong  { color: var(--accent); }
+.callout.green   { background: var(--accent-3-soft); border-left: 3px solid var(--accent-3); color: var(--text-dim); }
+.callout.green strong   { color: var(--accent-3); }
+.callout.danger  { background: var(--danger-soft); border-left: 3px solid var(--danger); color: var(--text-dim); }
+.callout.danger strong  { color: var(--danger); }
+.callout .src { display:block; margin-top:6px; font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+
+.snip { background: var(--bg-deep); border: 1px solid var(--border); border-radius: 10px; margin: 16px 0; overflow: hidden; }
+.snip .snip-bar { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); letter-spacing: 0.06em; padding: 8px 14px; border-bottom: 1px solid var(--border); background: var(--bg-elevated); }
+.snip pre { margin: 0; padding: 14px 16px; overflow-x: auto; }
+.snip code { background: none; padding: 0; color: var(--text-dim); font-family: var(--font-mono); font-size: 12.5px; line-height: 1.65; white-space: pre; }
+.snip code .cmt { color: var(--text-muted); }
+.snip code .hl  { color: #fca5a5; }
+
+.dtable-wrap { overflow-x: auto; margin: 18px 0; border: 1px solid var(--border); border-radius: 12px; }
+.dtable { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 480px; }
+.dtable th, .dtable td { text-align: left; padding: 11px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.dtable tr:last-child td { border-bottom: none; }
+.dtable th { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); font-weight: 700; background: var(--bg-deep); }
+.dtable td { color: var(--text-dim); line-height: 1.55; }
+.dtable td.feat { color: var(--text); font-weight: 600; white-space: nowrap; }
+.dtable tbody tr:hover td { background: var(--bg-elevated); }
+
+.versus { display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch; margin: 16px 0; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+@media (max-width: 560px) { .versus { grid-template-columns: 1fr; } }
+.vs-side { padding: 16px 18px; }
+.vs-side h4 { margin: 0 0 6px; font-size: 14px; font-weight: 700; font-family: var(--font-mono); letter-spacing: 0.01em; }
+.vs-side p { margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.6; }
+.vs-side.left h4 { color: var(--accent-3); }
+.vs-side.right h4 { color: var(--danger); }
+.vs-mid { display: flex; align-items: center; justify-content: center; padding: 0 8px; font-family: var(--font-display); font-style: italic; font-size: 18px; color: var(--text-muted); border-left: 1px solid var(--border); border-right: 1px solid var(--border); background: var(--bg-deep); }
+@media (max-width: 560px) { .vs-mid { border: none; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 6px; } }
+
+.steps { list-style: none; margin: 18px 0 0; padding: 0; counter-reset: step; }
+.steps > li { position: relative; padding: 0 0 22px 52px; border-left: 2px solid var(--border); margin-left: 16px; }
+.steps > li:last-child { border-left: 2px solid transparent; padding-bottom: 0; }
+.steps > li::before {
+  counter-increment: step; content: counter(step);
+  position: absolute; left: -17px; top: -3px;
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--bg-deep); border: 1px solid var(--border-strong);
+  color: var(--accent); font-family: var(--font-display); font-style: italic; font-size: 18px;
+  display: flex; align-items: center; justify-content: center;
+}
+.steps h3 { margin: -4px 0 8px; }
+.steps p { margin: 8px 0; color: var(--text-dim); font-size: 14.5px; }
+
+.punchline { font-family: var(--font-display); font-style: italic; font-size: 24px; line-height: 1.45; color: var(--text); text-align: center; margin: 44px auto 8px; max-width: 700px; padding: 26px 24px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.punchline .hl { background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight: 400; }
+
+footer { text-align: center; padding: 48px 0 0; font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted); letter-spacing: 0.06em; line-height: 1.8; }
+
+.reveal { opacity: 0; filter: blur(6px); transform: translateY(12px); transition: opacity .6s ease-out, filter .6s ease-out, transform .6s ease-out; }
+.reveal.in-view { opacity: 1; filter: blur(0); transform: translateY(0); }
+
+@media (max-width: 560px) {
+  h1 { font-size: 36px; }
+  .section-head { gap: 12px; }
+  .section-head .num { font-size: 46px; }
+  .section-head .lede { font-size: 21px; }
+  .punchline { font-size: 19px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .reveal { opacity: 1 !important; filter: none !important; transform: none !important; }
+}
+</style>
+</head>
+
+<body>
+
+<nav class="crumb-bar">
+  <div class="crumb-inner">
+    <a href="/">upio.ai</a><span class="sep">/</span><a href="/learn">知识分享</a><span class="sep">/</span><span class="cur">云电脑 / 云手机连不上？先查代理</span>
+  </div>
+</nav>
+
+<div class="container">
+
+  <header class="hero">
+    <span class="tag">网络 · 排障 · 云电脑 / 云手机</span>
+    <h1>云电脑 / 云手机连不上？先查代理软件</h1>
+    <p class="subtitle">云电脑、云手机时不时<strong>打不开、连不上网络</strong>，你以为是云端服务器出了问题，其实九成是你本机的<strong>代理软件（Clash / Shadowrocket / Surge）</strong>在作祟。这篇讲清楚它是怎么挡路的，怎么一眼认出来，以及三步把它修好。</p>
+    <div class="hero-meta">
+      <span><strong>篇幅</strong> 4 节 · 约 5 分钟</span>
+      <span><strong>受众</strong> 全员（含不懂网络的同事）</span>
+      <span><strong>适用</strong> 向日葵云电脑 / 阿里无影 / Parsec / 各类云手机</span>
+    </div>
+  </header>
+
+  <!-- ════════════ 引言 ════════════ -->
+  <section style="margin-top:30px">
+    <p>先说结论，方便你直接照做：<strong>云电脑 / 云手机连不上，第一件事不是重启、不是找客服，而是把代理软件关掉再试一次。</strong>能连上，就锁定是代理的问题，往下看怎么在保留代理的前提下彻底修好。</p>
+    <div class="callout purple">
+      <strong>怎么用这篇 ·</strong> 赶时间就直接跳到 <a href="#fix">第 3 节的三步修复</a>照做。想搞懂「为什么是代理的锅」，再回头看第 1、2 节——理解了原理，下次遇到视频会议卡、游戏联机失败，你也能自己判断。
+    </div>
+  </section>
+
+  <!-- ════════════ 一、症状 ════════════ -->
+  <div class="section-head reveal">
+    <div class="num">01</div>
+    <div class="meta">
+      <h2>Section 01 · 一眼认出</h2>
+      <div class="lede">符合这几条，基本就是代理软件的问题</div>
+    </div>
+  </div>
+  <section>
+    <p>不是所有「连不上」都长一个样。代理软件导致的这一类，有一组很典型的指纹：</p>
+    <div class="dtable-wrap">
+      <table class="dtable">
+        <tr><th>现象</th><th>说明</th></tr>
+        <tr><td class="feat">网页能开，云电脑连不上</td><td>刷网页、发消息一切正常，唯独云电脑 / 云手机 / 视频会议 / 联机游戏连不上或频繁掉线。</td></tr>
+        <tr><td class="feat">串流卡顿、画面撕裂</td><td>能连上但画面一顿一顿、声音断续、鼠标延迟大——连接建立了但数据流传不动。</td></tr>
+        <tr><td class="feat">DNS 显示 198.18.x.x</td><td><strong>最硬的证据。</strong>在网络检测页面看到 DNS / 出口 IP 是 <code>198.18.x.x</code> 开头，几乎 100% 就是代理软件在捣鬼（原因见下一节）。</td></tr>
+      </table>
+    </div>
+    <div class="callout info">
+      <strong>为什么 <code>198.18.x.x</code> 是铁证 ·</strong> 这是一段国际标准里专门留作「测试保留」的地址（RFC 2544），正常上网绝不会分到它。它出现在你的设备上，只有一种解释：代理软件的 <strong>fake-IP 模式</strong>给你伪造了一个假地址。看到它，不用再查别的了。
+    </div>
+  </section>
+
+  <!-- ════════════ 二、根因 ════════════ -->
+  <div class="section-head reveal">
+    <div class="num">02</div>
+    <div class="meta">
+      <h2>Section 02 · 到底哪里堵住了</h2>
+      <div class="lede">代理会转发「网页流量」，却不转发云电脑要的「实时流量」</div>
+    </div>
+  </div>
+  <section>
+    <p>要理解这个问题，先记住一件事：<strong>网页和云电脑用的不是同一种「快递」。</strong></p>
+    <p>刷网页、发消息走的是 <strong>TCP</strong>——像挂号信，一件件确认、丢了重发，慢一点没关系。而云电脑、云手机、视频会议、联机游戏这类<strong>实时画面串流</strong>走的是 <strong>UDP</strong>——像发弹幕，追求快、允许偶尔丢一帧，晚到的画面不如不要。</p>
+    <p>代理软件的 <strong>fake-IP 模式</strong>，会先把你所有的域名解析都拦下来、发一个假 IP（就是那个 <code>198.18.x.x</code>），然后自己决定怎么转发。问题就出在这里——它对两种快递的处理是<strong>不对等的</strong>：</p>
+
+    <div class="versus">
+      <div class="vs-side left">
+        <h4>TCP · 网页流量</h4>
+        <p>代理正常接管、转发。所以你刷网页、发消息毫无异常，感觉「网络好好的」。</p>
+      </div>
+      <div class="vs-mid">而</div>
+      <div class="vs-side right">
+        <h4>UDP · 云电脑串流</h4>
+        <p>代理默认不转发（或需特殊配置）。云电脑的画面数据发出去有去无回，于是连不上、卡成幻灯片。</p>
+      </div>
+    </div>
+
+    <p>这就是为什么现象这么「反直觉」：<strong>你的网络明明没坏，偏偏就云电脑用不了。</strong>不是云端故障，是本机代理把云电脑要走的那条路给堵了。</p>
+    <div class="callout warn">
+      <strong>一句话记住 ·</strong> 代理放行网页（TCP）、拦住云电脑（UDP）。所以「网页能开 = 网络没问题」这个日常经验，在这里是骗你的。
+    </div>
+  </section>
+
+  <!-- ════════════ 三、修复 ════════════ -->
+  <div class="section-head reveal" id="fix">
+    <div class="num">03</div>
+    <div class="meta">
+      <h2>Section 03 · 三步修复</h2>
+      <div class="lede">从最快的临时方案，到一劳永逸的长期配置</div>
+    </div>
+  </div>
+  <section>
+    <ol class="steps">
+      <li>
+        <h3>先关代理，确认是不是它</h3>
+        <p><strong>把 Clash / Shadowrocket / Surge 等代理软件彻底关掉，重新连云电脑。</strong>能连上——恭喜，问题锁定，继续往下做长期方案；还是连不上——不是代理的锅，直接跳到 <a href="#other">第 4 节</a>。</p>
+        <p style="color:var(--text-muted);font-size:13px">这一步只花 10 秒，却能省下你几小时的瞎猜。任何排障都从「用最快的动作缩小范围」开始。</p>
+      </li>
+      <li>
+        <h3>需要保留代理？改两个设置</h3>
+        <p>如果你的工作离不开代理（要访问外网），不用在「关代理」和「用云电脑」之间二选一。在代理软件里改两处，让它别再挡云电脑：</p>
+        <div class="dtable-wrap">
+          <table class="dtable">
+            <tr><th>改哪里</th><th>怎么改</th></tr>
+            <tr><td class="feat">运行模式</td><td>从「全局 / Global」切回<strong>「规则 / Rule」模式</strong>——只让该走代理的走代理，云电脑的流量放行直连。</td></tr>
+            <tr><td class="feat">DNS 模式</td><td>把 DNS 从 <code>fake-ip</code> 改成 <code>redir-host</code>，不再给你伪造 <code>198.18.x.x</code> 假地址。</td></tr>
+            <tr><td class="feat">分流规则</td><td>把云电脑的域名 / IP 单独加一条 <code>DIRECT</code>（直连）规则，确保它绕开代理。</td></tr>
+          </table>
+        </div>
+        <p style="color:var(--text-muted);font-size:13px">前两项是通用开关，绝大多数情况改完就好；第三项是给「改完还偶发」的情况上的双保险。具体菜单名各家客户端略有差异，认准「模式」「DNS」「规则」这几个关键词即可。</p>
+      </li>
+      <li>
+        <h3>还不行？换个网络排除干扰</h3>
+        <p>用<strong>手机热点</strong>连一次云电脑。如果换网就好了，说明堵点不在代理、而在你当前这个网络——通常是公司防火墙或路由器把 UDP 端口封了。这时候找 IT 开放对应端口，或长期改用手机热点 / 别的网络。</p>
+      </li>
+    </ol>
+    <div class="callout green">
+      <strong>给不懂技术的同事 ·</strong> 你只需要记住第 1 步——<strong>「连不上就先关代理软件试试」</strong>。九成情况这一步就解决了。剩下的两步，截图发给懂的同事，或直接把这一页链接甩过去。
+    </div>
+  </section>
+
+  <!-- ════════════ 四、不是代理的情况 ════════════ -->
+  <div class="section-head reveal" id="other">
+    <div class="num">04</div>
+    <div class="meta">
+      <h2>Section 04 · 如果关了代理还是不行</h2>
+      <div class="lede">那就不是这篇讲的问题，按这几条继续排</div>
+    </div>
+  </div>
+  <section>
+    <p>关掉代理、换了网络都没用，说明是另一类问题，简单过一遍：</p>
+    <div class="dtable-wrap">
+      <table class="dtable">
+        <tr><th>方向</th><th>怎么查</th></tr>
+        <tr><td class="feat">局域网封 UDP</td><td>公司 / 酒店 / 校园网常封串流端口。用手机热点验证过就能确诊，找网络管理员开端口。</td></tr>
+        <tr><td class="feat">系统 DNS 被改</td><td>Mac 上用 <code>scutil --dns</code> 看真实 DNS 服务器有没有被别的软件改掉；Windows 看网络适配器的 DNS 设置。</td></tr>
+        <tr><td class="feat">云端 / 客户端本身</td><td>前面都排除了，才轮到怀疑云服务商或客户端版本——这时候找客服才有意义，而不是一上来就找。</td></tr>
+      </table>
+    </div>
+    <div class="callout info">
+      <strong>排障的通用心法 ·</strong> 永远从<strong>「一个动作能排除一大片」</strong>的检查做起：关代理（排除本机代理）→ 换热点（排除本地网络）→ 才到查系统、找客服。顺序反了，就会在最贵的方向上白耗时间。
+    </div>
+  </section>
+
+  <div class="punchline">网页能开不代表网络没坏——<span class="hl">代理放行网页、拦住云电脑</span>，连不上先关代理试一次。</div>
+
+  <footer>
+    整理自团队真实排障记录 · 云电脑 / 云手机连接问题（2026-07-06）<br>
+    upio.ai · 知识分享
+  </footer>
+
+</div>
+
+<script>
+document.querySelectorAll('.reveal').forEach(el => {
+  new IntersectionObserver((entries, obs) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in-view'); obs.unobserve(e.target); } });
+  }, { threshold: 0.15 }).observe(el);
+});
+</script>
+
+</body>
+</html>
