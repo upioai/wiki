@@ -165,6 +165,24 @@
 
   <h2><span class="n">05</span>怎么优化到「15 秒级」端到端</h2>
   <p>现状实测端到端 <b class="bad">≈ 6.5 分钟</b>，其中 <b>C 发送段占 88%（均 340s）</b>。要压到 15 秒级，得同时攻<b>三块延迟</b>——而不是只调一处：</p>
+
+  <h3>先看 C 发送段为什么慢：自动回复<span class="hl">不在私信框就地回，每条走 sec_uid 重开会话</span></h3>
+  <div class="callout"><b>机制：</b>网页版私信箱是<b>全局会话列表</b>，就地回复要先在列表里认出目标会话——认错就把话发给上一个人。所以自动回复<b>每条都从 <code>sec_uid</code> 地址栏直达对方主页 → 点「私信」开一个干净会话 → 身份门校验 → 键入发送</b>（<code>process_web</code>）。<span class="hl">用「导航到唯一主页」换「绝不发错人」，代价是每条多背 1 次整页重载 + 3~4 次 Qwen VL 调用。</span>（<b>DOM 版 <code>send_dom</code> 也走 sec_uid 开会话</b>，区别只在它用 CDP/DOM 定位、零 VL——所以快，见下。）</div>
+
+  <h3>sec_uid 路径 · 单条<span class="hlx">最快</span>耗时拆解（GUI 段，固定 sleep 来自 <code>douyin_dm_web_grounded.py</code>）</h3>
+  <table>
+    <tr><th>步</th><th>动作</th><th>机制</th><th>最快耗时</th></tr>
+    <tr><td>①</td><td>地址栏直达主页 <code>goto_profile</code></td><td>Ctrl+L→清空→SendInput 键入 URL→Enter→等整页重载</td><td><b>~6.1s</b>（固定 0.8+0.2+0.2+0.4 + 等待 4.5）</td></tr>
+    <tr><td>②</td><td>主页身份门 <code>ocr_verify</code></td><td>1 次 Qwen VL 读主页、确认落到对的人</td><td class="mid">~5–7s（1 VL）</td></tr>
+    <tr><td>③</td><td>关注 + 点赞最新作品</td><td>best-effort；无坐标/无作品即跳</td><td>跳过=<b class="ok">0s</b>；真点赞+回主页+重导航 <b class="bad">+15~20s</b></td></tr>
+    <tr><td>④</td><td>点「私信」开面板 <code>open_dm_panel</code></td><td>1 VL 定位灰「私信」按钮 + 点击 + 等 3.5s</td><td class="mid">~8–10s（1 VL + 3.5s）</td></tr>
+    <tr><td>⑤</td><td>面板身份门 <code>verify_chat_panel</code></td><td>1 VL 读面板顶部对话对象是不是目标</td><td class="mid">~5–7s（1 VL）</td></tr>
+    <tr><td>⑥</td><td>输入框键入 + 点发送↑</td><td>点输入框(1.0)+SendInput 中文键入+点发送(1.5)</td><td>~4s</td></tr>
+    <tr><td>⑦</td><td>送达核对 <code>_check_rejected</code>+<code>_verify_bubble</code></td><td>VL 读拒收提示 + 气泡确认含本文案</td><td class="mid">~5–7s（1 VL）</td></tr>
+  </table>
+  <div class="win"><b>最快合计 ≈ <span class="hlx">35 秒</span></b>（③关注点赞跳过、每步一次过、零重试）。<b>典型 ≈ 40–60s</b>：命中作品要点赞并重导航（+<code>goto_profile</code> 4.0s）／面板首验假阴性 +2.5s 复核／OCR 判非主页要重导航（wait 逐次 +2.0s）。<span class="hl">这 35s 只是 GUI 段</span>——端到端还要叠上下面三块延迟（捕获轮询 15s + 草稿生成 ~48s + 180s 调度节流），才凑成 6.5 分钟。</div>
+  <div class="callout"><b>对照 · 同样走 sec_uid，但换 DOM：</b><code>douyin_dm_web_send_dom.py</code> 连隐形 Edge :9222，用 CDP <b>DOM 直接定位输入框</b>（<code>[data-e2e="msg-input"]</code>），<b>零 VL、零像素定位</b>→ 同一条 sec_uid 开会话+键入+发送压到 <b class="ok">~10s</b>。身份靠 DOM 读元素、不靠 VL 读花体名，顺带根治 wrong_chat。<span class="hl">把 35s 砍到 10s 的杠杆是「VL→DOM」，不是「换掉 sec_uid」</span>（sec_uid 是身份保险，两条路都留）。</div>
+
   <table>
     <tr><th>延迟段</th><th>现状</th><th>15s 级手段</th><th>目标</th></tr>
     <tr><td>① 捕获轮询</td><td>poll agent 15s 一轮（已优化）</td><td>保持；或事件驱动</td><td class="ok">~15s</td></tr>
@@ -257,6 +275,31 @@
       <li>想让系统重试的 → 标 <code>approved</code> + 重置 <code>attempts=0</code>（激活 #764 后再放，避免又撞 wrong_chat）</li>
     </ul>
     <p>用 <code>_</code> 前缀诊断脚本 dry-run 先看清单，确认后 <code>--apply</code>。</p>
+  </div>
+
+  <h3>④ 浏览器号发送通道：<span class="hlx">私信框 → sec_uid 直达</span> · <span class="b b-todo">每台云电脑手动切</span></h3>
+  <div class="card">
+    <p><b>两条发送路，代码里靠一个 env 分流</b>（<code>douyin_dm_autoreply.py:202</code> <code>is_web = "web" in AKKE_DM_SCRIPT</code>）：</p>
+    <table>
+      <tr><th>路径</th><th>怎么发</th><th>定位方式</th><th>失败模式</th></tr>
+      <tr><td><b>私信框</b><br><code>reply_in_inbox</code></td><td>在网页私信<b>会话列表就地认出目标会话</b>点开回（不导航）</td><td>按<b>昵称精确匹配</b>会话行、不滚动</td><td class="bad">no_row（认不出行 / 花体名不匹配）· 认错行=发给上一个人</td></tr>
+      <tr><td><b>sec_uid 直达</b><br><code>reply_in_web</code></td><td>每条从 <code>sec_uid</code> 地址栏<b>直达对方主页 → 点「私信」开干净会话 → 发</b>（<code>process_web</code>）</td><td><b>URL 唯一锁人</b>（sec_uid 由 <code>claim_dm_replies</code> 返回）</td><td class="mid">wrong_chat（面板 VL 误读花体名，<b>#764 已修</b>）</td></tr>
+    </table>
+    <div class="callout"><b>为什么切 sec_uid：</b>URL 唯一锁人<b>根治「私信框认不出会话行 no_row / 认错人」</b>——这正是小文 no_row、有大有小误配跑 PC 的病根。<span class="hl">代价是每条要整页重导航（慢，见 §05），但「绝不发错人」优先；提速另由 #764 + VL→DOM 解决，不是靠回退私信框。</span></div>
+    <div class="flow" style="margin-top:6px">
+      <div class="lbl">切换操作（在<b>每台跑该浏览器号自动回复的云电脑</b>上）</div>
+      <div class="box">1. 确认该号<b>能登网页版 Edge</b>（登录未过期）——sec_uid 直达要网页版在线</div>
+      <div class="arrow">↓</div>
+      <div class="box hl">2. 设 env <code>AKKE_DM_SCRIPT=douyin_dm_web_grounded.py</code><br>（<span class="hlx">含 "web"</span> → send() 自动走 <code>reply_in_web</code>/sec_uid；不含 web = 私信框 <code>reply_in_inbox</code>）</div>
+      <div class="arrow">↓</div>
+      <div class="box">3. 确认 <code>AKKE_WEB_TRUST_SECUID_ON_PANEL=1</code>（#764，见 ②）——不然 sec_uid 路径又栽面板 wrong_chat</div>
+      <div class="arrow">↓</div>
+      <div class="box">4. 重启 DOM 自动回复 poll agent（skill <code>cloudpc-dom-dm-restart</code>），让它<b>重读 env</b></div>
+      <div class="arrow">↓</div>
+      <div class="box green">5. 验活：send 日志从 <code>（就地回复·不搜号）</code> 变 <code>（web·sec_uid 直达主页发）</code>，且 <code>no_row</code> 不再出现</div>
+    </div>
+    <div class="win"><b>连带效果</b>：<code>AKKE_DM_SCRIPT</code> 含 web 时整通道一致切 web——捕获侧走 <code>douyin_dm_web_capture</code>（VL 读私信列表）、poll agent 自动 <code>HANDLE_RESOLVE=0</code> / <code>ENRICH_REQUIRE_NUMBER=0</code>。改一个 env 全链路对齐，不用逐个开关。</div>
+    <div class="warn"><b>两点注意</b>：① sec_uid 只解决「发对人」<b>不提速</b>，每条仍背整页重导航（~35s GUI，见 §05 拆解）；真正快靠切 <code>send_dom</code>（DOM，~10s）。② 每号<b>务必保 Edge 登录有效</b>——登录过期时 sec_uid 直达也会落不到主页 → wrong_user。</div>
   </div>
 
   <footer>Akke · DM 自动回复复盘 · 2026-07-05 ｜ 数据口径：dm_reply_drafts / dispatch_queue / messages（DB 直查，非截图）</footer>
