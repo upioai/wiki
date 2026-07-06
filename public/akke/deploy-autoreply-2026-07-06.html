@@ -173,7 +173,22 @@
   </table>
   <div class="win"><b>推荐 B 为主，C 作二期</b>：B 不牺牲单条速度就把「抢答半句 / 忽略后续」根治，同窗口极快连发（少数）留给 C 兜。静默秒数 / 阈值走 env 可调。</div>
   <div class="callout"><b>本质权衡</b>：要「合并」就必须「等一下」——分歧只在<b>把等待放哪</b>。A 放在「起草前固定等 N 秒」→ 单条受累；B 放在「发送前的自然轮询间隔 + 新消息作废」→ 单条不受累。<span class="hl">所以 B 更优。</span></div>
-  <div class="warn"><b>状态：方案已定，未开发。</b>改动碰 <code>api/cron</code>（高危路径）→ 定稿后走 PR + CI。</div>
+  <h3>方案 B 上线后 · 端到端时效拆解（从客户发完<u>最后一条</u>算起）</h3>
+  <table>
+    <tr><th>步骤</th><th>花费</th><th>说明</th></tr>
+    <tr><td>① 捕获检测（红点，DOM）</td><td><b>0–15s</b>（均 ~8s）</td><td>poll 每 15s 一轮，落在哪一轮看运气</td></tr>
+    <tr><td>② 写库 <code>record_dm_inbound</code></td><td>&lt;1s</td><td>一次 DB 写</td></tr>
+    <tr><td>③ <b>[B] 新消息作废 + 静默确认</b></td><td>单条 <b class="ok">~0</b>；连发＝等最后一条</td><td>合并逻辑：起点钉在最后一条，不额外加时间</td></tr>
+    <tr><td>④ 秒级起草（chatReply LLM）</td><td><b>~5–10s</b></td><td>捕获即触发端点，不等 5min cron</td></tr>
+    <tr><td>⑤ autoSend 内容闸</td><td>&lt;1s</td><td>确定性判定 → <code>approved</code></td></tr>
+    <tr><td>⑥ 发送轮询领取</td><td><b>0–15s</b></td><td>下一轮 poll 领走 approved 草稿</td></tr>
+    <tr><td>⑦ DOM 发送 GUI</td><td><b>~10s</b></td><td>CDP 定位输入框 → 键入 → 发送 → 验气泡</td></tr>
+    <tr><td><b>合计（单条）</b></td><td><b class="hl">~25–50s，典型 ~35s</b></td><td>连发再叠上「客户自己连发那几条的间隔」</td></tr>
+  </table>
+  <div class="callout"><b>时间大头是两处 15s 轮询</b>（①捕获 + ⑥发送领取），占一半以上；LLM 起草和 DOM 发送本身都不慢。<b>方案 B 不拖慢单条</b>——③在单条时 ~0，它只在连发时把「该等的等到位」避免抢答。想更快可把 <code>AKKE_POLL_INTERVAL</code> 从 15s 调小（但增加 CDP/DB 轮询压力，需权衡）。</div>
+  <div class="warn"><b>对照修复前</b>：老的抖音 PC 客户端 VL 版，发送 GUI 段就 ~35s（3–4 次截图 AI），草稿又走 5min cron → 端到端常 <b>6+ 分钟</b>。DOM + 秒级 + B 之后压到 <b>~35s</b>。</div>
+
+  <div class="warn" style="margin-top:14px"><b>状态：方案已定，未开发。</b>改动碰 <code>api/cron</code>（高危路径）→ 定稿后走 PR + CI。</div>
 
   <footer>Akke · 今日部署 + 自动回复优化 · 2026-07-06 ｜ PR #773（负面护栏）· #776（多轮漏读）· 数据 DB 直查</footer>
 </div>
