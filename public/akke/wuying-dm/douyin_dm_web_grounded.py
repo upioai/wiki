@@ -341,8 +341,14 @@ def process_web(c, confirm=False):
     print('  ✅ 已点发送')
 
     # ⑥ 送达核对(复用 PC 版): 负向拒收提示 + 正向气泡含本文案。挡不住 7911 静默限频。
-    rejected = _check_rejected()
-    verified = False if rejected else _verify_bubble(msg)
+    # _check_rejected 返回 4 元组 (rejected, modal_type, reason, sample)——必须拆包，
+    # 否则「非空元组恒为真」→ 每条 web 发送都被误判 rejected(PC 路径已拆、web 曾漏拆)。
+    rejected, post_modal_type, _modal_reason, _post_sample = _check_rejected()
+    verified = False if (rejected or post_modal_type) else _verify_bubble(msg)
+    if post_modal_type:
+        print('  ⚠️  [post-send modal] type=%s → blocked_%s(账号已风控)'
+              % (post_modal_type, post_modal_type))
+        return 'blocked_%s' % post_modal_type, conf
     if rejected:
         print('  [拒绝] 检测到对方拒收/无法送达 → rejected(不计成功)')
         return 'rejected', conf
