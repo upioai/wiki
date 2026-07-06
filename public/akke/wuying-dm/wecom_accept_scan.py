@@ -39,13 +39,22 @@ if hasattr(sys.stdout, 'reconfigure'):
 MIN_INTERVAL = int(os.environ.get('AKKE_WECOM_RECHECK_MIN_INTERVAL', '30'))
 MAX_INTERVAL = int(os.environ.get('AKKE_WECOM_RECHECK_MAX_INTERVAL', '60'))
 
+# passed 二次把关（收紧，2026-07-06 假绿卡教训）：只认无歧义「已是好友」证据。
+# 病根=旧逻辑把「发消息」当通过，但同公司同事/服务号/某些未通过态也有「发消息」→ 误判高发
+# （同 PR #721 对 grounded already 的判定，这里落到复查路径）。
+_CONF_MIN = float(os.environ.get('AKKE_WECOM_RECHECK_CONF_MIN', '0.9'))
+_PASS_MARKERS = ('已是好友', '已经是好友', '你们已经是好友', '已添加到通讯录', '已在通讯录', '对方已通过')
+_PENDING_MARKERS = ('等待验证', '等待对方', '申请已发送', '重新发送', '已发送申请', '正在验证')
+
 _RECHECK_PROMPT = (
     '这是企业微信PC客户端搜索「%s」后的截图。我**之前已给该用户发过好友申请**，'
     '现在只判断对方是否已经通过，不要做任何操作。只回严格JSON:'
-    '{"state":"passed|pending|notyet","confidence":0~1,"seen":"看到的按钮文字或提示"}。说明:'
-    ' passed=对方已通过、已成为好友(卡片显示“发消息/已添加/已是好友/已在通讯录”，不再有“添加”);'
+    '{"state":"passed|pending|notyet","confidence":0~1,"seen":"卡片上看到的原文按钮/提示文字"}。判定从严:'
+    ' passed=有**明确成为好友的证据**：卡片显式出现“已是好友/你们已经是好友/已添加到通讯录/已在通讯录”等字样，且**没有**“等待验证”。'
+    ' ⚠️单独一个“发消息”按钮**不算**通过——同公司同事、服务号、以及某些未通过状态也会有“发消息”，必须另有上面那些明确好友字样才判 passed。'
     ' pending=申请还在等待(显示“等待验证/等待对方验证/申请已发送/重新发送”);'
-    ' notyet=显示可以“添加到通讯录/添加”(说明尚未成为好友，可能没收到或已拒)，或“搜不到/该用户不存在”。'
+    ' notyet=显示可“添加到通讯录/添加”(尚未成为好友)、或“搜不到/该用户不存在”、或只看到“发消息”而无明确好友字样(证据不足，保守不判通过)。'
+    ' 拿不准一律选 notyet，宁漏标不误标。'
 )
 
 
@@ -77,8 +86,22 @@ def recheck_one(search_key: str, name: str):
         d = g._pjson(g._vision(b64, _RECHECK_PROMPT % search_key))
         st = str(d.get('state', 'notyet'))
         seen = str(d.get('seen', ''))
+        try:
+            conf = float(d.get('confidence', 0) or 0)
+        except (TypeError, ValueError):
+            conf = 0.0
         if st not in ('passed', 'pending', 'notyet'):
             st = 'notyet'
+        # passed 代码层二次把关：宁漏标不误标。VL 说 passed 也要过三道闸——
+        # ①有「等待验证」等待标记=还没通过 → pending；②置信不够 → 保守 notyet；
+        # ③seen 里没有任何无歧义「已是好友」字样(只有"发消息"等弱信号)→ 不判通过。
+        if st == 'passed':
+            if any(k in seen for k in _PENDING_MARKERS):
+                st, seen = 'pending', '收紧:见等待验证标记,非通过 | ' + seen
+            elif conf < _CONF_MIN:
+                st, seen = 'notyet', '收紧:passed置信%.2f<%.2f,保守不动 | %s' % (conf, _CONF_MIN, seen)
+            elif not any(k in seen for k in _PASS_MARKERS):
+                st, seen = 'notyet', '收紧:无明确已是好友证据(发消息不算),保守不动 | ' + seen
     except Exception as e:
         st, seen = 'error', '%s:%s' % (type(e).__name__, e)
     # 清搜索框回干净态（Esc 两下：关卡片 + 清搜索）
