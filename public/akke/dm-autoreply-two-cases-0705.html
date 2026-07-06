@@ -56,6 +56,10 @@
   footer{color:#9aa3b2;font-size:12px;margin-top:30px;text-align:center;border-top:1px solid #dde1e7;padding-top:14px}
   .hl{background:linear-gradient(180deg,transparent 52%,#fde047 52%);padding:0 3px;font-weight:700;border-radius:2px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
   .hlx{background:#fde047;color:#1c2330;padding:1px 6px;border-radius:4px;font-weight:700;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+  .cmd{background:#0f1623;color:#d6e2f0;border-radius:8px;padding:11px 13px;font:12px/1.6 ui-monospace,Menlo,Consolas,monospace;overflow-x:auto;margin:6px 0;white-space:pre-wrap;word-break:break-word}
+  .cmd .c{color:#6b7a90}
+  .step{margin:14px 0 4px;font-weight:700;color:#3730a3;font-size:14.5px}
+  .step .t{display:inline-block;background:#4338ca;color:#fff;border-radius:6px;padding:1px 8px;font-size:12px;margin-right:7px}
   .ok{color:#16a34a;font-weight:700}.bad{color:#dc2626;font-weight:700}.mid{color:#d97706;font-weight:700}
 </style>
 </head>
@@ -286,20 +290,45 @@
       <tr><td><b>sec_uid 直达</b><br><code>reply_in_web</code></td><td>每条从 <code>sec_uid</code> 地址栏<b>直达对方主页 → 点「私信」开干净会话 → 发</b>（<code>process_web</code>）</td><td><b>URL 唯一锁人</b>（sec_uid 由 <code>claim_dm_replies</code> 返回）</td><td class="mid">wrong_chat（面板 VL 误读花体名，<b>#764 已修</b>）</td></tr>
     </table>
     <div class="callout"><b>为什么切 sec_uid：</b>URL 唯一锁人<b>根治「私信框认不出会话行 no_row / 认错人」</b>——这正是小文 no_row、有大有小误配跑 PC 的病根。<span class="hl">代价是每条要整页重导航（慢，见 §05），但「绝不发错人」优先；提速另由 #764 + VL→DOM 解决，不是靠回退私信框。</span></div>
-    <div class="flow" style="margin-top:6px">
-      <div class="lbl">切换操作（在<b>每台跑该浏览器号自动回复的云电脑</b>上）</div>
-      <div class="box">1. 确认该号<b>能登网页版 Edge</b>（登录未过期）——sec_uid 直达要网页版在线</div>
-      <div class="arrow">↓</div>
-      <div class="box hl">2. 设 env <code>AKKE_DM_SCRIPT=douyin_dm_web_grounded.py</code><br>（<span class="hlx">含 "web"</span> → send() 自动走 <code>reply_in_web</code>/sec_uid；不含 web = 私信框 <code>reply_in_inbox</code>）</div>
-      <div class="arrow">↓</div>
-      <div class="box">3. 确认 <code>AKKE_WEB_TRUST_SECUID_ON_PANEL=1</code>（#764，见 ②）——不然 sec_uid 路径又栽面板 wrong_chat</div>
-      <div class="arrow">↓</div>
-      <div class="box">4. 重启 DOM 自动回复 poll agent（skill <code>cloudpc-dom-dm-restart</code>），让它<b>重读 env</b></div>
-      <div class="arrow">↓</div>
-      <div class="box green">5. 验活：send 日志从 <code>（就地回复·不搜号）</code> 变 <code>（web·sec_uid 直达主页发）</code>，且 <code>no_row</code> 不再出现</div>
-    </div>
-    <div class="win"><b>连带效果</b>：<code>AKKE_DM_SCRIPT</code> 含 web 时整通道一致切 web——捕获侧走 <code>douyin_dm_web_capture</code>（VL 读私信列表）、poll agent 自动 <code>HANDLE_RESOLVE=0</code> / <code>ENRICH_REQUIRE_NUMBER=0</code>。改一个 env 全链路对齐，不用逐个开关。</div>
-    <div class="warn"><b>两点注意</b>：① sec_uid 只解决「发对人」<b>不提速</b>，每条仍背整页重导航（~35s GUI，见 §05 拆解）；真正快靠切 <code>send_dom</code>（DOM，~10s）。② 每号<b>务必保 Edge 登录有效</b>——登录过期时 sec_uid 直达也会落不到主页 → wrong_user。</div>
+    <p style="margin-top:12px"><b>切换只改一个 env</b>：<code>AKKE_DM_SCRIPT</code> 的值<b>含 <code>web</code></b> → auto-reply 自动走 sec_uid（<code>reply_in_web</code>）；值是 <code>douyin_dm_grounded.py</code>（不含 web）= 走私信框（<code>reply_in_inbox</code>）。下面在<b>每台跑该浏览器号自动回复的云电脑 PowerShell</b> 里一步步执行（云电脑路径 <code>C:\akke-wuying\wuying-dm</code>）。</p>
+
+    <div class="step"><span class="t">前提</span>该号网页版 Edge 在线（隐形 Edge :9222 已起、能读到私信列表）。登录过期先按 skill <code>cloudpc-dom-dm-restart</code> 的【登录过期兜底】可见窗口重登，否则 sec_uid 直达也落不到主页 → wrong_user。</div>
+
+    <div class="step"><span class="t">步骤 1</span>查现状：现在走的是哪条路</div>
+    <pre class="cmd">cd C:\akke-wuying\wuying-dm
+Select-String -Path .env -Pattern "AKKE_DM_SCRIPT|AKKE_WEB_TRUST_SECUID_ON_PANEL"</pre>
+    <p><span class="c" style="color:#6b7280;font-size:12.5px">看到 <code>AKKE_DM_SCRIPT=douyin_dm_grounded.py</code>（或没这行）= 现在走<b>私信框</b>，需要改；已经是 <code>...web_send_dom.py</code> / <code>...web_grounded.py</code>（含 web）= 早已走 sec_uid，只需确认 <code>#764</code> 那行在。</span></p>
+
+    <div class="step"><span class="t">步骤 2 · 修改</span>把 <code>AKKE_DM_SCRIPT</code> 改成含 web 的值 + 补 #764 开关</div>
+    <pre class="cmd"><span class="c"># 先备份 .env</span>
+Copy-Item .env .env.bak -Force
+
+<span class="c"># 把 AKKE_DM_SCRIPT 这行替换成含 web 的值（DOM 机标准值；纯 VL 机用 douyin_dm_web_grounded.py）</span>
+(Get-Content .env) -replace '^AKKE_DM_SCRIPT=.*','AKKE_DM_SCRIPT=douyin_dm_web_send_dom.py' | Set-Content .env -Encoding ascii
+
+<span class="c"># 若原本没有这行，补一行</span>
+if(-not (Select-String -Path .env -Pattern '^AKKE_DM_SCRIPT=' -Quiet)){ Add-Content .env "AKKE_DM_SCRIPT=douyin_dm_web_send_dom.py" -Encoding ascii }
+
+<span class="c"># 确认 #764 面板信任 sec_uid（缺则补，避免 sec_uid 路径栽面板 wrong_chat）</span>
+if(-not (Select-String -Path .env -Pattern '^AKKE_WEB_TRUST_SECUID_ON_PANEL=' -Quiet)){ Add-Content .env "AKKE_WEB_TRUST_SECUID_ON_PANEL=1" -Encoding ascii }</pre>
+
+    <div class="step"><span class="t">步骤 3</span>确认改对了</div>
+    <pre class="cmd">Select-String -Path .env -Pattern "AKKE_DM_SCRIPT|AKKE_WEB_TRUST_SECUID_ON_PANEL"</pre>
+    <p><span class="c" style="color:#6b7280;font-size:12.5px">应看到 <code>AKKE_DM_SCRIPT=douyin_dm_web_send_dom.py</code>（含 web）+ <code>AKKE_WEB_TRUST_SECUID_ON_PANEL=1</code>，且<b>只有一行</b> AKKE_DM_SCRIPT（有重复行删掉旧的）。</span></p>
+
+    <div class="step"><span class="t">步骤 4 · 部署</span>重启 poll agent（python-dotenv <b>只在启动读 .env</b>，不重启不生效）</div>
+    <pre class="cmd"><span class="c"># 杀掉旧 poll agent</span>
+Get-CimInstance Win32_Process | Where-Object {$_.CommandLine -like '*wuying_poll_agent*'} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+<span class="c"># 重新起（两条腿：捕获回复 + 发送 都在里面）</span>
+cd C:\akke-wuying\wuying-dm
+py wuying_poll_agent.py</pre>
+
+    <div class="step"><span class="t">步骤 5 · 验活</span>念黑窗日志对照</div>
+    <div class="win">发送段日志从 <code>=== send: … （就地回复·不搜号）===</code> 变成 <code>=== send: … （web·sec_uid 直达主页发）===</code>，每条发出是 <code>[reply] xxx: 已发 ✓</code>；<b><code>no_row</code> / <code>error:no_target</code> 不再出现</b>。捕获侧同时出 <code>web capture[DOM]</code>（AKKE_DM_SCRIPT 含 web 时整通道自动切 web：捕获走 <code>douyin_dm_web_capture</code>、poll agent 自动 <code>HANDLE_RESOLVE=0</code>/<code>ENRICH_REQUIRE_NUMBER=0</code>）。</div>
+
+    <div class="step"><span class="t">回退</span>想退回私信框：<code>.env</code> 把 <code>AKKE_DM_SCRIPT</code> 改回 <code>douyin_dm_grounded.py</code>（不含 web）→ 重启 poll agent（步骤 4）。</div>
+
+    <div class="warn"><b>一句话别忘</b>：sec_uid 只解决「<b>发对人</b>」（根治 no_row/wrong_user），<b>不提速</b>——每条仍背整页重导航（~35s GUI，见 §05 拆解）；真正快靠把发送从 <code>process_web</code> 切 <code>send_dom</code>（DOM，~10s）。</div>
   </div>
 
   <footer>Akke · DM 自动回复复盘 · 2026-07-05 ｜ 数据口径：dm_reply_drafts / dispatch_queue / messages（DB 直查，非截图）</footer>
