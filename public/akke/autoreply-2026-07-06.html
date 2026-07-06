@@ -56,13 +56,13 @@
     <h1>抖音私信 · 自动化回复</h1>
     <div class="sub">机制 · 优化 · 时效 ｜ 2026-07-06</div>
     <span class="tag">全自动闭环</span>
-    <span class="tag" style="background:#4338ca">3 PR 合并 main</span>
-    <div class="line">客户回复 → AI 起草 → 内容闸自动过滤 → 干净的<b>自动发</b>、可能说错的<b>转人工</b>。今天修了 3 处根因（护栏误挡 / 多轮漏读 / <b>发送还在走 VL</b>）。｜ 部署那两台看 <a href="/akke/browser-dm-deploy-2026-07-06">浏览器部署页 →</a></div>
+    <span class="tag" style="background:#4338ca">4 处根因修复</span>
+    <div class="line">客户回复 → AI 起草 → 内容闸自动过滤 → 干净的<b>自动发</b>、可能说错的<b>转人工</b>。今天修了 4 处根因（护栏误挡 / 多轮漏读 / <b>发送还在走 VL</b> / 回声误判真客户）。｜ 部署那两台看 <a href="/akke/browser-dm-deploy-2026-07-06">浏览器部署页 →</a></div>
   </div>
 
   <div class="kpi">
     <div><b class="c1">全自动</b><span>AI起草→闸→自动发</span></div>
-    <div><b class="c2">3</b><span>根因修复 PR</span></div>
+    <div><b class="c2">4</b><span>根因修复 PR</span></div>
     <div><b class="c4">~1 分钟</b><span>当前实测最快(待提速)</span></div>
     <div><b class="c3">9s</b><span>草稿生成(快·不是瓶颈)</span></div>
   </div>
@@ -82,7 +82,7 @@
   <div class="callout"><b>为什么保留「转人工」这道闸</b>：防 AI 把错价格、进入谈判、说废话直接怼到客户脸上。优化 A 就是把「麻烦」这种<b>本该自动发</b>的误挡拆掉，让全自动更顺，而不是拆掉安全闸本身。</div>
 
   <!-- 优化 -->
-  <h2><span class="n">02</span>今天的 3 处根因修复（全账号生效）</h2>
+  <h2><span class="n">02</span>今天的 4 处根因修复（全账号生效）</h2>
 
   <h3>A · 加微确认被「负面护栏」误挡 <span class="b b-pr">PR #773 已合</span></h3>
   <p>客户发来微信号、草稿「好的，我们添加您啦，<b>麻烦</b>通过一下~」这类<b>加微确认</b>，被判「负面/投诉」转人工、不自动发——破坏全自动、丢单。</p>
@@ -110,6 +110,10 @@
   </table>
   <div class="warn"><b>后果（修复前）</b>：① 这是<b>发出段慢（中位 99s）的主因</b>——VL 发送 ~35s+；② 优化 B 的「离开会话」加在 DOM 发送里，<b>对走 VL 的回复路径无效</b>——多轮漏读其实没真修好。</div>
   <div class="win"><b>修</b>：<code>reply_in_web</code> 在 <code>AKKE_WEB_DM_USE_DOM=1</code> 时改用 DOM 发送（连不上 Edge 才回退 VL，绝不丢回复）。<b>一举三得</b>：① 发出段大降；② 优化 B 的离开会话对回复路径<b>真生效</b>；③ 捕获/首触/回复全链路统一 DOM。<span class="hl">生效需云电脑更新脚本 + 重启（见部署页）。</span></div>
+
+  <h3>D · 回声防护误判真客户（「你好，」启发式太宽） <span class="b b-new">PR #779 待合</span></h3>
+  <p>真客户「<b>你好，</b>我看你 IP 在四川，想做全屋定制」被判成<b>我方 opener 回声</b>、转人工不自动回（小罗案）。</p>
+  <div class="warn"><b>根因</b>：防回声（怕把我方自己发的 opener 抓回、自己回自己）用了脆弱启发式 <code>/^你好[，,]/ + 长度≥12</code> 猜「这是我方 opener」，而真客户正好也以「你好，」开头就中招。<b>修</b>：改用<b>回声比对</b>——把触发消息跟<b>我方真实发给该用户的历史消息</b>比对（互相包含才算回声，覆盖预览截断），不再猜前缀；只有我方会说的反问钩（<code>你家几室几厅</code> 等）保留。真客户「你好，」开头不再误伤，真回声照拦。</div>
 
   <!-- 时效 -->
   <h2><span class="n">03</span>端到端时效 · <span class="hl">实测口径</span></h2>
@@ -144,7 +148,7 @@
   <div class="win"><b>推荐 B 为主，C 作二期</b>：B 不牺牲单条速度就把「抢答/忽略后续」根治。<b>注意</b>：B 只解决「连发合并」，<span class="hl">对「1 分钟太慢」没帮助</span>——那是发出段的事（优化 C + 发出段提速）。</div>
   <div class="warn"><b>状态：方案 B（连发合并）+ 发出段提速，均已定位、未开发。</b>改动碰 <code>api/cron</code>（高危路径）→ 定稿后走 PR + CI。</div>
 
-  <footer>Akke · 抖音私信自动化回复 · 2026-07-06 ｜ PR #773 护栏 · #776 漏读 · #778 发送切 DOM ｜ 数据 DB 直查</footer>
+  <footer>Akke · 抖音私信自动化回复 · 2026-07-06 ｜ PR #773 护栏 · #776 漏读 · #778 发送切 DOM · #779 回声误判 ｜ 数据 DB 直查</footer>
 </div>
 </body>
 </html>
