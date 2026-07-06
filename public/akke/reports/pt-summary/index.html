@@ -8,7 +8,7 @@
 <!-- 极简 bootstrap：仅够 load 态 + 裸导航栏（与改造前外观一致）。内容 CSS 全部走 API css 字段，
      注入到下方 <style id="pt-css">，PT_SUMMARY_CSS 为单一真相源 → 永不漂移（不再手抄整块）。 -->
 <style>
-  :root{--bg:#f5f7fb;--ink:#1f2937;--muted:#5f6b7a;--faint:#9aa4b2;--line:#e2e7ef}
+  :root{--bg:#f5f7fb;--ink:#1f2937;--muted:#5f6b7a;--faint:#9aa4b2;--line:#e2e7ef;--blue:#2563eb;--green:#12816f;--green-s:#e7f5f1}
   *{box-sizing:border-box}
   body{margin:0;color:var(--ink);background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;line-height:1.55;font-size:13px}
   .wrap{width:min(1240px,calc(100% - 32px));margin:0 auto;padding:28px 0 80px}
@@ -16,6 +16,19 @@
   .title{font-size:24px;font-weight:700;margin:0;letter-spacing:-.3px}
   .subtitle{color:var(--muted);margin-top:6px;font-size:12.5px}
   .empty{color:var(--faint);text-align:center;padding:26px 0}
+  /* 日期栏 + 单日/区间 toggle（2026-07-06，对齐 team-journey 外观） */
+  .datebar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0 4px}
+  .datebar button{font-size:12px;padding:6px 12px;border:1px solid var(--line);background:#fff;border-radius:8px;cursor:pointer;color:var(--ink)}
+  .datebar button:hover{background:#f1f4f9} .datebar button:disabled{opacity:.4;cursor:not-allowed}
+  .datebar input[type=date]{font-size:13px;padding:5px 10px;border:1px solid var(--line);border-radius:8px;font-family:inherit}
+  .datebar .dphint{font-size:11px;color:var(--faint)}
+  .mode-tabs{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .mode-tabs button{border:0;border-radius:0;padding:6px 14px;background:#fff;font-weight:600}
+  .mode-tabs button.active{background:var(--blue);color:#fff}
+  .mode-tabs button.active:hover{background:var(--blue)}
+  .db-controls{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .db-controls .tilde{color:var(--faint);font-size:13px}
+  .liveflag{font-size:11px;color:var(--green);font-weight:600;background:var(--green-s);border-radius:999px;padding:3px 10px}
 </style>
 <!-- 内容样式由 /api/public/pt-summary 的 css 字段在 render() 时注入，永不与 PT_SUMMARY_CSS 漂移 -->
 <style id="pt-css"></style>
@@ -26,13 +39,25 @@
     <h1 class="title">潜在触达用户旅程汇总复盘 · 野荞 / 饭粒 / 夏夏</h1>
     <div class="subtitle" id="sub">加载中…</div>
     <div class="datebar">
-      <button id="prevb" onclick="goDay(-1)">◀ 前一天</button>
-      <input type="date" id="dp" onchange="goDate(this.value)" />
-      <button id="nextb" onclick="goDay(1)">后一天 ▶</button>
-      <button id="todayb" onclick="goToday()">今天</button>
-      <button onclick="reload()">↻ 立即刷新</button>
-      <span class="liveflag" id="liveflag" style="display:none">🟢 每 30 分钟自动刷新</span>
-      <span class="dphint">日期只切「按日期」当天时间线；「按用户」是当前进度，不分日期。可往回翻历史。</span>
+      <div class="mode-tabs">
+        <button id="mode-day" class="active" onclick="setMode('day')">单日</button>
+        <button id="mode-range" onclick="setMode('range')">区间</button>
+      </div>
+      <span id="day-controls" class="db-controls">
+        <button id="prevb" onclick="goDay(-1)">◀ 前一天</button>
+        <input type="date" id="dp" onchange="goDate(this.value)" />
+        <button id="nextb" onclick="goDay(1)">后一天 ▶</button>
+        <button id="todayb" onclick="goToday()">今天</button>
+        <button onclick="reload()">↻ 立即刷新</button>
+        <span class="liveflag" id="liveflag" style="display:none">🟢 每 30 分钟自动刷新</span>
+      </span>
+      <span id="range-controls" class="db-controls" style="display:none">
+        起 <input type="date" id="rf" />
+        <span class="tilde">~</span>
+        止 <input type="date" id="rt" />
+        <button onclick="applyRange()">查看区间</button>
+      </span>
+      <span class="dphint" id="dphint">日期只切「按日期」当天时间线；「按用户」是当前进度，不分日期。可往回翻历史。</span>
     </div>
   </div>
   <div id="app"><div class="empty">加载中…</div></div>
@@ -42,11 +67,20 @@
   var API = "https://akke.vercel.app/api/public/pt-summary";
   var REFRESH_MS = 30 * 60 * 1000; // 30min
   var DATA_START = "2026-06-03"; // 二次触达状态表起点（之前没有）
+  var MAX_RANGE_DAYS = 14;       // 区间跨度上限（含首尾，对齐后端）
   var timer = null;
+  var curMode = "day";           // "day" | "range"
   var curDate = "";
+  var curFrom = "", curTo = "";   // 区间起止日
   var curIsToday = false;
 
   function bjtToday(){ return new Date(Date.now() + 8*3600000).toISOString().slice(0,10); }
+  // 区间显示标签：6/3–6/5（3天）
+  function fmtRangeLabel(from, to){
+    function md(d){ var p=d.split("-"); return p[1].replace(/^0/,"")+"/"+p[2].replace(/^0/,""); }
+    var n = Math.round((new Date(to+"T00:00:00+08:00") - new Date(from+"T00:00:00+08:00"))/86400000) + 1;
+    return md(from) + "–" + md(to) + "（" + n + "天）";
+  }
   function shiftDate(d, n){
     var t = new Date(d + "T00:00:00+08:00");
     t.setTime(t.getTime() + n*86400000);
@@ -79,10 +113,16 @@
     var sub = document.getElementById("sub");
     var dk = j.dayKpi || {};
     if(sub){
-      sub.innerHTML = "三人汇总 · 当天触达 " + (dk.detected||0)
-        + " · 达标 " + (dk.qualified||0) + " / 卡点 " + (dk.blocked||0)
-        + " · 选定日 " + curDate + (j.isToday ? "（今天，每 30 分钟自动刷新）" : "")
-        + " · 实时直连库 · 更新于 " + fmtClock(j.generatedAt);
+      if(j.isRange){
+        sub.innerHTML = "三人汇总 · 区间 " + fmtRangeLabel(j.from, j.to) + " 合计 · 触达 " + (dk.detected||0)
+          + " · 达标 " + (dk.qualified||0) + " / 卡点 " + (dk.blocked||0)
+          + " · 含首尾两天、跨天汇总（①关注②监控池为当前存量、不随区间变） · 实时直连库 · 更新于 " + fmtClock(j.generatedAt);
+      } else {
+        sub.innerHTML = "三人汇总 · 当天触达 " + (dk.detected||0)
+          + " · 达标 " + (dk.qualified||0) + " / 卡点 " + (dk.blocked||0)
+          + " · 选定日 " + curDate + (j.isToday ? "（今天，每 30 分钟自动刷新）" : "")
+          + " · 实时直连库 · 更新于 " + fmtClock(j.generatedAt);
+      }
     }
   }
 
@@ -100,20 +140,71 @@
       })
       .catch(function(e){ document.getElementById("app").innerHTML = '<div class="empty">网络错误：' + e + '</div>'; });
   }
-  function reload(){ load(curDate || bjtToday()); }
+  function reload(){ if(curMode === "range" && curFrom && curTo) loadRange(curFrom, curTo); else load(curDate || bjtToday()); }
   window.reload = reload;
   function scheduleAuto(){
     if(timer){ clearInterval(timer); timer = null; }
-    if(curIsToday){ timer = setInterval(function(){ load(bjtToday()); }, REFRESH_MS); }
+    // 仅单日·今天自动刷新；区间不自动刷（数据范围固定、避免误读）
+    if(curMode === "day" && curIsToday){ timer = setInterval(function(){ load(bjtToday()); }, REFRESH_MS); }
   }
-  function goToday(){ var t = bjtToday(); if(t !== curDate) load(t); }
-  function goDate(d){ if(d && d !== curDate && d <= bjtToday() && d >= DATA_START) load(d); }
+  function goToday(){ var t = bjtToday(); if(curMode !== "day" || t !== curDate){ curMode="day"; load(t); } }
+  function goDate(d){ if(d && (curMode !== "day" || d !== curDate) && d <= bjtToday() && d >= DATA_START){ curMode="day"; load(d); } }
   function goDay(n){
     var t = shiftDate(curDate || bjtToday(), n);
     if(t > bjtToday() || t < DATA_START) return;
-    load(t);
+    curMode="day"; load(t);
   }
   window.goToday = goToday; window.goDate = goDate; window.goDay = goDay;
+
+  // ── 模式切换：单日 / 区间 ──
+  function setMode(m){
+    curMode = m;
+    document.getElementById("mode-day").classList.toggle("active", m === "day");
+    document.getElementById("mode-range").classList.toggle("active", m === "range");
+    document.getElementById("day-controls").style.display = (m === "day") ? "" : "none";
+    document.getElementById("range-controls").style.display = (m === "range") ? "" : "none";
+    var hint = document.getElementById("dphint");
+    if(m === "range"){
+      if(timer){ clearInterval(timer); timer = null; }   // 区间不自动刷
+      var today = bjtToday();
+      var rf = document.getElementById("rf"), rt = document.getElementById("rt");
+      rf.max = today; rf.min = DATA_START; rt.max = today; rt.min = DATA_START;
+      // 预填：止=当前查看日(或今天)，起=往前 4 天（共 5 天），不早于数据起点
+      var end = (curDate && curDate <= today) ? curDate : today;
+      var start = shiftDate(end, -4); if(start < DATA_START) start = DATA_START;
+      rt.value = end; rf.value = start;
+      if(hint) hint.innerHTML = "选起止日看区间合计（含首尾两天，<b>最多 " + MAX_RANGE_DAYS + " 天</b>）；下面 KPI / 案例 / 时效 + 漏斗③④⑤/出库全部按区间重算（①关注②监控池是当前存量、不随区间变）。<b>注意</b>：区间不自动刷新。";
+    } else {
+      if(hint) hint.textContent = "日期只切「按日期」当天时间线；「按用户」是当前进度，不分日期。可往回翻历史。";
+      load(curDate || bjtToday());
+    }
+  }
+  window.setMode = setMode;
+
+  function applyRange(){
+    var rf = document.getElementById("rf").value, rt = document.getElementById("rt").value;
+    if(!rf || !rt){ alert("请选起始日和结束日"); return; }
+    if(rf > rt){ alert("起始日不能晚于结束日"); return; }
+    if(rt > bjtToday()){ alert("结束日不能晚于今天"); return; }
+    var span = Math.round((new Date(rt+"T00:00:00+08:00") - new Date(rf+"T00:00:00+08:00"))/86400000) + 1;
+    if(span > MAX_RANGE_DAYS){ alert("区间最多 " + MAX_RANGE_DAYS + " 天，当前 " + span + " 天"); return; }
+    loadRange(rf, rt);
+  }
+  window.applyRange = applyRange;
+
+  function loadRange(from, to){
+    curMode = "range"; curFrom = from; curTo = to; curIsToday = false;
+    if(timer){ clearInterval(timer); timer = null; }
+    document.getElementById("app").innerHTML = '<div class="empty">加载中…（区间 ' + fmtRangeLabel(from, to) + '，跨多天稍慢）</div>';
+    fetch(API + "?from=" + from + "&to=" + to + "&_t=" + Date.now(), { cache:"no-store" })
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if(j.error){ document.getElementById("app").innerHTML = '<div class="empty">加载失败：' + j.error + '</div>'; return; }
+        render(j);
+      })
+      .catch(function(e){ document.getElementById("app").innerHTML = '<div class="empty">网络错误：' + e + '</div>'; });
+  }
+  window.loadRange = loadRange;
 
   // 按日期 / 按用户 切换：document 级委托（innerHTML 重渲染后仍有效）。
   document.addEventListener("click", function(e){

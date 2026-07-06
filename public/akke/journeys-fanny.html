@@ -169,6 +169,12 @@
   .ptnav:disabled { opacity:.45; cursor:not-allowed; }
   .ptdatepick { color:var(--text); font-variant-numeric:tabular-nums; }
   #ptReload { color:var(--chan); border-color:var(--chan-soft); }
+  /* 单日/区间 toggle（2026-07-06） */
+  .ptmode { display:inline-flex; border:1px solid var(--border-strong); border-radius:10px; overflow:hidden; box-shadow:0 1px 2px rgba(16,24,40,.04); }
+  .ptmode button { background:#fff; border:0; padding:8px 16px; font-size:14px; font-weight:600; cursor:pointer; font-family:inherit; color:var(--text); transition:.15s; }
+  .ptmode button.active { background:#2563eb; color:#fff; }
+  .ptrange { display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:13px; color:var(--text-muted); }
+  .ptrange .tilde { color:var(--text-muted); }
   /* 时间线 · 每步断行 */
   .tline { margin-top:6px; padding-left:12px; border-left:2px solid var(--chan); line-height:1.95; font-size:13.5px; color:var(--text-dim); }
   .tline .s { display:block; }
@@ -421,11 +427,23 @@
          内容用 iframe 隔离（接口自带 PT_SUMMARY_CSS 全局 body/.card/.kpi 规则，直接注入会污染本页样式）。 -->
     <div id="ptFannyShell">
       <div class="ptdatebar">
-        <button class="ptnav" id="pfPrev">◀ 前一天</button>
-        <input type="date" class="ptdatepick" id="pfDate">
-        <button class="ptnav" id="pfNext">后一天 ▶</button>
-        <button class="ptnav" id="pfToday">今天</button>
-        <button class="ptnav" id="pfReload">↻ 立即刷新</button>
+        <div class="ptmode">
+          <button id="pfModeDay" class="active">单日</button>
+          <button id="pfModeRange">区间</button>
+        </div>
+        <span id="pfDayCtl" class="ptrange">
+          <button class="ptnav" id="pfPrev">◀ 前一天</button>
+          <input type="date" class="ptdatepick" id="pfDate">
+          <button class="ptnav" id="pfNext">后一天 ▶</button>
+          <button class="ptnav" id="pfToday">今天</button>
+          <button class="ptnav" id="pfReload">↻ 立即刷新</button>
+        </span>
+        <span id="pfRangeCtl" class="ptrange" style="display:none">
+          起 <input type="date" class="ptdatepick" id="pfRf">
+          <span class="tilde">~</span>
+          止 <input type="date" class="ptdatepick" id="pfRt">
+          <button class="ptnav" id="pfApplyRange">查看区间</button>
+        </span>
         <span id="pfSub" style="font-size:11.5px;color:var(--text-muted);margin-left:6px">加载中…</span>
       </div>
       <iframe id="pfFrame" title="饭粒逐日战况" scrolling="no" style="width:100%;border:0;background:#f5f7fb;border-radius:12px;min-height:200px"></iframe>
@@ -725,33 +743,65 @@ setInterval(load, 60000);
 
 /* ②③④⑤ 饭粒·逐日战况：全动态拉 Akke 公开接口，iframe 隔离 + 自适应高度，按天翻历史（替代写死静态）。 */
 (function(){
-  var PF_API="https://akke.vercel.app/api/public/pt-journey-fanny", PF_OP="饭粒", PF_MIN="2026-06-03", pfCur="";
+  var PF_API="https://akke.vercel.app/api/public/pt-journey-fanny", PF_OP="饭粒", PF_MIN="2026-06-03", PF_MAXR=14, pfCur="", pfMode="day", pfFrom="", pfTo="";
   function pfToday(){ return new Date(Date.now()+8*3600000).toISOString().slice(0,10); }
   function pfShift(d,n){ var t=new Date(d+"T00:00:00+08:00"); t.setTime(t.getTime()+n*86400000); return new Date(t.getTime()+8*3600000).toISOString().slice(0,10); }
   function pfClock(iso){ if(!iso) return "—"; var d=new Date(new Date(iso).getTime()+8*3600000); function p(n){return String(n).padStart(2,"0");} return p(d.getUTCHours())+":"+p(d.getUTCMinutes()); }
+  function pfRangeLabel(from,to){ function md(d){ var p=d.split("-"); return p[1].replace(/^0/,"")+"/"+p[2].replace(/^0/,""); } var n=Math.round((new Date(to+"T00:00:00+08:00")-new Date(from+"T00:00:00+08:00"))/86400000)+1; return md(from)+"–"+md(to)+"（"+n+"天）"; }
+  function pfSpan(from,to){ return Math.round((new Date(to+"T00:00:00+08:00")-new Date(from+"T00:00:00+08:00"))/86400000)+1; }
   function $pf(id){ return document.getElementById(id); }
   function pfSync(){ var t=pfToday(),dp=$pf("pfDate"); if(dp){dp.value=pfCur;dp.min=PF_MIN;dp.max=t;} var nx=$pf("pfNext"),pv=$pf("pfPrev"),tb=$pf("pfToday"); if(nx)nx.disabled=pfCur>=t; if(pv)pv.disabled=pfCur<=PF_MIN; if(tb)tb.disabled=pfCur>=t; }
   function pfRender(j){
     var inner=(j.html||'')+'<scr'+'ipt>function rz(){parent.postMessage({pfH:document.documentElement.scrollHeight},"*");}window.addEventListener("load",rz);window.addEventListener("resize",rz);setTimeout(rz,150);setTimeout(rz,600);</scr'+'ipt>';
     var doc='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><style>'+(j.css||'')+'</style></head><body>'+inner+'</body></html>';
     var f=$pf("pfFrame"); if(f) f.srcdoc=doc;
-    var sub=$pf("pfSub"),dk=j.dayKpi||{}; if(sub) sub.textContent="当天触达 "+(dk.detected||0)+" · 达标 "+(dk.qualified||0)+" / 卡点 "+(dk.blocked||0)+" · 选定日 "+pfCur+(j.isToday?"（今天）":"")+" · 更新于 "+pfClock(j.generatedAt);
+    var sub=$pf("pfSub"),dk=j.dayKpi||{};
+    if(sub){
+      if(j.isRange){ sub.textContent="区间 "+pfRangeLabel(j.from,j.to)+" 合计 · 触达 "+(dk.detected||0)+" · 达标 "+(dk.qualified||0)+" / 卡点 "+(dk.blocked||0)+" · 含首尾两天、跨天汇总 · 更新于 "+pfClock(j.generatedAt); }
+      else { sub.textContent="当天触达 "+(dk.detected||0)+" · 达标 "+(dk.qualified||0)+" / 卡点 "+(dk.blocked||0)+" · 选定日 "+pfCur+(j.isToday?"（今天）":"")+" · 更新于 "+pfClock(j.generatedAt); }
+    }
   }
-  function pfLoad(d){
-    pfCur=d; pfSync();
-    var f=$pf("pfFrame"); if(f) f.srcdoc='<!doctype html><meta charset="utf-8"><body style="font:13px sans-serif;color:#5f6b7a;padding:24px">加载中…</body>';
-    fetch(PF_API+"?date="+d+"&op="+encodeURIComponent(PF_OP)+"&_t="+Date.now(),{cache:"no-store"})
+  function pfLoading(msg){ var f=$pf("pfFrame"); if(f) f.srcdoc='<!doctype html><meta charset="utf-8"><body style="font:13px sans-serif;color:#5f6b7a;padding:24px">'+(msg||"加载中…")+'</body>'; }
+  function pfFetch(qs,onDone){
+    fetch(PF_API+qs+"&op="+encodeURIComponent(PF_OP)+"&_t="+Date.now(),{cache:"no-store"})
       .then(function(r){return r.json();})
-      .then(function(j){ if(j.error){ pfRender({html:'<div style="padding:24px;color:#c0392b">加载失败：'+j.error+'</div>',css:''}); return;} pfRender(j); })
+      .then(function(j){ if(j.error){ pfRender({html:'<div style="padding:24px;color:#c0392b">加载失败：'+j.error+'</div>',css:''}); return;} pfRender(j); if(onDone) onDone(); })
       .catch(function(e){ pfRender({html:'<div style="padding:24px;color:#c0392b">网络错误：'+e+'</div>',css:''}); });
   }
+  function pfLoad(d){ pfMode="day"; pfCur=d; pfSync(); pfLoading(); pfFetch("?date="+d); }
+  function pfLoadRange(from,to){ pfMode="range"; pfFrom=from; pfTo=to; pfLoading("加载中…（区间 "+pfRangeLabel(from,to)+"，跨多天稍慢）"); pfFetch("?from="+from+"&to="+to); }
   function pfGo(n){ var t=pfShift(pfCur||pfToday(),n); if(t>pfToday()||t<PF_MIN) return; pfLoad(t); }
+  // 模式切换：单日 / 区间
+  function pfSetMode(m){
+    pfMode=m;
+    $pf("pfModeDay").classList.toggle("active",m==="day");
+    $pf("pfModeRange").classList.toggle("active",m==="range");
+    $pf("pfDayCtl").style.display=(m==="day")?"":"none";
+    $pf("pfRangeCtl").style.display=(m==="range")?"":"none";
+    if(m==="range"){
+      var t=pfToday(),rf=$pf("pfRf"),rt=$pf("pfRt");
+      rf.max=t; rf.min=PF_MIN; rt.max=t; rt.min=PF_MIN;
+      var end=(pfCur&&pfCur<=t)?pfCur:t, start=pfShift(end,-4); if(start<PF_MIN) start=PF_MIN;
+      rt.value=end; rf.value=start;
+    } else { pfLoad(pfCur||pfToday()); }
+  }
+  function pfApplyRange(){
+    var rf=$pf("pfRf").value, rt=$pf("pfRt").value;
+    if(!rf||!rt){ alert("请选起始日和结束日"); return; }
+    if(rf>rt){ alert("起始日不能晚于结束日"); return; }
+    if(rt>pfToday()){ alert("结束日不能晚于今天"); return; }
+    var span=pfSpan(rf,rt); if(span>PF_MAXR){ alert("区间最多 "+PF_MAXR+" 天，当前 "+span+" 天"); return; }
+    pfLoadRange(rf,rt);
+  }
   window.addEventListener("message",function(e){ if(e.data&&e.data.pfH){ var f=$pf("pfFrame"); if(f) f.style.height=(e.data.pfH+24)+"px"; } });
   var pv=$pf("pfPrev"); if(pv) pv.addEventListener("click",function(){pfGo(-1);});
   var nx=$pf("pfNext"); if(nx) nx.addEventListener("click",function(){pfGo(1);});
   var tb=$pf("pfToday"); if(tb) tb.addEventListener("click",function(){pfLoad(pfToday());});
-  var rl=$pf("pfReload"); if(rl) rl.addEventListener("click",function(){pfLoad(pfCur||pfToday());});
+  var rl=$pf("pfReload"); if(rl) rl.addEventListener("click",function(){ if(pfMode==="range"&&pfFrom&&pfTo) pfLoadRange(pfFrom,pfTo); else pfLoad(pfCur||pfToday()); });
   var dp=$pf("pfDate"); if(dp) dp.addEventListener("change",function(e){ var v=e.target.value; if(v&&v>=PF_MIN&&v<=pfToday()) pfLoad(v); });
+  var md=$pf("pfModeDay"); if(md) md.addEventListener("click",function(){pfSetMode("day");});
+  var mr=$pf("pfModeRange"); if(mr) mr.addEventListener("click",function(){pfSetMode("range");});
+  var ar=$pf("pfApplyRange"); if(ar) ar.addEventListener("click",pfApplyRange);
   if($pf("pfFrame")) pfLoad(pfToday());
 })();
 </script>
