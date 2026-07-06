@@ -242,6 +242,19 @@ def open_conversation(page, nick: str) -> bool:
     return False
 
 
+def _leave_thread(page) -> None:
+    """发完后离开当前会话 thread（导航回抖音首页），让对方后续消息重新产生未读红点。
+
+    根因：send 把会话停在【打开态】→ 对方在已打开的 thread 里接着回 → 抖音判「已读」
+    不标红点 → 红点闸的捕获（douyin_dm_web_capture_dom.py）漏读，多轮对话丢消息。
+    发完主动离开会话，任何后续入站都落在非打开态会话 → 红点恢复可靠。
+    气泡已 _verify_bubble 确认发出（服务端已接收），此时导航不影响送达。"""
+    try:
+        page.goto("https://www.douyin.com/", wait_until="domcontentloaded", timeout=15000)
+    except Exception:
+        pass  # 离开失败不致命：最坏退回原行为（该会话这一轮可能无红点），不影响已发出的消息
+
+
 def send_dom(page, message: str, commit: bool, sec_uid: str = "", nick: str = "", engage: bool = False) -> str:
     """发 message。sec_uid 优先(通用), 否则 nick 列表兜底。commit=False 只打字不发。
     engage=True(首触批量)则进主页后先关注+点赞再开私信; 回复路径保持 False。
@@ -283,7 +296,9 @@ def send_dom(page, message: str, commit: bool, sec_uid: str = "", nick: str = ""
     for _ in range(7):
         page.wait_for_timeout(1000)
         if _verify_bubble(page, message):
+            _leave_thread(page)  # 发完离开 thread，别停在打开态（否则对方续聊无红点被漏读）
             return "sent"
+    _leave_thread(page)
     return "unverified"
 
 
