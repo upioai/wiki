@@ -132,6 +132,12 @@ def open_dm_panel(nick, wait=3.5):
     """主页头部点「私信」灰按钮 → 打开右侧聊天浮层。
     视觉锁「私信」二字(它紧挨红「关注」, 盲点坐标易点成关注)→ 裁到头部右侧放大定位;
     视觉失败才回退固定坐标 WEB_C_DM。"""
+    # 页面可能自动下滚 → 头部「私信」按钮离开定位 region / 固定坐标点空 → dm_panel_failed
+    # (2026-07-06 云电脑现场实测)。点私信前先滚回顶部: scroll 在鼠标位置生效, 不点击, 不依赖焦点。
+    _W, _H = pyautogui.size()
+    pyautogui.moveTo(int(_W * 0.5), int(_H * 0.5))
+    pyautogui.scroll(3000)   # 正数=上滚, 一次滚到顶部, 复位头部
+    time.sleep(0.6)
     pt = None
     try:
         pt = locate(
