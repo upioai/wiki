@@ -111,7 +111,7 @@
   <div class="warn"><b>后果（修复前）</b>：① 这是<b>发出段慢（中位 99s）的主因</b>——VL 发送 ~35s+；② 优化 B 的「离开会话」加在 DOM 发送里，<b>对走 VL 的回复路径无效</b>——多轮漏读其实没真修好。</div>
   <div class="win"><b>修</b>：<code>reply_in_web</code> 在 <code>AKKE_WEB_DM_USE_DOM=1</code> 时改用 DOM 发送（连不上 Edge 才回退 VL，绝不丢回复）。<b>一举三得</b>：① 发出段大降；② 优化 B 的离开会话对回复路径<b>真生效</b>；③ 捕获/首触/回复全链路统一 DOM。<span class="hl">生效需云电脑更新脚本 + 重启（见部署页）。</span></div>
 
-  <h3>D · 回声防护误判真客户（「你好，」启发式太宽） <span class="b b-new">PR #779 待合</span></h3>
+  <h3>D · 回声防护误判真客户（「你好，」启发式太宽） <span class="b b-pr">PR #779 已合</span></h3>
   <p>真客户「<b>你好，</b>我看你 IP 在四川，想做全屋定制」被判成<b>我方 opener 回声</b>、转人工不自动回（小罗案）。</p>
   <div class="warn"><b>根因</b>：防回声（怕把我方自己发的 opener 抓回、自己回自己）用了脆弱启发式 <code>/^你好[，,]/ + 长度≥12</code> 猜「这是我方 opener」，而真客户正好也以「你好，」开头就中招。<b>修</b>：改用<b>回声比对</b>——把触发消息跟<b>我方真实发给该用户的历史消息</b>比对（互相包含才算回声，覆盖预览截断），不再猜前缀；只有我方会说的反问钩（<code>你家几室几厅</code> 等）保留。真客户「你好，」开头不再误伤，真回声照拦。</div>
 
@@ -161,6 +161,30 @@
   <div class="warn"><b>口径诚实说明</b>：以上是<b>当前实测</b>（发送还走 VL、#778 未上机、方案 B 未开发）。#778 DOM 上机 + 发出段提速 + B 落地后，<b>ΔC 应显著下降</b>，届时重测更新——不提前编数。</div>
 
   <div class="warn"><b>状态：方案 B（连发合并）+ 发出段提速，均已定位、未开发。</b>改动碰 <code>api/cron</code>（高危路径）→ 定稿后走 PR + CI。</div>
+
+  <!-- 部署更新指南 -->
+  <h2><span class="n">05</span>部署更新指南（这 4 处修复怎么上到线上）</h2>
+  <p>4 处修复分两类：<b>后端改动（合并即自动部署，无需动云电脑）</b> vs <b>云电脑脚本改动（要手动更新 + 重启）</b>。</p>
+  <table>
+    <tr><th>修复</th><th>改哪</th><th>怎么生效</th></tr>
+    <tr><td>A 护栏「麻烦」#773</td><td>Vercel 后端 <code>src/lib/dm-reply/guardrails.ts</code></td><td class="ok">合并 main → Vercel 自动部署 ✓ 云电脑无需操作</td></tr>
+    <tr><td>D 回声误判 #779</td><td>Vercel 后端 <code>gate.ts</code> / <code>run.ts</code></td><td class="ok">合并 main → Vercel 自动部署 ✓ 云电脑无需操作</td></tr>
+    <tr><td>B 多轮漏读 #776</td><td>云电脑 <code>douyin_dm_web_send_dom.py</code></td><td class="mid">需云电脑更新脚本 + 重启 agent</td></tr>
+    <tr><td>C 发送切 DOM #778</td><td>云电脑 <code>douyin_dm_web_reply.py</code></td><td class="mid">需云电脑更新脚本 + 重启 agent</td></tr>
+  </table>
+  <div class="win"><b>A、D（后端）已随合并自动上线</b>——护栏不再误挡「麻烦」、回声不再误判真客户，<b>所有账号即时生效</b>，运营无需做任何事。</div>
+
+  <h3>B、C（云电脑脚本）· 每台更新 2 个文件 + 重启</h3>
+  <p>在<b>每台跑浏览器 DOM 版的云电脑</b>（小文/文哥/…）PowerShell 里，一台一台来：</p>
+  <div class="flow"><span class="lbl">停 agent → 下 2 个脚本（SHA 钉版 jsDelivr，稳）→ 核对字节数 → 重启</span>
+Get-Process python,py,pythonw -ErrorAction SilentlyContinue | Stop-Process -Force
+cd C:\akke-wuying\wuying-dm
+$b='https://cdn.jsdelivr.net/gh/upioai/wiki@d6c3a57ee99127e02372a82f32c58f8edcde41c5/public/akke/wuying-dm'
+foreach($f in 'douyin_dm_web_reply.py','douyin_dm_web_send_dom.py'){ Copy-Item $f "$f.bak-778" -Force -EA 0; curl.exe -fsS --retry 5 --retry-delay 2 --connect-timeout 15 -o $f "$b/$f"; '{0,-30} {1}' -f $f,(Get-Item $f).Length }
+py -u wuying_poll_agent.py
+  </div>
+  <div class="callout"><b>核对字节数</b>：<code>douyin_dm_web_reply.py</code> → <b>4373</b>；<code>douyin_dm_web_send_dom.py</code> → <b>19310</b>。横幅 <code>rc=off</code> + 你的 account。（完整部署/保活见 <a href="/akke/browser-dm-deploy-2026-07-06" style="color:#4338ca;font-weight:700">浏览器部署页 →</a>）</div>
+  <div class="warn"><b>验证（别只信文档）</b>：重启后盯几条真实自动回复——黑窗应出 DOM 的 <code>[sent]</code>；若出 <code>[reply] DOM 连不上 CDP → 回退 VL</code> = Edge 没连上，检查调试版 Edge。更新后过一阵，从库里重测 ΔC 看是否真降。</div>
 
   <footer>Akke · 抖音私信自动化回复 · 2026-07-06 ｜ PR #773 护栏 · #776 漏读 · #778 发送切 DOM · #779 回声误判 ｜ 数据 DB 直查</footer>
 </div>
