@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>评审：抖音商业获客到企微客服 API 方案（2026-07-06）</title>
+<style>
+  :root { --bg:#f7f8fa; --card:#fff; --ink:#1a1d24; --muted:#666; --line:#e3e6ea; --accent:#2b6cb0; --warn:#b7791f; --warnbg:#fffaf0; --ok:#2f855a; --bad:#c53030; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.75 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; }
+  .wrap { max-width:860px; margin:0 auto; padding:32px 20px 80px; }
+  h1 { font-size:26px; line-height:1.35; margin:0 0 6px; }
+  .meta { color:var(--muted); font-size:14px; margin-bottom:24px; }
+  h2 { font-size:20px; margin:38px 0 12px; padding-top:14px; border-top:2px solid var(--line); }
+  h3 { font-size:16px; margin:22px 0 8px; }
+  p { margin:10px 0; }
+  code { background:#eef1f4; padding:1px 5px; border-radius:4px; font-size:14px; font-family:"SF Mono",Menlo,Consolas,monospace; }
+  pre { background:#1a1d24; color:#e6e9ef; padding:16px; border-radius:8px; overflow-x:auto; font-size:13.5px; line-height:1.6; }
+  pre code { background:none; color:inherit; padding:0; }
+  table { border-collapse:collapse; width:100%; margin:14px 0; font-size:14.5px; display:block; overflow-x:auto; }
+  th,td { border:1px solid var(--line); padding:8px 11px; text-align:left; vertical-align:top; }
+  th { background:#eef1f4; font-weight:600; }
+  .callout { background:var(--warnbg); border:1px solid #f0d894; border-left:4px solid var(--warn); padding:14px 18px; border-radius:8px; margin:18px 0; }
+  .callout.lead { background:#fff5f5; border-color:#feb2b2; border-left-color:var(--bad); }
+  .ok { color:var(--ok); font-weight:600; }
+  .bad { color:var(--bad); font-weight:600; }
+  .warn { color:var(--warn); font-weight:600; }
+  ul,ol { padding-left:22px; }
+  li { margin:5px 0; }
+  .foot { margin-top:48px; padding-top:16px; border-top:1px solid var(--line); color:var(--muted); font-size:13px; }
+  strong { color:#111; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#15171c; --card:#1c1f26; --ink:#e6e9ef; --muted:#9aa2ad; --line:#2c313a; --warnbg:#2a2418; }
+    code { background:#262a31; } th { background:#232830; }
+    .callout { background:#2a2418; } .callout.lead { background:#2a1a1a; border-color:#7a3b3b; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>评审：《抖音商业获客到企业微信对话方案》可行性</h1>
+  <div class="meta">评审日期 2026-07-06 · 来源：外部提供的 12 步实操指南 docx · 评审人 Claude（受 fanny 委托）</div>
+
+  <div class="callout lead">
+    <strong>⚠️ 一句话结论：这条路 Akke 早在 2026-06-10 就走过了。</strong><br>
+    文档描述的核心架构「微信客服 kf API + 自建回调 + 私有化 AI 回复」在 Akke 里<strong>已经全部写完并部署</strong>（PR #268），但撞上了<strong>文档完全没提的一堵硬墙——ICP 备案主体校验</strong>，被迫冻结，团队已转向「方案B：企微 PC 客户端 GUI 自动化」并在生产运行。所以本文档的价值不是「要不要做」，而是<strong>给外部方一份现实纠偏</strong>：官方接口路线有个致命的备案前置条件，不解决它，在企微后台连回调 URL 都存不进去。
+  </div>
+
+  <h2>1. 方案在说什么</h2>
+  <p>一条<strong>付费广告 inbound 漏斗</strong>，跟 Akke 现在「抓评论→主动私信」（免费 outbound 冷启）完全不同：</p>
+  <pre><code>抖音效果图内容 / 巨量信息流广告
+      ↓
+巨量橙子建站落地页（户型渲染 + 测算表单）
+      ↓  DeepLink 唤起微信
+企微「获客助手」加人
+      ↓
+微信客服 API（kf/sync_msg 拉 + kf/send_msg 回）
+      ↓
+私有化大模型知识库自动多轮回复 + 下发 PDF 报价单</code></pre>
+
+  <h2>2. Akke 现状：这套架构我们已经建完 + 已冻结（最重要一节）</h2>
+  <p class="meta">依据：memory <code>project_akke_wecom_kf_integration.md</code>（2026-06-10 深度调研 20 来源定稿）+ 代码实测。</p>
+
+  <h3>2.1 已建成的东西（PR #268 全部上线）</h3>
+  <ul>
+    <li><code>src/lib/wecom/crypto.ts</code>：官方 wxcrypt 协议验签 + AES 加解密，<strong>零依赖</strong>，单测 7/7 通过（本次复跑确认）。</li>
+    <li><code>src/lib/wecom/client.ts</code>：<code>gettoken</code> / <code>kf/sync_msg</code>（cursor 分页）/ <code>kf/send_msg</code>，含 token 过期重试。</li>
+    <li><code>src/lib/wecom/process.ts</code>：收消息→复用现有 <code>chatReply</code>（小艳人设/知识库/few-shot 全现成）→ 拟人化延迟发回；含 48h/5 条窗口防御、<code>wecom_msgid</code> 幂等去重、纯媒体轮兜底话术。</li>
+    <li><code>src/app/api/wecom/kf/callback/route.ts</code>：GET echostr 握手 + POST 5s 内 ack + <code>after()</code> 异步处理。</li>
+    <li><code>WECOM_KF_MODE</code> env 开关：<code>echo</code>（固定回声验通道）/ <code>ai</code>（chatReply 全 AI）。</li>
+    <li><strong>连文档没提的坑都解决了</strong>：企微「企业可信 IP」约束（Vercel 出口 IP 不固定，直连必报 60020）→ 独立 Fly 固定出口代理 <code>akke-wecom-proxy</code>，static egress IP <code>209.71.88.154</code>。</li>
+  </ul>
+  <p><strong>换句话说</strong>：文档问「你们技术团队要不要 AES 报文解密/知识库匹配的技术支持」——这些我们半个月前就写完了。</p>
+
+  <h3>2.2 为什么冻结：ICP 备案主体校验（文档完全没提的硬墙）</h3>
+  <p>企微「接收消息服务器配置」保存回调 URL 时，<strong>会校验该域名的 ICP 备案主体必须与企业主体（杭州辰焰科技）一致或关联</strong>：</p>
+  <ul>
+    <li><code>akke.vercel.app</code> → 拒：「Domain entity verification failed」</li>
+    <li>裸 IP <code>http://209.71.88.154/...</code> → 同样拒（IP 无备案主体）</li>
+    <li>所有境外免备案域名（vercel.app / fly.dev / upio.ai）→ 全部不可用</li>
+    <li>且配置依赖链被锁死：<strong>可信 IP、绑应用都排在「回调 URL 存进去」之后</strong>，域名一卡，整条链断。</li>
+  </ul>
+  <div class="callout"><strong>这是整套官方 API 方案的真正阻塞点。</strong>文档号称「完全规避风控」，却漏了这个最现实的前置。</div>
+
+  <h3>2.3 团队实际在跑的：方案B（企微 GUI 自动化）</h3>
+  <p>因 ICP 卡死，2026-06-11 转向 Windows 企微 PC 客户端 GUI 自动化（云电脑上跑）：VL 读消息 + <code>SendInput</code> 逐字输入发字 + 内联发官方海报，已上线在用（PR #645/#706/#760-762）。大脑同样复用 <code>chatReply</code>，只是把「官方 API 管道」换成「GUI 模拟点」——代价是回到有一定封号风险的 GUI 路线，<strong>这正是官方 API 路线本该消灭、却因 ICP 备案没能落地的东西</strong>。</p>
+
+  <h3>2.4 当前机器状态</h3>
+  <p><code>akke-wecom-proxy</code> 两台机器自 2026-06-16 起停机省钱（<code>auto_start_machines=false</code>），static IP <code>209.71.88.154</code> 仍绑着未丢。<strong>公司一旦拿到备案域名 CNAME 到 Vercel，方案A 代码零改动即可复活。</strong></p>
+
+  <h2>3. 文档本身的技术准确性核对</h2>
+  <h3>✅ 真实存在、能落地的部分</h3>
+  <table>
+    <tr><th>文档说法</th><th>判断</th></tr>
+    <tr><td>企微认证年费 300 元</td><td class="ok">✅</td></tr>
+    <tr><td>微信客服 API：<code>kf/sync_msg</code> + <code>kf/send_msg</code></td><td class="ok">✅ 官方接口（我们已实现）</td></tr>
+    <tr><td>Webhook echostr 握手 + AES 解密回调</td><td class="ok">✅ 已实现，单测过</td></tr>
+    <tr><td><code>media/upload</code>→<code>media_id</code>→发 file 卡片</td><td class="ok">✅ 真实接口</td></tr>
+    <tr><td>微信客服 48h/5 条会话窗口</td><td class="ok">✅ 真实规则（已做窗口防御）</td></tr>
+    <tr><td>巨量橙子建站 + 信息流 + DeepLink</td><td class="ok">✅ 真实产品</td></tr>
+  </table>
+
+  <h3><span class="warn">⚠️</span> 文档的技术硬伤：获客助手 ≠ 微信客服</h3>
+  <p>文档说「获客助手绑定客服号池、拉出加好友名片、然后 <code>kf/send_msg</code> 自动回复」——<strong>把两个不同产品缝在一起</strong>：</p>
+  <ul>
+    <li><strong>获客助手</strong> → 加成销售/设计师的<strong>外部联系人（好友）</strong>。给外部联系人 1:1 自动发消息，企微 API 严格限制，<strong>没有干净的官方接口</strong>（这正是方案B 要靠 GUI 模拟点的根因）。</li>
+    <li><strong>微信客服</strong> → 用户进<strong>客服会话</strong>，才有 <code>kf/send_msg</code> 的 48h 自由回复权。</li>
+  </ul>
+  <p>想要全自动 AI 回复，入口必须是<strong>微信客服链接/二维码</strong>，不是获客助手加好友名片。</p>
+
+  <h3><span class="warn">⚠️</span> 文档漏掉的最大前置：ICP 备案（见 §2.2）</h3>
+  <p>文档号称「完全规避风控封号风险」，却完全没提<strong>回调域名 ICP 备案主体校验</strong>这个把整套架构卡死的前置条件。这是它作为「实操指南」最严重的遗漏。</p>
+
+  <h3><span class="warn">⚠️</span> 不能当事实用的数字</h3>
+  <ul>
+    <li><strong>获客助手「1 元/有效好友」</strong>：按成功获客扣费属实，但单价随行业/地区/竞价浮动，1 元是文档拍的，报预算前要实测。</li>
+    <li><strong>整条 ROI 漏斗</strong>（CTR 3.8% / 唤起 22% / 加粉 68% / 开口 75% / 意向 28% → CPL 4.57、量房 23.27 元/条）：<strong>全是文档拍的「行业平均」，无出处</strong>。装修信息流实际 CPL 常见几十到上百，23 元/条量房偏乐观，<strong>不可写进任何对外承诺</strong>。</li>
+  </ul>
+
+  <h3><span class="warn">⚠️</span> 合规「假合规」隐患</h3>
+  <p>落地页「伪造互动测算表单」、欢迎语谎称「文件 120MB 过大回复 1 才下发」——<strong>接口官方，但话术诱导</strong>，照样会因用户投诉「诱导/骚扰」被限流降权。官方接口只保你不因技术手段被封，保不了因内容被投诉。</p>
+
+  <h2>4. 操作建议（更正版：不是搭 demo，是解备案）</h2>
+  <p>原先「阶段0搭回调 demo 验证」的建议<strong>已作废</strong>——demo 早已建好且验签单测通过，真正卡住的是业务前置。按现实，动作是：</p>
+  <table>
+    <tr><th>步骤</th><th>谁</th><th>动作</th><th>卡点/产出</th></tr>
+    <tr><td><strong>S1 解 ICP 备案域名</strong>（关键路径）</td><td>fanny + 公司/法务</td><td>拿一个<strong>备案主体=杭州辰焰科技（或关联）的域名</strong>，子域 CNAME 到 Vercel；或个人备案变更为企业主体（5-10 工作日）；或新域名企业备案（1-3 周）</td><td>有它=方案A 全链路解冻；没有=官方 API 路线走不了，只能继续方案B GUI</td></tr>
+    <tr><td>S2 复活 proxy</td><td>技术</td><td><code>fly machine start</code> 两台（IP 不变，无需重配可信 IP）</td><td>代理恢复</td></tr>
+    <tr><td>S3 按依赖链配企微后台</td><td>管理员</td><td>回调 URL（备案子域）→ 可信 IP <code>209.71.88.154</code> → 绑「可调用接口的应用」→ 接待方式切 API</td><td>kf 发「测试123」收到 echo 回声 = 通道通</td></tr>
+    <tr><td>S4 切 AI 模式验收</td><td>技术</td><td>Vercel 补 <code>WECOM_KF_APP_SECRET</code> + <code>WECOM_KF_MODE=ai</code></td><td>真实客户消息小艳自动回</td></tr>
+    <tr><td>S5（可选）接前端流量</td><td>运营</td><td>先用抖音主页/视频挂客服链接免费导流验漏斗，算得过账再上巨量付费投放</td><td>真实 CPL 替换文档假数字</td></tr>
+  </table>
+  <p><strong>不要做的事</strong>：① 不重搭已存在的回调代码；② 不照文档搞「获客助手加好友 + kf API」（收不到消息）；③ 落地页/欢迎语不用诱导话术；④ 拿到备案域名前，官方 API 路线无法验收——它不是代码问题。</p>
+
+  <h2>5. 我能怎么验证 / 验证不了什么（诚实交代）</h2>
+  <ul>
+    <li><strong class="ok">能验（已验）</strong>：<code>crypto.test.ts</code> 7/7 通过（本次复跑确认签名+AES 加解密正确）；回调路由/收发逻辑代码路径可读、tsc 通过；echo/ai 双模式逻辑齐全。</li>
+    <li><strong class="bad">验不了（被业务前置卡住，非能力问题）</strong>：<strong>端到端活体验证</strong>（扫码→发消息→AI 回）做不了——因为①企微后台没有备案域名连回调 URL 都存不进去（ICP 墙）；②proxy 机器当前停机；③需要真实 <code>WECOM_KF_APP_SECRET</code>。这三件全是 PM/公司层面动作，不是写代码能解的。</li>
+    <li><strong>一句话</strong>：这套的正确性瓶颈<strong>从来不在代码</strong>（代码半个月前就绿了），在<strong>一个备案域名</strong>。</li>
+  </ul>
+
+  <h2>6. 成本估算</h2>
+  <p class="meta"><strong>实测/官方</strong> = 较确定；<strong>文档拍</strong> = 需实测校准，不可当承诺。</p>
+  <h3>6.1 一次性 / 固定成本</h3>
+  <table>
+    <tr><th>项目</th><th>金额</th><th>来源</th></tr>
+    <tr><td>企微主体认证</td><td>300 元/年</td><td>官方</td></tr>
+    <tr><td>微信客服 API 对接开发</td><td><strong>≈0（已完成，沉没成本 PR #268）</strong></td><td>实测</td></tr>
+    <tr><td><strong>备案域名</strong>（关键新增成本）</td><td>子域 CNAME≈0；个人转企业备案 5-10 工作日；新域名企业备案 1-3 周（域名费百元级 + 时间）</td><td>估</td></tr>
+    <tr><td>Fly proxy 运行</td><td>停机≈0，复活后按时长（极低）</td><td>实测</td></tr>
+    <tr><td>私有化大模型知识库</td><td>若要 2-4 周；<strong>当前已复用 chatReply，验证期不需要</strong></td><td>估</td></tr>
+  </table>
+  <h3>6.2 跑量期变动成本（文档「1 万曝光」口径，数字全为文档拍，仅占位）</h3>
+  <table>
+    <tr><th>节点</th><th>假设</th><th>数量</th><th>费用</th></tr>
+    <tr><td>广告曝光</td><td>CPM~20</td><td>10,000</td><td>约 200 元</td></tr>
+    <tr><td>加成客服</td><td>68%</td><td>56</td><td>获客助手 56 元（1 元/人，文档拍）</td></tr>
+    <tr><td>有效量房线索</td><td>28%</td><td>11</td><td>—</td></tr>
+    <tr><td><strong>合计</strong></td><td></td><td></td><td>约 256 元 → CPL 4.57、量房 23.27 元/条（<strong>偏乐观，仅上限</strong>）</td></tr>
+  </table>
+  <p>LLM 承接成本（Akke 侧）：复用 <code>chatReply</code>，单轮分厘级，相对广告费可忽略，走 OpenRouter 现有额度。</p>
+  <h3>6.3 三档预算参考</h3>
+  <table>
+    <tr><th>档</th><th>花什么</th><th>大致</th><th>目的</th></tr>
+    <tr><td><strong>解冻档</strong></td><td>备案域名（域名费+时间）+ 启机器</td><td>百元级 + 数周时间</td><td>让已建好的方案A 能上线</td></tr>
+    <tr><td><strong>小跑档</strong></td><td>上面 + 首充广告 1-3 千试投</td><td>3,000 元级</td><td>拿真实 CPL 再决策</td></tr>
+    <tr><td><strong>放量档</strong></td><td>广告费按 ROI 放大（+ 私有化知识库若需）</td><td>按实测 CPL×目标线索数</td><td>只在小跑档算得过账后进</td></tr>
+  </table>
+
+  <h2>7. 给外部方案提供者的回话要点</h2>
+  <ol>
+    <li>这套官方 kf API 架构我们已实现（验签/解密/收发/知识库复用全有），<strong>不需要技术细节支持</strong>。</li>
+    <li>你们文档漏了最关键的前置：<strong>回调域名 ICP 备案主体必须匹配企业主体</strong>，境外域名/裸 IP 全被拒——这是整套架构真正的落地阻塞点，建议在指南里补上。</li>
+    <li>「获客助手加好友」与「微信客服 kf API 自动回」是两条链路，不能缝在一起（前者无合规自动回接口）。</li>
+    <li>ROI 漏斗数字请标注为「行业估算，需实测」，别当承诺。</li>
+  </ol>
+
+  <div class="foot">本页由评审 markdown（<code>docs/analysis/2026-07-06-douyin-wecom-kf-api-review.md</code>）渲染。现状依据 memory <code>project_akke_wecom_kf_integration.md</code> + 代码实测（crypto 单测 7/7、proxy fly.toml 停机确认）。</div>
+</div>
+</body>
+</html>
