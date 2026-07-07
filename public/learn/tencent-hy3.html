@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>腾讯 Hy3 拆解：值得换吗 · upio.ai</title>
+<meta name="description" content="腾讯混元 Hy3 正式版发布：架构、定价、优缺点，以及和我们生产在用的 Qwen3-2507 / DeepSeek V4 Flash 摆在一起比——结论是换不换。">
+<meta name="robots" content="index,follow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700;800&display=swap">
+<style>
+  :root{
+    --bg:#0a0d14; --bg-elevated:#131720; --bg-deep:#1a1f2b;
+    --border:#232936; --border-strong:#2f3646;
+    --text:#e8eaef; --text-dim:#9ba3b4; --text-muted:#6b7384;
+    --accent:#8b5cf6; --accent-soft:rgba(139,92,246,.15);
+    --blue:#60a5fa; --blue-soft:rgba(96,165,250,.13);
+    --green:#34d399; --green-soft:rgba(52,211,153,.14);
+    --amber:#fbbf24; --amber-soft:rgba(251,191,36,.14);
+    --red:#f87171; --red-soft:rgba(248,113,113,.13);
+    --font-display:'Instrument Serif','Source Han Serif SC',Georgia,serif;
+    --font-ui:'Inter Tight','Noto Sans SC',-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;
+    --font-mono:'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:var(--font-ui);background:var(--bg);color:var(--text);
+    font-size:15.5px;line-height:1.7;-webkit-font-smoothing:antialiased;
+    font-feature-settings:'cv11','ss01','tnum';min-height:100vh;
+  }
+  .container{max-width:1000px;margin:0 auto;padding:52px 24px 110px}
+
+  .breadcrumb{font-size:12.5px;color:var(--text-muted);margin-bottom:20px;font-family:var(--font-mono)}
+  .breadcrumb a{color:var(--text-dim);text-decoration:none;transition:color .2s}
+  .breadcrumb a:hover{color:var(--accent)}
+  .breadcrumb span{margin:0 8px;color:var(--border-strong)}
+
+  header.hero{padding:6px 0 26px;border-bottom:1px solid var(--border)}
+  .tag{display:inline-block;padding:4px 12px;border-radius:999px;background:var(--accent-soft);
+    color:var(--accent);font-family:var(--font-mono);font-size:11px;font-weight:600;
+    letter-spacing:.12em;text-transform:uppercase;margin-bottom:16px}
+  h1{font-family:var(--font-display);font-style:italic;font-size:52px;font-weight:400;
+    margin:0 0 14px;letter-spacing:-.02em;line-height:1.06;
+    background:linear-gradient(135deg,#f4f5f8 30%,var(--accent) 74%,var(--blue) 100%);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+  .subtitle{font-size:16.5px;color:var(--text-dim);margin:0;max-width:720px}
+
+  .note{display:flex;gap:13px;align-items:flex-start;margin:26px 0 0;
+    background:var(--amber-soft);border:1px solid rgba(251,191,36,.3);
+    border-radius:12px;padding:14px 18px;font-size:14px;line-height:1.6;color:#f3d9a0}
+  .note b{color:var(--amber)}
+  .note .ic{font-size:18px;line-height:1.2;flex:0 0 auto}
+  .note em{font-style:normal;color:var(--text);font-weight:600}
+
+  h2{font-family:var(--font-display);font-style:italic;font-weight:400;font-size:30px;
+    letter-spacing:-.01em;margin:52px 0 6px;color:var(--text)}
+  .lead{font-size:14.5px;color:var(--text-muted);margin-bottom:20px;font-family:var(--font-mono);
+    letter-spacing:.02em}
+
+  /* 时间线 */
+  .timeline{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .tl{background:var(--bg-elevated);border:1px solid var(--border);border-radius:14px;padding:18px 20px}
+  .tl .d{font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--blue);letter-spacing:.06em}
+  .tl .t{font-size:15.5px;font-weight:700;color:var(--text);margin:5px 0 6px}
+  .tl p{font-size:13.5px;color:var(--text-dim);line-height:1.6;margin:0}
+
+  /* 参数 stat 行 */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px}
+  .stat{background:var(--bg-elevated);border:1px solid var(--border);border-radius:12px;padding:15px 16px;text-align:center}
+  .stat .v{font-family:var(--font-mono);font-size:22px;font-weight:800;color:var(--text)}
+  .stat .v i{font-style:normal;font-size:13px;color:var(--text-muted);font-weight:500}
+  .stat .k{font-size:12px;color:var(--text-muted);margin-top:3px}
+
+  /* 优缺点双栏 */
+  .pros-cons{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .pc{background:var(--bg-elevated);border:1px solid var(--border);border-radius:16px;padding:20px 22px}
+  .pc .h{font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:.1em;
+    text-transform:uppercase;margin-bottom:14px}
+  .pc.good .h{color:var(--green)}
+  .pc.bad .h{color:var(--red)}
+  .pc ul{list-style:none}
+  .pc li{position:relative;padding:9px 0 9px 24px;font-size:14px;color:var(--text-dim);
+    line-height:1.6;border-bottom:1px solid var(--border)}
+  .pc li:last-child{border-bottom:none;padding-bottom:2px}
+  .pc li b{color:var(--text)}
+  .pc.good li::before{content:"+";position:absolute;left:2px;top:8px;color:var(--green);
+    font-family:var(--font-mono);font-weight:800}
+  .pc.bad li::before{content:"−";position:absolute;left:2px;top:8px;color:var(--red);
+    font-family:var(--font-mono);font-weight:800}
+
+  /* 对比表 */
+  .cmp-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:16px;background:var(--bg-elevated)}
+  table.cmp{width:100%;border-collapse:collapse;font-size:13.5px;min-width:640px}
+  .cmp th{font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--text-muted);text-align:left;padding:14px 16px;
+    border-bottom:1px solid var(--border-strong);white-space:nowrap}
+  .cmp td{padding:13px 16px;border-bottom:1px solid var(--border);color:var(--text-dim);vertical-align:top;line-height:1.55}
+  .cmp tr:last-child td{border-bottom:none}
+  .cmp td:first-child{color:var(--text);font-weight:600;white-space:nowrap}
+  .cmp .mono{font-family:var(--font-mono);font-size:12.5px}
+  .cmp .hl{color:var(--text);font-weight:700}
+  .badge{display:inline-block;font-family:var(--font-mono);font-size:10px;font-weight:700;
+    letter-spacing:.06em;padding:2px 8px;border-radius:999px;margin-left:6px;vertical-align:1px}
+  .badge.ours{background:var(--green-soft);color:var(--green)}
+  .badge.new{background:var(--accent-soft);color:var(--accent)}
+
+  /* 价格条形图 */
+  .cost{background:var(--bg-elevated);border:1px solid var(--border);border-radius:16px;padding:22px 24px}
+  .cost .cbar{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+  .cost .cbar .lbl{width:150px;flex:0 0 auto;font-size:13px;font-weight:600;color:var(--text)}
+  .cost .cbar .lbl small{display:block;font-family:var(--font-mono);font-size:10px;color:var(--text-muted);font-weight:500}
+  .cost .cbar .track{flex:1;height:26px;border-radius:8px;background:var(--bg-deep);position:relative;overflow:hidden}
+  .cost .cbar .track i{display:block;height:100%;border-radius:8px;background:linear-gradient(90deg,var(--c),color-mix(in srgb,var(--c) 60%,#000))}
+  .cost .cbar .val{font-family:var(--font-mono);font-size:12px;color:var(--text-dim);width:110px;flex:0 0 auto;text-align:right}
+  .cost .fine{font-size:12px;color:var(--text-muted);margin-top:6px;line-height:1.55}
+
+  /* benchmark */
+  .bench{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+  .b{background:var(--bg-elevated);border:1px solid var(--border);border-radius:12px;padding:14px 14px;text-align:center}
+  .b .v{font-family:var(--font-mono);font-size:20px;font-weight:800;color:var(--blue)}
+  .b .k{font-size:11.5px;color:var(--text-muted);margin-top:3px;line-height:1.4}
+
+  /* 结论卡 */
+  .verdicts{display:grid;grid-template-columns:1fr;gap:11px}
+  .verdict{display:flex;align-items:flex-start;gap:14px;background:var(--bg-elevated);
+    border:1px solid var(--border);border-left:3px solid var(--c);border-radius:11px;padding:15px 18px}
+  .verdict .chip{flex:0 0 auto;font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--c);
+    background:var(--c-soft);border-radius:8px;padding:6px 10px;white-space:nowrap;margin-top:2px}
+  .verdict .txt{flex:1;font-size:14px;color:var(--text-dim);line-height:1.6}
+  .verdict .txt b{color:var(--text)}
+
+  .takeaway{margin-top:44px;background:linear-gradient(160deg,rgba(139,92,246,.1),rgba(96,165,250,.06));
+    border:1px solid var(--border-strong);border-left:3px solid var(--accent);
+    border-radius:0 16px 16px 0;padding:24px 26px}
+  .takeaway .t{font-family:var(--font-display);font-style:italic;font-size:24px;color:#ece9ff;line-height:1.4;margin-bottom:10px}
+  .takeaway p{font-size:14.5px;color:var(--text-dim);margin:0;line-height:1.65}
+  .takeaway p b{color:var(--text)}
+  .g{color:var(--green);font-weight:700}.pp{color:var(--accent);font-weight:700}.am{color:var(--amber);font-weight:700}
+
+  footer{text-align:center;margin-top:60px;padding-top:26px;border-top:1px solid var(--border);
+    font-family:var(--font-mono);font-size:11.5px;color:var(--text-muted);letter-spacing:.06em;line-height:2}
+
+  @media (max-width:820px){
+    .timeline,.pros-cons{grid-template-columns:1fr}
+    .stats{grid-template-columns:repeat(2,1fr)}
+    .bench{grid-template-columns:repeat(2,1fr)}
+    h1{font-size:38px}
+    .cost .cbar .lbl{width:110px}
+  }
+  @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+  <div class="container">
+
+    <div class="breadcrumb"><a href="/">upio.ai</a><span>/</span><a href="/learn">知识分享</a><span>/</span>腾讯 Hy3</div>
+
+    <header class="hero">
+      <span class="tag">AGENT · AI 工程</span>
+      <h1>腾讯 Hy3：新旗舰拆解，我们要换吗</h1>
+      <p class="subtitle">腾讯混元刚发布的开源权重旗舰 Hy3。这一页讲清它是什么、强在哪、短板在哪，最后把它和我们生产在用的 Qwen3-2507、DeepSeek V4 Flash 摆在一起算账。</p>
+      <div class="note">
+        <span class="ic">💡</span>
+        <div>先说结论：<b>生产两个模型槽都不换</b>。Hy3 的卖点是 Agent 长程任务，<em>不是更便宜的中文对话</em>——而我们的场景恰恰是后者。想验证它的对话质量，OpenRouter 上有免费变体可以零成本跑评测。</div>
+      </div>
+    </header>
+
+    <h2>Hy3 是什么</h2>
+    <p class="lead">腾讯混元新一代旗舰 · 开源权重 · 两步走发布</p>
+    <div class="timeline">
+      <div class="tl">
+        <div class="d">2026-04-23 · PREVIEW</div>
+        <div class="t">Hy3 preview 开源</div>
+        <p>权重上线 GitHub / Hugging Face / ModelScope / GitCode，官方定位「快慢思考融合的混合专家模型」，主打实用性与 Agent 能力。</p>
+      </div>
+      <div class="tl">
+        <div class="d">2026-07-06 · 正式版</div>
+        <div class="t">Hy3 正式版上架</div>
+        <p>OpenRouter 同步上架 <span style="font-family:var(--font-mono);font-size:12px">tencent/hy3</span>，另有零成本的 <span style="font-family:var(--font-mono);font-size:12px">:free</span> 免费变体。正式版与 preview 的具体差异官方未细说。</p>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="v">295B<i> 总参</i></div><div class="k">MoE 混合专家</div></div>
+      <div class="stat"><div class="v">21B<i> 激活</i></div><div class="k">192 专家 · top-8 路由</div></div>
+      <div class="stat"><div class="v">256K</div><div class="k">上下文长度</div></div>
+      <div class="stat"><div class="v">3 档</div><div class="k">推理深度：关 / 低 / 高</div></div>
+    </div>
+
+    <h2>官方成绩单</h2>
+    <p class="lead">以下均为官方自报分数（Hugging Face 模型卡），第三方独立评测还很少——看个量级就好。</p>
+    <div class="bench">
+      <div class="b"><div class="v">87.42</div><div class="k">MMLU<br>(5-shot)</div></div>
+      <div class="b"><div class="v">95.37</div><div class="k">GSM8K<br>(超 Kimi-K2 Base 的 93.46)</div></div>
+      <div class="b"><div class="v">76.28</div><div class="k">MATH<br>(4-shot)</div></div>
+      <div class="b"><div class="v">74.4</div><div class="k">SWE-bench<br>Verified</div></div>
+      <div class="b"><div class="v">87.2</div><div class="k">GPQA<br>Diamond</div></div>
+    </div>
+
+    <h2>优点 · 缺点</h2>
+    <p class="lead">基于官方材料 + 一手平台数据；社区实测反馈还在早期，保持观望。</p>
+    <div class="pros-cons">
+      <div class="pc good">
+        <div class="h">优点</div>
+        <ul>
+          <li><b>为 Agent 长跑而生</b>：官方称真实环境可稳定支撑 495 步的智能体工作流，跨框架 tool-calling 稳定，多轮约束跟踪强。</li>
+          <li><b>快慢思考可调</b>：推理档位关/低/高三档，简单任务直出、难题再开链式思考，一个模型覆盖两类负载。</li>
+          <li><b>反幻觉取向</b>：官方强调「有依据才答，证据不足就明说」，对金融分析、文档处理类场景友好。</li>
+          <li><b>激活参数小、跑得快</b>：295B 总参只激活 21B，官方称推理效率提升 40%、首字延迟降低 54%。</li>
+          <li><b>开源权重 + 价格亲民</b>：腾讯云 TokenHub 输入低至 ¥1.2 / 输出 ¥4 每百万 token；OpenRouter 还有免费变体。</li>
+        </ul>
+      </div>
+      <div class="pc bad">
+        <div class="h">缺点 · 注意</div>
+        <ul>
+          <li><b>正式版 API 不算便宜</b>：OpenRouter 上 $0.20 / $0.80 每百万 token——输出价是 Qwen3-2507 的 8 倍，对话这种输出大头的场景很吃亏。</li>
+          <li><b>许可证是自定义的</b>：「Tencent Hy Community License」，不是 Apache/MIT。走 API 调用不受影响，但自部署权重商用前必须逐条读条款。</li>
+          <li><b>成绩单全是自报</b>：正式版刚发布，第三方独立评测和社区大规模实测都还没沉淀，官方 benchmark 只能当参考。</li>
+          <li><b>preview 与正式版差异不透明</b>：两版定价差 3-4 倍，但能力差异官方没有明确对比，选型时容易踩混。</li>
+          <li><b>能力方向和轻量对话错位</b>：主打长程 Agent、代码、文档分析；纯中文闲聊/短对话用不到这些，等于为用不上的能力付费。</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>和我们在用的模型比</h2>
+    <p class="lead">Akke 生产两个模型槽：中文对话（Qwen3-2507）+ 意向分析（DeepSeek V4 Flash），都走 OpenRouter。</p>
+    <div class="cmp-wrap">
+      <table class="cmp">
+        <tr><th>模型</th><th>架构</th><th>上下文</th><th>定价 $/M（入/出）</th><th>特点</th></tr>
+        <tr>
+          <td>Hy3<span class="badge new">新发布</span></td>
+          <td class="mono">295B / 激活 21B</td>
+          <td class="mono">256K</td>
+          <td class="mono"><span class="hl">$0.20 / $0.80</span></td>
+          <td>Agent 长程、tool-calling、推理三档可调；另有 :free 免费变体</td>
+        </tr>
+        <tr>
+          <td>Hy3 preview</td>
+          <td class="mono">295B / 激活 21B</td>
+          <td class="mono">256K</td>
+          <td class="mono">$0.063 / $0.21</td>
+          <td>4 月先行版，便宜但与正式版差异不明</td>
+        </tr>
+        <tr>
+          <td>Qwen3-235B-2507<span class="badge ours">对话槽在用</span></td>
+          <td class="mono">235B / 激活 22B</td>
+          <td class="mono">262K</td>
+          <td class="mono"><span class="hl">$0.09 / $0.10</span></td>
+          <td>无思考模式直出、延迟低，指令遵循强——适合高频对话</td>
+        </tr>
+        <tr>
+          <td>DeepSeek V4 Flash<span class="badge ours">分析槽在用</span></td>
+          <td class="mono">284B / 激活 13B</td>
+          <td class="mono"><span class="hl">1M</span></td>
+          <td class="mono">$0.09 / $0.18</td>
+          <td>效率优先，高吞吐批量任务的性价比之王</td>
+        </tr>
+      </table>
+    </div>
+
+    <h2>把输出价画出来</h2>
+    <p class="lead">对话/生成类负载的成本大头在输出（$/百万 token 输出价）。</p>
+    <div class="cost">
+      <div class="cbar" style="--c:var(--green)"><span class="lbl">Qwen3-2507<small>对话槽在用</small></span><span class="track"><i style="width:13%"></i></span><span class="val">$0.10</span></div>
+      <div class="cbar" style="--c:var(--green)"><span class="lbl">DS V4 Flash<small>分析槽在用</small></span><span class="track"><i style="width:23%"></i></span><span class="val">$0.18</span></div>
+      <div class="cbar" style="--c:var(--blue)"><span class="lbl">Hy3 preview</span><span class="track"><i style="width:26%"></i></span><span class="val">$0.21</span></div>
+      <div class="cbar" style="--c:var(--amber)"><span class="lbl">Hy3 正式版</span><span class="track"><i style="width:100%"></i></span><span class="val">$0.80</span></div>
+      <div class="fine">同样生成 100 万 token 的对话内容：Qwen3-2507 花 $0.10，Hy3 正式版花 $0.80。能力再强，也得先回答「这 8 倍差价买到了什么」。</div>
+    </div>
+
+    <h2>对我们的结论</h2>
+    <p class="lead">按槽位逐个过。</p>
+    <div class="verdicts">
+      <div class="verdict" style="--c:var(--green);--c-soft:var(--green-soft)">
+        <span class="chip">对话槽 · 不换</span>
+        <div class="txt"><b>Qwen3-2507 继续留任。</b>我们的对话是高频、短输出、要快——2507 无思考模式直出、输出价 $0.10 已经压到地板。Hy3 的长程 Agent 能力这里用不上，输出价还贵 8 倍。</div>
+      </div>
+      <div class="verdict" style="--c:var(--green);--c-soft:var(--green-soft)">
+        <span class="chip">分析槽 · 不换</span>
+        <div class="txt"><b>DeepSeek V4 Flash 继续留任。</b>意向分析是批量吞吐型任务，V4 Flash 有 1M 上下文 + $0.18 输出价，Hy3 在这两项上都不占优。</div>
+      </div>
+      <div class="verdict" style="--c:var(--amber);--c-soft:var(--amber-soft)">
+        <span class="chip">值得做 · 零成本评测</span>
+        <div class="txt"><b>用免费变体跑一轮离线对比。</b>OpenRouter 的 <span style="font-family:var(--font-mono);font-size:12.5px">tencent/hy3:free</span> 零成本，拿我们现成的对话评测集对打 2507：如果中文对话质量真有代差，再回来重算这笔账。免费档一般有限速和数据条款，只用于评测、不接生产。</div>
+      </div>
+    </div>
+
+    <div class="takeaway">
+      <div class="t">Hy3 是「Agent 长跑选手」，我们要的是「对话短跑选手」——赛道不同，不必追新。</div>
+      <p>它确实是国产开源阵营的重要新旗舰：<span class="pp">295B MoE、256K 上下文、三档推理</span>，Agent 场景值得关注。但对我们：<b>两个生产槽都不换</b>——<span class="g">Qwen3-2507 和 V4 Flash 在各自赛道上依然是性价比最优解</span>。行动项只有一个：<span class="am">拿 :free 变体跑离线评测</span>，用数据说话，别凭发布会热度做迁移。</p>
+    </div>
+
+    <footer>
+      upio.ai · 知识分享 · 数据截至 2026-07-07<br>
+      来源：腾讯官方公告 / Hugging Face 模型卡 / OpenRouter 定价页（均为一手来源，逐条核验）· benchmark 为官方自报<br>
+      模型定价随时变动，引用超过 30 天请重新核价
+    </footer>
+  </div>
+</body>
+</html>
