@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fly.io 是什么 · 和 VPS 的区别 · 竞品格局 — upio.ai 知识分享</title>
+<meta name="description" content="我们的「重活」都跑在 Fly.io 上。这篇讲清楚：Fly.io 到底是什么、它和自己租一台 VPS 有什么本质区别、Render / Railway / Heroku / Cloud Run 这些竞品各自站在哪，以及我们为什么选它、踩过哪些坑。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700;800&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+
+<style>
+:root {
+  --bg: #0a0d14; --bg-elevated: #131720; --bg-deep: #1a1f2b;
+  --border: #232936; --border-strong: #2f3646;
+  --text: #e8eaef; --text-dim: #9ba3b4; --text-muted: #6b7384;
+  --accent:   #8b5cf6; --accent-soft:   rgba(139, 92, 246, 0.15);
+  --accent-2: #60a5fa; --accent-2-soft: rgba(96, 165, 250, 0.13);
+  --accent-3: #34d399; --accent-3-soft: rgba(52, 211, 153, 0.14);
+  --warning:  #fbbf24; --warning-soft:  rgba(251, 191, 36, 0.14);
+  --danger:   #f87171; --danger-soft:   rgba(248, 113, 113, 0.14);
+  --font-display: 'Instrument Serif', 'Source Han Serif SC', Georgia, serif;
+  --font-ui:      'Inter Tight', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; padding: 0;
+  background: var(--bg); color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 15.5px; line-height: 1.7;
+  font-feature-settings: 'cv11', 'ss01', 'tnum';
+  -webkit-font-smoothing: antialiased;
+}
+.crumb-bar {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(10, 13, 20, 0.82);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border-bottom: 1px solid var(--border);
+}
+.crumb-inner {
+  max-width: 920px; margin: 0 auto; padding: 11px 24px;
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--text-muted); letter-spacing: 0.04em;
+}
+.crumb-inner a { color: var(--text-dim); text-decoration: none; transition: color .2s; }
+.crumb-inner a:hover { color: var(--accent); }
+.crumb-inner .sep { margin: 0 8px; color: var(--border-strong); }
+.crumb-inner .cur { color: var(--text-dim); }
+
+.container { max-width: 860px; margin: 0 auto; padding: 52px 24px 100px; }
+
+header.hero { padding: 4px 0 34px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.tag {
+  display: inline-block; padding: 4px 12px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent);
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 18px;
+}
+h1 {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 50px; font-weight: 400; margin: 0 0 16px;
+  letter-spacing: -0.02em; line-height: 1.1;
+  background: linear-gradient(135deg, #f4f5f8 28%, var(--accent) 70%, var(--accent-2) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.subtitle { font-size: 16.5px; color: var(--text-dim); margin: 0 0 24px; max-width: 720px; line-height: 1.65; }
+.subtitle strong { color: var(--text); font-weight: 600; }
+.hero-meta { display: flex; gap: 24px; flex-wrap: wrap; font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); }
+.hero-meta strong { color: var(--text-dim); font-weight: 500; }
+
+.section-head { display: flex; gap: 20px; align-items: baseline; padding-top: 28px; margin-top: 48px; border-top: 1px solid var(--border); }
+.section-head .num { font-family: var(--font-display); font-style: italic; font-size: 64px; line-height: 1; font-weight: 400; color: var(--accent); flex-shrink: 0; }
+.section-head .meta { flex: 1; padding-top: 12px; }
+.section-head h2 { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); letter-spacing: 0.14em; text-transform: uppercase; margin: 0 0 6px; font-weight: 700; }
+.section-head .lede { font-family: var(--font-display); font-style: italic; font-size: 26px; line-height: 1.3; color: var(--text); }
+section { margin-bottom: 20px; }
+section > p { margin: 14px 0; color: var(--text-dim); }
+section > p strong { color: var(--text); font-weight: 600; }
+h3 { font-family: var(--font-ui); font-size: 17.5px; font-weight: 600; color: var(--text); margin: 30px 0 10px; letter-spacing: -0.01em; }
+code { background: var(--bg-deep); padding: 1px 6px; border-radius: 4px; font-size: 0.86em; color: #c4b5fd; font-family: var(--font-mono); }
+a { color: var(--accent-2); text-decoration: none; transition: color .2s; }
+a:hover { color: var(--accent); }
+
+.callout { border-radius: 10px; padding: 14px 18px; margin: 16px 0; font-size: 14px; line-height: 1.7; }
+.callout.info    { background: var(--accent-2-soft); border-left: 3px solid var(--accent-2); color: var(--text-dim); }
+.callout.info strong    { color: var(--accent-2); }
+.callout.warn    { background: var(--warning-soft); border-left: 3px solid var(--warning); color: var(--text-dim); }
+.callout.warn strong    { color: var(--warning); }
+.callout.purple  { background: var(--accent-soft); border-left: 3px solid var(--accent); color: var(--text-dim); }
+.callout.purple strong  { color: var(--accent); }
+.callout.green   { background: var(--accent-3-soft); border-left: 3px solid var(--accent-3); color: var(--text-dim); }
+.callout.green strong   { color: var(--accent-3); }
+.callout .src { display:block; margin-top:6px; font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+
+.snip { background: var(--bg-deep); border: 1px solid var(--border); border-radius: 10px; margin: 16px 0; overflow: hidden; }
+.snip .snip-bar { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); letter-spacing: 0.06em; padding: 8px 14px; border-bottom: 1px solid var(--border); background: var(--bg-elevated); }
+.snip pre { margin: 0; padding: 14px 16px; overflow-x: auto; }
+.snip code { background: none; padding: 0; color: var(--text-dim); font-family: var(--font-mono); font-size: 12.5px; line-height: 1.65; white-space: pre; }
+
+.dtable-wrap { overflow-x: auto; margin: 18px 0; border: 1px solid var(--border); border-radius: 12px; }
+.dtable { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 480px; }
+.dtable th, .dtable td { text-align: left; padding: 11px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.dtable tr:last-child td { border-bottom: none; }
+.dtable th { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); font-weight: 700; background: var(--bg-deep); }
+.dtable td { color: var(--text-dim); line-height: 1.55; }
+.dtable td.feat { color: var(--text); font-weight: 600; white-space: nowrap; }
+.dtable tbody tr:hover td { background: var(--bg-elevated); }
+
+.versus { display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch; margin: 16px 0; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+@media (max-width: 560px) { .versus { grid-template-columns: 1fr; } }
+.vs-side { padding: 16px 18px; }
+.vs-side h4 { margin: 0 0 6px; font-size: 14px; font-weight: 700; font-family: var(--font-mono); letter-spacing: 0.01em; }
+.vs-side p { margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.6; }
+.vs-side.left h4 { color: var(--accent-2); }
+.vs-side.right h4 { color: var(--warning); }
+.vs-mid { display: flex; align-items: center; justify-content: center; padding: 0 8px; font-family: var(--font-display); font-style: italic; font-size: 18px; color: var(--text-muted); border-left: 1px solid var(--border); border-right: 1px solid var(--border); background: var(--bg-deep); }
+@media (max-width: 560px) { .vs-mid { border: none; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 6px; } }
+
+.checklist { list-style: none; margin: 18px 0 0; padding: 0; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.checklist li { display: flex; gap: 12px; padding: 13px 18px; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--text-dim); background: var(--bg-elevated); }
+.checklist li:last-child { border-bottom: none; }
+.checklist li::before { content: "→"; color: var(--accent); font-weight: 700; flex-shrink: 0; font-family: var(--font-mono); }
+.checklist li strong { color: var(--text); font-weight: 600; }
+
+.punchline { font-family: var(--font-display); font-style: italic; font-size: 24px; line-height: 1.45; color: var(--text); text-align: center; margin: 44px auto 8px; max-width: 700px; padding: 26px 24px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.punchline .hl { background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight: 400; }
+
+footer { text-align: center; padding: 48px 0 0; font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted); letter-spacing: 0.06em; line-height: 1.8; }
+
+.reveal { opacity: 0; filter: blur(6px); transform: translateY(12px); transition: opacity .6s ease-out, filter .6s ease-out, transform .6s ease-out; }
+.reveal.in-view { opacity: 1; filter: blur(0); transform: translateY(0); }
+
+@media (max-width: 560px) {
+  h1 { font-size: 36px; }
+  .section-head { gap: 12px; }
+  .section-head .num { font-size: 46px; }
+  .section-head .lede { font-size: 21px; }
+  .punchline { font-size: 19px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .reveal { opacity: 1 !important; filter: none !important; transform: none !important; }
+}
+</style>
+</head>
+
+<body>
+
+<nav class="crumb-bar">
+  <div class="crumb-inner">
+    <a href="/">upio.ai</a><span class="sep">/</span><a href="/learn">知识分享</a><span class="sep">/</span><span class="cur">Fly.io · VPS · 竞品格局</span>
+  </div>
+</nav>
+
+<div class="container">
+
+  <header class="hero">
+    <span class="tag">工具入门 · 基建</span>
+    <h1>Fly.io 是什么</h1>
+    <p class="subtitle">在 <a href="/learn/vercel-supabase">Vercel × Supabase</a> 那篇里我们说过：网站门面在 Vercel、数据在 Supabase，而<strong>「重活」都跑在 Fly.io</strong>——长驻的 Python worker、浏览器自动化、跑几十分钟的定时任务。这篇把 Fly.io 讲透：它到底是什么、和自己租一台 VPS 有什么本质区别、Render / Railway / Heroku 这些竞品各自站在哪，以及我们为什么选它、踩过哪些坑。</p>
+    <div class="hero-meta">
+      <span><strong>篇幅</strong> 5 章 · 约 10 分钟</span>
+      <span><strong>受众</strong> 全员 · 不需要会写代码</span>
+      <span><strong>主线</strong> 团队真实项目的部署选型</span>
+    </div>
+  </header>
+
+  <!-- ════════════ 引言 ════════════ -->
+  <section style="margin-top:30px">
+    <p>先给一个一句话版本：<strong>Fly.io 是一个「你给它一个 Docker 容器，它帮你在全球把这个容器跑成随时可启停的小虚拟机」的平台</strong>。你不用买服务器、不用装系统、不用配防火墙，一条 <code>fly deploy</code> 命令，应用就在线上跑起来了。</p>
+    <div class="callout purple">
+      <strong>怎么用这篇 ·</strong> 读完你应该能回答三个问题：① 同事说「这个服务部署在 Fly 上」时，那到底意味着什么；② 为什么我们不直接租一台便宜的 VPS；③ 下次有新服务要部署时，该往 Vercel、Fly、还是 VPS 上放。文中所有价格均为 2026 年 7 月官方牌价，以各家 pricing 页为准。
+    </div>
+  </section>
+
+  <!-- ════════════ 一、Fly.io 是什么 ════════════ -->
+  <div class="section-head reveal">
+    <div class="num">01</div>
+    <div class="meta">
+      <h2>Section 01 · What is Fly.io</h2>
+      <div class="lede">把你的容器，跑成贴近用户的全球小虚拟机</div>
+    </div>
+  </div>
+  <section>
+    <p>传统上「把应用放上网」有两条路：要么租一台服务器自己折腾（VPS），要么用全托管平台但被限制得很死（早年的 Heroku）。Fly.io 走中间路线：<strong>你交付的是一个标准 Docker 容器——里面想装什么都行；它负责的是容器之外的一切</strong>——机器、网络、证书、重启、扩缩容。</p>
+
+    <h3>三个核心概念</h3>
+    <div class="dtable-wrap">
+      <table class="dtable">
+        <tr><th>概念</th><th>它是什么</th><th>对你意味着</th></tr>
+        <tr><td class="feat">Firecracker microVM</td><td>亚马逊为 Lambda 研发的轻量虚拟机技术，Fly 用它跑你的容器</td><td>比普通容器隔离更彻底（硬件级），但启动仍是亚秒级</td></tr>
+        <tr><td class="feat">Fly Machines</td><td>可以用命令/API 随时启停的虚拟机，按「秒」计费</td><td>没流量时机器自动停、来请求秒级唤醒——闲置几乎不花钱</td></tr>
+        <tr><td class="feat">Anycast 网络</td><td>全球同一个 IP，用户请求自动路由到最近的机器</td><td>想服务全球用户时，一条命令把应用克隆到多个地区</td></tr>
+      </table>
+    </div>
+
+    <h3>用起来长什么样</h3>
+    <div class="snip">
+      <div class="snip-bar">终端 · 从零到上线只有三步</div>
+      <pre><code>fly launch      # 读你的 Dockerfile，生成 fly.toml 配置
+fly deploy      # 构建镜像 → 推到 Fly → 滚动替换线上机器
+fly status      # 看机器在哪个地区、是不是 started</code></pre>
+    </div>
+    <p>所有配置浓缩在一个 <code>fly.toml</code> 文件里：跑几台机器、多少内存、健康检查打哪个路径、没流量要不要自动停机。这个文件跟代码一起进 Git——<strong>基础设施变成了一段可以 review、可以回滚的文本</strong>。</p>
+
+    <h3>2026 年的 Fly.io：几个容易过时的认知</h3>
+    <div class="callout warn">
+      <strong>免费额度已经没有了 ·</strong> 老教程常说「Fly 有免费额度够跑小项目」——那是 2024 年以前的事。现在新账户只有一次性试用额度，之后纯按用量付费：最小的共享 CPU 机器（256MB 内存）约 <strong>$2/月</strong>，512MB 约 <strong>$3.3/月</strong>（按整月不停机折算；机器停着时几乎不计费）。
+    </div>
+    <div class="callout warn">
+      <strong>地区数量收缩了 ·</strong> 曾经宣传 35 个地区，2025 年 Fly 做了「区域整合」，关掉大量低利用率机房，现在官方列表是 <strong>18 个地区</strong>（北美 7 / 欧洲 5 / 亚太 4 / 南美 1 / 非洲 1）。
+    </div>
+    <div class="callout warn">
+      <strong>数据库故事换了两次 ·</strong> 早年的「Fly Postgres」只是帮你建集群、运维全靠自己（unmanaged，现已废弃）；中间一度把托管数据库交给 Supabase 合作提供，2025 年 4 月终止；现在 Fly 自营的 <strong>Managed Postgres 已正式可用，$38/月起</strong>。不过对小团队来说，独立的 Supabase / Neon 通常仍是更省心的选择——我们的数据库就都不在 Fly 上。
+    </div>
+    <div class="callout info">
+      <strong>口碑两极 ·</strong> 开发者普遍认可 Fly 的开发体验和性价比，但它的<strong>稳定性长期被吐槽</strong>——第三方监测统计 2022 年以来累计 600+ 次故障事件，社区有著名的「reliability: it's not great」长帖。Fly 是一家约 60 人的创业公司（2023 年 C 轮融资 $70M），不是 AWS 那种巨头。用它就要接受：偶尔的平台级抖动是成本的一部分，关键服务要自己配健康监控。
+    </div>
+  </section>
+
+  <!-- ════════════ 二、和 VPS 的区别 ════════════ -->
+  <div class="section-head reveal">
+    <div class="num">02</div>
+    <div class="meta">
+      <h2>Section 02 · Fly.io vs VPS</h2>
+      <div class="lede">租毛坯房，还是住酒店式公寓</div>
+    </div>
+  </div>
+  <section>
+    <p>VPS（Virtual Private Server，虚拟专用服务器）是最经典的形态：你按月整租一台虚拟机，拿到 root 密码，剩下全部自理。它和 Fly.io 的区别不在「便宜多少」，而在<strong>「谁来负责运维」</strong>。</p>
+
+    <div class="versus">
+      <div class="vs-side left">
+        <h4>Fly.io（容器平台）</h4>
+        <p>你只管容器里的应用。系统补丁、防火墙、TLS 证书、崩溃重启、扩缩容都是平台的事。按秒计费，没流量可以自动停机。</p>
+      </div>
+      <div class="vs-mid">vs</div>
+      <div class="vs-side right">
+        <h4>VPS（整租虚拟机）</h4>
+        <p>你拿到一台裸机的 root 权限，自由度最高。但从装系统到续证书，出了任何问题都是你的事。按月整租，闲置照付。</p>
+      </div>
+    </div>
+
+    <h3>责任清单：VPS 上这些活儿全归你</h3>
+    <div class="dtable-wrap">
+      <table class="dtable">
+        <tr><th>运维事项</th><th>VPS 上你要做的</th><th>Fly.io 上</th></tr>
+        <tr><td class="feat">系统安全补丁</td><td>配 unattended-upgrades，内核升级后自己安排重启</td><td>平台负责，你无感</td></tr>
+        <tr><td class="feat">防火墙 / 入侵防护</td><td>ufw + fail2ban + SSH 密钥加固，一样不能少</td><td>默认私网隔离，只暴露你声明的端口</td></tr>
+        <tr><td class="feat">部署流程</td><td>自己写 CI 脚本 / systemd / Docker Compose</td><td><code>fly deploy</code> 一条命令，自带滚动发布</td></tr>
+        <tr><td class="feat">HTTPS 证书</td><td>自装 Nginx/Caddy + Let's Encrypt 并盯续期</td><td>自动签发、自动续期</td></tr>
+        <tr><td class="feat">崩溃自愈</td><td>自己配进程守护和告警</td><td>健康检查失败自动重启</td></tr>
+        <tr><td class="feat">多地区部署</td><td>基本不现实（一台 VPS 就是一个单点）</td><td>一条命令克隆到 18 个地区</td></tr>
+      </table>
+    </div>
+
+    <h3>价格上到底谁便宜？</h3>
+    <p>裸价上 VPS 占优：欧洲低价王 Hetzner 的入门机（2 vCPU / 4GB 内存 / 20TB 流量）约 <strong>€5.49/月</strong>，DigitalOcean 最低 <strong>$4/月</strong>，国内阿里云轻量常有几十元每年的活动价。Fly 的 512MB 小机器 $3.3/月看着更便宜，但内存只有别人零头，流量、磁盘卷也另外计费。</p>
+    <p>但这笔账不能只算房租。<strong>VPS 便宜的前提是你的时间免费</strong>：上面那张责任清单，每一行都要花人的时间去搭建和维护，出事时还要人去救火。对一个没有专职运维的小团队，「每月多花几美元、把整张清单外包给平台」几乎总是划算的——这正是我们的选择。</p>
+    <div class="callout green">
+      <strong>什么时候 VPS 反而是对的 ·</strong> ① 需要跑平台不允许的东西（自建 VPN 节点、特殊内核模块）；② 资源需求大且恒定，7×24 满载跑，按月整租的单价优势才真正兑现；③ 你本来就有运维能力，把折腾当乐趣。我们的科学上网节点就是自建在 VPS 上的——因为那个场景 PaaS 根本不让你跑。
+    </div>
+  </section>
+
+  <!-- ════════════ 三、竞品格局 ════════════ -->
+  <div class="section-head reveal">
+    <div class="num">03</div>
+    <div class="meta">
+      <h2>Section 03 · The Landscape</h2>
+      <div class="lede">同一个赛道站着谁，隔壁赛道又是谁</div>
+    </div>
+  </div>
+  <section>
+    <p>「把应用部署上线」这个市场分三层：<strong>边缘/前端托管</strong>（跑网页和轻函数）、<strong>容器 PaaS</strong>（Fly 所在的赛道，跑任意后端）、<strong>裸 VPS</strong>（什么都能跑但什么都自理）。先看 Fly 的直接对手：</p>
+
+    <h3>同赛道：容器 PaaS</h3>
+    <div class="dtable-wrap">
+      <table class="dtable">
+        <tr><th>平台</th><th>一句话定位</th><th>入门价位</th><th>适合谁</th></tr>
+        <tr><td class="feat">Fly.io</td><td>全球多地区 + 按秒计费的 microVM，CLI 驱动</td><td>512MB 机器约 $3.3/月，纯按用量</td><td>想要全球低延迟、愿意用命令行的开发者</td></tr>
+        <tr><td class="feat">Render</td><td>「现代版 Heroku」，界面友好的全托管 PaaS</td><td>有免费层（15 分钟无流量休眠）；付费 512MB $7/月</td><td>想要图形界面、不想碰 CLI 的团队</td></tr>
+        <tr><td class="feat">Railway</td><td>纯按用量计费的容器平台，体验极顺滑</td><td>Hobby $5/月起（含等额用量）；内存 $10/GB/月</td><td>快速起原型、按需付费的独立开发者</td></tr>
+        <tr><td class="feat">Heroku</td><td>PaaS 鼻祖（现属 Salesforce），生态成熟但创新放缓</td><td>免费层 2022 年已取消；Eco $5/月、常驻 Basic $7/月</td><td>存量老项目、需要成熟 add-on 生态的团队</td></tr>
+        <tr><td class="feat">Cloud Run</td><td>Google 的容器 serverless，按请求计费、原生缩到零</td><td>每月 200 万请求内基本免费，超量按资源秒计费</td><td>流量波动极大、已在 Google 云生态的团队</td></tr>
+        <tr><td class="feat">DO App Platform</td><td>DigitalOcean 的托管 PaaS，胜在便宜和简单</td><td>静态站免费；最小容器 $5/月（512MB）</td><td>已在用 DO、需求简单的小项目</td></tr>
+      </table>
+    </div>
+
+    <h3>隔壁赛道：它们不是替代品，是搭档</h3>
+    <p>经常有人把 Vercel、Cloudflare Workers 和 Fly 放在一起比，其实它们解决的是不同的问题：</p>
+    <div class="dtable-wrap">
+      <table class="dtable">
+        <tr><th>平台</th><th>跑的是什么</th><th>跑不了什么</th></tr>
+        <tr><td class="feat">Vercel</td><td>前端页面 + 短命 serverless 函数（Hobby 免费 / Pro $20/人/月）</td><td>长驻进程、跑几十分钟的任务、WebSocket 长连接重活</td></tr>
+        <tr><td class="feat">Cloudflare Workers</td><td>毫秒级边缘函数（免费 10 万请求/天；付费 $5/月起）</td><td>完整容器——它连 Node.js 完整环境都不是</td></tr>
+        <tr><td class="feat">VPS（Hetzner / DO / Vultr / 阿里云轻量）</td><td>一切（€5.49、$4、$2.5、几十元/年起）</td><td>没有跑不了的，只有你不想自己运维的</td></tr>
+      </table>
+    </div>
+    <div class="callout info">
+      <strong>我们的组合就是「搭档」的活例子 ·</strong> 前端和轻 API 在 Vercel（有请求才计费、全球 CDN），数据在 Supabase，而 Vercel 函数跑不动的——长驻 worker、浏览器自动化、长任务——放 Fly。三层各干各的，谁也替代不了谁。
+    </div>
+
+    <h3>怎么选：一张决策清单</h3>
+    <ul class="checklist">
+      <li><strong>纯前端 / Next.js 网站</strong> → Vercel（或 Cloudflare Pages），别为它开容器</li>
+      <li><strong>后端服务 + 想要全球多地区 / 精细控制</strong> → Fly.io，接受 CLI 和偶尔的平台抖动</li>
+      <li><strong>后端服务 + 想要点开网页就能配好</strong> → Render 或 Railway</li>
+      <li><strong>流量极度稀疏、偶尔来一下</strong> → Cloud Run（缩到零 + 免费额度大）</li>
+      <li><strong>7×24 满载、资源恒定、有人愿意运维</strong> → VPS，整租单价最低</li>
+    </ul>
+  </section>
+
+  <!-- ════════════ 四、我们怎么用 ════════════ -->
+  <div class="section-head reveal">
+    <div class="num">04</div>
+    <div class="meta">
+      <h2>Section 04 · How We Use It</h2>
+      <div class="lede">我们把哪些东西放在了 Fly 上，为什么</div>
+    </div>
+  </div>
+  <section>
+    <p>团队目前跑在 Fly 上的，都是同一类东西——<strong>Vercel 的 serverless 函数干不动的「重活」</strong>：</p>
+    <div class="dtable-wrap">
+      <table class="dtable">
+        <tr><th>项目</th><th>放在 Fly 上的部分</th><th>为什么非它不可</th></tr>
+        <tr><td class="feat">Vivi</td><td>整个后端 API 服务</td><td>长驻进程 + WebSocket，serverless 模型不合适</td></tr>
+        <tr><td class="feat">Akke</td><td>Python 采集 / 处理 worker（双机热备）</td><td>浏览器自动化 + 单任务跑几十分钟，远超函数超时上限</td></tr>
+        <tr><td class="feat">CozyUp</td><td>Web 服务</td><td>需要常驻内存状态与后台队列</td></tr>
+        <tr><td class="feat">内部自动化</td><td>n8n 工作流引擎</td><td>开源软件直接拿 Docker 镜像部署，Fly 天然适合</td></tr>
+      </table>
+    </div>
+    <p>选 Fly 而不是 Render/Railway，对我们主要是三点：<strong>按秒计费</strong>（低流量服务停机时几乎不花钱）、<strong>fly.toml 进 Git</strong>（部署配置可 review 可回滚，符合团队「一切进版本控制」的纪律）、以及 <strong>CLI 完全可脚本化</strong>（我们的部署和巡检大量由自动化执行，图形界面反而是障碍）。</p>
+  </section>
+
+  <!-- ════════════ 五、踩过的坑 ════════════ -->
+  <div class="section-head reveal">
+    <div class="num">05</div>
+    <div class="meta">
+      <h2>Section 05 · Lessons Learned</h2>
+      <div class="lede">这些坑我们都真实踩过，你不用再踩一遍</div>
+    </div>
+  </div>
+  <section>
+    <div class="callout warn">
+      <strong>256MB 内存基本谁都跑不动 ·</strong> 标称 256MB 的机器，扣掉系统实际可用约 207MB，Node.js 应用一上来就贴着 OOM（内存耗尽被杀）。团队铁律：<strong>Fly 上的机器一律 512MB 起步</strong>，n8n 这类应用 256MB 必挂。
+    </div>
+    <div class="callout warn">
+      <strong>应用必须监听 0.0.0.0 ·</strong> 本地开发习惯写 <code>localhost</code>，部署到 Fly 后健康检查永远不通过——因为流量是从虚拟机外面进来的。改成监听 <code>0.0.0.0</code> 才能接到请求。这是新服务上 Fly 的第一号坑。
+    </div>
+    <div class="callout warn">
+      <strong>手动扩容会被下一次部署「弹回去」·</strong> 用 <code>fly scale</code> 命令改了机器规格，下次 <code>fly deploy</code> 会按 fly.toml 里写的旧配置再改回来。改规格必须<strong>同步改 fly.toml 并提交</strong>，且事后要用 <code>fly machine list</code> 验证，不能只看命令返回成功。
+    </div>
+    <div class="callout warn">
+      <strong>挂了磁盘卷的应用开不了多机 ·</strong> Fly 的 Volume 是「一块盘绑一台机器」，两台机器各自挂各自的盘，数据互不相通——看起来是高可用，其实是两份数据各写各的。有状态应用要么单机跑，要么把状态挪到外部数据库。
+    </div>
+    <div class="callout warn">
+      <strong>「保底机器数」只保活、不创建 ·</strong> 配置里写了最少跑 2 台，不代表平台会帮你建出 2 台——它只保证「已存在的机器」不被停光。想要真正的双机热备，先手动建满 2 台，再用 <code>fly machine list</code> 数一遍确认。配置文件说的和线上真实状态，永远以后者为准。
+    </div>
+    <div class="callout warn">
+      <strong>套了 Cloudflare 代理后，Fly 的证书会续期失败 ·</strong> 域名在 Cloudflare 开了橙云（代理模式）后，Fly 签发证书用的验证记录会被 Cloudflare 挡住，证书到期就是全站 525 错误。解法：验证用的 <code>_acme-challenge</code> 记录必须设为「仅 DNS」不走代理，并对证书到期做独立监控。
+    </div>
+    <div class="callout warn">
+      <strong>远程构建器偶尔抽风 ·</strong> Fly 的远程镜像构建服务不算稳定，本地部署命令连续失败两次以上就不要死磕——直接 push 让 CI 走部署流程，或等平台恢复。判断是「自己的问题」还是「平台的问题」，先看 <a href="https://status.flyio.net">status.flyio.net</a>。
+    </div>
+  </section>
+
+  <div class="punchline">VPS 卖给你一台<span class="hl">毛坯房</span>，Fly.io 卖给你<span class="hl">拎包入住</span>——房租贵一点，但整栋楼的水电物业都不用你操心。</div>
+
+  <footer>
+    价格与平台状态核实于 2026-07-07 · 来源：fly.io/docs/about/pricing · render.com · railway.com · heroku.com · cloud.google.com/run · hetzner.com<br>
+    团队案例来自内部真实部署记录（已脱敏） · upio.ai · 知识分享
+  </footer>
+
+</div>
+
+<script>
+document.querySelectorAll('.reveal').forEach(el => {
+  new IntersectionObserver((entries, obs) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in-view'); obs.unobserve(e.target); } });
+  }, { threshold: 0.15 }).observe(el);
+});
+</script>
+
+</body>
+</html>
