@@ -30,6 +30,9 @@ if exist douyin_rc_reply_grounded.py copy /Y douyin_rc_reply_grounded.py douyin_
 if exist douyin_comment_grounded.py  copy /Y douyin_comment_grounded.py  douyin_comment_grounded.py.bak  >nul
 if exist douyin_inbox_uia.py         copy /Y douyin_inbox_uia.py         douyin_inbox_uia.py.bak         >nul
 if exist wecom_add_contact_grounded.py copy /Y wecom_add_contact_grounded.py wecom_add_contact_grounded.py.bak >nul
+if exist douyin_dm_web_send_dom.py     copy /Y douyin_dm_web_send_dom.py     douyin_dm_web_send_dom.py.bak     >nul
+if exist douyin_dm_web_capture_dom.py  copy /Y douyin_dm_web_capture_dom.py  douyin_dm_web_capture_dom.py.bak  >nul
+if exist douyin_dm_web_reply.py        copy /Y douyin_dm_web_reply.py        douyin_dm_web_reply.py.bak        >nul
 echo     done ^(rollback: rename *.py.bak back to *.py^)
 echo.
 
@@ -39,7 +42,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "& { ^
   $ErrorActionPreference = 'Stop'; ^
   [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; ^
   $base = 'https://raw.githubusercontent.com/upioai/wiki/main/public/akke/wuying-dm'; ^
-  $files = @('wuying_poll_agent.py','douyin_dm_grounded.py','douyin_rc_reply_grounded.py','douyin_comment_grounded.py','douyin_inbox_uia.py','wecom_add_contact_grounded.py'); ^
+  $files = @('wuying_poll_agent.py','douyin_dm_grounded.py','douyin_rc_reply_grounded.py','douyin_comment_grounded.py','douyin_inbox_uia.py','wecom_add_contact_grounded.py','douyin_dm_web_send_dom.py','douyin_dm_web_capture_dom.py','douyin_dm_web_reply.py'); ^
   foreach ($f in $files) { ^
     try { Invoke-WebRequest -Uri \"$base/$f\" -OutFile \".\$f\" -UseBasicParsing -TimeoutSec 30; Write-Host \"     OK   $f\" } ^
     catch { Write-Host \"     FAIL $f : $($_.Exception.Message)\"; exit 1 } ^
