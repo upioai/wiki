@@ -83,6 +83,17 @@ def _norm(s: str) -> str:
     return re.sub(r"\s+", "", s or "")
 
 
+# 气泡比对专用: 额外剥掉 emoji(非 BMP)+ 变体选择符/ZWJ。抖音网页版把 emoji 渲染成
+# <img>, 气泡 innerText 会【丢 emoji】→ 原文含 🦆 而气泡无 → 子串比对在 emoji 处断裂
+# → _verify_bubble 假阴性 → unverified → #763 重试把同一条重发给客户(2026-07-07
+# 大女人👩 案, att=3 可能三连发)。比对双方都剥 emoji 后再比, 根除此类断裂。
+_EMOJI_RE = re.compile(r"[\U00010000-\U0010FFFF️‍⃣]")
+
+
+def _norm_cmp(s: str) -> str:
+    return _EMOJI_RE.sub("", _norm(s))
+
+
 def _find_input(page):
     ce = page.locator('[data-e2e="msg-input"] [contenteditable="true"]')
     if ce.count() == 0:
@@ -103,14 +114,14 @@ def _verify_bubble(page, message: str) -> bool:
             '[data-e2e="msg-item-content"]', "els => els.slice(-8).map(e => (e.innerText||''))")
     except Exception:
         return False
-    m = _norm(message)
+    m = _norm_cmp(message)  # 剥 emoji 再比(气泡 innerText 丢 emoji, 见 _norm_cmp 注释)
     if not m:
         return False
     # 正向: 本文案整体出现在某气泡里(真发出的常态)。
     # 反向: 抖音偶把长文案拆成多段气泡, 只当"气泡是本文案的近乎完整片段"才算 —— 门槛从
     #   ≥4 收紧到 max(8, 60%*len), 堵住"任意 ≥4 字旧气泡恰是本文案子串"的假阳(2026-07-07 文哥号误报)。
     thr = max(8, int(len(m) * 0.6))
-    return any((m in nt) or (nt in m and len(nt) >= thr) for nt in (_norm(t) for t in texts))
+    return any((m in nt) or (nt in m and len(nt) >= thr) for nt in (_norm_cmp(t) for t in texts))
 
 
 def _send_failed_marker(page) -> bool:
@@ -297,6 +308,16 @@ def send_dom(page, message: str, commit: bool, sec_uid: str = "", nick: str = ""
     box = _find_input(page)
     if box is None:
         return "no_input"
+
+    # 发送前幂等 pre-check(2026-07-07 大女人👩 案): 会话里最后几条气泡若已含本文案 =
+    # 上一轮其实发出去了、只是验证误报(unverified)被 #763 重试送回来 → 直接归位 sent,
+    # 别再键入重发。把「任何状态误报 + 重试」的重复轰炸确定性堵死。仅 commit 路径判
+    # (dry-run 本就不发); best-effort, 读不到气泡就照常走。
+    if commit and _verify_bubble(page, message):
+        print("    [幂等] 会话里已有本文案气泡(上轮已发出·验证误报) → 归位 sent, 不重发")
+        _leave_thread(page)  # 同 sent 路径: 离开会话, 保红点可靠(#776)
+        return "sent"
+
     try:
         box.click(); box.press_sequentially(message, delay=50); page.wait_for_timeout(700)
     except Exception as e:
