@@ -135,14 +135,14 @@
     <tr><th>点</th><th>现状（已读代码确认）</th></tr>
     <tr><td>会不会回多次</td><td><span class="ok">不会 ✓</span> 占位机制保证一会话同时只有一个草稿</td></tr>
     <tr><td>会不会抢答半句</td><td><span class="bad">会 ✗</span> 秒级端点「捕获到就起草」，没等静默</td></tr>
-    <tr><td>后面的消息</td><td><span class="bad">会被忽略 ✗</span> 第一条起草后会话不再「待回」，第二条不触发重 draft</td></tr>
+    <tr><td>后面的消息</td><td><span class="bad">各生成一份草稿、连珠炮发多条 ✗</span>（更正：占位按消息不按会话，第二条不是被忽略，是各自成稿全发出去）</td></tr>
     <tr><td>同一 15s 窗口内快连发</td><td><span class="mid">中间几条丢</span> 捕获读列表预览＝最后一条</td></tr>
   </table>
   <h3>方案对比</h3>
   <table>
     <tr><th>方案</th><th>做法</th><th>取舍</th></tr>
     <tr><td>A · 定时去抖</td><td>最后一条静默 N 秒才起草</td><td class="bad">每条回复都晚 N 秒（单条也白等）</td></tr>
-    <tr style="background:#f0fdf4"><td><b>B · 新消息作废重 draft</b> <span class="b b-done">推荐</span></td><td>草稿发出前又来新消息 → 作废旧草稿、带新消息重 draft；走自然轮询节奏</td><td class="ok">单条零延迟；连发自动合并；顺带修「第二条被忽略」<br><span style="color:#9a3412">代价：连发多烧几次 LLM token（前几次白烧，非延迟）</span></td></tr>
+    <tr style="background:#f0fdf4"><td><b>B · 新消息作废重 draft</b> <span class="b b-done">已上线 #787</span></td><td>草稿发出前又来新消息 → 作废旧草稿、带新消息重 draft；走自然轮询节奏</td><td class="ok">单条零延迟；连发自动合并；顺带修「第二条被忽略」<br><span style="color:#9a3412">代价：连发多烧几次 LLM token（前几次白烧，非延迟）</span></td></tr>
     <tr><td>C · 读 thread 兜底 <span class="b" style="background:#0891b2">二期</span></td><td>有活动的会话开一次 thread 读近几条气泡全抓</td><td class="ok">同窗口极快连发也全抓、最彻底（改动最大）</td></tr>
   </table>
   <div class="win"><b>推荐 B 为主，C 作二期</b>：B 不牺牲单条速度就把「抢答/忽略后续」根治。<b>注意</b>：B 只解决「连发合并」，<span class="hl">对「1 分钟太慢」没帮助</span>——那是发出段的事（优化 C + 发出段提速）。</div>
@@ -160,7 +160,7 @@
   <div class="callout"><b>怎么读这组数</b>：① <b>大头是发送段 ΔC（中位 74s）</b>，跟连发几条无关——要快得靠「发出段提速」+ 优化 C 的 #778 DOM（<b>还没上机验证</b>，上了应降）；② 起草很快（9s），B 的代价是 msg1/msg2 各多烧一次 ~9s 起草的 <b>token</b>（并行客户打字，<b>不加最终延迟</b>）；③ <b>单条消息 = 同一组数</b>——B 不给单条加固定等待，这正是它比「定时去抖 A」强的地方。</div>
   <div class="warn"><b>口径诚实说明</b>：以上是<b>当前实测</b>（发送还走 VL、#778 未上机、方案 B 未开发）。#778 DOM 上机 + 发出段提速 + B 落地后，<b>ΔC 应显著下降</b>，届时重测更新——不提前编数。</div>
 
-  <div class="warn"><b>状态：方案 B（连发合并）+ 发出段提速，均已定位、未开发。</b>改动碰 <code>api/cron</code>（高危路径）→ 定稿后走 PR + CI。</div>
+  <div class="win"><b>状态更新（07-07）：方案 B（连发合并）已上线</b>——PR #787 改 <code>record_dm_inbound</code>：客户新消息入库即作废本会话未发出的 approved 草稿、按最新消息重新起草，一轮只发一条。只动 approved（needs_human 人工队列 / sending 发送中不碰）。<b>发出段提速</b>仍待排期。</div>
 
   <!-- 部署更新指南 -->
   <h2><span class="n">05</span>部署更新指南（这 4 处修复怎么上到线上）</h2>
