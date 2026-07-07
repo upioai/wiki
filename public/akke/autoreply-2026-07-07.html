@@ -50,7 +50,7 @@
 
   <div class="hero">
     <h1>自动回复 · 加微完成后停止自动培育</h1>
-    <div class="sub">2026-07-07 ｜ 方案 B（PR #782 已合并上线） ｜ 昨日 4 处修复见 <a href="/akke/autoreply-2026-07-06">07-06 页 →</a></div>
+    <div class="sub">2026-07-07 ｜ #782 加微停培育 · #787 连发合并 · #788 防重复轰炸 ｜ 晚间补充：时延拆解 + 当日失败逐条复盘（§07-09） ｜ 昨日 4 处修复见 <a href="/akke/autoreply-2026-07-06">07-06 页 →</a></div>
     <span class="tag">已上线 · 全账号生效</span>
     <span class="tag" style="background:#4338ca">纯后端 · 云电脑不用动</span>
     <div class="line">一句话：客户给了微信号、我们回了「添加您啦，麻烦通过一下」之后，客户再回「好的」——<b>以前系统还会自动发一条「你家是哪个户型呀？」重新培育</b>；现在阵地转微信，抖音侧闭嘴：<span class="hl">纯确认静默不回，实质新消息转人工，绝不再自动发培育话术</span>。</div>
@@ -131,7 +131,47 @@
   <div class="win"><b>纯后端改动（<code>src/lib/dm-reply/</code>），PR #782 合并 main → Vercel 自动部署，全账号即时生效。云电脑零操作。</b>回滚 = revert PR 再合，一步。</div>
   <p>与昨日修复的关系：#773 护栏「麻烦」误挡（让「添加您啦」能自动发出）是本修复的<b>前置</b>——先保证受理话术发得出去，再管受理完成后的静默。5 处修复清单见 <a href="/akke/autoreply-2026-07-06">07-06 自动化回复页</a>。</p>
 
-  <footer>Akke · 自动回复 · 加微完成后停止自动培育 · 2026-07-07 ｜ PR #782 ｜ 词表与样本来自真实 messages（DB 直查）</footer>
+
+  <!-- ⑦ 为什么还要1分钟 -->
+  <h2><span class="n">07</span>为什么还要 ~1 分钟（时延拆解 · 当日实测）</h2>
+  <p>今天一次过的两条 e2e = <b>70s / 77s</b>——这就是<b>当前架构的地板</b>。先更正旧账：早期说过「~35s」，那是把 DOM 发送错估成 ~10s 的纸上数，实测 DOM 发送要 30–40s，已在 07-06 页更正过。地板的组成：</p>
+  <table>
+    <tr><th>段</th><th>耗时</th><th>为什么</th></tr>
+    <tr><td>① 捕获轮询</td><td>0–15s（期望 ~8s）</td><td><code>AKKE_POLL_INTERVAL=15</code>，红点落在哪一轮看运气</td></tr>
+    <tr><td>② LLM 生成</td><td>8–20s</td><td>模型推理，难压</td></tr>
+    <tr><td>③ 发送领取</td><td>0–15s（期望 ~8s）</td><td>已有「插队」逻辑，但要等主循环醒来</td></tr>
+    <tr><td class="bad">④ DOM 发送</td><td><b>30–40s</b> ← 大头</td><td>goto 主页+等加载 ~10s；<b>逐字键入 50ms/字</b>（100 字＝5s）；点私信重试；验气泡 7×1s + 2.5s 风控复核；离开会话</td></tr>
+  </table>
+  <div class="callout"><b>可选的提速项（评估过，当前决定：都不做、维持现状）</b>：A 轮询 15s→5s（省 ~10s，DB/CDP 负载×3）；B 键入改整段注入（省 3–7s，需真机验 Draft.js 兼容）；C 验气泡首查提前（省 1–2s）。三项落地可到 ~45–50s。<b>要到 35s 必须放弃 sec_uid 改按昵称开会话（D）——有认错人风险，不做。</b>②生成和 2.5s 风控复核是该花的钱，不省。</div>
+
+  <!-- ⑧ 当日失败逐条复盘 -->
+  <h2><span class="n">08</span>当日 journey 逐条复盘（6 条草稿全量 · DB 直查）</h2>
+  <table>
+    <tr><th>账号 / 客户</th><th>结果</th><th>时延</th><th>具体原因</th></tr>
+    <tr><td>有大有小 / 大女人👩</td><td class="ok">sent ×2</td><td>e2e <b>70s / 77s</b></td><td>一次过 ＝ 架构地板，正常</td></tr>
+    <tr><td>有大有小 / 大女人👩</td><td class="bad">unverified ×3 → 转人工</td><td>—</td><td><b>假阴性</b>：草稿含 🦆，抖音把 emoji 渲染成图片、气泡文本丢 emoji → 验证比对在 emoji 处断裂 → 实际已发出却记失败 → 重试 3 次<b>可能三连发</b>（已让运营核对会话）。<span class="hl">根因已修：#788 三层防线</span></td></tr>
+    <tr><td>有大有小 / ▁_＂蛋蛋■🇨🇳</td><td class="bad">no_row ×3 → 转人工</td><td>—</td><td><b>真失败</b>（没发出）：发生在<b>该机更新 DOM 脚本之前</b>——旧配置漂移跑了 PC 版代码，按昵称定位不到会话。运营已手动补发；该机当日已更新脚本走 DOM，此路径不复存在</td></tr>
+    <tr><td>文哥 / 陆轻阳</td><td class="mid">sent（att=1）</td><td>e2e <b>180s</b></td><td rowspan="2"><b>超 2 分钟的唯一原因＝第一次发送失败 → #763 有界重试第二次才成</b>，e2e 被失败翻倍（首次失败的具体错误码已被成功状态覆盖，属可观测性缺口——P4-P7 埋点待做）。<b>根因是失败率不是链路慢</b>；今天把两大失败源（emoji 假阴性 / 配置漂移 no_row）都治了，此类应显著减少</td></tr>
+    <tr><td>文哥 / 小陈不吃芹菜！</td><td class="mid">sent（att=1）</td><td>e2e <b>547s（9min）</b></td></tr>
+  </table>
+  <div class="warn"><b>连带风险已处置</b>：大女人/蛋蛋两条挂在人工队列的 needs_human 草稿已置 discarded（防二次发送）；「unverified 大概率已发出、重试＝重发骚扰」这一类，#788 后不再自动重试、直接转人工核对。</div>
+
+  <!-- ⑨ 部署指南 -->
+  <h2><span class="n">09</span>部署指南（今日全部修复怎么生效）</h2>
+  <table>
+    <tr><th>修复</th><th>生效方式</th><th>状态</th></tr>
+    <tr><td>#782 加微完成停培育</td><td>后端 → Vercel 自动</td><td class="ok">✅ 已生效</td></tr>
+    <tr><td>#787 连发合并（supersession）</td><td>DB migration 自动 push</td><td class="ok">✅ 已生效</td></tr>
+    <tr><td>#788-③ unverified 不重试</td><td>DB migration 自动 push</td><td class="ok">✅ 已生效</td></tr>
+    <tr><td><b>#788-①② 剥 emoji 比对 + 发送前幂等防重发</b></td><td>云电脑脚本 <code>douyin_dm_web_send_dom.py</code></td><td class="mid">需三台（小文/文哥/有大有小）更新 + 重启</td></tr>
+  </table>
+  <p><b>云电脑更新（每台跑一遍）</b>——下面是<b>一条</b>命令（分号连接、整段粘贴不怕丢换行）：</p>
+  <pre style="background:#0f1623;color:#d6e2f0;border-radius:10px;padding:14px 16px;margin:10px 0;overflow-x:auto;font:12.5px/1.6 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all">Get-Process python,py,pythonw -ErrorAction SilentlyContinue | Stop-Process -Force; cd C:\akke-wuying\wuying-dm; Copy-Item douyin_dm_web_send_dom.py douyin_dm_web_send_dom.py.bak-788 -Force -EA 0; curl.exe -fsS --retry 5 --retry-delay 2 --connect-timeout 15 -o douyin_dm_web_send_dom.py 'https://cdn.jsdelivr.net/gh/upioai/wiki@788b0e84272f623ea575ee1023f4502e1739d8dd/public/akke/wuying-dm/douyin_dm_web_send_dom.py'; (Get-Item douyin_dm_web_send_dom.py).Length</pre>
+  <p style="font-size:13px">核对字节数 ＝ <b>22549</b>（旧版 19310 ＝ 没下到新的，回报）。然后单独跑启动：</p>
+  <pre style="background:#0f1623;color:#d6e2f0;border-radius:10px;padding:10px 16px;margin:10px 0;font:12.5px/1.6 ui-monospace,Menlo,Consolas,monospace">py -u wuying_poll_agent.py</pre>
+  <div class="callout"><b>验证</b>：横幅 <code>rc=off</code> + 本机 account；之后若出现重试场景，黑窗应打 <code>[幂等] 会话里已有本文案气泡 → 归位 sent, 不重发</code>。含 emoji 草稿不再 unverified。回滚＝把 <code>.bak-788</code> 改回原名重启；migration 回滚 SQL 在 <code>migrations-rollback/20260707220706_*</code>。</div>
+
+  <footer>Akke · 自动回复 · 2026-07-07 ｜ PR #782 加微停培育 · #787 连发合并 · #788 防重复轰炸 ｜ 数据 DB 直查</footer>
 </div>
 </body>
 </html>
