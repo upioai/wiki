@@ -104,7 +104,28 @@ def _verify_bubble(page, message: str) -> bool:
     except Exception:
         return False
     m = _norm(message)
-    return any(m and (m in _norm(t) or (_norm(t) in m and len(_norm(t)) >= 4)) for t in texts)
+    if not m:
+        return False
+    # 正向: 本文案整体出现在某气泡里(真发出的常态)。
+    # 反向: 抖音偶把长文案拆成多段气泡, 只当"气泡是本文案的近乎完整片段"才算 —— 门槛从
+    #   ≥4 收紧到 max(8, 60%*len), 堵住"任意 ≥4 字旧气泡恰是本文案子串"的假阳(2026-07-07 文哥号误报)。
+    thr = max(8, int(len(m) * 0.6))
+    return any((m in nt) or (nt in m and len(nt) >= thr) for nt in (_norm(t) for t in texts))
+
+
+def _send_failed_marker(page) -> bool:
+    """网页版把发送失败的消息标红字「发送失败」/「重新发送」(风控软丢/账号级限流最快可视信号,
+    见 feedback_douyin_dm_status_code_silent_drop)。扫私信浮层里【整条文本恰为该词】的叶子节点,
+    不扫 msg-item-content 正文, 免客户正文含该词误伤。命中即判发送失败。best-effort: 抖音若换渲染
+    则不触发(无副作用), 主防线是发出后的气泡持久性复核。"""
+    try:
+        return bool(page.evaluate(
+            "() => { const r = /^(发送失败|重新发送)$/;"
+            " const root = document.querySelector('[data-e2e=\"im-dialog\"]') || document.body;"
+            " return [...root.querySelectorAll('*')].some("
+            "   e => e.children.length===0 && r.test((e.innerText||'').trim())); }"))
+    except Exception:
+        return False
 
 
 def _follow_profile(page) -> str:
@@ -293,13 +314,24 @@ def send_dom(page, message: str, commit: bool, sec_uid: str = "", nick: str = ""
     except Exception as e:
         return f"error:click_send/{e}"
     # 发出后气泡渲染有延迟 → 轮询等它出现(最多 ~7s), 别只等一次。
+    seen = False
     for _ in range(7):
         page.wait_for_timeout(1000)
         if _verify_bubble(page, message):
-            _leave_thread(page)  # 发完离开 thread，别停在打开态（否则对方续聊无红点被漏读）
-            return "sent"
-    _leave_thread(page)
-    return "unverified"
+            seen = True
+            break
+    if not seen:
+        _leave_thread(page)
+        return "unverified"
+    # 见气泡 ≠ 真送达: 网页版对被风控/spam 软丢的消息, 会先乐观渲染气泡再撤掉(或标红「发送失败」)。
+    #   2026-07-07 文哥号实测: 日志判 sent 但会话窗口里那条根本不在 → 乐观气泡已被移除。
+    #   停 ~2.5s 复核: ① 失败标记命中, 或 ② 气泡已消失 → 判 unverified(回池, 别当已发)。
+    page.wait_for_timeout(2500)
+    if _send_failed_marker(page) or not _verify_bubble(page, message):
+        _leave_thread(page)
+        return "unverified"
+    _leave_thread(page)  # 发完离开 thread，别停在打开态（否则对方续聊无红点被漏读）
+    return "sent"
 
 
 # ── 批量契约(被 wuying_poll_agent 当 AKKE_DM_SCRIPT 调用): contacts.csv → sent_log_YYYYMMDD.csv ──
