@@ -73,6 +73,33 @@ CANDS_PUBLISH = [
     '[data-e2e="comment-publish"]',
     'button:has-text("发送")',
 ]
+# 发送红圆↑(2026-07-08 文哥机 probe6 实测): 无 class 无 data-e2e 无文本(SPAN>svg>path),
+# 只能结构定位——输入框同排(y 中心 ±45px)的小图标组(@/表情/↑), 最右那个=发送。
+# probe6 点击后评论即时上墙(SENT)。
+JS_ROW_ICONS = """(e, cy) => { let c = e; for (let i=0;i<7;i++) c = c.parentElement || c;
+  return [...c.querySelectorAll('*')].filter(x => {
+    const r = x.getBoundingClientRect();
+    return r.width>4 && r.width<70 && r.height>4 && r.height<70
+      && Math.abs((r.y+r.height/2)-cy)<45 && x.children.length<=2;
+  }).map(x => { const r=x.getBoundingClientRect(); return {x:Math.round(r.x), w:Math.round(r.width)}; })
+  .sort((a,b)=>a.x-b.x); }"""
+
+
+def _click_send_icon(page, box) -> bool:
+    """点输入框同排最右小图标(红圆↑)。probe6 实测路径。"""
+    try:
+        bb = box.bounding_box()
+        if not bb:
+            return False
+        cy = bb["y"] + bb["height"] / 2
+        icons = box.evaluate(JS_ROW_ICONS, cy)
+        if not icons:
+            return False
+        tgt = icons[-1]
+        page.mouse.click(tgt["x"] + tgt["w"] / 2, cy)
+        return True
+    except Exception:
+        return False
 CANDS_ITEM = [
     '[data-e2e="comment-list"]',
 ]
@@ -133,6 +160,10 @@ def _find_input(page):
 
 
 def _like(page) -> str:
+    try:
+        page.wait_for_selector(DIGG, timeout=8000)   # 页面慢时等 digg 挂载(no_digg 治此)
+    except Exception:
+        pass
     el = _first_visible(page, DIGG)
     if el is None:
         return "no_digg"
@@ -179,14 +210,16 @@ def _post_comment(page, text: str, commit: bool) -> str:
             except Exception:
                 continue
     if sent_via is None:
-        try:
-            page.keyboard.press("Enter")   # 兜底: 抖音网页评论框 Enter 发送
-            sent_via = "Enter"
-        except Exception:
+        # 主路径(probe6 实测): 红圆↑无任何稳定属性 → 结构定位同排最右图标
+        if _click_send_icon(page, box):
+            sent_via = "row-icon"
+        else:
             return "no_send"
     # 验证: 评论区出现本文案前缀(截 12 字, 防长文案被折叠截断)
+    # 列表显示可能延迟(probe4 实测: 发成功但立刻查是"暂无评论") → 窗口放宽 10s;
+    # 仍查不到返回 unverified —— DB 端(#788)对 unverified 不自动重试、转人工核对, 不会重发轰炸。
     frag = _norm(text)[:12]
-    for _ in range(6):
+    for _ in range(10):
         page.wait_for_timeout(1000)
         for isel in CANDS_ITEM:
             try:
