@@ -43,6 +43,15 @@
   .picker .preset { font-size: 12.5px; color: var(--info); cursor: pointer; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border-strong); }
   .picker .preset:hover { background: var(--info-soft); }
 
+  .catbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0 14px; }
+  .catbar .cat { font-size: 13px; color: var(--text-dim); cursor: pointer; padding: 5px 14px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--bg-elevated); }
+  .catbar .cat:hover { border-color: var(--accent); }
+  .catbar .cat.on { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+  .howto { background: var(--bg-elevated); border: 1px solid var(--border); border-left: 3px solid var(--info); border-radius: 10px; padding: 14px 18px; font-size: 13.5px; color: var(--text-dim); margin: 0 0 20px; }
+  .howto strong { color: var(--text); }
+  .howto ul { margin: 8px 0 6px; padding-left: 20px; }
+  .howto li { margin: 3px 0; }
+
   .cases { display: grid; gap: 14px; margin-top: 22px; }
   .case-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 14px; padding: 22px 24px;
     text-decoration: none; color: inherit; transition: border-color 0.15s, transform 0.15s, background 0.15s;
@@ -96,6 +105,23 @@
     <p style="font-size:12px;color:var(--text-muted);margin:8px 2px 0;">这个链接可以直接分享——它把区间写在网址里（<code>?from=…&to=…</code>），每换一个区间就是一个新链接，不会覆盖别的合集页。</p>
   </header>
 
+  <div class="catbar" id="catbar">
+    <span style="font-size:12.5px;color:var(--text-muted);">② 类型筛选</span>
+    <span class="cat" data-type="all">全部</span>
+    <span class="cat" data-type="conv">💬 对话案例</span>
+    <span class="cat" data-type="wechat">🤝 加微案例</span>
+  </div>
+
+  <div class="howto">
+    <strong>怎么区分对话案例 / 加微案例？</strong>按客户在对话里走到哪一步分（<strong>互斥</strong>，一个案例只归一类）：
+    <ul>
+      <li><b style="color:var(--success);">🤝 加微案例</b> —— 客户已经<strong>给了微信号 / 手机号</strong>（转化里程碑）。</li>
+      <li><b style="color:var(--info);">💬 对话案例</b> —— 客户<strong>有回复、聊了多轮，但还没给联系方式</strong>（进行中）。</li>
+      <li>客户 <strong>0 回复 / 已读未回</strong> 的不进这两类，只做普通归档。</li>
+    </ul>
+    判定看真实对话记录里客户有没有发出微信号 / 手机号，不是靠猜。
+  </div>
+
   <div class="cases" id="cases"><p class="empty-hint">加载中…</p></div>
 
   <footer>
@@ -115,27 +141,37 @@
   var p=qs();
   var to=p.get('to') || fmt(new Date());
   var from=p.get('from') || daysAgo(30);
+  var type=p.get('type') || 'all';   // 二级筛选：all | conv | wechat
   document.getElementById('from').value=from;
   document.getElementById('to').value=to;
 
+  function url(f,t,ty){ return '/akke/cases/range?from='+f+'&to='+t+(ty&&ty!=='all'?('&type='+ty):''); }
+
   document.getElementById('apply').addEventListener('click', function(){
     var f=document.getElementById('from').value, t=document.getElementById('to').value;
-    if(f&&t){ location.href='/akke/cases/range?from='+f+'&to='+t; }
+    if(f&&t){ location.href=url(f,t,type); }   // 换时间保留当前类型
   });
   Array.prototype.forEach.call(document.querySelectorAll('.preset'), function(el){
-    el.addEventListener('click', function(){
-      location.href='/akke/cases/range?from='+daysAgo(+el.dataset.days)+'&to='+fmt(new Date());
-    });
+    el.addEventListener('click', function(){ location.href=url(daysAgo(+el.dataset.days), fmt(new Date()), type); });
+  });
+  // 二级类型 chips
+  Array.prototype.forEach.call(document.querySelectorAll('.cat'), function(el){
+    if(el.dataset.type===type) el.classList.add('on');
+    el.addEventListener('click', function(){ location.href=url(from,to,el.dataset.type); });   // 换类型保留时间
   });
 
   AkkeLoadManifest(function(m){
-    var list=m.filter(function(e){ return e.date && e.date>=from && e.date<=to; })
+    var inRange=m.filter(function(e){ return e.date && e.date>=from && e.date<=to; });
+    var convN=inRange.filter(function(e){return e.collection==='conv';}).length;
+    var wechatN=inRange.filter(function(e){return e.collection==='wechat';}).length;
+    var list=(type==='all'?inRange:inRange.filter(function(e){return e.collection===type;}))
       .sort(function(a,b){ return String(b.date||'').localeCompare(String(a.date||'')); });
-    document.getElementById('title').textContent = from+' ~ '+to+' 生成的案例';
-    var convN=list.filter(function(e){return e.collection==='conv';}).length;
-    var wechatN=list.filter(function(e){return e.collection==='wechat';}).length;
+    var typeLabel=type==='conv'?' · 对话案例':(type==='wechat'?' · 加微案例':'');
+    document.getElementById('title').textContent = from+' ~ '+to+' 生成的案例'+typeLabel;
     var seg=[]; if(convN)seg.push('<b>'+convN+'</b> 对话'); if(wechatN)seg.push('<b>'+wechatN+'</b> 加微');
-    document.getElementById('sub').innerHTML='这段时间共生成 <b>'+list.length+'</b> 条案例'+(seg.length?('（其中 '+seg.join(' · ')+'）'):'')+'。';
+    var head='这段时间共生成 <b>'+inRange.length+'</b> 条案例'+(seg.length?('（'+seg.join(' · ')+'）'):'')+'。';
+    if(type!=='all') head+=' 当前只看 <b>'+list.length+'</b> 条'+(type==='conv'?'对话':'加微')+'案例。';
+    document.getElementById('sub').innerHTML=head;
     AkkeRender('cases', list);
   }, function(err){
     document.getElementById('cases').innerHTML='<p class="empty-hint" style="color:var(--warning);">案例数据加载失败，请刷新重试。</p>';
