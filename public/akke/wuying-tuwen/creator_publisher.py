@@ -374,11 +374,12 @@ def set_schedule(at_str: str) -> bool:
     at_str: 'YYYY-MM-DD HH:MM', 必须现在 +2h ~ +14天 内 (creator 硬限).
     输入框是否支持直接键入待 PoC 验证 (截图看是 type-style input + 日历图标 popover).
     """
-    # 1. 滚到发布设置段
+    # 1. 滚到发布设置段 (滚到底, 发布设置是最后一段 · 就在发布按钮上方, 不会滚过头).
+    # 视频页表单比图文长, 14 轮保证到底; 图文页多滚几轮到底后 no-op 无害.
     sw, sh = pyautogui.size()
     pyautogui.moveTo(sw // 2, int(sh * 0.5))
     time.sleep(0.2)
-    for _ in range(8):
+    for _ in range(14):
         pyautogui.scroll(-500)
         time.sleep(0.12)
     time.sleep(0.6)
