@@ -3,7 +3,7 @@ REM route-B 一键启动：弹两个窗口(watch 侦测 + consume 消费·浏览
 REM 前置：poll agent 已在跑、隐形 Edge 已登录、.env 有 AKKE_WINDOW_LOCK=1。
 cd /d C:\akke-wuying\wuying-dm
 
-start "routeB-watch" cmd /k "py _realtime_touch_watch_wuying.py --cookie-file dy_cookie.txt --max-age-min 10 --interval-sec 60"
+start "routeB-watch" cmd /k "py _realtime_touch_watch_wuying.py --cookie-file dy_cookie.txt --max-age-min 20 --interval-sec 60"
 
 timeout /t 3 /nobreak >/dev/null
 
