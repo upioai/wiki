@@ -51,21 +51,30 @@ try:
 except ImportError:
     pass
 
-# 评论区锚点候选链(按序尝试, --probe 打印各候选命中数, 真机钉死后可只留命中项)
+# 评论区锚点(2026-07-08 文哥机 probe3 实测钉死):
+#   输入框【初始不在 DOM】——页面只有「留下你的精彩评论吧」占位(hash class 不可靠, 按文本找
+#   叶子可见元素 JS 强点); 点击后挂载 Draft.js 编辑器 .public-DraftEditor-content(与私信
+#   输入框同款; 视频页全页唯一 Draft 编辑器, 无歧义)。评论列表锚 [data-e2e="comment-list"]。
 CANDS_INPUT = [
-    '[data-e2e="comment-input"] [contenteditable="true"]',
-    '[data-e2e="comment-input"]',
-    '.comment-input-container [contenteditable="true"]',
-    'div[contenteditable="true"][data-placeholder*="评论"]',
-    'div[contenteditable="true"]',
+    'div.public-DraftEditor-content',
+    '[contenteditable="true"]',
 ]
+PLACEHOLDER_TEXT = "留下你的精彩评论吧"
+JS_CLICK_PLACEHOLDER = """() => {
+  const els = [...document.querySelectorAll('*')].filter(e =>
+    e.children.length === 0 && (e.innerText || '') === '留下你的精彩评论吧');
+  for (const el of els) {
+    const r = el.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) { el.click(); return true; }
+  }
+  return false;
+}"""
 CANDS_PUBLISH = [
     '[data-e2e="comment-publish"]',
     'button:has-text("发送")',
 ]
 CANDS_ITEM = [
-    '[data-e2e="comment-item"]',
-    '[data-e2e="comment-list"] div',
+    '[data-e2e="comment-list"]',
 ]
 DIGG = '[data-e2e="video-player-digg"]'
 
@@ -110,6 +119,16 @@ def _find_input(page):
         el = _first_visible(page, sel)
         if el is not None:
             return el, sel
+    # 输入框未挂载 → JS 强点「留下你的精彩评论吧」占位(playwright click 会被可见性检查卡住)
+    try:
+        if page.evaluate(JS_CLICK_PLACEHOLDER):
+            page.wait_for_timeout(1500)
+            for sel in CANDS_INPUT:
+                el = _first_visible(page, sel)
+                if el is not None:
+                    return el, sel
+    except Exception:
+        pass
     return None, None
 
 
@@ -138,7 +157,12 @@ def _post_comment(page, text: str, commit: bool) -> str:
     except Exception as e:
         return f"err:type/{str(e)[:30]}"
     if not commit:
-        # 清空退出(dry): 全选删除
+        # dry: 打印发送键候选命中数(真发前观察锚点), 然后清空退出
+        for psel in CANDS_PUBLISH:
+            try:
+                print(f"      [dry] publish [{psel}] -> {page.locator(psel).count()}")
+            except Exception:
+                pass
         try:
             page.keyboard.press("Control+A"); page.keyboard.press("Delete")
         except Exception:
