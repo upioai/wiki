@@ -85,22 +85,31 @@ CREATOR_UPLOAD_URL = os.environ.get(
     'AKKE_CREATOR_UPLOAD_URL',
     'https://creator.douyin.com/creator-micro/content/upload?default-tab=3',
 )
+# 视频通路 (2026-07-08 视频批量分发线): 不带 default-tab, creator 落地默认就是「发布视频」tab
+CREATOR_UPLOAD_URL_VIDEO = os.environ.get(
+    'AKKE_CREATOR_UPLOAD_URL_VIDEO',
+    'https://creator.douyin.com/creator-micro/content/upload',
+)
 PUBLISH_WAIT = int(os.environ.get('AKKE_TUWEN_PUBLISH_WAIT', '5'))
 UPLOAD_WAIT = int(os.environ.get('AKKE_TUWEN_UPLOAD_WAIT', '8'))
+# 视频上传+转码比图片慢得多 (几十 MB), 用 VL 轮询判完成, 这里是硬超时
+VIDEO_UPLOAD_TIMEOUT = int(os.environ.get('AKKE_TUWEN_VIDEO_UPLOAD_TIMEOUT', '300'))
+VIDEO_UPLOAD_POLL = int(os.environ.get('AKKE_TUWEN_VIDEO_UPLOAD_POLL', '15'))
 
 
 # ---------- 流程步骤 ----------
 
-def goto_creator_upload(wait: float = 5.0) -> None:
-    """Edge 地址栏 Ctrl+L 直达 creator 发布页 (图文 tab).
+def goto_creator_upload(wait: float = 5.0, url: str | None = None) -> None:
+    """Edge 地址栏 Ctrl+L 直达 creator 发布页 (默认图文 tab; 视频通路传 CREATOR_UPLOAD_URL_VIDEO).
 
     URL 用 type_unicode 注入绕开中文 IME (PC 版 DM 通道踩过坑, type_text 会被吞字).
     """
-    print(f'  [nav] Ctrl+L → {CREATOR_UPLOAD_URL}')
+    url = url or CREATOR_UPLOAD_URL
+    print(f'  [nav] Ctrl+L → {url}')
     pyautogui.hotkey('ctrl', 'l'); time.sleep(0.8)
     pyautogui.hotkey('ctrl', 'a'); time.sleep(0.2)
     pyautogui.press('delete'); time.sleep(0.2)
-    type_unicode(CREATOR_UPLOAD_URL); time.sleep(0.5)
+    type_unicode(url); time.sleep(0.5)
     pyautogui.press('enter')
     # 上一条任务中途失败会留脏表单 (图已传 / 草稿未存); Ctrl+L 跳转时浏览器会弹
     # 「离开此网站?未保存的更改将丢失」确认框. 不处理就卡在旧脏页 → 本条 tab/上传区
@@ -164,6 +173,64 @@ def click_upload_button() -> bool:
     return True
 
 
+def click_video_tab() -> bool:
+    """视频通路: 确认/切到「发布视频」tab. creator 上传页默认落在视频 tab, 找不到不阻断."""
+    pt = locate_retry(
+        '抖音创作服务平台发布页【顶部 tab 栏】里的「发布视频」或「上传视频」tab 按钮('
+        '通常是第一个 tab, 在「发布图文」tab 旁边). 不要选「发布图文」, 不要选「发布全景视频」.',
+        region=(0.10, 0.05, 0.90, 0.30),
+        tries=2,
+    )
+    if pt is None:
+        print('  [tab] 没定位到「发布视频」tab → 假设默认已在视频 tab, 继续')
+        return False
+    pyautogui.click(pt[0], pt[1])
+    time.sleep(1.8)
+    print(f'  [tab] 已点「发布视频」tab @ ({pt[0]},{pt[1]})')
+    return True
+
+
+def click_video_upload_button() -> bool:
+    """视频通路: 页面中央大块「点击上传/拖拽视频」上传区. 点击弹 Windows 文件对话框."""
+    pt = locate_retry(
+        '抖音发布页正文区中央的【视频上传按钮/拖拽区域】(大块虚线边框, '
+        '里面有「点击上传」或「将视频文件拖入此区域」文案, 或者一个云朵/上传图标). '
+        '注意不要选页面顶部的 tab 按钮.',
+        region=(0.15, 0.20, 0.85, 0.80),
+    )
+    if pt is None:
+        return False
+    pyautogui.click(pt[0], pt[1])
+    print(f'  [upload] 已点视频上传区 @ ({pt[0]},{pt[1]}), 等文件对话框弹出')
+    time.sleep(2.8)
+    return True
+
+
+def wait_video_uploaded(timeout_sec: int = None) -> bool:
+    """视频通路: VL 轮询等视频上传+预处理完成.
+
+    完成信号 = 页面出现视频预览播放器 / 「重新上传」按钮 / 封面选择区 —— 上传中只有
+    进度百分比. 每 VIDEO_UPLOAD_POLL 秒问一次 VL, 超 VIDEO_UPLOAD_TIMEOUT 判失败.
+    """
+    timeout_sec = timeout_sec or VIDEO_UPLOAD_TIMEOUT
+    t0 = time.time()
+    print(f'  [upload] 等视频上传完成 (VL 轮询, 每 {VIDEO_UPLOAD_POLL}s, 超时 {timeout_sec}s)')
+    while time.time() - t0 < timeout_sec:
+        time.sleep(VIDEO_UPLOAD_POLL)
+        pt = locate(
+            '抖音发布页里【视频已上传完成】的标志元素, 任选其一: '
+            '「重新上传」按钮 / 视频预览播放器(有播放键的视频缩略图) / 「选择封面」或封面候选图区域. '
+            '如果页面还在显示上传进度百分比或转码中, 就是 NOT FOUND.',
+            region=(0.10, 0.10, 0.95, 0.90),
+        )
+        if pt is not None:
+            print(f'  [upload] 视频上传完成 (耗时 {time.time() - t0:.0f}s)')
+            return True
+        print(f'  [upload] 还在上传/转码... ({time.time() - t0:.0f}s)')
+    print(f'  [upload] 超时 {timeout_sec}s 视频仍未上传完成', file=sys.stderr)
+    return False
+
+
 def paste_image_paths(image_paths: list[str]) -> None:
     """Windows 文件选择对话框: 多文件路径用空格分隔 + 双引号包裹, paste 进文件名输入框 + 回车.
 
@@ -190,14 +257,19 @@ def paste_image_paths(image_paths: list[str]) -> None:
     time.sleep(UPLOAD_WAIT)
 
 
-def fill_title(title: str) -> bool:
-    """图文「作品标题」输入框 (限 20 字内, 必填)."""
-    pt = locate_retry(
-        '抖音发布页里的【作品标题输入框】(单行输入框, 上方或左侧有「标题」字样, '
-        '通常在图片预览区下方、正文描述框上方, 字数限制 20 字). '
-        '不要选下方的多行正文描述框.',
-        region=(0.15, 0.20, 0.85, 0.60),
-    )
+def fill_title(title: str, video: bool = False) -> bool:
+    """「作品标题」输入框 (图文限 20 字, 视频限 30 字)."""
+    if video:
+        desc = ('抖音发布视频页里的【作品标题输入框】(单行输入框, 带「填写作品标题, '
+                '为作品获得更多流量」或类似占位文字, 在视频预览/描述区附近). '
+                '不要选多行的作品描述框.')
+        region = (0.05, 0.10, 0.95, 0.60)
+    else:
+        desc = ('抖音发布页里的【作品标题输入框】(单行输入框, 上方或左侧有「标题」字样, '
+                '通常在图片预览区下方、正文描述框上方, 字数限制 20 字). '
+                '不要选下方的多行正文描述框.')
+        region = (0.15, 0.20, 0.85, 0.60)
+    pt = locate_retry(desc, region=region)
     if pt is None:
         return False
     pyautogui.click(pt[0], pt[1]); time.sleep(0.4)
@@ -208,19 +280,24 @@ def fill_title(title: str) -> bool:
     return True
 
 
-def fill_body(body: str) -> bool:
-    """图文「作品描述/正文」多行输入框 + 话题标签确认.
+def fill_body(body: str, video: bool = False) -> bool:
+    """「作品描述/正文」多行输入框 + 话题标签确认.
 
     #xxx 话题在抖音 creator 输入时会弹下拉建议浮层(列热门话题 + 热度数),
     必须按 Enter 选第一个建议才会把 #xxx 转成蓝色话题链接; 不选则只是普通文本.
     所以 body 不是一次性键入, 而是按 # 分段键入, 每个 #xxx 后等浮层 + Enter.
     """
-    pt = locate_retry(
-        '抖音发布页里的【作品描述/正文输入框】(多行大文本区域, 在标题输入框下方, '
-        '可能带「输入内容, 让更多人看到吧」或「分享此刻的想法」占位文字, '
-        '支持 # 话题 / @ 提及). 不要选上方单行的标题框.',
-        region=(0.15, 0.25, 0.85, 0.75),
-    )
+    if video:
+        desc = ('抖音发布视频页里的【作品描述输入框】(多行大文本区域, 带「添加作品描述」'
+                '或类似占位文字, 附近有 #话题 @朋友 按钮, 在标题输入框下方). '
+                '不要选单行的标题框.')
+        region = (0.05, 0.15, 0.95, 0.75)
+    else:
+        desc = ('抖音发布页里的【作品描述/正文输入框】(多行大文本区域, 在标题输入框下方, '
+                '可能带「输入内容, 让更多人看到吧」或「分享此刻的想法」占位文字, '
+                '支持 # 话题 / @ 提及). 不要选上方单行的标题框.')
+        region = (0.15, 0.25, 0.85, 0.75)
+    pt = locate_retry(desc, region=region)
     if pt is None:
         return False
     pyautogui.click(pt[0], pt[1]); time.sleep(0.4)
@@ -931,6 +1008,105 @@ def _download_image_urls(urls: list[str]) -> list[str]:
     return local_paths
 
 
+def _download_video_url(url: str) -> str:
+    """把远程视频 URL 下到本地 staging (C:\\tw\\HHMMSS\\v.mp4), 返回本地路径.
+
+    与 _download_image_urls 同款短路径策略 (Windows 文件对话框 260 字符上限).
+    视频几十 MB, 分块流式读 + 单块 60s 超时; 3 次重试指数退避.
+    dewm 服务冷启动首条 ~30s 才开始吐字节, 超时别设太短.
+    """
+    from datetime import datetime as _dt
+
+    base = Path(os.environ.get('AKKE_TUWEN_STAGING') or 'C:/tw')
+    staging = base / _dt.now().strftime('%H%M%S')
+    staging.mkdir(parents=True, exist_ok=True)
+    dst = staging / 'v.mp4'
+    print(f'  [staging] 下载视频到 {dst}')
+
+    last_err = None
+    for attempt in range(1, 4):
+        try:
+            if dst.exists():
+                dst.unlink()
+            req = urllib.request.Request(url, headers={'User-Agent': 'akke-tuwen-video/1.0'})
+            with urllib.request.urlopen(req, timeout=60) as resp, open(dst, 'wb') as f:
+                while True:
+                    chunk = resp.read(1024 * 256)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+            size = dst.stat().st_size
+            if size < 100 * 1024:
+                raise IOError(f'视频只有 {size} bytes (<100KB), 疑似错误响应体')
+            print(f'    → {dst.name} ({size / 1024 / 1024:.1f} MB, attempt {attempt})')
+            return str(dst)
+        except Exception as e:
+            last_err = e
+            wait = 5 * attempt
+            print(f'    attempt {attempt} 失败 ({type(e).__name__}: {e}), {wait}s 后重试', file=sys.stderr)
+            time.sleep(wait)
+    raise last_err
+
+
+def _dedup_video(src: str) -> str:
+    """轻量去重二改: 掐头去尾各 ~0.5s + x264 重编码 (码率/编码指纹全变, MD5 必变).
+
+    躲平台搬运查重的最低成本手段 (需求 2026-07-08 确认纳入 scope). 镜像翻转默认不开
+    (家居视频常含文字/logo, 翻转露馅). ffmpeg/ffprobe 不在 PATH 时 WARN + 返回原片继续
+    (宁可原样发也别把整条任务打死; 想强制去重的在部署时装 ffmpeg).
+
+    ffmpeg 路径可用 AKKE_FFMPEG / AKKE_FFPROBE 覆盖 (默认找 PATH).
+    """
+    import shutil as _shutil
+    import subprocess as _sp
+
+    ffmpeg = os.environ.get('AKKE_FFMPEG') or _shutil.which('ffmpeg')
+    ffprobe = os.environ.get('AKKE_FFPROBE') or _shutil.which('ffprobe')
+    if not ffmpeg or not ffprobe:
+        print('  [dedup] WARN: ffmpeg/ffprobe 没找到, 跳过去重直接用原片 '
+              '(装 ffmpeg 后自动生效, 或设 AKKE_FFMPEG)', file=sys.stderr)
+        return src
+
+    try:
+        out = _sp.run(
+            [ffprobe, '-v', 'error', '-show_entries', 'format=duration',
+             '-of', 'default=noprint_wrappers=1:nokey=1', src],
+            capture_output=True, text=True, timeout=60,
+        )
+        duration = float(out.stdout.strip())
+    except Exception as e:
+        print(f'  [dedup] WARN: ffprobe 取时长失败 ({e}), 跳过去重用原片', file=sys.stderr)
+        return src
+
+    head, tail = 0.5, 0.5
+    if duration < 10:
+        print(f'  [dedup] 视频只有 {duration:.1f}s (<10s), 不掐头尾只重编码')
+        head = tail = 0.0
+    keep = duration - head - tail
+
+    dst = str(Path(src).with_name('vd.mp4'))
+    cmd = [
+        ffmpeg, '-y', '-ss', f'{head:.2f}', '-i', src, '-t', f'{keep:.2f}',
+        '-c:v', 'libx264', '-crf', '26', '-preset', 'veryfast',
+        '-c:a', 'aac', '-b:a', '128k',
+        '-map_metadata', '-1',  # 抹掉原片全部 metadata (来源指纹)
+        '-movflags', '+faststart',
+        dst,
+    ]
+    print(f'  [dedup] ffmpeg 掐头{head}s尾{tail}s + 重编码 ({duration:.1f}s → {keep:.1f}s)')
+    try:
+        r = _sp.run(cmd, capture_output=True, text=True, timeout=600)
+        if r.returncode != 0:
+            print(f'  [dedup] WARN: ffmpeg exit {r.returncode}, 用原片. stderr尾: {r.stderr[-300:]}', file=sys.stderr)
+            return src
+        size = Path(dst).stat().st_size
+        print(f'  [dedup] 完成: {Path(dst).name} ({size / 1024 / 1024:.1f} MB)')
+        return dst
+    except Exception as e:
+        print(f'  [dedup] WARN: ffmpeg 异常 ({type(e).__name__}: {e}), 用原片', file=sys.stderr)
+        return src
+
+
 def _cleanup_staging(image_paths: list[str]) -> None:
     """删除 staging 目录 (从下载的图路径推出 parent).
 
@@ -954,10 +1130,13 @@ def _cleanup_staging(image_paths: list[str]) -> None:
 
 def main() -> int:
     p = argparse.ArgumentParser(description='抖音 creator.douyin.com 发图文 PoC')
-    p.add_argument('--manifest', help='JSON 文件: {title, body, images[]}')
+    p.add_argument('--manifest', help='JSON 文件: {title, body, images[]} 或 {title, body, video/video_url}')
     p.add_argument('--title')
     p.add_argument('--body')
     p.add_argument('--images', help='逗号分隔的图片路径')
+    p.add_argument('--video', help='本地视频路径 (与 --images 二选一, 走「发布视频」tab)')
+    p.add_argument('--video-url', help='远程视频 URL (下载到 staging 再上传, 如 dewm /dewm/download 直链)')
+    p.add_argument('--dedup', action='store_true', help='视频先过 ffmpeg 轻量去重 (掐头尾+重编码) 再上传')
     p.add_argument('--commit', action='store_true', help='真发 (不加默认 dry-run)')
     p.add_argument('--skip-focus', action='store_true', help='不调 focus_douyin')
     p.add_argument('--schedule', help='定时发布时间 "YYYY-MM-DD HH:MM" (现在 +2h ~ +14天 内). 只挑日期, 小时分钟用 creator 默认 +2h. 不传则立即发布.')
@@ -980,45 +1159,75 @@ def main() -> int:
             return 2
 
     downloaded_from_urls = False
+    video_path: str | None = None
+    dedup = args.dedup
     if args.manifest:
         m = _load_manifest(args.manifest)
         title = m['title']
         body = m['body']
+        images = []
+        if m.get('video_url'):
+            video_path = _download_video_url(m['video_url'])
+            downloaded_from_urls = True
+        elif m.get('video'):
+            video_path = m['video']
         # image_urls (远程 URL 数组) 优先于 images (本地路径).
         # 有 image_urls 就 curl 下载到 staging 目录, 再当作本地路径用 (复用文件对话框 paste 流程).
-        if m.get('image_urls'):
+        elif m.get('image_urls'):
             images = _download_image_urls(m['image_urls'])
             downloaded_from_urls = True
         else:
             images = m.get('images', [])
+        if m.get('dedup'):
+            dedup = True
         # manifest 内 --schedule 也允许覆盖 CLI (manifest 里写 schedule_at 字段)
         if m.get('schedule_at') and not args.schedule:
             args.schedule = m['schedule_at']
     else:
-        if not (args.title and args.body and args.images):
-            p.error('需要 --title --body --images 或 --manifest')
+        if not (args.title and args.body and (args.images or args.video or args.video_url)):
+            p.error('需要 --title --body 加 (--images 或 --video/--video-url), 或 --manifest')
         title = args.title
         body = args.body
-        images = [s.strip() for s in args.images.split(',') if s.strip()]
+        images = [s.strip() for s in (args.images or '').split(',') if s.strip()]
+        if args.video_url:
+            video_path = _download_video_url(args.video_url)
+            downloaded_from_urls = True
+        elif args.video:
+            video_path = args.video
 
-    for path in images:
-        if not Path(path).exists():
-            print(f'ERROR: 图不存在: {path}', file=sys.stderr)
-            return 2
-    if not (1 <= len(images) <= 18):
-        print(f'ERROR: 图片张数 {len(images)} 不在 1-18 范围', file=sys.stderr)
+    is_video = video_path is not None
+    if is_video and images:
+        print('ERROR: 视频和图片不能同时传 (二选一)', file=sys.stderr)
         return 2
+
+    if is_video:
+        if not Path(video_path).exists():
+            print(f'ERROR: 视频不存在: {video_path}', file=sys.stderr)
+            return 2
+        if dedup:
+            video_path = _dedup_video(video_path)
+    else:
+        for path in images:
+            if not Path(path).exists():
+                print(f'ERROR: 图不存在: {path}', file=sys.stderr)
+                return 2
+        if not (1 <= len(images) <= 18):
+            print(f'ERROR: 图片张数 {len(images)} 不在 1-18 范围', file=sys.stderr)
+            return 2
     if len(title) > 30:
-        print(f'WARN: 标题 {len(title)} 字 > 20 字限制 (会被截或拒)', file=sys.stderr)
+        print(f'WARN: 标题 {len(title)} 字 > 限制 (图文 20/视频 30, 会被截或拒)', file=sys.stderr)
 
     print('===========================================')
-    print('抖音 creator 发图文 PoC')
+    print(f'抖音 creator 发{"视频" if is_video else "图文"}')
     print('===========================================')
     print(f'  title:  {title}')
     print(f'  body:   {body[:60]}{"..." if len(body) > 60 else ""}')
-    print(f'  images: {len(images)} 张')
-    for i, ip in enumerate(images, 1):
-        print(f'    #{i}: {ip}')
+    if is_video:
+        print(f'  video:  {video_path} ({Path(video_path).stat().st_size / 1024 / 1024:.1f} MB, dedup={"on" if dedup else "off"})')
+    else:
+        print(f'  images: {len(images)} 张')
+        for i, ip in enumerate(images, 1):
+            print(f'    #{i}: {ip}')
     print(f'  mode:   {"COMMIT (真发)" if args.commit else "DRY-RUN (不点发布)"}')
     print()
 
@@ -1042,36 +1251,50 @@ def main() -> int:
 
         # 步 1
         print('[step 1] 直达 creator 发布页')
-        goto_creator_upload(wait=6.0)
+        goto_creator_upload(wait=6.0, url=CREATOR_UPLOAD_URL_VIDEO if is_video else None)
 
-        # 步 2 (可选 - 图文 tab)
-        print('[step 2] 切到「图文」tab (可能默认就在, 失败不阻断)')
-        click_image_tab()
+        # 步 2 (可选 - tab 确认)
+        if is_video:
+            print('[step 2] 确认「发布视频」tab (默认就在, 失败不阻断)')
+            click_video_tab()
+        else:
+            print('[step 2] 切到「图文」tab (可能默认就在, 失败不阻断)')
+            click_image_tab()
 
         # 步 3
         print('[step 3] 点上传区 → 弹文件对话框')
-        if not click_upload_button():
+        if not (click_video_upload_button() if is_video else click_upload_button()):
             print('  ERROR: 上传按钮没找到. 截图 screenshots/_loc.png 看是不是页面没 load 完 / VL prompt 不对',
                   file=sys.stderr)
             return 4
 
         # 步 3.5
-        paste_image_paths(images)
+        if is_video:
+            paste_image_paths([video_path])
+            if not wait_video_uploaded():
+                print('  ERROR: 视频上传超时/失败', file=sys.stderr)
+                return 45
+        else:
+            paste_image_paths(images)
 
         # 步 4
         print('[step 4] 填标题')
-        if not fill_title(title):
-            print('  ERROR: 标题输入框没找到', file=sys.stderr)
-            return 5
+        if not fill_title(title, video=is_video):
+            if is_video:
+                # 视频页标题非必填 (描述才是主体), 找不到不打死整条
+                print('  WARN: 视频页标题输入框没找到, 跳过标题继续', file=sys.stderr)
+            else:
+                print('  ERROR: 标题输入框没找到', file=sys.stderr)
+                return 5
 
         # 步 5
         print('[step 5] 填正文')
-        if not fill_body(body):
+        if not fill_body(body, video=is_video):
             print('  ERROR: 正文输入框没找到', file=sys.stderr)
             return 6
 
-        # 步 5.3 (默认加音乐, --no-music 跳过)
-        if not args.no_music:
+        # 步 5.3 (图文默认加音乐; 视频有原声不加)
+        if not args.no_music and not is_video:
             print('[step 5.3] 加音乐 (选第一首推荐)')
             if not add_music():
                 print('  WARN: 加音乐失败 (面板/选项没定位到). 不阻断, 继续下一步.', file=sys.stderr)
@@ -1112,10 +1335,13 @@ def main() -> int:
         except Exception:
             pass
 
-        # 清理 staging: 仅当 manifest 含 image_urls 触发下载时清, 用户自带本地 --images 不动.
+        # 清理 staging: 仅当远程 URL 触发下载时清, 用户自带本地 --images/--video 不动.
         # 保证不管 commit/dry-run/失败/异常都执行, 避免 staging 堆积占盘.
-        if downloaded_from_urls and images:
-            _cleanup_staging(images)
+        if downloaded_from_urls:
+            if images:
+                _cleanup_staging(images)
+            elif video_path:
+                _cleanup_staging([video_path])
 
 
 if __name__ == '__main__':
