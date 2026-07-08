@@ -71,6 +71,7 @@ const CATEGORIES = [
       { slug: 'munger-inversion', title: '芒格逆向思维', desc: '「反过来想」——先问怎样会失败，再挨个避开；结合 Akke 举例。' },
       { slug: 'musk-five-step-algorithm', title: '马斯克工程五步法', desc: '质疑需求→删除→简化→加速→自动化：工程思维的操作系统，结合 Akke 举例。' },
       { slug: 'wbs-task-breakdown', title: 'WBS 工作分解结构', desc: '把大目标拆到「一人一天可验收」为止——用 Akke 近 3 天的真实工作演示任务拆解，结合 Akke 举例。' },
+      { slug: 'yagni', title: 'YAGNI 你不会需要它', desc: '「以后可能用得上」是工程里最贵的一句话——为想象中的未来写的代码几乎都白写。什么该现在做、什么该等真需要时再做，以及 YAGNI 不适用的边界，结合团队真实决策。' },
     ],
   },
 ];
