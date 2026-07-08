@@ -147,6 +147,44 @@
     </a>
   </div>
 
+  <div id="rangebar" style="display:flex; flex-wrap:wrap; gap:10px 14px; align-items:center; margin:0 0 26px; background:#141821; border:1px solid #242a38; border-radius:12px; padding:14px 18px;">
+    <span style="font-size:11.5px; color:#8b5cf6; font-weight:700; letter-spacing:0.1em; text-transform:uppercase;">📅 按时间段查合集</span>
+    <label style="font-size:13px; color:#6b7384;">从</label>
+    <input type="date" id="rb-from" style="background:#1a1f2b; border:1px solid #2f3646; color:#e4e7ed; border-radius:8px; padding:6px 10px; font-size:14px; color-scheme:dark;">
+    <label style="font-size:13px; color:#6b7384;">到</label>
+    <input type="date" id="rb-to" style="background:#1a1f2b; border:1px solid #2f3646; color:#e4e7ed; border-radius:8px; padding:6px 10px; font-size:14px; color-scheme:dark;">
+    <span id="rb-count" style="font-size:13.5px; color:#9ba3b4;">共 — 条</span>
+    <a id="rb-go" href="#" style="background:#8b5cf6; color:#fff; border-radius:8px; padding:7px 16px; font-size:14px; font-weight:600; text-decoration:none;">打开这段时间的合集 →</a>
+    <span class="rb-preset" data-days="7" style="font-size:12.5px; color:#60a5fa; cursor:pointer; padding:4px 8px; border-radius:6px; border:1px solid #2f3646;">近 7 天</span>
+    <span class="rb-preset" data-days="30" style="font-size:12.5px; color:#60a5fa; cursor:pointer; padding:4px 8px; border-radius:6px; border:1px solid #2f3646;">近 30 天</span>
+  </div>
+  <script>
+  (function(){
+    function fmt(d){ return d.toISOString().slice(0,10); }
+    function daysAgo(n){ var d=new Date(); d.setDate(d.getDate()-n); return fmt(d); }
+    var elFrom=document.getElementById('rb-from'), elTo=document.getElementById('rb-to'),
+        elCount=document.getElementById('rb-count'), elGo=document.getElementById('rb-go');
+    elFrom.value=daysAgo(7); elTo.value=fmt(new Date());
+    var DATA=[];
+    function refresh(){
+      var f=elFrom.value, t=elTo.value;
+      elGo.href='/akke/cases/range?from='+f+'&to='+t;
+      if(DATA.length){
+        var inRange=DATA.filter(function(e){ return e.date && e.date>=f && e.date<=t; });
+        var convN=inRange.filter(function(e){return e.conv;}).length;
+        elCount.textContent='共 '+inRange.length+' 条'+(convN?('（'+convN+' 条对话）'):'');
+      }
+    }
+    elFrom.addEventListener('change', refresh); elTo.addEventListener('change', refresh);
+    Array.prototype.forEach.call(document.querySelectorAll('.rb-preset'), function(el){
+      el.addEventListener('click', function(){ elFrom.value=daysAgo(+el.dataset.days); elTo.value=fmt(new Date()); refresh(); });
+    });
+    fetch('/akke/cases/manifest.json',{cache:'no-store'}).then(function(r){return r.json();})
+      .then(function(m){ DATA=m; refresh(); }).catch(function(){ elCount.textContent='(计数加载失败)'; refresh(); });
+    refresh();
+  })();
+  </script>
+
   <div class="stats" id="stats"><!-- 统计条由页脚 JS 按卡片实时计算填充 --></div>
 
   <div class="toolbar">
