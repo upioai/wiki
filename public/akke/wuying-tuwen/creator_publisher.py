@@ -258,12 +258,18 @@ def paste_image_paths(image_paths: list[str]) -> None:
 
 
 def fill_title(title: str, video: bool = False) -> bool:
-    """「作品标题」输入框 (图文限 20 字, 视频限 30 字)."""
+    """「作品标题」输入框 (图文限 20 字, 视频限 30 字).
+
+    视频页坑 (2026-07-08 夏夏 PoC): 标题框和描述框上下紧挨, VL 易点到框上方空白 →
+    键入落空. 对策: 收紧 region 到标题行那一带 + 明确"点在占位文字上" + 点两下确保
+    caret 进框.
+    """
     if video:
-        desc = ('抖音发布视频页里的【作品标题输入框】(单行输入框, 带「填写作品标题, '
-                '为作品获得更多流量」或类似占位文字, 在视频预览/描述区附近). '
-                '不要选多行的作品描述框.')
-        region = (0.05, 0.10, 0.95, 0.60)
+        desc = ('抖音发布视频页【基础信息】区里最上面那个【作品标题输入框】: 单行, '
+                '当前显示灰色占位文字「填写作品标题，为作品获得更多流量」, 右上角有「0/30」字数统计. '
+                '请把点选目标定在那行占位文字正中间. 不要选它下方那个更大的「添加作品简介」多行描述框.')
+        # 标题行在页面上部窄带 (约屏高 18%~32%), 收紧防点到上方 header 空白
+        region = (0.28, 0.16, 0.78, 0.34)
     else:
         desc = ('抖音发布页里的【作品标题输入框】(单行输入框, 上方或左侧有「标题」字样, '
                 '通常在图片预览区下方、正文描述框上方, 字数限制 20 字). '
@@ -272,7 +278,10 @@ def fill_title(title: str, video: bool = False) -> bool:
     pt = locate_retry(desc, region=region)
     if pt is None:
         return False
-    pyautogui.click(pt[0], pt[1]); time.sleep(0.4)
+    # 视频页点两下: 第一下有时只 hover/选中占位, 第二下才真正把 caret 落进 input
+    pyautogui.click(pt[0], pt[1]); time.sleep(0.25)
+    if video:
+        pyautogui.click(pt[0], pt[1]); time.sleep(0.3)
     pyautogui.hotkey('ctrl', 'a'); time.sleep(0.1)
     pyautogui.press('delete'); time.sleep(0.3)
     type_unicode(title); time.sleep(0.8)
@@ -288,10 +297,11 @@ def fill_body(body: str, video: bool = False) -> bool:
     所以 body 不是一次性键入, 而是按 # 分段键入, 每个 #xxx 后等浮层 + Enter.
     """
     if video:
-        desc = ('抖音发布视频页里的【作品描述输入框】(多行大文本区域, 带「添加作品描述」'
-                '或类似占位文字, 附近有 #话题 @朋友 按钮, 在标题输入框下方). '
-                '不要选单行的标题框.')
-        region = (0.05, 0.15, 0.95, 0.75)
+        desc = ('抖音发布视频页【基础信息】区里那个大的【作品简介/描述输入框】: 多行文本区, '
+                '当前显示灰色占位文字「添加作品简介」, 底部有「#添加话题」「@好友」按钮和「0/1000」统计. '
+                '请把点选目标定在「添加作品简介」占位文字上. 不要选它上方那个单行的标题框(0/30 那个).')
+        # 描述框在标题下方 (约屏高 26%~46%)
+        region = (0.28, 0.24, 0.78, 0.48)
     else:
         desc = ('抖音发布页里的【作品描述/正文输入框】(多行大文本区域, 在标题输入框下方, '
                 '可能带「输入内容, 让更多人看到吧」或「分享此刻的想法」占位文字, '
@@ -300,7 +310,10 @@ def fill_body(body: str, video: bool = False) -> bool:
     pt = locate_retry(desc, region=region)
     if pt is None:
         return False
-    pyautogui.click(pt[0], pt[1]); time.sleep(0.4)
+    pyautogui.click(pt[0], pt[1]); time.sleep(0.3)
+    if video:
+        # 视频页描述框同标题: 点两下确保 caret 进 contenteditable
+        pyautogui.click(pt[0], pt[1]); time.sleep(0.3)
     pyautogui.hotkey('ctrl', 'a'); time.sleep(0.1)
     pyautogui.press('delete'); time.sleep(0.3)
 
@@ -585,7 +598,7 @@ def add_music() -> bool:
     return True
 
 
-def click_publish(commit: bool = False) -> bool:
+def click_publish(commit: bool = False, video: bool = False) -> bool:
     """定位底部「发布」按钮.
 
     commit=False (默认 dry-run): 定位到坐标 + 截图标记, 但不点击.
@@ -593,35 +606,58 @@ def click_publish(commit: bool = False) -> bool:
 
     发布按钮在 creator 发布页【表单容器底部】, 默认视口外要先滚到底.
     用鼠标滚轮 (在页面中央位置滚), End/PageDown 键在某些 scrollable container 不生效.
+
+    ⚠ 图文页 vs 视频页按钮位置不同 (2026-07-08 夏夏 PoC 实测):
+      - 图文页: 「发布」在底部操作栏【右下角】
+      - 视频页: 页面更长 (多了扩展信息/发布设置两段), 「发布」在底部【左中位置】,
+        右边没东西; 灰色「暂存离开」在它右边. 用右半屏 region 会漏掉 → NOT FOUND.
     """
     sw, sh = pyautogui.size()
     pyautogui.moveTo(sw // 2, int(sh * 0.5))
     time.sleep(0.2)
-    for _ in range(10):
+    # 视频页表单更长, 多滚几轮确保到底
+    for _ in range(16 if video else 10):
         pyautogui.scroll(-500)
         time.sleep(0.12)
     time.sleep(0.8)
     print('  [publish] 已滚到表单底部, 开始定位发布按钮')
 
-    # region 必须包含屏幕右侧: 2026-06-23 1920×1080 实测发布按钮在右下角 (~x=1700+),
-    # 旧 region 右边界 0.70 直接砍掉真按钮区域, VL 被迫从左半选错元素到 (647,931).
-    # 主 region = 右半屏底 20% (publish 一定在这里, 存草稿在它左边但仍在 region 内).
-    pt = locate(
-        '抖音发布页【底部操作栏】右下角的【红色「发布」主按钮】(实心红色填充背景, 白字「发布」). '
-        '它在屏幕最右下, 是所有底部按钮里【最右边那个红色】的. '
-        '区分: 左边是灰色「存草稿/暂存离开」按钮(不要选, 是灰色不是红色).',
-        region=(0.50, 0.80, 1.00, 1.00),
-    )
-    if pt is None:
-        # fallback: 整个底部条 (左半也含进来防 1366×768 这种特殊分辨率)
+    if video:
+        # 视频页: 发布按钮在底部【左中】, 灰色「暂存离开」在它右边
         pt = locate(
-            '抖音 creator 发布页【底部操作栏】里的【红色「发布」主按钮】(实心红色填充, '
-            '白字「发布」), 屏幕最右下. 注意: 不要选灰色「存草稿/暂存离开」按钮, '
-            '不要选左侧菜单栏的"发布作品"链接, 不要选页面顶部 logo.',
-            region=(0.00, 0.75, 1.00, 1.00),
+            '抖音发布视频页【最底部】的【红色「发布」主按钮】(实心红色填充背景, 白字「发布」). '
+            '它在页面底部偏左位置, 右边紧挨着一个灰色「暂存离开」按钮. '
+            '选那个红色实心的「发布」, 不要选灰色的「暂存离开」, 不要选左侧菜单栏的红色「高清发布」.',
+            region=(0.12, 0.72, 0.75, 1.00),
         )
-    if pt is None:
-        return False
+        if pt is None:
+            pt = locate(
+                '抖音发布视频页底部的红色「发布」按钮 (实心红底白字「发布」两个字). '
+                '不要选灰色「暂存离开」, 不要选页面左上角侧栏的「高清发布」.',
+                region=(0.00, 0.65, 1.00, 1.00),
+            )
+        if pt is None:
+            return False
+    else:
+        # region 必须包含屏幕右侧: 2026-06-23 1920×1080 实测发布按钮在右下角 (~x=1700+),
+        # 旧 region 右边界 0.70 直接砍掉真按钮区域, VL 被迫从左半选错元素到 (647,931).
+        # 主 region = 右半屏底 20% (publish 一定在这里, 存草稿在它左边但仍在 region 内).
+        pt = locate(
+            '抖音发布页【底部操作栏】右下角的【红色「发布」主按钮】(实心红色填充背景, 白字「发布」). '
+            '它在屏幕最右下, 是所有底部按钮里【最右边那个红色】的. '
+            '区分: 左边是灰色「存草稿/暂存离开」按钮(不要选, 是灰色不是红色).',
+            region=(0.50, 0.80, 1.00, 1.00),
+        )
+        if pt is None:
+            # fallback: 整个底部条 (左半也含进来防 1366×768 这种特殊分辨率)
+            pt = locate(
+                '抖音 creator 发布页【底部操作栏】里的【红色「发布」主按钮】(实心红色填充, '
+                '白字「发布」), 屏幕最右下. 注意: 不要选灰色「存草稿/暂存离开」按钮, '
+                '不要选左侧菜单栏的"发布作品"链接, 不要选页面顶部 logo.',
+                region=(0.00, 0.75, 1.00, 1.00),
+            )
+        if pt is None:
+            return False
     if not commit:
         print(f'  [publish DRY-RUN] 发布按钮定位到 ({pt[0]},{pt[1]}), 未点击')
         path, _ = _shot('_publish_btn_dryrun.png')
@@ -1274,6 +1310,10 @@ def main() -> int:
             if not wait_video_uploaded():
                 print('  ERROR: 视频上传超时/失败', file=sys.stderr)
                 return 45
+            # 上传完页面还在渲染表单 (标题/描述框、封面候选). 太早填会落空 →
+            # 标题描述整片空白 (2026-07-08 夏夏 PoC 实测). 停 4s 等表单稳定.
+            print('  [settle] 等表单渲染稳定 4s')
+            time.sleep(4)
         else:
             paste_image_paths(images)
 
@@ -1309,7 +1349,7 @@ def main() -> int:
 
         # 步 6
         print(f'[step 6] {"真发" if args.commit else "DRY-RUN"}')
-        if not click_publish(commit=args.commit):
+        if not click_publish(commit=args.commit, video=is_video):
             print('  ERROR: 发布按钮没找到', file=sys.stderr)
             return 7
 
