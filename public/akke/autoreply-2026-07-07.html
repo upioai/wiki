@@ -154,6 +154,14 @@
     <tr><td>文哥 / 陆轻阳</td><td class="mid">sent（att=1）</td><td>e2e <b>180s</b></td><td rowspan="2"><b>超 2 分钟的唯一原因＝第一次发送失败 → #763 有界重试第二次才成</b>，e2e 被失败翻倍（首次失败的具体错误码已被成功状态覆盖，属可观测性缺口——P4-P7 埋点待做）。<b>根因是失败率不是链路慢</b>；今天把两大失败源（emoji 假阴性 / 配置漂移 no_row）都治了，此类应显著减少</td></tr>
     <tr><td>文哥 / 小陈不吃芹菜！</td><td class="mid">sent（att=1）</td><td>e2e <b>547s（9min）</b></td></tr>
   </table>
+  <h3>07-08 早间追加 · 饭粒「Yik-.」案：journey 归因显示错了，真凶是未部署的旧脚本</h3>
+  <table>
+    <tr><th></th><th>journey 页显示</th><th>真实发生（DB 直查）</th></tr>
+    <tr><td>P3 护栏</td><td>⏸「微信外引拦截（预期行为）」</td><td class="ok">通过了：LLM 原稿自冒微信词 → 护栏<b>自动改写</b>成「让设计师私信你发」→ 放行 approved</td></tr>
+    <tr><td>P4-P6 发送</td><td>没走（⋯）</td><td class="bad">走了 <b>3 次</b>（att=3）：每次实际发出 → 旧脚本恒判 rejected → #763 重试</td></tr>
+    <tr><td>结局</td><td>护栏转人工</td><td class="bad">发送侧<b>假拒收</b> 3 次转人工，客户可能收到 3 遍</td></tr>
+  </table>
+  <div class="warn"><b>根因</b>：<code>_check_rejected</code> 4 元组漏拆包 → <b>恒判「对方拒收」</b>——7/6 已修（a059951a、进镜像），但<b>饭粒的云电脑没拉新脚本</b>。铁证：饭粒近 48h 仅有的 2 条自动回复 <b>100% rejected、全部 att=3</b>（恒判特征）。两条（Yik-. / 西瓜不见了）已 discard 防二次发送，请人工核对是否三连发。<b>连带发现</b>：journey 的归因是「拿 flags + needs_human 猜」，err=rejected 也被归到护栏箱——归因逻辑要修（与 P4-P7 埋点同属可观测性欠账）。</div>
   <div class="warn"><b>连带风险已处置</b>：大女人/蛋蛋两条挂在人工队列的 needs_human 草稿已置 discarded（防二次发送）；「unverified 大概率已发出、重试＝重发骚扰」这一类，#788 后不再自动重试、直接转人工核对。</div>
 
   <!-- ⑨ 部署指南 -->
@@ -164,11 +172,15 @@
     <tr><td>#787 连发合并（supersession）</td><td>DB migration 自动 push</td><td class="ok">✅ 已生效</td></tr>
     <tr><td>#788-③ unverified 不重试</td><td>DB migration 自动 push</td><td class="ok">✅ 已生效</td></tr>
     <tr><td><b>#788-①② 剥 emoji 比对 + 发送前幂等防重发</b></td><td>云电脑脚本 <code>douyin_dm_web_send_dom.py</code></td><td class="mid">需三台（小文/文哥/有大有小）更新 + 重启</td></tr>
+    <tr><td><b>rejected 恒判修复（a059951a·7/6）+ 全套 DOM</b></td><td>云电脑脚本 <code>douyin_dm_web_grounded.py</code> 等 3 件</td><td class="bad">⚠️ 饭粒机未部署（Yik 案实锤）；零星机待确认</td></tr>
   </table>
-  <p><b>云电脑更新（每台跑一遍）</b>——下面是<b>一条</b>命令（分号连接、整段粘贴不怕丢换行）：</p>
+  <p><b>云电脑更新 A（小文/文哥/有大有小——已更过 07-07 早批的机器，只补 send_dom）</b>——一条命令整段粘贴：</p>
   <pre style="background:#0f1623;color:#d6e2f0;border-radius:10px;padding:14px 16px;margin:10px 0;overflow-x:auto;font:12.5px/1.6 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all">Get-Process python,py,pythonw -ErrorAction SilentlyContinue | Stop-Process -Force; cd C:\akke-wuying\wuying-dm; Copy-Item douyin_dm_web_send_dom.py douyin_dm_web_send_dom.py.bak-788 -Force -EA 0; curl.exe -fsS --retry 5 --retry-delay 2 --connect-timeout 15 -o douyin_dm_web_send_dom.py 'https://cdn.jsdelivr.net/gh/upioai/wiki@788b0e84272f623ea575ee1023f4502e1739d8dd/public/akke/wuying-dm/douyin_dm_web_send_dom.py'; (Get-Item douyin_dm_web_send_dom.py).Length</pre>
   <p style="font-size:13px">核对字节数 ＝ <b>22549</b>（旧版 19310 ＝ 没下到新的，回报）。然后单独跑启动：</p>
   <pre style="background:#0f1623;color:#d6e2f0;border-radius:10px;padding:10px 16px;margin:10px 0;font:12.5px/1.6 ui-monospace,Menlo,Consolas,monospace">py -u wuying_poll_agent.py</pre>
+  <p><b>云电脑更新 B（饭粒/零星——一直没更过的机器，三件套全下）</b>——一条命令整段粘贴：</p>
+  <pre style="background:#0f1623;color:#d6e2f0;border-radius:10px;padding:14px 16px;margin:10px 0;overflow-x:auto;font:12.5px/1.6 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all">Get-Process python,py,pythonw -ErrorAction SilentlyContinue | Stop-Process -Force; cd C:\akke-wuying\wuying-dm; $b='https://cdn.jsdelivr.net/gh/upioai/wiki@788b0e84272f623ea575ee1023f4502e1739d8dd/public/akke/wuying-dm'; foreach($f in 'douyin_dm_web_grounded.py','douyin_dm_web_reply.py','douyin_dm_web_send_dom.py'){ Copy-Item $f "$f.bak" -Force -EA 0; curl.exe -fsS --retry 5 --retry-delay 2 --connect-timeout 15 -o $f "$b/$f"; '{0,-30} {1}' -f $f,(Get-Item $f).Length }</pre>
+  <p style="font-size:13px">核对：<code>grounded=26627</code>（rejected 恒判修复）/ <code>reply=4373</code>（发送走 DOM）/ <code>send_dom=22549</code>（防重发三层）。再确认 <code>.env</code> 有 <code>AKKE_WEB_DM_USE_DOM=1</code>，然后 <code>py -u wuying_poll_agent.py</code> 重启。</p>
   <div class="callout"><b>验证</b>：横幅 <code>rc=off</code> + 本机 account；之后若出现重试场景，黑窗应打 <code>[幂等] 会话里已有本文案气泡 → 归位 sent, 不重发</code>。含 emoji 草稿不再 unverified。回滚＝把 <code>.bak-788</code> 改回原名重启；migration 回滚 SQL 在 <code>migrations-rollback/20260707220706_*</code>。</div>
 
   <footer>Akke · 自动回复 · 2026-07-07 ｜ PR #782 加微停培育 · #787 连发合并 · #788 防重复轰炸 ｜ 数据 DB 直查</footer>
