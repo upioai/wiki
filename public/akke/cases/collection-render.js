@@ -79,7 +79,7 @@
   };
 
   // ---- 团队内部共享备注（存 Akke 后端 /api/public/case-notes；人人可见可编辑）----
-  var NOTES_API = '/api/public/case-notes';
+  var NOTES_API = 'https://akke.vercel.app/api/public/case-notes';
   var NOTES_TOKEN = 'akke-cases-notes-2026';   // 轻量写入口令（内部页用；与后端 route 默认一致）
   var notes = { loaded: false, ok: false, map: {} };
 
