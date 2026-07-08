@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>用 /loop × goal 编排任务 — upio.ai 知识分享</title>
+<meta name="description" content="/loop 是让一段 prompt「反复醒来」的骨架，goal 是写在 prompt 里的「何时停」判据。两者配起来，Claude 就能自己盯着一件事干到达标为止。结合 Akke 讲三种落法：轮询等状态、指标压达标、backlog 磨到空——以及必须先焊死的四道护栏。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700;800&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+
+<style>
+:root {
+  --bg: #0a0d14; --bg-elevated: #131720; --bg-deep: #1a1f2b;
+  --border: #232936; --border-strong: #2f3646;
+  --text: #e8eaef; --text-dim: #9ba3b4; --text-muted: #6b7384;
+  --accent:   #8b5cf6; --accent-soft:   rgba(139, 92, 246, 0.15); --accent-strong: rgba(139, 92, 246, 0.35);
+  --accent-2: #60a5fa; --accent-2-soft: rgba(96, 165, 250, 0.13);
+  --accent-3: #34d399; --accent-3-soft: rgba(52, 211, 153, 0.14);
+  --warning:  #fbbf24; --warning-soft:  rgba(251, 191, 36, 0.14);
+  --danger:   #f87171; --danger-soft:   rgba(248, 113, 113, 0.14);
+  --font-display: 'Instrument Serif', 'Source Han Serif SC', Georgia, serif;
+  --font-ui:      'Inter Tight', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; padding: 0;
+  background: var(--bg); color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 15.5px; line-height: 1.7;
+  font-feature-settings: 'cv11', 'ss01', 'tnum';
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ──────────── Breadcrumb bar ──────────── */
+.crumb-bar {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(10, 13, 20, 0.82);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border-bottom: 1px solid var(--border);
+}
+.crumb-inner {
+  max-width: 1000px; margin: 0 auto;
+  padding: 11px 24px;
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--text-muted); letter-spacing: 0.04em;
+}
+.crumb-inner a { color: var(--text-dim); text-decoration: none; transition: color .2s; }
+.crumb-inner a:hover { color: var(--accent); }
+.crumb-inner .sep { margin: 0 8px; color: var(--border-strong); }
+.crumb-inner .cur { color: var(--text-dim); }
+
+/* ──────────── Layout ──────────── */
+.container { max-width: 920px; margin: 0 auto; padding: 52px 24px 100px; }
+
+/* ──────────── Hero ──────────── */
+header.hero { padding: 4px 0 38px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.tag {
+  display: inline-block; padding: 4px 12px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent);
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  margin-bottom: 18px;
+}
+h1 {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 58px; font-weight: 400;
+  margin: 0 0 18px; letter-spacing: -0.02em; line-height: 1.08;
+  background: linear-gradient(135deg, #f4f5f8 30%, var(--accent) 72%, var(--accent-2) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.subtitle {
+  font-size: 17px; color: var(--text-dim);
+  margin: 0 0 26px; max-width: 780px; line-height: 1.6;
+}
+.subtitle strong { color: var(--text); font-weight: 600; }
+.subtitle code { background: var(--bg-deep); padding: 1px 6px; border-radius: 4px; font-size: 0.86em; color: #c4b5fd; font-family: var(--font-mono); }
+.hero-meta {
+  display: flex; gap: 26px; flex-wrap: wrap;
+  font-family: var(--font-mono); font-size: 12px; color: var(--text-muted);
+}
+.hero-meta strong { color: var(--text-dim); font-weight: 500; }
+
+/* ──────────── Section head ──────────── */
+.section-head {
+  display: flex; gap: 22px; align-items: baseline;
+  padding-top: 30px; margin-top: 52px;
+  border-top: 1px solid var(--border);
+}
+.section-head .num {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 72px; line-height: 1; font-weight: 400;
+  color: var(--accent); flex-shrink: 0;
+}
+.section-head .meta { flex: 1; padding-top: 14px; }
+.section-head h2 {
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--text-muted); letter-spacing: 0.14em;
+  text-transform: uppercase; margin: 0 0 6px; font-weight: 700;
+}
+.section-head .lede {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 29px; line-height: 1.25; color: var(--text);
+}
+section { margin-bottom: 22px; }
+section > p { margin: 14px 0; color: var(--text-dim); }
+section > p strong { color: var(--text); font-weight: 600; }
+h3 {
+  font-family: var(--font-ui); font-size: 19px; font-weight: 600;
+  color: var(--text); margin: 34px 0 12px; letter-spacing: -0.01em;
+}
+code {
+  background: var(--bg-deep); padding: 1px 6px; border-radius: 4px;
+  font-size: 0.86em; color: #c4b5fd; font-family: var(--font-mono);
+}
+a { color: var(--accent-2); text-decoration: none; transition: color .2s; }
+a:hover { color: var(--accent); }
+
+/* ──────────── Command block ──────────── */
+.cmd {
+  background: var(--bg-deep); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px 18px; margin: 16px 0;
+  font-family: var(--font-mono); font-size: 12.5px; line-height: 1.75;
+  color: var(--text-dim); overflow-x: auto; white-space: pre;
+}
+.cmd .cm { color: var(--text-muted); }        /* comment */
+.cmd .kw { color: var(--accent); font-weight: 700; }  /* /loop */
+.cmd .gl { color: var(--accent-3); }           /* goal keyword */
+.cmd .st { color: var(--warning); }            /* stop */
+
+/* ──────────── Callout ──────────── */
+.callout { border-radius: 10px; padding: 14px 18px; margin: 18px 0; font-size: 14px; line-height: 1.7; }
+.callout.info    { background: var(--accent-2-soft); border-left: 3px solid var(--accent-2); color: var(--text-dim); }
+.callout.info strong    { color: var(--accent-2); }
+.callout.warn    { background: var(--warning-soft); border-left: 3px solid var(--warning); color: var(--text-dim); }
+.callout.warn strong    { color: var(--warning); }
+.callout.success { background: var(--accent-3-soft); border-left: 3px solid var(--accent-3); color: var(--text-dim); }
+.callout.success strong { color: var(--accent-3); }
+.callout.purple  { background: var(--accent-soft); border-left: 3px solid var(--accent); color: var(--text-dim); }
+.callout.purple strong  { color: var(--accent); }
+.callout.danger  { background: var(--danger-soft); border-left: 3px solid var(--danger); color: var(--text-dim); }
+.callout.danger strong  { color: var(--danger); }
+.callout code { color: #c4b5fd; }
+
+/* ──────────── Kind cards (3-up) ──────────── */
+.engines { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 20px 0 18px; }
+@media (max-width: 720px) { .engines { grid-template-columns: 1fr; } }
+.engine {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 14px; padding: 20px 20px 18px;
+  position: relative; overflow: hidden;
+  transition: border-color .2s, transform .2s;
+}
+.engine::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+.engine.e-time::before  { background: var(--accent-2); }
+.engine.e-event::before { background: var(--accent); }
+.engine.e-always::before{ background: var(--accent-3); }
+.engine:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+.engine .e-sym { font-size: 26px; line-height: 1; margin-bottom: 8px; }
+.engine .e-name {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.engine.e-time  .e-name { color: var(--accent-2); }
+.engine.e-event .e-name { color: var(--accent); }
+.engine.e-always .e-name{ color: var(--accent-3); }
+.engine .e-title { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+.engine .e-sub { font-size: 13.5px; color: var(--text-dim); line-height: 1.6; }
+.engine .e-metaphor {
+  font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);
+  margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border);
+}
+
+/* ──────────── Loop cycle ──────────── */
+.cycle {
+  background: var(--bg-deep); border: 1px solid var(--border);
+  border-radius: 12px; padding: 26px 24px; margin: 22px 0;
+  display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap;
+  font-family: var(--font-mono); font-size: 13px;
+}
+.cy-step {
+  padding: 10px 16px; border-radius: 10px; background: var(--bg-elevated);
+  border: 1px solid var(--border-strong); color: var(--text); text-align: center;
+}
+.cy-step .cy-t { font-size: 11px; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 3px; }
+.cy-arrow { color: var(--accent); font-size: 18px; }
+.cy-branch { display: flex; flex-direction: column; gap: 8px; }
+.cy-branch .b1 { color: var(--accent-3); }
+.cy-branch .b2 { color: var(--warning); }
+
+/* ──────────── Term / usage cards ──────────── */
+.terms { display: grid; grid-template-columns: 1fr; gap: 14px; margin: 20px 0; }
+.termcard {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 12px; padding: 20px 22px;
+  transition: border-color .2s, transform .2s;
+}
+.termcard:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+.tc-top { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+.tc-name { font-family: var(--font-ui); font-size: 17px; font-weight: 700; color: var(--text); }
+.tc-kind {
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 999px;
+}
+.tc-kind.k-time   { background: var(--accent-2-soft); color: var(--accent-2); }
+.tc-kind.k-event  { background: var(--accent-soft);   color: var(--accent); }
+.tc-kind.k-always { background: var(--accent-3-soft); color: var(--accent-3); }
+.tc-goal { font-family: var(--font-mono); font-size: 11.5px; color: var(--accent-3); margin: 4px 0 12px; }
+.tc-body { font-size: 14px; color: var(--text-dim); line-height: 1.65; }
+.tc-body b { color: var(--text); font-weight: 600; }
+
+/* ──────────── Versus pair ──────────── */
+.versus {
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch;
+  margin: 16px 0; background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+}
+@media (max-width: 560px) { .versus { grid-template-columns: 1fr; } }
+.vs-side { padding: 18px 20px; }
+.vs-side h4 { margin: 0 0 6px; font-size: 15px; font-weight: 700; font-family: var(--font-mono); letter-spacing: 0.01em; }
+.vs-side p { margin: 0; font-size: 13.5px; color: var(--text-dim); line-height: 1.6; }
+.vs-side.left h4 { color: var(--accent-2); }
+.vs-side.right h4 { color: var(--accent-3); }
+.vs-mid {
+  display: flex; align-items: center; justify-content: center; padding: 0 8px;
+  font-family: var(--font-display); font-style: italic; font-size: 18px; color: var(--text-muted);
+  border-left: 1px solid var(--border); border-right: 1px solid var(--border); background: var(--bg-deep);
+}
+@media (max-width: 560px) {
+  .vs-mid { border: none; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 6px; }
+}
+
+/* ──────────── Decision table ──────────── */
+.dtable-wrap { overflow-x: auto; margin: 20px 0; border: 1px solid var(--border); border-radius: 12px; }
+.dtable { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 620px; }
+.dtable th, .dtable td { text-align: left; padding: 13px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.dtable tr:last-child td { border-bottom: none; }
+.dtable th {
+  font-family: var(--font-mono); font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.12em; color: var(--text-muted); font-weight: 700;
+  background: var(--bg-deep);
+}
+.dtable td { color: var(--text-dim); line-height: 1.55; }
+.dtable td.pick { color: var(--accent); font-family: var(--font-mono); font-weight: 700; white-space: nowrap; font-size: 12.5px; }
+.dtable tbody tr:hover td { background: var(--bg-elevated); }
+
+/* ──────────── Punchline ──────────── */
+.punchline {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 27px; line-height: 1.4; color: var(--text);
+  text-align: center; margin: 44px auto 8px; max-width: 760px;
+  padding: 28px 24px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+}
+.punchline .hl {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  font-weight: 400;
+}
+
+/* ──────────── Footer ──────────── */
+footer {
+  text-align: center; padding: 56px 0 0;
+  font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted);
+  letter-spacing: 0.06em; line-height: 1.8;
+}
+footer a { color: var(--text-dim); }
+
+/* ──────────── Scroll reveal ──────────── */
+.reveal { opacity: 0; filter: blur(6px); transform: translateY(12px);
+  transition: opacity .6s ease-out, filter .6s ease-out, transform .6s ease-out; }
+.reveal.in-view { opacity: 1; filter: blur(0); transform: translateY(0); }
+
+@media (max-width: 560px) {
+  h1 { font-size: 40px; }
+  .section-head { gap: 14px; }
+  .section-head .num { font-size: 52px; }
+  .section-head .lede { font-size: 23px; }
+  .punchline { font-size: 21px; }
+  .cycle { flex-direction: column; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .reveal { opacity: 1 !important; filter: none !important; transform: none !important; }
+}
+</style>
+</head>
+
+<body>
+
+<nav class="crumb-bar">
+  <div class="crumb-inner">
+    <a href="/">upio.ai</a><span class="sep">/</span><a href="/learn">知识分享</a><span class="sep">/</span><span class="cur">用 /loop × goal 编排任务</span>
+  </div>
+</nav>
+
+<div class="container">
+
+  <header class="hero">
+    <span class="tag">Agent · AI 工程</span>
+    <h1>用 /loop × goal 编排任务</h1>
+    <p class="subtitle"><code>/loop</code> 是让一段 prompt「<strong>反复醒来</strong>」的骨架，goal 是写在 prompt 里的「<strong>何时停</strong>」判据。把这两样配起来，Claude 就能自己盯着一件事、干一步、量一次，一直干到达标为止——而不是跑个没完，也不是干一半停手。本文用 Akke 的真实场景讲三种落法，以及跑之前必须焊死的四道护栏。</p>
+    <div class="hero-meta">
+      <span><strong>篇幅</strong> 6 章 · 约 8 分钟</span>
+      <span><strong>受众</strong> 用 Claude Code 编排任务的人</span>
+      <span><strong>主线</strong> 两词之别 · 三种形态 · goal 心智模型 · 三类用法 · 四道护栏</span>
+    </div>
+  </header>
+
+  <div class="callout warn" style="margin-top:26px;">
+    <strong>先纠一个前提 ·</strong> Claude Code 里<b style="color:var(--text)">没有独立的 <code>/goal</code> 命令</b>。真正能落地的「loop + goal」= 用 <code>/loop</code> 的自定节奏模式，<b style="color:var(--text)">把一个明确的收敛目标写进 prompt 当停止条件</b>。所以这篇讲的是一种<b style="color:var(--text)">用法</b>，不是两个命令。
+  </div>
+
+  <!-- ════════════ 01 ════════════ -->
+  <div class="section-head reveal" id="two-words">
+    <span class="num">01</span>
+    <div class="meta">
+      <h2>SECTION ONE · TWO WORDS</h2>
+      <div class="lede">先把「反复」和「终点」分开</div>
+    </div>
+  </div>
+
+  <section>
+    <p>这套用法之所以容易讲不清，是因为大家把 loop 和 goal 当一回事。其实它俩管的是<strong>完全不同的两件事</strong>：</p>
+
+    <div class="versus reveal">
+      <div class="vs-side left">
+        <h4>/loop　= 骨架</h4>
+        <p>一个<b style="color:var(--text)">调度 / 迭代机制</b>，让同一段 prompt「反复醒来执行」。它回答的是——<b style="color:var(--text)">多久干一次、干几轮</b>。</p>
+      </div>
+      <div class="vs-mid">×</div>
+      <div class="vs-side right">
+        <h4>goal　= 终点</h4>
+        <p>不是命令，是你写在 prompt 里的<b style="color:var(--text)">收敛判据 / 停止条件</b>。它回答的是——<b style="color:var(--text)">干到什么程度算完、何时停</b>。</p>
+      </div>
+    </div>
+
+    <p>一句话：<strong>loop 给「反复」，goal 给「终点」。</strong></p>
+
+    <div class="callout danger">
+      <strong>没有 goal 的 loop 很危险 ·</strong> 它会永远转下去（或一直撞到系统的轮次硬上限才停），既烧 token 又可能悄悄跑偏。<b style="color:var(--text)">有 goal 的 loop</b> 才会在达标那一轮<b style="color:var(--text)">自己喊停</b>。goal 不是可选项，是刹车。
+    </div>
+  </section>
+
+  <!-- ════════════ 02 ════════════ -->
+  <div class="section-head reveal" id="forms">
+    <span class="num">02</span>
+    <div class="meta">
+      <h2>SECTION TWO · THREE FORMS</h2>
+      <div class="lede">/loop 的三种形态</div>
+    </div>
+  </div>
+
+  <section>
+    <p>同一个 <code>/loop</code> 命令，传不传时间间隔，行为完全不同：</p>
+
+    <div class="engines reveal">
+      <div class="engine e-time">
+        <div class="e-sym">🕐</div>
+        <div class="e-name">固定间隔</div>
+        <div class="e-title">每 N 分钟跑一次</div>
+        <div class="e-sub">已知该多久查一次，用来轮询外部状态。到点就跑，不管有没有变化。</div>
+        <div class="e-metaphor">/loop 5m /akke-version-sync</div>
+      </div>
+      <div class="engine e-event">
+        <div class="e-sym">🎯</div>
+        <div class="e-name">自定节奏</div>
+        <div class="e-title">不传间隔 · 自己定步调</div>
+        <div class="e-sub">每轮干完，Claude 自己判断该不该继续、隔多久再来。这是「loop × goal」的主场。</div>
+        <div class="e-metaphor">/loop 盯着部署，绿了验证生产就停</div>
+      </div>
+      <div class="engine e-always">
+        <div class="e-sym">⏰</div>
+        <div class="e-name">一次性定时</div>
+        <div class="e-title">某个时刻跑一次</div>
+        <div class="e-sub">不是循环，是延后执行一次。严格说不算 loop，但同一入口能安排。</div>
+        <div class="e-metaphor">/loop 明早 9 点跑一次日报</div>
+      </div>
+    </div>
+
+    <div class="callout info">
+      <strong>底层机制 ·</strong> 自定节奏模式背后是 <code>ScheduleWakeup</code>——Claude 每轮结束时给自己「设个闹钟」，决定多久后再醒来。你不用直接碰它，写好 prompt 里的 goal 就行。想彻底搞清 <code>/loop</code>、<code>/schedule</code>、Routine、Cron 这一堆词的区别，看姊妹篇 <a href="/learn/scheduling-terms">《Cron / Routine / Schedule 辨析》</a>。
+    </div>
+  </section>
+
+  <!-- ════════════ 03 ════════════ -->
+  <div class="section-head reveal" id="model">
+    <span class="num">03</span>
+    <div class="meta">
+      <h2>SECTION THREE · MENTAL MODEL</h2>
+      <div class="lede">goal 怎么写进 loop</div>
+    </div>
+  </div>
+
+  <section>
+    <p>每一轮 loop，内部其实都在跑这个循环体——干一步，量一次，再决定停还是续：</p>
+
+    <div class="cycle reveal">
+      <div class="cy-step"><div class="cy-t">Wake</div>醒来</div>
+      <span class="cy-arrow">→</span>
+      <div class="cy-step"><div class="cy-t">Step</div>干「一步」活</div>
+      <span class="cy-arrow">→</span>
+      <div class="cy-step"><div class="cy-t">Measure</div>量离 goal 多远</div>
+      <span class="cy-arrow">→</span>
+      <div class="cy-branch">
+        <div class="cy-step b1"><div class="cy-t">达标</div>■ 停</div>
+        <div class="cy-step b2"><div class="cy-t">没达标</div>↻ 排下一轮</div>
+      </div>
+    </div>
+
+    <p>所以你给 loop 的 prompt，<strong>必须显式包含三样东西</strong>，缺一样它就跑不对：</p>
+
+    <div class="callout purple">
+      <strong>① 每轮干什么「一步」</strong>　—— 把大任务切成可反复推进的小步，别指望一轮干完。
+    </div>
+    <div class="callout purple">
+      <strong>② goal 的可判定判据</strong>　—— 必须<b style="color:var(--text)">机器可验证</b>：数值达标 / 队列清空 / endpoint 返回 200。不能是「感觉差不多了」。
+    </div>
+    <div class="callout purple">
+      <strong>③ 到判据就停</strong>　—— 明确写「达到 X 就结束 loop」，否则它不知道终点在哪。
+    </div>
+
+    <div class="callout success">
+      <strong>为什么强调「可验证」·</strong> 这正好接上团队的 <b style="color:var(--text)">verify-before-claim</b> 铁律——loop 每轮声称「这步做完了」之前，必须拿出证据（grep 命中 / 测试输出 / <code>curl</code> payload）。判据可验证，loop 才停得踏实，你也才敢信它的结论。
+    </div>
+  </section>
+
+  <!-- ════════════ 04 ════════════ -->
+  <div class="section-head reveal" id="patterns">
+    <span class="num">04</span>
+    <div class="meta">
+      <h2>SECTION FOUR · THREE PATTERNS</h2>
+      <div class="lede">结合 Akke 的三类用法</div>
+    </div>
+  </div>
+
+  <section>
+    <p>同样是「loop × goal」，Akke 里有三种典型落法，区别就在 <strong>goal 是什么</strong>：</p>
+
+    <div class="terms reveal">
+
+      <div class="termcard">
+        <div class="tc-top"><span class="tc-name">A · 轮询型</span><span class="tc-kind k-time">固定间隔</span></div>
+        <div class="tc-goal">goal = 外部状态达成（CI 绿 / 部署完 / PR 合了）</div>
+        <div class="tc-body">适合「我干不了活，只能<b>等外部变化</b>」的场景：盯 <b>fly-worker</b> 部署、<b>supabase-migrate</b>、PR 的 claude-review 绿灯。每轮就是查一次状态、判断到没到。</div>
+        <div class="cmd"><span class="kw">/loop</span> 3m 查最新 CI run：<span class="cm"># 每轮一步</span>
+  in_progress → 继续等
+  success   → <span class="gl">curl 生产 endpoint 验证改动已上，然后停</span>
+  failure   → 拉 log 定位真错、告诉我，<span class="st">停</span></div>
+        <div class="callout warn" style="margin:14px 0 0;">
+          <strong>节奏坑 ·</strong> CI 要 8 分钟才结束，你用 60s 轮询会白刷 8 次、还每次撞掉 prompt 缓存。规则：<b style="color:var(--text)">5 分钟内的等待用 ≤270s（缓存不掉），要等更久直接 1200s+</b>（一次缓存 miss 换一段长等待）；<b style="color:var(--text)">别卡在 300s 整</b>——最不划算。
+        </div>
+      </div>
+
+      <div class="termcard">
+        <div class="tc-top"><span class="tc-name">B · 指标收敛型</span><span class="tc-kind k-event">自定节奏</span></div>
+        <div class="tc-goal">goal = 某个数值达标（时效性 &gt;60% / 回复率 →10%）</div>
+        <div class="tc-body">Akke 那批<b>带数值目标</b>的任务天生是这形态：评论→抓取时效 &lt;5min 占比 &gt;60%、获客回复率 5%→10%、知识类视频源提分。每轮<b>测量→改一步→再测</b>，达标才停。</div>
+        <div class="cmd"><span class="kw">/loop</span> <span class="gl">目标：时效 &lt;5min 占比 &gt;60%。</span>每轮：
+  ① 跑脚本测当前占比            <span class="cm"># 真测量，贴输出</span>
+  ② 只改一处（poller 间隔 / 并发 / claim 逻辑）
+     高危路径开 PR，<span class="cm">不直推 main</span>
+  ③ 推 Lark 技术频道贴前后数字
+  ④ <span class="gl">占比 &gt;60% 连续两次成立</span> → <span class="st">停</span></div>
+        <div class="callout info" style="margin:14px 0 0;">
+          <strong>关键 ·</strong> goal 是那个<b style="color:var(--text)">数字</b>，不是「我改完了」。每轮必须真跑脚本测量并贴出结果——这既是停止判据，也顺带满足 verify-before-claim。
+        </div>
+      </div>
+
+      <div class="termcard">
+        <div class="tc-top"><span class="tc-name">C · backlog 磨盘型</span><span class="tc-kind k-always">自定节奏</span></div>
+        <div class="tc-goal">goal = 某个队列清空（中低优任务全 done）</div>
+        <div class="tc-body">就是「让 loop 帮我啃掉 <b>Lark 里的中低优 backlog</b>」。goal = 队列空，天然收敛。每轮拉一条未完成子任务，只推进一步，达到 DoD 才标完成。</div>
+        <div class="cmd"><span class="kw">/loop</span> <span class="gl">目标：清空 tasklist 840e… 的所有中/低优任务</span>
+  ① 拉一条未完成任务的下一个未完成子任务
+  ② 只推进一步：调研 / 写 doc / 开 PR 草稿
+  ③ 达到该子任务 DoD 才 lark task +complete
+  ④ 推 Lark 卡片汇报进展
+  ⑤ <span class="gl">中低任务全清空</span> → <span class="st">停</span></div>
+        <div class="callout danger" style="margin:14px 0 0;">
+          <strong>别硬塞净新 feature ·</strong>「小红书搬运到抖音」「富媒体回答」这类<b style="color:var(--text)">全新功能</b>，得先 <code>brainstorming</code> 把方案对齐再进 loop。loop 只擅长<b style="color:var(--text)">判据明确、机械推进</b>的活；对着没定义的需求盲跑，它会自说自话瞎写。
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ════════════ 05 ════════════ -->
+  <div class="section-head reveal" id="guardrails">
+    <span class="num">05</span>
+    <div class="meta">
+      <h2>SECTION FIVE · GUARDRAILS</h2>
+      <div class="lede">跑之前必须焊死的四道护栏</div>
+    </div>
+  </div>
+
+  <section>
+    <p>自动化跑得越久，出事的代价越大。在 Akke 这个仓里放 loop 之前，下面四条<strong>不能省</strong>——它们直接来自团队 CLAUDE.md：</p>
+
+    <div class="dtable-wrap reveal">
+      <table class="dtable">
+        <thead>
+          <tr><th>护栏</th><th>为什么</th><th>怎么做</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="pick">高危路径走 PR<br>不 autonomous merge</td>
+            <td><code>llm*</code> / <code>api/cron/**</code> / <code>migrations/**</code> / <code>auth/**</code> / <code>vercel.json</code> 一改就上线，直推风险高</td>
+            <td>loop 把活干到「PR 就绪」即止，推卡片等<b>人工 ack</b> 再合，不自动合到 main</td>
+          </tr>
+          <tr>
+            <td class="pick">隔离 worktree 里跑</td>
+            <td>同目录有别的活跃会话时，直接在主 checkout 干会<b>抢 HEAD</b>、互相覆盖</td>
+            <td>loop 开始前切到独立 worktree，跟其他会话物理隔离</td>
+          </tr>
+          <tr>
+            <td class="pick">双指标心跳</td>
+            <td>「success 退出」≠「业务有效」——loop 可能空转，reconcile 跑了 0 行更新</td>
+            <td>同时落<b>存活心跳</b>（还在跑）+ <b>业务 delta</b>（真有进展）；连续 N 轮 0 进展要告警</td>
+          </tr>
+          <tr>
+            <td class="pick">API 最小化 + 贴证据</td>
+            <td>每轮全量刷 Lark / 库会烧配额；空口标完成会骗过自己</td>
+            <td>批量拉、缓存 ID、精确过滤；每步声称「完成」前贴 grep / 测试 / curl 证据</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout warn">
+      <strong>一句话记 ·</strong> loop 是「把活干到 PR / 报告就绪」的自动化，<b style="color:var(--text)">不是「自动合到线上」的自动化</b>。让它产出可审查的成果、人来按最后一个按钮。
+    </div>
+  </section>
+
+  <!-- ════════════ 06 ════════════ -->
+  <div class="section-head reveal" id="takeaway">
+    <span class="num">06</span>
+    <div class="meta">
+      <h2>SECTION SIX · TAKEAWAY</h2>
+      <div class="lede">什么时候别用 · 一句话装脑子</div>
+    </div>
+  </div>
+
+  <section>
+    <p>loop 不是万能钥匙。这三种情况<strong>别用 loop</strong>：</p>
+
+    <div class="callout info"><strong>需要先对齐方案的新 feature</strong>　→ 单开会话走 <code>brainstorming</code> + PR，不是 loop。</div>
+    <div class="callout info"><strong>只想跑一遍的批处理</strong>　→ 直接跑脚本，别套 loop 骨架。</div>
+    <div class="callout info"><strong>goal 说不清 / 不可验证</strong>　→ 先把「完成判据」定义出来，否则 loop 永远停不下来。</div>
+
+    <p style="margin-top:26px;">把这页浓缩成一行——以后想让 Claude「自己盯着一件事干到好」，记这句就够：</p>
+
+    <div class="punchline">
+      用 <span class="hl">/loop 搭骨架</span>，<br>用一个 <span class="hl">可验证的 goal 当刹车</span>。
+    </div>
+
+    <div class="callout success" style="margin-top:24px;">
+      <strong>速记 ·</strong>
+      <b style="color:var(--accent-2)">轮询型</b>（固定间隔·等外部状态）·
+      <b style="color:var(--accent)">指标收敛型</b>（自定节奏·压数值达标）·
+      <b style="color:var(--accent-3)">backlog 磨盘型</b>（自定节奏·磨到队列空）——
+      三种都得先套上<b style="color:var(--text)">「高危路径 PR + worktree 隔离 + 双指标心跳 + 贴证据」</b>四道护栏再跑。
+    </div>
+  </section>
+
+  <footer>
+    整理自团队内部 Claude Code 编排实践 · upio.ai 知识分享<br>
+    口径对齐团队 CLAUDE.md「机制选型 / CI 部署 / 验证前置」规则<br>
+    姊妹篇：<a href="/learn/scheduling-terms">Cron / Routine / Schedule 辨析</a> · <a href="/learn/loop-engineering">Loop Engineering</a> · <a href="/learn/pr-git-worktree">PR 与 Git Worktree</a>
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) { e.target.classList.add('in-view'); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.12, rootMargin: '0px 0px -6% 0px' });
+  document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
+})();
+</script>
+
+</body>
+</html>
