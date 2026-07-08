@@ -333,7 +333,16 @@ def send_dom(page, message: str, commit: bool, sec_uid: str = "", nick: str = ""
     try:
         page.locator(SEND_BTN).first.click(timeout=3000)
     except Exception as e:
-        return f"error:click_send/{e}"
+        # 页面卡顿时点发送键常超时——但消息可能已发出(假阴性: 2026-07-08「草原」案运营目击已发、
+        # 手工改判过一条), 或按钮点不动而回车能发(实测抖音私信框 Enter=发送, 比点按钮抗卡)。故不
+        # 直接判 error: 回车兜底补发一次(若 click 其实已生效、输入框已清空, 空框回车抖音不发 →
+        # 不会重发), 再落到下面统一的气泡复核——真发出判 sent, 彻底没发才 unverified(回池可重试,
+        # 强于旧的 error:click_send→failed 终态直接丢单)。
+        print(f"    [click_send 超时→回车兜底] {str(e)[:60]}")
+        try:
+            box.press("Enter")
+        except Exception:
+            pass
     # 发出后气泡渲染有延迟 → 轮询等它出现(最多 ~7s), 别只等一次。
     seen = False
     for _ in range(7):
