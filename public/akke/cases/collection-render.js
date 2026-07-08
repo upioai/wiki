@@ -23,6 +23,7 @@
   window.AkkeCard = function (e) {
     var a = el('a', 'case-card');
     a.href = '/akke/cases/' + e.slug;
+    a.target = '_blank'; a.rel = 'noopener';   // 卡片在新标签打开，不覆盖当前合集/筛选列表
 
     if (e.avatar) {
       var img = el('img', 'case-avatar');
