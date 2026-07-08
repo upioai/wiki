@@ -199,6 +199,16 @@ def claim_batch() -> list[dict]:
     }) or []
 
 
+def _looks_like_video(url: str) -> bool:
+    """media_urls[0] 是不是视频直链 (dewm 去水印下载 / .mp4).
+
+    视频批量分发线 (2026-07-08): 视频 URL 塞进 media_urls[0] 复用现有 schema,
+    不加新字段. 靠 URL 特征区分视频 vs 图文.
+    """
+    u = (url or '').lower().split('?')[0]
+    return '/dewm/download' in (url or '').lower() or u.endswith('.mp4') or u.endswith('.mov')
+
+
 def process_one(row: dict) -> None:
     """构造 manifest → subprocess 调 creator_publisher.py --commit → 回写 complete."""
     disp_id = row['id']
@@ -207,18 +217,42 @@ def process_one(row: dict) -> None:
     media_urls = row.get('media_urls') or []
     schedule_at_iso = row.get('publish_at')
 
-    manifest: dict = {
-        'title': title,
-        'body':  body,
-        'image_urls': media_urls,
-    }
-    if schedule_at_iso:
-        try:
-            # publish_at 是 timestamptz ISO 字符串; creator_publisher 要 'YYYY-MM-DD HH:MM' 本地
-            dt = datetime.fromisoformat(schedule_at_iso.replace('Z', '+00:00')).astimezone()
-            manifest['schedule_at'] = dt.strftime('%Y-%m-%d %H:%M')
-        except Exception as e:
-            print(f'  ⚠ schedule_at 解析失败 ({schedule_at_iso}: {e}), 改立即发', file=sys.stderr)
+    is_video = bool(media_urls) and _looks_like_video(media_urls[0])
+
+    if is_video:
+        # 视频通路 (2026-07-08 视频批量分发): media_urls[0] = 视频直链, 走抖音「定时发布」.
+        # 定时时间存 content.video_schedule_at (本地 'YYYY-MM-DD HH:MM'), 与 claim gate 用的
+        # publish_at 解耦 —— 入队时 publish_at 置 NULL 让【一次启动脚本】就拉到该人全部视频,
+        # 每条各自按 video_schedule_at 设抖音定时, 抖音到点自动放出. 人跑一次即走.
+        manifest: dict = {
+            'title': title,
+            'body':  body,
+            'video_url': media_urls[0],
+            'dedup': True,
+        }
+        content = row.get('content') if isinstance(row.get('content'), dict) else {}
+        vsa = (content or {}).get('video_schedule_at')
+        if not vsa and schedule_at_iso:  # 回退: 没存 content 时用 publish_at
+            try:
+                vsa = datetime.fromisoformat(schedule_at_iso.replace('Z', '+00:00')).astimezone().strftime('%Y-%m-%d %H:%M')
+            except Exception:
+                vsa = None
+        if vsa:
+            manifest['schedule_at'] = vsa
+            print(f'  [tuwen] {disp_id[:8]} 视频定时 → {vsa}')
+    else:
+        manifest = {
+            'title': title,
+            'body':  body,
+            'image_urls': media_urls,
+        }
+        if schedule_at_iso:
+            try:
+                # publish_at 是 timestamptz ISO 字符串; creator_publisher 要 'YYYY-MM-DD HH:MM' 本地
+                dt = datetime.fromisoformat(schedule_at_iso.replace('Z', '+00:00')).astimezone()
+                manifest['schedule_at'] = dt.strftime('%Y-%m-%d %H:%M')
+            except Exception as e:
+                print(f'  ⚠ schedule_at 解析失败 ({schedule_at_iso}: {e}), 改立即发', file=sys.stderr)
 
     MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
     mf_path = MANIFEST_DIR / f'manifest-tuwen-{disp_id[:8]}.json'

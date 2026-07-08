@@ -341,23 +341,28 @@ def fill_body(body: str, video: bool = False) -> bool:
 
 
 def _verify_schedule_value(at_str: str) -> bool:
-    """VL 看【定时发布时间框】是否已显示目标时间 — 判断"直接键入"是否生效."""
+    """VL 看【定时发布时间框】是否已显示目标时间 — 判断"直接键入"是否生效.
+
+    2026-07-08 夏夏视频 PoC 修: 原来裁固定区 (0.25~0.75 x, 0.50~0.95 y) 判断. 视频页
+    「发布设置」比图文页靠下, 固定裁区常框不住时间框 → VL 假阴性 → 误判"键入没生效" →
+    触发只设日期的日历回退, 反而把键入好的时分冲成默认值. 改成【整屏识别】+ 回读框内实际
+    值 (顺便当诊断): 不裁区就不会因位置偏移漏框.
+    """
     try:
-        path, (W, H) = _shot('_schedule_verify.png')
-        from PIL import Image
-        with Image.open(path) as im:
-            crop = im.crop((int(0.25 * W), int(0.50 * H), int(0.75 * W), int(0.95 * H)))
-            cpath = os.path.join('screenshots', '_schedule_verify_crop.png')
-            crop.save(cpath)
-        b64 = base64.b64encode(open(cpath, 'rb').read()).decode()
+        path, _ = _shot('_schedule_verify.png')
+        b64 = base64.b64encode(Path(path).read_bytes()).decode()
         prompt = (
-            '这是抖音创作发布页的定时发布设置区截图. '
-            '判断【定时发布时间输入框】里显示的日期时间, 是否就是 "%s" '
-            '(年-月-日 和 时:分 都要一致, 允许秒位/格式细微差异). '
-            '只回严格JSON: {"match": true 或 false}' % at_str
+            '这是抖音创作服务平台发布页的整屏截图, 底部「发布设置」里有「发布时间」行, '
+            '选了「定时发布」, 右边一个时间输入框显示形如 "2026-07-08 19:30" 的日期时间. '
+            f'读出那个定时时间框里【当前实际显示】的日期时间字符串, 并判断是否等于 "{at_str}" '
+            '(年月日+时:分都要对上, 秒位/格式细微差异可忽略). '
+            '只回严格JSON: {"shown": "框里实际显示的完整时间", "match": true 或 false}'
         )
         d = _pjson(_vision(b64, prompt))
-        return bool(d.get('match'))
+        shown = d.get('shown', '')
+        matched = bool(d.get('match'))
+        print(f'  [schedule] 校验回读: 框显示="{shown}"  目标="{at_str}"  match={matched}')
+        return matched
     except Exception as e:
         print(f'  [schedule] 键入校验异常 ({type(e).__name__}: {e}), 保守当未生效', file=sys.stderr)
         return False
