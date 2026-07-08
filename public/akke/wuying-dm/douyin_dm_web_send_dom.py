@@ -385,7 +385,7 @@ def run_batch(csv_path: str) -> int:
         rows = list(_csv.DictReader(f))
     print(f"=== DOM 批量发送: {len(rows)} 条 (间隔 {min_iv}-{max_iv}s) ===")
     out = WORK_DIR / f"sent_log_{datetime.now():%Y%m%d}.csv"
-    results = []
+    sent_n = 0
     with sync_playwright() as p:
         try:
             browser = p.chromium.connect_over_cdp(CDP)
@@ -398,38 +398,53 @@ def run_batch(csv_path: str) -> int:
             print("✗ 没找到 douyin.com 页(隐形 Edge 开着吗?) —— 全批不发")
             return 1
         page = dy[0]
-        for idx, r in enumerate(rows):
-            # 批中让位: 有新审批的自动回复 → 剩余行 aborted 回池(不计配额可重发), 终止本批。
-            # 首行不检查(poll agent 进批前已做过让位闸), 从第 2 行起每行发前查一次。
-            if YIELD_TO_REPLY and idx > 0 and _pending_replies() > 0:
-                remain = rows[idx:]
-                print(f"  !! 检测到待发自动回复 → 让位: 剩余 {len(remain)} 条 aborted 回池, 终止本批")
-                for r2 in remain:
-                    row2 = {k: (r2.get(k) or "") for k in _SENT_LOG_FIELDS[:7]}
-                    row2.update(status="aborted", sent_at=datetime.now().isoformat(),
-                                _ocr_confidence="", _ocr_seen="")
-                    results.append(row2)
-                break
-            sec = (r.get("_sec_uid") or "").strip()
-            msg = r.get("message") or ""
-            nick = r.get("nickname") or ""
-            if not sec:
-                status = "no_secuid"
-            else:
-                # 首触批量: engage=True 先关注+点赞再发(镜像 PC/web_grounded 版流程)
-                status = _map_status(send_dom(page, msg, True, sec_uid=sec, nick=nick, engage=True))
-            row = {k: (r.get(k) or "") for k in _SENT_LOG_FIELDS[:7]}
-            row.update(status=status, sent_at=datetime.now().isoformat(), _ocr_confidence="", _ocr_seen="")
-            results.append(row)
-            print(f"  [{status}] {nick}: {msg[:24]}")
-            if idx < len(rows) - 1:
-                time.sleep(random.randint(min_iv, max_iv))   # 节奏门: 别零延迟连发
-    with open(out, "w", encoding="utf-8", newline="") as f:
-        w = _csv.DictWriter(f, fieldnames=_SENT_LOG_FIELDS, extrasaction="ignore")
-        w.writeheader()
-        w.writerows(results)
-    sent = sum(1 for r in results if r["status"] == "sent")
-    print(f"=== 完成: sent {sent}/{len(results)} → {out.name} ===")
+        # 逐条 flush 落盘(不再批末一次性写): 中途若 Edge 崩/坏会话/进程被杀, 已处理行仍留档,
+        # poll agent 只对真没跑到的行记 "no entry", 不会把整批误判 failed。
+        # 覆盖模式('w'): 每次子进程只跑本批, poll agent 紧接 read_sent_log 读本批, 覆盖历史无害
+        # (对齐 douyin_dm_grounded.py 的逐条 f.flush()；2026-07-08 有大有小 7 条整批崩教训)。
+        with open(out, "w", encoding="utf-8", newline="") as logf:
+            w = _csv.DictWriter(logf, fieldnames=_SENT_LOG_FIELDS, extrasaction="ignore")
+            w.writeheader()
+            logf.flush()
+            for idx, r in enumerate(rows):
+                # 批中让位: 有新审批的自动回复 → 剩余行 aborted 回池(不计配额可重发), 终止本批。
+                # 首行不检查(poll agent 进批前已做过让位闸), 从第 2 行起每行发前查一次。
+                if YIELD_TO_REPLY and idx > 0 and _pending_replies() > 0:
+                    remain = rows[idx:]
+                    print(f"  !! 检测到待发自动回复 → 让位: 剩余 {len(remain)} 条 aborted 回池, 终止本批")
+                    for r2 in remain:
+                        row2 = {k: (r2.get(k) or "") for k in _SENT_LOG_FIELDS[:7]}
+                        row2.update(status="aborted", sent_at=datetime.now().isoformat(),
+                                    _ocr_confidence="", _ocr_seen="")
+                        w.writerow(row2)
+                    logf.flush()
+                    break
+                sec = (r.get("_sec_uid") or "").strip()
+                msg = r.get("message") or ""
+                nick = r.get("nickname") or ""
+                if not sec:
+                    status = "no_secuid"
+                else:
+                    # 首触批量: engage=True 先关注+点赞再发(镜像 PC/web_grounded 版流程)。
+                    # try/except 兜住 send_dom 任何未捕获异常(坏会话/Edge Target closed/风控)：
+                    # 记 error:<原因> 而非让它冒泡崩掉整个子进程——否则单条异常会让整批日志不落、
+                    # poll agent 全记 "no entry"→failed(2026-07-08 根因)。error:* 经 complete_one
+                    # 原样写进 dispatch_queue.error_message, 事后查库即知真因、连撞 3 次自动 cool 号。
+                    try:
+                        status = _map_status(send_dom(page, msg, True, sec_uid=sec, nick=nick, engage=True))
+                    except Exception as e:
+                        status = f"error:{str(e)[:80]}"
+                        print(f"  ❌ 异常: {e}")
+                row = {k: (r.get(k) or "") for k in _SENT_LOG_FIELDS[:7]}
+                row.update(status=status, sent_at=datetime.now().isoformat(), _ocr_confidence="", _ocr_seen="")
+                w.writerow(row)
+                logf.flush()
+                if status == "sent":
+                    sent_n += 1
+                print(f"  [{status}] {nick}: {msg[:24]}")
+                if idx < len(rows) - 1:
+                    time.sleep(random.randint(min_iv, max_iv))   # 节奏门: 别零延迟连发
+    print(f"=== 完成: sent {sent_n}/{len(rows)} → {out.name} ===")
     return 0
 
 
