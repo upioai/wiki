@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>抖音视频批量分发流水线 · 2026-07-08 第1批 · Akke</title>
+<style>
+  html, body { margin: 0; background: #f6f3ec; }
+  @media (prefers-color-scheme: dark) { html, body { background: #15130e; } }
+  :root {
+    --bg: #f6f3ec; --surface: #fffdf8; --surface-2: #f0ebe0;
+    --ink: #211d18; --muted: #6c655a; --faint: #928a7c; --line: #e3dcce;
+    --accent: #0d8f83; --accent-2: #0b7269; --accent-wash: #dcefec;
+    --good: #2f8f4e; --good-wash: #dcefe0; --warn: #b0641a; --warn-wash: #f3e6d4;
+    --queue: #6d5bd0; --queue-wash: #e6e2f6;
+    --sans: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
+    --maxw: 880px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15130e; --surface: #1e1b15; --surface-2: #262218;
+      --ink: #f1ece1; --muted: #a89f8f; --faint: #7d7566; --line: #322d23;
+      --accent: #34c9bb; --accent-2: #5ad6c9; --accent-wash: #10302d;
+      --good: #52c07a; --good-wash: #16301f; --warn: #e0973f; --warn-wash: #3a2c17;
+      --queue: #a99bf0; --queue-wash: #241f3a;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #f6f3ec; --surface: #fffdf8; --surface-2: #f0ebe0;
+    --ink: #211d18; --muted: #6c655a; --faint: #928a7c; --line: #e3dcce;
+    --accent: #0d8f83; --accent-2: #0b7269; --accent-wash: #dcefec;
+    --good: #2f8f4e; --good-wash: #dcefe0; --warn: #b0641a; --warn-wash: #f3e6d4;
+    --queue: #6d5bd0; --queue-wash: #e6e2f6;
+  }
+  :root[data-theme="dark"] {
+    --bg: #15130e; --surface: #1e1b15; --surface-2: #262218;
+    --ink: #f1ece1; --muted: #a89f8f; --faint: #7d7566; --line: #322d23;
+    --accent: #34c9bb; --accent-2: #5ad6c9; --accent-wash: #10302d;
+    --good: #52c07a; --good-wash: #16301f; --warn: #e0973f; --warn-wash: #3a2c17;
+    --queue: #a99bf0; --queue-wash: #241f3a;
+  }
+
+  * { box-sizing: border-box; }
+  .pg { background: var(--bg); color: var(--ink); font-family: var(--sans);
+        line-height: 1.6; -webkit-font-smoothing: antialiased; margin: 0;
+        padding: clamp(20px, 5vw, 56px) clamp(16px, 5vw, 40px) 80px; }
+  .wrap { max-width: var(--maxw); margin: 0 auto; }
+  .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  /* ---- header ---- */
+  .eyebrow { font-family: var(--mono); font-size: 12.5px; letter-spacing: .16em;
+             text-transform: uppercase; color: var(--accent-2); margin: 0 0 14px; }
+  h1 { font-size: clamp(28px, 5.4vw, 46px); line-height: 1.08; letter-spacing: -.02em;
+       font-weight: 780; margin: 0 0 18px; text-wrap: balance; }
+  h1 .thin { color: var(--muted); font-weight: 500; }
+  .lede { font-size: clamp(15.5px, 2.1vw, 18px); color: var(--muted); max-width: 60ch;
+          margin: 0 0 30px; text-wrap: pretty; }
+
+  .stats { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; }
+  .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+          padding: 13px 16px 12px; flex: 1 1 130px; }
+  .stat b { display: block; font-family: var(--mono); font-size: 25px; font-weight: 680;
+            letter-spacing: -.02em; line-height: 1; }
+  .stat span { display: block; font-size: 12.5px; color: var(--faint); margin-top: 7px; }
+  .stat.hl b { color: var(--accent); }
+
+  /* ---- section ---- */
+  .sec-h { display: flex; align-items: baseline; gap: 12px; margin: 56px 0 22px; }
+  .sec-h h2 { font-size: 13px; letter-spacing: .14em; text-transform: uppercase;
+              font-family: var(--mono); color: var(--ink); margin: 0; font-weight: 600; }
+  .sec-h .rule { flex: 1; height: 1px; background: var(--line); }
+
+  /* ---- pipeline ---- */
+  .flow { position: relative; }
+  .flow::before { content: ""; position: absolute; left: 19px; top: 12px; bottom: 26px;
+                  width: 2px; background: linear-gradient(var(--accent), var(--line)); }
+  .step { position: relative; padding: 0 0 22px 58px; }
+  .node { position: absolute; left: 0; top: 0; width: 40px; height: 40px; border-radius: 11px;
+          background: var(--surface); border: 1.5px solid var(--accent); color: var(--accent-2);
+          display: grid; place-items: center; font-family: var(--mono); font-weight: 680;
+          font-size: 15px; z-index: 1; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+          padding: 16px 18px; }
+  .card h3 { margin: 0 0 6px; font-size: 17px; font-weight: 680; letter-spacing: -.01em; }
+  .card p { margin: 0 0 12px; color: var(--muted); font-size: 14.5px; }
+  .card p:last-child { margin-bottom: 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; }
+  .chip { font-family: var(--mono); font-size: 11.5px; letter-spacing: .01em;
+          padding: 4px 9px; border-radius: 999px; background: var(--surface-2);
+          color: var(--muted); border: 1px solid var(--line); white-space: nowrap; }
+  .chip.tool { background: var(--accent-wash); color: var(--accent-2); border-color: transparent; }
+
+  /* ---- batch ---- */
+  .people { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .person { background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+            padding: 15px 16px; display: flex; flex-direction: column; gap: 11px; }
+  .person > header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+                     border-bottom: 1px solid var(--line); padding-bottom: 10px; }
+  .person > header b { font-size: 16px; font-weight: 720; }
+  .person > header .n { font-family: var(--mono); font-size: 12px; color: var(--faint); }
+  .vid { display: flex; flex-direction: column; gap: 5px; }
+  .vid .t { font-size: 14px; font-weight: 560; line-height: 1.35; }
+  .vid .m { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+            font-family: var(--mono); font-size: 11.5px; color: var(--faint); }
+  .pill { font-family: var(--mono); font-size: 11px; font-weight: 600; padding: 2px 8px;
+          border-radius: 999px; white-space: nowrap; letter-spacing: .02em; }
+  .pill.done { background: var(--good-wash); color: var(--good); }
+  .pill.sched { background: var(--accent-wash); color: var(--accent-2); }
+  .pill.queue { background: var(--queue-wash); color: var(--queue); }
+  .when { color: var(--muted); }
+
+  /* ---- runbook footer ---- */
+  .note { background: var(--surface-2); border: 1px solid var(--line); border-radius: 14px;
+          padding: 18px 20px; margin-top: 16px; }
+  .note h3 { margin: 0 0 10px; font-size: 15px; font-weight: 680; }
+  .note ol { margin: 0; padding-left: 20px; color: var(--muted); font-size: 14px; }
+  .note ol li { margin-bottom: 6px; }
+  .note ol li b { color: var(--ink); font-weight: 620; }
+  .warnbar { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px;
+             background: var(--warn-wash); border-radius: 11px; padding: 12px 14px;
+             font-size: 13.5px; color: var(--ink); }
+  .warnbar .k { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .05em;
+                text-transform: uppercase; color: var(--warn); padding-top: 2px; white-space: nowrap; }
+
+  .foot { margin-top: 46px; padding-top: 18px; border-top: 1px solid var(--line);
+          font-family: var(--mono); font-size: 12px; color: var(--faint);
+          display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+
+  @media (max-width: 520px) {
+    .step { padding-left: 50px; } .flow::before { left: 15px; }
+    .node { width: 32px; height: 32px; border-radius: 9px; font-size: 13px; }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .step, .person, .stat { animation: rise .5s cubic-bezier(.2,.7,.3,1) both; }
+    .step:nth-child(2){animation-delay:.04s}.step:nth-child(3){animation-delay:.08s}
+    .step:nth-child(4){animation-delay:.12s}.step:nth-child(5){animation-delay:.16s}
+    .step:nth-child(6){animation-delay:.2s}.step:nth-child(7){animation-delay:.24s}
+    @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  }
+</style>
+
+<div class="pg">
+<div class="wrap">
+
+  <p class="eyebrow">Akke 运营 · 视频批量分发</p>
+  <h1>一批抖音链接<span class="thin">，</span>自动变成三个号一周的定时视频</h1>
+  <p class="lede">夏夏甩一批去水印视频进来，系统自动筛掉有人出镜的、给每条写好标题标签文案、平均分给三位运营、排好一周的错峰时间、派单入队；三人在各自云电脑跑一次，抖音就到点自动放。全程不用手写文案、不用手传视频、不用守着发。</p>
+
+  <div class="stats">
+    <div class="stat"><b>28</b><span>去水印视频（两批去重后）</span></div>
+    <div class="stat hl"><b>7</b><span>入选 · 全程无真人出镜</span></div>
+    <div class="stat"><b>3</b><span>发布人 · 夏夏 / 饭粒 / 野荞</span></div>
+    <div class="stat"><b>7 天</b><span>错峰定时 · 07-08 → 07-14</span></div>
+  </div>
+
+  <div class="sec-h"><h2>流水线 · 七步</h2><span class="rule"></span></div>
+  <div class="flow">
+
+    <div class="step"><div class="node">1</div><div class="card">
+      <h3>收集去水印视频</h3>
+      <p>夏夏把一批抖音链接甩进来，走 Akke 去水印服务批量下载无水印原片。只取干净母版，不做二改。</p>
+      <div class="chips"><span class="chip tool">dewm 去水印服务</span><span class="chip">/dewm/download</span><span class="chip">夏夏</span></div>
+    </div></div>
+
+    <div class="step"><div class="node">2</div><div class="card">
+      <h3>筛选「无真人出镜」</h3>
+      <p>每条视频抽 5–8 帧拼成联系表，逐条判断有没有人出镜。对镜口播、工地工人、客户洽谈的全部剔除，只留纯空间/成品/素材。28 条筛到 7 条。</p>
+      <div class="chips"><span class="chip tool">ffmpeg 抽帧</span><span class="chip">联系表逐帧复核</span></div>
+    </div></div>
+
+    <div class="step"><div class="node">3</div><div class="card">
+      <h3>生成标题 · 标签 · 文案</h3>
+      <p>参照原博主文案改写（不照抄，降查重），每条产出钩子标题（≤30 字）+ 一段自然文案 + 3–5 个话题标签，统一挂 <span class="mono">#全屋定制</span> 贴合账号。</p>
+      <div class="chips"><span class="chip tool">LLM 改写</span><span class="chip">标题≤30 · 话题×3-5</span></div>
+    </div></div>
+
+    <div class="step"><div class="node">4</div><div class="card">
+      <h3>分配 + 排定时</h3>
+      <p>7 条平均分给三人（夏夏 2 / 饭粒 2 / 野荞 3），每条排在一周内不同天的午间或晚间黄金时段，同一人不撞天。</p>
+      <div class="chips"><span class="chip">夏夏×2</span><span class="chip">饭粒×2</span><span class="chip">野荞×3</span></div>
+    </div></div>
+
+    <div class="step"><div class="node">5</div><div class="card">
+      <h3>入队派单</h3>
+      <p>本机一行命令把 7 条写进派单队列，按名字派到各人名下——视频直链、标题、文案、定时时间一并带上。队列立即可拉，不占本机也不守着。</p>
+      <div class="chips"><span class="chip tool">enqueue-tuwen-video</span><span class="chip">tuwen_queue · creator_web</span></div>
+    </div></div>
+
+    <div class="step"><div class="node">6</div><div class="card">
+      <h3>云电脑拉单发</h3>
+      <p>各运营在自己云电脑双击启动脚本，agent 自动拉自己名下的视频，逐条：下载 → 轻量去重 → 上传创作者中心 → 填标题正文话题 → 挂抖音定时。跑一次挂满，人拔手机就走。</p>
+      <div class="chips"><span class="chip tool">wuying_tuwen_agent</span><span class="chip">creator_publisher · GUI</span><span class="chip">creator.douyin.com</span></div>
+    </div></div>
+
+    <div class="step"><div class="node">7</div><div class="card">
+      <h3>抖音定时自动放</h3>
+      <p>作品挂进「作品管理」的定时队列，抖音到点自动发布，三个号一周的视频就这么错峰放完。发布时机由入队时间控制，日期精确。</p>
+      <div class="chips"><span class="chip">作品管理 · 定时</span><span class="chip">到点自动发</span></div>
+    </div></div>
+
+  </div>
+
+  <div class="sec-h"><h2>本批 · 7 条去向</h2><span class="rule"></span></div>
+  <div class="people">
+
+    <div class="person">
+      <header><b>夏夏</b><span class="n">零星 · 2 条</span></header>
+      <div class="vid"><span class="t">石英石台面到底香在哪？橱柜装完才懂</span>
+        <span class="m"><span class="pill done">已真发</span><span class="when">07-08 · 首条打样</span></span></div>
+      <div class="vid"><span class="t">这可能是全抖音最好看的儿童房</span>
+        <span class="m"><span class="pill sched">已挂定时</span><span class="when">07-11</span></span></div>
+    </div>
+
+    <div class="person">
+      <header><b>饭粒</b><span class="n">一筑 · 2 条</span></header>
+      <div class="vid"><span class="t">胡桃色平板门，不做造型反而最耐看</span>
+        <span class="m"><span class="pill queue">已入队</span><span class="when">待启动 · 07-10</span></span></div>
+      <div class="vid"><span class="t">胡桃木+暖白，这个配色我一年都不腻</span>
+        <span class="m"><span class="pill queue">已入队</span><span class="when">待启动 · 07-13</span></span></div>
+    </div>
+
+    <div class="person">
+      <header><b>野荞</b><span class="n">小文 · 3 条</span></header>
+      <div class="vid"><span class="t">9万块装出的黑白灰极简家，越看越耐看</span>
+        <span class="m"><span class="pill queue">已入队</span><span class="when">待启动 · 07-09</span></span></div>
+      <div class="vid"><span class="t">136平12万黑白极简，越住越爱</span>
+        <span class="m"><span class="pill queue">已入队</span><span class="when">待启动 · 07-12</span></span></div>
+      <div class="vid"><span class="t">30岁送自己的四房两厅，黑白灰真香</span>
+        <span class="m"><span class="pill queue">已入队</span><span class="when">待启动 · 07-14</span></span></div>
+    </div>
+
+  </div>
+
+  <div class="sec-h"><h2>运营侧 · 跑一次即可</h2><span class="rule"></span></div>
+  <div class="note">
+    <h3>各运营在自己云电脑上</h3>
+    <ol>
+      <li>Edge 登录 <b>creator.douyin.com</b>（自己的号），窗口最大化、输入法英文</li>
+      <li>先停 DM 通道（发视频要用鼠标，两个一起会打架）</li>
+      <li>确认 <span class="mono">.env</span> 里有自己的名字 <span class="mono">AKKE_TUWEN_ASSIGNEE</span></li>
+      <li>双击 <b>start-agent.bat</b> → agent 自动拉自己名下的视频、逐条挂定时</li>
+      <li>等黑窗口每条都 <span class="mono">✓ published</span>，再 Ctrl+C 停、重开 DM</li>
+      <li>去作品管理核实视频都挂了定时（日期准即可）</li>
+    </ol>
+    <div class="warnbar"><span class="k">卡时间</span><span>各人必须在自己<b>第一条视频的时间之前</b>跑一次——抖音定时只接受「当前 +2 小时 ~ 14 天内」。野荞 07-09 晚 7 点前、饭粒 07-10 中午前。</span></div>
+  </div>
+
+  <div class="foot"><span>Akke · 抖音视频批量分发流水线</span><span class="mono">2026-07-08 · 第 1 批</span></div>
+
+</div>
+</div>
+</body>
+</html>
