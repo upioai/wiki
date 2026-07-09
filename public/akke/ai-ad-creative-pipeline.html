@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 广告素材生产线 · 短剧级质感的开源工作流</title>
+<style>
+  :root {
+    --bg: #0b0d12;
+    --bg-elevated: #141821;
+    --bg-code: #1a1f2b;
+    --border: #242a38;
+    --text: #e4e7ed;
+    --text-dim: #9ba3b4;
+    --text-muted: #6b7384;
+    --accent: #8b5cf6;
+    --accent-soft: rgba(139, 92, 246, 0.15);
+    --success: #34d399;
+    --warning: #fbbf24;
+    --danger: #f87171;
+    --info: #60a5fa;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    font-size: 16px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 960px; margin: 0 auto; padding: 48px 24px 120px; }
+  header.hero { padding: 56px 0 40px; border-bottom: 1px solid var(--border); margin-bottom: 40px; }
+  .tag { display: inline-block; padding: 4px 12px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 13px; font-weight: 500; margin-bottom: 16px; }
+  h1 { font-size: 38px; font-weight: 700; margin: 0 0 14px; letter-spacing: -0.02em; line-height: 1.2; }
+  h1 .amber { color: var(--accent); }
+  .subtitle { font-size: 18px; color: var(--text-dim); margin: 0 0 24px; }
+  .meta { display: flex; gap: 20px; flex-wrap: wrap; font-size: 14px; color: var(--text-muted); }
+  .meta span::before { content: ""; display: inline-block; width: 4px; height: 4px; background: var(--text-muted); border-radius: 50%; margin-right: 8px; vertical-align: middle; }
+
+  h2 { font-size: 27px; font-weight: 700; margin: 60px 0 16px; letter-spacing: -0.01em; padding-top: 16px; }
+  h2 .num { display: inline-block; width: 34px; height: 34px; line-height: 34px; text-align: center; background: var(--accent); color: #fff; border-radius: 10px; font-size: 17px; margin-right: 12px; vertical-align: middle; }
+  h3 { font-size: 20px; font-weight: 600; margin: 32px 0 12px; }
+  h3.eyebrow { font-size: 13px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+  p { margin: 12px 0; color: var(--text-dim); }
+  p strong, li strong, td strong { color: var(--text); }
+  code { background: var(--bg-code); padding: 2px 6px; border-radius: 4px; font-size: 0.9em; color: var(--info); font-family: "SF Mono", "Monaco", Consolas, monospace; }
+
+  .alert { padding: 16px 20px; border-radius: 10px; margin: 22px 0; display: flex; gap: 14px; align-items: flex-start; }
+  .alert .icon { flex: 0 0 24px; font-size: 21px; line-height: 1; padding-top: 2px; }
+  .alert .body { flex: 1; }
+  .alert.warn { background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.25); color: #fde68a; }
+  .alert.info { background: rgba(96,165,250,0.08); border: 1px solid rgba(96,165,250,0.25); color: #bfdbfe; }
+  .alert.danger { background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.25); color: #fecaca; }
+  .alert .body strong { color: #fff; }
+
+  /* 四约束卡片 */
+  .con-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; margin: 28px 0; }
+  .con-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 14px; padding: 20px; position: relative; overflow: hidden; }
+  .con-card::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--accent); }
+  .con-card .k { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); font-weight: 700; font-family: "SF Mono", Monaco, monospace; }
+  .con-card .t { font-size: 18px; font-weight: 700; margin: 6px 0 8px; }
+  .con-card p { margin: 0; font-size: 13.5px; line-height: 1.55; }
+  .con-card .vs { font-size: 12.5px; color: var(--text-muted); border-top: 1px dashed var(--border); padding-top: 10px; margin-top: 12px; }
+  .con-card .vs b { color: var(--text-dim); }
+
+  /* 流水线 */
+  .pipe { position: relative; padding-left: 52px; margin: 28px 0; }
+  .pipe::before { content: ""; position: absolute; left: 17px; top: 10px; bottom: 10px; width: 2px; background: linear-gradient(var(--accent), var(--accent) 72%, transparent); }
+  .stage { position: relative; margin-bottom: 18px; }
+  .node { position: absolute; left: -52px; top: 0; width: 38px; height: 38px; border-radius: 50%; background: var(--bg-elevated); border: 2px solid var(--accent); color: var(--accent); font-family: "SF Mono", Monaco, monospace; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+  .scard { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; padding: 18px 22px; }
+  .scard .top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; margin-bottom: 6px; }
+  .scard h4 { font-size: 18px; font-weight: 650; margin: 0; color: var(--text); }
+  .role { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); background: var(--accent-soft); padding: 3px 9px; border-radius: 6px; font-family: "SF Mono", Monaco, monospace; }
+  .goal { font-size: 14.5px; color: var(--text-dim); margin: 0 0 14px; }
+  .tools { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { font-size: 13px; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-code); color: var(--text); display: inline-flex; gap: 7px; align-items: center; font-family: "SF Mono", Monaco, monospace; }
+  .chip.alt { border-style: dashed; background: transparent; color: var(--text-muted); }
+  .chip.alt::before { content: "商业替代"; font-size: 10px; letter-spacing: 0.06em; color: var(--text-muted); margin-right: 2px; }
+  .light { display: inline-block; padding: 1px 8px; border-radius: 5px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .light.green { background: rgba(52,211,153,0.15); color: #6ee7b7; }
+  .light.yellow { background: rgba(251,191,36,0.15); color: #fcd34d; }
+  .light.red { background: rgba(248,113,113,0.15); color: #fca5a5; }
+
+  /* 两条路线 */
+  .track-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 28px 0; }
+  .track { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+  .track.hero { border-color: var(--accent); }
+  .track .th { padding: 20px 22px 16px; border-bottom: 1px solid var(--border); }
+  .track.hero .th { background: var(--accent-soft); }
+  .track .badge { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); font-family: "SF Mono", Monaco, monospace; }
+  .track h3 { font-size: 19px; font-weight: 700; margin: 6px 0 4px; }
+  .track .th p { margin: 0; font-size: 13px; }
+  .track ul { list-style: none; margin: 0; padding: 16px 22px 18px; display: flex; flex-direction: column; gap: 10px; }
+  .track li { display: flex; gap: 10px; font-size: 14px; color: var(--text-dim); line-height: 1.45; }
+  .track li .s { font-size: 11px; color: var(--accent); min-width: 56px; padding-top: 3px; font-family: "SF Mono", Monaco, monospace; }
+  .track .foot { padding: 13px 22px; border-top: 1px dashed var(--border); font-size: 12.5px; color: var(--text-muted); }
+  .track .foot b { color: var(--text-dim); }
+
+  /* 变体引擎 */
+  .engine { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 14px; padding: 24px; margin: 24px 0; }
+  .flow { display: flex; align-items: stretch; gap: 12px; flex-wrap: wrap; }
+  .fbox { flex: 1; min-width: 130px; background: var(--bg-code); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .fbox .l { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; font-family: "SF Mono", Monaco, monospace; }
+  .fbox .v { font-size: 14.5px; color: var(--text); font-weight: 600; line-height: 1.35; }
+  .fbox .v em { color: var(--accent); font-style: normal; }
+  .fx { display: flex; align-items: center; font-family: "SF Mono", Monaco, monospace; font-size: 20px; color: var(--accent); font-weight: 700; }
+  .result { margin-top: 16px; background: var(--accent-soft); border-radius: 10px; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+  .result .big { font-family: "SF Mono", Monaco, monospace; font-size: 28px; font-weight: 800; color: var(--accent); }
+  .result .t { font-size: 13.5px; color: var(--text-dim); }
+
+  /* 表格 */
+  .table-wrap { overflow-x: auto; margin: 24px 0; border: 1px solid var(--border); border-radius: 12px; }
+  table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 14px; }
+  thead th { background: var(--bg-elevated); color: var(--text); font-weight: 600; text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  tbody td { padding: 12px 16px; border-bottom: 1px solid var(--border); color: var(--text-dim); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  .num { font-family: "SF Mono", Monaco, monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .pos { color: var(--success); font-weight: 600; }
+
+  .redgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; margin-top: 6px; }
+  .redgrid div { font-size: 13.5px; color: var(--text-dim); }
+  .redgrid b { color: var(--text); }
+
+  .footer { margin-top: 80px; padding-top: 28px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 13px; line-height: 1.75; }
+  .footer a { color: var(--text-dim); }
+
+  @media (max-width: 720px) {
+    .track-grid { grid-template-columns: 1fr; }
+    .redgrid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 640px) {
+    h1 { font-size: 29px; }
+    h2 { font-size: 22px; }
+    .container { padding: 32px 16px 80px; }
+    .pipe { padding-left: 44px; }
+    .node { left: -44px; width: 32px; height: 32px; font-size: 12px; }
+    .pipe::before { left: 15px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header class="hero">
+  <span class="tag">AI 能力 · 技术方案</span>
+  <h1>AI 广告<span class="amber">素材生产线</span><br>短剧级质感的开源工作流</h1>
+  <p class="subtitle">同一套 AIGC 能力,目标从「讲好一个故事」换成「跑赢一次投放」。<br>整条流水线围绕四件事重构:产品保真、前 3 秒钩子、变体量产、投放合规。</p>
+  <div class="meta">
+    <span>版本 v1 · 2026-07-09</span>
+    <span>用途:内容生产选型 / 技术全景</span>
+    <span>栈:开源为主 + 商业替代</span>
+  </div>
+</header>
+
+<div class="alert info">
+  <span class="icon">🎯</span>
+  <div class="body">
+    <strong>这份文档要回答什么:</strong>不是「AI 能不能做短剧」(能),而是——<strong>怎么用现成的开源工具,搭一条能批量产出「可投放广告素材」的流水线,且成本可控、数据私有、商用无 License 风险。</strong>GitHub / Huggingface 上的现成方案已经能拼出全链路,下面给出工具选型、两条落地路线与合规红线。
+  </div>
+</div>
+
+<h2><span class="num">1</span>广告 ≠ 短剧:四条硬约束</h2>
+<p>短剧重剧情连贯,广告重转化效率。这四点决定了工具选型和流程编排跟纯短剧不一样——照搬短剧流程会踩坑。</p>
+<div class="con-grid">
+  <div class="con-card">
+    <div class="k">FIDELITY</div>
+    <div class="t">产品必须保真</div>
+    <p>AI 最爱把产品画变形。真实产品外观 / LOGO / 包装不能出错,否则素材直接废。</p>
+    <div class="vs"><b>广告:用真实产品图做参考,锁死外观</b></div>
+  </div>
+  <div class="con-card">
+    <div class="k">HOOK</div>
+    <div class="t">前 3 秒定生死</div>
+    <p>投流靠完播和点击。开头 1 秒抓不住人就被划走,叙事必须「钩子前置」。</p>
+    <div class="vs"><b>广告:痛点 → 产品 → 效果 → CTA</b></div>
+  </div>
+  <div class="con-card">
+    <div class="k">VOLUME</div>
+    <div class="t">变体要量产</div>
+    <p>投放靠 A/B 海投测赢家,一条脚本要裂变成几十条变体,而非精修一条。</p>
+    <div class="vs"><b>广告:hook × 口播 × 结尾 矩阵化</b></div>
+  </div>
+  <div class="con-card">
+    <div class="k">COMPLIANCE</div>
+    <div class="t">投放要合规</div>
+    <p>平台审核、水印、商用授权、AIGC 标识。非商用 License 的模型碰不得。</p>
+    <div class="vs"><b>广告:License 必须可商用</b></div>
+  </div>
+</div>
+
+<h2><span class="num">2</span>端到端流水线 · 8 个环节</h2>
+<p>每个环节给出<strong>开源主选</strong>(带 License 徽章:<span class="light green">绿=可商用</span> <span class="light yellow">黄=受限/需授权</span> <span class="light red">红=禁商用</span>)与<strong>商业替代</strong>(质量 / 省事优先时)。紫色主线是数据流向。</p>
+
+<div class="pipe">
+
+  <div class="stage"><div class="node">01</div>
+    <div class="scard">
+      <div class="top"><h4>策略与脚本</h4><span class="role">LLM · 钩子工厂</span></div>
+      <p class="goal">输入产品卖点 + 目标人群,产出<strong>多版「钩子脚本」</strong>(同一卖点 N 种开场角度),而非一个剧本。这一步就为变体埋种子。</p>
+      <div class="tools">
+        <span class="chip">DeepSeek / Qwen3 <span class="light green">API/本地</span></span>
+        <span class="chip">本地 Ollama <span class="light green">MIT</span></span>
+        <span class="chip alt">Claude / GPT-5</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage"><div class="node">02</div>
+    <div class="scard">
+      <div class="top"><h4>产品与角色资产</h4><span class="role">保真 · 命门环节</span></div>
+      <p class="goal"><strong>用真实产品照片做参考图</strong>,靠编辑式模型把产品「贴」进场景而非重画;角色 / 模特用 LoRA 锁身份。产品保真度直接决定素材可用率。</p>
+      <div class="tools">
+        <span class="chip">FLUX.1 Kontext <span class="light yellow">非商需授权</span></span>
+        <span class="chip">Qwen-Image 编辑 <span class="light green">Apache</span></span>
+        <span class="chip">Character LoRA <span class="light green">随底模</span></span>
+        <span class="chip alt">Nano Banana / 即梦</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage"><div class="node">03</div>
+    <div class="scard">
+      <div class="top"><h4>分镜与编排</h4><span class="role">钩子结构</span></div>
+      <p class="goal">把脚本拆成 <strong>3–5 个短镜头</strong>,套广告结构:痛点镜 → 产品镜 → 效果镜 → CTA 镜。用编排框架自动管理资产与镜头一致性。</p>
+      <div class="tools">
+        <span class="chip">Jellyfish <span class="light green">Apache-2.0</span></span>
+        <span class="chip">LumenX (阿里) <span class="light green">MIT</span></span>
+        <span class="chip alt">ViMax 编排层</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage"><div class="node">04</div>
+    <div class="scard">
+      <div class="top"><h4>出画 · 视频生成</h4><span class="role">I2V · 从产品图起</span></div>
+      <p class="goal">以第 2 步的产品 / 场景图做<strong>图生视频</strong>(I2V 比 T2V 更保真),生成每段 5–10 秒镜头;需要长镜头连贯接 SkyReels-V2。</p>
+      <div class="tools">
+        <span class="chip">Wan2.2 (I2V) <span class="light green">Apache-2.0</span></span>
+        <span class="chip">SkyReels-V2 <span class="light green">商用友好</span></span>
+        <span class="chip alt">即梦 Seedance2 / 可灵3</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage"><div class="node">05</div>
+    <div class="scard">
+      <div class="top"><h4>配音 · 口播文案</h4><span class="role">TTS · 卡时长</span></div>
+      <p class="goal">生成带情绪的口播 / 旁白。广告要<strong>精确卡时长</strong>对齐镜头节奏,多变体要快速换音色 / 语气。</p>
+      <div class="tools">
+        <span class="chip">IndexTTS2 (B站) <span class="light green">MIT</span></span>
+        <span class="chip">CosyVoice2 (阿里) <span class="light green">Apache</span></span>
+        <span class="chip">GPT-SoVITS v4 <span class="light green">MIT</span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage"><div class="node">06</div>
+    <div class="scard">
+      <div class="top"><h4>口型 · 数字人</h4><span class="role">带货口播</span></div>
+      <p class="goal">真人 / 数字人出镜口播带货:音频驱动口型,或单图生成半身说话人。追实时量产用 MuseTalk,追质感用数字人。</p>
+      <div class="tools">
+        <span class="chip">MuseTalk 1.5 <span class="light green">MIT · 实时</span></span>
+        <span class="chip">EchoMimicV3 <span class="light green">Apache · 12G</span></span>
+        <span class="chip">HeyGem (硅基) <span class="light yellow">限商用上限</span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage"><div class="node">07</div>
+    <div class="scard">
+      <div class="top"><h4>合成与包装</h4><span class="role">钩子字幕 · CTA · 品牌</span></div>
+      <p class="goal">拼接镜头,叠<strong>大字钩子字幕、CTA 按钮、品牌 LOGO、BGM、音效</strong>。广告的「包装层」往往比画面更影响点击率。</p>
+      <div class="tools">
+        <span class="chip">FFmpeg (脚本化批量) <span class="light green">LGPL</span></span>
+        <span class="chip">剪映 / pyJianYingDraft <span class="light yellow">工具免费</span></span>
+        <span class="chip alt">Remotion (代码化)</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage"><div class="node">08</div>
+    <div class="scard">
+      <div class="top"><h4>变体量产 + 投放回收</h4><span class="role">矩阵化 · 数据闭环</span></div>
+      <p class="goal">同素材<strong>裂变多 hook × 多口播 × 多 CTA</strong> 批量出片 → 投 Meta / TikTok / 抖音 → 回收 CTR / 完播 / ROAS → 赢家素材反哺第 1 步迭代。</p>
+      <div class="tools">
+        <span class="chip">脚本批处理 (参数矩阵) <span class="light green">自建</span></span>
+        <span class="chip">Meta / 巨量 API <span class="light yellow">平台</span></span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<h2><span class="num">3</span>两条落地路线</h2>
+<p>A 路线全开源自托管,成本可控、数据私有、适合大批量投流;B 路线关键出画用商业 API,保真省事、适合高客单 / 精品素材。</p>
+<div class="track-grid">
+
+  <div class="track hero">
+    <div class="th">
+      <div class="badge">TRACK A · 推荐主选</div>
+      <h3>全开源自托管</h3>
+      <p>无 License 顾虑 · 边际成本 ≈ 电费 · 适合海量 A/B 投流</p>
+    </div>
+    <ul>
+      <li><span class="s">脚本</span><span>本地 <strong>Qwen3 / DeepSeek</strong> 批量生成 hook 变体</span></li>
+      <li><span class="s">资产</span><span><strong>Qwen-Image 编辑</strong> 保产品 + <strong>Character LoRA</strong> 锁模特</span></li>
+      <li><span class="s">编排</span><span><strong>Jellyfish</strong> (Apache) 或 <strong>LumenX</strong> 管分镜与资产</span></li>
+      <li><span class="s">出画</span><span><strong>Wan2.2 I2V</strong> + <strong>SkyReels-V2</strong> 长镜头连贯</span></li>
+      <li><span class="s">配音</span><span><strong>IndexTTS2</strong> 卡时长 + <strong>CosyVoice2</strong></span></li>
+      <li><span class="s">口型</span><span><strong>MuseTalk 1.5</strong> 实时 + <strong>EchoMimicV3</strong> 数字人</span></li>
+      <li><span class="s">合成</span><span><strong>FFmpeg</strong> 脚本化批量叠字幕 / CTA / BGM</span></li>
+    </ul>
+    <div class="foot"><b>硬件门槛:</b>一张 24G 显卡 (4090) 全流程可跑;Wan2.2-TI2V-5B 版 8G 亦可</div>
+  </div>
+
+  <div class="track">
+    <div class="th">
+      <div class="badge">TRACK B · 混合</div>
+      <h3>开源编排 + 商业出画</h3>
+      <p>产品保真 / 音画同步交给闭源第一梯队 · 省折腾</p>
+    </div>
+    <ul>
+      <li><span class="s">脚本</span><span><strong>Claude / GPT-5</strong> 出钩子脚本</span></li>
+      <li><span class="s">资产</span><span><strong>Nano Banana / 即梦</strong> 产品保真更稳</span></li>
+      <li><span class="s">编排</span><span><strong>ViMax</strong> (港大) 多智能体编排接 API</span></li>
+      <li><span class="s">出画</span><span><strong>即梦 Seedance 2.0</strong> / <strong>可灵 3.0</strong> 原生音画同步</span></li>
+      <li><span class="s">配音</span><span>模型<strong>原生音频</strong>直出,省独立 TTS</span></li>
+      <li><span class="s">口型</span><span>模型<strong>原生口型</strong>(可灵 5 语 / Seedance 8+ 语)</span></li>
+      <li><span class="s">合成</span><span><strong>剪映 / Remotion</strong> 模板化包装</span></li>
+    </ul>
+    <div class="foot"><b>成本参考:</b>纯视频约 1 元/秒 (Seedance) · 但每条常需重抽 3–5 次</div>
+  </div>
+
+</div>
+
+<h2><span class="num">4</span>变体量产:广告流程的核心引擎</h2>
+<p>这是广告工作流区别于短剧的关键。参数矩阵驱动批处理,把单条成本摊薄到几乎为零,让投放端有足够素材做 A/B。</p>
+<div class="engine">
+  <div class="flow">
+    <div class="fbox"><div class="l">基础素材</div><div class="v">1 条<br>核心脚本</div></div>
+    <div class="fx">×</div>
+    <div class="fbox"><div class="l">开场钩子</div><div class="v"><em>3 版</em><br>痛点 / 悬念 / 数字</div></div>
+    <div class="fx">×</div>
+    <div class="fbox"><div class="l">口播音色</div><div class="v"><em>2 版</em><br>亲切 / 专业</div></div>
+    <div class="fx">×</div>
+    <div class="fbox"><div class="l">结尾 CTA</div><div class="v"><em>2 版</em><br>限时 / 优惠</div></div>
+  </div>
+  <div class="result">
+    <div class="t">同一套资产 · FFmpeg 参数矩阵一次跑完</div>
+    <div><span class="big">12</span> <span class="t">条差异化投放变体</span></div>
+  </div>
+</div>
+
+<h2><span class="num">5</span>成本对照 · 出画环节(最贵的一步)</h2>
+<p>价格为 2026 年内检索值,易变,落地前请按官网复核。开源自托管的意义在于边际成本趋零 + 数据私有。</p>
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>方案</th><th>类型</th><th>单价 (出画)</th><th>音频</th><th>商用</th><th>适用</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Wan2.2 (自托管)</strong></td><td>开源</td><td class="num pos">≈ 电费</td><td>需外接 TTS</td><td class="pos">Apache 可商用</td><td>海量 A/B 投流</td></tr>
+      <tr><td><strong>SkyReels-V2 (自托管)</strong></td><td>开源</td><td class="num pos">≈ 电费</td><td>需外接</td><td class="pos">商用友好</td><td>长镜头连贯剧情广告</td></tr>
+      <tr><td>即梦 Seedance 2.0</td><td>商业 API</td><td class="num">≈ ¥1 / 秒</td><td>免费含</td><td>可商用</td><td>产品保真 / 音画同步</td></tr>
+      <tr><td>可灵 3.0</td><td>商业 API</td><td class="num">720P ¥0.8/秒</td><td>原生含</td><td>可商用</td><td>角色记忆 / 多镜头</td></tr>
+      <tr><td>Sora 2 (标准)</td><td>商业 API</td><td class="num">≈ $0.10 / 秒</td><td>原生含</td><td>可商用</td><td>出海高质素材</td></tr>
+      <tr><td>Google Veo 3.1</td><td>商业 API</td><td class="num">$0.03–0.40/秒</td><td>+50% 成本</td><td>可商用</td><td>音频同步标杆</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h2><span class="num">6</span>合规红线 · 商用投放必看</h2>
+<div class="alert danger">
+  <span class="icon">⚠️</span>
+  <div class="body">
+    <strong>这些模型好用但不能商用,别踩:</strong>
+    <div class="redgrid" style="margin-top:12px">
+      <div><b>Fish-Speech / OpenAudio</b> — 权重 CC-BY-NC,TTS 质量高但禁商用</div>
+      <div><b>Sonic (口型)</b> — 非商用,商用需转腾讯云授权</div>
+      <div><b>FLOAT (口型)</b> — 非商用,仅研究 / 预演</div>
+      <div><b>BigBanana AI Director</b> — CC BY-NC-SA,编排框架但禁商用</div>
+      <div><b>FLUX.1 Kontext-dev</b> — 非商用许可,商用需 BFL 授权</div>
+      <div><b>30 天前的 License</b> — 正式商用前必读 repo 的 LICENSE 复核</div>
+    </div>
+  </div>
+</div>
+<div class="alert warn">
+  <span class="icon">📋</span>
+  <div class="body">
+    <strong>AIGC 标识:</strong>《人工智能生成合成内容标识办法》2025-09-01 已施行,抖音等平台会读文件隐式标识自动打标。<strong>投放素材默认走「发布时主动声明 AI 生成」</strong>,不做规避——未声明会被检测强制加「疑似 AI」标,反而影响投放。
+  </div>
+</div>
+
+<div class="footer">
+  <p><strong>数据说明:</strong>本方案基于 2026-07 对 GitHub / Huggingface 及各商业平台的调研整合。星标数、显存门槛为检索当时数值,量级可靠;定价 / 版本 30 天内易腐烂,正式商用决策前请按对应 repo 的 LICENSE 与官网二次核实。</p>
+  <p><strong>关键提醒:</strong>出画优先锁定 Wan2.2 (Apache-2.0) 生态——ComfyUI / LoRA / VACE / Phantom 一致性方案全部围绕它;产品保真是广告素材可用率的第一命门,务必用真实产品图做参考而非纯文生。Sora 2 API 计划 2026-09-24 关停,若走 Track B 出海线需注意迁移。</p>
+  <p style="margin-top:16px;color:var(--text-muted)">upio.ai · Akke 知识库 · 技术方案 · 2026-07-09</p>
+</div>
+
+</div>
+</body>
+</html>
