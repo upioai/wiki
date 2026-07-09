@@ -52,7 +52,8 @@
     <span class="tag">27 PR 已合并上线</span>
     <span class="tag" style="background:#4338ca">5 大块</span>
     <span class="tag" style="background:#b45309">云电脑脚本已更新</span>
-    <div class="line">一句话：这两天主攻四条线——<b>①自动回复更聪明</b>（生成崩自愈、纯数字回复不再误杀、加微后不再轴、护栏放开能直接发微信号）、<b>②云电脑发送更稳</b>（消除「假发成功」丢单/重发）、<b>③评论抓取补漏</b>（拆掉 63%+27% 两处漏抓真凶）、<b>④企微话术更像金牌销售</b>。文末列了 <a href="#opt">7 项还能优化的点 →</a>，按优先级排好了。</div>
+    <span class="tag" style="background:#dc2626">新增·回复静默哨兵</span>
+    <div class="line">一句话：这两天主攻四条线——<b>①自动回复更聪明</b>（生成崩自愈、纯数字回复不再误杀、加微后不再轴、护栏放开能直接发微信号）、<b>②云电脑发送更稳</b>（消除「假发成功」丢单/重发）、<b>③评论抓取补漏</b>（拆掉 63%+27% 两处漏抓真凶）、<b>④企微话术更像金牌销售</b>。<b>另外新上了一个「客户回复静默哨兵」</b> —— <a href="#sentinel">文末用大白话讲清楚，小孩都能懂 →</a>。</div>
   </div>
 
   <!-- 概览 -->
@@ -136,11 +137,11 @@
 
   <table>
     <tr><th>优化项</th><th>为什么</th><th>建议做法</th><th>优先级</th></tr>
-    <tr style="background:#fef2f2">
-      <td><b>① 捕获腿静默失效哨兵</b></td>
+    <tr style="background:#f0fdf4">
+      <td><b>① 捕获腿静默失效哨兵</b> <span class="b b-done">✅ 已上线</span></td>
       <td>已知盲区：隐形 Edge 挂了 / 登录过期时，<b>心跳监控全绿但客户回复全漏</b>，没人知道。这是最危险的沉默故障。</td>
-      <td>加「回复率哨兵」cron：某账号 N 小时零客户回复入库 → 红牌告警（对比历史基线，不是绝对值）</td>
-      <td><span class="pri p-hi">高</span></td></tr>
+      <td><b>已做完（#820）</b>：回复率哨兵 cron 每 6h 跑，某活跃号 24h 零客户回复 → 红牌到监控群。<a href="#sentinel" style="color:#16a34a">下面用大白话讲清楚 ↓</a></td>
+      <td><span class="pri" style="background:#16a34a">已完成</span></td></tr>
     <tr style="background:#fff7ed">
       <td><b>② 微信护栏放开后的风控观察</b></td>
       <td>#813 刚放开直接发微信号/v号，<b>抖音可能风控甚至限流封号</b>，目前没有回路监测。</td>
@@ -173,7 +174,48 @@
       <td><span class="pri p-lo">低（等到期）</span></td></tr>
   </table>
 
-  <div class="win"><b>最该先做的两件</b>：<span class="hl">① 回复率哨兵</span>（治沉默漏回复，风险最高）＋ <span class="hl">② 护栏放开后的风控观察</span>（刚放开安全阀，得盯着别翻车）。这俩不做，前面的修复可能在「看不见的地方」被抵消。</div>
+  <div class="win"><b>进度</b>：<span class="hl">① 回复率哨兵已经做完上线了</span>（#820，就是下面这一大段讲的东西）；剩下最该盯的是 <span class="hl">② 护栏放开后的风控观察</span>（刚放开安全阀，得盯着别翻车）。</div>
+
+  <!-- 哨兵大白话 -->
+  <h2 id="sentinel"><span class="n">07</span>「客户回复静默哨兵」——用大白话讲清楚（小孩也能懂）</h2>
+
+  <div class="callout" style="font-size:15px"><b>一句话</b>：我们请了一个「监督员」，专门盯着——<span class="hl">有没有哪个账号本来天天有客人来说话，突然一整天一个都没有</span>。真出现了，它立刻在群里拉响红色警报，叫人去查。</div>
+
+  <h3>先讲个小故事 🏪</h3>
+  <div class="flow">
+    <div class="lbl">把每个抖音账号想象成一家店</div>
+    <div class="box">🏪 店里有个<b>店员</b>，专门负责「听有没有客人敲门说话」<br>（= 电脑上那个偷偷开着的浏览器，负责抓客户回复）</div>
+    <div class="arrow">↓ 有一天……</div>
+    <div class="box red">😴 店员<b>偷偷睡着了</b>（浏览器挂了 / 抖音登录过期了）<br>可他还站在门口，<b>看起来在上班</b></div>
+    <div class="arrow">↓</div>
+    <div class="box red">🚪 客人来敲门、说话、想买东西……<b>店员一个都没听见</b><br>客人等不到回应，全走了 —— <b>我们却一点都不知道</b></div>
+  </div>
+
+  <div class="warn"><b>最坑的地方</b>：这个店员睡着的时候，<b>别的检查都显示「正常」</b>——门开着、灯亮着、他还在发传单（= 心跳还绿、DM 还在往外发）。所以光看那些，<span class="hl">你永远发现不了他其实睡着了</span>。这就是以前最危险的「沉默故障」：坏了，但没有任何人知道。</div>
+
+  <h3>现在请了个「监督员」👮 怎么工作？</h3>
+  <div class="flow">
+    <div class="box hl">👮 监督员<b>每 6 小时</b>巡查一次</div>
+    <div class="arrow">↓ 他只问一个简单问题</div>
+    <div class="box">「这家店<b>平时每天都有好几个客人</b>说话，<br>怎么<b>过去一整天，一个客人都没有？</b>」</div>
+    <div class="arrow">↓ 如果真的是这样</div>
+    <div class="box red">🚨 立刻在<b>群里拉红色警报</b>：<br>「快去看看『有大有小』那台电脑，店员是不是睡着了！」<br>还附上<b>怎么叫醒他</b>的步骤</div>
+    <div class="arrow">↓ 有人去把店员叫醒（重开浏览器 / 重新登录）</div>
+    <div class="box green">✅ 客人的话又能听见了，警报自己消失</div>
+  </div>
+
+  <h3>为什么是「一整天」，不是「一小时」就报警？🤔</h3>
+  <table>
+    <tr><th>如果……</th><th>会怎样</th></tr>
+    <tr><td>只要 <b>1 小时</b>没客人就报警</td><td class="bad">天天误报！半夜本来就没人说话，一惊一乍谁都不信了</td></tr>
+    <tr style="background:#f0fdf4"><td>看 <b>一整天（24 小时）</b>都没客人才报警</td><td class="ok">刚刚好：真出问题才响，半夜没人是正常的、不会误报</td></tr>
+  </table>
+  <div class="callout">因为客人本来就来得稀（<b>最忙的账号一天也就 6、7 个客人说话</b>），几个小时没人太正常了。<span class="hl">只有「一整天都挂零」，才铁定是店员睡着了</span>，不是碰巧。</div>
+
+  <h3>会不会乱报警、冤枉好人？🎯</h3>
+  <div class="win">不会。上线前我们<b>拿真实数据试跑了一遍</b>：5 个账号，3 个平时热闹的（有大有小、饭粒、零星）当天都有客人 → <b>一个警报都没误报</b>；两个平时就很冷清的号（文哥、小文，一天不到 1 个客人）<b>自动被排除在外</b>，不会拿它们说事。而且万一是监督员自己没睡醒（查数据库失败），他会老实发一张<b>橙色「我这轮没看成」</b>的卡，绝不假装「一切正常」骗你。</div>
+
+  <div class="callout" style="border-left-color:#16a34a;background:#effaf2"><b>所以从今天起</b>：哪个账号的「店员」偷偷睡着了、客人在悄悄流失，<span class="hl">最多一天之内，群里必定弹出一张红牌叫人去救</span>。以前这种事可能烂好几天没人发现 —— 这就是这个哨兵补上的最大窟窿。</div>
 
   <footer>
     Akke · 内部部署报告 · 2026-07-08 ~ 07-09 ｜ 数据源：git log + 已合并 PR 逐条核实 ｜ 相关：<a href="/akke/autoreply-2026-07-07" style="color:#6366f1">07-07 自动回复页</a> · <a href="/akke/reports/dm-autoreply-journey" style="color:#6366f1">自动回复 journey 实时报告</a>
