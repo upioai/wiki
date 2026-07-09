@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>企微好友单聊 AI 自动回复 · 优化总结（2026-07-09）</title>
+<style>
+  :root{--ink:#1c2530;--muted:#6b7683;--line:#e6e9ee;--bg:#f6f7f9;--card:#fff;
+        --green:#1a9c5b;--amber:#c67c00;--red:#c8412f;--blue:#2b6cb0;--lock:#6b46c1;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.7 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;}
+  .wrap{max-width:920px;margin:0 auto;padding:32px 20px 80px;}
+  header{border-bottom:2px solid var(--ink);padding-bottom:16px;margin-bottom:8px;}
+  h1{font-size:24px;margin:0 0 6px;}
+  .sub{color:var(--muted);font-size:13.5px;}
+  h2{font-size:18px;margin:34px 0 12px;padding-left:10px;border-left:4px solid var(--blue);}
+  p{margin:8px 0;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;
+        padding:16px 18px;margin:12px 0;}
+  table{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px;}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top;}
+  th{background:#f0f2f5;font-weight:600;font-size:13px;color:var(--muted);}
+  td code{background:#eef1f4;padding:1px 5px;border-radius:4px;font-size:12.5px;}
+  .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:12px;font-weight:600;white-space:nowrap;}
+  .b-done{background:#e3f5ec;color:var(--green);}
+  .b-open{background:#fdf1de;color:var(--amber);}
+  .b-cap{background:#efe8fb;color:var(--lock);}
+  .b-info{background:#e7f0f9;color:var(--blue);}
+  ul{margin:8px 0;padding-left:22px;}
+  li{margin:5px 0;}
+  .note{background:#fff8ec;border:1px solid #f1e0bd;border-radius:8px;padding:12px 16px;font-size:13.5px;}
+  .kpi{display:flex;gap:12px;flex-wrap:wrap;margin:12px 0;}
+  .kpi div{flex:1;min-width:150px;background:var(--card);border:1px solid var(--line);
+           border-radius:10px;padding:12px 14px;}
+  .kpi b{display:block;font-size:22px;}
+  .kpi span{color:var(--muted);font-size:12.5px;}
+  footer{margin-top:40px;color:var(--muted);font-size:12.5px;border-top:1px solid var(--line);padding-top:14px;}
+  .flow{font-size:13.5px;color:var(--muted);background:#f0f2f5;border-radius:8px;padding:10px 14px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>企微好友单聊 AI 自动回复 · 优化总结</h1>
+  <div class="sub">方案B（GUI 截屏代回）· 2026-07-09 · 云电脑运行版本 <b>63999</b> · 代码 <b>PR #817</b></div>
+</header>
+
+<div class="kpi">
+  <div><b>10</b><span>本次修复/优化项</span></div>
+  <div><b>57</b><span>单元测试（全绿）</span></div>
+  <div><b>2</b><span>仍未修（下批）</span></div>
+  <div><b>1</b><span>根本天花板（GUI）</span></div>
+</div>
+
+<h2>一、这套是什么（背景）</h2>
+<div class="card">
+  <p>企业微信好友单聊的 AI 自动代回。<b>不走官方 API</b>（官方客服 API 被 ICP / 可信 IP 卡住），
+  而是在云电脑上跑一个常驻 Python loop，用「<b>截屏 → 视觉模型认字读消息 → 固定坐标点击打字发送</b>」的 GUI 方式代回。</p>
+  <div class="flow">数据链：云电脑 loop → Fly 中转 → Vercel <code>/api/wecom/chat/reply</code> → chatReply（小艳，模型 glm-4.6）→ 回传 → GUI 打字发出</div>
+  <p style="margin-top:10px"><b>先天特性</b>：GUI 方式没有"送达回执"，靠截图认字，天生比 API 脆——本次优化就是尽量把这些脆点补硬。</p>
+</div>
+
+<h2>二、本次优化了什么（10 项，均已上线 + 有测试）</h2>
+<table>
+  <tr><th style="width:130px">项</th><th>治什么问题</th><th style="width:90px">状态</th></tr>
+  <tr><td><b>A 连发防抖</b></td><td>客户连发多条时，读到半截就回、剩下的下轮又回一次（拆成多条）。改：读到待回消息后先确认聊天区 2.5s 不再变化（发完）才回。</td><td><span class="badge b-done">已上线</span></td></tr>
+  <tr><td><b>B 读取上限</b></td><td>每次最多读 6 条 → 连发 &gt;6 条漏前面。改为 <code>10</code> 条。</td><td><span class="badge b-done">已上线</span></td></tr>
+  <tr><td><b>C 红点不饿死</b></td><td>某会话红点卡住不消时独占 3 个处理槽，饿死其他客户。改：本轮已点过的行跳过。</td><td><span class="badge b-done">已上线</span></td></tr>
+  <tr><td><b>系统消息过滤</b></td><td>"XX撤回了一条消息""工作台统计（总客户N位/收款N元）"被当客户消息回。改：正则拦截，从源头跳过。</td><td><span class="badge b-done">已上线</span></td></tr>
+  <tr><td><b>F 红点检测修正</b></td><td>截图含最左导航栏 → "消息"图标红角标被当成 y≈58 的假未读，一直点顶部死区、点不开真新好友（野乔通过没首触）。改：裁掉导航栏 + 顶部死区过滤。</td><td><span class="badge b-done">已上线</span></td></tr>
+  <tr><td><b>G 发送前重抢前台</b></td><td>"读→生成"隔数秒，其间焦点被抢 → 发送中止 / 打字中途丢焦。改：发前主动把企微顶到最前+最大化。</td><td><span class="badge b-done">已上线</span></td></tr>
+  <tr><td><b>VL 断连重试</b></td><td>视觉模型（OpenRouter）偶发掐连接 → 整轮读取作废。改：失败重试 3 次 + 退避。</td><td><span class="badge b-done">已上线</span></td></tr>
+  <tr><td><b>★ 发送后回读确认</b></td><td><b>治"假成功"</b>——按发送键就记成功，但字没落进输入框/坐标偏/被窗口挡，聊天里根本没有（野乔首触两次假成功、还被锁成"已招呼"）。改：发完截图回读，确认文案真出现在右侧才记成功；没确认到 → 不记已发、不锁已招呼、下轮重试。</td><td><span class="badge b-done">已上线</span></td></tr>
+  <tr><td><b>★ 定期全量扫会话</b></td><td>客户在【无红点、又非当前打开】的会话里回消息，两条腿都够不着（野乔发"新房"漏读）。改：每 5 轮把前 6 个会话逐个点开读一遍补漏。</td><td><span class="badge b-done">已上线</span></td></tr>
+  <tr><td><b>★ @微信 硬门</b></td><td>全量扫 + 历史假成功把系统通知/内部群（客户联系/服务总结/行业资讯/企业微信团队/内部全员群）也回了、还写进台账污染去重。改：只代回标题带「@微信」的外部客户，系统/群/同事一律不碰。</td><td><span class="badge b-done">已上线</span></td></tr>
+</table>
+<div class="note">配套动作（运维）：清掉云电脑本地被污染的台账文件 <code>wecom_replied_ledger.json</code> / <code>wecom_sent_texts.json</code>，重置历史脏去重状态。</div>
+
+<h2>三、还存在的 Bug / 局限</h2>
+<table>
+  <tr><th style="width:150px">问题</th><th>说明</th><th style="width:90px">性质</th></tr>
+  <tr><td>发送落地强依赖环境</td><td>字要真进企微输入框，必须：①企微在最前 ②输入框坐标准 ③没有别的窗口（尤其 PowerShell 黑窗）盖在企微上。黑窗一盖 / 焦点被抢，就发不出（回读确认会抓到并重试，但发不出还是发不出）。</td><td><span class="badge b-open">环境/操作</span></td></tr>
+  <tr><td>D 失焦发半条不记账</td><td>发送中途失焦中止时只发了半条却不记账，下轮重生成整条 → 客户可能收到"半条+整条"。</td><td><span class="badge b-open">未修·下批</span></td></tr>
+  <tr><td>E 身份用显示名</td><td>会话身份 = 销售号:显示名。客户改微信昵称 → 新建会话丢历史；同名不同人会撞车。GUI 拿不到稳定 userid，补不干净。</td><td><span class="badge b-cap">结构性</span></td></tr>
+  <tr><td>全量扫有成本</td><td>每 5 轮把前 6 个会话（含系统会话）各截图读一次 VL。@微信 硬门拦住了"回复"，但"读"仍会烧一点视觉模型额度。可调 <code>FULL_SCAN_EVERY</code> / <code>FULL_SCAN_TOP_N</code> 权衡。</td><td><span class="badge b-info">可调</span></td></tr>
+  <tr><td>视觉读图本身不稳</td><td>偶发漏读 / 误读 / 断连（已加重试，但非 100%）。</td><td><span class="badge b-cap">方案固有</span></td></tr>
+  <tr><td>🔒 根本天花板</td><td>GUI 方案无官方送达回执，回读确认是补救不是根治。任一环（读图/坐标/前台/窗口）抖动就漏读或发不出。<b>到不了"零故障、无人值守"。</b></td><td><span class="badge b-cap">GUI 天花板</span></td></tr>
+</table>
+
+<h2>四、优化点 / 下一步</h2>
+<div class="card">
+  <ul>
+    <li><b>🔑 路线3 · 官方 API（根治，唯一能"稳定不出问题"）</b>：重新评估企微客服 API 的 ICP 备案 / 可信 IP 白名单能否解开。通了就是 100% 可靠——真消息 ID、送达回执、不用截图认字。<b>需业务/合规投入，目前搁置。</b></li>
+    <li><b>坐标重标</b>：若干净环境下真客户仍发不出，跑 <code>measure_wecom_coords.py</code> 在当前窗口重新标定输入框/发送坐标。</li>
+    <li><b>环境固化</b>：给云电脑一个专用干净桌面——企微常驻最大化、日志黑窗最小化别盖上来、关掉悬浮 widget。这是当前 GUI 方案稳定性的最大变量。</li>
+    <li><b>人工兜底（路线2）</b>：若坚持不上 API，可退一步用"AI 出草稿 + 真人一键发"，牺牲全自动换可靠。</li>
+    <li><b>D / E 收尾</b>：补"部分发送也记账防重发"、探索更稳的会话身份。</li>
+  </ul>
+</div>
+
+<h2>五、日常运维要点</h2>
+<div class="card">
+  <ul>
+    <li><b>企微保持最前、黑窗最小化别碰</b>——这是发送能否落地的头号因素。</li>
+    <li>云电脑重启后：跑重启流程把 loop 拉起（对应 skill：企微自动回复重启）。</li>
+    <li>出任何异常：在 <code>C:\akke-wecom\</code> 建空文件 <code>wecom_reply_STOP</code> 即停；排查好删掉再起。</li>
+    <li>怀疑去重出错（真客户被误跳/系统会话被回）：清 <code>wecom_replied_ledger.json</code> + <code>wecom_sent_texts.json</code> 重置。</li>
+    <li>判断新版是否生效：看启动字节数（本版 <code>63999</code>），别看黑窗里写死的版本号。</li>
+  </ul>
+</div>
+
+<footer>
+  生成于 2026-07-09 · 代码全部在 <b>PR #817</b>（fix/wecom-reply-burst-opener-robustness）· 云电脑运行 63999 · 57 单测全绿<br>
+  本文件为会话总结，非代码库文档；如需归档请自行移动位置。
+</footer>
+
+</div>
+</body>
+</html>
