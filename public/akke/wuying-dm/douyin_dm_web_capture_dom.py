@@ -33,7 +33,7 @@ except ImportError:
     sys.exit("✗ 缺 playwright。先跑: py -m pip install playwright")
 
 # 判回复过滤链 + 写回 RPC + 本号名防御, 全部复用 VL 版/UIA 版已验证逻辑(DRY, 不重写)。
-from douyin_inbox_uia import load_sent_dms, match_name, SYS_NOTICE, _is_noise_preview
+from douyin_inbox_uia import load_sent_dms, match_name, SYS_NOTICE, _is_noise_preview, _http, alert_ambiguous_nickname
 from douyin_dm_web_capture import is_relevant, we_sent_last, _strip_ts, _norm, _rpc, _SELF_NAME
 
 CDP = "http://127.0.0.1:9222"
@@ -99,6 +99,70 @@ el => {
   return { lines, badge, badgeText, avatar: img ? (img.getAttribute('src')||'').slice(0,60) : '' };
 }
 """
+
+# ===== 不依赖红点的兜底对账(7/7-7/10 核查 P2: 红点被运营点掉即永久漏检, 窗口内 4 例) =====
+# 每 AKKE_DM_FULLSCAN_INTERVAL_S(默认 3600s) 一轮, 对【无红点】的会话行也跑同一条判回复
+# 过滤链; 通过后再加两道 DB 守卫(红点权威性没了, 必须补): ① 预览匹配该会话近 5 条 messages
+# 任意一条 → 已录过/是我方消息, 跳过; ② 预览匹配该会话近 3 条草稿 draft → 是我方刚发、DB
+# 回写滞后(complete_dm_reply 晚几分钟)的窗口期, 跳过。都不匹配 = 真漏检 → record_dm_inbound
+# 补录(RPC 自身还有同内容幂等兜底)。时间戳台账在本地(_fullscan.stamp), 只在 COMMIT 时盖。
+_FULLSCAN_ON = _os.environ.get("AKKE_DM_FULLSCAN", "1").lower() in ("1", "true", "yes")
+_FULLSCAN_INTERVAL_S = int(_os.environ.get("AKKE_DM_FULLSCAN_INTERVAL_S", "3600"))
+_FULLSCAN_STAMP = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "_fullscan.stamp")
+
+
+def _fullscan_due() -> bool:
+    if not _FULLSCAN_ON:
+        return False
+    try:
+        with open(_FULLSCAN_STAMP, encoding="utf-8") as f:
+            last = float(f.read().strip() or 0)
+    except Exception:
+        last = 0.0
+    import time as _time
+    return _time.time() - last >= _FULLSCAN_INTERVAL_S
+
+
+def _fullscan_stamp() -> None:
+    import time as _time
+    try:
+        with open(_FULLSCAN_STAMP, "w", encoding="utf-8") as f:
+            f.write(str(_time.time()))
+    except Exception as e:
+        print(f"  [warn] fullscan 盖章失败: {e}")
+
+
+def _pv_match(a: str, b: str) -> bool:
+    """预览与库内文本是否同一条消息: 剥尾部省略号+归一化后, 相等 或 短方≥6字且互为包含
+    (抖音列表预览 ~60 字截断; 短回复如「好的」只认全等, 防被长文误包含)。"""
+    import re as _re
+    a = _re.sub(r"[….．.]+$", "", _norm(a))
+    b = _re.sub(r"[….．.]+$", "", _norm(b))
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    return min(len(a), len(b)) >= 6 and (a in b or b in a)
+
+
+def _fullscan_known(conv: str, preview: str) -> bool:
+    """兜底支线的 DB 守卫。读失败一律按「已知」处理(宁漏一轮下小时重试, 不错录)。"""
+    try:
+        msgs = _http("GET", "messages", {
+            "select": "content", "conversation_id": f"eq.{conv}",
+            "order": "created_at.desc", "limit": "5",
+        }) or []
+        if any(_pv_match(preview, m.get("content") or "") for m in msgs):
+            return True
+        drafts = _http("GET", "dm_reply_drafts", {
+            "select": "draft", "conversation_id": f"eq.{conv}",
+            "order": "created_at.desc", "limit": "3",
+        }) or []
+        return any(_pv_match(preview, d.get("draft") or "") for d in drafts)
+    except Exception as e:
+        print(f"       ↳ [兜底] DB 守卫读失败({type(e).__name__}) → 本轮按已知跳过: {e}")
+        return True
+
 
 _TIME_TOKENS = ("昨天", "前天", "刚刚", "今天")
 
@@ -167,8 +231,12 @@ def capture_dom():
             return
         print(f"  conversation-item {n} 个")
 
+        fullscan = _fullscan_due()
+        if fullscan:
+            print(f"  [兜底对账] 本轮含全量扫: 无红点行也对账(间隔 {_FULLSCAN_INTERVAL_S}s), 治红点被点掉永久漏")
+
         items = page.locator('[data-e2e="conversation-item"]')
-        seen, inbound, unread_total, would_preview = set(), 0, 0, 0
+        seen, inbound, unread_total, would_preview, backfilled = set(), 0, 0, 0, 0
         for i in range(n):
             try:
                 d = items.nth(i).evaluate(_EXTRACT)
@@ -183,16 +251,19 @@ def capture_dom():
 
             # ★ 红点闸(权威信号, 运营确认: 新回复才有红点)。无红点 = 无新回复 → 跳过, 不论预览。
             #   根治"我方第二条消息(opener 之外)被 we_sent_last 漏判成客户回复"的假阳(小艳子🍭)。
+            #   例外: 兜底对账轮(fullscan)放无红点行过闸, 走下方兜底支线(同过滤链 + 两道 DB 守卫)。
             if not unread:
-                # dry-run 透明: 统计"纯预览逻辑下本会被误报"的条数, 好看出红点闸拦下多少假阳。
+                if not fullscan:
+                    # dry-run 透明: 统计"纯预览逻辑下本会被误报"的条数, 好看出红点闸拦下多少假阳。
+                    if not COMMIT:
+                        h = match_name(nick, by_name)
+                        if h and not we_sent_last(preview, h.get("sent", "")) and not any(t in preview for t in SYS_NOTICE) and not _is_noise_preview(preview):
+                            would_preview += 1
+                    continue
+            else:
+                unread_total += 1
                 if not COMMIT:
-                    h = match_name(nick, by_name)
-                    if h and not we_sent_last(preview, h.get("sent", "")) and not any(t in preview for t in SYS_NOTICE) and not _is_noise_preview(preview):
-                        would_preview += 1
-                continue
-            unread_total += 1
-            if not COMMIT:
-                print(f"  [红点] {nick}: {preview[:26]}")  # dry-run: 每个红点会话都现身, 看它被怎么处置
+                    print(f"  [红点] {nick}: {preview[:26]}")  # dry-run: 每个红点会话都现身, 看它被怎么处置
 
             # 本号自己的名(头像字误读, DOM 下基本不会但保留防御) → 不计。
             if _SELF_NAME and (_norm(nick) == _SELF_NAME or _SELF_NAME.startswith(_norm(nick)) or _norm(nick).startswith(_SELF_NAME)):
@@ -203,11 +274,36 @@ def capture_dom():
                 print(f"       ↳ [test] 强制把 {nick!r} 当已 DM 客户, 验后续链(合成 hit, 不落库)")
                 hit = {"name": nick, "sent": "", "conversation_id": "TEST"}
             if not hit:
-                if not COMMIT:
+                if not COMMIT and unread:
                     print(f"       ↳ 跳过: 不在已发记录(群/陌生人, 非我们 DM 的客户)")
                 continue  # 不在本账号已发记录 = 非我们 DM 的人(群/陌生)
+            # 同昵称歧义(7/9 蛟河平姐挂错山西平姐会话): 不自动挂靠, 推 Lark 转人工。
+            if hit.get("ambiguous"):
+                print(f"  [同昵称歧义] {nick}: 本号下 {hit.get('conv_count', 2)} 个同名会话 → 不自动挂靠, 转人工")
+                if COMMIT:
+                    alert_ambiguous_nickname(nick, hit.get("conv_count", 2))
+                continue
             conv = hit.get("conversation_id")
             if not conv:
+                continue
+            # 兜底对账支线(无红点行, 仅 fullscan 轮到这): 同链静默判定 + 两道 DB 守卫, 都过才补录。
+            if not unread:
+                if we_sent_last(preview, hit.get("sent", "")) or any(t in preview for t in SYS_NOTICE) \
+                        or _is_noise_preview(preview) or (preview.startswith("[") and preview.endswith("]")) \
+                        or not is_relevant(preview):
+                    continue
+                if conv == "TEST" or _fullscan_known(conv, preview):
+                    continue
+                print(f"  [兜底补录{'·DRY' if not COMMIT else ''}] {nick}: {preview[:34]} (红点已被点掉, 对账补上)")
+                if COMMIT:
+                    try:
+                        _rpc("record_dm_inbound", {"p_conversation_id": conv, "p_content": preview})
+                        backfilled += 1
+                        _trigger_draft(conv)
+                    except Exception as e:
+                        print(f"  [err] 兜底 record_dm_inbound {nick}: {e}")
+                else:
+                    backfilled += 1
                 continue
             # 判回复过滤链(与 VL 版同序): 我方回声 → 系统提示 → 噪声行 → 纯表情 → spam
             if we_sent_last(preview, hit.get("sent", "")):
@@ -242,8 +338,11 @@ def capture_dom():
                     print(f"  [err] record_dm_inbound {nick}: {e}")
             else:
                 inbound += 1
+        if fullscan and COMMIT:
+            _fullscan_stamp()
         print(f"=== 完成: {'(DRY)' if not COMMIT else ''} 命中客户回复 {inbound} 条 / "
-              f"有红点 {unread_total} 个 / 扫 {len(seen)} 人 ===")
+              f"有红点 {unread_total} 个 / 扫 {len(seen)} 人"
+              f"{f' / 兜底补录 {backfilled} 条' if fullscan else ''} ===")
         if not COMMIT and would_preview:
             print(f"  (红点闸拦下 {would_preview} 条'纯预览逻辑会误报'的——多半是我方多发的消息, 如小艳子🍭)")
         if not COMMIT and unread_total == 0:

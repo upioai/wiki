@@ -23,6 +23,7 @@ import json
 import os
 import re
 import sys
+import time
 import urllib.parse
 import urllib.request
 
@@ -246,12 +247,58 @@ def load_sent_dms():
         if not uid or uid in seen:
             continue
         seen.add(uid)
-        by_name[_norm(nm)] = {
+        key = _norm(nm)
+        if key in by_name:
+            # 同昵称撞车：本号下 ≥2 个不同 uid 的同名会话——昵称 join 必然挂错
+            # (2026-07-09 蛟河平姐消息挂进山西平姐会话、自动回复发错人实锤)。
+            # 标 ambiguous，调用方【禁止自动挂靠】、推 Lark 转人工。保留首个(最近发过的)
+            # conversation_id 不动，未升级的调用方行为不变。
+            by_name[key]["ambiguous"] = True
+            by_name[key]["conv_count"] = by_name[key].get("conv_count", 1) + 1
+            continue
+        by_name[key] = {
             "name": nm,
             "sent": r.get("content") or "",
             "conversation_id": conv.get("id"),
         }
     return by_name
+
+
+# 同昵称歧义告警：12h/昵称 本地台账去重(去重台账在本地非 DB，同 wecom 惯例)，
+# 经 emit_captcha_alert → captcha-monitor cron 推云电脑监控群。歧义会话的客户回复
+# 不入库(防挂错人)，不告警运营就永远不知道有人在等——显式失败。
+_AMBIG_LEDGER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_ambig_alerts.json")
+_AMBIG_COOLDOWN_S = 12 * 3600
+
+
+def alert_ambiguous_nickname(nick: str, n_convs: int) -> None:
+    key = _norm(nick)
+    now = time.time()
+    led = {}
+    try:
+        with open(_AMBIG_LEDGER, encoding="utf-8") as f:
+            led = json.load(f)
+    except Exception:
+        pass
+    if now - float(led.get(key, 0)) < _AMBIG_COOLDOWN_S:
+        return
+    try:
+        _http("POST", "rpc/emit_captcha_alert", body={
+            "p_account_id": ACCOUNT_ID,
+            "p_level": "p1_orange",
+            "p_type": "dm_nickname_ambiguous",
+            "p_message": (
+                f"同昵称歧义：「{nick}」在本号下有 {n_convs} 个同名会话，"
+                "新回复未自动挂靠(防发错人)。请上云电脑人工回复该客户，并让 Claude 补录到正确会话"
+            ),
+            "p_metadata": {"nickname": nick, "conv_count": n_convs, "source": "dm_capture"},
+        })
+        led[key] = now
+        with open(_AMBIG_LEDGER, "w", encoding="utf-8") as f:
+            json.dump(led, f)
+        print(f"  [alert] 同昵称歧义已推 Lark: {nick}")
+    except Exception as e:
+        print(f"  [warn] 同昵称歧义告警失败(不致命): {e}")
 
 
 def match_name(row_name, by_name):
@@ -384,6 +431,10 @@ def main():
         hit = match_name(name, by_name)
         if not hit:
             outside += 1
+            continue
+        if hit.get("ambiguous"):
+            print(f"  · {name[:16]:<16} | 同昵称歧义({hit.get('conv_count', 2)} 会话) → 不自动挂靠, 转人工")
+            alert_ambiguous_nickname(name, hit.get("conv_count", 2))
             continue
         if classify(preview, hit) == "no_reply":
             no_reply += 1

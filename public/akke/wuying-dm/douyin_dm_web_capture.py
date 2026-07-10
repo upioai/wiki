@@ -23,7 +23,7 @@ import pyautogui
 
 # 复用 grounded 的视觉原语(截图/VL/JSON 解析/置前)与 inbox 的匹配/写库。
 from douyin_dm_grounded import _shot, _vision, _pjson, focus_douyin, locate, type_unicode
-from douyin_inbox_uia import load_sent_dms, match_name, SYS_NOTICE, _is_noise_preview
+from douyin_inbox_uia import load_sent_dms, match_name, SYS_NOTICE, _is_noise_preview, alert_ambiguous_nickname
 
 # 相关性过滤(同 douyin_dm_autoreply)：互粉/涨粉 spam 剔除，其余真回复一律放行。
 SPAM_KW = ("有效粉", "互粉", "小火花", "互发", "掉粉", "千粉不如", "长按", "转发", "关注后")
@@ -345,6 +345,11 @@ def capture():
             hit = match_name(nick, by_name)
             if not hit:
                 print(f"  [skip] {nick}(红点): 不在本账号已发记录 → 非我们 DM 的人")
+                continue
+            # 同昵称歧义: 不自动挂靠(防发错人), 推 Lark 转人工。
+            if hit.get("ambiguous"):
+                print(f"  [同昵称歧义] {nick}: 本号下 {hit.get('conv_count', 2)} 个同名会话 → 不自动挂靠, 转人工")
+                alert_ambiguous_nickname(nick, hit.get("conv_count", 2))
                 continue
             conv = hit.get("conversation_id")
             if not conv:

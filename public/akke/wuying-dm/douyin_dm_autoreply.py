@@ -30,6 +30,7 @@ import urllib.request
 # 复用列表检测(只读 UIA)；load_sent_dms 已带 conversation_id
 from douyin_inbox_uia import (  # noqa: F401
     SYS_NOTICE,
+    alert_ambiguous_nickname,
     classify,
     collect_nodes,
     collect_texts,
@@ -155,6 +156,11 @@ def capture():
     for name, preview in rows:
         hit = match_name(name, by_name)
         if not hit:
+            continue
+        # 同昵称歧义: 不自动挂靠(防发错人), 推 Lark 转人工。
+        if hit.get("ambiguous"):
+            print(f"[同昵称歧义] {name}: 本号下 {hit.get('conv_count', 2)} 个同名会话 → 不自动挂靠, 转人工")
+            alert_ambiguous_nickname(name, hit.get("conv_count", 2))
             continue
         # classify 做噪声过滤：时长气泡(09:45/36:22) / 未读徽标数 / 我方末条气泡指纹 /
         # 系统提示(SYS_NOTICE 含撤回) / 状态行。两种门控都必须跑——红点只证明"有未读徽标"，
