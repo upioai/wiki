@@ -33,7 +33,7 @@ except ImportError:
     sys.exit("✗ 缺 playwright。先跑: py -m pip install playwright")
 
 # 判回复过滤链 + 写回 RPC + 本号名防御, 全部复用 VL 版/UIA 版已验证逻辑(DRY, 不重写)。
-from douyin_inbox_uia import load_sent_dms, match_name, SYS_NOTICE, _is_noise_preview, _http, alert_ambiguous_nickname
+from douyin_inbox_uia import load_sent_dms, match_name, SYS_NOTICE, _is_noise_preview, _http, alert_ambiguous_nickname, alert_backfill_suspect
 from douyin_dm_web_capture import is_relevant, we_sent_last, _strip_ts, _norm, _rpc, _SELF_NAME
 
 CDP = "http://127.0.0.1:9222"
@@ -104,8 +104,11 @@ el => {
 # 每 AKKE_DM_FULLSCAN_INTERVAL_S(默认 3600s) 一轮, 对【无红点】的会话行也跑同一条判回复
 # 过滤链; 通过后再加两道 DB 守卫(红点权威性没了, 必须补): ① 预览匹配该会话近 5 条 messages
 # 任意一条 → 已录过/是我方消息, 跳过; ② 预览匹配该会话近 3 条草稿 draft → 是我方刚发、DB
-# 回写滞后(complete_dm_reply 晚几分钟)的窗口期, 跳过。都不匹配 = 真漏检 → record_dm_inbound
-# 补录(RPC 自身还有同内容幂等兜底)。时间戳台账在本地(_fullscan.stamp), 只在 COMMIT 时盖。
+# 回写滞后(complete_dm_reply 晚几分钟)的窗口期, 跳过。
+# 都不匹配 = 疑似漏检 → 【只推卡人工确认, 不自动补录】: 列表预览分不清方向, 运营 GUI
+# 手动回的那条不进 DB、守卫看不见, 自动补录会把我方手打内容错当客户消息 → 管线自动回
+# 一条(自言自语误发)。红点只客户消息才有、全量扫失去该保证 → 检测自动/确认人工。
+# 时间戳台账在本地(_fullscan.stamp), 只在 COMMIT 时盖。
 _FULLSCAN_ON = _os.environ.get("AKKE_DM_FULLSCAN", "1").lower() in ("1", "true", "yes")
 _FULLSCAN_INTERVAL_S = int(_os.environ.get("AKKE_DM_FULLSCAN_INTERVAL_S", "3600"))
 _FULLSCAN_STAMP = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "_fullscan.stamp")
@@ -286,7 +289,8 @@ def capture_dom():
             conv = hit.get("conversation_id")
             if not conv:
                 continue
-            # 兜底对账支线(无红点行, 仅 fullscan 轮到这): 同链静默判定 + 两道 DB 守卫, 都过才补录。
+            # 兜底对账支线(无红点行, 仅 fullscan 轮到这): 同链静默判定 + 两道 DB 守卫,
+            # 都过 = 疑似漏检 → 推卡人工确认(不自动补录, 防把运营手打回复错当客户消息误发)。
             if not unread:
                 if we_sent_last(preview, hit.get("sent", "")) or any(t in preview for t in SYS_NOTICE) \
                         or _is_noise_preview(preview) or (preview.startswith("[") and preview.endswith("]")) \
@@ -294,16 +298,10 @@ def capture_dom():
                     continue
                 if conv == "TEST" or _fullscan_known(conv, preview):
                     continue
-                print(f"  [兜底补录{'·DRY' if not COMMIT else ''}] {nick}: {preview[:34]} (红点已被点掉, 对账补上)")
+                print(f"  [兜底疑似{'·DRY' if not COMMIT else ''}] {nick}: {preview[:34]} (不在系统里 → 推卡人工确认, 不自动补录)")
                 if COMMIT:
-                    try:
-                        _rpc("record_dm_inbound", {"p_conversation_id": conv, "p_content": preview})
-                        backfilled += 1
-                        _trigger_draft(conv)
-                    except Exception as e:
-                        print(f"  [err] 兜底 record_dm_inbound {nick}: {e}")
-                else:
-                    backfilled += 1
+                    alert_backfill_suspect(nick, preview)
+                backfilled += 1
                 continue
             # 判回复过滤链(与 VL 版同序): 我方回声 → 系统提示 → 噪声行 → 纯表情 → spam
             if we_sent_last(preview, hit.get("sent", "")):
@@ -342,7 +340,7 @@ def capture_dom():
             _fullscan_stamp()
         print(f"=== 完成: {'(DRY)' if not COMMIT else ''} 命中客户回复 {inbound} 条 / "
               f"有红点 {unread_total} 个 / 扫 {len(seen)} 人"
-              f"{f' / 兜底补录 {backfilled} 条' if fullscan else ''} ===")
+              f"{f' / 兜底疑似 {backfilled} 条(已推卡待人工确认)' if fullscan else ''} ===")
         if not COMMIT and would_preview:
             print(f"  (红点闸拦下 {would_preview} 条'纯预览逻辑会误报'的——多半是我方多发的消息, 如小艳子🍭)")
         if not COMMIT and unread_total == 0:

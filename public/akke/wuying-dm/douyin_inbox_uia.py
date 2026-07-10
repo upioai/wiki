@@ -271,6 +271,45 @@ _AMBIG_LEDGER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_ambig
 _AMBIG_COOLDOWN_S = 12 * 3600
 
 
+_BACKFILL_LEDGER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_backfill_alerts.json")
+_BACKFILL_COOLDOWN_S = 24 * 3600
+
+
+def alert_backfill_suspect(nick: str, preview: str) -> None:
+    """全量对账发现疑似漏检回复：【不自动补录】只推卡人工确认。
+    原因：会话列表预览分不清方向——运营在 GUI 手动回过的那条不进 DB，两道 DB 守卫
+    看不见它，自动补录会把我方手打内容错当客户消息 → 管线自动回一条(自言自语误发)。
+    红点路径没这问题(红点只客户消息才有)，全量扫失去该保证 → 检测自动化、确认留给人。
+    台账按 昵称+预览前缀 本地去重 24h，不刷屏。"""
+    key = _norm(nick) + "|" + _norm(preview)[:40]
+    now = time.time()
+    led = {}
+    try:
+        with open(_BACKFILL_LEDGER, encoding="utf-8") as f:
+            led = json.load(f)
+    except Exception:
+        pass
+    if now - float(led.get(key, 0)) < _BACKFILL_COOLDOWN_S:
+        return
+    try:
+        _http("POST", "rpc/emit_captcha_alert", body={
+            "p_account_id": ACCOUNT_ID,
+            "p_level": "p1_orange",
+            "p_type": "dm_backfill_suspect",
+            "p_message": (
+                f"兜底对账发现疑似漏检回复：「{nick}」最新一条『{preview[:40]}』不在系统里。"
+                "请核对会话——是客户发的→让 Claude 补录接管；是运营手动回的→忽略本卡"
+            ),
+            "p_metadata": {"nickname": nick, "preview": preview[:200], "source": "dm_fullscan"},
+        })
+        led[key] = now
+        with open(_BACKFILL_LEDGER, "w", encoding="utf-8") as f:
+            json.dump(led, f)
+        print(f"  [alert] 兜底疑似漏检已推 Lark: {nick}")
+    except Exception as e:
+        print(f"  [warn] 兜底疑似告警失败(不致命): {e}")
+
+
 def alert_ambiguous_nickname(nick: str, n_convs: int) -> None:
     key = _norm(nick)
     now = time.time()
