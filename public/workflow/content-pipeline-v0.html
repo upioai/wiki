@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>内容生成 Pipeline v0 设计（2026-05 · 架构骨架）</title>
+<meta name="description" content="Akke AI 全屋定制内容生成流水线 v0 架构设计：选题→脚本→分镜→视频生成→配音→合成的状态机，复用多租户/cron/worker/Langfuse 骨架，vendor 适配器 + 成本闸。">
+<style>
+  :root { --bg:#0b0d12; --bg-elevated:#141821; --bg-code:#1a1f2b; --border:#242a38; --border-strong:#2f3646;
+    --text:#e4e7ed; --text-dim:#9ba3b4; --text-muted:#6b7384; --accent:#8b5cf6; --accent-2:#60a5fa; --accent-soft:rgba(139,92,246,0.15);
+    --success:#34d399; --warning:#fbbf24; --danger:#f87171; --info:#60a5fa; }
+  * { box-sizing:border-box; } html { scroll-behavior:smooth; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif; font-size:16px; line-height:1.75; -webkit-font-smoothing:antialiased; }
+  .container { max-width:940px; margin:0 auto; padding:32px 24px 120px; }
+  .crumb { font-size:13px; color:var(--text-muted); margin-bottom:28px; }
+  .crumb a { color:var(--text-dim); text-decoration:none; } .crumb a:hover { color:var(--accent); }
+  header.hero { padding:20px 0 36px; border-bottom:1px solid var(--border); margin-bottom:40px; }
+  .tag { display:inline-block; padding:4px 12px; border-radius:999px; background:var(--accent-soft); color:var(--accent); font-size:13px; font-weight:500; margin-bottom:16px; }
+  h1 { font-size:34px; font-weight:700; margin:0 0 14px; letter-spacing:-0.02em; line-height:1.22; }
+  .subtitle { font-size:18px; color:var(--text-dim); margin:0 0 22px; }
+  .meta { display:flex; gap:18px; flex-wrap:wrap; font-size:13.5px; color:var(--text-muted); }
+  .meta span::before { content:""; display:inline-block; width:4px; height:4px; background:var(--text-muted); border-radius:50%; margin-right:8px; vertical-align:middle; }
+  h2 { font-size:24px; font-weight:700; margin:50px 0 14px; letter-spacing:-0.01em; }
+  h2 .num { display:inline-block; width:32px; height:32px; line-height:32px; text-align:center; background:var(--accent); color:#fff; border-radius:9px; font-size:16px; margin-right:12px; vertical-align:middle; }
+  h3 { font-size:19px; font-weight:600; margin:28px 0 12px; }
+  p { margin:12px 0; color:var(--text-dim); }
+  p strong, li strong, td strong { color:var(--text); }
+  ol, ul { padding-left:22px; color:var(--text-dim); } ol li, ul li { margin:7px 0; }
+  code { background:var(--bg-code); padding:2px 6px; border-radius:4px; font-size:0.88em; color:var(--info); font-family:"SF Mono",Monaco,Consolas,monospace; word-break:break-word; }
+  pre { background:var(--bg-code); border:1px solid var(--border); border-radius:10px; padding:16px 18px; overflow-x:auto; font-size:12.5px; line-height:1.55; color:var(--text-dim); }
+  .alert { padding:15px 20px; border-radius:10px; margin:20px 0; display:flex; gap:14px; align-items:flex-start; }
+  .alert .icon { flex:0 0 22px; font-size:20px; line-height:1; padding-top:3px; }
+  .alert .body { flex:1; } .alert .body strong { color:#fff; }
+  .alert.warn { background:rgba(251,191,36,0.08); border:1px solid rgba(251,191,36,0.25); color:#fde68a; }
+  .alert.info { background:rgba(96,165,250,0.08); border:1px solid rgba(96,165,250,0.25); color:#bfdbfe; }
+  .alert.success { background:rgba(52,211,153,0.08); border:1px solid rgba(52,211,153,0.25); color:#bbf7d0; }
+  .table-wrap { overflow-x:auto; margin:22px 0; border:1px solid var(--border); border-radius:12px; }
+  table { border-collapse:collapse; width:100%; min-width:560px; font-size:13.5px; }
+  thead th { background:var(--bg-elevated); color:var(--text); font-weight:600; text-align:left; padding:11px 14px; border-bottom:1px solid var(--border); }
+  tbody th { text-align:left; font-weight:600; color:var(--text); background:rgba(20,24,33,0.5); padding:11px 14px; border-bottom:1px solid var(--border); white-space:nowrap; }
+  tbody td { padding:11px 14px; border-bottom:1px solid var(--border); color:var(--text-dim); vertical-align:top; }
+  tbody tr:last-child td, tbody tr:last-child th { border-bottom:none; }
+  .flow { background:var(--bg-elevated); border:1px solid var(--border); border-radius:12px; padding:20px 24px; margin:22px 0; font-size:14px; line-height:1.9; }
+  .flow .stage { color:var(--text); font-weight:600; }
+  .flow .arrow { color:var(--accent); margin:0 6px; }
+  hr { border:none; border-top:1px solid var(--border); margin:44px 0; }
+  footer { margin-top:48px; padding-top:22px; border-top:1px solid var(--border); color:var(--text-muted); font-size:12.5px; }
+  @media (max-width:720px){ .container{padding:24px 18px 80px;} h1{font-size:26px;} h2{font-size:21px;} }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="crumb"><a href="/">upio.ai</a> · <a href="/workflow/">Workflow</a> · 内容生成 Pipeline v0</div>
+
+  <header class="hero">
+    <span class="tag">内容生产 · 架构设计（起点）</span>
+    <h1>AI 全屋定制内容生成 Pipeline v0</h1>
+    <p class="subtitle">"业主 vs 设计师"AI 真人短剧自动生产：选题 → 脚本 → 分镜 → 视频 → 配音 → 成片</p>
+    <div class="meta"><span>2026-05-20</span><span>scaffolding 已跑通 dryrun（PR #56）</span><span>内容生产流水线的架构起点</span></div>
+  </header>
+
+  <div class="alert info"><div class="icon">🧭</div><div class="body">这是内容生产流水线的<strong>架构起点</strong>：定了状态机、表结构、vendor 适配器框架，跑通了 ffmpeg dryrun 合成。当时默认选<strong>可灵</strong>做视频、火山豆包做 TTS。后续的模型选型细化见 <a href="/workflow/ai-drama-2026-07" style="color:#bfdbfe;text-decoration:underline">AI 短剧调研 v2</a>（同样收敛到可灵，但升级到 Kling 3.0 + @Element 原生一致性）。</div></div>
+
+  <h2><span class="num">1</span>目标与边界</h2>
+  <p>为 Akke 自己（及未来客户）的<strong>新号</strong>自动产出"业主 vs 设计师"AI 真人短剧短视频。端到端到<strong>成片落库为止</strong>，最后一步不接自动发布——由运营手工上传抖音，避免短期内绑定云手机/第三方上传 API 的风控风险。</p>
+  <div class="flow">
+    <span class="stage">选题</span><span class="arrow">→</span><span class="stage">脚本</span><span class="arrow">→</span><span class="stage">分镜</span><span class="arrow">→</span><span class="stage">视频生成</span><span class="arrow">→</span><span class="stage">配音</span><span class="arrow">→</span><span class="stage">字幕+成片</span><span class="arrow">→</span><span class="stage">待发布</span>
+  </div>
+  <p><strong>不在 v0 范围</strong>：抖音矩阵自动发布、评论/私信自动响应、直播/长视频/横屏；聚焦 9:16 竖屏 ≤60 秒。用户已明确选"AI 真人短剧"而非数字人代播。</p>
+
+  <h2><span class="num">2</span>架构（复用现有骨架）</h2>
+  <p>基本从零起，但骨架齐全——多租户 RLS / Vercel cron / Fly worker / Langfuse 观测全复用，新增工作量集中在"视频 vendor 适配 + 状态机 + 拼接 pipeline"。</p>
+  <pre>Vercel (Next.js)
+  ├─ /api/cron/content-generate-topics  (每日 09:00)
+  │    读 brand_profile + knowledge_documents → LLM 生成选题
+  ├─ /api/cron/content-advance           (每 15 分钟)
+  │    approved topic → 脚本 → 分镜 → enqueue 渲染 → 监控 → 拼接成片
+  └─ /api/content/{topics,scripts,posts}/approve  (运营审稿)
+        │
+        ▼  scrape_jobs(job_type='content_render_*')
+Fly worker (FastAPI + Playwright + ffmpeg)
+  ├─ /content/storyboard   script 拆分镜（LLM）
+  ├─ /content/render-shot  单分镜调 video vendor
+  ├─ /content/tts          分镜配音调 TTS vendor
+  ├─ /content/compose      ffmpeg 拼接 + 字幕烧录
+  └─ services/video_gen/   策略模式适配器（kling / dreamina / runway / dryrun）
+        │
+        ▼
+Supabase: content_topics / content_scripts / content_shots
+          / content_assets / content_posts  (+ Storage)</pre>
+
+  <h2><span class="num">3</span>状态机</h2>
+  <p><code>content_topics</code>（pending→approved→producing→done）→ <code>content_scripts</code>（drafting→reviewing→approved→done）→ <code>content_shots</code>/<code>content_assets</code>（queued→generating→ready）→ <code>content_posts</code>（drafted→reviewing→approved→ready→scheduled→published）。</p>
+  <p><strong>3 个人审 gate</strong>：Topic + Script + Post 必审；Storyboard / Asset 不审——既不打断创作节奏，又锁住质量。</p>
+
+  <h2><span class="num">4</span>成本与配额（v0 默认）</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>项</th><th>单价</th><th>单条成片用量</th><th>单条成本</th></tr></thead>
+    <tbody>
+      <tr><th>可灵视频生成</th><td>¥3.5 / 5秒</td><td>6 分镜 × 5秒</td><td>¥21</td></tr>
+      <tr><th>火山豆包 TTS</th><td>¥0.005 / 字</td><td>200 字</td><td>¥1</td></tr>
+      <tr><th>LLM（脚本+分镜+文案）</th><td>~¥0.05/次</td><td>3 次</td><td>¥0.15</td></tr>
+      <tr><th>ffmpeg 拼接</th><td>自建</td><td>Fly compute</td><td>¥0.1</td></tr>
+      <tr><th><strong>合计</strong></th><td></td><td></td><td><strong>~¥22.25</strong></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p><strong>预算闸</strong>：单条 <code>total_cost_cents</code> &gt; 2500（¥25）自动停；全 org 每天默认 ¥500 上限。<strong>配额闸</strong>：每 org 每天 topic 20 / script 10 / post 5 条。</p>
+
+  <h2><span class="num">5</span>当前状态 &amp; 风险</h2>
+  <div class="alert success"><div class="icon">✓</div><div class="body">PR #56（feat/content-pipeline-dryrun）端到端 dryrun 已跑通：Vercel cron stub + worker router + vendor 适配器框架（base + dryrun）+ migration <code>20260520233500_content_pipeline_scaffolding.sql</code> 已 apply 生产。真实 vendor 接入等 PM 拍板。</div></div>
+  <div class="alert warn"><div class="icon">⚠️</div><div class="body"><strong>当时列的最大风险</strong>："AI 视频质量低于抖音爆款门槛（业主吐槽塑料感），高概率 / 高影响。缓解：小批量验证，质量不及预期则切回数字人口播路线。"——这条风险后来正是推动 <a href="/workflow/avatar-video-2026-07" style="color:#fde68a;text-decoration:underline">数字人路线调研</a> 与 <a href="/workflow/ai-drama-2026-07" style="color:#fde68a;text-decoration:underline">AI 短剧质量/合规深调</a> 的原因。</div></div>
+
+  <hr>
+  <div class="alert info"><div class="icon">🏗️</div><div class="body"><strong>架构定论：Akke vs Workflow 仓</strong><br>Workflow 仓（<code>/Users/gloom/Workflow</code>）= 通用媒体生成引擎（n8n + RunPod GPU：FLUX/SDXL 文生图、Wan 图生视频），webhook <code>softie-n8n.fly.dev</code>；Akke 持有业务编排（多租户选题/脚本/审稿/状态机/拼接），不跑 GPU 模型。两者 HTTP 解耦，<code>worker/services/video_gen.py</code> 适配器是接 Workflow webhook 的接缝。</div></div>
+
+  <footer>upio.ai · Workflow · 内容生产流水线调研 · spec 2026-05-20-ai-content-pipeline-design</footer>
+</div>
+</body>
+</html>

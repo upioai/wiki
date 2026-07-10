@@ -19,6 +19,11 @@ const PROJECTS = [
     tagline: '抖音全屋定制智能获客',
     href: '/akke/',
   },
+  {
+    name: 'Workflow',
+    tagline: 'AI 内容生产流水线 · 短剧/视频/图文',
+    href: '/workflow/',
+  },
 ];
 
 const GUIDES = [
@@ -142,7 +147,7 @@ const html = `<!DOCTYPE html>
     section { margin-bottom: 56px; }
     .projects {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       gap: 14px;
     }
     .guides {
