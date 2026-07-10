@@ -8,8 +8,15 @@ REM gets garbled into junk tokens cmd tries to RUN ('xxx is not a command') --
 REM that was exactly the 2026-06-28 garble bug. Keep this file English-only.
 REM Mirror start-dm-routeb.bat which is ASCII-only for the same reason.
 REM
-REM Usage: double-click. Backs up *.py -> *.bak, downloads the latest 5 .py from
-REM the public mirror (upioai/wiki, token-free), then tells you about restart.
+REM DO NOT use caret (^) line-continuation for the [2/3] PowerShell block: this
+REM file ships with LF line endings (edited on macOS, curl'd raw to the cloud PC)
+REM and cmd.exe's ^ continuation only works with CRLF -- under LF it collapses the
+REM multi-line command, breaking the { } block ('missing }') and splitting off
+REM $ErrorActionPreference as a bogus command. That was the 2026-07-10 all-fail
+REM bug. Keep the powershell -Command on ONE physical line, however long.
+REM
+REM Usage: double-click. Backs up *.py -> *.bak, downloads the latest PC + web/DOM
+REM channel .py from the public mirror (upioai/wiki, token-free), tells you restart.
 REM ============================================================================
 
 setlocal
@@ -40,16 +47,8 @@ echo.
 
 REM -- [2/3] download ------------------------------------------------------
 echo [2/3] Downloading latest from GitHub public mirror ...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& { ^
-  $ErrorActionPreference = 'Stop'; ^
-  [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; ^
-  $base = 'https://raw.githubusercontent.com/upioai/wiki/main/public/akke/wuying-dm'; ^
-  $files = @('wuying_poll_agent.py','douyin_dm_grounded.py','douyin_rc_reply_grounded.py','douyin_comment_grounded.py','douyin_inbox_uia.py','wecom_add_contact_grounded.py','douyin_dm_web_send_dom.py','douyin_dm_web_capture_dom.py','douyin_dm_web_reply.py','douyin_dm_web_capture.py','douyin_dm_autoreply.py'); ^
-  foreach ($f in $files) { ^
-    try { Invoke-WebRequest -Uri \"$base/$f\" -OutFile \".\$f\" -UseBasicParsing -TimeoutSec 30; Write-Host \"     OK   $f\" } ^
-    catch { Write-Host \"     FAIL $f : $($_.Exception.Message)\"; exit 1 } ^
-  } ^
-}"
+REM ONE physical line on purpose -- see caret warning in the header block above.
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; $base='https://raw.githubusercontent.com/upioai/wiki/main/public/akke/wuying-dm'; $files=@('wuying_poll_agent.py','douyin_dm_grounded.py','douyin_rc_reply_grounded.py','douyin_comment_grounded.py','douyin_inbox_uia.py','wecom_add_contact_grounded.py','douyin_dm_web_send_dom.py','douyin_dm_web_capture_dom.py','douyin_dm_web_reply.py','douyin_dm_web_capture.py','douyin_dm_autoreply.py'); foreach ($f in $files) { try { Invoke-WebRequest -Uri \"$base/$f\" -OutFile \".\$f\" -UseBasicParsing -TimeoutSec 30; Write-Host \"     OK   $f\" } catch { Write-Host \"     FAIL $f : $($_.Exception.Message)\"; exit 1 } }"
 
 if errorlevel 1 (
     echo.
