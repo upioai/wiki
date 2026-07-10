@@ -91,7 +91,7 @@
     <div class="eyebrow">有大有小 · 企业微信 AI · 部署纪要</div>
     <h1>今日部署：企微 AI 换模型 + 对话记忆增强</h1>
     <p class="sub">大白话版，写给团队看：今天把企微 AI 的底层模型换了、给它加了"对话记忆"，为什么换、怎么测出来的、记忆增强到底做了啥——一页说清。</p>
-    <div class="meta"><span>日期：<b>2026-07-10</b></span><span>上线改动：<b>8 个 PR（全部部署）</b></span><span>压测：<b>7 模型 × 28 探针 × 3 采样 · 双裁判</b></span></div>
+    <div class="meta"><span>日期：<b>2026-07-10</b></span><span>上线改动：<b>8 个 PR（全部部署）</b></span><span>压测：<b>8 模型 × 28 探针 × 3 采样 · 双裁判</b></span></div>
     <div class="tldr" id="tldr"></div>
   </header>
 
@@ -115,7 +115,7 @@
 
   <section>
     <div class="sh"><span class="n">04</span><h2>换模型：怎么测的、为什么最终选 qwen</h2></div>
-    <p class="sdesc">企微原来用 GLM-4.6（2026-07-02 一次严谨评测选出来的）。这次同规格复评（<mark class="hl">7 模型 × 28 探针[含超长尾] × 3 采样 × 双裁判 grok-4.3+deepseek-v3.2</mark>）重新比了一遍。</p>
+    <p class="sdesc">企微原来用 GLM-4.6（2026-07-02 一次严谨评测选出来的）。这次同规格复评（<mark class="hl">8 模型 × 28 探针[含超长尾] × 3 采样 × 双裁判 grok-4.3+deepseek-v3.2</mark>，含新测的 kimi-k2.6）重新比了一遍。</p>
     <div class="tw"><table id="evaltbl"></table></div>
     <div class="steps" id="whyqwen" style="margin-top:16px"></div>
   </section>
@@ -130,7 +130,7 @@
 </div>
 
 <script>
-const TLDR=`<b>一句话：</b>企微 AI 底层模型从 <b>GLM-4.6</b> 换成了 <mark class="hl">qwen3-235b-2507</mark>（短对话质量并列第一、<mark class="hl">成本省 80%</mark>、长对话不自己带崩），同时给它加了<mark class="hl">"对话记忆增强"</mark>——长对话不再把整段历史硬塞给模型，而是压成"要点+最近几轮"，从根上治好了聊久了穿帮/复读/答非所问的毛病。`;
+const TLDR=`<b>一句话：</b>企微 AI 底层模型从 <b>GLM-4.6</b> 换成了 <mark class="hl">qwen3-235b-2507</mark>（短对话质量顶尖·追平 GLM、<mark class="hl">成本省 80%</mark>、长对话不自己带崩；质量天花板 kimi-k2.6 只强一点点却贵 8 倍，留作高价值备选），同时给它加了<mark class="hl">「对话记忆增强」</mark>——长对话不再把整段历史硬塞给模型，而是压成「要点+最近几轮」，从根上治好了聊久了穿帮/复读/答非所问的毛病。`;
 
 const HEADLINE=[
  {ic:"🔀",t:"换模型：GLM-4.6 → qwen3-235b-2507",d:"经 7 模型双裁判复评，qwen 短对话质量追平 GLM、成本只有 1/5、长对话更稳。一行 env 可秒回滚。"},
@@ -157,20 +157,22 @@ const MEMORY=[
 const MEMFLOW=["40 轮原始历史","→ 压缩","已报要点(价格/数字/承诺)","+","最近 10 轮原文","→ 喂给模型","上下文封顶·模型全程稳"];
 
 const EVAL={
- head:["排名","模型","短对话综合","合规","节奏","每千条成本"],
+ head:["排名","模型","短对话综合","每千条成本","选型"],
  rows:[
-  {r:"🥇",m:"GLM-4.6（原）",s:"7.18",c:"7.2",rh:"7.4",cost:"$2.93",win:false},
-  {r:"🥈",m:"qwen3-235b-2507（新）",s:"7.17",c:"7.0",rh:"7.3",cost:"$0.56",win:true},
-  {r:"3",m:"kimi-k2-0905",s:"6.75",c:"6.6",rh:"6.3",cost:"$4.10",win:false},
-  {r:"4",m:"deepseek-v3.2",s:"6.59",c:"6.4",rh:"6.4",cost:"$1.35",win:false},
-  {r:"5",m:"deepseek-chat-v3.1",s:"6.48",c:"6.4",rh:"6.2",cost:"$1.42",win:false},
-  {r:"6",m:"minimax-m1",s:"4.49",c:"—",rh:"—",cost:"$2.84",win:false},
-  {r:"7",m:"qwen3-max",s:"3.00",c:"—",rh:"—",cost:"$5.46",win:false},
+  {r:"🥇",m:"kimi-k2.6",s:"7.14",cost:"$4.64",note:"质量最强·但贵8倍·留作高价值备选",win:false},
+  {r:"🥈",m:"qwen3-235b-2507",s:"7.03",cost:"$0.56",note:"★ 现役（追平 GLM·成本 1/8）",win:true},
+  {r:"🥉",m:"GLM-4.6",s:"7.01",cost:"$2.93",note:"原用·被 qwen 追平且贵 5 倍",win:false},
+  {r:"4",m:"kimi-k2-0905",s:"6.55",cost:"$4.10",note:"老版 kimi，逊于 2.6",win:false},
+  {r:"5",m:"deepseek-v3.2",s:"6.40",cost:"$1.35",note:"—",win:false},
+  {r:"6",m:"deepseek-chat-v3.1",s:"6.15",cost:"$1.42",note:"短对话弱（长尾却最强）",win:false},
+  {r:"7",m:"minimax-m1",s:"4.24",cost:"$2.84",note:"不达标",win:false},
+  {r:"8",m:"qwen3-max",s:"3.06",cost:"$5.46",note:"崩（违反企微风格）",win:false},
  ],
 };
 const WHYQWEN=[
- {ic:"🤝",t:"短对话质量并列第一（7.17 vs 7.18，差 0.01）",d:"主战场打平——GLM 原来的「更克制」优势被填平了。"},
- {ic:"💰",t:"成本省 80%（$0.56 vs $2.93 每千条）",d:"qwen3-235b-2507 是抖音同款、便宜约 5 倍。"},
+ {ic:"🤝",t:"短对话质量追平 GLM（7.03 vs 7.01）",d:"主战场打平——GLM 原来的「更克制」优势被填平了，qwen 略微反超。"},
+ {ic:"💰",t:"成本省 80%（$0.56 vs $2.93 每千条）",d:"qwen3-235b-2507 是抖音同款、便宜约 5 倍。质量只差天花板 kimi-k2.6 一点点(7.03 vs 7.14)，成本却是它的 1/8。"},
+ {ic:"💎",t:"质量天花板是 kimi-k2.6，但不值全量换",d:"kimi-k2.6 短对话第一(7.14)、长尾第二，是唯一全面压过 qwen 的——但贵 8 倍($4.64/千条)，只领先 0.11 分。留作「高价值大单专用」备选更合算，全量用烧钱。"},
  {ic:"🔁",t:"长对话不自污染",d:"qwen 每条回复本身就干净，不会像 GLM 那样自己把历史带崩。"},
  {ic:"🕵️",t:"为什么 qwen 这次追上来了？",d:"不是模型变强，是脚手架变强、正好补了它的软肋：案例库从 56→101 条(含金牌话术) + 一波治堆砌/复读的护栏(#814/#824/#826/#828…)上线。qwen 07-02 就输在「堆砌/连发」，这些正是解药。"},
 ];
@@ -190,7 +192,7 @@ $("headline").innerHTML=HEADLINE.map(h=>`<div class="step"><div class="ic">${h.i
 $("prob").innerHTML=PROB.map(p=>`<div class="pc"><h3><span class="num">${p.n}</span>${esc(p.t)}</h3><p>${esc(p.d)}</p><div class="eg">${esc(p.eg)}</div><p style="margin-top:6px"><span class="fix">✓ 已修：</span>${esc(p.fix)}</p></div>`).join("");
 $("memory").innerHTML=MEMORY.map(m=>`<div class="step"><div class="ic">${m.ic}</div><div><h3>${esc(m.t)}</h3><p>${esc(m.d)}</p></div></div>`).join("");
 $("memflow").innerHTML=MEMFLOW.map((s,i)=>s==="→ 压缩"||s==="→ 喂给模型"?`<span class="ar">${esc(s)}</span>`:s==="+"?`<span class="ar">+</span>`:`<span class="st">${esc(s)}</span>`).join("");
-$("evaltbl").innerHTML=`<thead><tr>${EVAL.head.map(h=>`<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${EVAL.rows.map(r=>`<tr class="${r.win?'win':''}"><td class="rank">${r.r}</td><td>${esc(r.m)}</td><td class="num">${r.s}</td><td class="num">${r.c}</td><td class="num">${r.rh}</td><td class="num">${r.cost}</td></tr>`).join("")}</tbody>`;
+$("evaltbl").innerHTML=`<thead><tr>${EVAL.head.map(h=>`<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${EVAL.rows.map(r=>`<tr class="${r.win?'win':''}"><td class="rank">${r.r}</td><td>${esc(r.m)}</td><td class="num">${r.s}</td><td class="num">${r.cost}</td><td style="white-space:normal">${esc(r.note)}</td></tr>`).join("")}</tbody>`;
 $("whyqwen").innerHTML=WHYQWEN.map(w=>`<div class="step"><div class="ic">${w.ic}</div><div><h3>${esc(w.t)}</h3><p>${w.d}</p></div></div>`).join("");
 $("deploy").innerHTML=DEPLOY.map(d=>`<div class="step"><div class="ic">${d.ic}</div><div><h3>${esc(d.t)}</h3><p>${d.d}</p></div></div>`).join("");
 $("kicker").innerHTML=KICKER;
