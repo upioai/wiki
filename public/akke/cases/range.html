@@ -47,6 +47,11 @@
   .catbar .cat { font-size: 13px; color: var(--text-dim); cursor: pointer; padding: 5px 14px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--bg-elevated); }
   .catbar .cat:hover { border-color: var(--accent); }
   .catbar .cat.on { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+  .catbar .cat small { opacity: .75; font-size: 11px; margin-left: 3px; }
+  .group-head { display: flex; align-items: baseline; gap: 10px; margin: 26px 0 2px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .group-head:first-child { margin-top: 4px; }
+  .group-head h2 { font-size: 19px; font-weight: 700; margin: 0; color: var(--text); }
+  .group-head .gh-count { font-size: 12.5px; color: var(--text-muted); }
   .howto { background: var(--bg-elevated); border: 1px solid var(--border); border-left: 3px solid var(--info); border-radius: 10px; padding: 14px 18px; font-size: 13.5px; color: var(--text-dim); margin: 0 0 20px; }
   .howto strong { color: var(--text); }
   .howto ul { margin: 8px 0 6px; padding-left: 20px; }
@@ -112,6 +117,11 @@
     <span class="cat" data-type="wechat">🤝 加微案例</span>
   </div>
 
+  <div class="catbar" id="ccatbar">
+    <span style="font-size:12.5px;color:var(--text-muted);">③ 评论分类</span>
+    <!-- chips 由 JS 按区间内实际分布生成（带条数） -->
+  </div>
+
   <div class="howto">
     <strong>怎么区分对话案例 / 加微案例？</strong>按客户在对话里走到哪一步分（<strong>互斥</strong>，一个案例只归一类）：
     <ul>
@@ -119,7 +129,8 @@
       <li><b style="color:var(--info);">💬 对话案例</b> —— 客户<strong>有回复、聊了多轮，但还没给联系方式</strong>（进行中）。</li>
       <li>客户 <strong>0 回复 / 已读未回</strong> 的不进这两类，只做普通归档。</li>
     </ul>
-    判定看真实对话记录里客户有没有发出微信号 / 手机号，不是靠猜。
+    判定看真实对话记录里客户有没有发出微信号 / 手机号，不是靠猜。<br>
+    <strong>评论分类</strong>按客户评论原文自动归类（求资料 / 问价格 / 问工艺·参数 / 问门店·地域 / 报面积·房型 / 找上门·求联系 / 求建议·避坑），列表按分类分组展示，点上方分类 chip 可只看一类。
   </div>
 
   <div class="cases" id="cases"><p class="empty-hint">加载中…</p></div>
@@ -142,38 +153,85 @@
   var to=p.get('to') || fmt(new Date());
   var from=p.get('from') || daysAgo(30);
   var type=p.get('type') || 'all';   // 二级筛选：all | conv | wechat
+  var ccat=p.get('ccat') || 'all';   // 三级筛选：评论分类（all | 分类名）
   document.getElementById('from').value=from;
   document.getElementById('to').value=to;
 
-  function url(f,t,ty){ return '/akke/cases/range?from='+f+'&to='+t+(ty&&ty!=='all'?('&type='+ty):''); }
+  // 评论分类固定展示顺序（与 manifest.commentCat 取值一致）
+  var CCATS=[
+    ['求资料','📄'],['问价格','💰'],['问工艺·参数','🔧'],['问门店·地域','📍'],
+    ['报面积·房型','🏠'],['找上门·求联系','🙋'],['求建议·避坑','🧭'],['其他咨询','💬']
+  ];
+  function ccatIcon(c){ for(var i=0;i<CCATS.length;i++){ if(CCATS[i][0]===c) return CCATS[i][1]; } return '💬'; }
+
+  function url(f,t,ty,cc){
+    var u='/akke/cases/range?from='+f+'&to='+t;
+    if(ty&&ty!=='all') u+='&type='+ty;
+    if(cc&&cc!=='all') u+='&ccat='+encodeURIComponent(cc);
+    return u;
+  }
   function go(u){ window.open(u, '_blank', 'noopener'); }   // 一律开新标签，不覆盖当前列表
 
   document.getElementById('apply').addEventListener('click', function(){
     var f=document.getElementById('from').value, t=document.getElementById('to').value;
-    if(f&&t){ go(url(f,t,type)); }   // 换时间保留当前类型
+    if(f&&t){ go(url(f,t,type,ccat)); }   // 换时间保留类型+评论分类
   });
   Array.prototype.forEach.call(document.querySelectorAll('.preset'), function(el){
-    el.addEventListener('click', function(){ go(url(daysAgo(+el.dataset.days), fmt(new Date()), type)); });
+    el.addEventListener('click', function(){ go(url(daysAgo(+el.dataset.days), fmt(new Date()), type, ccat)); });
   });
   // 二级类型 chips
-  Array.prototype.forEach.call(document.querySelectorAll('.cat'), function(el){
+  Array.prototype.forEach.call(document.querySelectorAll('#catbar .cat'), function(el){
     if(el.dataset.type===type) el.classList.add('on');
-    el.addEventListener('click', function(){ go(url(from,to,el.dataset.type)); });   // 换类型保留时间
+    el.addEventListener('click', function(){ go(url(from,to,el.dataset.type,ccat)); });   // 换类型保留时间+分类
   });
 
   AkkeLoadManifest(function(m){
     var inRange=m.filter(function(e){ return e.date && e.date>=from && e.date<=to; });
     var convN=inRange.filter(function(e){return e.collection==='conv';}).length;
     var wechatN=inRange.filter(function(e){return e.collection==='wechat';}).length;
-    var list=(type==='all'?inRange:inRange.filter(function(e){return e.collection===type;}))
+    // 先按 conv/wechat 过滤，再按评论分类过滤
+    var typed=(type==='all'?inRange:inRange.filter(function(e){return e.collection===type;}))
       .sort(function(a,b){ return String(b.date||'').localeCompare(String(a.date||'')); });
+    var catOf=function(e){ return e.commentCat||'其他咨询'; };
+    var list=(ccat==='all'?typed:typed.filter(function(e){return catOf(e)===ccat;}));
+
+    // ③ 评论分类 chips（按当前区间+类型下的实际分布出条数；0 条的分类不出 chip）
+    var bar=document.getElementById('ccatbar');
+    var counts={}; typed.forEach(function(e){ var c=catOf(e); counts[c]=(counts[c]||0)+1; });
+    function chip(label,val,n){
+      var s=document.createElement('span'); s.className='cat'+(ccat===val?' on':'');
+      s.innerHTML=label+(n!=null?' <small>'+n+'</small>':'');
+      s.addEventListener('click',function(){ go(url(from,to,type,val)); });
+      bar.appendChild(s);
+    }
+    chip('全部','all',typed.length);
+    CCATS.forEach(function(c){ if(counts[c[0]]) chip(c[1]+' '+c[0], c[0], counts[c[0]]); });
+
     var typeLabel=type==='conv'?' · 对话案例':(type==='wechat'?' · 加微案例':'');
-    document.getElementById('title').textContent = from+' ~ '+to+' 生成的案例'+typeLabel;
+    var ccatLabel=ccat!=='all'?(' · '+ccat):'';
+    document.getElementById('title').textContent = from+' ~ '+to+' 生成的案例'+typeLabel+ccatLabel;
     var seg=[]; if(convN)seg.push('<b>'+convN+'</b> 对话'); if(wechatN)seg.push('<b>'+wechatN+'</b> 加微');
     var head='这段时间共生成 <b>'+inRange.length+'</b> 条案例'+(seg.length?('（'+seg.join(' · ')+'）'):'')+'。';
-    if(type!=='all') head+=' 当前只看 <b>'+list.length+'</b> 条'+(type==='conv'?'对话':'加微')+'案例。';
+    if(type!=='all') head+=' 当前只看 <b>'+typed.length+'</b> 条'+(type==='conv'?'对话':'加微')+'案例。';
+    if(ccat!=='all') head+=' 评论分类「<b>'+ccat+'</b>」共 <b>'+list.length+'</b> 条。';
     document.getElementById('sub').innerHTML=head;
-    AkkeRender('cases', list);
+
+    // 渲染：全部分类 → 按分类分组展示；选了单一分类 → 平铺
+    var box=document.getElementById('cases');
+    box.innerHTML='';
+    if(!list.length){ box.innerHTML='<p class="empty-hint">这段时间没有匹配的案例。</p>'; return; }
+    if(ccat!=='all'){ AkkeRender('cases', list); return; }
+    var gi=0;
+    CCATS.forEach(function(c){
+      var items=list.filter(function(e){ return catOf(e)===c[0]; });
+      if(!items.length) return;
+      var head=document.createElement('div'); head.className='group-head';
+      head.innerHTML='<h2>'+c[1]+' '+c[0]+'</h2><span class="gh-count">'+items.length+' 条 · 按日期倒序</span>';
+      box.appendChild(head);
+      var grp=document.createElement('div'); grp.className='cases'; grp.id='ccat-grp-'+(gi++); grp.style.marginTop='10px';
+      box.appendChild(grp);
+      AkkeRender(grp.id, items);
+    });
   }, function(err){
     document.getElementById('cases').innerHTML='<p class="empty-hint" style="color:var(--warning);">案例数据加载失败，请刷新重试。</p>';
   });
