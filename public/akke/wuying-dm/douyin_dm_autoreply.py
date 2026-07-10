@@ -37,6 +37,7 @@ from douyin_inbox_uia import (  # noqa: F401
     find_douyin,
     find_im_panel,
     load_sent_dms,
+    is_media_preview,
     match_name,
     parse_rows,
     parse_rows_unread,
@@ -175,8 +176,9 @@ def capture():
             print(f"[skip] {name}: 像我们的开场白(你好…刷到你)，非客户回复 → {preview[:20]}")
             continue
         # 纯表情/贴纸(如 [龙舟载福])非文字回复，不抓不回。
+        # 媒体占位([图片]/[视频]…)例外: 发图的常是决策期客户(户型图/报价截图), 放行入库转人工。
         _p = preview.strip()
-        if _p.startswith("[") and _p.endswith("]"):
+        if _p.startswith("[") and _p.endswith("]") and not is_media_preview(_p):
             print(f"[skip] {name}: 纯表情贴纸，非文字回复 → {preview[:20]}")
             continue
         conv = hit.get("conversation_id")

@@ -33,7 +33,7 @@ except ImportError:
     sys.exit("✗ 缺 playwright。先跑: py -m pip install playwright")
 
 # 判回复过滤链 + 写回 RPC + 本号名防御, 全部复用 VL 版/UIA 版已验证逻辑(DRY, 不重写)。
-from douyin_inbox_uia import load_sent_dms, match_name, SYS_NOTICE, _is_noise_preview, _http, alert_ambiguous_nickname, alert_backfill_suspect
+from douyin_inbox_uia import load_sent_dms, match_name, SYS_NOTICE, _is_noise_preview, is_media_preview, _http, alert_ambiguous_nickname, alert_backfill_suspect
 from douyin_dm_web_capture import is_relevant, we_sent_last, _strip_ts, _norm, _rpc, _SELF_NAME
 
 CDP = "http://127.0.0.1:9222"
@@ -293,7 +293,8 @@ def capture_dom():
             # 都过 = 疑似漏检 → 推卡人工确认(不自动补录, 防把运营手打回复错当客户消息误发)。
             if not unread:
                 if we_sent_last(preview, hit.get("sent", "")) or any(t in preview for t in SYS_NOTICE) \
-                        or _is_noise_preview(preview) or (preview.startswith("[") and preview.endswith("]")) \
+                        or _is_noise_preview(preview) \
+                        or (preview.startswith("[") and preview.endswith("]") and not is_media_preview(preview)) \
                         or not is_relevant(preview):
                     continue
                 if conv == "TEST" or _fullscan_known(conv, preview):
@@ -314,7 +315,12 @@ def capture_dom():
                 print(f"  [no_reply] {nick}: 纯时间戳/状态行")
                 continue
             if preview.startswith("[") and preview.endswith("]"):
-                continue
+                # 媒体占位([图片]/[视频]…)≠贴纸: 发图的常是决策期客户(户型图/报价截图), 放行
+                # 占位入库→通知→转人工; 贴纸(名字不可枚举)仍丢, 但留日志不再静默(微笑早晨案)。
+                if not is_media_preview(preview):
+                    print(f"  [no_reply] {nick}: 纯表情贴纸 → {preview[:18]}")
+                    continue
+                print(f"  [媒体] {nick}: {preview[:18]} → 占位入库转人工")
             if not is_relevant(preview):
                 print(f"  [noise] {nick}: spam → {preview[:18]}")
                 continue

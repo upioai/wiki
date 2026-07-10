@@ -23,7 +23,7 @@ import pyautogui
 
 # 复用 grounded 的视觉原语(截图/VL/JSON 解析/置前)与 inbox 的匹配/写库。
 from douyin_dm_grounded import _shot, _vision, _pjson, focus_douyin, locate, type_unicode
-from douyin_inbox_uia import load_sent_dms, match_name, SYS_NOTICE, _is_noise_preview, alert_ambiguous_nickname
+from douyin_inbox_uia import load_sent_dms, match_name, SYS_NOTICE, _is_noise_preview, is_media_preview, alert_ambiguous_nickname
 
 # 相关性过滤(同 douyin_dm_autoreply)：互粉/涨粉 spam 剔除，其余真回复一律放行。
 SPAM_KW = ("有效粉", "互粉", "小火花", "互发", "掉粉", "千粉不如", "长按", "转发", "关注后")
@@ -368,7 +368,7 @@ def capture():
             if _is_noise_preview(preview):
                 print(f"  [no_reply] {nick}: 纯时间戳/状态行 → {preview[:20]}")
                 continue
-            if preview.startswith("[") and preview.endswith("]"):
+            if preview.startswith("[") and preview.endswith("]") and not is_media_preview(preview):
                 print(f"  [skip] {nick}: 纯表情")
                 continue
             if not is_relevant(preview):

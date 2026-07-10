@@ -96,6 +96,18 @@ def _is_noise_preview(prev: str) -> bool:
     return bool(_NOISE_PREVIEW_RE.fullmatch(_norm(prev)))
 
 
+# 媒体占位预览（[图片]/[视频]/[语音]/[文件]/[位置]）：与纯表情贴纸（[龙舟载福] 等，名字
+# 不可枚举）同为括号占位，但语义完全不同——发图的常是决策期客户（户型图/现场照/报价截图），
+# 必须占位入库→转人工，不能与贴纸一起静默丢（2026-07-10 微笑早晨户型图漏抓案）。
+# 白名单与 DB 闸 dm_inbound_is_noise v5 规则 7 保持一致，改一处必改另一处。
+_MEDIA_PREVIEW_RE = re.compile(r"\[(图片|视频|语音|文件|位置)\]")
+
+
+def is_media_preview(prev: str) -> bool:
+    p = _norm(prev)
+    return bool(re.fullmatch(r"(\[[^\]]+\])+", p)) and bool(_MEDIA_PREVIEW_RE.search(p))
+
+
 def find_douyin():
     for w in auto.GetRootControl().GetChildren():
         nm, cn = (w.Name or ""), (w.ClassName or "")
