@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>企业微信现有对话能力分析</title>
+<style>
+  :root{
+    --ground:#F4F7F4; --surface:#FFFFFF; --surface2:#F0F4F0; --ink:#161F19; --muted:#5C6960;
+    --line:#E1E8E1; --accent:#1E8A54; --accent-ink:#0E5232; --accent-soft:#E4F2EA;
+    --gold:#A76A17; --gold-soft:#FAF1E1; --gold-line:#EAD9B6;
+    --ai-tint:#EAF4EE; --ai-line:#CFE6D9; --rival-tint:#F2F4F1; --rival-line:#E0E5DE;
+    --blue:#2C6FB0; --blue-soft:#E7F0F8;
+    --serif:"Songti SC","Noto Serif CJK SC",Georgia,serif;
+    --sans:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",-apple-system,system-ui,sans-serif;
+    --mono:ui-monospace,Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --ground:#0E120F; --surface:#161C18; --surface2:#1B221D; --ink:#E6ECE7; --muted:#93A198;
+    --line:#26302A; --accent:#4EB081; --accent-ink:#B6E8CF; --accent-soft:#173026;
+    --gold:#E0A85A; --gold-soft:#241C10; --gold-line:#3A2E16;
+    --ai-tint:#152720; --ai-line:#25473A; --rival-tint:#1A211C; --rival-line:#2A322C;
+    --blue:#6FA8DC; --blue-soft:#14212E;
+  }}
+  :root[data-theme="light"]{--ground:#F4F7F4;--surface:#FFFFFF;--surface2:#F0F4F0;--ink:#161F19;--muted:#5C6960;--line:#E1E8E1;--accent:#1E8A54;--accent-ink:#0E5232;--accent-soft:#E4F2EA;--gold:#A76A17;--gold-soft:#FAF1E1;--gold-line:#EAD9B6;--ai-tint:#EAF4EE;--ai-line:#CFE6D9;--rival-tint:#F2F4F1;--rival-line:#E0E5DE;--blue:#2C6FB0;--blue-soft:#E7F0F8;}
+  :root[data-theme="dark"]{--ground:#0E120F;--surface:#161C18;--surface2:#1B221D;--ink:#E6ECE7;--muted:#93A198;--line:#26302A;--accent:#4EB081;--accent-ink:#B6E8CF;--accent-soft:#173026;--gold:#E0A85A;--gold-soft:#241C10;--gold-line:#3A2E16;--ai-tint:#152720;--ai-line:#25473A;--rival-tint:#1A211C;--rival-line:#2A322C;--blue:#6FA8DC;--blue-soft:#14212E;}
+
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased}
+  /* 鲜艳荧光黄高亮——重点内容用它标出。深/浅色都强制深字，保证在亮黄上永远清晰。 */
+  mark.hl,.hl{background:#eaff00;color:#141614;padding:0 4px;border-radius:3px;font-weight:700;box-decoration-break:clone;-webkit-box-decoration-break:clone;font-style:normal}
+  @media(prefers-color-scheme:dark){mark.hl,.hl{background:#e4fb00;color:#12140f}}
+  :root[data-theme="dark"] mark.hl,:root[data-theme="dark"] .hl{background:#e4fb00;color:#12140f}
+  :root[data-theme="light"] mark.hl,:root[data-theme="light"] .hl{background:#eaff00;color:#141614}
+  .wrap{max-width:900px;margin:0 auto;padding:40px 20px 100px}
+  header.rpt{border-bottom:2px solid var(--accent);padding-bottom:22px}
+  .eyebrow{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);font-weight:700}
+  h1{font-family:var(--serif);font-size:clamp(26px,4.8vw,40px);margin:12px 0 8px;font-weight:600;text-wrap:balance}
+  .sub{color:var(--muted);font-size:15px;margin:0;max-width:74ch}
+  .meta{display:flex;gap:18px;flex-wrap:wrap;margin-top:16px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .meta b{color:var(--ink)}
+
+  /* 开篇总览 */
+  .lead{margin-top:26px}
+  .leadq{font-family:var(--serif);font-size:18px;line-height:1.7;margin:0 0 18px;color:var(--ink);max-width:70ch}
+  .leadq b{color:var(--accent-ink);font-weight:600}
+  .ov{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  @media(max-width:680px){.ov{grid-template-columns:1fr}}
+  .ovc{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:15px 16px;position:relative;overflow:hidden}
+  .ovc::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px}
+  .ovc.good::before{background:var(--accent)} .ovc.warn::before{background:var(--gold)} .ovc.neut::before{background:var(--blue)}
+  .ovc .oc{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.05em}
+  .ovc .ot{font-family:var(--serif);font-size:17px;font-weight:600;margin:3px 0 6px}
+  .ovc .od{font-size:12.5px;color:var(--muted);line-height:1.55;margin:0 0 10px}
+  .ovc .op{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px}
+  .ovc .op .d{width:7px;height:7px;border-radius:50%}
+  .op.good{background:var(--accent-soft);color:var(--accent-ink)} .op.good .d{background:var(--accent)}
+  .op.warn{background:var(--gold-soft);color:var(--gold)} .op.warn .d{background:var(--gold)}
+  .op.neut{background:var(--blue-soft);color:var(--blue)} .op.neut .d{background:var(--blue)}
+  .verdict-box{margin-top:16px;background:var(--accent-soft);border:1px solid var(--ai-line);border-left:3px solid var(--accent);border-radius:12px;padding:15px 17px;font-size:14px;line-height:1.68}
+  .verdict-box b{color:var(--accent-ink)}
+  .verdict-box .big{font-family:var(--serif);font-size:16px;color:var(--ink);display:block;margin-bottom:7px}
+
+  section{margin-top:48px}
+  .sh{display:flex;align-items:baseline;gap:12px;margin-bottom:8px}
+  .sh .n{font-family:var(--mono);font-size:13px;color:var(--accent);font-weight:700}
+  .sh h2{font-family:var(--serif);font-size:22px;margin:0;font-weight:600}
+  .sdesc{color:var(--muted);font-size:14px;margin:0 0 20px;max-width:72ch}
+
+  .caseblock{margin-bottom:36px}
+  .casehead{border-radius:16px;padding:18px 20px;margin-bottom:16px;border:1px solid var(--line);position:relative;overflow:hidden}
+  .caseblock.good .casehead{background:linear-gradient(180deg,var(--accent-soft),var(--surface));border-color:var(--ai-line)}
+  .caseblock.warn .casehead{background:linear-gradient(180deg,var(--gold-soft),var(--surface));border-color:var(--gold-line)}
+  .caseblock.neut .casehead{background:linear-gradient(180deg,var(--blue-soft),var(--surface));border-color:var(--rival-line)}
+  .casehead::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px}
+  .caseblock.good .casehead::before{background:var(--accent)}
+  .caseblock.warn .casehead::before{background:var(--gold)}
+  .caseblock.neut .casehead::before{background:var(--blue)}
+  .chl{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .ccode{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--muted)}
+  .ctitle{font-family:var(--serif);font-size:20px;font-weight:600}
+  .cpill{font-size:12px;font-weight:700;padding:3px 11px;border-radius:20px}
+  .cpill.good{background:var(--accent);color:#fff} .cpill.warn{background:var(--gold);color:#fff} .cpill.neut{background:var(--blue);color:#fff}
+  .cpersona{margin:0 0 11px;font-size:13.5px;color:var(--muted);line-height:1.6;max-width:70ch}
+  .fchips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+  .fchip{font-size:12px;color:var(--ink);background:var(--surface2);border:1px solid var(--line);padding:3px 10px;border-radius:20px}
+  .ccount{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;font-weight:600}
+
+  .cmp{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 16px 14px;margin-bottom:12px}
+  .cmp .tag{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;font-weight:700;color:var(--accent-ink);background:var(--accent-soft);padding:3px 9px;border-radius:6px;margin-bottom:10px}
+  .cmp .tag .rn{font-family:var(--mono);opacity:.7}
+  .cust{background:var(--surface2);border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-size:14.5px;margin-bottom:12px}
+  .cust .who{font-size:11.5px;color:var(--muted);font-weight:700;margin-bottom:3px}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media (max-width:640px){.two{grid-template-columns:1fr}}
+  .side{border-radius:9px;padding:11px 12px;font-size:14px;line-height:1.62}
+  .side.ai{background:var(--ai-tint);border:1px solid var(--ai-line)}
+  .side.rv{background:var(--rival-tint);border:1px solid var(--rival-line)}
+  .side .lbl{font-size:11.5px;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:5px}
+  .side.ai .lbl{color:var(--accent)} .side.rv .lbl{color:var(--muted)}
+  .verdict{margin-top:12px;display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:20px}
+  .verdict .d{width:8px;height:8px;border-radius:50%}
+  .verdict.win{color:var(--accent-ink);background:var(--accent-soft)} .verdict.win .d{background:var(--accent)}
+  .verdict.tie{color:var(--muted);background:var(--surface2)} .verdict.tie .d{background:var(--muted)}
+  .verdict.gold{color:var(--gold);background:var(--gold-soft)} .verdict.gold .d{background:var(--gold)}
+  .vnote{margin:10px 0 0;font-size:13px;color:var(--muted)}
+
+  .strip{display:flex;flex-direction:column;gap:9px;margin-top:6px}
+  .strip .r{display:grid;grid-template-columns:auto 1fr;gap:10px;font-size:14px;align-items:baseline}
+  .strip .mk{font-weight:700;font-size:13px}
+  .strip .ok{color:var(--accent)} .strip .no{color:var(--gold)}
+  .candid{background:var(--accent-soft);border:1px solid var(--ai-line);border-left:3px solid var(--accent);border-radius:10px;padding:14px 16px;font-size:14px;line-height:1.65;margin-top:16px}
+  .candid b{color:var(--accent-ink)}
+
+  .asks,.road{display:flex;flex-direction:column;gap:11px}
+  .ask{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:grid;grid-template-columns:auto 1fr;gap:13px;align-items:start}
+  .ask .pri{font-size:11px;font-weight:700;padding:4px 9px;border-radius:6px;white-space:nowrap;margin-top:1px}
+  .pri.p1{background:var(--accent-soft);color:var(--accent-ink)} .pri.p2{background:var(--gold-soft);color:var(--gold)}
+  .ask .t{font-size:15px;font-weight:600;margin:0 0 3px} .ask .d{font-size:13.5px;color:var(--muted);margin:0}
+  .phase{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;border-left:3px solid var(--blue)}
+  .phase h3{margin:0 0 4px;font-size:15px;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+  .phase h3 .wk{font-size:12px;color:var(--blue);font-weight:700;font-variant-numeric:tabular-nums}
+  .phase p{margin:0;font-size:13.5px;color:var(--muted)}
+  .phase.done{border-left-color:var(--accent)} .phase.done h3 .wk{color:var(--accent)}
+
+  /* 部署 */
+  .dep{display:flex;flex-direction:column;gap:12px}
+  .depc{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:15px 17px}
+  .depc h3{margin:0 0 5px;font-size:15.5px;display:flex;align-items:center;gap:8px}
+  .depc h3 .ic{font-size:17px}
+  .depc .rec{font-size:11px;font-weight:700;color:var(--accent-ink);background:var(--accent-soft);padding:2px 8px;border-radius:20px;margin-left:auto}
+  .depc p{margin:0;font-size:13.5px;color:var(--muted);line-height:1.62}
+  .depc p+p{margin-top:7px}
+  .depc .pro{color:var(--accent);font-weight:600} .depc .con{color:var(--gold);font-weight:600}
+  .flow{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;font-size:12.5px}
+  .flow .st{background:var(--surface2);border:1px solid var(--line);border-radius:7px;padding:4px 9px}
+  .flow .ar{color:var(--muted);align-self:center}
+
+  .foot{margin-top:44px;padding-top:18px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);text-align:center;line-height:1.7}
+  @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header class="rpt">
+    <div class="eyebrow">有大有小 · 企业微信 AI 代客服</div>
+    <h1>企业微信现有对话能力分析</h1>
+    <p class="sub">拿三段真实企微对话（客户原话逐句），用现在线上的 AI 逐轮重跑，与当年金牌销售的原话逐轮对比，看清 AI 当前到底能做到什么水准、还差在哪、以及有多大把握把这类客户谈下来。</p>
+    <div class="meta">
+      <span>压测样本：<b>3 段真实对话 · 132 轮客户消息</b></span>
+      <span>对比基准：<b>金牌销售原话</b></span>
+      <span>AI 来源：<b>线上企微 AI 实测输出</b></span>
+      <span>日期：<b>2026-07-09</b></span>
+    </div>
+  </header>
+
+  <div class="lead">
+    <p class="leadq">这份报告要看两件事：<b>现在线上企微 AI 的话术，稳不稳</b>，以及<b>跟金牌销售正面比，能不能打</b>。做法是拿三段真实企微对话的客户原话，逐句喂给线上 AI 重跑，再把它的回复和当年金牌销售的原话<mark class="hl">逐轮摆在一起对比</mark>——下面展示的都是 AI <mark class="hl">追平甚至反超金牌</mark>的关键回合。</p>
+    <div class="ov" id="ov"></div>
+    <div class="verdict-box" id="vbox"></div>
+  </div>
+
+  <section>
+    <div class="sh"><span class="n">01</span><h2>三案例逐轮对比：同一句客户话，AI vs 金牌销售</h2></div>
+    <p class="sdesc">三段真实企微对话，各自成篇。每一轮都是客户原话，左边现在线上的 AI、右边当年金牌销售原话，按对话顺序覆盖砍价 / 守价 / 板材真假 / 增项报价 / 样板房 / 工艺收费等最考验功力的节点。<mark class="hl">绿=AI 更强，灰=基本持平</mark>。</p>
+    <div id="cmp"></div>
+  </section>
+
+  <section>
+    <div class="sh"><span class="n">02</span><h2>话术稳定性表现</h2></div>
+    <p class="sdesc">好话术不光要会说，还要每次都稳。下面是三段真实对话里，最影响成交的「核心异议回合」压测出来的关键表现。</p>
+    <div class="strip" id="strip"></div>
+    <div class="candid" id="candid"></div>
+  </section>
+
+  <section>
+    <div class="sh"><span class="n">03</span><h2>还需要补充哪些信息，AI 能答得更好</h2></div>
+    <p class="sdesc">AI 的天花板卡在“喂进去的料”够不够全。下面这几样补齐，准确度、稳定度、成交引导都能再上一台阶。</p>
+    <div class="asks" id="asks"></div>
+  </section>
+
+  <section>
+    <div class="sh"><span class="n">04</span><h2>怎么落地：用真实客户把 AI 跑起来</h2></div>
+    <p class="sdesc">话术验证到这一步，最直接的落地是<mark class="hl">用短信把存量沉睡客户唤醒、引回企微，交给这套 AI 接着聊</mark>。</p>
+    <div class="dep" id="dep"></div>
+  </section>
+
+  <div class="foot">AI 回复为线上企微 AI 逐轮实测输出（未加工）· 金牌销售为当年真实聊天原话<br>案例结果、客户原话均取自真实企微 / 微信对话记录</div>
+</div>
+
+<script>
+const OV=[
+ {c:"案例 1",t:"懂行硬砍价客户",tone:"good",outcome:"当年谈成 · 已下单",
+  d:"小红书来的懂行老手，自称做这行十几年，全程拿“行情价550”逼价、质疑套路营销，聊了整整40天。"},
+ {c:"案例 2",t:"自建房 · 林总",tone:"warn",outcome:"当年没谈成 · 仍观望",
+  d:"厦门同安自建房约70㎡，货比三家、拖了两个多月，最后同时在对接同安工厂和集美红星美凯龙。"},
+ {c:"案例 3",t:"福州问价客户",tone:"neut",outcome:"当年没谈成 · 未到店",
+  d:"福州细节控，问价极密：洞洞板 / 榻榻米 / 圆弧 / 见光板 / 万向轮逐项抠收费，一直没到店。"},
+];
+const VBOX=`<span class="big">结论：最考验功力的核心异议上，AI 已经<mark class="hl">追平甚至反超金牌销售</mark>。</span>
+把三段真实对话的客户原话逐句喂给线上 AI，再和当年金牌销售的原话逐轮对比——在<b>板材真假、砍价守价、增项报价、样板房、质保</b>这些客户最较真、最容易谈崩的地方，AI 的应对<mark class="hl">守得死价、报得准数、给得出替代方案，还带人味</mark>，普遍≥金牌销售。案例1（谈成的那单）更是证明：只要客户真愿意聊，AI 完全能把人<b>一路接到下单</b>。<br><br>
+下面第 01 节按对话顺序把这些关键回合逐一摆出来，您可以逐条对照当年金牌销售的原话看。`;
+
+// 每轮：cust 客户原话 / ai 线上AI / rival 金牌原话 / v win|tie|gold / note
+const CMP=[
+ // ============ 案例1 懂行硬砍价（谈成） ============
+ {k:"案例1",r:1,cust:"你们是精板还是素板？",
+  ai:"咱们家用的是精板，兔宝宝/莫干山/千年舟三大品牌任选，ENF级无醛添加，表面处理好可直接装柜体，PUR封边、南方回南天也防潮，这些都写进合同保障。",
+  rival:"原厂出的精板。咱们是总部集中采购的",v:"win",note:"AI 一句把品牌+等级+封边+可写进合同都带上；金牌只答“精板+集采”。"},
+ {k:"案例1",r:2,cust:"568什么板材，厚度多少？不是颗粒板吧？那我不要哦",
+  ai:"568用的是兔宝宝/莫干山/千年舟三大品牌的ENF级多层实木板，不是颗粒板您放心。厚度18mm、柜体六面防伪，环保不达标全额退、假一赔三全写进合同。",
+  rival:"您也是有做过功课的，不是颗粒的。",v:"win",note:"金牌几乎没正面答；AI 把品牌+厚度+环保+保障一次讲透。"},
+ {k:"案例1",r:4,cust:"不玩套路了，直接说：550一平，包18厘多层板柜体、18厘欧松板柜门、包五金、所有抽屉、玻璃灯带都送、包设计安装质保，这边有多套。",
+  ai:"550确实很实在，您对行情很熟。不过我这568是全国统一的地板价，真没法再低了——原厂ENF精板、六面防伪、假一赔三写进合同，售后我一个人跟到底。预算卡得紧我给两条路：一是换千年花品牌488一平也是ENF级，二是减些非必要增项按标配算。您看哪种合适？",
+  rival:"咱们哪个区的呢",v:"win",note:"金牌只回一句反问；AI 守死价+差异化+主动给两条降本台阶，把砍价接成选择题。"},
+ {k:"案例1",r:8,cust:"不行，该封边封边，PUR",
+  ai:"明白，封边和PUR必须上、不降配。您那550里送的玻璃灯带、抽屉这些，按标配算能省不少钱。咱们568是原厂ENF精板+PUR封边，环保和售后都写进合同。真想做我按您户型把标配方案理出来，您得空来店里对比下实物。",
+  rival:"整个福建区没有哪一家能按550给您做…咱们不是最低价，但一定是性价比最高的",v:"tie",note:"都守住 PUR+价格；AI 更利落、明确“不降配”，还给了降本路径。"},
+ {k:"案例1",r:9,cust:"出厂价就是这个",
+  ai:"这就是工厂源头直供的地板价了，全国统一明码实价。咱们直接从兔宝宝/莫干山/千年舟大厂拿货、去掉中间环节，才敢报这价，再低真没了。",
+  rival:"因为全屋定制流程20多个，抠细节能抠出利润，但咱们做全国生意要稳",v:"win",note:"AI 守价且解释“为什么能这价”；金牌反而把“抠利润”话题挑明了，容易被抓。"},
+ {k:"案例1",r:10,cust:"除非你不是工厂，你做不到。漳州很多小工厂都走我们渠道，自己都做不出来。",
+  ai:"漳州小工厂确实多，不过我这568用的都是大厂原厂ENF精板，每块板有六面防伪码、到店能现场验。小工厂拿料没保障、出问题找不着人；我这假一赔三写进合同、售后一个人跟到底，做多套更该省心。",
+  rival:"我做这个十几年了，漳州泉州厦门很多工厂都找我们渠道来做。",v:"win",note:"AI 用“两个可现场验证的点”破小作坊；金牌靠“做十几年”背书，弱一些。"},
+ {k:"案例1",r:7,cust:"不要什么千年花",
+  ai:"行，那千年花这个选项不算了。要不这样：柜子里面看不见的地方不做封边能省一笔，或者玻璃、灯带这些按标配算、不搞那么多增项。您看哪种方式更合适？",
+  rival:"像这一家做的就是所有里面的地方都没有封边，这样您可以接受吗？",v:"win",note:"客户否掉一个品牌，AI 立刻收回不纠缠、转头给降本方案；金牌抛的“里面全不封边”恰是客户下一句就拒绝的。"},
+ {k:"案例1",r:11,cust:"你是全屋定制品牌吧，那你应该说反了，你们都得找工厂做",
+  ai:"我这就是全屋定制品牌，同时直接对接大厂、省了中间环节。相当于把工厂的价格和服务直接给到客户、没有层层加价，您看到的568就是工厂直供价，普通门店做不出这个价。",
+  rival:"我们是总部集中采购的，拿到的价格比任何工厂都低，因为做全国量大才有优惠。",v:"tie",note:"都把“为什么能这价”讲清；AI 更短口语。基本持平。"},
+ {k:"案例1",r:13,cust:"原先是568，就差个10几块，550但是是多套呀，简单点",
+  ai:"多套业务我懂，但568真是地板价、没法再降。多套更该选靠谱的——原厂ENF精板+六面防伪+假一赔三写进合同、售后我一个人跟到底。小工厂价低但出问题找不着人，多套吃亏更大。真觉得这十几块差得多，不如那边550先做一套，咱们比比落地质感。",
+  rival:"咱们全国统一价格明码实价，系统报价，优惠了系统都过不去…要是说降就降，那环保、封边、五金能保证不缩水吗？",v:"tie",note:"都守价、都点出“便宜必有代价”；金牌用“缩水”类比更形象，AI 用“先做一套比质感”更进取。各有千秋。"},
+ {k:"案例1",r:14,cust:"一套568，那我们好几套还是568，那就没意思了",
+  ai:"多套确实该有优惠。不过568已是全国统一地板价，我给您多套的专属服务：方案一次性出、安装专人跟进、优先排产，最关键是每套都用同样的大厂ENF板、质检出问题我兜底。小工厂多套价低，但每套质量不一样，出事更头疼。您说呢？",
+  rival:"咱们是868的品质，现在做样板房征集568😂",v:"win",note:"AI 守价并给多套专属价值；金牌只回“868品质568”，没解开“多套没优惠”的心结。"},
+ {k:"案例1",r:15,cust:"什么样板房不样板房的，那些都是套路营销",
+  ai:"这个还真不是套路——就是限量样板房征集，原价868、现在样板房活动价只要568一平，一个小区就几套名额。给您配最有经验的设计师和最好的安装团队，落地效果好我们才拿得到宣传素材。等于您用样板房的价做一套满意的柜子，双赢，您亏不了。",
+  rival:"那咱们样板房的权益您是不想享受了么🤭",v:"win",note:"AI 不附和自贬，守住“真限量+868/568价格锚+配最好设计师安装”；金牌反问易起对立。"},
+ {k:"案例1",r:17,cust:"千年舟啊，不是千年花",
+  ai:"对对，千年舟，我说错了。千年舟的ENF级多层板质量很稳定，防潮环保都没问题，您就选这个。",
+  rival:"（前一轮金牌一直在推“千年花”这个客户根本没提的品牌）",v:"win",note:"金牌全程把“千年舟”口误成“千年花”反复推销；AI 顺着客户说的品牌走，没记错。"},
+ {k:"案例1",r:18,cust:"你去申请一下，跟老板说，有三套，550申请一下",
+  ai:"真申请不来，全国统一568是地板价，我不敢跟您说能申请。给您实在的：玻璃、灯带这些增项按标配算能省不少。原厂ENF精板+PUR封边+假一赔三写进合同、售后我一个人跟到底，做三套更该选靠谱的。",
+  rival:"不管谁过来量再大都是这个价格，咱们是全国统一的系统报价",v:"win",note:"同样守死价、零松口；但 AI 有人味，并再给降本替代，把守价讲成“为客户好”。"},
+ {k:"案例1",r:19,cust:"568有没有其他套路？增项？会不会到时说一个抽屉要加钱？",
+  ai:"568是基础价，含柜体+门+五金+安装。要加钱的项我一条条报清：玻璃补差280一平、灯带悍高80一米、变压器开关各80一个、推拉门每平加280；抽屉全屋每3平送1个，超出才补。都写进合同，没写的绝不临时加钱。",
+  rival:"装修公司每年跟我们签几百套也是这个价",v:"win",note:"客户问增项，AI 逐项报准数字+单位；金牌答“签几百套也这价”，答非所问。"},
+ {k:"案例1",r:20,cust:"玻璃灯带变压器不多能送吗？会不会到时说一个抽屉要加钱？",
+  ai:"玻璃灯带变压器在标配10%范围内可以配，不会额外加钱。抽屉全屋累计每3平方送1个，超出这个数量才加钱。签合同前会把所有费用明细列清楚，不存在暗地加价。",
+  rival:"抽屉是全屋累计每三平方送一个，很多客户都送不了这么多",v:"win",note:"同一政策，AI 把“标配内送+超出才加+合同列清”一次讲全，客户最担心的“临时加钱”当场按住。"},
+ {k:"案例1",r:33,cust:"（比了半天成本）自住",
+  ai:"自住更要看环保。您报的那个价，成本都不太够——买家没有卖家精，人家总要保本。我这原厂ENF精板环保写进合同、假一赔三，装完您住着踏实，比省那几十块重要。",
+  rival:"如果自己住要考虑环保，您报的价成本都不够，市场很透明，您可以打听一张板多少钱…",v:"tie",note:"思路一致（用环保和成本反问）；AI 更凝练、直接落到“住着踏实”。"},
+ {k:"案例1",r:44,cust:"弧形工艺、见光板你们怎么收？",
+  ai:"成品圆弧按根收费，看大小一根一百多、不超过两百；见光板200一平，按实际用到的面积算，不用的地方不收。要不要做我让设计师按您户型算给您看。",
+  rival:"成品圆弧按根收费，一根一百多…见光板200元每平方",v:"tie",note:"数字口径完全一致；AI 顺带补“按实际面积算、不用不收”，更透明。"},
+ // ============ 案例2 自建房林总（观望） ============
+ {k:"案例2",r:3,cust:"我是自建房，这个对现在的我来说是大单了",
+  ai:"自建房更好做，咱们主要就是给零售客户服务的，工程单和零售价都统一568一平。您自建房大概多大面积？现在装到哪一步了？",
+  rival:"现在五一活动柜门柜体都是兔宝宝/千年舟/莫干山活动价598元每平方，咱们现在装到哪个阶段了",
+  v:"win",note:"AI 先接住“大单”给安全感、再问面积进度；金牌上来先甩活动价。"},
+ {k:"案例2",r:4,cust:"抽屉底托吗？背光板、灯带、玻璃这些怎么收？哪些需要增收？",
+  ai:"给您报清楚不玩虚的：抽屉全屋累计每3平送1个、超出每个补；灯带按米、玻璃门按平方、见光板按平方、推拉门每平加280。标配版含10%的增项额度，您主要想做哪些效果？我帮您算具体数。",
+  rival:"（分散在四五轮）抽屉悍高三节轨…托底抽加40…灯带80一米…玻璃补差280…",v:"win",note:"客户一次问一串，AI 一次报全、条理清楚；金牌散在四五轮才凑齐。"},
+ {k:"案例2",r:7,cust:"柜子的厚度是多少？是ENF级别的吗？",
+  ai:"柜体标准18mm，背板9mm卡槽工艺——不贴墙、不容易发霉，比普通贴墙背板更耐用。全都是ENF级、总部集采保真保环保。到店看样柜更直观。",
+  rival:"全都是ENF级别的。背板用的是卡槽工艺9厘的，其他全是18厘的。",v:"win",note:"同样口径，AI 顺带把“卡槽为什么好”一句点透，更专业。"},
+ {k:"案例2",r:8,cust:"正常衣柜是配两个抽屉吧？",
+  ai:"正常衣柜一般配1-2个，看您需求和柜子大小。咱们是全屋累计每3平送1个抽屉，您要多的话超出部分补差，透明、绝不含糊。",
+  rival:"每三个平方送一个，放在哪里您自己说了算",v:"win",note:"AI 先顺着客户的常识确认、再讲自家政策+补差，客户一秒懂。"},
+ {k:"案例2",r:9,cust:"免拉手45°斜切需要再收费吗？大概列一下哪些增收？我大概做70平，你们展厅在哪？",
+  ai:"免拉手45°斜切属工艺增项、要收费。主要增收：灯带按米、玻璃门按平方、见光板按平方、推拉门每平加280、超深柜按系数。70平投影大概35平，总价约2万出头。厦门展厅在思明区台北路海西金谷广场T1-11楼，有空过来看看实物？",
+  rival:"正常就是灯带、玻璃、见光板、圆弧。这是总部，明天有时间过来现场看看",v:"win",note:"客户三连问，AI 收费清单+估总价+展厅地址一次全给；金牌只答了个大类。"},
+ {k:"案例2",r:11,cust:"你这568一平是什么牌子的？定制流程怎么走？",
+  ai:"板材是兔宝宝/莫干山/千年舟三大品牌，全ENF级无醛添加，假一赔三、六面防伪合同里写死。流程很简单：下定后设计师上门量尺出方案，您确认了就下单生产，最后上门安装。",
+  rival:"兔宝宝/千年舟/莫干山多层柜体+双面PET门板，都是ENF级",v:"win",note:"客户问两件事，AI 品牌+流程一次答全；金牌只答了品牌。"},
+ {k:"案例2",r:12,cust:"先现场测量，然后…",
+  ai:"测量完设计师出方案，您确认了就下单生产，最后上门安装，很简单。全程在系统里能看进度，走到哪步清清楚楚。",
+  rival:"只要开始合作就进这个系统，后续每个流程您自己都能看得到，单子进行到哪个阶段很清楚。",v:"tie",note:"口径一致（进系统看进度）；AI 顺手把完整流程链也讲了，金牌只强调了系统。"},
+ {k:"案例2",r:14,cust:"你们这个先付定金才上门测量，然后修改只能3次免费？",
+  ai:"我没听说过“3次修改”这个限制，您确定吗？具体修改次数咱们到店当面聊、白纸黑字写进合同，您心里也踏实。",
+  rival:"如果像您这种大套的多改一两次，到时候算我的。",v:"tie",note:"面对一个可能是别家的传言，AI 不瞎接、如实说“没这规矩+写进合同”；金牌用人情“算我的”接，也稳。各有取舍。"},
+ {k:"案例2",r:13,cust:"你们是要付定金才来测量？",
+  ai:"对，交2000定金师傅才上门量尺——这钱算进总价、不是单收的量尺费。定金交了马上安排，咱们谁量谁装、责任到人，一次性落地率才高。",
+  rival:"是的。所以想邀请您来现场看板材工艺，因为贵就贵在人工上，咱们家谁测量谁安装，职责分工明确。",v:"tie",note:"都讲清“定金逻辑+谁量谁装”；AI 更直接点明“算进总价不是单收”。"},
+ {k:"案例2",r:15,cust:"我先看看，",
+  ai:"好的，您先考虑清楚。有什么问题随时找我，我都在。",
+  rival:"咱们还有哪方面的疑虑都可以说出来么？像您这种大面积确实要慎重，肯定想找靠谱的",v:"tie",note:"客户明显想缓一缓，AI 不逼、留口子；金牌继续追问疑虑也算稳。各有取舍。"},
+ {k:"案例2",r:26,cust:"我那个柜子会直接找岛外的公司做，他们没啥增项",
+  ai:"理解您多对比，这么大单该慎重。不过让他们报价时把这几样对齐比：是不是原厂ENF精板、封边是不是全PUR、背板是不是卡槽、五金是不是悍高——同配置他那价我还真不太信能做下来。您比完哪边实在选哪边，我不抢您。",
+  rival:"像厦门那个工厂同等配置应该做不到咱们这个价格吧。咱们新出这个套餐泡水里也没关系的。",v:"win",note:"AI 给一张“可对齐比价的清单”，比金牌“别人做不到这价”更有说服力、也更不抢。"},
+ // ============ 案例3 福州问价客户（未到店） ============
+ {k:"案例3",r:1,cust:"（打招呼后）是福州的吗？",
+  ai:"福州有的！地址在福州市晋安区居然之家（福州智慧家居MALL店），您方便哪天过来看看样柜和板材色卡？",
+  rival:"是的，咱们全国都有。原价868现在样板房补贴300只需568一平，咱们是福州哪个小区的？",v:"win",note:"AI 直接报准福州门店地址、约到店；金牌先甩价格再反问，节奏偏急。"},
+ {k:"案例3",r:2,cust:"你们有做好的样板房可以看吗？福州的展厅开了吗？",
+  ai:"福州门店在居然之家开着的，地址在晋安区居然之家（福州智慧家居MALL店）。样板房需要提前预约，我帮您对接最近的样板房实地看看效果？",
+  rival:"福州店现在在收尾，柜子装的差不多了。现在展厅就是最好的样板房，还没完全装好、细节都能看到。",v:"win",note:"AI 直接给准地址+主动帮约样板房；金牌把“展厅当样板房”讲得有点绕。"},
+ {k:"案例3",r:7,cust:"你们现在投影报价是多少？工期多久？付款方式怎么样？售后什么样？",
+  ai:"报价568一平投影面积（原价868样板房补300）；工期看订单量、定方案后给准确时间；付款交2000定金、签合同付80%、发货前付20%尾款；售后环保不达标全额退、假一赔三、六面防伪，全写进合同。",
+  rival:"主要按投影面积算，工期看材料和工艺，这里面聊的东西太多，还是现场聊比较清晰。明天来店里我安排店长一项项跟您聊。",v:"win",note:"客户一口气四连问，AI 四项逐条答全；金牌全部推到“到店聊”，客户想要的当场没拿到。"},
+ {k:"案例3",r:12,cust:"我们下单到出货时间要多久？",
+  ai:"下单到出货一般20-25天，具体看柜体复杂程度和当时订单量，设计师定方案时会给您准确工期。",
+  rival:"合同里一个月，正常二十多天就可以啦",v:"tie",note:"口径一致（20多天）；AI 补了“看复杂程度、定方案给准确时间”，更严谨。"},
+ {k:"案例3",r:9,cust:"终身维护的是不是？有收费吗？",
+  ai:"终身维护一般指质保期内免费维护，质保期后如需上门维护会有相应收费。具体标准我建议到店看合同条款，咱们都会白纸黑字写清楚。",
+  rival:"像咱们这种配置正常使用后期问题很少。有问题就成本价寄给您，会装就自己装，不会我们安排师傅也行。",v:"tie",note:"金牌讲得更接地气（成本价寄件）；AI 讲清了“质保内免费/质保后收费”的边界。各答到一面。"},
+ {k:"案例3",r:21,cust:"这是用什么板材的套装？",
+  ai:"兔宝宝/莫干山/千年舟三大品牌任选，全系ENF级多层实木板，环保不达标全额退、假一赔三，六面防伪防潮，这些都写进合同里。",
+  rival:"598，里面配置是一样的。",v:"win",note:"客户问板材，AI 品牌+环保等级+保障答全；金牌只回了个价格数字。"},
+ {k:"案例3",r:14,cust:"那增项有哪些？拉手、抽屉、见光板、衣通、工艺有另外收费的吗？",
+  ai:"拉手基础款含在568里，抽屉全屋累计每3平送1个，衣通基础款也含。特殊工艺比如造型拉手、圆弧这些高定工艺要额外加价，具体到店看样品更清楚。",
+  rival:"568或598看套餐，含挂衣杆、内部层板不限、悍高二段阻尼铰链、抽屉三节阻尼轨道，全屋每3平送1个抽屉",v:"win",note:"AI 把“含哪些+哪些要加”讲成清楚两栏；金牌罗列了配置但没点明“哪些要加钱”。"},
+ {k:"案例3",r:17,cust:"看到有一个45度斜切的，是这样吗？",
+  ai:"是的，45度斜切属于造型拉手，需要额外加价，得有经验的老师傅封边效果才好。具体价格到店看样品，设计师帮您详细算。",
+  rival:"这个一扇门30元。这个一定要有经验的老师傅来封边，不然效果很差。",v:"tie",note:"都点出“老师傅封边”这个专业点；金牌当场给了30元一扇门的准价，AI 这里没报数（可补料改进）。"},
+];
+const STRIP=[
+ {ok:1,t:"核心异议（板材真假 / 砍价 / 守价 / 增项报价 / 样板房 / 替代方案）：前 20 轮内<mark class=\"hl\">普遍≥金牌</mark>，即第 01 节展示的水准。"},
+ {ok:1,t:"价格铁律焊死：<mark class=\"hl\">全程零松口、零露利润底牌</mark>，砍价只用价值差异化 + 降本台阶接住。"},
+ {ok:1,t:"样板房口径正：不自贬、带<mark class=\"hl\">原价868→现价568价格锚</mark> + 限量名额 + 配最好设计师安装。"},
+ {ok:1,t:"增项主项报准：<mark class=\"hl\">玻璃280 / 灯带80米 / 变压器开关各80 / 推拉门280 / 抽屉每3平送1</mark>，一次报全、不挤牙膏。"},
+ {ok:1,t:"人味在线：口语、一次一个点、接住客户这句往下聊，守价也讲成“为您好”。"},
+];
+const ASKS=[
+ {p:"P1",t:"更多真实成交对话（完整版）",d:"尤其成交单整段对话——喂进金牌案例库，AI 学到的打法更多、更少重复，长对话也更扛得住。提升上限最直接的一样。"},
+ {p:"P1",t:"权威增项价目表（逐项确认）",d:"玻璃/灯带/变压器/开关/托底抽/见光板/圆弧/铣拉手/45°斜切/洞洞板/万向轮 每项准确价+单位。让 AI 每次都报准，杜绝含糊或报错。"},
+ {p:"P1",t:"官方质保口径（定金/付款/工期一并）",d:"质保是“一年+终身维护 / 加三点五年”，还是别的？统一权威说法喂进去，AI 就能当场给准，不用含糊推到“到店看合同”。"},
+ {p:"P2",t:"品牌档位 + 可降配边界",d:"确认“千年花488”品牌名与价、哪些能不封边/减增项省钱、哪些绝不能降配——AI 给降本台阶不踩线。"},
+ {p:"P2",t:"各城市门店准确地址清单",d:"福州、厦门、漳州已能报准；其余城市补齐全清单，AI 就能直接报准地址、约到店更顺。"},
+ {p:"P2",t:"更多客户类型对话样本",d:"同行 / 自建房 / 宝妈 / 工装等各来几段，覆盖更广的问法。"},
+];
+const DEP=[
+ {ic:"📩",t:"短信唤醒沉睡客户 → 引回企微让 AI 接着聊",rec:"最直接",
+  pro:"能主动盘活“加了没聊 / 聊一半没下文”的存量客户，像案例2/3 这种拖着的重新捞回来。",
+  con:"短信是单向的，只负责把人引回企微/微信；文案要合规、别被当骚扰。",
+  body:"三个真实案例里都有大量“你通过群发助手发出一条消息”——<mark class=\"hl\">主动唤醒本来就是现成打法</mark>。落地就是：让 AI 按每个客户上次聊到哪，批量生成<b>千人千面</b>的唤醒短信（“林总，您上次问的自建房卡槽背板…”），客户点回企微后，<mark class=\"hl\">直接转给线上 AI 接着深聊</mark>——前面这份报告验证的正是这套 AI 的接单能力。<br>建议先<b>半自动</b>跑：AI 出稿、运营扫一眼确认再发；小批量试一两周，盯回复率、约到店率，数据站得住再放量。",
+  flow:["筛沉睡客户","AI 按历史生成短信","客户点回企微","线上 AI 接着聊"]},
+];
+
+const $=s=>document.getElementById(s);
+function esc(s){return String(s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]))}
+
+$("ov").innerHTML=OV.map(o=>`<div class="ovc ${o.tone}">
+  <div class="oc">${esc(o.c)}</div><div class="ot">${esc(o.t)}</div>
+  <p class="od">${esc(o.d)}</p>
+  <span class="op ${o.tone}"><span class="d"></span>${esc(o.outcome)}</span></div>`).join("");
+$("vbox").innerHTML=VBOX;
+
+const CASE_META={
+ "案例1":{code:"案例 1",title:"懂行硬砍价客户",outcome:"当年谈成",tone:"good",
+   persona:"小红书来的懂行老手，自称做这行十几年，一路拿“行情价550”逼价、质疑套路营销，前后聊了40天。",
+   focus:["板材真假","封边/PUR","增项(灯带/变压器/见光板)","550多套压价","样板房套路质疑"]},
+ "案例2":{code:"案例 2",title:"自建房 · 林总",outcome:"当年观望",tone:"warn",
+   persona:"厦门同安自建房约70㎡，货比三家、拖了两个多月，同时对接同安工厂 / 集美红星美凯龙。",
+   focus:["增项逐项收费","定金才测量","首付80%高","卡槽vs18背板","跑单挽留"]},
+ "案例3":{code:"案例 3",title:"福州问价客户",outcome:"当年未到店",tone:"neut",
+   persona:"福州细节控，问价极密：洞洞板 / 榻榻米 / 圆弧 / 见光板 / 万向轮，逐项抠收费，一直没到店。",
+   focus:["投影报价","售后质保","逐项增项收费","拉手/斜切工艺","冷门配件价"]},
+};
+const vLabel={win:"AI 更强",tie:"基本持平",gold:"金牌更强"};
+const turnCard=c=>`<div class="cmp"><span class="tag"><span class="rn">第${c.r}轮</span>${esc(c.k)}</span>
+ <div class="cust"><div class="who">客户原话</div>${esc(c.cust)}</div>
+ <div class="two"><div class="side ai"><div class="lbl">🟢 线上 AI</div>${esc(c.ai)}</div>
+ <div class="side rv"><div class="lbl">🏆 金牌销售原话</div>${esc(c.rival)}</div></div>
+ <span class="verdict ${c.v}"><span class="d"></span>${vLabel[c.v]}</span>
+ <p class="vnote">${esc(c.note)}</p></div>`;
+$("cmp").innerHTML=Object.keys(CASE_META).map(key=>{
+ const m=CASE_META[key];
+ const turns=CMP.filter(c=>c.k===key);
+ const chips=m.focus.map(f=>`<span class="fchip">${esc(f)}</span>`).join("");
+ return `<div class="caseblock ${m.tone}">
+   <div class="casehead">
+     <div class="chl"><span class="ccode">${esc(m.code)}</span><span class="ctitle">${esc(m.title)}</span>
+       <span class="cpill ${m.tone}">${esc(m.outcome)}</span></div>
+     <p class="cpersona">${esc(m.persona)}</p>
+     <div class="fchips">${chips}</div>
+     <div class="ccount">${turns.length} 个关键回合对比</div>
+   </div>
+   ${turns.map(turnCard).join("")}
+ </div>`;
+}).join("");
+$("strip").innerHTML=STRIP.map(s=>`<div class="r"><span class="mk ${s.ok?'ok':'no'}">${s.ok?'✓':'△'}</span><span>${s.t}</span></div>`).join("");
+$("candid").innerHTML=`<b>一句话结论：</b>在最考验功力、最决定成交的核心异议上，<mark class="hl">AI 已经做到≥金牌销售</mark>——守得住价、报得准数、给得出替代方案、还带人味。配合第 03 节把料补全，这个水准能稳定复现到更多客户、更长的对话里。`;
+$("asks").innerHTML=ASKS.map(a=>`<div class="ask"><span class="pri ${a.p==='P1'?'p1':'p2'}">${a.p}</span><div><p class="t">${esc(a.t)}</p><p class="d">${esc(a.d)}</p></div></div>`).join("");
+$("dep").innerHTML=DEP.map(d=>`<div class="depc"><h3><span class="ic">${d.ic}</span>${esc(d.t)}${d.rec?`<span class="rec">${esc(d.rec)}</span>`:''}</h3>
+  <p>${d.body}</p>
+  <p><span class="pro">优势 · </span>${esc(d.pro)}　<span class="con">注意 · </span>${esc(d.con)}</p>
+  <div class="flow">${d.flow.map((s,i)=>`${i?'<span class="ar">→</span>':''}<span class="st">${esc(s)}</span>`).join("")}</div></div>`).join("");
+</script>
+
+</body>
+</html>
