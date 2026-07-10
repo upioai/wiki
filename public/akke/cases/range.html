@@ -127,7 +127,7 @@
       <span class="preset" data-days="14">近 14 天</span>
       <span class="preset" data-days="30">近 30 天</span>
     </div>
-    <p style="font-size:12px;color:var(--text-muted);margin:8px 2px 0;">这个链接可以直接分享——它把区间写在网址里（<code>?from=…&to=…</code>），每换一个区间就是一个新链接，不会覆盖别的合集页。</p>
+    <p style="font-size:12px;color:var(--text-muted);margin:8px 2px 0;">筛选（时间 / 类型 / 评论分类）都在本页就地生效不跳转；网址会自动跟着当前筛选变（<code>?from=…&to=…&type=…&ccat=…</code>），随时复制地址栏就能把当前视图分享出去。只有点客户名才会新开旅程页。</p>
   </header>
 
   <div class="catbar" id="catbar">
@@ -170,58 +170,73 @@
   function daysAgo(n){ var d=new Date(); d.setDate(d.getDate()-n); return fmt(d); }
 
   var p=qs();
-  var to=p.get('to') || fmt(new Date());
-  var from=p.get('from') || daysAgo(30);
-  var type=p.get('type') || 'all';   // 二级筛选：all | conv | wechat
-  var ccat=p.get('ccat') || 'all';   // 三级筛选：评论分类（all | 分类名）
-  document.getElementById('from').value=from;
-  document.getElementById('to').value=to;
+  var state={
+    to:   p.get('to')   || fmt(new Date()),
+    from: p.get('from') || daysAgo(30),
+    type: p.get('type') || 'all',   // 二级筛选：all | conv | wechat
+    ccat: p.get('ccat') || 'all'    // 三级筛选：评论分类（all | 分类名）
+  };
+  var M=null;   // manifest 缓存（只拉一次，筛选全部就地重渲染）
+  document.getElementById('from').value=state.from;
+  document.getElementById('to').value=state.to;
 
   // 评论分类固定展示顺序（与 manifest.commentCat 取值一致）
   var CCATS=[
     ['求资料','📄'],['问价格','💰'],['问工艺·参数','🔧'],['问门店·地域','📍'],
     ['报面积·房型','🏠'],['找上门·求联系','🙋'],['求建议·避坑','🧭'],['其他咨询','💬']
   ];
-  function ccatIcon(c){ for(var i=0;i<CCATS.length;i++){ if(CCATS[i][0]===c) return CCATS[i][1]; } return '💬'; }
 
-  function url(f,t,ty,cc){
-    var u='/akke/cases/range?from='+f+'&to='+t;
-    if(ty&&ty!=='all') u+='&type='+ty;
-    if(cc&&cc!=='all') u+='&ccat='+encodeURIComponent(cc);
+  function urlOf(){
+    var u='/akke/cases/range?from='+state.from+'&to='+state.to;
+    if(state.type!=='all') u+='&type='+state.type;
+    if(state.ccat!=='all') u+='&ccat='+encodeURIComponent(state.ccat);
     return u;
   }
-  function go(u){ window.open(u, '_blank', 'noopener'); }   // 一律开新标签，不覆盖当前列表
+  // 筛选就地生效，不跳转；网址静默同步（复制地址栏即可分享当前筛选组合）
+  function sync(){ try{ history.replaceState(null,'',urlOf()); }catch(e){} render(); }
 
   document.getElementById('apply').addEventListener('click', function(){
     var f=document.getElementById('from').value, t=document.getElementById('to').value;
-    if(f&&t){ go(url(f,t,type,ccat)); }   // 换时间保留类型+评论分类
+    if(f&&t){ state.from=f; state.to=t; sync(); }
   });
   Array.prototype.forEach.call(document.querySelectorAll('.preset'), function(el){
-    el.addEventListener('click', function(){ go(url(daysAgo(+el.dataset.days), fmt(new Date()), type, ccat)); });
+    el.addEventListener('click', function(){
+      state.from=daysAgo(+el.dataset.days); state.to=fmt(new Date());
+      document.getElementById('from').value=state.from;
+      document.getElementById('to').value=state.to;
+      sync();
+    });
   });
-  // 二级类型 chips
+  // 二级类型 chips（就地切换）
   Array.prototype.forEach.call(document.querySelectorAll('#catbar .cat'), function(el){
-    if(el.dataset.type===type) el.classList.add('on');
-    el.addEventListener('click', function(){ go(url(from,to,el.dataset.type,ccat)); });   // 换类型保留时间+分类
+    el.addEventListener('click', function(){ state.type=el.dataset.type; sync(); });
   });
 
-  AkkeLoadManifest(function(m){
-    var inRange=m.filter(function(e){ return e.date && e.date>=from && e.date<=to; });
+  function render(){
+    if(!M) return;
+    var from=state.from, to=state.to, type=state.type, ccat=state.ccat;
+    // 二级 chips 高亮
+    Array.prototype.forEach.call(document.querySelectorAll('#catbar .cat'), function(el){
+      el.classList.toggle('on', el.dataset.type===type);
+    });
+    var inRange=M.filter(function(e){ return e.date && e.date>=from && e.date<=to; });
     var convN=inRange.filter(function(e){return e.collection==='conv';}).length;
     var wechatN=inRange.filter(function(e){return e.collection==='wechat';}).length;
-    // 先按 conv/wechat 过滤，再按评论分类过滤
     var typed=(type==='all'?inRange:inRange.filter(function(e){return e.collection===type;}))
       .sort(function(a,b){ return String(b.date||'').localeCompare(String(a.date||'')); });
     var catOf=function(e){ return e.commentCat||'其他咨询'; };
+    // 当前分类在新筛选下为 0 条 → 自动回落到全部
+    var counts={}; typed.forEach(function(e){ var c=catOf(e); counts[c]=(counts[c]||0)+1; });
+    if(ccat!=='all' && !counts[ccat]){ state.ccat=ccat='all'; try{ history.replaceState(null,'',urlOf()); }catch(e){} }
     var list=(ccat==='all'?typed:typed.filter(function(e){return catOf(e)===ccat;}));
 
-    // ③ 评论分类 chips（按当前区间+类型下的实际分布出条数；0 条的分类不出 chip）
+    // ③ 评论分类 chips（按当前区间+类型分布出条数；0 条的分类不出 chip；就地切换）
     var bar=document.getElementById('ccatbar');
-    var counts={}; typed.forEach(function(e){ var c=catOf(e); counts[c]=(counts[c]||0)+1; });
+    Array.prototype.forEach.call(bar.querySelectorAll('.cat'), function(el){ el.remove(); });
     function chip(label,val,n){
       var s=document.createElement('span'); s.className='cat'+(ccat===val?' on':'');
       s.innerHTML=label+(n!=null?' <small>'+n+'</small>':'');
-      s.addEventListener('click',function(){ go(url(from,to,type,val)); });
+      s.addEventListener('click',function(){ state.ccat=val; sync(); });
       bar.appendChild(s);
     }
     chip('全部','all',typed.length);
@@ -270,7 +285,9 @@
     });
     html+='</tbody></table></div>';
     box.innerHTML=html;
-  }, function(err){
+  }
+
+  AkkeLoadManifest(function(m){ M=m; render(); }, function(err){
     document.getElementById('cases').innerHTML='<p class="empty-hint" style="color:var(--warning);">案例数据加载失败，请刷新重试。</p>';
   });
 })();
