@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>企微 AI 今日部署：换模型 + 对话记忆增强</title>
+<style>
+  :root{
+    --ground:#F5F7F5; --surface:#FFFFFF; --surface2:#EEF3EE; --ink:#17201A; --muted:#5E6B62;
+    --line:#E2E9E2; --accent:#1E8A54; --accent-ink:#0E5232; --accent-soft:#E4F2EA;
+    --warn:#A76A17; --warn-soft:#FAF1E1; --warn-line:#EAD9B6;
+    --blue:#2C6FB0; --blue-soft:#E7F0F8; --hl:#eaff00;
+    --serif:"Songti SC","Noto Serif CJK SC",Georgia,serif;
+    --sans:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",-apple-system,system-ui,sans-serif;
+    --mono:ui-monospace,Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --ground:#0E120F; --surface:#161C18; --surface2:#1B221D; --ink:#E6ECE7; --muted:#94A199;
+    --line:#26302A; --accent:#4EB081; --accent-ink:#B6E8CF; --accent-soft:#173026;
+    --warn:#E0A85A; --warn-soft:#241C10; --warn-line:#3A2E16;
+    --blue:#6FA8DC; --blue-soft:#14212E; --hl:#e4fb00;
+  }}
+  :root[data-theme="light"]{--ground:#F5F7F5;--surface:#FFFFFF;--surface2:#EEF3EE;--ink:#17201A;--muted:#5E6B62;--line:#E2E9E2;--accent:#1E8A54;--accent-ink:#0E5232;--accent-soft:#E4F2EA;--warn:#A76A17;--warn-soft:#FAF1E1;--warn-line:#EAD9B6;--blue:#2C6FB0;--blue-soft:#E7F0F8;--hl:#eaff00;}
+  :root[data-theme="dark"]{--ground:#0E120F;--surface:#161C18;--surface2:#1B221D;--ink:#E6ECE7;--muted:#94A199;--line:#26302A;--accent:#4EB081;--accent-ink:#B6E8CF;--accent-soft:#173026;--warn:#E0A85A;--warn-soft:#241C10;--warn-line:#3A2E16;--blue:#6FA8DC;--blue-soft:#14212E;--hl:#e4fb00;}
+
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);line-height:1.68;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:860px;margin:0 auto;padding:40px 20px 100px}
+  mark.hl,.hl{background:var(--hl);color:#141614;padding:0 4px;border-radius:3px;font-weight:700;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+  :root[data-theme="dark"] mark.hl{color:#12140f}
+  header.rpt{border-bottom:2px solid var(--accent);padding-bottom:20px}
+  .eyebrow{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);font-weight:700}
+  h1{font-family:var(--serif);font-size:clamp(24px,4.6vw,36px);margin:12px 0 8px;font-weight:600;text-wrap:balance}
+  .sub{color:var(--muted);font-size:15px;margin:0;max-width:72ch}
+  .meta{display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;font-size:12.5px;color:var(--muted)}
+  .meta b{color:var(--ink)}
+  .tldr{margin-top:20px;background:var(--accent-soft);border:1px solid var(--accent);border-left:3px solid var(--accent);border-radius:12px;padding:15px 17px;font-size:14.5px;line-height:1.7}
+  .tldr b{color:var(--accent-ink)}
+
+  section{margin-top:44px}
+  .sh{display:flex;align-items:baseline;gap:11px;margin-bottom:6px}
+  .sh .n{font-family:var(--mono);font-size:13px;color:var(--accent);font-weight:700}
+  .sh h2{font-family:var(--serif);font-size:21px;margin:0;font-weight:600}
+  .sdesc{color:var(--muted);font-size:14px;margin:0 0 18px;max-width:72ch}
+
+  .prob{display:flex;flex-direction:column;gap:11px}
+  .pc{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;border-left:3px solid var(--warn)}
+  .pc h3{margin:0 0 5px;font-size:15px;display:flex;align-items:center;gap:8px}
+  .pc h3 .num{font-family:var(--mono);font-size:12px;color:#fff;background:var(--warn);width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
+  .pc p{margin:0;font-size:13.5px;color:var(--muted)}
+  .eg{margin-top:7px;font-size:12.5px;font-family:var(--mono);background:var(--surface2);border:1px solid var(--line);border-radius:7px;padding:7px 10px;color:var(--warn)}
+  .fix{color:var(--accent);font-weight:600}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:4px}
+  .tw{overflow-x:auto;border:1px solid var(--line);border-radius:12px}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{background:var(--surface2);font-size:12px;color:var(--muted);font-weight:700;letter-spacing:.03em}
+  tr:last-child td{border-bottom:none}
+  td.num{font-variant-numeric:tabular-nums;text-align:right}
+  tr.win td{background:var(--accent-soft)}
+  .rank{font-weight:700;color:var(--accent-ink)}
+
+  .steps{display:flex;flex-direction:column;gap:11px}
+  .step{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:grid;grid-template-columns:auto 1fr;gap:13px;align-items:start}
+  .step .ic{font-size:20px;line-height:1.2}
+  .step h3{margin:0 0 4px;font-size:15px}
+  .step p{margin:0;font-size:13.5px;color:var(--muted)}
+  .step code{font-family:var(--mono);font-size:12px;background:var(--surface2);padding:1px 5px;border-radius:4px}
+
+  .flow{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 0;font-size:12.5px;align-items:center}
+  .flow .st{background:var(--surface2);border:1px solid var(--line);border-radius:7px;padding:5px 10px}
+  .flow .ar{color:var(--muted)}
+  .kv{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .chip{font-size:12px;background:var(--surface2);border:1px solid var(--line);border-radius:20px;padding:3px 11px;color:var(--ink)}
+
+  .kicker{margin-top:40px;background:var(--blue-soft);border:1px solid var(--blue);border-left:3px solid var(--blue);border-radius:12px;padding:15px 17px;font-size:14px;line-height:1.68}
+  .kicker b{color:var(--blue)}
+  .kicker code{font-family:var(--mono);font-size:12.5px;background:var(--surface);padding:2px 6px;border-radius:5px;border:1px solid var(--line)}
+  .foot{margin-top:36px;padding-top:16px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);text-align:center;line-height:1.7}
+  .themebtn{position:fixed;top:14px;right:14px;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:20px;padding:6px 12px;font-size:12px;cursor:pointer;font-family:inherit;z-index:9}
+  @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+  @media(max-width:560px){.step{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+
+<button class="themebtn" id="themebtn" type="button">切换深浅</button>
+<div class="wrap">
+  <header class="rpt">
+    <div class="eyebrow">有大有小 · 企业微信 AI · 部署纪要</div>
+    <h1>今日部署：企微 AI 换模型 + 对话记忆增强</h1>
+    <p class="sub">大白话版，写给团队看：今天把企微 AI 的底层模型换了、给它加了"对话记忆"，为什么换、怎么测出来的、记忆增强到底做了啥——一页说清。</p>
+    <div class="meta"><span>日期：<b>2026-07-10</b></span><span>上线改动：<b>8 个 PR（全部部署）</b></span><span>压测：<b>7 模型 × 28 探针 × 3 采样 · 双裁判</b></span></div>
+    <div class="tldr" id="tldr"></div>
+  </header>
+
+  <section>
+    <div class="sh"><span class="n">01</span><h2>先说结论：两件大事</h2></div>
+    <div class="steps" id="headline"></div>
+  </section>
+
+  <section>
+    <div class="sh"><span class="n">02</span><h2>发现的问题（为什么要动）</h2></div>
+    <p class="sdesc">用真实对话逐句压测（132 轮）+ 反复复跑，把企微 AI 在长对话里的毛病都翻了出来：</p>
+    <div class="prob" id="prob"></div>
+  </section>
+
+  <section>
+    <div class="sh"><span class="n">03</span><h2>对话记忆增强做了什么</h2></div>
+    <p class="sdesc">根因是"对话一长、历史全塞给模型 → 模型被撑晕"。记忆增强就是把这条从根上治掉。</p>
+    <div class="steps" id="memory"></div>
+    <div class="flow" id="memflow"></div>
+  </section>
+
+  <section>
+    <div class="sh"><span class="n">04</span><h2>换模型：怎么测的、为什么最终选 qwen</h2></div>
+    <p class="sdesc">企微原来用 GLM-4.6（2026-07-02 一次严谨评测选出来的）。这次同规格复评（<mark class="hl">7 模型 × 28 探针[含超长尾] × 3 采样 × 双裁判 grok-4.3+deepseek-v3.2</mark>）重新比了一遍。</p>
+    <div class="tw"><table id="evaltbl"></table></div>
+    <div class="steps" id="whyqwen" style="margin-top:16px"></div>
+  </section>
+
+  <section>
+    <div class="sh"><span class="n">05</span><h2>部署 + 回滚</h2></div>
+    <div class="steps" id="deploy"></div>
+  </section>
+
+  <div class="kicker" id="kicker"></div>
+  <div class="foot">本页为内部部署纪要 · 大白话版 · 2026-07-10<br>模型排名为线上同款 chatReply 实测输出、双裁判匿名打分聚合</div>
+</div>
+
+<script>
+const TLDR=`<b>一句话：</b>企微 AI 底层模型从 <b>GLM-4.6</b> 换成了 <mark class="hl">qwen3-235b-2507</mark>（短对话质量并列第一、<mark class="hl">成本省 80%</mark>、长对话不自己带崩），同时给它加了<mark class="hl">"对话记忆增强"</mark>——长对话不再把整段历史硬塞给模型，而是压成"要点+最近几轮"，从根上治好了聊久了穿帮/复读/答非所问的毛病。`;
+
+const HEADLINE=[
+ {ic:"🔀",t:"换模型：GLM-4.6 → qwen3-235b-2507",d:"经 7 模型双裁判复评，qwen 短对话质量追平 GLM、成本只有 1/5、长对话更稳。一行 env 可秒回滚。"},
+ {ic:"🧠",t:"加对话记忆增强",d:"长对话把累积历史压成「已报过的价格/数字/承诺」要点 + 最近 10 轮原文，上下文不再膨胀，模型全程稳。金牌案例库(few-shot)原样保留、不受影响。"},
+];
+
+const PROB=[
+ {n:"1",t:"自言自语漏出来（推理泄漏）",d:"聊久了偶尔把「内心戏」发给客户，一看就穿帮。而且换着花样漏——「客户在问…我的核心任务是守价」「用户输入分析」、markdown 加粗分析块。",
+  eg:'AI（翻车）：**1. 用户输入分析** 用户在问两件事…',fix:"检测词库扩容 + 深上下文裁剪重试 + 救不回就发安全话，绝不把内心戏发出去。"},
+ {n:"2",t:"复读（同一句翻来覆去）",d:"同一串卖点一轮一轮重复，甚至一句话里连甩同一短句。",
+  eg:'AI（翻车）：抽屉不就是一个柜子吗 抽屉不就是一个柜子吗 抽屉不就是一个柜子吗…',fix:"生成后按相似度硬检测，太像就带升级指令重生成；句内去重收敛。"},
+ {n:"3",t:"答非所问 / 主题固着",d:"聊到 30 轮后卡在一个话题上出不来——客户问洞洞板价格、门店、自住，它还在背增项抽屉。",
+  eg:'客户：那个店？居然之家😂 → AI：玻璃灯带变压器送不了…抽屉每3平送1个…（答非所问）',fix:"记忆增强要点提示前置「只答客户最新这句、换话题就跟上」。"},
+ {n:"4",t:"自污染死循环（最深的根因）",d:"GLM 一旦吐出一条烂回复，被存进历史又喂回下一轮，越滚越崩。喂干净历史时它其实正常——问题是它会自己把历史带脏。qwen 每条本身就干净，不启动这个循环。",
+  eg:'（多轮复跑实测：GLM 尾部自我强化崩坏，qwen 保持干净）',fix:"记忆增强让烂回复 10 轮后淘汰出窗口 + 换 qwen 天生不自污染。"},
+];
+
+const MEMORY=[
+ {ic:"📏",t:"历史封顶：只喂最近 10 轮 + 一条要点",d:"对话超过约 8 轮就不再全量塞历史，改成「最近 10 轮原文 + 一条『前面已报过的价格/数字/承诺』要点提示」（正则从旧轮抽、去重）。上下文永远不膨胀，模型不被撑晕。"},
+ {ic:"🎯",t:"要点提示治「答非所问」",d:"提示里把铁律顶到最前：①只答客户最新这句 ②客户换话题就跟上、别回头背增项抽屉 ③聊透的别主动重复。数字只作「别报错」的对照、不是让它重复。"},
+ {ic:"📚",t:"金牌案例库原样保留",d:"案例库(few-shot 金牌话术)是 AI 打得好的根本，在系统提示里单独注入、和对话历史完全分开——记忆增强只压「原始聊天记录」，一点没碰案例库。"},
+ {ic:"⚙️",t:"纯逻辑、零额外成本",d:"整套是纯函数、不额外调 LLM，不加延迟不加钱。有单测覆盖。"},
+];
+const MEMFLOW=["40 轮原始历史","→ 压缩","已报要点(价格/数字/承诺)","+","最近 10 轮原文","→ 喂给模型","上下文封顶·模型全程稳"];
+
+const EVAL={
+ head:["排名","模型","短对话综合","合规","节奏","每千条成本"],
+ rows:[
+  {r:"🥇",m:"GLM-4.6（原）",s:"7.18",c:"7.2",rh:"7.4",cost:"$2.93",win:false},
+  {r:"🥈",m:"qwen3-235b-2507（新）",s:"7.17",c:"7.0",rh:"7.3",cost:"$0.56",win:true},
+  {r:"3",m:"kimi-k2-0905",s:"6.75",c:"6.6",rh:"6.3",cost:"$4.10",win:false},
+  {r:"4",m:"deepseek-v3.2",s:"6.59",c:"6.4",rh:"6.4",cost:"$1.35",win:false},
+  {r:"5",m:"deepseek-chat-v3.1",s:"6.48",c:"6.4",rh:"6.2",cost:"$1.42",win:false},
+  {r:"6",m:"minimax-m1",s:"4.49",c:"—",rh:"—",cost:"$2.84",win:false},
+  {r:"7",m:"qwen3-max",s:"3.00",c:"—",rh:"—",cost:"$5.46",win:false},
+ ],
+};
+const WHYQWEN=[
+ {ic:"🤝",t:"短对话质量并列第一（7.17 vs 7.18，差 0.01）",d:"主战场打平——GLM 原来的「更克制」优势被填平了。"},
+ {ic:"💰",t:"成本省 80%（$0.56 vs $2.93 每千条）",d:"qwen3-235b-2507 是抖音同款、便宜约 5 倍。"},
+ {ic:"🔁",t:"长对话不自污染",d:"qwen 每条回复本身就干净，不会像 GLM 那样自己把历史带崩。"},
+ {ic:"🕵️",t:"为什么 qwen 这次追上来了？",d:"不是模型变强，是脚手架变强、正好补了它的软肋：案例库从 56→101 条(含金牌话术) + 一波治堆砌/复读的护栏(#814/#824/#826/#828…)上线。qwen 07-02 就输在「堆砌/连发」，这些正是解药。"},
+];
+
+const DEPLOY=[
+ {ic:"✅",t:"已部署并实测确认",d:"企微端点 provenance 落库确认 model=qwen/qwen3-235b-a22b-2507，切换生效。抖音 DM 不动（仍走 qwen 各自路由）。"},
+ {ic:"↩️",t:"一键回滚",d:"Vercel 加环境变量 <code>LLM_WECOM_CHAT_MODEL=z-ai/glm-4.6</code> 即秒回 GLM，不动代码。"},
+ {ic:"👀",t:"后续观察",d:"企微自动回复目前还没真实流量（新通道）。等运营/客户跑起来，用 Vercel cron 挂每日质量巡检，盯 qwen 的历史软肋(堆砌)会不会在真实流量上复发。"},
+];
+
+const KICKER=`<b>给非技术同事的总结：</b>企微 AI 今天换了个<mark class="hl">更聪明也更便宜（省 80%）</mark>的"大脑"，还给它装了"记性"——聊得再久也不犯迷糊、不说漏嘴、不复读。换之前用 7 个模型、真人裁判打分严格比过，不是拍脑袋。有任何不对，一行设置就能立刻换回原来的。`;
+
+const $=s=>document.getElementById(s);
+const esc=s=>String(s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+$("tldr").innerHTML=TLDR;
+$("headline").innerHTML=HEADLINE.map(h=>`<div class="step"><div class="ic">${h.ic}</div><div><h3>${esc(h.t)}</h3><p>${h.d}</p></div></div>`).join("");
+$("prob").innerHTML=PROB.map(p=>`<div class="pc"><h3><span class="num">${p.n}</span>${esc(p.t)}</h3><p>${esc(p.d)}</p><div class="eg">${esc(p.eg)}</div><p style="margin-top:6px"><span class="fix">✓ 已修：</span>${esc(p.fix)}</p></div>`).join("");
+$("memory").innerHTML=MEMORY.map(m=>`<div class="step"><div class="ic">${m.ic}</div><div><h3>${esc(m.t)}</h3><p>${esc(m.d)}</p></div></div>`).join("");
+$("memflow").innerHTML=MEMFLOW.map((s,i)=>s==="→ 压缩"||s==="→ 喂给模型"?`<span class="ar">${esc(s)}</span>`:s==="+"?`<span class="ar">+</span>`:`<span class="st">${esc(s)}</span>`).join("");
+$("evaltbl").innerHTML=`<thead><tr>${EVAL.head.map(h=>`<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${EVAL.rows.map(r=>`<tr class="${r.win?'win':''}"><td class="rank">${r.r}</td><td>${esc(r.m)}</td><td class="num">${r.s}</td><td class="num">${r.c}</td><td class="num">${r.rh}</td><td class="num">${r.cost}</td></tr>`).join("")}</tbody>`;
+$("whyqwen").innerHTML=WHYQWEN.map(w=>`<div class="step"><div class="ic">${w.ic}</div><div><h3>${esc(w.t)}</h3><p>${w.d}</p></div></div>`).join("");
+$("deploy").innerHTML=DEPLOY.map(d=>`<div class="step"><div class="ic">${d.ic}</div><div><h3>${esc(d.t)}</h3><p>${d.d}</p></div></div>`).join("");
+$("kicker").innerHTML=KICKER;
+const root=document.documentElement;
+$("themebtn").onclick=()=>{const now=root.getAttribute("data-theme");const sysDark=matchMedia("(prefers-color-scheme:dark)").matches;root.setAttribute("data-theme",now?(now==="dark"?"light":"dark"):(sysDark?"light":"dark"));};
+</script>
+
+</body>
+</html>
