@@ -48,10 +48,30 @@
   .catbar .cat:hover { border-color: var(--accent); }
   .catbar .cat.on { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
   .catbar .cat small { opacity: .75; font-size: 11px; margin-left: 3px; }
-  .group-head { display: flex; align-items: baseline; gap: 10px; margin: 26px 0 2px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
-  .group-head:first-child { margin-top: 4px; }
-  .group-head h2 { font-size: 19px; font-weight: 700; margin: 0; color: var(--text); }
-  .group-head .gh-count { font-size: 12.5px; color: var(--text-muted); }
+  /* ── 对话总表（表格视图）── */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-elevated); margin-top: 22px; }
+  table.roster { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 880px; }
+  .roster thead th { text-align: left; font-size: 12px; font-weight: 600; color: var(--text-muted); padding: 12px 14px; border-bottom: 1px solid var(--border-strong); white-space: nowrap; }
+  .roster td { padding: 13px 14px; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--text-dim); line-height: 1.55; }
+  .roster tr:last-child td { border-bottom: none; }
+  .roster tbody tr:hover td { background: rgba(139,92,246,0.05); }
+  .roster .cname a { color: var(--info); font-weight: 600; text-decoration: none; }
+  .roster .cname a:hover { text-decoration: underline; }
+  .roster .grp td { background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: 13.5px; padding: 10px 14px; border-bottom: 1px solid var(--border-strong); }
+  .roster .grp .g-count { font-weight: 400; font-size: 12px; color: var(--text-muted); margin-left: 8px; }
+  .roster .quote-cell { max-width: 240px; }
+  .roster .quote-cell .q { color: var(--text); }
+  .roster .quote-cell .q::before { content: "\201C"; color: var(--accent); }
+  .roster .quote-cell .q::after { content: "\201D"; color: var(--accent); }
+  .roster .quote-cell small { color: var(--text-muted); display: block; margin-top: 2px; }
+  .st-pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .st-pill.g { background: var(--success-soft); color: var(--success); }
+  .st-pill.w { background: var(--warning-soft); color: var(--warning); }
+  .st-pill.info { background: var(--info-soft); color: var(--info); }
+  .st-pill.muted { background: rgba(155,163,180,0.12); color: var(--text-dim); }
+  .roster .st-detail { display: block; font-size: 12px; color: var(--text-muted); margin-top: 3px; max-width: 200px; }
+  .roster a.vlink { color: var(--info); text-decoration: none; font-size: 12.5px; }
+  .roster a.vlink:hover { text-decoration: underline; }
   .howto { background: var(--bg-elevated); border: 1px solid var(--border); border-left: 3px solid var(--info); border-radius: 10px; padding: 14px 18px; font-size: 13.5px; color: var(--text-dim); margin: 0 0 20px; }
   .howto strong { color: var(--text); }
   .howto ul { margin: 8px 0 6px; padding-left: 20px; }
@@ -216,22 +236,40 @@
     if(ccat!=='all') head+=' 评论分类「<b>'+ccat+'</b>」共 <b>'+list.length+'</b> 条。';
     document.getElementById('sub').innerHTML=head;
 
-    // 渲染：全部分类 → 按分类分组展示；选了单一分类 → 平铺
+    // 渲染：对话总表（表格视图），组头 = 评论分类；选了单一分类只出该组
     var box=document.getElementById('cases');
     box.innerHTML='';
     if(!list.length){ box.innerHTML='<p class="empty-hint">这段时间没有匹配的案例。</p>'; return; }
-    if(ccat!=='all'){ AkkeRender('cases', list); return; }
-    var gi=0;
-    CCATS.forEach(function(c){
+    function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    function row(e){
+      var src = e.sourceName ? esc(e.sourceName)+(e.sourceCat?'（'+esc(e.sourceCat)+'号）':'') : '—';
+      var q = e.quote ? '<span class="q">'+esc(e.quote.length>26?e.quote.slice(0,26)+'…':e.quote)+'</span><small>'+esc(catOf(e))+'</small>' : '<span style="color:var(--text-muted)">—</span>';
+      var stTxt = e.status || (e.tag ? e.tag.replace(/^[^·]*·\s*/,'') : '');
+      var st = stTxt ? '<span class="st-pill '+({win:'g',wait:'w',mid:'info'}[e.statusColor]||'muted')+'">'+esc(e.date||'')+'</span><span class="st-detail">'+esc(stTxt)+'</span>' : esc(e.date||'—');
+      var vid = e.videoUrl ? '<a class="vlink" href="'+esc(e.videoUrl)+'" target="_blank" rel="noopener">原视频 ↗</a>' : '—';
+      return '<tr>'
+        +'<td class="cname"><a href="/akke/cases/'+esc(e.slug)+'" target="_blank" rel="noopener">'+esc(e.name||e.slug)+'</a></td>'
+        +'<td style="white-space:nowrap">'+esc(e.intent||'—')+'</td>'
+        +'<td>'+esc(e.region||'—')+'</td>'
+        +'<td>'+src+'</td>'
+        +'<td class="quote-cell">'+q+'</td>'
+        +'<td style="white-space:nowrap">'+esc(e.firstTouch||'—')+'</td>'
+        +'<td>'+st+'</td>'
+        +'<td>'+vid+'</td>'
+        +'</tr>';
+    }
+    var html='<div class="table-wrap"><table class="roster"><thead><tr>'
+      +'<th>客户</th><th>意向</th><th>IP</th><th>号源（类目）</th><th>评论 / 类型</th><th>触达</th><th>当前状态</th><th>原评论视频</th>'
+      +'</tr></thead><tbody>';
+    var groups=(ccat==='all')?CCATS:CCATS.filter(function(c){return c[0]===ccat;});
+    groups.forEach(function(c){
       var items=list.filter(function(e){ return catOf(e)===c[0]; });
       if(!items.length) return;
-      var head=document.createElement('div'); head.className='group-head';
-      head.innerHTML='<h2>'+c[1]+' '+c[0]+'</h2><span class="gh-count">'+items.length+' 条 · 按日期倒序</span>';
-      box.appendChild(head);
-      var grp=document.createElement('div'); grp.className='cases'; grp.id='ccat-grp-'+(gi++); grp.style.marginTop='10px';
-      box.appendChild(grp);
-      AkkeRender(grp.id, items);
+      html+='<tr class="grp"><td colspan="8">'+c[1]+' '+c[0]+'<span class="g-count">'+items.length+' 条 · 按日期新 → 旧</span></td></tr>';
+      items.forEach(function(e){ html+=row(e); });
     });
+    html+='</tbody></table></div>';
+    box.innerHTML=html;
   }, function(err){
     document.getElementById('cases').innerHTML='<p class="empty-hint" style="color:var(--warning);">案例数据加载失败，请刷新重试。</p>';
   });
