@@ -349,7 +349,7 @@ def capture():
             # 同昵称歧义: 不自动挂靠(防发错人), 推 Lark 转人工。
             if hit.get("ambiguous"):
                 print(f"  [同昵称歧义] {nick}: 本号下 {hit.get('conv_count', 2)} 个同名会话 → 不自动挂靠, 转人工")
-                alert_ambiguous_nickname(nick, hit.get("conv_count", 2))
+                alert_ambiguous_nickname(nick, hit.get("conv_count", 2), preview)
                 continue
             conv = hit.get("conversation_id")
             if not conv:

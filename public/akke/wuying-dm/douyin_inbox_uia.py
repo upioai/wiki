@@ -276,15 +276,15 @@ def load_sent_dms():
     return by_name
 
 
-# 同昵称歧义告警：12h/昵称 本地台账去重(去重台账在本地非 DB，同 wecom 惯例)，
-# 经 emit_captcha_alert → captcha-monitor cron 推云电脑监控群。歧义会话的客户回复
-# 不入库(防挂错人)，不告警运营就永远不知道有人在等——显式失败。
+# 同昵称歧义/兜底疑似 告警：本地台账【永久】去重(2026-07-11 用户定"提醒一次就好，之后
+# 再也不提醒")——键 = 昵称+预览前缀，报过的键永不再报；该客户发了【新内容】(预览变了)
+# 才算新键再报一次。台账在本地非 DB(同 wecom 惯例)，经 emit_captcha_alert →
+# captcha-monitor cron 推云电脑监控群。歧义会话的客户回复不入库(防挂错人)，
+# 不告警运营就永远不知道有人在等——显式失败。
+# 代价(接受)：同人隔久重发一模一样的话不会二次提醒；删台账 json 可重置。
 _AMBIG_LEDGER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_ambig_alerts.json")
-_AMBIG_COOLDOWN_S = 12 * 3600
-
 
 _BACKFILL_LEDGER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_backfill_alerts.json")
-_BACKFILL_COOLDOWN_S = 24 * 3600
 
 
 def alert_backfill_suspect(nick: str, preview: str) -> None:
@@ -292,7 +292,7 @@ def alert_backfill_suspect(nick: str, preview: str) -> None:
     原因：会话列表预览分不清方向——运营在 GUI 手动回过的那条不进 DB，两道 DB 守卫
     看不见它，自动补录会把我方手打内容错当客户消息 → 管线自动回一条(自言自语误发)。
     红点路径没这问题(红点只客户消息才有)，全量扫失去该保证 → 检测自动化、确认留给人。
-    台账按 昵称+预览前缀 本地去重 24h，不刷屏。"""
+    去重：同一条(昵称+预览)只报一次、永不重复(台账协议见 _AMBIG_LEDGER 上方注释)。"""
     key = _norm(nick) + "|" + _norm(preview)[:40]
     now = time.time()
     led = {}
@@ -301,7 +301,7 @@ def alert_backfill_suspect(nick: str, preview: str) -> None:
             led = json.load(f)
     except Exception:
         pass
-    if now - float(led.get(key, 0)) < _BACKFILL_COOLDOWN_S:
+    if key in led:
         return
     try:
         _http("POST", "rpc/emit_captcha_alert", body={
@@ -322,8 +322,10 @@ def alert_backfill_suspect(nick: str, preview: str) -> None:
         print(f"  [warn] 兜底疑似告警失败(不致命): {e}")
 
 
-def alert_ambiguous_nickname(nick: str, n_convs: int) -> None:
-    key = _norm(nick)
+def alert_ambiguous_nickname(nick: str, n_convs: int, preview: str = "") -> None:
+    """同昵称歧义转人工告警。去重：同一条回复(昵称+预览)只报一次、永不重复；
+    该客户发新内容(预览变了)会再报一次(台账协议见 _AMBIG_LEDGER 上方注释)。"""
+    key = _norm(nick) + "|" + _norm(preview)[:40]
     now = time.time()
     led = {}
     try:
@@ -331,7 +333,7 @@ def alert_ambiguous_nickname(nick: str, n_convs: int) -> None:
             led = json.load(f)
     except Exception:
         pass
-    if now - float(led.get(key, 0)) < _AMBIG_COOLDOWN_S:
+    if key in led:
         return
     try:
         _http("POST", "rpc/emit_captcha_alert", body={
@@ -485,7 +487,7 @@ def main():
             continue
         if hit.get("ambiguous"):
             print(f"  · {name[:16]:<16} | 同昵称歧义({hit.get('conv_count', 2)} 会话) → 不自动挂靠, 转人工")
-            alert_ambiguous_nickname(name, hit.get("conv_count", 2))
+            alert_ambiguous_nickname(name, hit.get("conv_count", 2), preview)
             continue
         if classify(preview, hit) == "no_reply":
             no_reply += 1
