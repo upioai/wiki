@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>视频解构工具调研 · 2026-07-10</title>
+<style>
+  :root {
+    --ground: #F2F5F6;
+    --surface: #FFFFFF;
+    --ink: #1D262B;
+    --muted: #5A6B72;
+    --accent: #0E7C86;
+    --accent-soft: #E1EFF1;
+    --line: #D8E0E2;
+    --good: #2E7D46;
+    --good-soft: #E3F0E7;
+    --bad: #B4452F;
+    --bad-soft: #F5E7E2;
+    --warn: #8A6D1F;
+    --warn-soft: #F3EDDA;
+    --mono: "JetBrains Mono", Consolas, "Courier New", monospace;
+    --sans: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #12181B; --surface: #1A2226; --ink: #E6EDEF; --muted: #93A5AC;
+      --accent: #4FC6D0; --accent-soft: #16333A; --line: #2A363B;
+      --good: #6FBF8A; --good-soft: #1C3324; --bad: #E08A6F; --bad-soft: #3A241C;
+      --warn: #D4B95E; --warn-soft: #35301C;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #12181B; --surface: #1A2226; --ink: #E6EDEF; --muted: #93A5AC;
+    --accent: #4FC6D0; --accent-soft: #16333A; --line: #2A363B;
+    --good: #6FBF8A; --good-soft: #1C3324; --bad: #E08A6F; --bad-soft: #3A241C;
+    --warn: #D4B95E; --warn-soft: #35301C;
+  }
+  :root[data-theme="light"] {
+    --ground: #F2F5F6; --surface: #FFFFFF; --ink: #1D262B; --muted: #5A6B72;
+    --accent: #0E7C86; --accent-soft: #E1EFF1; --line: #D8E0E2;
+    --good: #2E7D46; --good-soft: #E3F0E7; --bad: #B4452F; --bad-soft: #F5E7E2;
+    --warn: #8A6D1F; --warn-soft: #F3EDDA;
+  }
+
+  body { background: var(--ground); color: var(--ink); font-family: var(--sans); line-height: 1.75; margin: 0; font-size: 16px; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 0 24px 96px; }
+
+  header { padding-top: 56px; }
+  .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); margin: 0 0 14px; }
+  h1 { font-size: clamp(28px, 5vw, 40px); font-weight: 800; letter-spacing: 0.01em; line-height: 1.3; margin: 0 0 10px; text-wrap: balance; }
+  .sub { color: var(--muted); font-size: 17px; margin: 0 0 28px; max-width: 42em; }
+  .sub b { color: var(--ink); font-weight: 600; }
+
+  .ruler { display: flex; justify-content: space-between; border-top: 2px solid var(--ink); padding-top: 6px; margin-bottom: 56px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .ruler span { background: var(--ground); padding: 0 4px; }
+  .ruler span:first-child { padding-left: 0; }
+  .ruler span:last-child { padding-right: 0; }
+
+  section { margin-bottom: 68px; }
+  h2 { font-size: 22px; font-weight: 700; margin: 0 0 6px; display: flex; align-items: baseline; gap: 12px; }
+  h2 .tc { font-family: var(--mono); font-size: 12px; font-weight: 400; color: var(--accent); letter-spacing: 0.06em; white-space: nowrap; }
+  .lede { color: var(--muted); margin: 0 0 24px; max-width: 44em; }
+  .lede b, p b, li b, td b { color: var(--ink); font-weight: 600; }
+
+  /* tables */
+  .tablewrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; background: var(--surface); border: 1px solid var(--line); font-size: 14.5px; }
+  th, td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; font-family: var(--mono); font-weight: 500; color: var(--muted); background: color-mix(in srgb, var(--surface) 60%, var(--ground)); white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  td.env { white-space: nowrap; font-weight: 600; }
+  td.pick { font-weight: 600; color: var(--accent); white-space: nowrap; }
+
+  tr.win td { background: var(--accent-soft); }
+  tr.win td:first-child { border-left: 3px solid var(--accent); font-weight: 700; }
+  .steptable { margin-bottom: 30px; }
+  .steptable h3 { margin: 0 0 4px; font-size: 16.5px; font-weight: 700; }
+  .steptable .why { font-size: 13.5px; color: var(--muted); margin: 6px 0 0; max-width: 46em; }
+  .steptable .why b { color: var(--ink); }
+
+  .pill { font-size: 12px; font-weight: 600; border-radius: 999px; padding: 3px 12px; white-space: nowrap; }
+  .pill.use  { background: var(--good-soft); color: var(--good); }
+  .pill.test { background: var(--warn-soft); color: var(--warn); }
+  .pill.drop { background: var(--bad-soft); color: var(--bad); }
+  .pill.own  { background: var(--accent-soft); color: var(--accent); }
+
+  /* verdict banner */
+  .verdict { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 4px; padding: 22px 26px; margin-bottom: 18px; }
+  .verdict p { margin: 0; }
+
+  /* group blocks */
+  .group { margin-top: 26px; }
+  .group-title { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+  .group-title h3 { margin: 0; font-size: 16.5px; font-weight: 700; }
+  .group-title .cnt { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .tool-row { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 14px 20px; margin-bottom: 10px; }
+  .tool-row .head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; margin-bottom: 4px; }
+  .tool-row .head b { font-size: 15.5px; }
+  .tool-row .head .meta { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+  .tool-row p { margin: 0; font-size: 14px; color: var(--muted); }
+  .tool-row p b { color: var(--ink); }
+
+  code { font-family: var(--mono); font-size: 0.88em; background: var(--accent-soft); color: var(--ink); border-radius: 3px; padding: 1px 6px; }
+
+  .callout { background: var(--accent-soft); border-radius: 4px; padding: 16px 20px; margin: 16px 0 4px; font-size: 14.5px; }
+  ul.clean { margin: 8px 0; padding-left: 20px; }
+  ul.clean li { margin-bottom: 7px; }
+
+  .sources { font-size: 14px; color: var(--muted); }
+  .sources ul { margin: 0; padding-left: 20px; }
+  .sources li { margin-bottom: 6px; }
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+
+  footer { margin-top: 72px; border-top: 1px solid var(--line); padding-top: 16px; font-family: var(--mono); font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">调研报告 · 已定案 · 2026-07-10 · 夏夏 × Claude</p>
+    <h1>视频解构工具调研<br>视频 → 分镜文字稿 + 解说词文字稿</h1>
+    <p class="sub">调研起点是《ai 洗稿.pdf》的工具推荐；经过工具核实、本机实测、盲测验收三轮，<b>方案已定案</b>。本页回答一个问题：<b>每个环节到底用什么、为什么，以及哪些查过但不用</b>。全流程的动手演示（真实抽帧图、实测数据）在姊妹页：<a href="https://claude.ai/code/artifact/4602a6aa-1898-46a6-ac85-ef126173eb62">流水线全流程演示 →</a></p>
+    <div class="ruler">
+      <span>00:00</span><span>00:15</span><span>00:30</span><span>00:45</span><span>01:00</span>
+    </div>
+  </header>
+
+  <section>
+    <h2><span class="tc">定案</span>最终方案：每个环节用什么（一张表说清）</h2>
+    <div class="verdict">
+      <p><b>总原则：不买重型 SaaS、不从零造轮子。</b>解构 = 取片 → 抽帧 → 拿文字 → 判运镜 → 汇总 → 质检 六个环节，每个环节挑一个「便宜、本机能跑、对中文准」的现成积木，Claude 负责粘合与汇总。全流程已在真实视频上端到端跑通，单条约 3 分钟、API 花费 0 元。</p>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <tr><th>环节</th><th>定案工具</th><th>费用</th><th>淘汰/替补了谁</th></tr>
+        <tr><td class="env">① 取片</td><td class="pick">dewm 去水印（自家）</td><td><span class="pill own">已有</span></td><td>不依赖 yt-dlp 对抖音的支持</td></tr>
+        <tr><td class="env">② 切镜头抽帧</td><td class="pick">TransNetV2 切镜头<br><span style="font-weight:400;font-size:13px;color:var(--muted)">+ ffmpeg 抽帧（7/10 晚换装）</span></td><td><span class="pill use">免费</span></td><td><b>替换 ffmpeg 场景检测</b>：同片实测纠正 8+ 处边界、找回 2 个漏掉的镜头；淘汰 TwelveLabs（付费云索引）</td></tr>
+        <tr><td class="env">③ 拿文字·字幕轨</td><td class="pick">RapidOCR + PP-OCRv5 mobile 默认<br><span style="font-weight:400;font-size:13px;color:var(--muted)">（--ocr-server 按需升 server 档）</span></td><td><span class="pill use">免费</span></td><td>mobile 3 分钟出稿，形近字滑笔全被语音轨互校兜住 + 噪声词过滤；抠表格/小字才升 server（39 分钟）</td></tr>
+        <tr><td class="env">③ 拿文字·语音轨</td><td class="pick">SenseVoice（阿里开源）</td><td><span class="pill use">免费</span></td><td><b>淘汰 whisper-small</b>：同片实测 11 处听错 vs 2 处</td></tr>
+        <tr><td class="env">④ 判运镜</td><td class="pick">1fps 相邻帧对比 + Claude</td><td><span class="pill use">免费</span></td><td>ShotVL 专项模型留作升级项（批量后不准再上）</td></tr>
+        <tr><td class="env">⑤ 汇总出稿</td><td class="pick">Claude 七要素模板 + JSON</td><td><span class="pill test">会话额度</span></td><td>产出：风格参数 + 32 镜分镜表 + 解说词 + pipeline_config.json</td></tr>
+        <tr><td class="env">⑥ 质检</td><td class="pick">反向重建盲测</td><td><span class="pill test">会话额度</span></td><td>没看过原片的 agent 盲写重拍脚本，缺口自动暴露</td></tr>
+      </table>
+    </div>
+    <p class="callout"><b>验收结论（2026-07-10 实测）：</b>92 秒真实视频跑完全流程，盲测重拍脚本与原片<b>零矛盾</b>；16 条信息缺口中 10 条用帧证据回填，剩 6 条属于画面外信息（字体名/特效模板/BGM），任何工具都拿不到。<b>格式已定型，并已于 07-11 包成团队 skill <code>douyin-deconstruct</code> 上线。</b></p>
+  </section>
+
+  <section>
+    <h2><span class="tc">对比</span>逐环节候选对比：为什么当前选择是质量×性价比最优</h2>
+    <p class="lede">「视频解构」= 把一条视频里三种信息（画面、文字、声音）各自榨干再合并，所以拆成六个环节。每个环节把调研过的候选摆在一起比——<b>高亮行 = 当前选择</b>。选型标准：质量优先，但为可忽略的质量差距付出数量级的成本不干。每一步的输入输出和真实产物截图见<a href="https://claude.ai/code/artifact/4602a6aa-1898-46a6-ac85-ef126173eb62">演示页</a>。</p>
+
+    <div class="steptable">
+      <h3>① 取片：链接 → 无水印 mp4</h3>
+      <div class="tablewrap">
+        <table>
+          <tr><th>候选</th><th>质量</th><th>成本 · 速度</th><th>判定</th></tr>
+          <tr class="win"><td>dewm（自家服务）✓</td><td>无水印原片，7 月批量验证过</td><td>0 元 · 秒级</td><td>已有基建，直接用</td></tr>
+          <tr><td>yt-dlp</td><td>对抖音支持时好时坏</td><td>免费</td><td>不依赖它，避免脆弱环节</td></tr>
+          <tr><td>第三方去水印 API</td><td>不稳定</td><td>付费，数据过第三方</td><td>没必要</td></tr>
+        </table>
+      </div>
+      <p class="why"><b>为什么最优：</b>自家服务免费秒级且已被批量验证，没有比它更优的选项存在。</p>
+    </div>
+
+    <div class="steptable">
+      <h3>② 切镜头：找准每个镜头的起止点</h3>
+      <div class="tablewrap">
+        <table>
+          <tr><th>候选</th><th>质量（切分准确率）</th><th>成本 · 速度</th><th>判定</th></tr>
+          <tr class="win"><td>TransNetV2 ✓</td><td><b>87%</b>（公开基准最高）；同片实测比 ffmpeg 多找回 2 镜、纠正 8+ 边界</td><td>免费 · 92s 视频 CPU 1.5 分钟</td><td><b>质量榜首恰好免费，直接选</b></td></tr>
+          <tr><td>PySceneDetect</td><td>65.5%</td><td>免费 · 更快</td><td>准确率差一档</td></tr>
+          <tr><td>ffmpeg 场景阈值（v1 曾用）</td><td>更粗（实测漏 2 镜、8 处边界偏移）</td><td>免费 · 秒级</td><td>已被实测淘汰，留作兜底</td></tr>
+          <tr><td>TwelveLabs（云端）</td><td>好，但为检索场景设计</td><td>$0.042/分钟起 + 视频出海</td><td>付费买不到增量质量</td></tr>
+        </table>
+      </div>
+      <p class="why"><b>为什么最优：</b>这个环节质量第一名（TransNetV2）本身就是免费开源的小模型，质量和性价比不冲突，唯一代价是 1.5 分钟计算时间。漏镜头是解构最致命错误，这里值得用最好的。</p>
+    </div>
+
+    <div class="steptable">
+      <h3>③a 字幕轨：抠画面里的烧录字幕（口播稿的标准答案）</h3>
+      <div class="tablewrap">
+        <table>
+          <tr><th>候选</th><th>质量（同片 184 张实测）</th><th>成本 · 速度</th><th>判定</th></tr>
+          <tr class="win"><td>PP-OCRv5 mobile 全家桶 ✓ 默认</td><td>装修专有名词全对；约 10 处形近字滑笔 + 1 行漏识，<b>全部被语音轨互校修回，终稿残错 0</b>；背景板杂词由噪声过滤器（形近变体聚类 + 出现率阈值）剔除</td><td>免费 · <b>182 秒</b></td><td><b>互校兜底后质量与 server 档终稿等同，快 13 倍</b></td></tr>
+          <tr><td>PP-OCRv5 server（--ocr-server 升级档）</td><td>单轨即残错 0（修复旧默认全部 4 处硬伤）</td><td>免费 · 39 分钟（此前按中途日志误报 13 分钟，已实测更正）</td><td>抠表格/画面小字、无语音可互校时才开</td></tr>
+          <tr><td>混搭（mobile 检测 + server 认字，曾试）</td><td>与金标准漏 96 行/多 97 行，直接崩</td><td>免费 · 21 分钟</td><td>实测淘汰：两模型框位不兼容</td></tr>
+          <tr><td>相邻帧哈希去重再 OCR（曾试）</td><td>质量不变</td><td>只省 16%（动态亮背景打穿哈希）</td><td>实测无效，已从代码移除</td></tr>
+          <tr><td>RapidOCR 旧默认模型（v1 曾用）</td><td>残错 4 处（夏的闹心/等于自装等）</td><td>免费 · 1 分钟</td><td>快但错，被实测替换</td></tr>
+          <tr><td>PP-OCRv6（2026-06 新出）</td><td>比 v5 server 再 +5%</td><td>免费 · 同框架换模型文件</td><td>平滑升级项，稳定后一行配置切换</td></tr>
+          <tr><td>大模型逐帧 OCR（Qwen-VL 等）</td><td>最强（含排版理解）</td><td>按帧烧 token，一条视频几块钱</td><td>为最后一点提升付百倍成本，不值</td></tr>
+        </table>
+      </div>
+      <p class="why"><b>为什么最优：</b>关键洞察是「OCR 单轨不需要做到满分」——它后面还有语音轨互校这道保险，mobile 档的形近字滑笔恰好是互校最擅长修的错型。同片 A/B 实测：mobile+互校的终稿和 server 档终稿完全等同，但只花 1/13 的时间。server 档保留为 <code>--ocr-server</code> 升级开关，专攻表格/画面小字这类语音兜不住的场景。</p>
+    </div>
+
+    <div class="steptable">
+      <h3>③b 语音轨：音频 → 带时间戳文字（与字幕轨互校）</h3>
+      <div class="tablewrap">
+        <table>
+          <tr><th>候选</th><th>质量（中文字错率 CER）</th><th>成本 · 速度</th><th>判定</th></tr>
+          <tr class="win"><td>SenseVoice ✓</td><td>7.81%；同片实测仅 2 处小错，<b>双轨互校后残错 0</b></td><td>免费 · 92s 音频 CPU 11 秒</td><td><b>互校后到顶，更强模型无边际收益</b></td></tr>
+          <tr><td>whisper-small（v1 曾用）</td><td>~20%；实测 11 处听错</td><td>免费</td><td>被同片实测淘汰</td></tr>
+          <tr><td>FireRedASR-LLM 8.3B</td><td><b>3.05%（开源榜首）</b></td><td>免费但需 NVIDIA GPU / 17GB+ 内存，本机与 Mac Air 均跑不动</td><td>质量王但跑不了；且互校后收益≈0</td></tr>
+          <tr><td>FireRedASR-AED 1.1B</td><td>3.18%</td><td>免费 · CPU 可跑但慢</td><td>无字幕视频场景的第一预案</td></tr>
+          <tr><td>Qwen3-ASR / 通义听悟 API</td><td>强（尤其中英混说）</td><td>按量付费 · 国内直连</td><td>无字幕视频批量时与 AED 版对决</td></tr>
+        </table>
+      </div>
+      <p class="why"><b>为什么最优：</b>关键在「双轨」——字幕轨已是作者手写的标准答案，语音轨只负责补缺和互校，7.81% 的 CER 在互校后残错已经是 0，换 3% 的模型买不到任何可见改善。真正的分水岭是无字幕视频（单轨裸奔），那是 AED 版和 API 的出场条件，已列入备选预案。</p>
+    </div>
+
+    <div class="steptable">
+      <h3>④ 判运镜：固定/手持/推近/焦点变化</h3>
+      <div class="tablewrap">
+        <table>
+          <tr><th>候选</th><th>质量</th><th>成本 · 速度</th><th>判定</th></tr>
+          <tr class="win"><td>相邻帧对比 + Claude ✓</td><td>判 5 类运镜，盲测重建 0 矛盾</td><td>会话额度内 · 即时</td><td><b>行业天花板低，简单方法已够格</b></td></tr>
+          <tr><td>ShotVL-3B（专项模型）</td><td>8 维镜头语言，但全行业该基准最高不到 60%</td><td>免费 · 本机 CPU 慢到不实用</td><td>生成端要焦段/光型参数时再上</td></tr>
+          <tr><td>光流法（RAFT 等）</td><td>只擅长平移类运动</td><td>工程量大</td><td>投入产出不成比例</td></tr>
+        </table>
+      </div>
+      <p class="why"><b>为什么最优：</b>镜头语言识别全行业都不及格（最强模型 &lt;60%），此时砸重工具买不来质量，简单方法+盲测验证反而是性价比顶点。免费微调空间还有：对比帧加密到 2fps。</p>
+    </div>
+
+    <div class="steptable">
+      <h3>⑤ 看图汇总：帧+文字 → 七要素分镜稿 + JSON</h3>
+      <div class="tablewrap">
+        <table>
+          <tr><th>候选</th><th>质量</th><th>成本 · 速度</th><th>判定</th></tr>
+          <tr class="win"><td>Claude（本会话）✓</td><td>多模态第一梯队；盲测验证出稿可直接开拍</td><td>会话额度内，零增量 API 费 · 粒度完全可控</td><td><b>质量瓶颈在喂料密度不在模型</b></td></tr>
+          <tr><td>Qwen3-VL / GLM-4.6V 整段吞</td><td>能力强，镜头切分粒度待验</td><td>便宜 API · 国内直连</td><td>批量时 A/B，赢了可把三步压一步</td></tr>
+          <tr><td>Gemini 2.5 视频理解</td><td>同级</td><td>需代理 + 新开 Google key</td><td>国产可平替，不引入</td></tr>
+        </table>
+      </div>
+      <p class="why"><b>为什么最优：</b>汇总模型本身已是第一梯队，提质量的正确姿势是加钱调「喂料档位」（帧数 100→不设上限、分辨率 512→1024px，重点视频单条多花一两块），而不是换模型。</p>
+    </div>
+
+    <div class="steptable">
+      <h3>⑥ 质检：证明文字稿够「照着重拍」</h3>
+      <div class="tablewrap">
+        <table>
+          <tr><th>候选</th><th>质量</th><th>成本 · 速度</th><th>判定</th></tr>
+          <tr class="win"><td>反向重建盲测（单 agent）✓</td><td>实测揪出 16 条信息缺口、验证 0 矛盾</td><td>会话额度 · 每条约 3 分钟</td><td><b>已证明有效；批量后按 1/10 抽样跑</b></td></tr>
+          <tr><td>多裁判盲测（2-3 独立互评）</td><td>更稳</td><td>3 倍会话成本</td><td>重点对标视频才值得</td></tr>
+          <tr><td>纯人工对照</td><td>最准</td><td>最贵最慢</td><td>抽样复核用，不做常规流程</td></tr>
+        </table>
+      </div>
+      <p class="why"><b>为什么最优：</b>质检的目的是防错不是追分。单 agent 盲测已证明能暴露缺口，批量后抽样跑住成本，重点视频再升多裁判——按风险分层花钱。</p>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="tc">工具</span>工具全景：采用 / 备选 / 淘汰</h2>
+    <p class="lede">调研共覆盖 14 个工具/方案，按最终去向分三组。只想知道用什么的看上面定案表就够了，这一节是「为什么」的存档。</p>
+
+    <div class="group">
+      <div class="group-title"><span class="pill use">✓ 已采用</span><h3>实测通过，进入流水线</h3><span class="cnt">7</span></div>
+      <div class="tool-row">
+        <div class="head"><b>TransNetV2（切镜头）</b><span class="meta">开源深度模型 · ACM MM · 7/10 晚按「质量×性价比」审查后换装</span></div>
+        <p>专门做切镜头检测的模型，公开测试 87% 准确率（PySceneDetect 65.5%）。同片对比 ffmpeg 场景检测：检出 34 个物理镜头，<b>纠正 8+ 处边界（三处有字幕帧佐证）、找回 2 个漏掉的镜头</b>（0.1s 封面静帧、2.4s 短口播），还正确合并了两处被误拆的同机位口播。92 秒视频 CPU 跑 1.5 分钟，免费。</p>
+      </div>
+      <div class="tool-row">
+        <div class="head"><b>claude-video</b><span class="meta">bradautomates · 开源 · GitHub 5400+ 星</span></div>
+        <p>把「下载→抽帧→转写」打包成一条命令的 Claude Code 插件，保留做流程骨架与抽帧执行；切镜头判定已由 TransNetV2 接管，转写走本地双轨（不用它内置的付费 API）。<b>实测坑：中文 Windows 需设 <code>PYTHONUTF8=1</code></b>，否则调 ffmpeg 时 GBK 解码崩溃（已解决）。</p>
+      </div>
+      <div class="tool-row">
+        <div class="head"><b>RapidOCR + PP-OCRv5（硬字幕轨）</b><span class="meta">开源 · 本机跑 · 7/11 定档：mobile 默认 + server 按需</span></div>
+        <p>把每帧画面的字幕区裁出来识字，实测 92 秒视频抽出 79 条带时间戳字幕，救回语音整句漏掉的「第二、瓦工进场之前把地漏准备好」。同片 A/B 后定档：<b>mobile 模型默认（184 张 182 秒），形近字滑笔全靠语音轨互校修回，终稿残错 0</b>；要精抠表格/画面小字再开 <code>--ocr-server</code>（残错 0 但 39 分钟）。</p>
+      </div>
+      <div class="tool-row">
+        <div class="head"><b>SenseVoice（语音轨）</b><span class="meta">阿里 FunASR · 开源 · ModelScope 国内下载</span></div>
+        <p>中文字错率约 whisper 的 1/5。<b>同片对决：whisper-small 听错 11 处专有名词（止逆阀→纸捏法），SenseVoice 只错 2 处</b>；92 秒音频 CPU 转写 11 秒。模型 936MB 走国内镜像一分半下完。</p>
+      </div>
+      <div class="tool-row">
+        <div class="head"><b>ffmpeg + dewm + Claude</b><span class="meta">基建三件套</span></div>
+        <p>ffmpeg 负责切镜头检测/抽帧/提音频（本机已装 8.1.2）；dewm 是自家去水印下载服务（抖音链接→无水印 mp4）；Claude 负责看帧判运镜、汇总七要素分镜稿、跑反向重建盲测。</p>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="group-title"><span class="pill test">🧪 备选实验</span><h3>现在不缺，是三种未来场景的预案</h3><span class="cnt">3</span></div>
+      <div class="tool-row">
+        <div class="head"><b>Qwen3-VL / GLM-4.6V 整段吞视频</b><span class="meta">阿里百炼 / 智谱 · 国内直连 API · 对应环节 ②④⑤</span></div>
+        <p><b>想替换谁</b>：把「ffmpeg 抽帧 → Claude 看图判运镜 → Claude 汇总」三段压成一步 API（原生视频输入+时序定位；GLM-4.6V 输入 1 元/百万 token，Flash 版免费）。<b>验证什么</b>：同批 5 条不同类型视频直接出分镜稿，对比镜头切分漏不漏、时间戳准不准、运镜描述靠不靠谱，再算单条成本。<b>触发时机</b>：要批量跑（日几十条）时——三段式的维护成本才显出来；现在单条 3 分钟无痛点。</p>
+      </div>
+      <div class="tool-row">
+        <div class="head"><b>ShotVL（镜头语言专项模型）</b><span class="meta">Vchitect 开源 · NeurIPS 2025 · 对应环节 ④</span></div>
+        <p><b>想升级谁</b>：判运镜这一步。现在的「相邻帧找不同」能判固定/手持/推近/焦点变化，判不了焦段、光型、构图这些更细的导演参数；ShotVL 是唯一专训这 8 维的模型（但注意最强模型在该基准也不到 60% 准确率，全行业都难）。<b>验证什么</b>：抽 20-30 镜人工标注做标准答案，对比帧对比法 vs ShotVL 的标注准确率。<b>触发时机</b>：批量后抽查发现运镜标错率高，或下游生成环节真的要用焦段/光型参数。</p>
+      </div>
+      <div class="tool-row">
+        <div class="head"><b>Paraformer 热词版</b><span class="meta">FunASR 家族 · 带时间戳+热词定制 · 对应环节 ③语音轨</span></div>
+        <p><b>是谁的备胎</b>：SenseVoice。现在双轨互校基本零错的前提是视频有烧录字幕；碰到<b>无字幕视频</b>（纯实拍、口播不压字幕），语音变单轨裸奔，专有名词就可能错。<b>验证什么</b>：找一批无字幕视频，测 SenseVoice 单轨错误率还能不能接受；不行就换 Paraformer 并把「止逆阀」「前置过滤器」等词喂成热词再测。<b>触发时机</b>：无字幕视频类型占比变高时。</p>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="group-title"><span class="pill drop">✗ 已淘汰</span><h3>查过、想清楚了不用</h3><span class="cnt">5</span></div>
+      <div class="tool-row">
+        <div class="head"><b>TwelveLabs</b><span class="meta">PDF 推荐 · 付费云服务 $0.042/分钟起</span></div>
+        <p>强项是「几千小时视频库里搜片段」；我们是少量视频出文字稿，为此新开海外付费供应商不值。</p>
+      </div>
+      <div class="tool-row">
+        <div class="head"><b>whisper-small 本地转写</b><span class="meta">v1 曾用</span></div>
+        <p>中文同音字听错太多（11 处/92 秒），被 SenseVoice 同规格实测击败后替换。</p>
+      </div>
+      <div class="tool-row">
+        <div class="head"><b>Gemini 视频理解</b><span class="meta">Google · 整段吞视频</span></div>
+        <p>能力同 Qwen3-VL 一类，但需代理+新开 Google key；国产两家可平替，不引入。</p>
+      </div>
+      <div class="tool-row">
+        <div class="head"><b>通义听悟</b><span class="meta">阿里云 · 按时长付费</span></div>
+        <p>强在小时级长视频（课程/直播回放）；对 1-2 分钟短视频太重。将来解构直播切片再考虑。</p>
+      </div>
+      <div class="tool-row">
+        <div class="head"><b>一键拆解 SaaS（易元AI 等）</b><span class="meta">商用 · 贴链接出分镜表</span></div>
+        <p>黑盒、格式不可定制、数据过第三方。可注册试一条参考其输出格式，流水线不架在上面。</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="tc">验证</span>怎么确认方案靠谱：三轮验证都过了</h2>
+    <ul class="clean">
+      <li><b>工具核实</b>：PDF 推荐的工具逐个查实（都真实存在），并补查了 PDF 没提的国产方案。</li>
+      <li><b>本机实测</b>：灿哥聊装修 92 秒视频端到端跑通——36 帧场景检测、79 条 OCR 字幕、双轨互校零错解说词、32 镜七要素分镜稿。</li>
+      <li><b>盲测验收（反向重建测试）</b>：没看过原片的 agent 只凭文字稿写重拍脚本，与原片逐镜对照<b>零矛盾</b>；暴露的 16 条缺口回填 10 条，剩 6 条是画面外信息。</li>
+    </ul>
+    <p style="max-width:44em;">实测产物（帧图、对比表、真实分镜节选）都在<a href="https://claude.ai/code/artifact/4602a6aa-1898-46a6-ac85-ef126173eb62">演示页</a>；文件落在仓库 <code>抖音去水印/2026-07-06_案例源视频/</code> 下（解构文字稿 v2 + 反向重建脚本）。</p>
+  </section>
+
+  <section>
+    <h2><span class="tc">下一步</span>自建判断与路线</h2>
+    <ul class="clean">
+      <li><b>要不要自建独立 agent 工具？——要，但只是薄薄一层壳。</b>核心积木（抽帧/OCR/转写/看图）全是现成的，自建的价值只在把六步串成一条命令 + 固定输出格式。</li>
+      <li><b>已落地（2026-07-11）</b>：包成团队 skill <code>douyin-deconstruct</code>——对 Claude 说「解构这条视频 + 链接/本地路径」自动跑完六步出解构稿；默认档单条约 8 分钟（Mac 预计 3-5 分钟）、0 元 API。</li>
+      <li><b>再往后</b>：解构稿里的 pipeline_config.json 就是《ai 洗稿》PDF 后半段（配音→生图→生视频）的标准输入，两段流水线可以直接对接。</li>
+    </ul>
+  </section>
+
+  <section class="sources">
+    <h2><span class="tc">SRC</span>信息来源</h2>
+    <ul>
+      <li><a href="https://github.com/bradautomates/claude-video">claude-video</a> · <a href="https://www.twelvelabs.io/pricing">TwelveLabs 定价</a> · <a href="https://ai.google.dev/gemini-api/docs/video-understanding">Gemini 视频理解</a></li>
+      <li><a href="https://github.com/YaoFANGUK/video-subtitle-extractor">video-subtitle-extractor（硬字幕 OCR 方向）</a> · <a href="https://www.funasr.com/blog/which-funasr-model.html">FunASR 模型选型（SenseVoice/Paraformer）</a></li>
+      <li><a href="https://help.aliyun.com/zh/model-studio/vision">Qwen3-VL 文档</a> · <a href="https://docs.bigmodel.cn/cn/guide/models/vlm/glm-4.6v">GLM-4.6V 文档</a> · <a href="https://tingwu.aliyun.com/">通义听悟</a> · <a href="https://github.com/Vchitect/ShotBench">ShotBench/ShotVL</a></li>
+      <li>本仓实测产物：抖音去水印/2026-07-06_案例源视频/01_灿哥聊装修_解构文字稿_v2.md · 01_灿哥聊装修_反向重建脚本.md</li>
+    </ul>
+  </section>
+
+  <footer>
+    <span>AKKE · VIDEO DECONSTRUCT RESEARCH</span>
+    <span>2026-07-11 · REV G（OCR 定档：mobile 默认 + server 升级档，同片 A/B 实测数据）</span>
+  </footer>
+</div>
+
+</body>
+</html>
