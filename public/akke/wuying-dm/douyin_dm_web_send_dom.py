@@ -108,20 +108,33 @@ def _clear(page, box):
         pass
 
 
-def _verify_bubble(page, message: str) -> bool:
-    try:
-        texts = page.eval_on_selector_all(
-            '[data-e2e="msg-item-content"]', "els => els.slice(-8).map(e => (e.innerText||''))")
-    except Exception:
-        return False
+def _bubble_match(texts, message: str) -> bool:
+    """气泡文本列表 vs 文案的容错匹配(纯函数, 供单测)。三层, 任一命中即 True:
+    ① 整体命中: 文案完整出现在某一个气泡里(真发出的常态)。
+    ② 大段命中: 某气泡是文案的近乎完整片段(≥ max(8, 60%*len)) —— 门槛收紧防
+       "任意 ≥4 字旧气泡恰是子串"的假阳(2026-07-07 文哥号误报)。
+    ③ 拼装命中(2026-07-11 加, 治 13/13 unverified 假阴的主因): 抖音会把长文案
+       【自动拆成多段相邻气泡】(与换行无关, #835 归并治不了), 每段都够不到 60% →
+       ①②全 miss。把窗口内气泡按序拼接后找完整文案 —— 文案是几十字的唯一 LLM 产出,
+       跨无关气泡碰巧拼出全文的概率可忽略, 只认【完整包含】不认部分, 不增假阳面。"""
     m = _norm_cmp(message)  # 剥 emoji 再比(气泡 innerText 丢 emoji, 见 _norm_cmp 注释)
     if not m:
         return False
-    # 正向: 本文案整体出现在某气泡里(真发出的常态)。
-    # 反向: 抖音偶把长文案拆成多段气泡, 只当"气泡是本文案的近乎完整片段"才算 —— 门槛从
-    #   ≥4 收紧到 max(8, 60%*len), 堵住"任意 ≥4 字旧气泡恰是本文案子串"的假阳(2026-07-07 文哥号误报)。
+    normed = [_norm_cmp(t) for t in texts]
     thr = max(8, int(len(m) * 0.6))
-    return any((m in nt) or (nt in m and len(nt) >= thr) for nt in (_norm_cmp(t) for t in texts))
+    if any((m in nt) or (nt in m and len(nt) >= thr) for nt in normed):
+        return True
+    return m in "".join(normed)
+
+
+def _verify_bubble(page, message: str) -> bool:
+    try:
+        # 窗口 -8 → -12(2026-07-11): 长文案拆 3 段 + 客户同期来消息会把我方分段挤出 -8 窗。
+        texts = page.eval_on_selector_all(
+            '[data-e2e="msg-item-content"]', "els => els.slice(-12).map(e => (e.innerText||''))")
+    except Exception:
+        return False
+    return _bubble_match(texts, message)
 
 
 def _send_failed_marker(page) -> bool:

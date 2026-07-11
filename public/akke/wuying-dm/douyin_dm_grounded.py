@@ -1039,7 +1039,11 @@ def _verify_bubble(msg):
     2026-06-29：实测气泡渲染/VL 单次调用有时机竞态,同一条干净文案 ~半数被单次核对假阴性
     （气泡其实已在、第一次截图/读图没赶上）。改为【最多 3 次:miss 后等 1.5s 重新截图再核】,
     任一次命中即记 sent。retry 只补救"气泡在但没读到",全程无气泡仍判 unverified —— 不放松
-    真失败判定、不增加假阳性漏判。"""
+    真失败判定、不增加假阳性漏判。
+
+    2026-07-11（unverified 13/13 假阴根修之一）：问法从「最新一条」放宽到「最近三条里
+    任意一条」——抖音会把长文案自动拆成多段相邻气泡,拆分后【最新一条=后半段】不含
+    文案开头 16 字 → 旧问法必假阴。刚发几秒内最近三条只可能是本次产出,不增假阳面。"""
     snippet = (msg or '').strip()[:16]
     if not snippet:
         return True
@@ -1048,7 +1052,7 @@ def _verify_bubble(msg):
             p, _ = _shot('_bubble_check.png')
             d = _pjson(_vision(base64.b64encode(open(p, 'rb').read()).decode(),
                 '这是抖音PC私信聊天窗口截图。对话区里【右侧、我自己发出的那一排消息气泡】中,'
-                '最新一条是否包含这段文字：「%s」?只看右侧自己发的气泡,左侧对方发来的不算。'
+                '最近三条里是否有任意一条包含这段文字：「%s」?只看右侧自己发的气泡,左侧对方发来的不算。'
                 '只回严格JSON:{"bubble_found":true/false}' % snippet))
             if bool(d.get('bubble_found', False)):
                 if attempt > 0:
