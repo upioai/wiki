@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>解构复刻产线 · 动态图解 — upio.ai 知识分享</title>
+<meta name="description" content="一条高播放竞品视频链接进来，一条合规成片出去：解构 → 重写 → 生图 → 生视频 → 配音 → 成片的六工位产线动态图解，含三个人工卡口、重 roll 熔断、单条成本账与 M1-M3 落地路线。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700;800&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+
+<style>
+:root {
+  --bg: #0a0d14; --bg-elevated: #131720; --bg-deep: #1a1f2b;
+  --border: #232936; --border-strong: #2f3646;
+  --text: #e8eaef; --text-dim: #9ba3b4; --text-muted: #6b7384;
+  --accent:   #8b5cf6; --accent-soft:   rgba(139, 92, 246, 0.15);
+  --accent-2: #60a5fa; --accent-2-soft: rgba(96, 165, 250, 0.13);
+  --accent-3: #34d399; --accent-3-soft: rgba(52, 211, 153, 0.14);
+  --warning:  #fbbf24; --warning-soft:  rgba(251, 191, 36, 0.14);
+  --danger:   #f87171; --danger-soft:   rgba(248, 113, 113, 0.14);
+  --c-img: #8b5cf6; --c-vid: #0891b2; --c-etc: #d97706;
+  --font-display: 'Instrument Serif', 'Source Han Serif SC', Georgia, serif;
+  --font-ui:      'Inter Tight', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+  --T: 16s;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; padding: 0;
+  background: var(--bg); color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 15.5px; line-height: 1.7;
+  font-feature-settings: 'cv11', 'ss01', 'tnum';
+  -webkit-font-smoothing: antialiased;
+}
+.crumb-bar {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(10, 13, 20, 0.82);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border-bottom: 1px solid var(--border);
+}
+.crumb-inner {
+  max-width: 1040px; margin: 0 auto; padding: 11px 24px;
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--text-muted); letter-spacing: 0.04em;
+}
+.crumb-inner a { color: var(--text-dim); text-decoration: none; transition: color .2s; }
+.crumb-inner a:hover { color: var(--accent); }
+.crumb-inner .sep { margin: 0 8px; color: var(--border-strong); }
+.crumb-inner .cur { color: var(--text-dim); }
+
+.container { max-width: 1000px; margin: 0 auto; padding: 48px 24px 100px; }
+.prose { max-width: 860px; margin: 0 auto; }
+
+header.hero { padding: 4px 0 26px; }
+.tag {
+  display: inline-block; padding: 4px 12px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent);
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 18px;
+}
+h1 {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 46px; font-weight: 400; margin: 0 0 14px;
+  letter-spacing: -0.02em; line-height: 1.12;
+  background: linear-gradient(135deg, #f4f5f8 28%, var(--accent) 70%, var(--accent-2) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.subtitle { font-size: 16.5px; color: var(--text-dim); margin: 0 0 20px; max-width: 760px; line-height: 1.65; }
+.subtitle strong { color: var(--text); font-weight: 600; }
+.hero-meta { display: flex; gap: 22px; flex-wrap: wrap; font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); }
+.hero-meta strong { color: var(--text-dim); font-weight: 500; }
+
+.section-head { display: flex; gap: 20px; align-items: baseline; padding-top: 26px; margin-top: 46px; border-top: 1px solid var(--border); }
+.section-head .num { font-family: var(--font-mono); font-size: 12px; font-weight: 700; letter-spacing: .14em; color: var(--accent); flex-shrink: 0; padding-top: 14px; }
+.section-head .meta { flex: 1; }
+.section-head .lede { font-family: var(--font-display); font-style: italic; font-size: 26px; line-height: 1.3; color: var(--text); }
+.section-head .sub { font-size: 13.5px; color: var(--text-muted); margin-top: 4px; }
+section { margin-bottom: 18px; }
+section > p, .prose > p { margin: 14px 0; color: var(--text-dim); }
+section > p strong, .prose > p strong { color: var(--text); font-weight: 600; }
+h3 { font-size: 17px; font-weight: 600; color: var(--text); margin: 28px 0 10px; letter-spacing: -0.01em; }
+code { background: var(--bg-deep); padding: 1px 6px; border-radius: 4px; font-size: 0.86em; color: #c4b5fd; font-family: var(--font-mono); }
+a { color: var(--accent-2); text-decoration: none; transition: color .2s; }
+a:hover { color: var(--accent); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+
+/* ═══════════ 签名元素：产线总控动画 ═══════════ */
+.line-wrap { margin: 26px 0 8px; border: 1px solid var(--border-strong); border-radius: 14px; background: var(--bg-elevated); overflow-x: auto; }
+.line { min-width: 840px; padding: 0 0 18px; }
+.line-head {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  padding: 12px 20px; border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em; color: var(--text-muted);
+}
+.line-head .live { display: flex; align-items: center; gap: 7px; color: var(--accent-3); font-weight: 700; }
+.line-head .live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--accent-3); box-shadow: 0 0 8px var(--accent-3); animation: blink 1.6s ease-in-out infinite; }
+@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+
+.track { position: relative; padding: 96px 20px 14px; overflow: hidden; }
+.rail {
+  position: absolute; left: 3%; right: 3%; top: 64px; height: 2px;
+  background-image: linear-gradient(90deg, var(--border-strong) 0 9px, transparent 9px 16px);
+  background-size: 16px 2px;
+  animation: rail-run calc(var(--T) / 10) linear infinite;
+}
+@keyframes rail-run { to { background-position: -16px 0; } }
+
+.sts { position: relative; display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+.st {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
+  padding: 13px 10px 12px; text-align: center; position: relative;
+  animation: st-glow var(--T) linear infinite;
+}
+.st .no { font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; letter-spacing: .14em; color: var(--text-muted); display: block; margin-bottom: 3px; }
+.st h4 { margin: 0 0 3px; font-size: 14px; font-weight: 700; color: var(--text); }
+.st p { margin: 0; font-family: var(--font-mono); font-size: 10px; line-height: 1.6; color: var(--text-muted); }
+.st .role { display: inline-block; margin-top: 7px; font-family: var(--font-mono); font-size: 9.5px; padding: 2px 8px; border-radius: 999px; background: var(--bg-deep); border: 1px solid var(--border); color: var(--text-dim); }
+.st.human .role { background: var(--warning-soft); border-color: transparent; color: var(--warning); }
+.st.auto .role { background: var(--accent-3-soft); border-color: transparent; color: var(--accent-3); }
+@keyframes st-glow {
+  0%, 8%   { border-color: var(--accent); box-shadow: 0 0 22px rgba(139,92,246,.16); }
+  12%, 100% { border-color: var(--border); box-shadow: none; }
+}
+.st:nth-child(1) { animation-delay: 0s; }
+.st:nth-child(2) { animation-delay: calc(var(--T) * .11); }
+.st:nth-child(3) { animation-delay: calc(var(--T) * .20); }
+.st:nth-child(4) { animation-delay: calc(var(--T) * .31); }
+.st:nth-child(5) { animation-delay: calc(var(--T) * .50); }
+.st:nth-child(6) { animation-delay: calc(var(--T) * .61); }
+
+.chip {
+  position: absolute; top: 44px; left: 8.33%; z-index: 5;
+  transform: translate(-50%, 0);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #0a0d14; font-family: var(--font-mono); font-size: 10px; font-weight: 800;
+  letter-spacing: .05em; padding: 6px 10px; border-radius: 8px;
+  box-shadow: 0 4px 18px rgba(139,92,246,.4);
+  animation: chip-run var(--T) ease-in-out infinite;
+  white-space: nowrap;
+}
+@keyframes chip-run {
+  0%   { left: 8.33%;  opacity: 1; transform: translate(-50%, 0); }
+  8%   { left: 8.33%; }
+  11%  { left: 25%; }
+  17%  { left: 25%; }
+  20%  { left: 41.67%; }
+  28%  { left: 41.67%; }
+  31%  { left: 58.33%; }
+  35%  { left: 58.33%; }
+  37%  { left: 50%; }
+  40%  { left: 58.33%; }
+  47%  { left: 58.33%; }
+  50%  { left: 75%; }
+  58%  { left: 75%; }
+  61%  { left: 91.67%; }
+  71%  { left: 91.67%; opacity: 1; transform: translate(-50%, 0); }
+  75%  { left: 91.67%; opacity: 0; transform: translate(-50%, -30px); }
+  76%  { left: 8.33%;  opacity: 0; transform: translate(-50%, 0); }
+  96%  { left: 8.33%;  opacity: 0; }
+  100% { left: 8.33%;  opacity: 1; }
+}
+
+.gate {
+  position: absolute; top: 64px; z-index: 4; transform: translate(-50%, -50%);
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--bg-deep); border: 2px solid var(--warning);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; color: var(--warning); font-weight: 800; font-family: var(--font-mono);
+  animation: gate-flash var(--T) ease-in-out infinite;
+}
+.gate small { position: absolute; top: -32px; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 9px; letter-spacing: .06em; color: var(--text-muted); font-weight: 500; }
+.gate.g1 { left: 33.6%; animation-delay: calc(var(--T) * .17); }
+.gate.g2 { left: 50.2%; animation-delay: calc(var(--T) * .28); }
+.gate.g3 { left: 96%; animation-delay: calc(var(--T) * .70); }
+.gate.g3 small { left: auto; right: -6px; transform: none; }
+@keyframes gate-flash {
+  0%, 2% { background: var(--warning); color: #0a0d14; transform: translate(-50%,-50%) scale(1.25); box-shadow: 0 0 20px rgba(251,191,36,.5); }
+  7%, 100% { background: var(--bg-deep); color: var(--warning); transform: translate(-50%,-50%) scale(1); box-shadow: none; }
+}
+
+.loop {
+  position: absolute; left: 55%; top: 8px; width: 110px; height: 30px;
+  border: 1.5px dashed var(--danger); border-bottom: none;
+  border-radius: 60px 60px 0 0; opacity: .6;
+  animation: loop-pulse var(--T) linear infinite;
+}
+.loop small { position: absolute; top: 5px; left: 50%; transform: translateX(-50%); white-space: nowrap; font-family: var(--font-mono); font-size: 9px; color: var(--danger); letter-spacing: .05em; }
+@keyframes loop-pulse { 0%, 33% { opacity: .3; } 36%, 45% { opacity: 1; } 50%, 100% { opacity: .3; } }
+
+.fuse {
+  display: block; width: max-content; margin: 12px auto 0;
+  font-family: var(--font-mono); font-size: 9.5px; color: var(--text-muted);
+  border: 1px dashed var(--border-strong); border-radius: 6px; padding: 2px 10px;
+  background: var(--bg); white-space: nowrap;
+}
+.fuse b { color: var(--danger); font-weight: 700; }
+
+.meterbar { display: flex; align-items: center; gap: 14px; margin: 34px 20px 0; }
+.meterbar .ml { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); white-space: nowrap; letter-spacing: .06em; }
+.meter { flex: 1; height: 10px; border-radius: 5px; background: var(--bg-deep); overflow: hidden; }
+.meter i { display: block; height: 100%; width: 0; border-radius: 5px; background: linear-gradient(90deg, var(--c-img), var(--c-vid)); animation: meter-run var(--T) ease-in-out infinite; }
+@keyframes meter-run {
+  0%, 20% { width: 0; }
+  28% { width: 24%; }
+  31% { width: 24%; }
+  47% { width: 92%; }
+  50% { width: 92%; }
+  58% { width: 95%; }
+  75% { width: 95%; }
+  78%, 100% { width: 0; }
+}
+.meterbar .mv { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-dim); white-space: nowrap; }
+
+.zones { display: grid; grid-template-columns: 2fr 3fr 1fr; gap: 10px; margin: 14px 20px 0; }
+.zone { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .1em; color: var(--text-muted); text-align: center; padding-top: 6px; border-top: 2px solid var(--border-strong); }
+.zone.z1 { border-color: var(--accent-3); color: var(--accent-3); }
+.zone.z2 { border-color: var(--c-vid); color: #22b8d4; }
+.zone.z3 { border-color: var(--warning); color: var(--warning); }
+
+.swipe-hint { display: none; font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); text-align: center; margin: 8px 0 0; }
+@media (max-width: 880px) { .swipe-hint { display: block; } }
+
+.legend-row { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 12px 0 0; font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); }
+.legend-row span { display: inline-flex; align-items: center; gap: 6px; }
+.legend-row i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+
+/* ═══════════ 工位卡片 ═══════════ */
+.stcards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 20px 0; }
+@media (max-width: 720px) { .stcards { grid-template-columns: 1fr; } }
+.stcard { border: 1px solid var(--border); border-radius: 12px; background: var(--bg-elevated); padding: 16px 18px 13px; }
+.stcard .top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+.stcard .top h4 { margin: 0; font-size: 15.5px; font-weight: 700; color: var(--text); }
+.stcard .top .who { font-family: var(--font-mono); font-size: 10px; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.stcard .top .who.h { background: var(--warning-soft); color: var(--warning); }
+.stcard .top .who.a { background: var(--accent-3-soft); color: var(--accent-3); }
+.stcard .flow { font-size: 13px; color: var(--text-dim); margin: 0 0 10px; line-height: 1.65; }
+.stcard .flow b { color: var(--text); font-weight: 600; }
+.stcard .foot { display: flex; justify-content: space-between; gap: 10px; border-top: 1px solid var(--border); padding-top: 9px; font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); flex-wrap: wrap; }
+.stcard .foot b { color: var(--text-dim); font-weight: 500; }
+
+/* ═══════════ 卡口 ═══════════ */
+.gates3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 20px 0; }
+@media (max-width: 720px) { .gates3 { grid-template-columns: 1fr; } }
+.gatecard { border: 1px solid var(--border); border-left: 3px solid var(--warning); border-radius: 12px; background: var(--bg-elevated); padding: 15px 17px; }
+.gatecard .gno { font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: .12em; color: var(--warning); }
+.gatecard h4 { margin: 5px 0 6px; font-size: 15px; font-weight: 700; color: var(--text); }
+.gatecard p { margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.65; }
+
+.callout { border-radius: 10px; padding: 14px 18px; margin: 16px 0; font-size: 14px; line-height: 1.7; }
+.callout.info    { background: var(--accent-2-soft); border-left: 3px solid var(--accent-2); color: var(--text-dim); }
+.callout.info strong    { color: var(--accent-2); }
+.callout.purple  { background: var(--accent-soft); border-left: 3px solid var(--accent); color: var(--text-dim); }
+.callout.purple strong  { color: var(--accent); }
+.callout.green   { background: var(--accent-3-soft); border-left: 3px solid var(--accent-3); color: var(--text-dim); }
+.callout.green strong   { color: var(--accent-3); }
+.callout.danger  { background: var(--danger-soft); border-left: 3px solid var(--danger); color: var(--text-dim); }
+.callout.danger strong  { color: var(--danger); }
+
+/* ═══════════ 成本图表 ═══════════ */
+.costbox { border: 1px solid var(--border); border-radius: 12px; background: var(--bg-elevated); padding: 20px; margin: 20px 0; }
+.costbox .row { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.costbox .big { font-family: var(--font-mono); font-size: 34px; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
+.costbox .big small { font-size: 13px; font-weight: 500; color: var(--text-muted); margin-left: 8px; letter-spacing: 0; }
+.stack { display: flex; height: 26px; border-radius: 7px; overflow: hidden; background: var(--bg-deep); }
+.stack i { display: block; height: 100%; border-right: 2px solid var(--bg-elevated); }
+.stack i:last-child { border-right: none; }
+.stack .s1 { background: var(--c-img); width: 0; transition: width 1s cubic-bezier(.22,.8,.3,1); }
+.stack .s2 { background: var(--c-vid); width: 0; transition: width 1s cubic-bezier(.22,.8,.3,1) .15s; }
+.stack .s3 { background: var(--c-etc); width: 0; transition: width 1s cubic-bezier(.22,.8,.3,1) .3s; }
+.reveal.in-view .stack .s1 { width: 24%; }
+.reveal.in-view .stack .s2 { width: 73%; }
+.reveal.in-view .stack .s3 { width: 3%; }
+.costbox .cap { display: flex; gap: 8px 22px; flex-wrap: wrap; margin-top: 12px; font-size: 12.5px; color: var(--text-dim); }
+.costbox .cap span { display: inline-flex; align-items: center; gap: 7px; }
+.costbox .cap i { width: 10px; height: 10px; border-radius: 3px; }
+.costbox .cap b { color: var(--text); font-weight: 600; font-family: var(--font-mono); font-size: 12px; }
+.chart-note { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); margin-top: 12px; line-height: 1.6; }
+
+.dtable-wrap { overflow-x: auto; margin: 18px 0; border: 1px solid var(--border); border-radius: 12px; }
+.dtable { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 560px; }
+.dtable th, .dtable td { text-align: left; padding: 11px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.dtable tr:last-child td { border-bottom: none; }
+.dtable th { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); font-weight: 700; background: var(--bg-deep); }
+.dtable td { color: var(--text-dim); line-height: 1.55; }
+.dtable td.feat { color: var(--text); font-weight: 600; white-space: nowrap; }
+.dtable tbody tr:hover td { background: var(--bg-elevated); }
+
+/* ═══════════ M1-M3 ═══════════ */
+.miles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; margin: 22px 0; position: relative; }
+@media (max-width: 720px) { .miles { grid-template-columns: 1fr; } }
+.mile { padding: 18px 18px 15px; border: 1px solid var(--border); background: var(--bg-elevated); position: relative; }
+.mile:first-child { border-radius: 12px 0 0 12px; }
+.mile:last-child { border-radius: 0 12px 12px 0; }
+.mile + .mile { border-left: none; }
+@media (max-width: 720px) {
+  .mile:first-child { border-radius: 12px 12px 0 0; }
+  .mile:last-child { border-radius: 0 0 12px 12px; }
+  .mile + .mile { border-left: 1px solid var(--border); border-top: none; }
+}
+.mile .mno { font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: .14em; color: var(--text-muted); }
+.mile h4 { margin: 5px 0 6px; font-size: 15px; font-weight: 700; color: var(--text); }
+.mile p { margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.65; }
+.mile.now { border-color: var(--accent); box-shadow: inset 0 2px 0 var(--accent); }
+.mile.now .mno { color: var(--accent); }
+.mile.now .mno::after { content: " · 当前"; }
+
+.checklist { list-style: none; margin: 18px 0 0; padding: 0; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.checklist li { display: flex; gap: 12px; padding: 13px 18px; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--text-dim); background: var(--bg-elevated); }
+.checklist li:last-child { border-bottom: none; }
+.checklist li::before { content: "→"; color: var(--accent); font-weight: 700; flex-shrink: 0; font-family: var(--font-mono); }
+.checklist li strong { color: var(--text); font-weight: 600; }
+
+.punchline { font-family: var(--font-display); font-style: italic; font-size: 24px; line-height: 1.45; color: var(--text); text-align: center; margin: 44px auto 8px; max-width: 720px; padding: 26px 24px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.punchline .hl { background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight: 400; }
+
+footer { text-align: center; padding: 44px 0 0; font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted); letter-spacing: 0.06em; line-height: 1.8; }
+
+.reveal { opacity: 0; filter: blur(6px); transform: translateY(12px); transition: opacity .6s ease-out, filter .6s ease-out, transform .6s ease-out; }
+.reveal.in-view { opacity: 1; filter: blur(0); transform: translateY(0); }
+
+@media (max-width: 560px) {
+  h1 { font-size: 33px; }
+  .section-head { gap: 12px; }
+  .section-head .lede { font-size: 21px; }
+  .punchline { font-size: 19px; }
+  .costbox .big { font-size: 27px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .reveal { opacity: 1 !important; filter: none !important; transform: none !important; }
+  .chip { left: 58.33% !important; }
+  .meter i { width: 92% !important; }
+  .stack .s1 { width: 24% !important; } .stack .s2 { width: 73% !important; } .stack .s3 { width: 3% !important; }
+  .st { border-color: var(--border-strong) !important; }
+}
+</style>
+</head>
+
+<body>
+
+<nav class="crumb-bar">
+  <div class="crumb-inner">
+    <a href="/">upio.ai</a><span class="sep">/</span><a href="/learn">知识分享</a><span class="sep">/</span><span class="cur">解构复刻产线 · 动态图解</span>
+  </div>
+</nav>
+
+<div class="container">
+
+  <header class="hero prose">
+    <span class="tag">Agent · AI 工程 · 产线图解 · 2026-07</span>
+    <h1>解构复刻产线</h1>
+    <p class="subtitle">一条高播放的竞品视频链接进来，一条合规的 AI 成片出去。这页把整条产线画成一张<strong>持续运转的总控图</strong>：六个工位、三个人工卡口、一条重 roll 回路和一只成本表——盯着看一轮（16 秒），你就知道一条视频在里面经历了什么。模型选型依据见姊妹篇<a href="/learn/generative-media">《AI 内容生成四件套》</a>。</p>
+    <div class="hero-meta">
+      <span><strong>形态</strong> 家装避坑科普 · 局部镜头 + 前后对比</span>
+      <span><strong>单条成本</strong> ¥50-120（1 分钟成片）</span>
+      <span><strong>数据</strong> 2026-07-13 · 定价 30 天后须重核</span>
+    </div>
+  </header>
+
+  <!-- ═══════════ 总控图 ═══════════ -->
+  <div class="line-wrap" role="img" aria-label="产线总控动画：视频任务从解构、重写、生图、生视频、配音到成片发布依次流经六个工位，经过三个人工卡口，生视频工位有重 roll 回路，成本表随付费工位增长">
+    <div class="line">
+      <div class="line-head">
+        <span>DECONSTRUCT → REBUILD · 解构复刻产线</span>
+        <span class="live">LINE RUNNING</span>
+      </div>
+      <div class="track">
+        <div class="rail"></div>
+        <div class="chip">🎬 JOB #047</div>
+        <div class="gate g1"><small>卡口① 选题/脚本准入</small>✓</div>
+        <div class="gate g2"><small>卡口② 关键帧验收</small>✓</div>
+        <div class="gate g3"><small>卡口③ 抽检+送审</small>✓</div>
+        <div class="loop"><small>重 roll ≤3 次</small></div>
+        <div class="sts">
+          <div class="st human"><span class="no">ST-01</span><h4>🔍 解构</h4><p>douyin-deconstruct<br>0 元 · ≈8 min</p><span class="role">人挑选题</span></div>
+          <div class="st auto"><span class="no">ST-02</span><h4>✍️ 重写</h4><p>LLM 重写钩子/语序<br>防查重</p><span class="role">自动</span></div>
+          <div class="st human"><span class="no">ST-03</span><h4>🖼️ 生图</h4><p>即梦 Seedream<br>对比图组 ¥10-30</p><span class="role">人验帧</span></div>
+          <div class="st auto"><span class="no">ST-04</span><h4>🎬 生视频</h4><p>可灵 3.0 无声档<br>¥36-90</p><span class="role">自动+挑片</span></div>
+          <div class="st auto"><span class="no">ST-05</span><h4>🔊 配音</h4><p>豆包 TTS 授权音色<br>≤¥2</p><span class="role">自动</span></div>
+          <div class="st human"><span class="no">ST-06</span><h4>📦 成片发布</h4><p>ffmpeg 合成+AI 标识<br>≈0 元</p><span class="role">人抽检</span></div>
+        </div>
+        <div class="fuse">生视频重 roll 超 3 次或单条超 <b>¥150 熔断</b> → 转人工修复队列</div>
+        <div class="zones">
+          <div class="zone z1">免费区 · 解构与脚本</div>
+          <div class="zone z2">花钱区 · 生成（先审图，再花钱）</div>
+          <div class="zone z3">出厂区</div>
+        </div>
+      </div>
+      <div class="meterbar">
+        <span class="ml">本条成本</span>
+        <div class="meter"><i></i></div>
+        <span class="mv">¥0 ────→ ¥50-120</span>
+      </div>
+    </div>
+  </div>
+  <p class="swipe-hint">← 左右滑动查看整条产线 →</p>
+  <div class="prose">
+    <div class="legend-row">
+      <span><i style="background:var(--warning)"></i>黄圈 = 人工卡口（盖章放行）</span>
+      <span><i style="background:var(--danger)"></i>红色虚线 = 重 roll 回路与熔断</span>
+      <span><i style="background:linear-gradient(90deg,var(--accent),var(--accent-2))"></i>芯片 = 一条正在生产的视频</span>
+    </div>
+  </div>
+
+  <div class="prose">
+
+  <!-- ═══════════ 01 工位详解 ═══════════ -->
+  <div class="section-head reveal" id="s1">
+    <div class="num">SEC 01</div>
+    <div class="meta">
+      <div class="lede">六个工位：每一站进什么、出什么、花多少</div>
+      <div class="sub">上半段（①②）已定案并包成团队 skill，直接复用；下半段（③-⑥）是本次产线新增的生成侧。</div>
+    </div>
+  </div>
+  <section>
+    <div class="stcards reveal">
+      <div class="stcard">
+        <div class="top"><h4>① 解构 · 竞品变文字稿</h4><span class="who h">人挑选题 + 机器解构</span></div>
+        <p class="flow">高互动竞品链接 → <code>douyin-deconstruct</code> skill（取片 → TransNetV2 切镜头 → OCR+语音双轨互校 → 七要素分镜稿）→ <b>分镜稿 + 解说词 + pipeline_config.json</b>。盲测验收过，别重做。</p>
+        <div class="foot"><span>费用 <b>0 元</b></span><span>耗时 <b>≈8 分钟/条</b></span><span>详见 <a href="/akke/video-deconstruct-research-2026-07-10">解构调研</a></span></div>
+      </div>
+      <div class="stcard">
+        <div class="top"><h4>② 重写 · 逻辑保留话术重生</h4><span class="who a">自动</span></div>
+        <p class="flow">解说词的<b>钩子、语序、核心词必须由 LLM 重写</b>——平台查重看文本，画面全 AI 也救不了高重复文案。逻辑框架（第几秒切痛点、第几秒给方案）原样保留。</p>
+        <div class="foot"><span>费用 <b>分钱级</b></span><span>耗时 <b>分钟级</b></span></div>
+      </div>
+      <div class="stcard">
+        <div class="top"><h4>③ 生图 · 出「翻车 vs 正确」对比图</h4><span class="who h">人验帧</span></div>
+        <p class="flow">即梦 Seedream 按 config 逐镜出图：<b>选区编辑改局部、不动全局</b>（同一个厨房只改高低台）。竞品帧截图只作参考底图，<b>不进成片</b>。量大后降本走自托管 FLUX。</p>
+        <div class="foot"><span>费用 <b>¥10-30</b></span><span>约 24 张定稿 · 含抽卡</span></div>
+      </div>
+      <div class="stcard">
+        <div class="top"><h4>④ 生视频 · 让对比图动 3 秒</h4><span class="who a">自动 + 人挑片</span></div>
+        <p class="flow">可灵 3.0 首尾帧/图生视频，<b>全部走无声档</b>（解说是画外音，不需要音画同出——省 2/3 的钱）。每镜 2-3 秒微动态，局部镜头比全景稳一个数量级。</p>
+        <div class="foot"><span>费用 <b>¥36-90</b></span><span>≈12 镜 × 5s × 2-3 倍重 roll</span></div>
+      </div>
+      <div class="stcard">
+        <div class="top"><h4>⑤ 配音 · 授权音色念稿</h4><span class="who a">自动</span></div>
+        <p class="flow">豆包声音复刻 2.0 / MiniMax Speech：用<b>自有授权音色库</b>合成带情绪的解说。红线：克隆竞品博主声音是侵权，一次都不行。</p>
+        <div class="foot"><span>费用 <b>≤¥2</b></span><span>音色年费 ≈¥150/个</span></div>
+      </div>
+      <div class="stcard">
+        <div class="top"><h4>⑥ 成片发布 · 确定性代码收尾</h4><span class="who h">人抽检</span></div>
+        <p class="flow">Fly worker 上 ffmpeg 完成拼接、3 倍变速、字幕压制、红圈/画叉标注、<b>aigc 元数据写入</b>；发布时走平台「自主声明 AI 生成」。剪辑不依赖剪映，全程可脚本化。</p>
+        <div class="foot"><span>费用 <b>≈0</b></span><span>耗时 <b>分钟级</b></span></div>
+      </div>
+    </div>
+    <div class="callout purple">
+      <strong>为什么先生图再生视频 ·</strong> 图是分钱级、视频是块钱级。所有「长什么样」的决策（构图、对错对比、风格）都在便宜的图片环节定死，人验过帧才放行进付费的视频环节——<strong>先审图，再花钱</strong>，这是整条产线的成本护栏。
+    </div>
+  </section>
+
+  <!-- ═══════════ 02 卡口与回路 ═══════════ -->
+  <div class="section-head reveal" id="s2">
+    <div class="num">SEC 02</div>
+    <div class="meta">
+      <div class="lede">三个卡口一条回路：人只做判断，不做搬运</div>
+      <div class="sub">机器跑全程，人守三个「盖章点」。判断之外的一切体力活都不该出现人。</div>
+    </div>
+  </div>
+  <section>
+    <div class="gates3 reveal">
+      <div class="gatecard">
+        <div class="gno">GATE ①</div>
+        <h4>选题 / 脚本准入</h4>
+        <p>解构稿 + 重写稿过目：选题值不值得做、重写后有没有丢掉原片的钩子逻辑。<b>拦在这里的成本是 0 元</b>，放过去的每一步都开始花钱。</p>
+      </div>
+      <div class="gatecard">
+        <div class="gno">GATE ②</div>
+        <h4>关键帧验收</h4>
+        <p>逐镜看对比图组：结构一致性（瓷砖窗户没漂移）、对错关系表达清楚。<b>图不过关，绝不进视频环节。</b></p>
+      </div>
+      <div class="gatecard">
+        <div class="gno">GATE ③</div>
+        <h4>成片抽检 + 送审</h4>
+        <p>穿帮镜头挑片、AI 标识核对，按 1/10 抽样跑「反向重建盲测」质检；新账号前 3-5 条全量人审并走平台送审。</p>
+      </div>
+    </div>
+    <div class="callout danger">
+      <strong>重 roll 回路与熔断 ·</strong> 生视频每镜最多重 roll <strong>3 次</strong>，单条成本触到 <strong>¥150 上限即熔断</strong>——任务转入人工修复队列，而不是静默烧钱。难做的镜头由人改方案（换角度、拆成静态对比 + 红圈标注），不是让机器死磕。
+    </div>
+  </section>
+
+  <!-- ═══════════ 03 成本账 ═══════════ -->
+  <div class="section-head reveal" id="s3">
+    <div class="num">SEC 03</div>
+    <div class="meta">
+      <div class="lede">一条 1 分钟成片的钱花在哪</div>
+      <div class="sub">按 12 镜、每镜 5 秒原片、2-3 倍重 roll、可灵无声档估算；取区间中值画图。</div>
+    </div>
+  </div>
+  <section>
+    <div class="costbox reveal">
+      <div class="row">
+        <span class="big">¥50-120<small>/ 条 · 1 分钟成片 · 全算力成本</small></span>
+      </div>
+      <div class="stack" aria-hidden="true"><i class="s1"></i><i class="s2"></i><i class="s3"></i></div>
+      <div class="cap">
+        <span><i style="background:var(--c-img)"></i>生图（含抽卡）<b>¥10-30</b></span>
+        <span><i style="background:var(--c-vid)"></i>生视频（含重 roll）<b>¥36-90</b></span>
+        <span><i style="background:var(--c-etc)"></i>解构 + 配音 + 合成 <b>≤¥2</b></span>
+      </div>
+      <div class="chart-note">条形按中值比例绘制（¥20 / ¥63 / ¥2）。生视频占七成以上——这就是「无声档 + 先审图 + 重 roll 熔断」三个机制都压在这一段的原因。别做 3 分钟长片：拆成 3 条 1 分钟单点成片，单条成本 ÷3、更新频率 ×3。</div>
+    </div>
+
+    <h3>每工位速查</h3>
+    <div class="dtable-wrap reveal">
+      <table class="dtable">
+        <tr><th>工位</th><th>工具</th><th>费用/条</th><th>主要耗时</th><th>失败处理</th></tr>
+        <tr><td class="feat">① 解构</td><td>douyin-deconstruct skill</td><td>0 元</td><td>≈8 分钟</td><td>无字幕视频启用 ASR 备选预案</td></tr>
+        <tr><td class="feat">② 重写</td><td>LLM</td><td>分钱级</td><td>分钟级</td><td>卡口①人工改稿</td></tr>
+        <tr><td class="feat">③ 生图</td><td>即梦 Seedream</td><td>¥10-30</td><td>0.5-1 小时（含验收）</td><td>换 prompt 模板重抽</td></tr>
+        <tr><td class="feat">④ 生视频</td><td>可灵 3.0 无声档</td><td>¥36-90</td><td>1-2 小时（含挑片）</td><td>重 roll ≤3 → 熔断进人工队列</td></tr>
+        <tr><td class="feat">⑤ 配音</td><td>豆包 TTS / MiniMax</td><td>≤¥2</td><td>分钟级</td><td>换音色重合成</td></tr>
+        <tr><td class="feat">⑥ 成片</td><td>ffmpeg on Fly</td><td>≈0</td><td>分钟级</td><td>确定性代码，失败即报错重跑</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- ═══════════ 04 落地路线 ═══════════ -->
+  <div class="section-head reveal" id="s4">
+    <div class="num">SEC 04</div>
+    <div class="meta">
+      <div class="lede">M1 → M3：先证明能活，再让它自己跑</div>
+      <div class="sub">「全自动化」是终点不是起点——第一批样片过审之前，自动化没有意义。</div>
+    </div>
+  </div>
+  <section>
+    <div class="miles reveal">
+      <div class="mile now">
+        <div class="mno">M1 · 半自动样片</div>
+        <h4>证明合规能过</h4>
+        <p>解构 skill 出稿 → 网页端手动出图出视频 → ffmpeg 脚本合成。产出 3-5 条样片送审，验证「不判搬运 + AI 标识通过」。<b>审核过不过是 go/no-go，画质不是。</b></p>
+      </div>
+      <div class="mile">
+        <div class="mno">M2 · API 串联</div>
+        <h4>机器接管流水</h4>
+        <p>生图/生视频/TTS 切 API，n8n 串六个工位，任务状态落库。人退到三个卡口，prompt 模板与音色库开始沉淀成资产。</p>
+      </div>
+      <div class="mile">
+        <div class="mno">M3 · 稳态运行</div>
+        <h4>日产 5-10 条</h4>
+        <p>加熔断、双指标监控（产线心跳 + 日产出/成本/过审率）、1/10 抽样盲测。「工作流全绿但一周没出片」必须能被看见。</p>
+      </div>
+    </div>
+
+    <h3>四条红线（比画质优先验证）</h3>
+    <ul class="checklist reveal">
+      <li><strong>文案查重</strong>：解说词逻辑可保留，钩子/语序/核心词必须重写——高重复文本会被判低质搬运限流</li>
+      <li><strong>竞品素材不入成片</strong>：帧截图只做生图参考，任何竞品原始画面与音频不得出现在输出里</li>
+      <li><strong>AIGC 主动声明</strong>：发布走「自主声明」+ aigc 元数据；被动检测打「疑似 AI」标的伤害远大于主动声明</li>
+      <li><strong>音色与肖像</strong>：只用自有授权音色；若投千川，科普形式不做「虚构人设推荐证明」</li>
+    </ul>
+  </section>
+
+  <div class="punchline">模型负责生成，机制负责稳定——<span class="hl">卡口、回路和熔断</span>才是这条产线能一直跑下去的原因。</div>
+
+  <footer>
+    产线方案定稿于 2026-07-13 · 选型依据：<a href="/learn/generative-media">AI 内容生成四件套</a> · <a href="/akke/video-deconstruct-research-2026-07-10">视频解构工具调研</a> · <a href="/workflow/ai-drama-2026-07">全 AI 剧情片调研</a><br>
+    成本为估算区间 · 定价 30 天后须重核 · upio.ai · 知识分享
+  </footer>
+
+  </div><!-- /prose -->
+
+</div>
+
+<script>
+document.querySelectorAll('.reveal').forEach(el => {
+  new IntersectionObserver((entries, obs) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in-view'); obs.unobserve(e.target); } });
+  }, { threshold: 0.12 }).observe(el);
+});
+</script>
+
+</body>
+</html>

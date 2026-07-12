@@ -43,6 +43,7 @@ const CATEGORIES = [
       { slug: 'loop-goal-orchestration', title: '用 /loop × goal 编排任务', desc: '/loop 是让 prompt「反复醒来」的骨架，goal 是写进 prompt 的「何时停」判据——两者配起来让 Claude 自己盯一件事干到达标。结合 Akke 讲轮询/指标收敛/backlog 磨盘三种落法与四道护栏。' },
       { slug: 'autoreply-supabase-relay', title: '自动回复为什么"绕"数据库', desc: '客户回复→数据库中转→生成→发送：为什么不一步到位。' },
       { slug: 'enterprise-brain-distillation', title: '有大有小 · 企业 AI 大脑', desc: '从 41 页企业手册与金牌销售对话，蒸馏出一颗"管得住嘴"的 AI 大脑——搭建、训练与护栏全景（甲方分享版深色 Deck）。' },
+      { slug: 'deconstruct-pipeline', title: '解构复刻产线 · 动态图解', desc: '一条高播放竞品视频链接进来，一条合规 AI 成片出去——六工位产线总控动画（解构→重写→生图→生视频→配音→成片），三个人工卡口、重 roll 熔断、单条成本账与 M1-M3 落地路线。' },
       { slug: 'ai-golden-salesperson', title: '让 AI 像金牌销售一样说话', desc: '"更有精气神"拆成 5 个可执行维度——人设密度、去客服腔、消息节奏、真实语料喂养、销售推进框架，每一维配开源研究依据，对照 Akke 企微 AI 代回的真实做法。' },
     ],
   },
