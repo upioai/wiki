@@ -23,6 +23,7 @@ const CATEGORIES = [
       { slug: 'progressive-disclosure',    title: '渐进式披露',                  desc: '上下文工程中的记忆与信息分层。' },
       { slug: 'representation-learning',    title: '表征学习',                    desc: '让 AI 把万物「翻译成数字」——embedding 与向量搜索的地基，结合 Akke 举例。' },
       { slug: 'interpretability-alignment',title: '可解释性与对齐',              desc: '看懂 AI 在想什么、让它做我们想要的——结合 Akke 举例。' },
+      { slug: 'generative-media',          title: 'AI 内容生成四件套',           desc: '文生图 · 文生视频 · 图生视频 · 视频配音——2026 年 7 月各厂商最新格局、底层原理、GitHub 高星开源选型，结合 Softie 与 Akke 的真实生产实践与合规红线。' },
     ],
   },
   {
