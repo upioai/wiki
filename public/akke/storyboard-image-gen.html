@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>分镜文生图工具 gen-storyboard · 方案与部署</title>
+<style>
+  :root {
+    --bg: #0b0d12;
+    --bg-elevated: #141821;
+    --bg-code: #1a1f2b;
+    --border: #242a38;
+    --text: #e4e7ed;
+    --text-dim: #9ba3b4;
+    --text-muted: #6b7384;
+    --accent: #8b5cf6;
+    --accent-soft: rgba(139, 92, 246, 0.15);
+    --success: #34d399;
+    --success-soft: rgba(52, 211, 153, 0.12);
+    --warning: #fbbf24;
+    --warning-soft: rgba(251, 191, 36, 0.12);
+    --danger: #f87171;
+    --info: #60a5fa;
+    --info-soft: rgba(96, 165, 250, 0.12);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    font-size: 16px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 960px; margin: 0 auto; padding: 48px 24px 120px; }
+  header.hero { padding: 56px 0 40px; border-bottom: 1px solid var(--border); margin-bottom: 40px; }
+  .tag { display: inline-block; padding: 4px 12px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 13px; font-weight: 500; margin-bottom: 16px; margin-right: 8px; }
+  .tag.green { background: var(--success-soft); color: var(--success); }
+  .tag.amber { background: var(--warning-soft); color: var(--warning); }
+  h1 { font-size: 38px; font-weight: 700; margin: 0 0 14px; letter-spacing: -0.02em; line-height: 1.2; }
+  h1 .accent { color: var(--accent); }
+  .subtitle { font-size: 18px; color: var(--text-dim); margin: 0 0 24px; }
+  .meta { display: flex; gap: 20px; flex-wrap: wrap; font-size: 14px; color: var(--text-muted); }
+  h2 { font-size: 26px; font-weight: 700; margin: 56px 0 20px; letter-spacing: -0.01em; }
+  h2 .num { color: var(--accent); margin-right: 10px; }
+  h3 { font-size: 19px; font-weight: 600; margin: 32px 0 12px; }
+  p { margin: 0 0 16px; color: var(--text-dim); }
+  strong { color: var(--text); }
+  .card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 14px; padding: 22px 26px; margin: 20px 0; }
+  .card.highlight { border-color: rgba(139, 92, 246, 0.45); }
+  .card.warn { border-color: rgba(251, 191, 36, 0.4); }
+  .card h3 { margin-top: 0; }
+  table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14.5px; }
+  th { text-align: left; color: var(--text-muted); font-weight: 600; padding: 10px 14px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text-dim); vertical-align: top; }
+  td:first-child { color: var(--text); white-space: nowrap; }
+  .ok { color: var(--success); font-weight: 600; }
+  .no { color: var(--danger); font-weight: 600; }
+  .mid { color: var(--warning); font-weight: 600; }
+  code { background: var(--bg-code); border: 1px solid var(--border); border-radius: 6px; padding: 2px 7px; font-size: 13.5px; font-family: "SF Mono", Menlo, Consolas, monospace; color: #c4b5fd; }
+  pre { background: var(--bg-code); border: 1px solid var(--border); border-radius: 12px; padding: 18px 22px; overflow-x: auto; font-size: 13.5px; line-height: 1.7; }
+  pre code { background: none; border: none; padding: 0; color: #cbd5e1; }
+  .flow { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; margin: 24px 0; }
+  .flow .step { flex: 1 1 160px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; position: relative; }
+  .flow .step .n { font-size: 12px; color: var(--accent); font-weight: 700; letter-spacing: 0.06em; }
+  .flow .step .t { font-weight: 600; margin: 2px 0 4px; }
+  .flow .step .d { font-size: 13px; color: var(--text-muted); line-height: 1.55; }
+  ul { color: var(--text-dim); padding-left: 22px; }
+  li { margin: 8px 0; }
+  .roadmap { list-style: none; padding: 0; margin: 24px 0; }
+  .roadmap li { display: flex; gap: 14px; padding: 16px 0; border-bottom: 1px solid var(--border); margin: 0; }
+  .roadmap .badge { flex-shrink: 0; width: 84px; text-align: center; align-self: flex-start; padding: 3px 0; border-radius: 999px; font-size: 12.5px; font-weight: 600; margin-top: 3px; }
+  .b-done { background: var(--success-soft); color: var(--success); }
+  .b-next { background: var(--warning-soft); color: var(--warning); }
+  .b-plan { background: var(--info-soft); color: var(--info); }
+  .roadmap .body { flex: 1; }
+  .roadmap .body .t { font-weight: 600; color: var(--text); }
+  .roadmap .body .d { font-size: 14.5px; color: var(--text-dim); }
+  footer { margin-top: 72px; padding-top: 24px; border-top: 1px solid var(--border); font-size: 13.5px; color: var(--text-muted); }
+  @media (max-width: 640px) { h1 { font-size: 28px; } .flow { flex-direction: column; } }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header class="hero">
+  <span class="tag">Akke 内容管线</span>
+  <span class="tag green">已上线 · main #856</span>
+  <span class="tag amber">待闸门0 实测（eval key）</span>
+  <h1>分镜文生图工具 <span class="accent">gen-storyboard</span></h1>
+  <p class="subtitle">从视频解构稿批量生成 B-roll 分镜素材，交付剪辑同事进剪映——AI 洗稿流水线的「生成端」。</p>
+  <div class="meta">
+    <span>更新 2026-07-13</span>
+    <span>维护：野荞</span>
+    <span>代码：Akke 仓库 PR #856（commit 9690dff2）</span>
+  </div>
+</header>
+
+<h2><span class="num">01</span>这是什么、解决什么问题</h2>
+<p>团队已有 <strong>douyin-deconstruct</strong>（解构端）：把对标账号的爆款视频拆成「七要素分镜文字稿 + 带时间戳解说词 + pipeline_config.json」。但拆完之后重制视频时，实拍类补图素材（B-roll）一直靠「去水印借别人素材」——带水印、有版权风险、找起来慢。</p>
+<p><strong>gen-storyboard 补上生成端</strong>：直接吃解构稿，按镜批量 AI 生图，出一个「审图页 + 剪映直用素材包」，剪辑同事拿去混剪。</p>
+
+<div class="card highlight">
+  <h3>定位边界（先说清楚，避免预期错位）</h3>
+  <ul>
+    <li><span class="ok">✓ 管</span>：B-roll 实拍感补图（施工/产品特写等）+ 封面背景图。以样例视频「灿哥聊装修」34 镜为例，B-roll 占 18 镜 / 39% 时长——这些全覆盖。</li>
+    <li><span class="no">✗ 不管</span>：口播镜（人对镜头说话，占 52% 时长）——静态图剪进去就是 PPT，需要真人出镜或数字人工具，是另一个项目。</li>
+    <li><span class="no">✗ 不管</span>：图卡/表格镜——要精确文字，走已有的 tuwen HTML 渲染管线更合适。</li>
+  </ul>
+</div>
+
+<h2><span class="num">02</span>方案：怎么选的型</h2>
+<p>做了三轮评估（资源盘点 → 两地行情调研 → 关键事实一手核验），核心结论：</p>
+
+<table>
+  <tr><th>候选</th><th>每张价格</th><th>关键能力</th><th>结论</th></tr>
+  <tr><td>Seedream 4.5（OpenRouter）</td><td>$0.04 一口价</td><td>9:16 竖屏、2K/4K、参考图≤14、seed 可固定；中文实物场景强</td><td><span class="ok">主力</span>——复用现有 OpenRouter 账号，零新开通</td></tr>
+  <tr><td>Nano Banana Pro（OpenRouter）</td><td>$0.134</td><td>2026 评测分镜一致性第一（93-95% 跨场景）</td><td><span class="mid">A/B 备选</span>——换个环境变量即切，不改代码</td></tr>
+  <tr><td>火山方舟直连（组图模式）</td><td>约 ¥0.25</td><td>单请求出 ≤15 张互相一致的组图</td><td><span class="mid">Phase 2 备选</span>——OpenRouter 透传不了组图参数（实测）</td></tr>
+  <tr><td>智谱 GLM-Image / 阿里 Qwen-Image</td><td>¥0.1 / ¥0.2</td><td>中文海报文字渲染双王</td><td><span class="no">暂不需要</span>——视频字幕在剪映里加，图里不烧字</td></tr>
+</table>
+
+<div class="card">
+  <h3>三个关键设计决策</h3>
+  <ul>
+    <li><strong>图里不出现任何文字</strong>：prompt 强制无字，字幕/贴字信息随审图页交给剪辑在剪映里加——AI 中文错字风险直接归零。</li>
+    <li><strong>一致性打法</strong>：全局风格前缀 + 固定 seed + 定稿图当参考图（<code>--anchor</code>）逐镜锚定。B-roll 镜之间本来就是不同场景，最难的「同一空间多角度」问题在这类视频里基本不存在。</li>
+    <li><strong>AIGC 合规内置</strong>：按 2025-09 起施行的《人工智能生成合成内容标识办法》，发含 AI 素材的视频要在抖音主动声明，否则被动打标 + 限流。manifest 和审图页都带提醒。</li>
+  </ul>
+</div>
+
+<h2><span class="num">03</span>已部署了什么（2026-07-12 上线）</h2>
+
+<div class="flow">
+  <div class="step"><div class="n">STEP 1</div><div class="t">读分镜稿</div><div class="d">吃 pipeline_config.json 或解构稿 .md（自动抽 JSON 块），默认只选 B-roll 镜</div></div>
+  <div class="step"><div class="n">STEP 2</div><div class="t">逐镜生图</div><div class="d">2K 竖屏 9:16；prompt 由 LLM 改写增强（失败自动回落模板）；可带参考图锁风格</div></div>
+  <div class="step"><div class="n">STEP 3</div><div class="t">审图页</div><div class="d">contact-sheet.html：每镜缩略图 + 台词 + 字幕提示 + prompt，浏览器直接过目</div></div>
+  <div class="step"><div class="n">STEP 4</div><div class="t">单镜重roll</div><div class="d">--reroll S03 只重生成不满意的镜，自动换 seed，其余不动</div></div>
+  <div class="step"><div class="n">STEP 5</div><div class="t">交付包</div><div class="d">2K 原图 + 自动缩好的 1080×1920 剪映直用版 + manifest 全记录</div></div>
+</div>
+
+<table>
+  <tr><th>交付物</th><th>说明</th></tr>
+  <tr><td>src/lib/image-gen/client.ts</td><td>OpenRouter 统一图片 API client。测试跑必须走独立限额的 eval key，缺了直接报错、<strong>绝不静默回落生产 key</strong></td></tr>
+  <tr><td>scripts/gen-storyboard.ts</td><td>主 CLI，上面五步全流程；模型/分辨率/比例/风格前缀全部参数化</td></tr>
+  <tr><td>花费三道闸</td><td>预估超上限（默认 $2）拒跑；跑一半累计超限就地熔断；每镜实时落盘 manifest，中断也不丢账</td></tr>
+  <tr><td>成本量级</td><td>一条 15 镜视频 ≈ 定稿 3 张 + 15 镜 + 30% 重roll ≈ 23 张 × $0.04 ≈ <strong>¥6.6/条</strong></td></tr>
+</table>
+
+<div class="card">
+  <h3>验证状态</h3>
+  <ul>
+    <li><span class="ok">✓</span> dry-run 全链路：灿哥 34 镜稿 → 正确选出 18 个 B-roll 镜 → manifest/审图页产出（零花费）</li>
+    <li><span class="ok">✓</span> 类型检查 0 错误、新代码零 lint 告警、代码评审通过、CI 与部署全绿</li>
+    <li><span class="ok">✓</span> 线上零影响：纯本机 CLI，不碰定时任务/worker/数据库；一句 <code>git revert</code> 可回滚</li>
+    <li><span class="mid">⏳</span> 真实生图效果待「闸门 0」实测（见下），当前阻塞在 eval key 下发</li>
+  </ul>
+</div>
+
+<h3>使用方法（运营同事）</h3>
+<pre><code># 试跑/评测一律先切 eval key（缺了会直接报错，防烧生产余额）
+export AKKE_USE_EVAL_KEY=1
+
+# 先零花费预览 prompt 和选镜
+pnpm tsx scripts/gen-storyboard.ts --config &lt;解构稿.md 或 pipeline_config.json&gt; --dry-run
+
+# 推荐流程：挑 1-2 镜出定稿 → 定稿图当 anchor 跑全量 → 审图 → 重roll 补漏
+pnpm tsx scripts/gen-storyboard.ts --config &lt;稿&gt; --shots S07
+pnpm tsx scripts/gen-storyboard.ts --config &lt;稿&gt; --anchor 视频素材/…/shot-S07.png
+pnpm tsx scripts/gen-storyboard.ts --config &lt;稿&gt; --reroll S03,S09</code></pre>
+
+<h2><span class="num">04</span>之后的优化（roadmap）</h2>
+<ul class="roadmap">
+  <li><span class="badge b-next">下一步</span><div class="body"><div class="t">闸门 0：真实效果 bake-off（半天，约 ¥3）</div><div class="d">eval key 到位后，拿灿哥稿 5 个带手部操作的最难镜实测 Seedream 4.5，验收标准一句话：剪辑同事「这图敢不敢剪进片」。敢 → 转正投产；不敢 → 换 Nano Banana Pro 再测一轮。不过闸就停，沉没成本半天。</div></div></li>
+  <li><span class="badge b-next">下一步</span><div class="body"><div class="t">AIGC 标注口径（PM 决策项）</div><div class="d">AI 素材占比多高、发布时声明怎么打，定一个团队口径。技术侧已把提醒内置进交付物，等口径落地写进 SOP。</div></div></li>
+  <li><span class="badge b-plan">计划</span><div class="body"><div class="t">定稿参考表流程固化</div><div class="d">把「先出 2-3 张风格定稿 → 人审 → 全量锚定」做成默认引导（现在靠命令组合），降低新同事上手门槛。</div></div></li>
+  <li><span class="badge b-plan">计划</span><div class="body"><div class="t">远程交付通道</div><div class="d">剪辑同事不在同一台机器时，素材包自动传 Supabase Storage 出公开链接（需新 bucket——现有 tuwen-media 限单文件 2MB，2K PNG 会超）。</div></div></li>
+  <li><span class="badge b-plan">计划</span><div class="body"><div class="t">Skill 化 + 与解构端首尾相接</div><div class="d">「按分镜稿出图」变成一句话触发，douyin-deconstruct 解构完直接问要不要接着出素材，一条龙。</div></div></li>
+  <li><span class="badge b-plan">计划</span><div class="body"><div class="t">方舟组图直连（一致性还不够时）</div><div class="d">火山方舟原生组图模式单请求出 ≤15 张互相一致的图，恰好覆盖一条视频；OpenRouter 透传不了该参数，需要直连（个人实名当天可开，约 ¥0.25/张）。先看闸门 0 结果再决定要不要。</div></div></li>
+  <li><span class="badge b-plan">计划</span><div class="body"><div class="t">图生视频（i2v）衔接</div><div class="d">把静态 B-roll 升级成 5 秒动态镜头。主流 API（Seedance / 可灵 / Wan）量级 ¥1-5/条·5秒；当前 2K 9:16 输出规格已天然兼容全部主流 i2v 首帧要求，不用返工。</div></div></li>
+  <li><span class="badge b-done">已完成</span><div class="body"><div class="t">评估三轮 + 工具 V1 上线</div><div class="d">资源盘点 / 国内外行情 / 关键价格参数一手核验 / 可行性拆解（镜头构成 + AIGC 政策）→ client + CLI + 审图 + 熔断全量落地，CI 部署全绿。</div></div></li>
+</ul>
+
+<footer>
+  Akke · 分镜文生图工具方案页 · 2026-07-13 由 Claude Code 生成，数据与价格核验于 2026-07-12<br>
+  相关页：<a href="https://upio.ai/akke/architecture.html" style="color:var(--info)">系统架构</a> · <a href="https://upio.ai/akke/ai-ad-creative-pipeline.html" style="color:var(--info)">AI 广告素材生产线</a>
+</footer>
+
+</div>
+</body>
+</html>
