@@ -256,7 +256,7 @@
 
   <div class="buildbanner">
     <span class="bpill">2026-07-10 已建设</span>
-    <p>本页原是链路<b>排查</b>图（含 5 个风险点）。之后 <b>P0 精准调取 · P1 上传自动蒸馏→审核落库 · P2 冲突/标反嗅探</b> 全上线（#843/#844/#846/#847/#848）；<b>P3 再把中间的人工审核升级成「AI 判官 + 分级自动」（#849）</b>——大部分候选 AI 自动处理，<b>只有涉钱 / 冲突 / 疑似标反的留人工兜底</b>。下面各段已标注最新状态。</p>
+    <p>本页原是链路<b>排查</b>图。之后 <b>P0 精准调取 · P1 上传自动蒸馏→审核落库 · P2 冲突/标反嗅探</b> 全上线（#843/#844/#846/#847/#848）；<b>P3 再把中间的人工审核升级成「AI 判官 + 分级自动」（#849）</b>——大部分候选 AI 自动处理，<b>只有涉钱 / 冲突 / 疑似标反的留人工兜底</b>。下面各段已标注最新状态。</p>
   </div>
 
   <!-- 1. 入库 -->
@@ -457,8 +457,8 @@
   <!-- 4.5 话术组成 -->
   <section>
     <p class="snum">04·补</p>
-    <h2>那到底靠什么调？话术由哪几块拼成？案例在哪块？</h2>
-    <p class="sublede">既然不是 Langfuse 在调，这里把「真正的调用路径」和「话术 prompt 一层层拼起来的样子」摊开，顺便标出<b>案例落在哪几层</b>。</p>
+    <h2>那到底靠什么调？话术由哪几块拼成？想改话术该动哪一块？</h2>
+    <p class="sublede">既然不是 Langfuse 在调，这里把「真正的调用路径」和「话术 prompt 一层层拼起来的样子」摊开，标出<b>案例落在哪几层</b>，最后给一张<b>「想改什么 → 动哪儿」</b>的对照表。</p>
 
     <h3 style="font-size:16px;margin:0 0 6px;font-weight:700;">① 真正的调用路径（在代码里）</h3>
     <div class="callpath">
@@ -492,53 +492,55 @@
       <div class="bar"></div>
       <p><span class="k">案例在哪一块？</span>案例<b>不是单独一层</b>——蒸馏后<b>分散注入到第 6、7、8 这三层</b>：产品事实 → 知识、招式 → 决策原则、金牌问答 → few-shot 示例。所以「喂案例」能影响话术，靠的就是这三层里的案例料；其余几层是人设 / 语气 / 记忆 / 品牌骨架，跟具体案例无关。</p>
     </div>
-  </section>
 
-  <!-- 5. 风险点 -->
-  <section>
-    <p class="snum">05</p>
-    <h2>这 5 个风险，这次处理得怎么样了</h2>
-    <p class="sublede">2026-07-10 一趟把 P0 / P1 / P2 建完上线（PR #843/#844/#846/#847/#848），下面逐条对照：原状 → 现在。</p>
+    <h3 style="font-size:16px;margin:30px 0 6px;font-weight:700;">③ 每次改话术，改的到底是哪一块？</h3>
+    <p class="sublede" style="margin-bottom:0;">「改话术」不是一件事，是<b>四件事</b>——落在不同地方、生效速度完全不同。先想清楚你要改的是哪一类，再去动对应的那块，别一上来就找代码。</p>
 
-    <div class="callout">
+    <div class="libmap">
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th>你想改的是</th><th>对应上面第几层</th><th>去哪儿改</th><th>怎么生效</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><b>话术的步骤和规则</b><br><span style="color:var(--muted)">怎么开场、分几步走、该问什么、不该问什么、结尾自检</span></td>
+              <td class="lib"><span class="tag base">第 9 层</span><span class="role">模板骨架</span></td>
+              <td><b>Langfuse 后台</b>改模板：抖音 <code>dm.ice_break.system</code> / <code>dm.nurture.system</code> / <code>dm.decision.system</code>；企微 <code>wecom.opener.rules</code> / <code>wecom.nurture.rules</code> / <code>wecom.decision.rules</code></td>
+              <td><span class="pill ok">最快</span> 后台点保存，约 30 秒生效，<b>不用发版</b>。PM 自己能改</td>
+            </tr>
+            <tr>
+              <td><b>让 AI 学新东西</b><br><span style="color:var(--muted)">新产品、新报价、新的应对招式、新的金牌问答</span></td>
+              <td class="lib"><span class="tag live">第 6/7/8 层</span><span class="role">案例来的三层</span></td>
+              <td><b>灌库</b>：传案例 → 自动蒸馏 → 审核通过落 <code>knowledge_documents</code> / <code>conversation_examples</code>；跨案例的 <code>decision_rules</code> 跑蒸馏脚本</td>
+              <td><span class="pill ok">灌完即生效</span> 下次生成话术自动读，<b>不用发版</b>。<b>想让风格明显变化，蒸 decision_rules 最有效</b></td>
+            </tr>
+            <tr>
+              <td><b>品牌信息</b><br><span style="color:var(--muted)">品牌名、主营、价格区间、卖点、要不要透出微信号</span></td>
+              <td class="lib"><span class="tag manual">第 5 层</span><span class="role">品牌档案</span></td>
+              <td><b>后台人工填</b> <code>brand_profile</code>（不从案例自动抽）</td>
+              <td><span class="pill ok">改完即生效</span> 整段注入，<b>不用发版</b></td>
+            </tr>
+            <tr>
+              <td><b>人设和语气</b><br><span style="color:var(--muted)">叫什么名、什么身份、用「你」还是「您」、一句多长、一次只问一个</span></td>
+              <td class="lib"><span class="tag stage">第 1/2 层</span><span class="role">人设 · 语气</span></td>
+              <td><b>要改代码</b>：<code>src/lib/llm.ts</code> 里的 <code>PERSONA</code> / <code>SALES_PERSONAS</code>（人设）、<code>STYLE</code> / <code>WECOM_STYLE</code>（语气硬底线）</td>
+              <td><span class="pill warn">最慢</span> 属高危路径，<b>必须走 PR + CI + 部署</b>，不能直推 main</td>
+            </tr>
+            <tr>
+              <td><b>硬拦截护栏</b><br><span style="color:var(--muted)">「绝不能说这句」「不许编年限」「价格对不上就拦」——不靠 AI 自觉，代码强制</span></td>
+              <td class="lib"><span class="tag manual">不在这 9 层</span><span class="role">后置硬绑</span></td>
+              <td><b>要改代码</b>：<code>src/lib/llm/signals.ts</code>（关键词硬绑）、<code>sanitize.ts</code>（清理）、<code>price-guard.ts</code>（价格）</td>
+              <td><span class="pill warn">最慢</span> 同样走 PR + 部署；有单测，改完 <code>pnpm test</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="callout warn">
       <div class="bar"></div>
-      <p><span class="k">一句话总览</span>产品信息断点 → <b>P1 上传即自动蒸馏</b>；说话人标反 → <b>P2 黄标嗅探</b>；问产品调库 → <b>P0 按相关度精准调取</b>；人工审核瓶颈 → <b>P3 AI 判官 + 分级自动</b>（大部分自动落库，只涉钱/冲突/标反留人工）。守着质量闸，未过关内容不碰线上话术。</p>
-    </div>
-
-    <div class="risk">
-      <div class="rn">1</div>
-      <div class="rb">
-        <div class="rt">产品信息那条是断的 <span class="pill ok">P1 已补</span></div>
-        <div class="rd">原状：案例新产品/报价不自动进知识库。<b>现在</b>：上传案例会<b>自动蒸馏出产品候选</b>进暂存表，运营审核页点通过才落 <code>knowledge_documents</code>（#846/#847）。断点已补；<code>brand_profile</code> 结构化档案仍按设计需人工刷。</div>
-      </div>
-    </div>
-    <div class="risk">
-      <div class="rn">2</div>
-      <div class="rb">
-        <div class="rt">说话人可能标反 <span class="pill ok">P2 加护栏</span></div>
-        <div class="rd">原状：只能靠人工闸盯。<b>现在</b>：蒸馏时<b>自动嗅探</b>——客户/销售像说反了就打<b>黄标"疑似标反"</b>提示重点核对（#848）。人工审仍是主防线，但多了一道自动提示。</div>
-      </div>
-    </div>
-    <div class="risk">
-      <div class="rn">3</div>
-      <div class="rb">
-        <div class="rt">全靠手动，没有定时 <span class="pill ok">P3 大幅自动</span></div>
-        <div class="rd"><b>现在</b>：上传案例即时自动蒸馏 + <b>AI 判官分级自动落库</b>（#849），大部分不用人管、也不用等定时。只剩涉钱/冲突/标反留人工。（跨案例批量蒸 decision_rules 的脚本仍手动，"多久没蒸就告警"还没做。）</div>
-      </div>
-    </div>
-    <div class="risk">
-      <div class="rn">4</div>
-      <div class="rb">
-        <div class="rt">底座和上线库容易脱节 <span class="pill warn">现状绿·未加监控</span></div>
-        <div class="rd">当前上线库新鲜、未脱节。判断"话术有没有吃到新案例"，仍看 <code>conversation_examples</code> / <code>decision_rules</code> 的更新时间，别看底座条数。自动"陈旧告警"未做。</div>
-      </div>
-    </div>
-    <div class="risk">
-      <div class="rn">5</div>
-      <div class="rb">
-        <div class="rt">只注入前几条 <span class="pill ok">知识已改善</span></div>
-        <div class="rd"><b>产品知识</b>注入 P0 已从"每类凑一条"改为<b>按用户当前问题相关度精准调取</b>（#843）。<b>话术示例</b>few-shot 仍 top-3——堆示例边际递减，想让风格变化明显，多蒸 <code>decision_rules</code> 更有效。</div>
-      </div>
+      <p><span class="k">一句话记住</span>能<b>不改代码就别改代码</b>——「AI 说得不对」十有八九是<b>案例喂得不够</b>（灌库解决）或<b>模板规则没写清</b>（Langfuse 后台解决），这两条当天就能改完看效果。只有<b>人设、语气底线、硬拦截</b>这三类才必须动代码，那就得走 PR + 部署，快不了。</p>
     </div>
   </section>
 
