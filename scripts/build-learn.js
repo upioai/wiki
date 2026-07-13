@@ -45,6 +45,7 @@ const CATEGORIES = [
       { slug: 'enterprise-brain-distillation', title: '有大有小 · 企业 AI 大脑', desc: '从 41 页企业手册与金牌销售对话，蒸馏出一颗"管得住嘴"的 AI 大脑——搭建、训练与护栏全景（甲方分享版深色 Deck）。' },
       { slug: 'deconstruct-pipeline', title: '解构复刻产线 · 动态图解', desc: '一条高播放竞品视频链接进来，一条合规 AI 成片出去——六工位产线总控动画（解构→重写→生图→生视频→配音→成片），三个人工卡口、重 roll 熔断、单条成本账与 M1-M3 落地路线。' },
       { slug: 'ai-golden-salesperson', title: '让 AI 像金牌销售一样说话', desc: '"更有精气神"拆成 5 个可执行维度——人设密度、去客服腔、消息节奏、真实语料喂养、销售推进框架，每一维配开源研究依据，对照 Akke 企微 AI 代回的真实做法。' },
+      { slug: 'claude-code-codex', title: 'Claude Code × Codex 双开一个项目', desc: '同一个项目同时用两家的编码 Agent 可行吗？可行，但要先迈两道坎——指令文件互不相认（CLAUDE.md vs AGENTS.md）、两个 agent 不能同时写一个工作区。以 Akke 仓库现状为例给出四种协作模式与落地清单。' },
     ],
   },
   {
