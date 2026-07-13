@@ -150,6 +150,34 @@
 
   <section>
     <div class="sec-no">05</div>
+    <h2>部署指南（P0 铺机 · 每台约 2 分钟）</h2>
+    <p class="lede">#855 回执验证增强改了两个云电脑脚本：<code>douyin_dm_web_send_dom.py</code>（DOM 通道·拼装匹配）+ <code>douyin_dm_grounded.py</code>（PC 客户端通道·VL 问法）。两个文件都已在 update.bat 下载清单、公开镜像已同步（字节数已核对一致）。所有在跑 DM 的云电脑逐台执行：</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>步骤</th><th>操作</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td><b>① 拉新版</b></td><td>双击 <code>C:\akke-wuying\wuying-dm\update.bat</code></td><td>从公开镜像拉最新脚本，DOM / PC 客户端两条通道的文件都在清单里，不用判通道</td></tr>
+        <tr><td><b>② 核字节数</b></td><td>PowerShell：<code>(Get-Item .\douyin_dm_web_send_dom.py).Length</code> 应为 <b>25323</b>；<code>douyin_dm_grounded.py</code> 应为 <b>69960</b></td><td>字节对不上 = 没拉到新版，用单文件兜底：<code>curl.exe -o douyin_dm_web_send_dom.py https://upio.ai/akke/wuying-dm/douyin_dm_web_send_dom.py</code>（另一个文件同理）</td></tr>
+        <tr><td><b>③ 不用重启</b></td><td>什么都不用做</td><td>动作脚本每批 subprocess 现调，<b>下一批自动用新版</b>；只有改 <code>.env</code> 才需要重启 poll agent</td></tr>
+        <tr><td><b>④ 验活</b></td><td>等下一条自动回复发出，看黑窗日志气泡验证段</td><td>出现拼装命中 / 直接 <code>sent</code> 即生效；留痕里不再新增 unverified 也是有效信号</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>日常重启恢复（云电脑重启后 DM 全没时）</h3>
+    <ul>
+      <li>一键拉起：<code>powershell -ExecutionPolicy Bypass -File C:\akke-wuying\wuying-dm\akke-start.ps1</code>（杀残留 → 拉 Edge 调试口 9222 → 等 CDP 通 → 暖机 15s + 预跑一次 capture → 起 poll agent）；饭粒/零星两台已配开机自动任务 <code>AkkeDomDmStart</code>，无需手动</li>
+      <li>验活三点：capture 日志 <code>conversation-item N&gt;0</code>（0 = 面板没加载好或登录过期）；agent 横幅 <code>v=</code> + <code>account=&lt;本机对的 id&gt;</code>；发送后气泡验证 <code>sent</code></li>
+      <li>症状速判：从某时刻起连续 <code>dm_panel_failed</code>、之前全 sent、账号计数没涨 = <b>Edge 窗口卡死不是号出事</b>，跑 akke-start.ps1 重启即恢复，不丢单</li>
+    </ul>
+
+    <h3>新机从零部署</h3>
+    <ul>
+      <li>完整自助指南（9 脚本清单 + 字节数 + .env 全模板 + 登录/自启/排查）：<a href="/akke/dom-dm-deploy">upio.ai/akke/dom-dm-deploy</a></li>
+      <li>两条铁律：<code>.env</code> 的 <code>AKKE_ACCOUNT_ID</code> 必须 = 本机实际登录的抖音号在 DB 的 account_id（起 agent 后横幅账号名和抖音前台不一致立即 Ctrl+C）；DM 腿 Edge 最小化即可，route-B 腿要前台最大化 2560×1600 英文输入法，同机共存靠 <code>AKKE_WINDOW_LOCK=1</code> 串行</li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="sec-no">06</div>
     <h2>关联报告</h2>
     <ul>
       <li><a href="/akke/dm-autoreply-audit-0707-0710">7/7–7/10 全链路核查（27 条全收口，假阴口径的来源）</a></li>
