@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>企微好友单聊 AI 自动回复 · 优化总结（2026-07-12）</title>
+<style>
+  :root{--ink:#1c2530;--muted:#6b7683;--line:#e6e9ee;--bg:#f6f7f9;--card:#fff;
+        --green:#1a9c5b;--amber:#c67c00;--red:#c8412f;--blue:#2b6cb0;--lock:#6b46c1;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.7 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;}
+  .wrap{max-width:920px;margin:0 auto;padding:32px 20px 80px;}
+  header{border-bottom:2px solid var(--ink);padding-bottom:16px;margin-bottom:8px;}
+  h1{font-size:24px;margin:0 0 6px;}
+  .sub{color:var(--muted);font-size:13.5px;}
+  h2{font-size:18px;margin:34px 0 12px;padding-left:10px;border-left:4px solid var(--blue);}
+  p{margin:8px 0;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;
+        padding:16px 18px;margin:12px 0;}
+  table{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px;}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top;}
+  th{background:#f0f2f5;font-weight:600;font-size:13px;color:var(--muted);}
+  td code{background:#eef1f4;padding:1px 5px;border-radius:4px;font-size:12.5px;}
+  .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:12px;font-weight:600;white-space:nowrap;}
+  .b-done{background:#e3f5ec;color:var(--green);}
+  .b-open{background:#fdf1de;color:var(--amber);}
+  .b-cap{background:#efe8fb;color:var(--lock);}
+  .b-info{background:#e7f0f9;color:var(--blue);}
+  ul{margin:8px 0;padding-left:22px;}
+  li{margin:5px 0;}
+  .note{background:#fff8ec;border:1px solid #f1e0bd;border-radius:8px;padding:12px 16px;font-size:13.5px;}
+  .kpi{display:flex;gap:12px;flex-wrap:wrap;margin:12px 0;}
+  .kpi div{flex:1;min-width:150px;background:var(--card);border:1px solid var(--line);
+           border-radius:10px;padding:12px 14px;}
+  .kpi b{display:block;font-size:22px;}
+  .kpi span{color:var(--muted);font-size:12.5px;}
+  footer{margin-top:40px;color:var(--muted);font-size:12.5px;border-top:1px solid var(--line);padding-top:14px;}
+  .flow{font-size:13.5px;color:var(--muted);background:#f0f2f5;border-radius:8px;padding:10px 14px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>企微好友单聊 AI 自动回复 · 优化总结</h1>
+  <div class="sub">方案B（GUI 截屏代回）· 2026-07-12 · 云电脑运行版本 <b>v2026-07-12.1</b> · 代码 <b>PR #817</b>（commit 8cbb87d7）</div>
+</header>
+
+<div class="kpi">
+  <div><b>10 + 7</b><span>累计修复/优化项（07-09 批 + 07-10~12 实战批）</span></div>
+  <div><b>57</b><span>单元测试（全绿）</span></div>
+  <div><b>2</b><span>端到端全链路实测走通（读→生成→发→确认→落库）</span></div>
+  <div><b>1</b><span>根本天花板（GUI）</span></div>
+</div>
+
+<h2>一、这套是什么（背景）</h2>
+<div class="card">
+  <p>企业微信好友单聊的 AI 自动代回。<b>不走官方 API</b>（官方客服 API 被 ICP / 可信 IP 卡住），
+  而是在云电脑上跑一个常驻 Python loop，用「<b>截屏 → 视觉模型认字读消息 → 固定坐标点击打字发送</b>」的 GUI 方式代回。</p>
+  <div class="flow">数据链：云电脑 loop → Fly 中转 → Vercel <code>/api/wecom/chat/reply</code> → chatReply（小艳，模型 qwen3-235b-a22b-2507，07-10 起由 glm-4.6 切换、可独立回滚）→ 回传 → GUI 打字发出</div>
+  <p style="margin-top:10px"><b>先天特性</b>：GUI 方式没有"送达回执"，靠截图认字，天生比 API 脆——两批优化都是在把这些脆点补硬。</p>
+</div>
+
+<h2>二、07-09 批次：10 项加固（已上线，详见<a href="/akke/autoreply-2026-07-09">上一期报告</a>）</h2>
+<table>
+  <tr><th style="width:130px">项</th><th>治什么问题</th><th style="width:90px">状态</th></tr>
+  <tr><td><b>A 连发防抖</b></td><td>客户连发多条时，读到半截就回、剩下的下轮又回一次（拆成多条）。改：读到待回消息后先确认聊天区 2.5s 不再变化（发完）才回。</td><td><span class="badge b-done">已上线</span></td></tr>
+  <tr><td><b>B 读取上限</b></td><td>每次最多读 6 条 → 连发 &gt;6 条漏前面。改为 <code>10</code> 条。</td><td><span class="badge b-done">已上线</span></td></tr>
+  <tr><td><b>C 红点不饿死</b></td><td>某会话红点卡住不消时独占 3 个处理槽，饿死其他客户。改：本轮已点过的行跳过。</td><td><span class="badge b-done">已上线</span></td></tr>
+  <tr><td><b>系统消息过滤</b></td><td>"XX撤回了一条消息""工作台统计（总客户N位/收款N元）"被当客户消息回。改：正则拦截，从源头跳过。</td><td><span class="badge b-done">已上线</span></td></tr>
+  <tr><td><b>F 红点检测修正</b></td><td>截图含最左导航栏 → "消息"图标红角标被当成假未读。改：裁掉导航栏 + 顶部死区过滤。<b>（07-11 已被像素扫描方案取代，见下批第 2 项）</b></td><td><span class="badge b-info">已迭代</span></td></tr>
+  <tr><td><b>G 发送前重抢前台</b></td><td>"读→生成"隔数秒，其间焦点被抢 → 发送中止 / 打字中途丢焦。改：发前主动把企微顶到最前+最大化。</td><td><span class="badge b-done">已上线</span></td></tr>
+  <tr><td><b>VL 断连重试</b></td><td>视觉模型（OpenRouter）偶发掐连接 → 整轮读取作废。改：失败重试 3 次 + 退避。</td><td><span class="badge b-done">已上线</span></td></tr>
+  <tr><td><b>★ 发送后回读确认</b></td><td>治"假成功"——按发送键就记成功，但字没落进输入框/坐标偏/被窗口挡。改：发完截图回读，确认文案真出现在右侧才记成功。</td><td><span class="badge b-done">已上线</span></td></tr>
+  <tr><td><b>★ 定期全量扫会话</b></td><td>客户在【无红点、又非当前打开】的会话里回消息，两条腿都够不着。改：定期把前 6 个会话逐个点开读一遍补漏。<b>（07-11 起降频到每 20 轮：红点检测确定性后它只剩兜底作用）</b></td><td><span class="badge b-done">已上线</span></td></tr>
+  <tr><td><b>★ @微信 硬门</b></td><td>系统通知/内部群被当客户回、污染台账。改：只代回标题带「@微信」的外部客户。</td><td><span class="badge b-done">已上线</span></td></tr>
+</table>
+
+<h2>三、07-10 ~ 07-12 实战批：三天连修 7 项（v2026-07-12.1）</h2>
+<div class="card">
+  <p>07-09 批上线后连续三天实战（野荞机），把「消息发不出去 → 红点检测不到 → 真客户被拦 → 同一问题连回三遍」一整条故障链挖穿修完。每一项都有真机截图/DB 对账作为证据，不靠猜。</p>
+</div>
+<table>
+  <tr><th style="width:170px">问题</th><th>根因</th><th>修法</th><th style="width:80px">状态</th></tr>
+  <tr><td><b>消息发不进输入框</b>（首触两天发不出）</td><td>会话列表分隔条被拖宽 ~240px，固定坐标 x=391 落进列表空白区，字全打进虚空</td><td>输入框坐标挪到聊天区深处（<code>AKKE_WECOM_C_INPUT=445,913</code>，列表怎么拖都够不着）</td><td><span class="badge b-done">已上线</span></td></tr>
+  <tr><td><b>红点挂着就是检测不到</b></td><td>①检测带把头像列裁掉（红点长在头像上）②旧 y&lt;60 死区把顶行会话红点全数误杀</td><td><b>红点检测整个换成确定性像素扫描</b>：企微红按真机截图标定，橙图标/任务栏红排除；VL 不再参与位置判断，死区废除</td><td><span class="badge b-done">已上线</span></td></tr>
+  <tr><td><b>真客户被 @微信 硬门拦死</b></td><td>裁剪图读标题偶发丢「@微信」徽标；名字非空走不到"读空兜底"，硬门假阴性把红点白白点掉</td><td>硬门前加<b>徽标丢失救济</b>：已知系统会话名单直接跳过，存疑名字整屏重读标题复核，读到徽标才放行</td><td><span class="badge b-done">已上线</span></td></tr>
+  <tr><td><b>会话在 VL 眼里是空的</b></td><td>裁剪比例 0.25 是列表宽 620px 时配的，分隔条拖窄后裁剪切进聊天气泡 185px，客户消息全被裁掉</td><td>按机标定 <code>AKKE_WECOM_CROP_RATIO</code>（分隔线像素+5 ÷ 屏宽，画图悬停即可量）</td><td><span class="badge b-done">已上线</span></td></tr>
+  <tr><td><b>★ 同一问题被连回三遍</b>（门店地址 12:02/16:20/19:13 三连发）</td><td>两层叠加：回读确认<b>假阴性</b>（消息其实已送达）→ 台账/落库全没记、系统失忆；VL 读气泡左右 ~1% 偶发误读 → 旧消息重新变待回 → 重新生成重新发</td><td>①<b>重验优先于重发</b>：verify 失败登记待重验，下轮出手前先重读，在聊天里就补记账+补落库、不再发 ②<b>出手前重复文案闸</b>：拟发文案与近发缓冲相似度≥0.8 或前 16 字相同 → 不发、记台账止血 ③回读加长文案前缀命中，压假阴性火种</td><td><span class="badge b-done">已上线</span></td></tr>
+  <tr><td><b>VL 出口网络断连</b>（Remote end closed）</td><td>云电脑出口网络对大 POST 敏感（与抖音通道同款老毛病），连锁导致读盲 + 回读假阴</td><td>处置=重启云电脑代理；诊断口径=本机打同 model 大 POST 几秒通则 API 侧健康、锅在云电脑网络</td><td><span class="badge b-info">运维口径</span></td></tr>
+  <tr><td><b>loop 冻死无人知晓</b></td><td>心跳 ts 停在前一天没人看，黑窗版本号写死不可信</td><td>运维纪律：开工先看 <code>wecom_reply_status.json</code> 心跳；07-12 起版本号随改动走（横幅看 <code>v2026-07-12.1</code>），不用再对字节数猜版本</td><td><span class="badge b-info">运维口径</span></td></tr>
+</table>
+<div class="note"><b>这批修复的方法论</b>：位置/布局类任务从视觉模型手里收回来，交给<b>确定性代码</b>（像素扫红点、真图标定坐标与裁剪、相似度闸），VL 只留在真正的语言任务上（认字、判内容）。每一处阈值都用真机截图离线校准后才上线。</div>
+
+<h2>四、目前的状况</h2>
+<div class="card">
+  <ul>
+    <li><b>端到端已走通</b>：07-11 两条真实客户咨询（客厅收纳 / 板材价格）完整跑完「像素红点 → 读取 → 生成 → GUI 发送 → 回读确认 → 落库」，GUI 聊天记录与 DB 逐条对账一致。</li>
+    <li><b>v2026-07-12.1 已在野荞机运行</b>；代码已回灌 PR #817（commit <code>8cbb87d7</code>），57 单测全绿；同事机升级步骤已同步（含按机标定裁剪比例的画图法）。</li>
+    <li><b>台账机制经排查是干净的</b>：07-09 担心的本地台账污染实际不存在，三连发的真凶是回读假阴性失忆（见上表），ledger/缓冲不需要清。</li>
+    <li><b>观察项</b>：回读确认在长文案上假阴性的确切成因待日志确认（前缀命中已作缓解）；三连发两道闸上线后需跑几天对账验证（GUI 回复条数 = DB ai 行数才算彻底闭环）。</li>
+  </ul>
+</div>
+
+<h2>五、还存在的 Bug / 局限</h2>
+<table>
+  <tr><th style="width:150px">问题</th><th>说明</th><th style="width:90px">性质</th></tr>
+  <tr><td>无「转人工」边界决策门</td><td>议价、退款、投诉、客户明显不满、要求转人工——目前一律照常自动回。抖音通道已有 needs_human + 滞留哨兵模式可照抄，企微通道还没接。</td><td><span class="badge b-open">待做·优先</span></td></tr>
+  <tr><td>生成侧编造记忆</td><td>实测出现「您之前说在成都，是吧？」而客户从没说过成都——模型无中生有的记忆，服务端待查。</td><td><span class="badge b-open">待查</span></td></tr>
+  <tr><td>D 失焦发半条不记账</td><td>发送中途失焦中止时只发了半条却不记账，下轮重生成整条 → 客户可能收到"半条+整条"。</td><td><span class="badge b-open">未修·下批</span></td></tr>
+  <tr><td>E 身份用显示名</td><td>会话身份 = 销售号:显示名。客户改昵称 → 新建会话丢历史。GUI 拿不到稳定 userid，补不干净。</td><td><span class="badge b-cap">结构性</span></td></tr>
+  <tr><td>布局标定是人肉的</td><td>坐标/裁剪比例绑定分隔条位置，谁拖一下就要重标（已有画图量法，但仍是手工）。</td><td><span class="badge b-info">可自动化</span></td></tr>
+  <tr><td>🔒 根本天花板</td><td>GUI 方案无官方送达回执，回读确认是补救不是根治。<b>到不了"零故障、无人值守"。</b></td><td><span class="badge b-cap">GUI 天花板</span></td></tr>
+</table>
+
+<h2>六、未来的优化（按性价比排序）</h2>
+<div class="card">
+  <ul>
+    <li><b>1. 服务端「转人工」决策门（最值得做）</b>：议价/退款/投诉/情绪不满/要转人工 → 不自动回、推 Lark 卡片人工接手，照抄抖音通道 needs_human + 滞留哨兵（#834）现成模式。LLM 只做"该不该回"的判断，发不发仍由确定性代码控制。</li>
+    <li><b>2. GUI↔DB 对账哨兵</b>：定期比对「GUI 已发条数 vs DB 落库 ai 行数」，回读假阴性批量出现时自动告警——把"系统失忆"从事后发现变成当天发现。</li>
+    <li><b>3. 布局自动标定</b>：用像素扫描自动找分隔线位置、自动算裁剪比例和输入框坐标，分隔条被拖也能自愈，消灭人肉重标。</li>
+    <li><b>4. D / E / 编造记忆收尾</b>：补"部分发送也记账"、探索稳定会话身份、排查服务端记忆注入。</li>
+    <li><b>5. wecom-chat 接入自动同步</b>：目前改完代码要人工传文件+重启、无版本校验（<code>sync-wuying-scripts.yml</code> 不含本目录）——照抖音脚本的镜像同步模式补上。</li>
+    <li><b>🔑 6. 路线3 · 官方 API（根治，唯一能"稳定不出问题"）</b>：ICP 备案 / 可信 IP 白名单解开就是 100% 可靠——真消息 ID、送达回执、不用截图认字。需业务/合规投入，持续评估。</li>
+  </ul>
+</div>
+
+<h2>七、日常运维要点</h2>
+<div class="card">
+  <ul>
+    <li><b>会话列表分隔条别拖</b>——坐标和裁剪比例全绑着它，拖了必须重标 <code>AKKE_WECOM_CROP_RATIO</code>。</li>
+    <li><b>企微保持最前+最大化、黑窗最小化别盖上来</b>——发送落地的头号环境因素。</li>
+    <li>开工先看心跳：<code>type C:\akke-wecom\wecom_reply_status.json</code>，<code>ts</code> 在更新才是活着。</li>
+    <li>云电脑重启后：跑重启流程把 loop 拉起（对应 skill：企微自动回复重启）。</li>
+    <li>出任何异常：<code>ni C:\akke-wecom\wecom_reply_STOP</code> 即停；排查好删掉再起。</li>
+    <li>判断版本：看启动横幅版本号（现行 <code>v2026-07-12.1</code>）；升级下载完整性看字节数（本版 <code>68914</code>）。</li>
+  </ul>
+</div>
+
+<footer>
+  2026-07-12 批次总结（07-13 定稿发布）· 实战热修 v2026-07-12.1，回灌 PR #817 commit 8cbb87d7，57 单测全绿 · 上一期：<a href="/akke/autoreply-2026-07-09">autoreply-2026-07-09</a><br>
+  代码全部在 <b>PR #817</b>（fix/wecom-reply-burst-opener-robustness）· 部署手册 <a href="https://upio.ai/akke/cloud-pc-wecom-autoreply-deploy">cloud-pc-wecom-autoreply-deploy</a> · 原理报告 <a href="https://upio.ai/akke/wecom-autoreply-routeb-0to1">wecom-autoreply-routeb-0to1</a>
+</footer>
+
+</div>
+</body>
+</html>
