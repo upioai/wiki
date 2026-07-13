@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Akke · 用户案例 · Q UE NN · 一条评论的旅程</title>
+<style>
+  :root {
+    --bg: #0b0d12; --bg-elevated: #141821; --bg-deep: #1a1f2b;
+    --border: #242a38; --border-strong: #2f3646;
+    --text: #e4e7ed; --text-dim: #9ba3b4; --text-muted: #6b7384;
+    --accent: #8b5cf6; --accent-soft: rgba(139, 92, 246, 0.15);
+    --info: #60a5fa; --info-soft: rgba(96, 165, 250, 0.12);
+    --success: #34d399; --success-soft: rgba(52, 211, 153, 0.12);
+    --customer: #fbbf24; --customer-soft: rgba(251, 191, 36, 0.08);
+    --warn: #f87171; --warn-soft: rgba(248, 113, 113, 0.10);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    font-size: 16px; line-height: 1.75; -webkit-font-smoothing: antialiased; }
+  .container { max-width: 880px; margin: 0 auto; padding: 48px 24px 120px; }
+
+  .breadcrumb { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
+  .breadcrumb a { color: var(--text-dim); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--accent); }
+  .breadcrumb span { margin: 0 8px; color: var(--border-strong); }
+
+  header.hero { padding: 24px 0 40px; margin-bottom: 16px; text-align: center; }
+  .hero-avatar { width: 112px; height: 112px; border-radius: 50%; border: 3px solid var(--border-strong);
+    background: var(--bg-elevated); object-fit: cover; box-shadow: 0 0 0 8px rgba(139,92,246,0.06); margin-bottom: 22px; }
+  .hero-eyebrow { font-size: 12px; color: var(--text-muted); letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 14px; }
+  h1 { font-size: 44px; font-weight: 700; margin: 0 0 14px; letter-spacing: -0.02em; line-height: 1.15; }
+  .hero-tagline { font-size: 18px; color: var(--text-dim); margin: 0 auto 18px; max-width: 640px; line-height: 1.55; }
+  .hero-tagline em { color: var(--accent); font-style: normal; font-weight: 600; }
+  .hero-tagline em.success { color: var(--success); }
+  .hero-tagline em.warn { color: var(--warn); }
+  .hero-chips { display: inline-flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .chip { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 500; }
+  .chip.purple { background: var(--accent-soft); color: var(--accent); }
+  .chip.blue { background: var(--info-soft); color: var(--info); }
+  .chip.amber { background: var(--customer-soft); color: var(--customer); }
+  .chip.green { background: var(--success-soft); color: var(--success); }
+  .chip.red { background: var(--warn-soft); color: var(--warn); }
+  .hero-profile { display: inline-block; margin-top: 18px; font-size: 13px; color: var(--info); text-decoration: none;
+    border-bottom: 1px dashed currentColor; padding-bottom: 1px; }
+  .hero-profile:hover { color: var(--accent); }
+
+  .journey-strip { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px;
+    margin: 32px 0 24px; padding: 16px 20px; background: var(--bg-elevated);
+    border: 1px solid var(--border); border-radius: 14px; }
+  .js-step { text-align: center; position: relative; }
+  .js-step .num { display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: 50%; background: var(--bg-deep); color: var(--text-muted);
+    border: 1.5px solid var(--border-strong); font-size: 12px; font-weight: 700; margin-bottom: 6px; }
+  .js-step.done .num { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .js-step.now .num { background: var(--customer-soft); color: var(--customer); border-color: var(--customer); }
+  .js-step.pending .num { background: var(--bg-deep); color: var(--text-muted); border-color: var(--border-strong); border-style: dashed; }
+  .js-step .lbl { font-size: 10.5px; color: var(--text-muted); line-height: 1.3; }
+  .js-step .node-time { font-size: 9.5px; color: var(--text-muted); margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .js-step.done .lbl, .js-step.now .lbl { color: var(--text-dim); }
+  .js-step.now .node-time { color: var(--customer); }
+  .js-step::after { content: ""; position: absolute; top: 14px; right: -3px; width: 6px; height: 2px; background: var(--border-strong); }
+  .js-step:last-child::after { display: none; }
+  @media (max-width: 720px) { .journey-strip { grid-template-columns: repeat(4, 1fr); } .js-step .lbl { font-size: 10px; } }
+
+  .sla-panel { background: linear-gradient(135deg, rgba(139,92,246,0.10), rgba(52,211,153,0.06));
+    border: 1px solid rgba(139,92,246,0.30); border-radius: 16px; padding: 24px 26px; margin: 0 0 24px; }
+  .sla-panel .sla-eyebrow { color: var(--accent); font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 700; margin-bottom: 8px; }
+  .sla-panel h3 { margin: 0 0 16px; font-size: 22px; color: var(--text); font-weight: 700; letter-spacing: -0.01em; }
+  .sla-flow { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 8px; align-items: stretch; margin: 4px 0 18px; }
+  .sla-node { background: var(--bg-deep); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; text-align: center; }
+  .sla-node.start { border-color: rgba(96,165,250,0.35); }
+  .sla-node.end { border-color: rgba(52,211,153,0.35); }
+  .sla-node .sn-time { font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 14px; color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; margin-bottom: 4px; }
+  .sla-node.start .sn-time { color: var(--info); }
+  .sla-node.end .sn-time { color: var(--success); }
+  .sla-node .sn-label { font-size: 12px; color: var(--text-dim); line-height: 1.4; }
+  .sla-arrow { display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: var(--text-muted); font-size: 11px; white-space: nowrap; padding: 0 4px; }
+  .sla-arrow .sa-gap { color: var(--accent); font-weight: 700; font-size: 12.5px; }
+  .sla-arrow .sa-mark { font-size: 18px; line-height: 1; margin: 2px 0; color: var(--accent); }
+  @media (max-width: 700px) {
+    .sla-flow { grid-template-columns: 1fr; }
+    .sla-arrow { padding: 6px 0; flex-direction: row; gap: 8px; }
+    .sla-arrow .sa-mark { transform: rotate(90deg); }
+  }
+  .sla-summary { background: var(--bg-deep); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 16px; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  .sla-summary .sl-big { font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 32px; color: var(--customer); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+  .sla-summary .sl-big small { font-size: 14px; color: var(--text-muted); font-weight: 400; margin-left: 4px; }
+  .sla-summary .sl-text { font-size: 13.5px; color: var(--text-dim); line-height: 1.55; flex: 1; min-width: 220px; }
+  .sla-summary .sl-text strong { color: var(--text); }
+  .sla-foot { font-size: 12px; color: var(--text-muted); margin-top: 12px; line-height: 1.55; }
+
+  .act { margin: 64px 0 0; }
+  .act-head { display: flex; align-items: baseline; gap: 16px; margin-bottom: 8px; }
+  .act-no { font-size: 11px; color: var(--accent); letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; }
+  .act-time { font-size: 12px; color: var(--text-muted); margin-left: auto; font-variant-numeric: tabular-nums; }
+  .act h2 { font-size: 26px; font-weight: 700; color: var(--text); margin: 0 0 6px; letter-spacing: -0.01em; line-height: 1.25; }
+  .act-lede { font-size: 15.5px; color: var(--text-dim); margin: 0 0 22px; border-left: 2px solid var(--border-strong); padding-left: 14px; }
+  .act-lede em { color: var(--text); font-style: normal; font-weight: 500; }
+  .panel { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 14px; padding: 22px 26px; margin: 0; }
+
+  .comment-wrap { display: flex; gap: 14px; align-items: flex-start; }
+  .comment-avatar { width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0; background: var(--bg-deep); object-fit: cover; border: 1px solid var(--border); }
+  .comment-body { flex: 1; min-width: 0; }
+  .comment-author { font-size: 13px; color: var(--text-dim); font-weight: 500; margin-bottom: 4px; }
+  .comment-author .loc { color: var(--text-muted); font-weight: 400; margin-left: 8px; font-size: 12px; }
+  .comment-text { font-size: 22px; color: var(--text); font-weight: 600; line-height: 1.45; padding: 6px 0 4px; }
+  .comment-meta { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+  .comment-source-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; font-size: 12.5px; color: var(--info); text-decoration: none; padding-top: 12px; border-top: 1px solid var(--border); width: 100%; }
+  .comment-source-link:hover { color: var(--accent); }
+
+  .scoring { display: grid; grid-template-columns: 140px 1fr; gap: 24px; align-items: center; }
+  .scoring .score-bar { background: var(--bg-deep); border-radius: 12px; padding: 18px 16px; text-align: center; border: 1px solid var(--border); }
+  .scoring .score-num { font-size: 44px; font-weight: 700; color: var(--accent); line-height: 1; }
+  .scoring .score-num small { font-size: 16px; color: var(--text-muted); font-weight: 400; }
+  .scoring .score-label { font-size: 12px; color: var(--accent); margin-top: 6px; letter-spacing: 0.06em; font-weight: 600; }
+  .scoring .score-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .scoring .score-reasoning { font-size: 14px; color: var(--text-dim); line-height: 1.6; }
+  .scoring .score-reasoning strong { color: var(--text); }
+  @media (max-width: 560px) { .scoring { grid-template-columns: 1fr; } }
+
+  .dm { display: flex; gap: 12px; margin-top: 6px; }
+  .dm.from-akke { justify-content: flex-end; }
+  .dm-bubble { max-width: 78%; padding: 14px 18px; border-radius: 16px; font-size: 15.5px; line-height: 1.55; color: var(--text); position: relative; white-space: pre-wrap; }
+  .dm.from-akke .dm-bubble { background: linear-gradient(135deg, var(--accent), #7c3aed); color: #fff; border-bottom-right-radius: 4px; }
+  .dm.from-customer .dm-bubble { background: var(--bg-deep); border: 1px solid var(--border-strong); border-bottom-left-radius: 4px; }
+  .dm-meta { font-size: 11.5px; color: var(--text-muted); margin-top: 6px; display: flex; gap: 10px; }
+  .dm.from-akke + .dm-meta { justify-content: flex-end; }
+  .day-sep { display: flex; align-items: center; gap: 10px; margin: 22px 0 14px; color: var(--text-muted); font-size: 11.5px; letter-spacing: 0.12em; text-transform: uppercase; }
+  .day-sep::before, .day-sep::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+
+  .transcript { margin: 18px 0 12px; padding: 24px 26px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 14px; }
+  .transcript-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 8px; }
+  .transcript-head h2 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+  .transcript-head .t-sub { font-size: 12.5px; color: var(--text-muted); }
+  .msg-id { display: inline-block; min-width: 24px; text-align: center; padding: 1px 6px; border-radius: 4px; margin-right: 8px; background: var(--bg-deep); border: 1px solid var(--border-strong); color: var(--text-dim); text-decoration: none; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 10.5px; font-weight: 700; scroll-margin-top: 20px; }
+  .msg-id:hover { color: var(--accent); border-color: var(--accent); }
+  .dm[id^="msg-"] { scroll-margin-top: 80px; }
+  .msg-ref { display: inline-block; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); text-decoration: none; vertical-align: 1px; }
+  .msg-ref:hover { background: var(--accent); color: #fff; }
+  .msg-note { font-size: 12px; color: var(--text-muted); font-style: italic; text-align: center; margin: 10px 0; }
+  .awaiting-reply { margin: 14px 0 0; padding: 16px 18px; background: var(--customer-soft); border: 1px dashed rgba(251,191,36,0.40); border-radius: 10px; font-size: 13.5px; color: var(--text-dim); line-height: 1.6; }
+  .awaiting-reply strong { color: var(--customer); }
+
+  .region-panel { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 14px; padding: 22px 26px; }
+  .region-panel .rp-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .region-panel .rp-head h3 { margin: 0; font-size: 17px; font-weight: 700; color: var(--text); }
+  .region-panel .rp-head .rp-sub { font-size: 12px; color: var(--text-muted); }
+  .region-layers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+  .region-layer { background: var(--bg-deep); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .region-layer .rl-label { font-size: 10.5px; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }
+  .region-layer .rl-val { font-size: 18px; font-weight: 700; color: var(--text); line-height: 1.2; margin-bottom: 4px; }
+  .region-layer .rl-val .null { color: var(--text-muted); font-weight: 400; font-size: 14px; font-style: italic; }
+  .region-layer .rl-source { font-size: 11px; color: var(--text-muted); line-height: 1.4; }
+  .region-layer .rl-source code { background: var(--bg); padding: 1px 5px; border-radius: 3px; font-size: 10px; font-family: "SF Mono", Menlo, Consolas, monospace; color: #c4b5fd; }
+  @media (max-width: 640px) { .region-layers { grid-template-columns: 1fr; } }
+
+  .breakdown { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 16px; }
+  .breakdown .bd-item { background: var(--bg-deep); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+  .breakdown .bd-num { font-size: 11px; color: var(--accent); font-weight: 700; letter-spacing: 0.04em; }
+  .breakdown .bd-title { font-size: 12.5px; color: var(--text); font-weight: 600; margin: 2px 0 4px; }
+  .breakdown .bd-quote { font-size: 12px; color: var(--text-muted); line-height: 1.45; font-style: italic; }
+  @media (max-width: 700px) { .breakdown { grid-template-columns: repeat(2, 1fr); } }
+  .annotation { margin: 12px 0 0; padding: 12px 16px; background: rgba(139, 92, 246, 0.04); border-left: 2px solid var(--accent); border-radius: 8px; font-size: 13.5px; color: var(--text-dim); line-height: 1.6; }
+  .annotation .a-title { color: var(--accent); font-weight: 600; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 4px; }
+  .annotation strong { color: var(--text); }
+  .annotation.warn { background: var(--warn-soft); border-left-color: var(--warn); }
+  .annotation.warn .a-title { color: var(--warn); }
+
+  .delivery-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .delivery-row .dr-item { background: var(--bg-deep); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .delivery-row .dr-label { font-size: 11px; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }
+  .delivery-row .dr-val { font-size: 14.5px; color: var(--text); font-weight: 600; }
+  .delivery-row .dr-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
+  @media (max-width: 600px) { .delivery-row { grid-template-columns: 1fr; } }
+
+  .wechat-callout { margin: 14px 0 0; padding: 14px 18px; background: rgba(52,211,153,0.06); border: 1px solid rgba(52,211,153,0.30); border-radius: 10px; }
+  .wechat-callout .wc-label { font-size: 11px; color: var(--success); letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; margin-bottom: 6px; }
+  .wechat-callout .wc-msg { font-size: 16px; color: var(--text); font-weight: 600; line-height: 1.5; background: var(--bg-deep); border-radius: 8px; padding: 12px 14px; border: 1px solid var(--border); }
+  .wechat-callout .wc-sub { font-size: 12.5px; color: var(--text-muted); margin-top: 8px; line-height: 1.5; }
+
+  .status-card { background: linear-gradient(135deg, rgba(251,191,36,0.08), rgba(96,165,250,0.06)); border: 1px solid rgba(251,191,36,0.30); border-radius: 14px; padding: 22px 26px; display: flex; gap: 18px; align-items: center; }
+  .status-pulse { width: 12px; height: 12px; border-radius: 50%; background: var(--customer); box-shadow: 0 0 0 6px rgba(251,191,36,0.18); flex-shrink: 0; animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 6px rgba(251,191,36,0.18); } 50% { box-shadow: 0 0 0 10px rgba(251,191,36,0.05); } }
+  .status-text strong { color: var(--text); }
+  .status-text { color: var(--text-dim); font-size: 14.5px; line-height: 1.55; }
+
+  .review-grid { display: grid; gap: 14px; }
+  .review-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; padding: 18px 22px; }
+  .review-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+  .review-head .rv-mod { font-size: 12px; color: var(--accent); letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700; }
+  .review-head h3 { margin: 0; font-size: 16px; font-weight: 700; flex: 1; }
+  .rv-grade { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; }
+  .rv-grade.good { background: var(--success-soft); color: var(--success); }
+  .rv-grade.mid  { background: var(--customer-soft); color: var(--customer); }
+  .rv-grade.bad  { background: var(--warn-soft); color: var(--warn); }
+  .rv-grade.na   { background: var(--bg-deep); color: var(--text-muted); }
+  .review-body { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .review-body .rv-col { background: var(--bg-deep); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+  .review-body .rv-col.good { border-color: rgba(52,211,153,0.30); }
+  .review-body .rv-col.bad  { border-color: rgba(248,113,113,0.30); }
+  .review-body .rv-tag { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; margin-bottom: 6px; }
+  .review-body .rv-col.good .rv-tag { color: var(--success); }
+  .review-body .rv-col.bad  .rv-tag { color: var(--warn); }
+  .review-body .rv-list { margin: 0; padding-left: 18px; font-size: 13.5px; line-height: 1.65; color: var(--text-dim); }
+  .review-body .rv-list li { margin-bottom: 4px; }
+  .review-body .rv-list strong { color: var(--text); }
+  @media (max-width: 600px) { .review-body { grid-template-columns: 1fr; } }
+
+  .snapshot { margin-top: 56px; padding-top: 28px; border-top: 1px solid var(--border); }
+  .snapshot-title { font-size: 11px; color: var(--text-muted); letter-spacing: 0.16em; text-transform: uppercase; margin-bottom: 14px; }
+  .snap-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; font-size: 12.5px; }
+  .snap-grid dl { margin: 0; display: grid; grid-template-columns: 100px 1fr; gap: 4px 12px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .snap-grid dt { color: var(--text-muted); }
+  .snap-grid dd { color: var(--text); margin: 0; word-break: break-all; }
+  .snap-grid code { background: var(--bg-deep); padding: 1px 5px; border-radius: 3px; font-size: 11px; color: #c4b5fd; font-family: "SF Mono", Menlo, Consolas, monospace; }
+  @media (max-width: 600px) { .snap-grid { grid-template-columns: 1fr; } }
+
+  footer { margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 12.5px; text-align: center; }
+  footer a { color: var(--text-dim); text-decoration: none; }
+  footer a:hover { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <nav class="breadcrumb">
+    <a href="/">upio.ai</a><span>/</span><a href="/akke/">Akke</a><span>/</span><a href="/akke/cases/">用户案例</a><span>/</span><span style="color: var(--text-dim);">Q UE NN</span>
+  </nav>
+
+  <header class="hero">
+    <img class="hero-avatar" src="https://p3-pc.douyinpic.com/aweme/100x100/aweme-avatar/tos-cn-avt-0015_734faf6579c0f16bba2247ac7bdac4a4.jpeg?from=2064092626" alt="Q UE NN 头像" referrerpolicy="no-referrer" loading="lazy">
+    <div class="hero-eyebrow">USER JOURNEY · 链路触达专题 · 自有账号资产</div>
+    <h1>Q UE NN<br>本批最快首触最快首响 · 却被三连问零兑现耗掉</h1>
+    <p class="hero-tagline">
+      她在西藏。在<em>佳姐装修日记</em>（业主日记类目号源）的视频底下，她冲着资料留了 <em>「需要一份」</em>。<br>
+      系统 <em class="success">3 分 43 秒</em>破冰 —— 本批 8 案<em class="success">最快首触</em>；她 <em class="success">10 分钟</em>就回「翻新」—— 本批<em class="success">最快首响</em>。链路两端都是最快样本，可两条 AI 消息全在问问题：破冰问「新房还是翻新」、跟进问「多少平、拆到哪一步」，她评论里要的那份东西<em class="warn">从头到尾没兑现</em> —— 破冰还<em class="warn">没叫她名字</em>。她从 09:52 起沉默，截至 07-13 已 <em class="warn">4 天</em>。按 6 个模块复盘。
+    </p>
+    <div class="hero-chips">
+      <span class="chip purple">中意向 · 评分 78</span>
+      <span class="chip blue">product · medium · active</span>
+      <span class="chip amber">西藏 · 服务半径待确认</span>
+      <span class="chip green">自有账号 · 小星·全屋定制</span>
+      <span class="chip red">资料未兑现 · 沉默 4 天</span>
+    </div>
+    <br>
+    <a class="hero-profile" href="https://www.douyin.com/user/MS4wLjABAAAA5ZOeBckZUpf05DbAJcvNMihhEesDQZ9UFHHGI2bVHzo" target="_blank" rel="noopener noreferrer">→ 抖音个人主页</a>
+  </header>
+
+  <div class="journey-strip" aria-label="用户旅程进度">
+    <div class="js-step done"><div class="num">1</div><div class="lbl">刷视频</div><div class="node-time">7-09 09:30</div></div>
+    <div class="js-step done"><div class="num">2</div><div class="lbl">留评论</div><div class="node-time">7-09 09:30</div></div>
+    <div class="js-step done"><div class="num">3</div><div class="lbl">AI 评分</div><div class="node-time">7-09 09:33</div></div>
+    <div class="js-step done"><div class="num">4</div><div class="lbl">起草破冰</div><div class="node-time">7-09 09:33</div></div>
+    <div class="js-step done"><div class="num">5</div><div class="lbl">DM 触达</div><div class="node-time">7-09 09:33</div></div>
+    <div class="js-step done"><div class="num">6</div><div class="lbl">用户回应</div><div class="node-time">7-09 09:43</div></div>
+    <div class="js-step pending"><div class="num">7</div><div class="lbl">用户提供微信</div></div>
+    <div class="js-step pending"><div class="num">8</div><div class="lbl">销售加微</div><div class="node-time" id="js-gw">未进入加微</div></div>
+  </div>
+
+  <!-- ============ 1. 案例素材 · 视频 + 评论 + 对话 ============ -->
+  <section class="act" id="case-source" style="margin-top: 24px;">
+    <div class="act-head">
+      <span class="act-no">案例素材 · 视频 · 评论 · 对话</span>
+      <span class="act-time">2026-07-09 09:30 → 09:52 CST</span>
+    </div>
+    <h2>22 分钟走完三条来回，然后是 4 天沉默</h2>
+    <p class="act-lede">
+      下面三块是这条案例的<em>原始信号</em>：留评论的视频、那句「需要一份」、以及 3 条来回的完整对话。整段对话只用了 22 分钟——链路快、客户也快。但注意看 <a href="#msg-1" class="msg-ref">#1</a> 和 <a href="#msg-3" class="msg-ref">#3</a>：两条 AI 消息都在<em>问她要信息</em>（新房翻新 → 多少平拆哪步），她评论里要的那份东西<em>一直没出现</em>。第三问之后，她不回了。
+    </p>
+
+    <div class="panel">
+      <div class="comment-wrap">
+        <img class="comment-avatar" src="https://p3-pc.douyinpic.com/aweme/100x100/aweme-avatar/tos-cn-avt-0015_734faf6579c0f16bba2247ac7bdac4a4.jpeg?from=2064092626" alt="Q UE NN" referrerpolicy="no-referrer" loading="lazy">
+        <div class="comment-body">
+          <div class="comment-author">Q UE NN <span class="loc">📍 西藏</span></div>
+          <div class="comment-text">需要一份</div>
+          <div class="comment-meta">2026-07-09 09:30 CST · 评论于「佳姐装修日记」视频（号源类目：业主日记）</div>
+        </div>
+      </div>
+      <a class="comment-source-link" href="https://www.douyin.com/video/7645493871992237998" target="_blank" rel="noopener noreferrer">
+        📹 评论所在视频（在抖音打开）· 号源「佳姐装修日记」· 类目「业主日记」
+      </a>
+    </div>
+
+    <div class="transcript" aria-label="完整对话">
+      <div class="transcript-head">
+        <h2>完整对话 · 3 条来回</h2>
+        <span class="t-sub">2026-07-09 上午 · 单通道 DM · AI 起草 · DB 落库 + 截图核对</span>
+      </div>
+
+      <div class="day-sep">2026-07-09 上午 · 破冰到跟进 · 22 分钟三条来回</div>
+
+      <div class="dm from-akke" id="msg-1">
+        <div class="dm-bubble">你好，这事儿确实坑。户型方案+实拍都能整给你看，你家是新房还是翻新？</div>
+      </div>
+      <div class="dm-meta"><a href="#msg-1" class="msg-id">#1</a><span>📱 7-09 09:33 CST · AI 破冰 · 由账号「小星·全屋定制（内部：零星）」推送 · 评论后 3 分 43 秒（本批最快首触）</span></div>
+
+      <div class="dm from-customer" id="msg-2">
+        <div class="dm-bubble">翻新</div>
+      </div>
+      <div class="dm-meta"><a href="#msg-2" class="msg-id">#2</a><span>📱 7-09 09:43 CST（截图时间）· 首响 10 分钟，本批最快 · 只答了破冰的问题、资料没再提</span></div>
+
+      <div class="dm from-akke" id="msg-3">
+        <div class="dm-bubble">翻新更得好好整了，旧房结构容易有坑。你家多少平，现在拆到哪一步了？</div>
+      </div>
+      <div class="dm-meta"><a href="#msg-3" class="msg-id">#3</a><span>📱 7-09 09:52 CST · 跟进：接住「翻新」+ 又抛两问（多少平 / 拆到哪一步）· 资料仍未兑现</span></div>
+    </div>
+    <div class="awaiting-reply">
+      <strong>⏳ 客户已沉默 4 天</strong> — 跟进 <a href="#msg-3" class="msg-ref" style="vertical-align:0;">#3</a> 发出后客户未再回复（截图核对至 07-13 09:56）。未给微信，第 7 步「用户提供微信」未发生。
+    </div>
+    <div class="annotation" style="margin-top:14px;">
+      <div class="a-title">消息归属与时间口径说明</div>
+      sender 判定优先取 <strong>DB <code>messages.role</code></strong>（最高优先级）：<strong>#1 #3</strong> 为我方（<code>role=ai</code>），<strong>#2</strong> 为客户（<code>role=customer</code>）；与 07-13 对话截图核对一致——蓝色气泡 + 「小星·全屋定制」头像角标 = akke，左侧灰气泡 = 客户。<br>
+      时间口径：#2 客户回复<em>截图显示 09:43</em>，DB <code>created_at</code> 为 09:52（回复捕获回写时间，滞后约 9 分钟）——本页首响时间以截图为准取 09:43。DB 共落库 2 条 AI + 1 条客户回复，序列与截图一致。
+    </div>
+  </section>
+
+  <!-- ============ 2. 时效性分析 ============ -->
+  <section class="act" id="mod-timing">
+    <div class="act-head">
+      <span class="act-no">模块 1 · 时效性分析</span>
+      <span class="act-time">评论 → 入库 → 首触达 · 3 分 43 秒</span>
+    </div>
+    <h2>3 分 43 秒破冰、10 分钟首响 —— 链路两端都是本批最快样本</h2>
+    <p class="act-lede">
+      时效性是 Akke 链路最先体现的工程指标，本案两端都拿到了<em>本批 8 案的最快值</em>：评论 <strong>09:30</strong>，破冰 <strong>09:33</strong> 送达（3 分 43 秒，最快首触）；客户 <strong>09:43</strong> 就回（10 分钟，最快首响）。唯一能挑的是<em>跟进节奏</em>——客户 09:43 回复、跟进 09:52 才出去，隔了 9 分钟，比本批常见的 1-2 分钟慢了一截，而客户当时明显在线。
+    </p>
+
+    <section class="sla-panel" aria-label="时效性 SLA">
+      <div class="sla-eyebrow">⚡ 链路触达时效 · 评论 → 入库评分 → 首触达 → 客户回应</div>
+      <h3>3 分 43 秒破冰 · 10 分钟首响 · 本批双最快</h3>
+
+      <div class="sla-flow">
+        <div class="sla-node start">
+          <div class="sn-time">7-09 09:30</div>
+          <div class="sn-label">用户在抖音评论<br><span style="color:var(--text-muted);font-size:11px;">「需要一份」</span></div>
+        </div>
+        <div class="sla-arrow">
+          <span class="sa-gap">~3 分钟</span>
+          <span class="sa-mark">→</span>
+          <span style="font-size:10.5px;">当场入库评分</span>
+        </div>
+        <div class="sla-node">
+          <div class="sn-time">7-09 09:33</div>
+          <div class="sn-label">入库 + 评分 78<br><span style="color:var(--text-muted);font-size:11px;">中意向进入触达队列</span></div>
+        </div>
+        <div class="sla-arrow">
+          <span class="sa-gap">&lt; 1 分钟</span>
+          <span class="sa-mark">→</span>
+          <span style="font-size:10.5px;">即时起草送达</span>
+        </div>
+        <div class="sla-node end">
+          <div class="sn-time">7-09 09:33</div>
+          <div class="sn-label">破冰送达<br><span style="color:var(--text-muted);font-size:11px;">小星·全屋定制</span></div>
+        </div>
+      </div>
+
+      <div class="sla-summary">
+        <div class="sl-big">3分43秒 <small>/ 评论→首触达</small></div>
+        <div class="sl-text">
+          <strong>本批最快首触</strong>：评论 09:30:02、破冰 09:33:45，全程 3 分 43 秒——8 个兄弟案例里最快的一条。<br>
+          <strong>本批最快首响</strong>：客户 09:43 就回「翻新」（截图），首响 10 分钟。链路速度和客户响应意愿都拉满了。<br>
+          <strong>跟进隔了 9 分钟</strong>（09:43 → 09:52）：比本批常见的 1-2 分钟慢，客户在线的黄金窗口被磨掉一段。
+        </div>
+      </div>
+
+      <p class="sla-foot">
+        📌 本案证明了链路的<em>速度上限</em>：3 分 43 秒能接住评论、客户 10 分钟愿意回。速度这一侧没有输——她后来不回，输在<em>内容侧</em>（见模块 2）：三条 AI 消息全在问、她要的资料一直没给。
+      </p>
+    </section>
+  </section>
+
+  <!-- ============ 3. 内容分析 ============ -->
+  <section class="act" id="mod-content">
+    <div class="act-head">
+      <span class="act-no">模块 2 · 内容分析</span>
+      <span class="act-time">触发评论 · LLM 评分 · 三连问零兑现</span>
+    </div>
+    <h2>高响应客户遇上「只问不给」：三个问题、零个交付物</h2>
+    <p class="act-lede">
+      内容侧是本案复盘的<em>核心</em>。她是「求资料 + 10 分钟首响」的<strong>高响应型客户</strong>——评论要资料、破冰一问就答。可破冰 <a href="#msg-1" class="msg-ref">#1</a> 和跟进 <a href="#msg-3" class="msg-ref">#3</a> 加起来抛了 <strong>3 个问题</strong>（新房翻新 / 多少平 / 拆到哪一步），她要的那份东西<strong>一次都没出现</strong>。客户每答一轮都在付出、没换回任何价值，第三问之后她停手了——这不是意向消失，是<em>回复动力被耗尽</em>。
+    </p>
+
+    <h3 style="font-size: 17px; margin: 22px 0 10px; color: var(--text);">2.1 触发评论 · 四个字的「伸手要资料」</h3>
+    <p style="font-size: 14.5px; color: var(--text-dim); margin: 0 0 12px;">
+      在<em>佳姐装修日记</em>（号源池里「业主日记」类目、以真实装修记录派资料出名的账号）的视频底下，她留了 <em>「需要一份」</em>。四个字，但语境明确——她要视频里派的那份资料。这是<strong>真实的索取动作</strong>：愿意开口、愿意被回聊，只是没暴露决策变量（面积/房型/预算），specificity 给 medium，进中意向档（78）。
+    </p>
+
+    <h3 style="font-size: 17px; margin: 22px 0 10px; color: var(--text);">2.2 系统给她打了 78 分</h3>
+    <div class="panel">
+      <div class="scoring">
+        <div class="score-bar"><div class="score-num">78<small>/100</small></div><div class="score-label">中意向</div></div>
+        <div>
+          <div class="score-tags">
+            <span class="chip purple">type · product</span>
+            <span class="chip blue">specificity · medium</span>
+            <span class="chip amber">freshness · active</span>
+            <span class="chip green">问购 · 在调研</span>
+          </div>
+          <div class="score-reasoning"><strong>评分理由（系统 comment_type_reason：「需要资料为购买信号」）：</strong>产品型 · medium specificity · active。<br><span style="color: var(--text-muted);">「需要一份」承接视频语境 = 要装修资料，是明确的资料索取信号，系统概括为「问购·一般·在调研」。这类客户的价值在「已经伸手」——资料就是她自己点名要的钩子，兑现它是唯一确定有效的动作。</span></div>
+        </div>
+      </div>
+    </div>
+
+    <h3 style="font-size: 17px; margin: 22px 0 10px; color: var(--text);">2.3 破冰文案 · 没叫名字、没回应承诺物（本案可改进项）</h3>
+    <p style="font-size: 14.5px; color: var(--text-dim); margin: 0 0 12px;">
+      首条 AI DM 在 transcript（<a href="#msg-1" class="msg-ref">#1</a>）。这条破冰速度赢了（3 分 43 秒）、也给了低门槛反问（「新房还是翻新」），但有两个硬伤：<strong>① 没带客户昵称</strong>——只有一句「你好」，对比兄弟案例惯例（原昵称照写进招呼），个性化信号丢了一层；<strong>② 没复述评论承诺物</strong>——她说「需要一份」，破冰却完全没回应「那份东西我给你」，只说「户型方案+实拍都能整给你看」，是<em>提及</em>不是<em>兑现</em>，而且换了个交付物（她要的是视频里派的资料，破冰给的是方案+实拍的口头承诺）。
+    </p>
+    <div class="breakdown">
+      <div class="bd-item"><div class="bd-num">① 招呼（缺昵称）</div><div class="bd-title">只有「你好」</div><div class="bd-quote">「你好」— 没带「Q UE NN」，个性化丢一层</div></div>
+      <div class="bd-item"><div class="bd-num">② 共情</div><div class="bd-title">接装修痛点</div><div class="bd-quote">「这事儿确实坑」— 呼应视频语境</div></div>
+      <div class="bd-item"><div class="bd-num">③ 提及承诺物</div><div class="bd-title">说了、没给</div><div class="bd-quote">「户型方案+实拍都能整给你看」— 且不是她要的那份</div></div>
+      <div class="bd-item"><div class="bd-num">④ 反问摸底</div><div class="bd-title">低门槛二选一</div><div class="bd-quote">「你家是新房还是翻新？」— 这步本身是对的</div></div>
+    </div>
+    <div class="annotation warn">
+      <div class="a-title">✗ 本案可改进项 · 「需要一份」要的东西没被回应</div>
+      <strong>问题</strong>：客户评论只有一个诉求——「需要一份」。破冰正确的第一动作是<em>正面接住这个诉求</em>（「资料给你准备上」甚至直接发出去），再顺势摸底。本条破冰跳过了这一步：没叫名字、没提她要的资料，直接换成「户型方案+实拍」的口头承诺 + 反问。客户 10 分钟就回「翻新」说明她配合度极高，但她的诉求从第一条起就悬着。<br>
+      <strong>更稳的破冰</strong>：「你好 Q UE NN，你要的那份资料我给你整理上。你家是新房还是翻新？我按情况一起给你配点实拍。」——先兑现（或明确兑现动作），反问只作附带。同号源兄弟案例（蛋蛋·洛阳）已复盘过同一条规律：<em>「资料钩」来源的评论，先兑现资料再谈其他</em>。
+    </div>
+
+    <h3 style="font-size: 17px; margin: 22px 0 10px; color: var(--text);">2.4 跟进文案 · 接住「翻新」，却又抛两问、资料仍不给（本案复盘核心）</h3>
+    <p style="font-size: 14.5px; color: var(--text-dim); margin: 0 0 12px;">
+      客户 <a href="#msg-2" class="msg-ref">#2</a> 用 10 分钟、两个字「翻新」正面回答了破冰的问题——她在配合流程。跟进 <a href="#msg-3" class="msg-ref">#3</a> 前半段做对了（接住「翻新」+ 给了一句干货「旧房结构容易有坑」），但后半段<strong>又抛出两个新问题</strong>（「多少平」「拆到哪一步」），而她最初要的资料<strong>第二次被跳过</strong>。到这里，AI 累计问了 3 个问题、给了 0 个交付物——对一个自己伸手要资料的客户，这个交换比例是倒挂的。
+    </p>
+    <div class="breakdown">
+      <div class="bd-item"><div class="bd-num">① 接住回答</div><div class="bd-title">正面承接</div><div class="bd-quote">「翻新更得好好整了」</div></div>
+      <div class="bd-item"><div class="bd-num">② 给干货</div><div class="bd-title">一句风险提示</div><div class="bd-quote">「旧房结构容易有坑」</div></div>
+      <div class="bd-item"><div class="bd-num">③ 又抛两问</div><div class="bd-title">连环追问</div><div class="bd-quote">「你家多少平，现在拆到哪一步了？」</div></div>
+      <div class="bd-item"><div class="bd-num">④ 承诺物缺席</div><div class="bd-title">第二次跳过</div><div class="bd-quote">「需要一份」的那份东西仍没出现</div></div>
+    </div>
+    <div class="annotation warn">
+      <div class="a-title">✗ 本案复盘核心 · 高响应客户是被「只问不给」耗掉的</div>
+      她不是低意向：评论主动要资料、首响 10 分钟本批最快、正面回答问题——每个信号都在说「我愿意聊」。但从她的视角看这三条来回：<em>我要资料 → 你问我新房翻新 → 我答了 → 你又问我多少平拆哪步</em>。连续两轮付出信息、零回报，第三问自然没有回答动力。同号源兄弟案例已两次复盘过同一条规律：蛋蛋·洛阳被一句「不是送资料吗？」当面点破预期错位，时光漫步案里客户报完户型等不到东西、替我们写下验收结论「为啥你不给我发」。本案是第三个样本——只是她连质问都没留，直接沉默。<br>
+      <strong>本周建议</strong>：「求资料」类评论走专用跟进模板——客户每答一轮，<em>下一条必须先兑现一部分价值</em>（发资料/发一页实拍/给一条针对性建议），追问最多一个、且作附带。
+    </div>
+  </section>
+
+  <!-- ============ 4. 账号信任度分析 ============ -->
+  <section class="act" id="mod-trust">
+    <div class="act-head">
+      <span class="act-no">模块 3 · 账号信任度分析</span>
+      <span class="act-time">小星·全屋定制 · 主页资产待补</span>
+    </div>
+    <h2>客户点进主页时，看到的应该是一个可信的全屋定制账号</h2>
+    <p class="act-lede">
+      DM 进入之后，客户的第一反应是<em>点头像验证身份</em>。本案触达账号对外持号「小星·全屋定制」，内部账号名「零星」，与本批其它案例同一账号资产；截图可见每条我方消息都带「小星·全屋定制」头像角标。<strong>本案未抓取主页截图，粉丝 / 获赞 / 作品数等资产字段待运营补数。</strong>
+    </p>
+    <div class="delivery-row">
+      <div class="dr-item">
+        <div class="dr-label">主页名称</div>
+        <div class="dr-val">小星·全屋定制</div>
+        <div class="dr-sub">内部账号名：零星<br>运营：夏夏</div>
+      </div>
+      <div class="dr-item">
+        <div class="dr-label">主页简介 / 头像</div>
+        <div class="dr-val"><span style="color:var(--text-muted);font-weight:400;">未抓取，需运营截图补数</span></div>
+        <div class="dr-sub">建议补：简介文案、头像风格、抖音号</div>
+      </div>
+      <div class="dr-item">
+        <div class="dr-label">内容定位</div>
+        <div class="dr-val">全屋定制</div>
+        <div class="dr-sub">对外持号定位全屋定制；具体作品需截图确认</div>
+      </div>
+    </div>
+    <div class="delivery-row" style="margin-top:12px;">
+      <div class="dr-item">
+        <div class="dr-label">近期视频类型</div>
+        <div class="dr-val"><span style="color:var(--text-muted);font-weight:400;">未抓取</span></div>
+        <div class="dr-sub">需主页截图补</div>
+      </div>
+      <div class="dr-item">
+        <div class="dr-label">点赞量</div>
+        <div class="dr-val"><span style="color:var(--text-muted);font-weight:400;">未抓取</span></div>
+        <div class="dr-sub">需主页截图补</div>
+      </div>
+      <div class="dr-item">
+        <div class="dr-label">关注 / 粉丝</div>
+        <div class="dr-val"><span style="color:var(--text-muted);font-weight:400;">未抓取</span></div>
+        <div class="dr-sub">需主页截图补</div>
+      </div>
+    </div>
+    <div class="annotation">
+      <div class="a-title">信任风险 · 「只问不给」比主页厚度更早消耗信任</div>
+      本案客户已经跨过了「愿意回陌生 DM」的门槛（10 分钟首响），说明账号第一眼没吓退她。真正消耗信任的是对话本身：连续被问、要的东西不给，会让「户型方案+实拍都能整给你看」这句承诺显得像话术而非诚意——<strong>兑现节奏比主页资产更早决定她留不留</strong>。主页资产（粉丝、作品、获赞）<strong>未抓取</strong>，建议运营补一张小星主页截图落实资产。
+    </div>
+  </section>
+
+  <!-- ============ 5. 地区分析 ============ -->
+  <section class="act" id="mod-region">
+    <div class="act-head">
+      <span class="act-no">模块 4 · 地区分析</span>
+      <span class="act-time">三层地区信号 · 省 / 市 / 号源市</span>
+    </div>
+    <h2>IP 西藏 —— 本批唯一的边远省份案例，服务半径必须先内部确认</h2>
+    <p class="act-lede">
+      Akke 的地区信号分三层：客户 IP 属地（省）、自报现居（市）、号源服务市。本案<strong>只有省级「西藏」</strong>在手——客户没自报城市，号源「佳姐装修日记」未标服务市，对话全程也没用任何地区话术。但西藏这个省级信号本身就是<em>决策变量</em>：全屋定制要上门量尺、生产运输、安装售后，边远省份的服务半径是绕不开的现实约束。
+    </p>
+    <div class="region-panel">
+      <div class="rp-head">
+        <h3>📍 地区粒度 · 省级在手、无自报市、号源未标服务市</h3>
+        <span class="rp-sub">本批 8 案里唯一的边远省份样本；地区信号本案未被使用</span>
+      </div>
+      <div class="region-layers">
+        <div class="region-layer">
+          <div class="rl-label">省 · IP 属地</div>
+          <div class="rl-val">西藏</div>
+          <div class="rl-source">来源 <code>comments.ip_location</code> · 抖音 IP 反查</div>
+        </div>
+        <div class="region-layer">
+          <div class="rl-label">市 · 自报现居</div>
+          <div class="rl-val"><span class="null">未公开</span></div>
+          <div class="rl-source">来源 <code>comments.city</code> · 客户未自填</div>
+        </div>
+        <div class="region-layer">
+          <div class="rl-label">号源服务市</div>
+          <div class="rl-val"><span class="null">未标记</span></div>
+          <div class="rl-source">来源 <code>source_accounts.city</code> · 未标 → <code>is_same_city = null</code></div>
+        </div>
+      </div>
+      <div class="annotation" style="margin-top: 4px;">
+        <div class="a-title">地区落地 · 本案对话里的使用情况 + 西藏的现实约束</div>
+        <strong>[省级 · 未使用]</strong> 破冰到跟进全程没提「西藏」或任何地区——没有可落地的地区钩子时不硬提，这一步没错。<br>
+        <strong>[市级 · 缺失]</strong> 客户未自报城市，无法触发同城徽章或「上门量尺」这类强信任锚。<br>
+        <strong>[西藏 · 服务半径要诚实面对]</strong> 全屋定制不是纯线上生意——量尺、生产运输、安装售后都有物理半径。西藏（尤其非拉萨地区）大概率超出常规服务圈。<em>如果这条线索真走到方案阶段，第一件事是运营内部确认能否覆盖</em>：能覆盖（本地合作/物流方案）就正常推进；覆盖不了，诚实告知 + 只提供线上方案参考，好过把客户聊深了再退——那才是真正伤账号口碑的做法。
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 6. 价格分析 ============ -->
+  <section class="act" id="mod-price">
+    <div class="act-head">
+      <span class="act-no">模块 5 · 价格分析</span>
+      <span class="act-time">本案未涉价 · 模块跳过</span>
+    </div>
+    <h2>本案对话未涉及任何价格话术 —— 模块跳过</h2>
+    <p class="act-lede">
+      破冰 <a href="#msg-1" class="msg-ref">#1</a> 和跟进 <a href="#msg-3" class="msg-ref">#3</a> 全程价-free，没有出现任何单价、范围或计价方式——本价格模块<strong>无内容可拆</strong>。调研早期不抛价是对的；真到报价阶段，单价必须问运营（夏夏）拿零星账号的真实口径，不自己编。
+    </p>
+  </section>
+
+  <!-- ============ 7. 信息流转路径 ============ -->
+  <section class="act" id="mod-pipeline">
+    <div class="act-head">
+      <span class="act-no">模块 6 · 信息内部流转路径</span>
+      <span class="act-time">本地真机现状 · 云电脑迁移路线</span>
+    </div>
+    <h2>这条对话在内部走过的物理通道（3 条全落库，回写有 9 分钟滞后）</h2>
+    <p class="act-lede">
+      「评论入库 → 评分 → 起草 → 发送」在 DB 里是几行行变化，物理世界对应的是<em>真机 + AI 起草发送</em>。本案 3 条消息全部落库、sender 归属干净；一个值得记录的细节是<strong>客户回复的回写滞后</strong>：截图显示她 09:43 回「翻新」，DB <code>created_at</code> 是 09:52——回复是在跟进生成时才被捕获回写的，滞后约 9 分钟，这也解释了跟进为什么隔了 9 分钟才出去。
+    </p>
+
+    <h3 style="font-size: 17px; margin: 22px 0 10px; color: var(--text);">7.1 当前 · 本地真机通道</h3>
+    <p style="font-size: 14.5px; color: var(--text-dim); margin: 0 0 12px;">
+      抖音 web DM 在 Fly Tokyo 出口被风控屏蔽，Akke 现阶段靠<em>本地真机 / 云电脑 + AI 起草发送</em>触达。本案由账号「小星·全屋定制（内部：零星）」承接；<code>message_queue</code> 无 error_message 证据、无 queue attempts，子通道<strong>需查代码引用手动判定</strong>。
+    </p>
+    <div class="delivery-row">
+      <div class="dr-item">
+        <div class="dr-label">发送账号</div>
+        <div class="dr-val">小星·全屋定制</div>
+        <div class="dr-sub">messaging · active · 内部名 零星<br>id 8af08f10…</div>
+      </div>
+      <div class="dr-item">
+        <div class="dr-label">通道</div>
+        <div class="dr-val">真机 · 子通道待判定</div>
+        <div class="dr-sub"><strong style="color:var(--warn);">无 error_message / queue attempts 证据</strong><br>ADB / WDA / DOM 需查代码引用确认</div>
+      </div>
+      <div class="dr-item">
+        <div class="dr-label">回写状态</div>
+        <div class="dr-val" style="color:var(--success);">3 条全落库</div>
+        <div class="dr-sub">客户「翻新」回写滞后约 9 分钟<br>（截图 09:43 · DB 09:52）</div>
+      </div>
+    </div>
+
+    <h3 style="font-size: 17px; margin: 22px 0 10px; color: var(--text);">7.2 如果搬到云电脑 · 5 步迁移</h3>
+    <p style="font-size: 14.5px; color: var(--text-dim); margin: 0 0 12px;">
+      云电脑不是「换个机器跑」，而是把账号、设备、截图和回写统一托管。小星账号需要长期登录在固定环境里，由调度器按账号限额 claim lead。它的价值是可监控、可回放、可统一回写；风险是云 IP / 模拟器指纹 / 登录态失效更容易触发风控。
+    </p>
+    <div class="delivery-row">
+      <div class="dr-item"><div class="dr-label">1 · 常驻环境</div><div class="dr-val">账号登录态固定</div><div class="dr-sub">云电脑保存小星账号 Cookie / App 登录态，避免每次重登</div></div>
+      <div class="dr-item"><div class="dr-label">2 · 调度 claim</div><div class="dr-val">按限额领取</div><div class="dr-sub">3 分 43 秒级的首触节奏在云端由调度器保住</div></div>
+      <div class="dr-item"><div class="dr-label">3 · 执行发送</div><div class="dr-val">模拟器或远控真机</div><div class="dr-sub">输入文案、发送、截图、UI dump 留证</div></div>
+    </div>
+    <div class="delivery-row" style="margin-top:12px;">
+      <div class="dr-item"><div class="dr-label">4 · 自动回写</div><div class="dr-val">messages / queue / events</div><div class="dr-sub">客户回复实时捕获回写——压掉本案 9 分钟的回写滞后，跟进能踩进在线窗口</div></div>
+      <div class="dr-item"><div class="dr-label">5 · 失败复核</div><div class="dr-val">截图 + status_code</div><div class="dr-sub">遇到风控、输入失败、silent drop，转人工复核</div></div>
+      <div class="dr-item"><div class="dr-label">收益 / 风险</div><div class="dr-val">节奏可控 vs 指纹风险</div><div class="dr-sub">收益是跟进节奏统一编排（含「先兑现再追问」模板落地）；风险是云环境指纹和登录态管理</div></div>
+    </div>
+  </section>
+
+  <!-- ============ 8. 当前状态 ============ -->
+  <section class="act" id="mod-now">
+    <div class="act-head">
+      <span class="act-no">当前状态</span>
+      <span class="act-time">stage = ice_break · 客户沉默 4 天 · 未给微信</span>
+    </div>
+    <h2>三连问后客户沉默 4 天 · 重启的口子只有一个：把资料发出去</h2>
+    <div class="status-card">
+      <div class="status-pulse"></div>
+      <div class="status-text">
+        <strong>对话技术状态：DB stage = ice_break（3 条消息完整回写）。业务实质：跟进 #3 抛出两问后，客户从 07-09 09:52 起未再回复（截图核对至 07-13 09:56，沉默 4 天）。未给微信，未进入加微环节。</strong><br>
+        <strong>下一步</strong>：①<em>先兑现、不再带问题</em>——直接把她要的资料（或翻新版户型方案+实拍打包）发出去，这是她评论里唯一的诉求，也是重启对话最自然的口子；②<em>运营先内部确认西藏能否覆盖</em>——服务半径是本案的前置问题，能覆盖再深聊，覆盖不了就诚实转线上方案参考，别把客户聊深了再退；③她若回复，一条只推进一步，顺势问「西藏哪个市」补市级信号；④本 user 已有 2 条 AI outbound 记录，重启消息发出后立即回写，避免自动回复 cron 重复触达。
+      </div>
+    </div>
+
+    <div class="wechat-callout">
+      <div class="wc-label">✓ 后续加微 · 验证消息（≤50 字，尚未到加微阶段，预置）</div>
+      <div class="wc-msg">你好，抖音上你要装修资料的，加你把资料和翻新户型方案+实拍一起发你～</div>
+      <div class="wc-sub">待客户给微信后交接销售 · 带「装修资料 + 翻新」帮客户秒回忆是哪条抖音对话 · 呼应 #1 承诺的「户型方案+实拍」并补上一直没兑现的那份资料</div>
+      <div class="delivery-row" style="margin-top:14px;">
+        <div class="dr-item">
+          <div class="dr-label">加微成功时间</div>
+          <div class="dr-val" id="gw-add" style="color:var(--text-muted);">待加微</div>
+          <div class="dr-sub">来自销售的「加微成功」截图时间戳</div>
+        </div>
+        <div class="dr-item">
+          <div class="dr-label">客户是否通过</div>
+          <div class="dr-val" id="gw-pass" style="color:var(--text-muted);">待加微</div>
+          <div class="dr-sub">截图显示"你已添加了…"即通过</div>
+        </div>
+        <div class="dr-item">
+          <div class="dr-label">实际加微话术</div>
+          <div class="dr-val" id="gw-msg" style="color:var(--text-muted);">见上方验证消息</div>
+          <div class="dr-sub">销售实际发的打招呼消息</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 9. 复盘 · 各模块评价 ============ -->
+  <section class="act" id="mod-review">
+    <div class="act-head">
+      <span class="act-no">复盘 · 各模块做到位 / 不足</span>
+    </div>
+    <h2>这个项目哪里做得好，哪里还能拧紧</h2>
+    <p class="act-lede">
+      给上面 6 个分析模块各打一个评价。<em>good</em> = 已达可复用标准；<em>mid</em> = 能用但有压缩空间；<em>bad</em> = 是这条链路的明显短板。
+    </p>
+
+    <div class="review-grid">
+
+      <div class="review-card">
+        <div class="review-head">
+          <span class="rv-mod">模块 1</span>
+          <h3>时效性 · 本批双最快样本</h3>
+          <span class="rv-grade good">GOOD</span>
+        </div>
+        <div class="review-body">
+          <div class="rv-col good">
+            <div class="rv-tag">✓ 做到位</div>
+            <ul class="rv-list">
+              <li><strong>3 分 43 秒首触</strong>：09:30 评论 → 09:33 破冰，本批 8 案最快。</li>
+              <li><strong>10 分钟首响</strong>：客户 09:43 就回，本批最快——链路证明了速度上限。</li>
+            </ul>
+          </div>
+          <div class="rv-col bad">
+            <div class="rv-tag">✗ 不足</div>
+            <ul class="rv-list">
+              <li><strong>跟进隔 9 分钟</strong>（09:43 → 09:52）：比本批常见的 1-2 分钟慢，根因是回复捕获回写滞后（见模块 6），客户在线窗口被磨掉一段。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="review-card">
+        <div class="review-head">
+          <span class="rv-mod">模块 2</span>
+          <h3>内容 · 三连问零兑现，高响应客户被耗掉</h3>
+          <span class="rv-grade bad">BAD</span>
+        </div>
+        <div class="review-body">
+          <div class="rv-col good">
+            <div class="rv-tag">✓ 做到位</div>
+            <ul class="rv-list">
+              <li><strong>反问门槛低</strong>：「新房还是翻新」是好摸底问题，客户 10 分钟就答。</li>
+              <li><strong>跟进接住了「翻新」</strong>：正面承接 + 给了一句干货「旧房结构容易有坑」。</li>
+            </ul>
+          </div>
+          <div class="rv-col bad">
+            <div class="rv-tag">✗ 不足</div>
+            <ul class="rv-list">
+              <li><strong>破冰没叫名字、没回应「需要一份」</strong>：她的唯一诉求从第一条起就被跳过。</li>
+              <li><strong>三个问题、零个交付物</strong>：破冰 1 问 + 跟进 2 问，资料两次缺席——高响应客户的回复动力被「只问不给」耗尽，沉默 4 天。</li>
+              <li><strong>本周建议</strong>：「求资料」评论走专用模板——每轮先兑现一部分价值，追问最多一个、作附带（同号源蛋蛋·洛阳 / 时光漫步案已两次踩同一坑）。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="review-card">
+        <div class="review-head">
+          <span class="rv-mod">模块 3</span>
+          <h3>账号信任度 · 资产缺失 + 兑现节奏拖信任</h3>
+          <span class="rv-grade mid">MID</span>
+        </div>
+        <div class="review-body">
+          <div class="rv-col good">
+            <div class="rv-tag">✓ 做到位</div>
+            <ul class="rv-list">
+              <li><strong>第一眼没吓退她</strong>：陌生 DM 10 分钟获回，账号角标「小星·全屋定制」定位对路。</li>
+            </ul>
+          </div>
+          <div class="rv-col bad">
+            <div class="rv-tag">✗ 不足</div>
+            <ul class="rv-list">
+              <li><strong>「都能整给你看」变成空头支票</strong>：连问不给让承诺显得像话术，信任在对话内被消耗。</li>
+              <li><strong>本周建议</strong>：补小星主页截图落实资产；更关键是把兑现动作前置。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="review-card">
+        <div class="review-head">
+          <span class="rv-mod">模块 4</span>
+          <h3>地区 · 西藏服务半径未确认</h3>
+          <span class="rv-grade mid">MID</span>
+        </div>
+        <div class="review-body">
+          <div class="rv-col good">
+            <div class="rv-tag">✓ 做到位</div>
+            <ul class="rv-list">
+              <li><strong>没硬提地区</strong>：无自报市、号源未标服务市，没有可落地的钩子时不提是对的。</li>
+            </ul>
+          </div>
+          <div class="rv-col bad">
+            <div class="rv-tag">✗ 不足</div>
+            <ul class="rv-list">
+              <li><strong>西藏 = 本批唯一边远省份，服务半径至今未内部确认</strong>：量尺/运输/安装能否覆盖是前置问题，不确认就深聊是在攒退单风险。</li>
+              <li><strong>本周建议</strong>：重启触达前先让运营定西藏口径（可覆盖 / 仅线上方案）；她若回复，顺势问「西藏哪个市」。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="review-card">
+        <div class="review-head">
+          <span class="rv-mod">模块 5</span>
+          <h3>价格 · 本案未涉价</h3>
+          <span class="rv-grade na">不适用</span>
+        </div>
+        <div class="review-body">
+          <div class="rv-col good">
+            <div class="rv-tag">✓ 做到位</div>
+            <ul class="rv-list">
+              <li><strong>调研早期不抛价是对的</strong>：钩子应锚在资料交付物上，价格 friction 后置。</li>
+            </ul>
+          </div>
+          <div class="rv-col bad">
+            <div class="rv-tag">✗ 提示</div>
+            <ul class="rv-list">
+              <li><strong>本案无价格话术</strong>：破冰/跟进全程价-free，模块无内容可拆。</li>
+              <li><strong>后续</strong>：进方案阶段报价，单价必须问运营（夏夏）拿零星真值，别自己编。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="review-card">
+        <div class="review-head">
+          <span class="rv-mod">模块 6</span>
+          <h3>信息流转 · 全落库但回写滞后 9 分钟</h3>
+          <span class="rv-grade mid">MID</span>
+        </div>
+        <div class="review-body">
+          <div class="rv-col good">
+            <div class="rv-tag">✓ 做到位</div>
+            <ul class="rv-list">
+              <li><strong>3 条全落库</strong>：2 条 AI + 客户「翻新」完整回写，sender 归属干净、与截图一致。</li>
+            </ul>
+          </div>
+          <div class="rv-col bad">
+            <div class="rv-tag">✗ 不足</div>
+            <ul class="rv-list">
+              <li><strong>回复捕获滞后 9 分钟</strong>：截图 09:43 回、DB 09:52 才入——直接拖慢跟进节奏（模块 1 的 9 分钟就是它）。</li>
+              <li><strong>子通道未入库</strong>：ADB / WDA / DOM 需查代码引用确认。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="snapshot">
+    <div class="snapshot-title">SYSTEM SNAPSHOT</div>
+    <div class="snap-grid">
+      <dl><dt>评论</dt><dd><code>b0c2f0f6-…-745b51c1a59b</code></dd><dt>conversation</dt><dd><code>fb97e70c-…-bde951c0a067</code> · stage ice_break</dd><dt>comment_time</dt><dd>2026-07-09 09:30 CST</dd><dt>入库/评分</dt><dd>2026-07-09 09:33 CST（约 3 分钟）</dd></dl>
+      <dl><dt>抖音昵称</dt><dd>Q UE NN</dd><dt>sec_uid</dt><dd><code>MS4wLjABAAAA5ZOeBckZUpf0…VHzo</code></dd><dt>IP 属地</dt><dd>西藏（自报市未公开）</dd><dt>头像</dt><dd>已缓存</dd></dl>
+      <dl><dt>intent_score</dt><dd>78 / 100</dd><dt>intent_label</dt><dd>中意向</dd><dt>comment_type</dt><dd>product · medium · active（需要一份·求资料）</dd><dt>video</dt><dd><code>7645493871992237998</code> · 号源「佳姐装修日记」· 类目业主日记</dd></dl>
+      <dl><dt>发送账号</dt><dd>小星·全屋定制（内部：零星 · 运营夏夏）</dd><dt>账号资产</dt><dd>未抓取 · 需运营截图补数</dd><dt>通道</dt><dd>真机 · 子通道待判定（3 条全回写）</dd><dt>客户回复</dt><dd>"翻新"（截图 09:43 / DB 09:52）· 未给微信 · 跟进后沉默 4 天</dd></dl>
+    </div>
+  </section>
+
+  <footer>Akke 用户案例 · Q UE NN · 数据快照 2026-07-13 · 模块化结构（时效 / 内容 / 信任 / 地区 / 价格 / 流转 + 复盘评价） · <a href="/akke/cases/">← 返回案例库</a> · <a href="/akke/">Akke 首页</a></footer>
+</div>
+
+<!--
+  ====== 销售加微数据更新方式（纯静态页，由 Claude 维护）======
+  流程：销售把「加微成功」微信截图发给 PM → PM 转发给 Claude →
+        Claude 从截图读出 加微成功时间 + 实际打招呼话术，改下列 4 处文本后 commit/push：
+          #gw-add  加微成功时间（截图时间戳）
+          #gw-pass 客户是否通过（截图有"你已添加了…"=「已通过 ✓」）
+          #gw-msg  实际加微话术（截图里销售发的打招呼气泡）
+          #js-gw   第 8 步进度条节点时间（= gw-add 时间）；并把第 8 步 class 由 pending 改 done
+  无输入框、无脚本，避免运营/销售误操作。
+-->
+</body>
+</html>
