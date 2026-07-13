@@ -3323,6 +3323,17 @@
     每页保留：抓到的评论原文、LLM 评分细节、我们发出的 DM 全文、客户回复、复盘要点。<strong>系统里所有可追溯的真实数据。</strong>
     <br><br>
     <strong>新案例怎么进来？</strong>选一条已发起对话的高意向 leads，跑「调出客户全部数据」流程，生成一个新 HTML 加进上面的列表即可。
+    <br><br>
+    <strong>「结果」是怎么判的？</strong>上面「结果」筛选和统计里的「已拿到微信 / 电话」，跟
+    <a href="/akke/cases/range" style="color:var(--accent);">按时间段看案例</a> 页的「加微案例」<strong>是同一个判定</strong>（都读 manifest 的 collection，不是两套规则）：
+    <ul style="margin:8px 0 0; padding-left:20px; line-height:1.9;">
+      <li><b style="color:#34d399;">🤝 加微</b> —— <strong>微信关系已经建立</strong>。两种都算：① 客户给出了<strong>微信号 / 手机号</strong>；② 微信<strong>已经加上了</strong>（客户说「已添加」，或销售反馈「已添加」）。</li>
+      <li><b style="color:#60a5fa;">💬 对话</b> —— 有回复、聊了多轮，但<strong>微信还没成</strong>。<b>注意</b>：我方已经把微信号发出去、客户还没加，<strong>仍算对话</strong>——「我们给了号」不等于「客户加了」。</li>
+      <li>0 回复 / 已读未回 → 不进这两类。</li>
+    </ul>
+    <br>
+    <strong>归类会自动更新。</strong>每天早上自动跑一次，读运营在<strong>旅程页「当前状态」和标签里写的话</strong>来判定归类——运营拿新截图让 Claude 更新了旅程页（比如客户给了微信、销售确认已添加），<strong>第二天这里和 range 页就一起自动变，不用手改任何东西</strong>。<br>
+    所以写旅程页状态时，<strong>请写清楚是谁给了号 / 谁加上了</strong>：「客户主动给微信」「销售已加微」会被认出来；「等客户加」「待客户添加」会被正确排除。
   </div>
 
   <footer>
@@ -3360,15 +3371,18 @@
       : (/\bADB\b|WDA|真机|本地真机|iOS/.test(t) ? 'phone' : 'other'));
   });
 
-  // 统计条
+  // 统计条（manifest 到达后会重算一次 —— 见下方 syncFromManifest）
   const n = cards.length;
   const cnt = k => cards.filter(c => c.dataset.intent === k).length;
-  const wonN = cards.filter(c => c.dataset.outcome === 'won').length;
-  document.getElementById('stats').innerHTML =
-    `<div class="stat"><div class="n">${n}</div><div class="l">真实客户旅程</div></div>` +
-    `<div class="stat high"><div class="n">${cnt('high')}</div><div class="l">高意向</div></div>` +
-    `<div class="stat"><div class="n">${cnt('mid')}</div><div class="l">中意向</div></div>` +
-    `<div class="stat win"><div class="n">${wonN}</div><div class="l">已拿到微信 / 电话</div></div>`;
+  function renderStats() {
+    const wonN = cards.filter(c => c.dataset.outcome === 'won').length;
+    document.getElementById('stats').innerHTML =
+      `<div class="stat"><div class="n">${n}</div><div class="l">真实客户旅程</div></div>` +
+      `<div class="stat high"><div class="n">${cnt('high')}</div><div class="l">高意向</div></div>` +
+      `<div class="stat"><div class="n">${cnt('mid')}</div><div class="l">中意向</div></div>` +
+      `<div class="stat win"><div class="n">${wonN}</div><div class="l">已拿到微信 / 电话</div></div>`;
+  }
+  renderStats();
 
   // 筛选 / 排序 / 搜索
   const state = { intent: 'all', outcome: 'all', channel: 'all', sort: 'recent', q: '' };
@@ -3406,6 +3420,30 @@
     apply();
   });
   apply();
+
+  /* 真源对齐：「结果」不靠上面那套关键词启发式猜，而是读 manifest 的 collection ——
+     跟 /akke/cases/range 用同一份数据，两页归类永远一致。
+     manifest 的 collection 现在由 Akke 的 sync-case-collections 每天自动重算
+     （读运营写的旅程页状态），所以运营更新 +v 信息后这里也会自动跟着变。
+       wechat → won（客户已给微信/手机号，或已加上）
+       conv   → pending（有回复、还没给联系方式）
+       无 collection → 保留启发式结果（多为 0 回复 / 已读未回）
+     manifest 拉不到时静默降级为启发式，页面不受影响。 */
+  fetch('/akke/cases/manifest.json', { cache: 'no-store' })
+    .then(r => r.json())
+    .then(m => {
+      const bySlug = {};
+      m.forEach(e => { bySlug[e.slug] = e; });
+      cards.forEach(c => {
+        const slug = (c.getAttribute('href') || '').split('/').filter(Boolean).pop();
+        const e = bySlug[slug];
+        if (!e || !e.collection) return;          // manifest 没这条 / 未归类 → 保留启发式
+        c.dataset.outcome = e.collection === 'wechat' ? 'won' : 'pending';
+      });
+      renderStats();
+      apply();
+    })
+    .catch(() => { /* 拉不到 manifest 就沿用启发式，不影响页面 */ });
 })();
 </script>
 </body>
