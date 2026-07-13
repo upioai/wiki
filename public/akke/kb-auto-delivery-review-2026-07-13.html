@@ -178,7 +178,7 @@
     <div class="eyebrow">方案评审 · 给夏夏</div>
     <h1>什么时候给客户资料？用什么形式给？</h1>
     <p class="sub">起因是一份「客户问什么就自动发对应资料」的方案，里面有 6 个地方拿不准要人拍板。这一页把真实数据翻出来，把这两件事定下来。</p>
-    <div class="meta">2026-07-13 · 依据：657 条真实客户私信 + 4261 条已发私信 + 全仓代码核验</div>
+    <div class="meta">2026-07-13 · 依据：657 条真实客户私信 + 4261 条已发私信 + 全仓代码核验 · <span style="color:var(--green);font-weight:700">话术改动已上线（PR #865 / 25cd140）</span></div>
   </header>
 
   <!-- ── 背景 ── -->
@@ -529,6 +529,67 @@
     </div>
   </div>
 
+  <!-- ── 已落地 ── -->
+  <section>
+    <h2>✅ 已落地 · 2026-07-13 当天上线</h2>
+    <div class="plain" style="background:var(--green-bg);border:1px solid var(--green-line);">
+      <b>PR #865 已合并并部署到生产</b>（commit <code>25cd140</code>，五端已对齐核实）。以下改动<b>现在就在跑</b>。
+    </div>
+
+    <div class="ev" style="border-left-color:var(--green);">
+      <h3>改动一 · 停掉主动甩号，但保留 4 轮兜底</h3>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>什么情况</th><th>以前</th><th>现在</th></tr></thead>
+          <tbody>
+            <tr><td>客户说<strong>"要资料"</strong></td><td class="bad">甩我们的号</td><td class="good">不甩 → 走承接话术</td></tr>
+            <tr><td>客户怼<strong>"这是 AI"</strong></td><td class="bad">甩我们的号</td><td class="good">不甩 → 要他的号</td></tr>
+            <tr><td>客户问<strong>"能不能上门"</strong></td><td class="bad">甩我们的号</td><td class="good">不甩 → 要他的号</td></tr>
+            <tr><td>客户明说<strong>"加个微信/怎么加你"</strong></td><td>甩号</td><td class="good">✓ 保留，照样甩</td></tr>
+            <tr><td><strong>聊到第 5 条还没换到联系方式</strong></td><td>无条件甩号</td><td class="good">✓ 保留，照样甩（长尾收口）</td></tr>
+            <tr><td>客户<strong>主动给了自己的号</strong></td><td>"我们添加您啦…"</td><td class="good">✓ 一字未动</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="font-size:14px;color:var(--ink-3);">留了开关 <code>AKKE_HARD_GATE_WECHAT=off</code>，以后想回测「不主动甩号是不是转化更高」，一行就能关。</p>
+    </div>
+
+    <div class="ev" style="border-left-color:var(--green);">
+      <h3>改动二 · 索取型客户的承接话术（四步定死）</h3>
+      <p>客户开口要资料时，<strong>必须</strong>按这四步回，<strong>禁止反问「你家几室几厅」</strong>：</p>
+      <div class="plain">
+        ① <b>已完成态</b> —— "清单我整理好了"，不是"我去给你准备"<br>
+        ② <b>结合他的评论 + 私信上下文钩一句</b> —— "九月交房刚好来得及" / "156 平那几页最有用"<br>
+        　　<span style="color:var(--red);">上下文里没有的就跳过，绝不编他家的数字</span><br>
+        ③ <b>甩一小块真货</b> —— 从知识库取一条具体的坑，<b>只给一小块，绝不把整份倒出去</b><br>
+        　　<span style="color:var(--red);">知识库里没有的宁可不说，绝不编</span><br>
+        ④ <b>说清抖音发不了文件 + 要他的微信号</b>
+      </div>
+      <p><strong>关键是没只写 prompt。</strong>光求 LLM"别反问"压不住——因为它<strong>是真不知道</strong>客户家几室几厅（那 20 个人里 0 个说过）。所以加了一道<strong>代码硬闸</strong>：</p>
+      <div class="plain" style="background:var(--red-bg);">
+        客户在要资料 <b>+</b> 草稿里出现"你家几室几厅 / 面积多大 / 什么户型" → <b>不许自动发，转人工</b><br>
+        <span style="color:var(--ink-3);font-size:13.5px;">只拦【反问】不拦【确认】——"你家 113 平三室对吧"（复述已知信息）不会被误伤，有单测锁。</span>
+      </div>
+    </div>
+
+    <div class="ev" style="border-left-color:var(--green);">
+      <h3>改动三 · 第 5 轮之后才要资料的人，不再被空手甩号</h3>
+      <p>撞车：4 轮兜底是绕开 LLM 直接甩号的。客户要是<strong>聊到第 5 轮才开口要资料</strong>，原本会收到一个光秃秃的号、他要的东西一个字不提——<strong>正是我们刚测出来会赶走人的那句</strong>。</p>
+      <p>现在这种情况发的是<strong>合并话术</strong>：号照样甩（收口没丢），但资料给到位。实际长这样——</p>
+      <div class="plain" style="background:var(--card);border:1px solid var(--line);font-size:14.5px;line-height:1.9;">
+        张先生，<b>清单我整理好了</b>——柜体按房产证面积逐项拆开标了价（样板房专供 284 一平全包，原价 434：18mm 多层板 + 兔宝宝/莫干山/千年舟 ENF 板 + 悍高五金），最容易多花钱的几项都圈出来了。整份是带图的表格，<b>抖音发不了文件、发图也压糊</b>。<br><br>
+        加设计师 v：Homedz3791（备注抖音名），他直接发你；<b>你把 v 报给我也行，我让他加你</b>。
+      </div>
+      <p style="font-size:14px;color:var(--ink-3);">给了双向出口——他懒得加就报个号，我们去加他。客户没在要资料时（问板材、问价格），还是走原来那条纯甩号模板，一个字没动。</p>
+    </div>
+
+    <div class="ev">
+      <h3>⚠️ 上线后要盯的一件事</h3>
+      <p><strong>转人工的量可能会上来。</strong>如果 LLM 还是老想反问户型，那些草稿会全部被闸拦下、堆到人工那儿。</p>
+      <p><strong>这是故意的</strong>——宁可让人接手，也别发一句已被实测证明会赶走客户的话。但要盯 <code>needs_human</code> 的量：<strong>堆太多说明 prompt 没压住，得再收</strong>。</p>
+    </div>
+  </section>
+
   <!-- ── 技术附录 ── -->
   <details>
     <summary>技术细节（给写方案的人看的，附代码位置）</summary>
@@ -538,6 +599,7 @@
       <p><strong>问题 4 硬闸：</strong>罐头必须过 <code>gate.ts</code> 的 <code>MAX_LEN=200</code>（超了转人工，不是截断）+ <code>guardrails.ts</code> 的 <code>mergeToSingleParagraph</code>（换行会被云电脑打成 Enter，一条草稿拆成两个气泡，回执验证必假阴）。零间隔连发在 <code>douyin_dm_autoreply.py:219-243</code>。</p>
       <p><strong>事实错误对应：</strong>① 「每类限 1 条」删于 PR #843 / <code>225e2e22</code>（2026-07-10），现为相关度排序 <code>llm.ts:345-375</code>。② 主动发号的 3 处：<code>llm.ts:742/744/745</code>（兜底话术）、<code>llm.ts:2362</code>（4 轮硬门）、<code>wechat-push.ts:111</code>（意向推微信）；opener 侧的代码级兜底在 <code>llm.ts:3500</code>。③ role 污染样本：会话 <code>5ac33f5a</code> 连续两条 <code>customer</code>，第二条为我方话术。</p>
       <p><strong>问题 6 补充：</strong>语义重排实现在 <code>src/lib/llm/embed.ts</code>（bge-m3 + 内存 cosine + 进程级 LRU），<strong>默认开启</strong>（fail-open，<code>LLM_SEMANTIC_RERANK=off</code> 才关），门控 <code>llm.ts:1223</code> 只放行企微 persona / <code>channel==="weixin"</code>，抖音 DM 明确不进。DB 侧 pgvector 从未 enable，<code>008_knowledge_base.sql:27,55</code> 的 <code>embedding vector(1536)</code> 是注释。</p>
+      <p><strong>已落地（PR #865 · commit <code>25cd140</code>）：</strong>① <code>wechat-push.ts</code> <code>hasWechatPushIntent</code> 拆为 <code>hasExplicitAddIntent</code> / <code>hasMaterialRequest</code>，<code>shouldIntentPushWechat</code> 只认前者。② <code>llm.ts</code> <code>hardGateWechatEnabled()</code> 默认 true，<code>AKKE_HARD_GATE_WECHAT=off</code> 可关。③ <code>llm.ts</code> 新增 <code>buildHardGateMaterialHandoffText</code>（176 字 &lt; gate MAX_LEN=200，有单测锁）；硬门分支按 <code>isDmMaterialRequest(latestUserMessage)</code> 分流，provenance <code>promptName</code> 区分 <code>hard_gate_r5_material_handoff</code> / <code>_wechat_push</code>。④ <code>gate.ts</code> 新增 <code>asksLayoutBack</code> 硬闸。⑤ <code>isDmMaterialRequest</code> 下沉 <code>llm/signals.ts</code>（llm → dm-reply 是反向依赖，<code>wechat-push</code> 改为转发，避免两处 regex 漂移）。⑥ 顺带修 <code>latestUserMessage</code> TDZ（原定义在硬门之后，硬门分支引用会运行时崩）。tsc 通过，全量 522 测试全绿。</p>
       <p><strong>问题 5 补充：</strong>企微发文件 0 代码（GUI 侧只有剪贴板发图，kf API 只有 <code>msgtype:"text"</code>，且 <code>wecom-proxy</code> 白名单未开 <code>media/upload</code>）。DM 抓到的微信号只写 <code>dm_notify_state</code> + 推 Lark，无任何代码写入加好友队列；活的待加队列只有 <code>enterprise_leads</code>（吃 B 端 xlsx 线索，<code>customer_leads</code> 已退役）。我方承诺话术写死在 <code>wechat-push.ts:128</code>。</p>
     </div>
   </details>
