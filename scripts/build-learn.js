@@ -30,6 +30,7 @@ const CATEGORIES = [
     label: 'AGENT · AI ENGINEERING',
     title: 'Agent · AI 工程',
     items: [
+      { slug: 'akke-tech-overview', title: 'Akke 项目技术全景 · 顾问速览', desc: '给第一次接触项目的技术顾问：9 页讲清 Akke 的部署三件套、评论→打分→触达数据管线、分通道 LLM 路由、绕抖音风控的真机/云电脑执行层、多租户 RLS，以及现阶段进展与最新技术栈版本。' },
       { slug: 'langchain-langgraph-langfuse', title: 'LangChain · LangGraph · Langfuse', desc: '三个都带 lang 的名字怎么分？前两个帮 AI 干活、第三个帮你看清 AI——结合 Akke 讲我们用了哪个、没用哪个、为什么。' },
       { slug: 'claude-tag',       title: 'Claude Tag · Slack 队友', desc: '把 Claude 拉进 Slack 当常驻队友：@一下就接活、会主动盯事（Opus 4.8）。' },
       { slug: 'hermes-agent',     title: 'Hermes Agent 框架',  desc: '团队自研 Agent 系统讲解。' },

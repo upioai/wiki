@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Akke 项目技术全景 · 顾问速览</title>
+<style>
+  :root{
+    --ink:#1a1730;
+    --muted:#6b6486;
+    --accent:#6c5ce7;
+    --accent2:#00b4d8;
+    --paper:#ffffff;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+    background:linear-gradient(135deg,#ede9fe 0%,#e0f2fe 50%,#fce7f3 100%);
+    color:var(--ink);
+    min-height:100vh;
+    display:flex;align-items:center;justify-content:center;
+    overflow:hidden;
+  }
+  .deck{
+    width:min(940px,94vw);
+    height:min(700px,92vh);
+    position:relative;
+  }
+  .slide{
+    position:absolute;inset:0;
+    background:var(--paper);
+    border-radius:28px;
+    box-shadow:0 30px 80px -20px rgba(76,29,149,.35);
+    padding:44px 54px;
+    display:flex;flex-direction:column;
+    opacity:0;transform:translateY(24px) scale(.98);
+    pointer-events:none;
+    transition:opacity .5s ease,transform .5s ease;
+    overflow:auto;
+  }
+  .slide.active{opacity:1;transform:none;pointer-events:auto}
+  .kicker{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:13.5px;font-weight:600;letter-spacing:.08em;
+    color:var(--accent);text-transform:uppercase;
+    margin-bottom:12px;
+  }
+  .kicker .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);}
+  h1{
+    font-size:33px;line-height:1.2;font-weight:800;
+    letter-spacing:-.01em;margin-bottom:8px;
+    background:linear-gradient(120deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .sub{font-size:16px;color:var(--muted);margin-bottom:18px;line-height:1.6}
+  p{font-size:15px;line-height:1.65;color:#33304a;margin-bottom:11px}
+  strong{color:#1a1730}
+  code{
+    font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:.86em;
+    background:#f1eefb;color:#5b21b6;border-radius:6px;padding:1px 6px;
+  }
+  .hl{background:linear-gradient(transparent 60%,#ffe27a 60%);font-weight:600;padding:0 2px}
+  .hl2{background:linear-gradient(transparent 60%,#a5f3d0 60%);font-weight:600;padding:0 2px}
+  .cards{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:6px}
+  .cards.c3{grid-template-columns:repeat(3,1fr)}
+  .card{
+    background:linear-gradient(160deg,#f6f4ff,#eef6ff);
+    border:1px solid #e6e1f7;border-radius:16px;padding:18px 20px;
+  }
+  .card .emoji{font-size:26px;margin-bottom:8px;display:block}
+  .card h3{font-size:16.5px;margin-bottom:6px}
+  .card p{font-size:14px;color:var(--muted);margin:0;line-height:1.6}
+  .card p+p{margin-top:7px}
+  .stack{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:4px}
+  .stack .col{background:#faf9ff;border:1px solid #ebe7fb;border-radius:16px;padding:16px 18px}
+  .stack .col h3{font-size:14px;letter-spacing:.04em;text-transform:uppercase;color:var(--accent);margin-bottom:10px}
+  .stack .col ul{list-style:none;font-size:13.5px;line-height:1.5;color:#3a2e26}
+  .stack .col li{margin-bottom:7px;padding-left:14px;position:relative}
+  .stack .col li:before{content:"▸";position:absolute;left:0;color:#c3bce0}
+  .stack .col li b{color:#1a1730}
+  /* 流程 */
+  .flow{display:flex;flex-direction:column;gap:8px;margin:2px 0 4px}
+  .step{
+    display:flex;align-items:center;gap:13px;
+    border:1px solid #e6e1f7;border-radius:13px;padding:10px 15px;
+    background:#faf9ff;
+  }
+  .step .who{
+    flex-shrink:0;width:96px;text-align:center;font-size:11.5px;font-weight:700;
+    border-radius:9px;padding:6px 4px;line-height:1.3;
+  }
+  .who.cloud{background:#dcfce7;color:#15803d}
+  .who.brain{background:#ede9fe;color:#6d28d9}
+  .who.db{background:#fef9c3;color:#a16207}
+  .who.exec{background:#ffe4e6;color:#be123c}
+  .step .txt{font-size:13.5px;color:#3a2e26;line-height:1.5}
+  .step .txt b{color:#1a1730}
+  .arrow{text-align:center;color:#c3bce0;font-size:13px;line-height:.4;margin:-2px 0}
+  .reasons{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:2px}
+  .reason{background:#f7f5ff;border:1px solid #ebe7fb;border-radius:15px;padding:14px 16px}
+  .reason h3{font-size:15px;margin-bottom:5px;display:flex;align-items:center;gap:8px}
+  .reason p{font-size:13px;color:var(--muted);margin:0;line-height:1.55}
+  .akke{
+    margin-top:8px;background:linear-gradient(160deg,#fff7ed,#fef2f2);
+    border:1px solid #fcd9b6;border-radius:16px;padding:15px 20px;
+  }
+  .akke .tagline{
+    display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;
+    letter-spacing:.06em;color:#c2410c;text-transform:uppercase;margin-bottom:7px;
+  }
+  .akke p{font-size:14px;color:#3a2e26;margin:0 0 7px}
+  .akke p:last-child{margin-bottom:0}
+  .bad{color:#b91c1c;font-weight:600}
+  .good{color:#047857;font-weight:600}
+  .quote{
+    margin-top:auto;background:#1a1730;color:#e7e3ff;border-radius:16px;
+    padding:17px 22px;font-size:14.5px;line-height:1.65;
+  }
+  .quote b{color:#ffd966}
+  table.spec{width:100%;border-collapse:collapse;font-size:13px;margin-top:2px}
+  table.spec th,table.spec td{text-align:left;padding:8px 10px;border-bottom:1px solid #eee7fb;vertical-align:top}
+  table.spec th{color:var(--accent);font-size:11.5px;letter-spacing:.05em;text-transform:uppercase}
+  table.spec td:first-child{font-weight:700;color:#1a1730;white-space:nowrap}
+  table.spec code{font-size:12px}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:6px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:11px;height:11px;border-radius:4px;display:inline-block}
+  footer{
+    position:absolute;left:0;right:0;bottom:-42px;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .dots{display:flex;gap:8px}
+  .dots i{width:9px;height:9px;border-radius:50%;background:#c9c2e8;cursor:pointer;transition:.3s}
+  .dots i.on{background:var(--accent);width:26px;border-radius:6px}
+  .nav{display:flex;gap:10px}
+  .nav button{
+    border:none;cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;
+    padding:9px 18px;border-radius:12px;background:#fff;color:var(--accent);
+    box-shadow:0 6px 18px -6px rgba(108,92,231,.5);transition:.2s;
+  }
+  .nav button:hover{transform:translateY(-2px)}
+  .nav button.primary{background:linear-gradient(120deg,var(--accent),var(--accent2));color:#fff}
+  .nav button:disabled{opacity:.35;cursor:default;transform:none}
+  .pageno{position:absolute;top:26px;right:32px;font-size:12.5px;color:#c3bce0;font-weight:600}
+  @media(max-width:640px){
+    .slide{padding:32px 26px}
+    h1{font-size:26px}
+    .cards,.cards.c3,.stack,.reasons{grid-template-columns:1fr}
+    footer{bottom:-40px}
+  }
+</style>
+</head>
+<body>
+<div class="deck">
+
+  <!-- 01 封面 -->
+  <section class="slide active">
+    <span class="pageno">01 / 09</span>
+    <span class="kicker"><span class="dot"></span>项目技术全景 · 给技术顾问的速览</span>
+    <h1>Akke 是什么</h1>
+    <p class="sub">一句话：帮<strong>全屋定制品牌</strong>在抖音上自动获客的<strong>多租户 SaaS</strong>——从抓评论、判意向、拟话术，到多通道把私信真的发出去，整条链路打通。</p>
+    <div class="cards">
+      <div class="card">
+        <span class="emoji">🎯</span>
+        <h3>要解决的问题</h3>
+        <p>装修 / 全屋定制的获客，过去靠人肉刷抖音评论区、一条条私聊，效率极低。Akke 把「<strong>找到高意向客户 → 搭话 → 养客 → 转微信</strong>」这条链路自动化。</p>
+      </div>
+      <div class="card">
+        <span class="emoji">🧩</span>
+        <h3>技术形态</h3>
+        <p>一个 <strong>Web 控制台</strong>（打分/审批/看板）＋一个 <strong>数据库</strong>（唯一事实源）＋一个 <strong>爬虫/自动化 worker</strong>，外加一批定时任务，和一组真机 / 云端「执行端」把消息真正发出去。</p>
+      </div>
+    </div>
+    <div class="quote">
+      读法：后面 8 页按<b>「部署架构 → 数据管线 → LLM 层 → 执行通道 → 数据模型 → 自动化底座 → 现阶段进展 → 技术栈速查」</b>逐层展开。方向键 ← → 或点底部圆点翻页。
+    </div>
+    <footer><div class="dots"></div>
+      <div class="nav"><button class="prev" data-dir="-1" disabled>← 上一页</button><button class="primary" data-dir="1">下一页 →</button></div></footer>
+  </section>
+
+  <!-- 02 部署三件套 -->
+  <section class="slide">
+    <span class="pageno">02 / 09</span>
+    <span class="kicker"><span class="dot"></span>部署架构 · 三个独立部署单元</span>
+    <h1>三件套，Supabase 居中</h1>
+    <p class="sub">三块各自独立部署、各自 CI/CD，围绕同一个数据库协作。三块之间不直接调用，全部经数据库或 HTTP 契约交接。</p>
+    <div class="cards c3">
+      <div class="card">
+        <span class="emoji">▲</span>
+        <h3>Next.js 16 · Vercel</h3>
+        <p><code>src/</code>：App Router 控制台 UI ＋薄 API ＋ Vercel Cron 触发器。Supabase SSR 鉴权走 <code>middleware.ts</code>。</p>
+        <p><strong>Next 16.2.4 · React 19.2.4 · TS 5 · Tailwind 4</strong></p>
+      </div>
+      <div class="card">
+        <span class="emoji">🗄️</span>
+        <h3>Supabase · Postgres</h3>
+        <p>唯一事实源。schema 在 <code>supabase/migrations/</code>；多租户靠 <strong>RLS</strong> 隔离。前端 SSR 客户端 ＋ worker 各自读写。</p>
+        <p><strong>@supabase/ssr 0.10 · supabase-js 2.10</strong></p>
+      </div>
+      <div class="card">
+        <span class="emoji">🐍</span>
+        <h3>Python Worker · Fly.io</h3>
+        <p><code>worker/</code>：FastAPI ＋ Playwright，app <code>akke-worker-prod</code>（东京 nrt）。抓取 / 解析 / 发送，后台 poller 拉队列。</p>
+        <p><strong>FastAPI 0.115 · Playwright 1.49 · f2 0.0.1.7</strong></p>
+      </div>
+    </div>
+    <div class="akke">
+      <span class="tagline">🏠 一句话记住</span>
+      <p><strong>Vercel = 大脑与门面</strong>（想、看、审批）、<strong>Supabase = 中央仓库</strong>（记、交接）、<strong>Fly worker = 手脚</strong>（爬、发）。三者<strong>无状态解耦</strong>，任何一块挂掉重启即恢复，靠数据库对齐。</p>
+    </div>
+    <footer><div class="dots"></div>
+      <div class="nav"><button class="prev" data-dir="-1">← 上一页</button><button class="primary" data-dir="1">下一页 →</button></div></footer>
+  </section>
+
+  <!-- 03 数据管线 -->
+  <section class="slide">
+    <span class="pageno">03 / 09</span>
+    <span class="kicker"><span class="dot"></span>核心业务管线 · 从评论到私信</span>
+    <h1>一条评论怎么变成一条私信</h1>
+    <p class="sub">主链路六段，每一段之间用数据库里的表 + 状态机交接，各段由不同的 cron / worker 驱动，天然可重试、可断点续。</p>
+    <div class="flow">
+      <div class="step"><span class="who brain">Cron 入队</span><span class="txt"><code>/api/cron/scrape</code> 给每个活跃号源写一行 <b>scrape_jobs</b></span></div>
+      <div class="arrow">▼</div>
+      <div class="step"><span class="who cloud">Worker 抓取</span><span class="txt">poller 认领 job → <b>f2 快通道</b>签名调抖音评论 API（失败回退 Playwright）→ 落 <b>videos / comments</b></span></div>
+      <div class="arrow">▼</div>
+      <div class="step"><span class="who brain">打分 + 拟稿</span><span class="txt"><code>/api/cron/analyze</code> 用 LLM 给评论打<b>购买意向</b>分；高意向自动生成一条 <b>话术草稿</b> 进 message_queue，状态 <code>pending_approval</code></span></div>
+      <div class="arrow">▼</div>
+      <div class="step"><span class="who db">人工审批</span><span class="txt">运营在控制台审 → 队列行翻 <code>approved</code>（也有绕开 Dashboard 的运营直查工作流，见下页）</span></div>
+      <div class="arrow">▼</div>
+      <div class="step"><span class="who exec">真机 / 云端发送</span><span class="txt">执行端认领 approved → <b>在真实抖音里把私信发出去</b> → 回执 + 回复轮询写回库，成为下一轮上下文</span></div>
+    </div>
+    <p style="font-size:13px;color:var(--muted);margin:0">关键设计：<strong>每一棒都落库再交接</strong>——所以任何一段崩了都能从库里的状态捡起来重跑，不重发、不丢单。</p>
+    <footer><div class="dots"></div>
+      <div class="nav"><button class="prev" data-dir="-1">← 上一页</button><button class="primary" data-dir="1">下一页 →</button></div></footer>
+  </section>
+
+  <!-- 04 LLM 层 -->
+  <section class="slide">
+    <span class="pageno">04 / 09</span>
+    <span class="kicker"><span class="dot"></span>LLM 层 · 分通道模型路由</span>
+    <h1>三个模型各司其职</h1>
+    <p class="sub"><code>src/lib/llm.ts</code> 封装任意 OpenAI 兼容端点，统一走 <strong>OpenRouter</strong>。按「任务性质」而非「一个大模型包打天下」拆分——便宜的干粗活、贵的干精活，可独立灰度 / 回滚。</p>
+    <div class="cards c3">
+      <div class="card">
+        <span class="emoji">💬</span>
+        <h3>Chat（对话/开场）</h3>
+        <p>抖音 & 企微代聊、冷开场白、人设「小艳」。</p>
+        <p><code>qwen3-235b-a22b-2507</code></p>
+      </div>
+      <div class="card">
+        <span class="emoji">📊</span>
+        <h3>Analysis（分析）</h3>
+        <p>评论意向打分、决策信号检测、装修阶段分类。</p>
+        <p><code>deepseek-v4-flash</code></p>
+      </div>
+      <div class="card">
+        <span class="emoji">👁️</span>
+        <h3>Vision（企微读屏）</h3>
+        <p>云电脑 GUI 自动化「看」屏幕内容定位。</p>
+        <p><code>qwen3-vl-30b</code></p>
+      </div>
+    </div>
+    <div class="reasons" style="margin-top:10px">
+      <div class="reason"><h3>🛡️ 输出护栏</h3><p><code>sanitizeReply</code> / <code>extractLeakedToolCalls</code> 清洗模型泄漏的 tool-call 协议字节与舞台指示；60+ 条确定性后置硬绑做信号/昵称规则。</p></div>
+      <div class="reason"><h3>🔍 全链路可观测</h3><p>所有 cron / worker 任务必开 <strong>Langfuse trace</strong>；OpenRouter 返 <code>cost=0</code>，本地定价表手动回填成本，可按人/按任务追账。</p></div>
+    </div>
+    <footer><div class="dots"></div>
+      <div class="nav"><button class="prev" data-dir="-1">← 上一页</button><button class="primary" data-dir="1">下一页 →</button></div></footer>
+  </section>
+
+  <!-- 05 执行通道 -->
+  <section class="slide">
+    <span class="pageno">05 / 09</span>
+    <span class="kicker"><span class="dot"></span>执行通道 · 全项目最硬的骨头</span>
+    <h1>为什么消息不能从云端直接发</h1>
+    <p class="sub">抖音对<strong>数据中心 IP</strong> 风控极严：Fly 东京出口的 handle / search / 主页 API 一律返空，云端直发私信会被静默丢弃。于是「发」这件事必须落到<strong>带真实登录态的终端</strong>上。</p>
+    <div class="cards">
+      <div class="card">
+        <span class="emoji">📱</span>
+        <h3>本机真机通道</h3>
+        <p>运营本机的 <strong>iPhone（WDA）</strong> 或 <strong>Android（ADB + uiautomator2）</strong> 驱动抖音 App 发陌生私信。号源导入靠 Cookie-Editor 导出 + 短链 302 解析（唯一绕开 IP 封锁的路径）。</p>
+      </div>
+      <div class="card">
+        <span class="emoji">🖥️</span>
+        <h3>阿里无影云电脑通道</h3>
+        <p>云端 Windows 挂登录好的抖音 / 企业微信，<strong>VL 读屏 + 固定坐标 GUI 自动化</strong>打字发送。因国内云电脑连不上 Vercel，命令必经 <strong>Fly 东京做中转</strong>。</p>
+      </div>
+    </div>
+    <div class="reasons" style="margin-top:10px">
+      <div class="reason"><h3>🔀 四条触达通道</h3><p>抖音 <b>DM</b>（一触私信）· <b>RC</b>（评论区反向回复）· <b>二触</b>（潜在客户再触达）· <b>企微</b>好友单聊 AI 代回。共用 <code>dispatch</code> 派单原语，节奏各自独立。</p></div>
+      <div class="reason"><h3>✅ 送达真伪校验</h3><p>抖音 <code>HTTP 200 + success:true</code> <strong>不等于</strong>送达——可能 <code>cmd:100</code> 静默丢（陌生 DM 限频）。真校验要 <code>blackboxprotobuf</code> 解包断言 <code>status_code==0</code>。</p></div>
+    </div>
+    <footer><div class="dots"></div>
+      <div class="nav"><button class="prev" data-dir="-1">← 上一页</button><button class="primary" data-dir="1">下一页 →</button></div></footer>
+  </section>
+
+  <!-- 06 数据模型 + 多租户 -->
+  <section class="slide">
+    <span class="pageno">06 / 09</span>
+    <span class="kicker"><span class="dot"></span>数据模型 · 多租户隔离</span>
+    <h1>一个库，多个品牌，互不串数据</h1>
+    <p class="sub">2026-04 起多租户化。所有业务表挂 <code>org_id</code>，靠 Postgres <strong>行级安全（RLS）</strong>做硬隔离，而不是在应用层写 <code>WHERE</code> 兜。</p>
+    <div class="stack">
+      <div class="col"><h3>业务域</h3><ul>
+        <li><b>租户</b> organizations / memberships / brand_profile</li>
+        <li><b>号池</b> accounts（发送账号）</li>
+        <li><b>抓取</b> source_accounts / videos / comments / scrape_jobs</li>
+        <li><b>会话</b> conversations 状态机 / messages / message_queue</li>
+        <li><b>知识 + 统计</b> knowledge / daily_stats</li>
+      </ul></div>
+      <div class="col"><h3>隔离机制</h3><ul>
+        <li>RLS 策略 <code>tenant_scope</code></li>
+        <li>键于 <code>app.accessible_org_ids()</code></li>
+        <li>角色 <b>Staff / Owner / Operator</b></li>
+        <li>路由层再加 <code>src/lib/auth/</code> 守卫</li>
+        <li><code>org_id</code> 永不接受客户端传入</li>
+      </ul></div>
+      <div class="col"><h3>工程约定</h3><ul>
+        <li>迁移唯一事实源＝SQL 文件</li>
+        <li>时间戳前缀 <code>YYYYMMDDHHMMSS_</code></li>
+        <li>回滚 SQL 单独存目录</li>
+        <li>三种客户端：SSR / 服务端 / bypass-RLS</li>
+        <li>租户读走 SSR+RLS，不用 service role</li>
+      </ul></div>
+    </div>
+    <div class="akke">
+      <span class="tagline">🔒 为什么用 RLS 而不是应用层过滤</span>
+      <p>把隔离下沉到数据库：<strong>任何一条查询漏写租户条件，也不会跨租户串数据</strong>——安全边界只有一层、且是数据库强制的，而不是散落在几百个 API 里靠人记得加 <code>WHERE org_id=</code>。</p>
+    </div>
+    <footer><div class="dots"></div>
+      <div class="nav"><button class="prev" data-dir="-1">← 上一页</button><button class="primary" data-dir="1">下一页 →</button></div></footer>
+  </section>
+
+  <!-- 07 自动化底座 -->
+  <section class="slide">
+    <span class="pageno">07 / 09</span>
+    <span class="kicker"><span class="dot"></span>自动化底座 · 调度 · 可观测 · 门禁</span>
+    <h1>整个系统靠定时任务串起来</h1>
+    <p class="sub">没有常驻队列服务，主链路由 <strong>58 个 Vercel Cron</strong> ＋ worker 后台 poller 驱动，每一环都可独立监控和降级。</p>
+    <div class="reasons">
+      <div class="reason"><h3>⏱️ 58 个 Cron</h3><p>入队 / 抓取 / 打分 / 回复轮询 / 日报 / 健康自检 / 号源治理 / 云电脑看门狗……时刻表全在 <code>vercel.json</code>，是唯一事实源。</p></div>
+      <div class="reason"><h3>💓 双指标心跳</h3><p>每个后台任务同时落<strong>存活心跳</strong>（挂了可检测）＋<strong>业务 delta</strong>（跑了但 0 行更新也告警）——「退出码 0」不等于「业务有效」。</p></div>
+      <div class="reason"><h3>📈 可观测 + 告警</h3><p>Langfuse trace 全覆盖；LLM 余额 / 成本 / 达标率异常推 <strong>Lark 红牌</strong>到告警群；每日 LLM 健康监控。</p></div>
+      <div class="reason"><h3>🚦 CI + 高危路径门禁</h3><p><code>tsc</code>＋lint＋Claude 自动评审跑在每个 PR；<code>llm.ts</code> / cron / migrations / auth 等<strong>高危路径强制走 PR</strong>，两道闸拦直推 main。</p></div>
+    </div>
+    <div class="akke">
+      <span class="tagline">🧭 设计取向</span>
+      <p><strong>确定性判断交给代码，模糊判断才交给模型</strong>——路由、重试、状态码、去重走代码；分类、起草、摘要、抽取走 LLM。能用状态码回答的，不让模型在 prompt 里抖 if-else。</p>
+    </div>
+    <footer><div class="dots"></div>
+      <div class="nav"><button class="prev" data-dir="-1">← 上一页</button><button class="primary" data-dir="1">下一页 →</button></div></footer>
+  </section>
+
+  <!-- 08 现阶段进展 -->
+  <section class="slide">
+    <span class="pageno">08 / 09</span>
+    <span class="kicker"><span class="dot"></span>现阶段进展 · 技术视角</span>
+    <h1>已跑通 / 进行中 / 硬骨头</h1>
+    <p class="sub">纯工程里程碑口径——「能力上有没有打通」，不含运营数字。</p>
+    <div class="stack">
+      <div class="col" style="background:#f0fdf4;border-color:#bbf7d0"><h3 style="color:#15803d">✅ 已上线 / 跑通</h3><ul>
+        <li>多租户 RLS 隔离</li>
+        <li>抓取：Cookie 接入＋短链解析＋f2 快通道＋Playwright 回退</li>
+        <li>VIP 视频分类＋小时级复扫＋活跃池互动 Δ 追踪</li>
+        <li>意向打分＋草稿管线＋评分校准闭环</li>
+        <li>四通道触达（DM/RC/二触/企微代回）</li>
+        <li>云电脑 GUI 自动化端到端真发＋DM 自动回复</li>
+        <li>对外看板（时效/账单/客户旅程/业务流地铁图）</li>
+        <li>图文自动发布＋视频解构复刻产线 v0</li>
+      </ul></div>
+      <div class="col" style="background:#fffbeb;border-color:#fde68a"><h3 style="color:#b45309">🚧 进行中 / 未完</h3><ul>
+        <li>企微 kf 官方 API（方案 A）冻结，待 ICP 备案</li>
+        <li>analyze 吞吐并发化（当前串行、尾部易饿死）</li>
+        <li>高意向覆盖率提升（瓶颈在派单分配）</li>
+        <li>抖音获客沉淀企微（短信＋获客助手链接，未拍板）</li>
+        <li>金牌销售对话灌库（decision_rules）</li>
+      </ul></div>
+      <div class="col" style="background:#fef2f2;border-color:#fecaca"><h3 style="color:#b91c1c">🧗 技术硬骨头 / 边界</h3><ul>
+        <li>抖音 IP 风控：机房 IP 一律返空 / 静默丢</li>
+        <li>DM 假成功：需 protobuf 解包验 status_code</li>
+        <li>云电脑连不上 Vercel → 必经 Fly 中转</li>
+        <li>单 2GB Fly VM = 单 Chromium 单例</li>
+        <li>Cookie 15–30 天过期；httpx 锁死 0.27.2</li>
+      </ul></div>
+    </div>
+    <footer><div class="dots"></div>
+      <div class="nav"><button class="prev" data-dir="-1">← 上一页</button><button class="primary" data-dir="1">下一页 →</button></div></footer>
+  </section>
+
+  <!-- 09 技术栈速查 -->
+  <section class="slide">
+    <span class="pageno">09 / 09</span>
+    <span class="kicker"><span class="dot"></span>技术栈速查表 · 最新版本</span>
+    <h1>一页看全用了什么</h1>
+    <table class="spec">
+      <tr><th>层</th><th>技术</th><th>版本 / 部署</th></tr>
+      <tr><td>前端 / API</td><td>Next.js · React · TypeScript · Tailwind</td><td><code>16.2.4 / 19.2.4 / 5 / 4</code> · Vercel</td></tr>
+      <tr><td>数据库</td><td>Supabase Postgres（RLS 多租户）</td><td><code>@supabase/ssr 0.10 · js 2.10</code></td></tr>
+      <tr><td>状态管理</td><td>Zustand（<code>useChatV2Store</code> 分片）</td><td>前端会话状态</td></tr>
+      <tr><td>Worker</td><td>Python · FastAPI · Uvicorn</td><td><code>0.115 / 0.34</code> · Fly.io 东京</td></tr>
+      <tr><td>抓取 / 自动化</td><td>Playwright · f2（签名）· uiautomator2 · WDA</td><td><code>PW 1.49 · f2 0.0.1.7 → httpx 0.27.2</code></td></tr>
+      <tr><td>LLM 接入</td><td>OpenRouter（openai SDK）</td><td><code>openai 6.34</code>；分通道路由</td></tr>
+      <tr><td>· Chat</td><td>Qwen3-235B-A22B</td><td><code>qwen3-235b-a22b-2507</code></td></tr>
+      <tr><td>· Analysis</td><td>DeepSeek V4 Flash</td><td><code>deepseek-v4-flash</code></td></tr>
+      <tr><td>· Vision</td><td>Qwen3-VL-30B</td><td><code>qwen3-vl-30b-a3b-instruct</code></td></tr>
+      <tr><td>可观测</td><td>Langfuse · Sentry</td><td>trace 全覆盖 · <code>sentry-sdk 2.20</code></td></tr>
+      <tr><td>调度 / CI</td><td>Vercel Cron · GitHub Actions</td><td>58 crons · tsc+lint+Claude 评审</td></tr>
+      <tr><td>执行端</td><td>阿里无影云电脑 · iPhone/Android 真机</td><td>GUI 自动化 · 本机 WDA/ADB</td></tr>
+    </table>
+    <div class="quote" style="margin-top:14px">
+      <b>一句话总括：</b>一套<b>无状态解耦</b>的三件套（Vercel 大脑 / Supabase 仓库 / Fly 手脚），用<b>分通道 LLM</b> 判意向、拟话术，最后落到<b>真机与云电脑</b>把私信真发出去——难点全在<b>绕过抖音风控</b>与<b>验证真实送达</b>。
+    </div>
+    <footer><div class="dots"></div>
+      <div class="nav"><button class="prev" data-dir="-1">← 上一页</button><button class="primary" data-dir="1">↺ 重新看</button></div></footer>
+  </section>
+
+</div>
+
+<script>
+  const slides=[...document.querySelectorAll('.slide')];
+  const N=slides.length;
+  slides.forEach(s=>{
+    const d=s.querySelector('.dots');
+    d.innerHTML=Array.from({length:N},()=>'<i></i>').join('');
+    d.querySelectorAll('i').forEach((dot,j)=>dot.onclick=()=>show(j));
+  });
+  let cur=0;
+  function show(i){
+    cur=(i+N)%N;
+    slides.forEach((s,k)=>{
+      s.classList.toggle('active',k===cur);
+      s.querySelectorAll('.dots i').forEach((dot,j)=>dot.classList.toggle('on',j===cur));
+    });
+  }
+  document.querySelectorAll('[data-dir]').forEach(b=>b.onclick=()=>show(cur+ +b.dataset.dir));
+  document.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight') show(cur+1);
+    if(e.key==='ArrowLeft') show(cur-1);
+  });
+  show(0);
+</script>
+</body>
+</html>
