@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>图生视频效果不好，怪谁？— 图片 · 模型 · 提示词的归因排查 — upio.ai 知识分享</title>
+<meta name="description" content="AI 生图再图生视频（可灵 Kling / Seedance）出来的片子效果不理想，问题到底出在提示词、图片还是模型？一次真实产线的三层归因排查：结论是图片 > 模型参数 > 提示词，并给出可复用的排查方法与行动清单。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700;800&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+
+<style>
+:root {
+  --bg: #0a0d14; --bg-elevated: #131720; --bg-deep: #1a1f2b;
+  --border: #232936; --border-strong: #2f3646;
+  --text: #e8eaef; --text-dim: #9ba3b4; --text-muted: #6b7384;
+  --accent:   #8b5cf6; --accent-soft:   rgba(139, 92, 246, 0.15);
+  --accent-2: #60a5fa; --accent-2-soft: rgba(96, 165, 250, 0.13);
+  --accent-3: #34d399; --accent-3-soft: rgba(52, 211, 153, 0.14);
+  --warning:  #fbbf24; --warning-soft:  rgba(251, 191, 36, 0.14);
+  --danger:   #f87171; --danger-soft:   rgba(248, 113, 113, 0.14);
+  --font-display: 'Instrument Serif', 'Source Han Serif SC', Georgia, serif;
+  --font-ui:      'Inter Tight', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; padding: 0;
+  background: var(--bg); color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 15.5px; line-height: 1.7;
+  font-feature-settings: 'cv11', 'ss01', 'tnum';
+  -webkit-font-smoothing: antialiased;
+}
+.crumb-bar {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(10, 13, 20, 0.82);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border-bottom: 1px solid var(--border);
+}
+.crumb-inner {
+  max-width: 920px; margin: 0 auto; padding: 11px 24px;
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--text-muted); letter-spacing: 0.04em;
+}
+.crumb-inner a { color: var(--text-dim); text-decoration: none; transition: color .2s; }
+.crumb-inner a:hover { color: var(--accent); }
+.crumb-inner .sep { margin: 0 8px; color: var(--border-strong); }
+.crumb-inner .cur { color: var(--text-dim); }
+
+.container { max-width: 860px; margin: 0 auto; padding: 52px 24px 100px; }
+
+header.hero { padding: 4px 0 34px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.tag {
+  display: inline-block; padding: 4px 12px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent);
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 18px;
+}
+h1 {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 50px; font-weight: 400; margin: 0 0 16px;
+  letter-spacing: -0.02em; line-height: 1.1;
+  background: linear-gradient(135deg, #f4f5f8 28%, var(--accent) 70%, var(--accent-2) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.subtitle { font-size: 16.5px; color: var(--text-dim); margin: 0 0 24px; max-width: 720px; line-height: 1.65; }
+.subtitle strong { color: var(--text); font-weight: 600; }
+.hero-meta { display: flex; gap: 24px; flex-wrap: wrap; font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); }
+.hero-meta strong { color: var(--text-dim); font-weight: 500; }
+
+.section-head { display: flex; gap: 20px; align-items: baseline; padding-top: 28px; margin-top: 48px; border-top: 1px solid var(--border); }
+.section-head .num { font-family: var(--font-display); font-style: italic; font-size: 64px; line-height: 1; font-weight: 400; color: var(--accent); flex-shrink: 0; }
+.section-head .meta { flex: 1; padding-top: 12px; }
+.section-head h2 { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); letter-spacing: 0.14em; text-transform: uppercase; margin: 0 0 6px; font-weight: 700; }
+.section-head .lede { font-family: var(--font-display); font-style: italic; font-size: 26px; line-height: 1.3; color: var(--text); }
+section { margin-bottom: 20px; }
+section > p { margin: 14px 0; color: var(--text-dim); }
+section > p strong { color: var(--text); font-weight: 600; }
+h3 { font-family: var(--font-ui); font-size: 17.5px; font-weight: 600; color: var(--text); margin: 30px 0 10px; letter-spacing: -0.01em; }
+code { background: var(--bg-deep); padding: 1px 6px; border-radius: 4px; font-size: 0.86em; color: #c4b5fd; font-family: var(--font-mono); }
+a { color: var(--accent-2); text-decoration: none; transition: color .2s; }
+a:hover { color: var(--accent); }
+
+.callout { border-radius: 10px; padding: 14px 18px; margin: 16px 0; font-size: 14px; line-height: 1.7; }
+.callout.info    { background: var(--accent-2-soft); border-left: 3px solid var(--accent-2); color: var(--text-dim); }
+.callout.info strong    { color: var(--accent-2); }
+.callout.warn    { background: var(--warning-soft); border-left: 3px solid var(--warning); color: var(--text-dim); }
+.callout.warn strong    { color: var(--warning); }
+.callout.purple  { background: var(--accent-soft); border-left: 3px solid var(--accent); color: var(--text-dim); }
+.callout.purple strong  { color: var(--accent); }
+.callout.green   { background: var(--accent-3-soft); border-left: 3px solid var(--accent-3); color: var(--text-dim); }
+.callout.green strong   { color: var(--accent-3); }
+.callout.red     { background: var(--danger-soft); border-left: 3px solid var(--danger); color: var(--text-dim); }
+.callout.red strong     { color: var(--danger); }
+.callout .src { display:block; margin-top:6px; font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+
+.snip { background: var(--bg-deep); border: 1px solid var(--border); border-radius: 10px; margin: 16px 0; overflow: hidden; }
+.snip .snip-bar { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); letter-spacing: 0.06em; padding: 8px 14px; border-bottom: 1px solid var(--border); background: var(--bg-elevated); }
+.snip pre { margin: 0; padding: 14px 16px; overflow-x: auto; }
+.snip code { background: none; padding: 0; color: var(--text-dim); font-family: var(--font-mono); font-size: 12.5px; line-height: 1.65; white-space: pre; }
+
+.dtable-wrap { overflow-x: auto; margin: 18px 0; border: 1px solid var(--border); border-radius: 12px; }
+.dtable { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 480px; }
+.dtable th, .dtable td { text-align: left; padding: 11px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.dtable tr:last-child td { border-bottom: none; }
+.dtable th { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); font-weight: 700; background: var(--bg-deep); }
+.dtable td { color: var(--text-dim); line-height: 1.55; }
+.dtable td.feat { color: var(--text); font-weight: 600; white-space: nowrap; }
+.dtable tbody tr:hover td { background: var(--bg-elevated); }
+
+.versus { display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch; margin: 16px 0; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+@media (max-width: 560px) { .versus { grid-template-columns: 1fr; } }
+.vs-side { padding: 16px 18px; }
+.vs-side h4 { margin: 0 0 6px; font-size: 14px; font-weight: 700; font-family: var(--font-mono); letter-spacing: 0.01em; }
+.vs-side p { margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.6; }
+.vs-side.left h4 { color: var(--accent-2); }
+.vs-side.right h4 { color: var(--warning); }
+.vs-mid { display: flex; align-items: center; justify-content: center; padding: 0 8px; font-family: var(--font-display); font-style: italic; font-size: 18px; color: var(--text-muted); border-left: 1px solid var(--border); border-right: 1px solid var(--border); background: var(--bg-deep); }
+@media (max-width: 560px) { .vs-mid { border: none; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 6px; } }
+
+.checklist { list-style: none; margin: 18px 0 0; padding: 0; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.checklist li { display: flex; gap: 12px; padding: 13px 18px; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--text-dim); background: var(--bg-elevated); }
+.checklist li:last-child { border-bottom: none; }
+.checklist li::before { content: "→"; color: var(--accent); font-weight: 700; flex-shrink: 0; font-family: var(--font-mono); }
+.checklist li strong { color: var(--text); font-weight: 600; }
+
+.evidence { display:inline-block; font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.08em; padding: 1px 7px; border-radius: 999px; vertical-align: 1px; }
+.evidence.a { background: var(--accent-3-soft); color: var(--accent-3); }
+.evidence.b { background: var(--accent-2-soft); color: var(--accent-2); }
+.evidence.c { background: var(--warning-soft); color: var(--warning); }
+
+.layer-rank { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 20px 0; }
+@media (max-width: 640px) { .layer-rank { grid-template-columns: 1fr; } }
+.layer-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
+.layer-card .rank { font-family: var(--font-display); font-style: italic; font-size: 30px; line-height: 1; margin-bottom: 8px; }
+.layer-card.l1 { border-color: rgba(248,113,113,0.4); } .layer-card.l1 .rank { color: var(--danger); }
+.layer-card.l2 { border-color: rgba(251,191,36,0.35); } .layer-card.l2 .rank { color: var(--warning); }
+.layer-card.l3 { border-color: rgba(96,165,250,0.35); } .layer-card.l3 .rank { color: var(--accent-2); }
+.layer-card h4 { margin: 0 0 6px; font-size: 15px; font-weight: 700; color: var(--text); }
+.layer-card p { margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.6; }
+
+.punchline { font-family: var(--font-display); font-style: italic; font-size: 24px; line-height: 1.45; color: var(--text); text-align: center; margin: 44px auto 8px; max-width: 700px; padding: 26px 24px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.punchline .hl { background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight: 400; }
+
+footer { text-align: center; padding: 48px 0 0; font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted); letter-spacing: 0.06em; line-height: 1.8; }
+
+.reveal { opacity: 0; filter: blur(6px); transform: translateY(12px); transition: opacity .6s ease-out, filter .6s ease-out, transform .6s ease-out; }
+.reveal.in-view { opacity: 1; filter: blur(0); transform: translateY(0); }
+
+@media (max-width: 560px) {
+  h1 { font-size: 36px; }
+  .section-head { gap: 12px; }
+  .section-head .num { font-size: 46px; }
+  .section-head .lede { font-size: 21px; }
+  .punchline { font-size: 19px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .reveal { opacity: 1 !important; filter: none !important; transform: none !important; }
+}
+</style>
+</head>
+
+<body>
+
+<nav class="crumb-bar">
+  <div class="crumb-inner">
+    <a href="/">upio.ai</a><span class="sep">/</span><a href="/learn">知识分享</a><span class="sep">/</span><span class="cur">图生视频归因排查</span>
+  </div>
+</nav>
+
+<div class="container">
+
+  <header class="hero">
+    <span class="tag">Agent · AI 工程 · 产线排查实录</span>
+    <h1>图生视频效果不好，怪谁？</h1>
+    <p class="subtitle">我们的短视频产线走「AI 生图 → 图生视频（可灵 Kling / Seedance）」这条链路，成片效果一直不够理想：真实感差、嘴形对不上、镜与镜之间人物长得不一样。问题到底出在<strong>提示词、图片，还是模型</strong>？这是一次真实的三层归因排查——结论先说：<strong>图片层嫌疑最大，模型参数层次之，提示词层问题最轻但修起来最便宜</strong>。排查方法本身可以复用到任何 AIGC 产线。</p>
+    <div class="hero-meta">
+      <span><strong>篇幅</strong> 6 章 · 约 12 分钟</span>
+      <span><strong>素材</strong> 产线代码 + 团队横评实测</span>
+      <span><strong>日期</strong> 2026-07-14 · 模型版本/价格 30 天后需重核</span>
+    </div>
+  </header>
+
+  <!-- ════════════ 引言 ════════════ -->
+  <section style="margin-top:30px">
+    <p>「生成效果不好」是所有 AIGC 产线都会遇到的投诉，但它是个<strong>复合症状</strong>：可能是图假、可能是参数低、可能是提示词烂，也可能三个都占。直接换模型是最常见的第一反应，也往往是最贵、最无效的一步。这篇讲解把我们 7 月这轮排查完整复盘一遍——证据从哪来、怎么分层、结论是什么、下一步验证实验怎么设计。</p>
+    <div class="callout purple">
+      <strong>证据分级 ·</strong> 文中结论按来源强度标注：<span class="evidence a">A 产线代码 / 已复现实测</span> <span class="evidence b">B 团队横评样片对比</span> <span class="evidence c">C 合理推断 / 待实验验证</span>。带 C 标的结论已排进验证实验，还不是定论。
+    </div>
+  </section>
+
+  <!-- ════════════ 01 链路与症状 ════════════ -->
+  <div class="section-head reveal">
+    <div class="num">01</div>
+    <div class="meta">
+      <h2>Section 01 · 现场</h2>
+      <div class="lede">链路长什么样，症状具体是什么</div>
+    </div>
+  </div>
+  <section>
+    <p>产线是典型的两段式：<strong>第一段生图</strong>——用即梦 / Midjourney（手工出图）或万相文生图 API（脚本出图）按分镜稿逐镜生成静帧；<strong>第二段图生视频（I2V）</strong>——把静帧喂给可灵 Kling 让画面动起来，Seedance、Wan、LTXV 做过横评备选。一条完整成片约 32 张图、32 段视频再拼接。</p>
+    <div class="snip">
+      <div class="snip-bar">产线链路 · 简化示意</div>
+      <pre><code>分镜稿(LLM/人工) → 逐镜生图(即梦/MJ/万相) → I2V 出画(可灵 v2.5)
+                                              ↓
+                          配音对齐(音频输入) → 拼接字幕(ffmpeg) → 成片</code></pre>
+    </div>
+    <p>「效果不好」拆开是四个具体症状，这一步很关键——<strong>症状不拆开，归因就无从下手</strong>：</p>
+    <ul class="checklist">
+      <li><strong>真实感差</strong> — 画面有明显的"AI 味"，质感假，投放场景里一眼被识破</li>
+      <li><strong>嘴形对不上</strong> — 口播镜头里人物嘴在动，但和台词完全不同步</li>
+      <li><strong>跨镜不一致</strong> — 同一个"人物"在第 3 镜和第 7 镜长得不是同一张脸</li>
+      <li><strong>局部形变</strong> — 复杂衣物（裙摆）、手部在运动中扭曲变形</li>
+    </ul>
+  </section>
+
+  <!-- ════════════ 02 排查框架 ════════════ -->
+  <div class="section-head reveal">
+    <div class="num">02</div>
+    <div class="meta">
+      <h2>Section 02 · 方法</h2>
+      <div class="lede">三层归因：从上游往下游查，不是反过来</div>
+    </div>
+  </div>
+  <section>
+    <p>两段式产线的归因要按<strong>数据流向</strong>分层：图片是 I2V 的输入，提示词是两段各自的控制信号，模型是执行器。排查顺序必须<strong>从上游往下游</strong>——因为上游的污染下游救不回来：图是假的，视频模型再强也只是"忠实地让一张假图动起来"；反过来，如果先在下游换模型调参数，上游问题没解决，换什么都白换、还白烧钱。</p>
+    <div class="layer-rank">
+      <div class="layer-card l1">
+        <div class="rank">①</div>
+        <h4>图片层（上游输入）</h4>
+        <p>图本身假不假、每张图之间一致不一致、分辨率够不够、有没有质检。<strong>本轮排查的最大嫌疑。</strong></p>
+      </div>
+      <div class="layer-card l2">
+        <div class="rank">②</div>
+        <h4>模型 / 参数层（执行器）</h4>
+        <p>模型版本选对没有、档位（std/pro）、分辨率链条、输入通道（音频）支不支持。<strong>部分问题已实锤并修复。</strong></p>
+      </div>
+      <div class="layer-card l3">
+        <div class="rank">③</div>
+        <h4>提示词层（控制信号）</h4>
+        <p>运镜/动作描述写法、负向提示词强度、防御性措辞。<strong>问题最轻，但修起来最便宜。</strong></p>
+      </div>
+    </div>
+    <div class="callout info">
+      <strong>为什么不先怪提示词？·</strong> 提示词是大家最先想到的变量，因为它改起来零成本。但在 I2V 场景里提示词的控制力天然有限——画面主体、质感、人物长相全部由输入图决定，提示词只管"怎么动"。<strong>图错了，提示词只能决定它错着动的方式。</strong>
+    </div>
+  </section>
+
+  <!-- ════════════ 03 图片层 ════════════ -->
+  <div class="section-head reveal">
+    <div class="num">03</div>
+    <div class="meta">
+      <h2>Section 03 · 头号嫌疑</h2>
+      <div class="lede">图片层：视频模型只是让一张"假图"动了起来</div>
+    </div>
+  </div>
+  <section>
+    <p>把四个症状对回三层，会发现<strong>真实感差和跨镜不一致这两个最痛的症状，都指向图片层</strong>：</p>
+    <div class="dtable-wrap">
+      <table class="dtable">
+        <tr><th>问题</th><th>证据</th><th>等级</th></tr>
+        <tr><td class="feat">输入图本来就是 AI 图</td><td>现产线的图来自即梦 / MJ 手工出图——I2V 引擎拿到的输入本身就带"AI 味"，动起来只会放大这种假；跨镜不一致同理：每张图是独立生成的，"同一个人"在每张图里本来就长得不一样</td><td><span class="evidence c">C · 已设计盲评实验待跑</span></td></tr>
+        <tr><td class="feat">脚本出图用的是极速档</td><td>自动化链路用的文生图是万相 turbo 极速档（约 0.14 元/张的档位），而内部横评早已证明同类内容 Seedream 出图质量显著更强——<strong>调研结论没有落进产线代码</strong></td><td><span class="evidence a">A · 代码实查</span></td></tr>
+        <tr><td class="feat">出图无质检环节</td><td>脚本一次生成直接进合成，没有重试、没有打分、没有人工闸口；此前横评里"3 张只有 1 张能用"的教训说明单次出图合格率并不高</td><td><span class="evidence a">A · 代码实查</span></td></tr>
+        <tr><td class="feat">AI 直接画中文字</td><td>让生图模型直接在画面里画中文（封面字、包装字）必糊必错——正确做法是生成无字底图，再用 ffmpeg 叠真实文字层</td><td><span class="evidence b">B · 横评实测</span></td></tr>
+      </table>
+    </div>
+
+    <h3>怎么验证「图是主因」这个假设？</h3>
+    <p>团队已经写好了一个<strong>图源对照盲评实验</strong>：同一条运镜提示词，分别喂「真实照片」和「AI 生成图」给同一个 I2V 模型，产出的视频打乱顺序后由不看答案的人按五个维度打分（真实感 / 主体保持 / 运镜服从 / 形变控制 / 整体可用），最后揭盲对比。<strong>如果真图组显著胜出，图片层主因实锤</strong>——后续预算就该花在图源上（实拍素材、更强的生图模型、出图质检），而不是升级视频模型档位。</p>
+    <div class="callout warn">
+      <strong>当前状态 ·</strong> 实验脚本已就绪，对照数据还没跑出来。在数据落地之前，"图是主因"是<strong>最有依据的假设，不是结论</strong>——这也是为什么本文所有图片层结论都标 C 级或引横评旁证。先跑实验，再动预算。
+    </div>
+  </section>
+
+  <!-- ════════════ 04 模型层 ════════════ -->
+  <div class="section-head reveal">
+    <div class="num">04</div>
+    <div class="meta">
+      <h2>Section 04 · 二号嫌疑</h2>
+      <div class="lede">模型 / 参数层：嘴形问题已经在这里破案了</div>
+    </div>
+  </div>
+  <section>
+    <p>模型层有一个<strong>已经闭环的真实案例</strong>，值得完整讲一遍，因为它示范了"换版本"不等于"升级版本"：</p>
+
+    <h3>案例：嘴形对不上 → 不是提示词的错，是版本选错了</h3>
+    <p>口播镜头嘴形对不上台词，第一反应是"提示词再调调"。但排查发现根因在<strong>输入通道</strong>：当时用的可灵 V3 standard <strong>不支持音频输入</strong>——模型根本听不到台词，嘴形只能瞎编，提示词写出花也没用。解法反直觉：<strong>回退</strong>到支持音频输入的 v2.5，嘴形基本对上。<span class="evidence b">B · 团队实测闭环</span></p>
+    <div class="versus">
+      <div class="vs-side left">
+        <h4>版本号更高（V3 std/pro）</h4>
+        <p>画质代际更新，但无音频输入通道——口播场景下嘴形永远对不上，这是结构性缺陷，调参数救不了。</p>
+      </div>
+      <div class="vs-mid">vs</div>
+      <div class="vs-side right">
+        <h4>能力对口（v2.5 + 音频输入）</h4>
+        <p>版本号更低，但有产线需要的输入通道。<strong>选模型看能力矩阵，不看版本号大小。</strong></p>
+      </div>
+    </div>
+
+    <h3>还埋着的四个参数坑</h3>
+    <div class="dtable-wrap">
+      <table class="dtable">
+        <tr><th>坑</th><th>问题</th><th>等级</th></tr>
+        <tr><td class="feat">档位硬编码 std</td><td>对照脚本里可灵档位写死 standard——而横评结论明确"竖屏成片别用 std 档：更慢、分辨率低一档、性价比最差"</td><td><span class="evidence a">A · 代码实查</span></td></tr>
+        <tr><td class="feat">分辨率链条断档</td><td>生图 720×1280 → I2V 输出 720p → 目标成片 1080×1920。横评原话："704p 放大到 1080 会糊，做正片这个差距致命"；超分（RealESRGAN）还停在待评估清单里</td><td><span class="evidence a">A</span></td></tr>
+        <tr><td class="feat">平台自动改写提示词</td><td>对照实验的 Wan 臂开着 <code>prompt_extend</code>（平台侧自动扩写 prompt）——可能画出图里不存在的内容，还污染对照实验的变量控制</td><td><span class="evidence a">A · 代码实查</span></td></tr>
+        <tr><td class="feat">Seedance 只测过 Lite</td><td>Seedance 横评只跑过 Lite 档（704p），Pro 档没验过——拿 Lite 的表现给 Seedance 整体下结论，或直接用 Lite 出竖屏正片，都不成立</td><td><span class="evidence b">B</span></td></tr>
+      </table>
+    </div>
+    <div class="callout red">
+      <strong>成本红线 ·</strong> 模型层还有一个绕不开的现实：v2.5 档一条完整成片（32 镜）生图+视频合计约 <strong>$16/条</strong>，V3 档烧钱速度更快。这决定了"无脑升档"不可行——升级前必须先回答"上游图源问题解决了吗"，否则是花更多的钱让假图动得更精致。
+    </div>
+  </section>
+
+  <!-- ════════════ 05 提示词层 ════════════ -->
+  <div class="section-head reveal">
+    <div class="num">05</div>
+    <div class="meta">
+      <h2>Section 05 · 三号嫌疑</h2>
+      <div class="lede">提示词层：问题最轻，但每一条都值得马上修</div>
+    </div>
+  </div>
+  <section>
+    <p>提示词层排查出四个具体问题。单独看每个都不致命，但它们的共同特点是<strong>修复成本几乎为零</strong>——所以虽然排第三，反而应该最先动手：</p>
+    <ul class="checklist">
+      <li><strong>机位描述会被画进画面</strong> — 生图提示词里写"三脚架固定拍摄"，模型真的画了一个三脚架杵在人物前面。凡是描述"怎么拍"的词，都要配一句防御措辞：<strong>「画面中不出现拍摄设备」</strong> <span class="evidence b">B · 横评实测</span></li>
+      <li><strong>I2V 提示词只有运镜、没有动作因果链</strong> — 现在的写法是纯运镜句（"镜头缓慢从左向右横移，画面稳定"）。更优实践：首帧图只画静止瞬间，把"接下来发生什么"写成因果链动作描述，让模型知道往哪儿演，而不是只知道镜头往哪儿移 <span class="evidence c">C</span></li>
+      <li><strong>负向提示词过弱</strong> — 目前只有"变形、扭曲、文字、水印"四个词，形变类症状（裙摆、手部）对应的负向词一个没有；横评备选的某些通道甚至没接负向提示词字段 <span class="evidence a">A · 代码实查</span></li>
+      <li><strong>抗"塑料感"词缺失</strong> — 生图提示词全是正向堆质量词，没有"乱发丝、衣物自然褶皱"这类不完美描述——恰恰是这些不完美让画面显得真实 <span class="evidence c">C</span></li>
+    </ul>
+    <div class="callout green">
+      <strong>提示词层的正确预期 ·</strong> 这四条全修完，能消掉"三脚架入画"这类硬伤、缓解形变，但<strong>救不了真实感和跨镜一致性</strong>——那是图片层的地盘。把提示词当万能旋钮，是这轮排查想破除的第一个迷思。
+    </div>
+  </section>
+
+  <!-- ════════════ 06 行动清单 ════════════ -->
+  <div class="section-head reveal">
+    <div class="num">06</div>
+    <div class="meta">
+      <h2>Section 06 · 收束</h2>
+      <div class="lede">按这个顺序做，每一步都有明确的验证物</div>
+    </div>
+  </div>
+  <section>
+    <p>归因排查的价值在于<strong>把"感觉不好"变成"下一步做什么"</strong>。按投入产出排序的行动清单：</p>
+    <ul class="checklist">
+      <li><strong>① 跑图源盲评实验（最优先）</strong> — 真实照片 vs AI 图，同提示词同模型，五维盲评。这一步直接裁决"图是不是主因"，决定后续预算流向。验证物：揭盲后的分差</li>
+      <li><strong>② 先修实验污染源</strong> — 可灵档位从硬编码 std 改成可配 pro；关掉 Wan 臂的 <code>prompt_extend</code> 自动改写。否则实验结果本身不可信</li>
+      <li><strong>③ 提示词修复包一起上</strong> — 防拍摄设备入画 + 动作因果链写法 + 负向词加强 + 不完美质感词。零成本，当天生效</li>
+      <li><strong>④ 定分辨率方案</strong> — 要么 I2V 选原生 1080×1920 的模型档位，要么把超分（RealESRGAN）提前排期。竖屏投放素材 720p 放大是硬伤</li>
+      <li><strong>⑤ 给出图加质检闸口</strong> — 单次出图合格率不高的前提下，"生成即采用"等于把废图直接送进付费的 I2V 环节烧钱</li>
+      <li><strong>⑥ 比价放最后</strong> — Seedance Pro 档补测、开源产线（Wan / LTXV）对照，都等①出结果再动：如果图是主因，视频模型换谁都省不了这笔冤枉钱</li>
+    </ul>
+
+    <h3>这套方法怎么迁移到你的产线</h3>
+    <p>任何多段式 AIGC 产线（文生图→图生视频、脚本→配音→数字人、素材→剪辑→成片）都适用同一套动作：<strong>拆症状 → 按数据流分层 → 从上游往下游排查 → 每个假设配一个可跑的对照实验 → 实验结果决定预算流向</strong>。最贵的错误永远是跳过归因直接换模型。</p>
+  </section>
+
+  <div class="punchline">视频模型只是让图动起来——<span class="hl">图是假的，动起来也是假的</span>。先验图源，再谈换模型。</div>
+
+  <footer>
+    素材：产线代码实查 · 团队多模型横评样片 · 归因评审记录（人名已按脱敏规范替换为角色）<br>
+    日期 2026-07-14 · 可灵 / Seedance 版本与价格演进极快，30 天后引用需重核<br>
+    相关阅读：<a href="/learn/generative-media">AI 内容生成四件套</a> · <a href="/learn/deconstruct-pipeline">解构复刻产线</a> · <a href="/workflow/ai-drama-2026-07">全 AI 剧情片调研</a><br>
+    upio.ai · 知识分享
+  </footer>
+
+</div>
+
+<script>
+document.querySelectorAll('.reveal').forEach(el => {
+  new IntersectionObserver((entries, obs) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in-view'); obs.unobserve(e.target); } });
+  }, { threshold: 0.15 }).observe(el);
+});
+</script>
+
+</body>
+</html>
