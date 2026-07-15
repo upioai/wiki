@@ -486,24 +486,9 @@
   <section>
     <p class="snum">05</p>
     <h2>对话背后的逻辑：客户发来一句话，系统怎么决定回什么</h2>
-    <p class="sublede">前面讲的是"料怎么备好、怎么拼进 prompt"。这一段讲<b>运行时</b>——一条真实的客户消息进来，到发出一句回复之间，系统一步步在做哪些判断。一句话贯穿始终：<b>凡是代码能确定性判定的，绝不交给 AI 自觉</b>；AI 只负责把话说得像人，"该不该回、能不能发"都有确定性闸门兜着。</p>
+    <p class="sublede">前面讲的是"料怎么备好、怎么拼进 prompt"。这一段讲<b>运行时</b>——一条真实的客户消息进来，到发出一句回复之间，系统一步步在做哪些判断。一句话贯穿始终：<b>凡是代码能确定性判定的，绝不交给 AI 自觉</b>；AI 只负责把话说得像人，"该不该回、能不能发"都有确定性闸门兜着。想直接看代码锚点（入口 / 函数 / 文件 / 表）的，跳到下一节「技术逻辑 · 代码地图」。</p>
 
-    <div class="callpath" style="margin-top:18px;">
-      <span class="node">cron <code>/api/cron/dm-auto-reply</code></span>
-      <span class="arr">→</span>
-      <span class="node"><code>processAwaitingRow</code> <span style="color:var(--faint)">run.ts</span></span>
-      <span class="arr">→</span>
-      <span class="node">前置确定性闸</span>
-      <span class="arr">→</span>
-      <span class="node"><code>chatReply</code> 生成 <span style="color:var(--faint)">llm.ts</span></span>
-      <span class="arr">→</span>
-      <span class="node"><code>gateDraft</code> 置信度门 <span style="color:var(--faint)">gate.ts</span></span>
-      <span class="arr">→</span>
-      <span class="node"><code>dm_reply_drafts.status</code></span>
-    </div>
-    <p class="sublede" style="margin:10px 0 0;">整条流水线的骨架。定时轮询 <code>/api/cron/dm-auto-reply</code> 每次捞一批"待回对话"（RPC <code>dm_conversations_awaiting_reply</code>），逐条喂进 <code>processAwaitingRow</code> 跑完下面这几步——每步对应的代码锚点都标在括号里。</p>
-
-    <h3 style="font-size:16px;margin:28px 0 10px;font-weight:700;">先认个底：每通对话都有「阶段」</h3>
+    <h3 style="font-size:16px;margin:0 0 10px;font-weight:700;">先认个底：每通对话都有「阶段」</h3>
     <p class="sublede" style="margin-bottom:12px;">系统给每通对话记一个阶段，决定这一轮用什么口吻、走哪套规则。</p>
     <div class="callpath">
       <span class="node"><b>ice_break</b> 破冰<span style="color:var(--faint)"> · 首次开场</span></span>
@@ -512,29 +497,29 @@
       <span class="arr">→</span>
       <span class="node"><b>decision</b> 临门<span style="color:var(--faint)"> · 谈价 / 逼单</span></span>
     </div>
-    <p class="sublede" style="margin:10px 0 0;">两条硬规矩：① <b>回复客户时永远走 nurture</b>（哪怕阶段还卡在 ice_break 也纠正过来）——否则会拿"开场白模式"去接客户的话，把开场白当回复重发一遍（真踩过的坑）；② <b>decision 谈判阶段默认转人工</b>（怕一句话拍错就丢单），只有纯价格问答放行自动发。<span style="color:var(--faint)">代码：<code>stageForReplyDraft()</code> 把 ice_break / 空阶段一律纠正成 nurture（generate.ts）；<code>gateDraft</code> 里 <code>stage === "decision"</code> 且非价格 → 转人工。</span></p>
+    <p class="sublede" style="margin:10px 0 0;">两条硬规矩：① <b>回复客户时永远走 nurture</b>（哪怕阶段还卡在 ice_break 也纠正过来）——否则会拿"开场白模式"去接客户的话，把开场白当回复重发一遍（真踩过的坑）；② <b>decision 谈判阶段默认转人工</b>（怕一句话拍错就丢单），只有纯价格问答放行自动发。</p>
 
     <h3 style="font-size:16px;margin:28px 0 10px;font-weight:700;">第一步：还没惊动 AI，先过一排「确定性前置闸」</h3>
     <p class="sublede" style="margin-bottom:14px;">很多场景根本不用麻烦 AI——代码一眼能判、直接确定性处置，又快又不会说错。这排闸决定<b>这条消息要不要回、用什么方式回</b>。</p>
     <div class="flow">
       <div class="card">
         <h3><span class="pill stop">拦</span> 客户发的是 [图片] / [视频] / [语音]</h3>
-        <p>系统读不到里面的内容（只有个占位符），不硬着头皮瞎回，<span class="who">直接转人工</span>——上手机 / 云电脑看了再回。<span style="color:var(--faint)"><code>isMediaPlaceholder()</code> → 落 needs_human</span></p>
+        <p>系统读不到里面的内容（只有个占位符），不硬着头皮瞎回，<span class="who">直接转人工</span>——上手机 / 云电脑看了再回。</p>
       </div>
       <div class="arrow">↓</div>
       <div class="card">
         <h3><span class="pill stop">拦</span> 这条"回复"其实不是客户说的</h3>
-        <p>可能是我方自己发的气泡被抓回来了（回声循环），或是视频文案 / 界面文字被误当成客户消息。<span class="who">语义门认出来 → 不回</span>，避免自己跟自己聊。<span style="color:var(--faint)">回声比对 <code>looksLikeOwnBubble()</code> · 语义门 <code>ensureInboundVerdict()</code></span></p>
+        <p>可能是我方自己发的气泡被抓回来了（回声循环），或是视频文案 / 界面文字被误当成客户消息。<span class="who">语义门认出来 → 不回</span>，避免自己跟自己聊。</p>
       </div>
       <div class="arrow">↓</div>
       <div class="card">
         <h3><span class="pill ok">确定性接</span> 客户把微信号发过来了</h3>
-        <p>不靠 AI 自觉说客套话——<span class="who">写死一句"添加您啦"</span>确定性回过去（还会提醒去微信服务号点通过），把人稳稳接到微信侧。<span style="color:var(--faint)">识别 <code>customerGaveContact()</code> → 固定模板 <code>buildWechatReceivedText()</code></span></p>
+        <p>不靠 AI 自觉说客套话——<span class="who">写死一句"添加您啦"</span>确定性回过去（还会提醒去微信服务号点通过），把人稳稳接到微信侧。</p>
       </div>
       <div class="arrow">↓</div>
       <div class="card">
         <h3><span class="pill ok">确定性接</span> 加微已完成，客户还在抖音说话</h3>
-        <p>纯确认（"好的""嗯嗯"）→ <span class="who">静默不回</span>（阵地已转微信）；有实质新问题 → 走受限的"收尾 + 引导去微信"回复，不再没完没了地培育。<span style="color:var(--faint)"><code>wechatExchangeCompleted()</code> + <code>isShortAck()</code>；实质消息走 <code>generateExchangedClosingReply()</code></span></p>
+        <p>纯确认（"好的""嗯嗯"）→ <span class="who">静默不回</span>（阵地已转微信）；有实质新问题 → 走受限的"收尾 + 引导去微信"回复，不再没完没了地培育。</p>
       </div>
     </div>
     <div class="callout">
@@ -549,7 +534,6 @@
       <h3 style="font-size:15px;">这类人全程走「资料交付四步」，而且<span style="color:var(--stop)">全程禁反问</span></h3>
       <p style="margin-top:8px;">① <b>证明有货</b>（拿客户给的信息 + 两个具体的坑）→ ② <b>完整版还在我手上</b>（整份是带图的表格，只先给一小块）→ ③ <b>说清为什么必须加微信</b>（抖音发不了文件、发图会压糊，是平台限制不是借口）→ ④ <b>收尾是加 v 的引子，绝不甩一个问题回去</b>。</p>
       <p style="margin-top:8px;color:var(--stop)"><b>为什么死磕"禁反问"：</b>这类客户被回一句反问（"给个 v 我发你，你家几室几厅？"）最容易流失——他要的是"现在就给"，你回他一个问题 = 又给他派了个活，他就走了。越聊越容易掉，所以要给个加 v 的引子、赶紧把人接到微信。</p>
-      <p style="margin-top:10px;color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:10px;"><b style="color:var(--ink);">技术上怎么落：</b>源评论命中 <code>isDataRequestComment()</code> → 生成时 <code>buildMaterialDeliveryHint()</code>（material-delivery.ts）把这四步骨架 + 客户已知信息 + 该空间"具体的坑"拼进 prompt，并<b>整条会话</b>都带着（他后面报户型也一样禁反问）。柜体面积这类数字由代码 <code>extractHomeFacts()</code> 算好塞进去，<b>不让 LLM 现编</b>；"反问"由确定性正则 <code>hasQuestionHook()</code> 判，不靠 AI 自觉。</p>
     </div>
 
     <h3 style="font-size:16px;margin:28px 0 10px;font-weight:700;">第三步：AI 写完不直接发，两层确定性闸门先把关</h3>
@@ -564,12 +548,12 @@
             <tr>
               <td class="lib"><span class="tag stage">生成层</span><span class="role">自查 + 重生成</span></td>
               <td>生成崩（空 / 乱码 / 错语言）、索取型里冒出反问、超长、自曝私人生活（"我自己家装的时候…"）</td>
-              <td><span class="pill ok">修好再发</span> 先重生成至多 3 次；仍不行就<b>确定性修</b>——砍掉反问句、压回长度、删掉穿帮句，不转人工、不丢单<br><span style="color:var(--faint);font-size:12px;">generate.ts · 判 <code>looksBroken</code>/<code>hasQuestionHook</code>/<code>hasSelfHomeStory</code>/<code>MAX_LEN</code> → 修 <code>repairMaterialDraft</code>/<code>condenseToLimit</code>/<code>dropSelfHomeStory</code></span></td>
+              <td><span class="pill ok">修好再发</span> 先重生成至多 3 次；仍不行就<b>确定性修</b>——砍掉反问句、压回长度、删掉穿帮句，不转人工、不丢单</td>
             </tr>
             <tr>
               <td class="lib"><span class="tag base">送出前</span><span class="role">置信度门 gateDraft</span></td>
               <td>疑似回声循环、长度异常、索取型仍带反问、命中负面 / 投诉、decision 谈判阶段、闭口客套句号话（"有啥不懂随时问"把热客户晾凉）</td>
-              <td><span class="pill warn">转人工</span> 任一命中 = 不自动发，落库等人接手<br><span style="color:var(--faint);font-size:12px;">gate.ts · <code>gateDraft()</code> 返回 <code>{autoSend, reason}</code>，false → <code>status=needs_human</code></span></td>
+              <td><span class="pill warn">转人工</span> 任一命中 = 不自动发，落库等人接手</td>
             </tr>
           </tbody>
         </table>
@@ -582,7 +566,7 @@
         <span class="pill ok">过闸</span>
         <h3>自动发</h3>
         <ul>
-          <li>草稿标 <code>dm_reply_drafts.status=approved</code>，无影 / 云电脑 claim 后就地发出</li>
+          <li>草稿标 <b>approved</b>，无影 / 云电脑 claim 后就地发出</li>
           <li>价格 2026-07-10 起<b>全放开</b>：价格讨论、AI 报的具体数字都直接发，不再卡等审批</li>
         </ul>
       </div>
@@ -590,8 +574,8 @@
         <span class="pill warn">没过</span>
         <h3>转人工（needs_human）</h3>
         <ul>
-          <li>草稿标 <code>status=needs_human</code>，躺库里、<b>不推通知</b>，绝不自动发一句可能翻车的话</li>
-          <li>滞留哨兵 <code>/api/cron/needs-human-watch</code> 在 <b>30 分钟 / 4 小时 / 24 小时</b> 推 Lark 卡催人接</li>
+          <li>躺库里、<b>不推通知</b>，绝不自动发一句可能翻车的话</li>
+          <li>滞留哨兵 needs-human-watch 在 <b>30 分钟 / 4 小时 / 24 小时</b> 推 Lark 卡催人接</li>
         </ul>
       </div>
     </div>
@@ -602,9 +586,115 @@
     </div>
   </section>
 
-  <!-- 6. 改哪块 -->
+  <!-- 6. 技术逻辑 · 代码地图 -->
   <section>
     <p class="snum">06</p>
+    <h2>技术逻辑 · 运行时引擎的代码地图</h2>
+    <p class="sublede">上一节的每一步，落到代码上是哪个入口、哪个函数、哪个文件、通向哪个出口——开发照这张表顺藤摸瓜就行。贯穿全表一条设计原则：<b>判断题归代码，AI 只管把话说得像人</b>（是不是图片、是不是回声、有没有反问、超没超长，全是确定性判定，不靠模型自觉）。</p>
+
+    <div class="callpath" style="margin-top:6px;">
+      <span class="node">cron <code>/api/cron/dm-auto-reply</code></span>
+      <span class="arr">→</span>
+      <span class="node"><code>processAwaitingRow</code></span>
+      <span class="arr">→</span>
+      <span class="node">前置确定性闸</span>
+      <span class="arr">→</span>
+      <span class="node"><code>chatReply</code> 生成</span>
+      <span class="arr">→</span>
+      <span class="node"><code>gateDraft</code> 置信度门</span>
+      <span class="arr">→</span>
+      <span class="node"><code>dm_reply_drafts.status</code></span>
+    </div>
+
+    <div class="libmap" style="margin-top:20px;">
+      <p class="cap">一条客户消息，走完这 11 步</p>
+      <p class="capsub">顺序即执行顺序：前 6 步是"还没惊动 AI 的确定性前置分流"，第 7-8 步才生成，第 9-10 步是生成后的两层闸门，第 11 步落库分流。</p>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th>步骤</th><th>关键函数 / 路由</th><th>文件</th><th>结果 / 出口</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="lib"><span class="tag base">入口</span><span class="role">定时轮询</span></td>
+              <td><code>/api/cron/dm-auto-reply</code> → <code>processAwaitingReplies</code> → RPC <code>dm_conversations_awaiting_reply</code> → <code>processAwaitingRow</code></td>
+              <td class="lib"><code>dm-reply/run.ts</code></td>
+              <td>每次捞一批待回对话，逐条跑流水线</td>
+            </tr>
+            <tr>
+              <td class="lib"><span class="tag base">阶段</span><span class="role">纠正</span></td>
+              <td><code>stageForReplyDraft()</code></td>
+              <td class="lib"><code>dm-reply/generate.ts</code></td>
+              <td>ice_break / 空 → nurture，避免拿开场白模式回客户</td>
+            </tr>
+            <tr>
+              <td class="lib"><span class="tag stage">前置闸</span><span class="role">媒体消息</span></td>
+              <td><code>isMediaPlaceholder()</code></td>
+              <td class="lib"><code>dm-reply/run.ts</code></td>
+              <td>[图片]/[视频]/[语音] 读不到内容 → <b>needs_human</b></td>
+            </tr>
+            <tr>
+              <td class="lib"><span class="tag stage">前置闸</span><span class="role">回声 / 非回复</span></td>
+              <td><code>looksLikeOwnBubble()</code> · 语义门 <code>ensureInboundVerdict()</code></td>
+              <td class="lib"><code>dm-reply/gate.ts</code> · <code>dm/inbound-validity.ts</code></td>
+              <td>我方气泡被抓回 / 视频文案误判 → <b>skip 不回</b></td>
+            </tr>
+            <tr>
+              <td class="lib"><span class="tag stage">前置闸</span><span class="role">客户给号</span></td>
+              <td><code>customerGaveContact()</code> → <code>buildWechatReceivedText()</code></td>
+              <td class="lib"><code>dm-reply/run.ts</code> · <code>wechat-push.ts</code></td>
+              <td>客户发来微信号 → 固定模板"添加您啦"<b>确定性发</b></td>
+            </tr>
+            <tr>
+              <td class="lib"><span class="tag stage">前置闸</span><span class="role">加微完成</span></td>
+              <td><code>wechatExchangeCompleted()</code> + <code>isShortAck()</code> / <code>generateExchangedClosingReply()</code></td>
+              <td class="lib"><code>wechat-exchange.ts</code> · <code>wechat-closing.ts</code></td>
+              <td>纯确认 → <b>静默</b>；实质消息 → 受限收尾发</td>
+            </tr>
+            <tr>
+              <td class="lib"><span class="tag live">生成</span><span class="role">调 AI</span></td>
+              <td><code>chatReply()</code></td>
+              <td class="lib"><code>src/lib/llm.ts</code></td>
+              <td>阶段 + 9 层 prompt + 注入案例；模型 <code>qwen3-235b-a22b-2507</code></td>
+            </tr>
+            <tr>
+              <td class="lib"><span class="tag live">生成</span><span class="role">索取型分支</span></td>
+              <td><code>isDataRequestComment()</code> → <code>buildMaterialDeliveryHint()</code> · <code>extractHomeFacts()</code> · <code>pickPainPoint()</code> · <code>hasQuestionHook()</code></td>
+              <td class="lib"><code>llm/signals.ts</code> · <code>llm/material-delivery.ts</code></td>
+              <td>四步骨架 + 算柜体数字（不让 LLM 现编）+ 全程禁反问</td>
+            </tr>
+            <tr>
+              <td class="lib"><span class="tag base">闸门①</span><span class="role">生成层自查</span></td>
+              <td>判 <code>looksBroken</code>/<code>hasQuestionHook</code>/<code>hasSelfHomeStory</code>/<code>MAX_LEN</code> → 修 <code>repairMaterialDraft</code>/<code>condenseToLimit</code>/<code>dropSelfHomeStory</code></td>
+              <td class="lib"><code>dm-reply/generate.ts</code> · <code>llm/material-delivery.ts</code></td>
+              <td>重生成 ≤3 次；仍不行 → <b>确定性修好再发</b>（不丢单）</td>
+            </tr>
+            <tr>
+              <td class="lib"><span class="tag base">闸门②</span><span class="role">置信度门</span></td>
+              <td><code>gateDraft()</code> → <code>{ autoSend, reason }</code></td>
+              <td class="lib"><code>dm-reply/gate.ts</code></td>
+              <td>回声 / 长度 / 索取反问 / 负面 / decision / 闭口客套 → 拦</td>
+            </tr>
+            <tr>
+              <td class="lib"><span class="tag manual">出口</span><span class="role">落库分流</span></td>
+              <td><code>dm_reply_drafts.status</code> = <code>approved</code> / <code>needs_human</code></td>
+              <td class="lib">滞留哨兵 <code>/api/cron/needs-human-watch</code></td>
+              <td>approved → 无影/云电脑 claim 发；needs_human → 躺库，哨兵 30min/4h/24h 催</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="callout">
+      <div class="bar"></div>
+      <p><span class="k">读这张表的顺序</span>从上往下就是一条消息的真实执行顺序。<b>前 6 步大多不惊动 AI</b>——高频场景代码直接确定性处置，又快又不会说错；只有"真得开口好好聊"才走第 7 步 <code>chatReply</code>。生成完还要过<b>两层确定性闸门</b>（第 9、10 步）才可能发出去。所有分支的最终状态都写在 <code>dm_reply_drafts.status</code> 一个字段上，查一条草稿为什么没发、卡在哪，看它的 <code>status</code> + <code>error_message</code> 即可。</p>
+    </div>
+  </section>
+
+  <!-- 7. 改哪块 -->
+  <section>
+    <p class="snum">07</p>
     <h2>想改话术，该动哪一块？</h2>
     <p class="sublede" style="margin-bottom:0;">「改话术」不是一件事，是<b>四件事</b>——落在不同地方、生效速度完全不同。先想清楚你要改的是哪一类，再去动对应的那块，别一上来就找代码。</p>
 
@@ -656,7 +746,7 @@
     </div>
   </section>
 
-  <p class="foot">2026-07-10 建设：知识按问题相关性调取 · 暂存表 case_distill_candidates + 上传自动蒸馏 + 审核队列 /case-distill · 冲突红点 + 说话人标反嗅探 · AI 判官 + 分级自动落库。核心：src/lib/distill/candidates.ts · src/lib/distill/pipeline.ts · src/app/api/upload/[token] · src/app/api/case-distill · src/lib/llm.ts:buildKnowledgeSection · 读取器 loadOrgContext。<br>2026-07-15 增补第 05 节「对话背后的逻辑」运行时引擎：阶段机（ice_break / nurture / decision）+ 生成前确定性前置分流 + 索取型资料交付分支（禁反问）+ 生成后两层确定性闸门。核心：src/lib/dm-reply/{run,generate,gate}.ts · src/lib/llm/material-delivery.ts · 滞留哨兵 /api/cron/needs-human-watch。</p>
+  <p class="foot">2026-07-10 建设：知识按问题相关性调取 · 暂存表 case_distill_candidates + 上传自动蒸馏 + 审核队列 /case-distill · 冲突红点 + 说话人标反嗅探 · AI 判官 + 分级自动落库。核心：src/lib/distill/candidates.ts · src/lib/distill/pipeline.ts · src/app/api/upload/[token] · src/app/api/case-distill · src/lib/llm.ts:buildKnowledgeSection · 读取器 loadOrgContext。<br>2026-07-15 增补第 05 节「对话背后的逻辑」运行时引擎（大白话）+ 第 06 节「技术逻辑 · 代码地图」（11 步调用链 + 函数/文件/出口一览）：阶段机（ice_break / nurture / decision）+ 生成前确定性前置分流 + 索取型资料交付分支（禁反问）+ 生成后两层确定性闸门。核心：src/lib/dm-reply/{run,generate,gate}.ts · src/lib/llm/material-delivery.ts · 滞留哨兵 /api/cron/needs-human-watch。</p>
 
 </div>
 
