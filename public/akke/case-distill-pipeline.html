@@ -473,7 +473,7 @@
       <div class="player casey"><span class="n">6</span><span class="lbl">产品知识 <code>knowledge_documents</code></span><span class="casebadge">案例来的</span></div>
       <div class="player casey"><span class="n">7</span><span class="lbl">决策原则 <code>decision_rules</code></span><span class="casebadge">案例来的</span></div>
       <div class="player casey"><span class="n">8</span><span class="lbl">few-shot 示例 <code>conversation_examples</code></span><span class="casebadge">案例来的</span></div>
-      <div class="player"><span class="n">9</span><span class="lbl">Langfuse 模板骨架</span><span style="color:var(--muted)">4 步结构 + 规则 + 自检 + <code>{{examples}}</code> 占位</span></div>
+      <div class="player"><span class="n">9</span><span class="lbl">Langfuse 模板骨架</span><span style="color:var(--muted)">结构骨架（破冰 4 步 / 后续三步决策，详见第 05 节）+ 规则 + 自检 + <code>{{examples}}</code> 占位</span></div>
     </div>
 
     <div class="callout">
@@ -527,11 +527,48 @@
       <p><span class="k">为什么先堆这么多确定性闸</span>这些都是高频又容易翻车的场景。判断题（是不是图片、是不是回声、客户给没给号）交给代码，"一眼假"的错误就永远不会发出去；AI 只在"真得开口好好聊"时才上场。</p>
     </div>
 
-    <h3 style="font-size:16px;margin:28px 0 10px;font-weight:700;">第二步：真要"开口聊"，才生成——而且分场景走不同逻辑</h3>
-    <p class="sublede" style="margin-bottom:14px;">到这一步才调 AI（chatReply），把上一节那 9 层料拼成 prompt 生成回复。关键是<b>不同类型的客户，对话逻辑不一样</b>。最典型、也最容易翻车的一类：</p>
+    <h3 style="font-size:16px;margin:28px 0 10px;font-weight:700;">第二步：真要"开口聊"，AI 也照一套「骨架」来说</h3>
+    <p class="sublede" style="margin-bottom:14px;">到这一步才调 AI（chatReply），把上一节那 9 层料拼成 prompt。但 AI <b>不是自由发挥</b>——后续对话有一套明确的骨架框着它，比破冰那一句还厚，叠了四层（就是第 9 层"模板骨架"的真身，线上 <code>dm.nurture.system</code>）。</p>
+
+    <p style="margin:0 0 8px;font-weight:700;">骨架① · 三步决策<span style="color:var(--faint);font-weight:400;"> —— 每轮开口第一件事，客户没归对档后面全走偏</span></p>
+    <div class="promptstack">
+      <div class="player"><span class="n">1</span><span class="lbl">判意愿档</span><span style="color:var(--muted)">先给客户归档：L0 抵触 · L1 试水 · L2 配合 · L3 求加</span></div>
+      <div class="player"><span class="n">2</span><span class="lbl">按档选推进档</span><span style="color:var(--muted)">A 给干货 · B 问 1 个细节 · C 钩子 + 要号 · D 直接给号</span></div>
+      <div class="player"><span class="n">3</span><span class="lbl">先正面答原议题</span><span style="color:var(--muted)">"问 A 答 B" 是信任流失第一杀手，必须先答再推进</span></div>
+    </div>
+
+    <div class="libmap" style="margin-top:16px;">
+      <p class="cap">还叠着的三层骨架</p>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th>骨架层</th><th>管什么</th><th>线上真身举例</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="lib"><span class="tag stage">骨架②</span><span class="role">节奏</span></td>
+              <td>一回合只发一条、日常 ≤50 字 / 值得展开的节点 ≤80 字、禁换行禁分条、他多短你回多短</td>
+              <td>"真人金牌销售实测平均 38 字一个回合"</td>
+            </tr>
+            <tr>
+              <td class="lib"><span class="tag stage">骨架③</span><span class="role">场景速查</span></td>
+              <td>十几条"读到 X 信号 → 走 Y 话术"，有的直接写死成成品句</td>
+              <td>问板材："板材分三档：颗粒板最实惠 ENF 环保 / 多层板防潮好贵一截 / 实木最环保再加钱。你最在意哪个？"</td>
+            </tr>
+            <tr>
+              <td class="lib"><span class="tag base">骨架④</span><span class="role">输出前自检</span></td>
+              <td>发之前逐条过 0–7 条，任一不过就删了重写</td>
+              <td>有没有反问、超没超 80 字、有没有乱甩我方号、有没有编"我自己家装的时候…"</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <p class="sublede" style="margin:18px 0 12px;">上面这套是<b>通用骨架</b>，每条后续回复都走。碰到特定类型的客户，还会在它<b>之上再盖一层更硬的分场景骨架</b>，直接改写通用骨架的动作——最典型、也最容易翻车的一支：</p>
     <div class="card layer rule">
-      <div class="layerrole">活案例 · 索取型客户（来要清单 / 手册 / 资料 / 案例 / 888）</div>
-      <h3 style="font-size:15px;">这类人全程走「资料交付四步」，而且<span style="color:var(--stop)">全程禁反问</span></h3>
+      <div class="layerrole">分场景骨架（凌驾通用骨架）· 索取型客户（来要清单 / 手册 / 资料 / 案例 / 888）</div>
+      <h3 style="font-size:15px;">这类人全程走「资料交付四步」，而且<span style="color:var(--stop)">全程禁反问</span>——把骨架③里所有"反问一句"的动作全作废</h3>
       <p style="margin-top:8px;">① <b>证明有货</b>（拿客户给的信息 + 两个具体的坑）→ ② <b>完整版还在我手上</b>（整份是带图的表格，只先给一小块）→ ③ <b>说清为什么必须加微信</b>（抖音发不了文件、发图会压糊，是平台限制不是借口）→ ④ <b>收尾是加 v 的引子，绝不甩一个问题回去</b>。</p>
       <p style="margin-top:8px;color:var(--stop)"><b>为什么死磕"禁反问"：</b>这类客户被回一句反问（"给个 v 我发你，你家几室几厅？"）最容易流失——他要的是"现在就给"，你回他一个问题 = 又给他派了个活，他就走了。越聊越容易掉，所以要给个加 v 的引子、赶紧把人接到微信。</p>
     </div>
