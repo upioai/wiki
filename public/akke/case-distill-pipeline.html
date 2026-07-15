@@ -417,7 +417,7 @@
   <section>
     <p class="snum">04</p>
     <h2>话术是怎么"拼"出来的：案例注入到哪、Langfuse 管什么</h2>
-    <p class="sublede">料备好了，一次生成到底把哪些东西拼进了那条 prompt？企微 / 抖音是不是自动注入案例、Langfuse 到底管什么、调用路径长什么样、prompt 由哪几层叠成——四个问题一节答完。</p>
+    <p class="sublede">料备好了，一次生成到底把哪些东西拼进了那条 prompt？企微 / 抖音是不是自动注入案例、Langfuse 到底管什么、调用路径长什么样、prompt 由哪几层叠成、"最相关"那几条又是怎么挑出来的——五个问题一节答完。</p>
 
     <h3 style="font-size:16px;margin:0 0 10px;font-weight:700;">① 生成话术时，案例是自动注入的 —— 是</h3>
     <div class="chan">
@@ -479,6 +479,34 @@
     <div class="callout">
       <div class="bar"></div>
       <p><span class="k">案例在哪一块？</span>案例<b>不是单独一层</b>——蒸馏后<b>分散注入到第 6、7、8 这三层</b>：产品事实 → 知识、招式 → 决策原则、金牌问答 → few-shot 示例。所以「喂案例」能影响话术，靠的就是这三层里的案例料；其余几层是人设 / 语气 / 记忆 / 品牌骨架，跟具体案例无关。</p>
+    </div>
+
+    <h3 style="font-size:16px;margin:30px 0 6px;font-weight:700;">⑤ "最相关" 那几条是怎么挑出来的？两条通道，两套算法</h3>
+    <p class="sublede" style="margin-bottom:14px;">上面说"挑最相关的 3 条示例 + 4 条规则"——这个"相关"怎么算，<b>抖音和企微走的不是一套</b>。贵的算法用在更值钱、量更小的通道上。</p>
+    <div class="cols">
+      <div class="outcard a">
+        <span class="pill ok">抖音 DM</span>
+        <h3>bigram · 关键词式</h3>
+        <ul>
+          <li>比客户这句和候选的<b>字面重合度</b>，本地算、不调外部模型</li>
+          <li><b>快 + 免费</b>：抖音是海量漏斗，每天成千上万条自动跑，每条都去算向量，延迟和账单都扛不住</li>
+          <li>代价：换了说法的同义抓不太住（"用什么板" vs "板材啥牌子" 字面对不上）——但抖音多是短培育、靠骨架模板顶着，够用</li>
+        </ul>
+      </div>
+      <div class="outcard b">
+        <span class="pill gold">企微 / 微信代回</span>
+        <h3>语义向量 · bge-m3</h3>
+        <ul>
+          <li>把客户这句和候选都转成<b>"意思向量"</b>，按意思接近度排（<code>relevanceByEmbedding</code>）</li>
+          <li>抓得住<b>换说法的同义</b>："多少钱"≈"报价"≈"一平多少"</li>
+          <li>企微是暖客/成交通道，量小、单条价值高、产品细节问答多，值得多花这点算力换更准的召回</li>
+          <li>取不到 / 超时（8s）→ <b>自动退回 bigram</b>，绝不因此卡住回复</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout warn">
+      <div class="bar"></div>
+      <p><span class="k">向量现在"现算不落库"</span>企微的向量是每次回复<b>临时算、只存内存</b>（冷启动就重算），没写进数据库——<code>knowledge_documents</code> 里的 pgvector 列至今还注释着。当前候选就 ~200 条（示例 128 + 规则 29 + 知识 43，单 org），现算够快够用，<b>不落库不影响准确性</b>（存不存库，匹配的还是同一串向量）。真正该落库的时机是<b>示例库堆大之后</b>（单 org 过 300–500 条）：那时每次现算上千条会变慢、易撞 8 秒超时、悄悄退回 bigram，才需要启用 pgvector 把向量落库 + 取 top-K 预筛。<b>结论：现在不急，长大了再上</b>（注：届时向量列维度要按 bge-m3 写 <code>vector(1024)</code>，不是注释里那个老的 1536）。</p>
     </div>
   </section>
 
