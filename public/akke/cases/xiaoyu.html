@@ -634,12 +634,13 @@
     </div>
     <div class="annotation" style="border-left-color: var(--warn); background: var(--warn-soft);">
       <div class="a-title" style="color: var(--warn);">根因 · 抖音 DM 没有服务端回复检测</div>
-      Vercel 上的 <code>/api/cron/check-replies</code> 是<strong>故意的空壳</strong>（Fly 东京 IP 读不了抖音收件箱）。回复真相的唯一产地是<em>登录那台设备上的收件箱扫描</em>（本机 <code>scan-dm-replies.py</code> / 无影 inbox scan），扫到后由 <code>sync-inbound-replies.ts</code> 调 <code>mark_inbound_reply</code> 写进 <code>last_inbound_at</code>。<strong>本案云电脑上的 inbox scan 没覆盖这条</strong> → 客户「你好」对系统全盲 → 会被当"未回"、有被重复触达的风险。本案是运营在手机上肉眼发现、截图后<em>人工手动回写</em>才落库的。
+      Vercel 上的 <code>/api/cron/check-replies</code> 是<strong>故意的空壳</strong>（Fly 东京 IP 读不了抖音收件箱）。回复真相的唯一产地是<em>登录那台设备上的收件箱扫描</em>（本机 <code>scan-dm-replies.py</code> / 无影 inbox scan），扫到后由 <code>sync-inbound-replies.ts</code> 调 <code>mark_inbound_reply</code> 写进 <code>last_inbound_at</code>。<strong>本案云电脑上的 inbox scan 没覆盖这条</strong> → 客户「你好」对系统全盲 → 会被当"未回"、有被重复触达的风险。本案是运营在手机上肉眼发现、截图后<em>人工手动回写</em>才落库的。<br><br>
+      <strong style="color:var(--text);">补记 · 7-15 复盘（为什么那天没扫到）：</strong>不是登录过期——<strong>云电脑登录全程有效</strong>（当天重启只 kill/重拉 Edge + poll agent 两个进程，<em>没重新登录</em>，拉起来即稳定读到 <code>conversation-item 11</code>，登录若过期不可能不重登就出会话）。真正原因是当天上午云电脑的 DOM 捕获<strong>进程卡了一次</strong>（poll agent 约 07:12 把抓取读成了登录页态），捕获腿这段时间不稳、正好错过她 09:42 的回复；<strong>重启这两个进程即恢复，无需重登</strong>。手机端当天另有一次登录过期（11:18 验证码重登）与此<strong>各自独立、不互相连累</strong>（登录设备列表里 7-01 / 7-08 的老会话仍在，说明当天并没有"全账号强制登出"）。
     </div>
 
     <h3 style="font-size: 17px; margin: 22px 0 10px; color: var(--text);">7.2 治本 · 让云电脑的回复检测常驻</h3>
     <p style="font-size: 14.5px; color: var(--text-dim); margin: 0 0 12px;">
-      出站已经在云电脑上跑，缺的是把<em>入站扫描</em>也常驻起来、并自动回写——这样「你好」这类回复不用靠人肉发现。
+      出站早已在云电脑上跑；<strong>7-15 起，入站 DOM 捕获（回复检测）+ 首触派单 + 浏览器版潜在触达(route-B) 三条腿已在同一台云电脑并行常驻</strong>，捕获腿恢复到每轮稳定读 <code>conversation-item 11</code>——「你好」这类回复不再只能靠人肉发现。剩下的功课是把扫描<em>覆盖率</em>盯住，别再出现今早那种"进程卡一下就漏一条"。
     </p>
     <div class="delivery-row">
       <div class="dr-item"><div class="dr-label">1 · 常驻扫描</div><div class="dr-val">inbox scan 定时跑</div><div class="dr-sub">云电脑上按账号扫收件箱列表，判 replied / no_reply</div></div>
