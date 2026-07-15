@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>新 Mac 开荒手册 · 从拆箱到 Claude Code</title>
+<meta name="description" content="新 Mac 从零配置指南：VPN 节点与 Shadowrocket、海外出口验证、Xcode CLT / Homebrew / Node 基础依赖、Claude Code 安装登录，每一步都可复制执行，含常见坑速查。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#06080c;
+    --bg2:#0a0e15;
+    --panel:#0d1119;
+    --panel2:#11161f;
+    --line:rgba(255,255,255,.07);
+    --line2:rgba(255,255,255,.12);
+    --ink:#dbe3ec;
+    --head:#f2f6fb;
+    --muted:#7c8798;
+    --dim:#525c6b;
+    --teal:#3fe0c5;      /* 机器 / 自动 / 命令 */
+    --teal-d:#1c9d8b;
+    --amber:#f6b352;     /* 人工 / 需要你动手 */
+    --blue:#6fa8ff;      /* 网络 / 服务器 */
+    --violet:#b48cff;    /* 依赖 / 工具链 */
+    --rose:#ff7d97;      /* 坑位 / 告警 */
+    --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+    --serif:"Noto Serif SC",serif;
+    --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:var(--sans);
+    background:var(--bg);
+    color:var(--ink);
+    line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  /* ── 固定背景：网格 + 辉光 + 颗粒 ── */
+  .bg{position:fixed;inset:0;z-index:0;pointer-events:none}
+  .bg .grid{
+    position:absolute;inset:-2px;
+    background-image:
+      linear-gradient(var(--line) 1px,transparent 1px),
+      linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:64px 64px;
+    -webkit-mask-image:radial-gradient(circle at 50% 32%,#000 0%,transparent 78%);
+    mask-image:radial-gradient(circle at 50% 32%,#000 0%,transparent 78%);
+    opacity:.5;
+  }
+  .bg .glow{position:absolute;border-radius:50%;filter:blur(120px);opacity:.5}
+  .bg .g1{width:640px;height:640px;top:-260px;left:50%;transform:translateX(-50%);
+    background:radial-gradient(circle,rgba(63,224,197,.28),transparent 68%);animation:drift 22s ease-in-out infinite}
+  .bg .g2{width:520px;height:520px;top:38%;left:-160px;
+    background:radial-gradient(circle,rgba(111,168,255,.16),transparent 70%);animation:drift 28s ease-in-out infinite reverse}
+  .bg .g3{width:480px;height:480px;bottom:-120px;right:-120px;
+    background:radial-gradient(circle,rgba(246,179,82,.12),transparent 70%);animation:drift 26s ease-in-out infinite}
+  @keyframes drift{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,40px)}}
+  .bg .noise{position:absolute;inset:0;opacity:.035;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+  /* ── 顶部滚动进度 ── */
+  .progress{position:fixed;top:0;left:0;height:2px;width:0;z-index:60;
+    background:linear-gradient(90deg,var(--teal),var(--blue));box-shadow:0 0 12px var(--teal)}
+
+  /* ── 侧栏章节导航 ── */
+  .rail{position:fixed;top:50%;left:26px;transform:translateY(-50%);z-index:50;
+    display:flex;flex-direction:column;gap:15px}
+  .rail a{display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--dim);
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+    transition:color .3s}
+  .rail a .tick{width:22px;height:2px;background:currentColor;transition:width .3s,background .3s}
+  .rail a .lbl{opacity:0;transform:translateX(-6px);transition:.3s}
+  .rail a:hover .lbl,.rail a.on .lbl{opacity:1;transform:none}
+  .rail a.on{color:var(--teal)}
+  .rail a.on .tick{width:38px;box-shadow:0 0 10px var(--teal)}
+  @media(max-width:1180px){.rail{display:none}}
+
+  main{position:relative;z-index:2;max-width:1080px;margin:0 auto;padding:0 40px}
+  section{padding:110px 0;border-top:1px solid transparent}
+
+  /* ── 通用 reveal ── */
+  .rv{opacity:0;transform:translateY(26px);transition:opacity .8s cubic-bezier(.16,1,.3,1),transform .8s cubic-bezier(.16,1,.3,1)}
+  .rv.in{opacity:1;transform:none}
+  .stagger>*{opacity:0;transform:translateY(22px);transition:opacity .7s cubic-bezier(.16,1,.3,1),transform .7s cubic-bezier(.16,1,.3,1)}
+  .stagger.in>*{opacity:1;transform:none}
+  .stagger.in>*:nth-child(1){transition-delay:.05s}
+  .stagger.in>*:nth-child(2){transition-delay:.13s}
+  .stagger.in>*:nth-child(3){transition-delay:.21s}
+  .stagger.in>*:nth-child(4){transition-delay:.29s}
+  .stagger.in>*:nth-child(5){transition-delay:.37s}
+  .stagger.in>*:nth-child(6){transition-delay:.45s}
+
+  /* ── 章节头 ── */
+  .sec-head{display:flex;align-items:baseline;gap:20px;margin-bottom:42px}
+  .sec-head .idx{font-family:var(--mono);font-size:13px;color:var(--teal);
+    font-weight:500;padding-top:6px;position:relative}
+  .sec-head .idx::before{content:"";position:absolute;left:-14px;top:11px;width:8px;height:8px;
+    border-radius:50%;background:var(--teal);box-shadow:0 0 10px var(--teal)}
+  .eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--muted);display:block;margin-bottom:8px}
+  .sec-head h2{font-family:var(--serif);font-weight:700;font-size:clamp(27px,4vw,42px);
+    line-height:1.18;color:var(--head);letter-spacing:.01em}
+  .lede{font-size:16.5px;color:var(--muted);max-width:680px;margin:-24px 0 40px;line-height:1.75}
+  .lede b,.lede strong{color:var(--ink);font-weight:600}
+  code{font-family:var(--mono);font-size:.85em;background:rgba(63,224,197,.09);color:#8ff0e0;
+    border:1px solid rgba(63,224,197,.16);border-radius:5px;padding:1px 6px}
+
+  /* ── HERO ── */
+  .hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;
+    padding:120px 0 90px;border:0;position:relative}
+  .hero .tag{font-family:var(--mono);font-size:12px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--teal);display:inline-flex;align-items:center;gap:10px;margin-bottom:26px}
+  .hero .tag .pulse{width:9px;height:9px;border-radius:50%;background:var(--teal);
+    box-shadow:0 0 0 0 rgba(63,224,197,.6);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(63,224,197,.55)}70%{box-shadow:0 0 0 12px rgba(63,224,197,0)}100%{box-shadow:0 0 0 0 rgba(63,224,197,0)}}
+  .hero h1{font-family:var(--serif);font-weight:900;font-size:clamp(44px,8.6vw,100px);line-height:1.05;
+    color:var(--head);letter-spacing:.005em;margin-bottom:8px}
+  .hero h1 .accent{background:linear-gradient(115deg,var(--teal),var(--blue) 70%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero h1 .cursor{display:inline-block;width:.06em;height:.92em;background:var(--teal);
+    vertical-align:-6px;margin-left:6px;animation:blink 1.1s steps(1) infinite;box-shadow:0 0 14px var(--teal)}
+  @keyframes blink{50%{opacity:0}}
+  .hero .desc{font-size:clamp(17px,2.3vw,22px);color:var(--ink);max-width:700px;margin:24px 0 14px;line-height:1.6}
+  .hero .desc b{color:var(--teal);font-weight:600}
+  .hero .role{font-family:var(--mono);font-size:13px;color:var(--muted);margin-bottom:44px}
+  .ticker{display:flex;gap:10px;flex-wrap:wrap;max-width:820px}
+  .chip{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;color:var(--ink);
+    border:1px solid var(--line2);border-radius:100px;padding:7px 15px;background:rgba(255,255,255,.02);
+    display:inline-flex;align-items:center;gap:8px;transition:.3s}
+  .chip:hover{border-color:var(--teal);color:var(--teal);box-shadow:0 0 20px -6px var(--teal)}
+  .chip .d{width:6px;height:6px;border-radius:50%;background:var(--teal)}
+  .chip .d.a{background:var(--amber)}.chip .d.b{background:var(--blue)}.chip .d.v{background:var(--violet)}.chip .d.r{background:var(--rose)}
+  .scrollcue{position:absolute;bottom:34px;left:0;font-family:var(--mono);font-size:11px;
+    letter-spacing:.2em;color:var(--dim);display:flex;align-items:center;gap:10px}
+  .scrollcue .bar{width:1px;height:34px;background:linear-gradient(var(--teal),transparent);
+    animation:cue 1.8s ease-in-out infinite}
+  @keyframes cue{0%,100%{opacity:.3;transform:scaleY(.6)}50%{opacity:1;transform:scaleY(1)}}
+
+  /* ── 管线 spine ── */
+  .pipe{position:relative;padding-left:38px;margin-top:8px}
+  .pipe::before{content:"";position:absolute;left:11px;top:8px;bottom:8px;width:2px;
+    background:linear-gradient(var(--blue),var(--teal),var(--violet),var(--amber))}
+  .pipe .flowdot{position:absolute;left:6px;width:12px;height:12px;border-radius:50%;
+    background:var(--teal);box-shadow:0 0 16px 3px var(--teal);animation:flow 4.2s cubic-bezier(.5,0,.5,1) infinite}
+  @keyframes flow{0%{top:2px;opacity:0}8%{opacity:1}92%{opacity:1}100%{top:calc(100% - 14px);opacity:0}}
+  .pstep{position:relative;padding:16px 0;display:grid;grid-template-columns:112px 1fr;gap:18px;align-items:start}
+  .pstep+.pstep{border-top:1px dashed var(--line)}
+  .pstep::before{content:"";position:absolute;left:-32px;top:24px;width:10px;height:10px;border-radius:50%;
+    background:var(--bg);border:2px solid var(--who,var(--teal));box-shadow:0 0 0 4px var(--bg)}
+  .pstep .who{font-family:var(--mono);font-size:11px;letter-spacing:.05em;padding:5px 9px;border-radius:7px;
+    background:color-mix(in srgb,var(--who) 15%,transparent);color:var(--who);
+    border:1px solid color-mix(in srgb,var(--who) 30%,transparent);text-align:center;line-height:1.35}
+  .pstep .txt{font-size:14.5px;color:var(--ink)}
+  .pstep .txt b{color:var(--head);font-weight:600}
+  .pstep .txt .est{font-family:var(--mono);font-size:11px;color:var(--dim);margin-left:8px}
+  .pipe-note{margin-top:20px;font-size:13.5px;color:var(--muted);font-family:var(--mono);
+    padding-left:38px;line-height:1.6}
+  .pipe-note b{color:var(--teal)}
+
+  /* ── 通用卡片网格 ── */
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  .cell{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 22px;transition:.35s}
+  .cell:hover{border-color:var(--line2);background:var(--panel2);transform:translateY(-3px)}
+  .cell .ico{font-size:22px;margin-bottom:12px;display:block;filter:grayscale(.1)}
+  .cell h3{font-size:16px;color:var(--head);margin-bottom:7px;font-weight:600}
+  .cell h3 .m{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:.08em;display:block;margin-bottom:4px;font-weight:500}
+  .cell h3 .m.r{color:var(--rose)}
+  .cell p{font-size:13.5px;color:var(--muted);line-height:1.65}
+  .cell p b{color:var(--ink)}
+
+  /* ── 提醒 band ── */
+  .note-band{margin-top:22px;background:rgba(246,179,82,.06);border:1px solid rgba(246,179,82,.2);
+    border-radius:14px;padding:18px 22px;display:flex;gap:16px;align-items:flex-start}
+  .note-band .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--amber);
+    text-transform:uppercase;white-space:nowrap;padding-top:2px}
+  .note-band p{font-size:14.5px;color:var(--ink);margin:0}
+  .note-band p b{color:var(--amber)}
+  .band{margin-top:22px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--teal);
+    border-radius:12px;padding:20px 24px}
+  .band .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--teal);text-transform:uppercase;margin-bottom:8px;display:block}
+  .band p{font-size:15px;color:var(--ink);margin:0}
+  .band p b{color:var(--head)}
+  .why{background:linear-gradient(160deg,rgba(255,125,151,.07),transparent);
+    border:1px solid rgba(255,125,151,.2);border-radius:16px;padding:26px 28px;margin-bottom:20px}
+  .why .k{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--rose);
+    text-transform:uppercase;margin-bottom:10px;display:block}
+  .why p{font-size:15.5px;color:var(--ink);margin:0}
+  .why p b{color:var(--rose)}
+
+  /* ── 横向网络路径动画 ── */
+  .hflow{display:flex;align-items:stretch;gap:0;margin:34px 0 8px;position:relative}
+  .hnode{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:18px 14px;text-align:center;position:relative;z-index:2;transition:.35s}
+  .hnode:hover{border-color:var(--c,var(--teal));box-shadow:0 0 26px -10px var(--c,var(--teal))}
+  .hnode .hk{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--c,var(--teal));
+    text-transform:uppercase;display:block;margin-bottom:8px}
+  .hnode .hi{font-size:22px;display:block;margin-bottom:6px}
+  .hnode .ht{font-size:13px;color:var(--head);font-weight:600;line-height:1.4}
+  .hnode .hs{font-size:11.5px;color:var(--muted);display:block;margin-top:4px;line-height:1.5}
+  .hlink{width:56px;flex:none;position:relative;display:flex;align-items:center}
+  .hlink::before{content:"";position:absolute;left:0;right:0;top:50%;height:2px;
+    background:linear-gradient(90deg,color-mix(in srgb,var(--teal) 40%,transparent),color-mix(in srgb,var(--blue) 40%,transparent))}
+  .hlink .pk{position:absolute;top:50%;left:0;width:8px;height:8px;border-radius:50%;margin-top:-4px;
+    background:var(--teal);box-shadow:0 0 12px 2px var(--teal);animation:pk 2.6s linear infinite}
+  .hlink .pk.d2{animation-delay:1.3s}
+  @keyframes pk{0%{left:-4px;opacity:0}12%{opacity:1}88%{opacity:1}100%{left:calc(100% - 4px);opacity:0}}
+  .hflow-cap{font-family:var(--mono);font-size:12px;color:var(--dim);margin-top:14px;line-height:1.7}
+  .hflow-cap b{color:var(--teal)}
+  @media(max-width:820px){
+    .hflow{flex-direction:column;gap:0}
+    .hlink{width:auto;height:40px;justify-content:center}
+    .hlink::before{left:50%;right:auto;top:0;bottom:0;width:2px;height:auto;
+      background:linear-gradient(color-mix(in srgb,var(--teal) 40%,transparent),color-mix(in srgb,var(--blue) 40%,transparent))}
+    .hlink .pk{left:50%;margin-left:-4px;margin-top:0;animation:pkv 2.6s linear infinite}
+    @keyframes pkv{0%{top:-4px;opacity:0}12%{opacity:1}88%{opacity:1}100%{top:calc(100% - 4px);opacity:0}}
+  }
+
+  /* ── 模拟终端（循环打字动图）── */
+  .term{background:#080b11;border:1px solid var(--line2);border-radius:14px;overflow:hidden;
+    box-shadow:0 26px 70px -34px rgba(0,0,0,.9);margin:30px 0 8px}
+  .term .tbar{display:flex;align-items:center;gap:7px;padding:11px 15px;background:#0d121b;
+    border-bottom:1px solid var(--line)}
+  .term .tbar .td{width:11px;height:11px;border-radius:50%}
+  .term .tbar .td:nth-child(1){background:#ff5f56}.term .tbar .td:nth-child(2){background:#ffbd2e}.term .tbar .td:nth-child(3){background:#27c93f}
+  .term .tbar .tt{margin-left:10px;font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:.08em}
+  .term .tbody{padding:18px 20px;font-family:var(--mono);font-size:13px;line-height:1.85;
+    min-height:150px;white-space:pre-wrap;word-break:break-all;color:var(--ink)}
+  .term .tbody .p{color:var(--teal)}
+  .term .tbody .o{color:var(--muted)}
+  .term .tbody .ok{color:var(--teal)}
+  .term .tbody .tc{display:inline-block;width:8px;height:15px;background:var(--teal);
+    vertical-align:-2px;animation:blink 1s steps(1) infinite;box-shadow:0 0 10px var(--teal)}
+
+  /* ── 步骤安装卡（编号 + 命令块）── */
+  .steps{display:flex;flex-direction:column;gap:16px}
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px 26px;
+    position:relative;transition:.35s}
+  .step:hover{border-color:var(--line2);background:var(--panel2)}
+  .step::before{content:"";position:absolute;top:0;left:0;bottom:0;width:3px;border-radius:3px 0 0 3px;
+    background:var(--c,var(--teal));opacity:.65}
+  .step .sn{font-family:var(--mono);font-size:11px;letter-spacing:.16em;color:var(--c,var(--teal));
+    text-transform:uppercase;display:flex;justify-content:space-between;margin-bottom:10px}
+  .step .sn .est{color:var(--dim);letter-spacing:.06em}
+  .step h3{font-family:var(--serif);font-size:19px;font-weight:700;color:var(--head);margin-bottom:8px}
+  .step p{font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:4px}
+  .step p b{color:var(--ink)}
+  .step .expect{font-family:var(--mono);font-size:12px;color:var(--dim);margin-top:10px}
+  .step .expect b{color:var(--teal);font-weight:500}
+
+  /* ── 命令块 + 复制按钮 ── */
+  .cmd{position:relative;background:#080b11;border:1px solid var(--line);border-radius:10px;
+    margin:12px 0 4px;overflow:hidden}
+  .cmd pre{padding:14px 100px 14px 16px;font-family:var(--mono);font-size:12.8px;line-height:1.75;
+    color:#8ff0e0;overflow-x:auto;white-space:pre}
+  .cmd pre .cm{color:var(--dim)}
+  .cmd .copy{position:absolute;top:8px;right:8px;font-family:var(--mono);font-size:10.5px;
+    letter-spacing:.1em;color:var(--muted);background:rgba(255,255,255,.04);border:1px solid var(--line2);
+    border-radius:7px;padding:5px 11px;cursor:pointer;transition:.25s;text-transform:uppercase}
+  .cmd .copy:hover{color:var(--teal);border-color:var(--teal)}
+  .cmd .copy.ok{color:var(--teal);border-color:var(--teal);box-shadow:0 0 14px -4px var(--teal)}
+
+  /* ── 终检清单表 ── */
+  .spec{width:100%;border-collapse:collapse;font-size:13.5px}
+  .spec thead th{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--muted);text-align:left;padding:12px 14px;border-bottom:1px solid var(--line2)}
+  .spec td{padding:13px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  .spec tbody tr{transition:.25s}
+  .spec tbody tr:hover{background:rgba(63,224,197,.03)}
+  .spec td:first-child{color:var(--head);font-weight:600;white-space:nowrap}
+  .spec td:nth-child(2){font-family:var(--mono);font-size:12.5px;color:#8ff0e0}
+  .spec td:nth-child(3){color:var(--muted);font-size:13px}
+  .spec td:nth-child(3) b{color:var(--teal);font-weight:500}
+  .quote{margin-top:30px;background:linear-gradient(160deg,var(--panel2),var(--bg2));
+    border:1px solid var(--line);border-radius:16px;padding:28px 30px;font-size:16px;line-height:1.75;color:var(--ink)}
+  .quote b{color:var(--teal)}
+
+  /* ── 相关阅读 ── */
+  .related{display:flex;gap:12px;flex-wrap:wrap;margin-top:22px}
+  .related a{font-family:var(--mono);font-size:12px;letter-spacing:.05em;color:var(--ink);
+    text-decoration:none;border:1px solid var(--line2);border-radius:100px;padding:8px 18px;
+    background:rgba(255,255,255,.02);transition:.3s}
+  .related a:hover{color:var(--teal);border-color:var(--teal);box-shadow:0 0 18px -6px var(--teal)}
+
+  footer{position:relative;z-index:2;max-width:1080px;margin:0 auto;padding:60px 40px 80px;
+    border-top:1px solid var(--line);margin-top:40px}
+  footer .fl{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:18px}
+  footer .brand{font-family:var(--serif);font-weight:700;font-size:20px;color:var(--head)}
+  footer .meta{font-family:var(--mono);font-size:11.5px;color:var(--dim);letter-spacing:.08em;text-align:right;line-height:1.9}
+  footer .meta b{color:var(--teal)}
+
+  @media(max-width:820px){
+    main{padding:0 22px}
+    section{padding:82px 0}
+    .grid3,.grid2{grid-template-columns:1fr}
+    .sec-head{gap:14px;margin-bottom:32px}
+    .lede{margin-top:-16px}
+    .pstep{grid-template-columns:1fr;gap:8px}
+    .pstep .who{justify-self:start}
+    .spec{font-size:12.5px}
+    .spec td,.spec thead th{padding:10px 8px}
+    .spec td:first-child{white-space:normal}
+    .cmd pre{padding-right:16px;padding-top:38px}
+  }
+  ::selection{background:rgba(63,224,197,.28);color:#fff}
+  ::-webkit-scrollbar{width:10px}
+  ::-webkit-scrollbar-track{background:var(--bg)}
+  ::-webkit-scrollbar-thumb{background:#1c2430;border-radius:8px;border:2px solid var(--bg)}
+  ::-webkit-scrollbar-thumb:hover{background:var(--teal-d)}
+</style>
+</head>
+<body>
+
+<div class="bg">
+  <div class="grid"></div>
+  <div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
+  <div class="noise"></div>
+</div>
+<div class="progress" id="progress"></div>
+
+<nav class="rail" id="rail">
+  <a href="#hero" data-s="hero"><span class="tick"></span><span class="lbl">概览</span></a>
+  <a href="#map" data-s="map"><span class="tick"></span><span class="lbl">路线图</span></a>
+  <a href="#net" data-s="net"><span class="tick"></span><span class="lbl">网络层</span></a>
+  <a href="#verify" data-s="verify"><span class="tick"></span><span class="lbl">出口验证</span></a>
+  <a href="#deps" data-s="deps"><span class="tick"></span><span class="lbl">基础依赖</span></a>
+  <a href="#cc" data-s="cc"><span class="tick"></span><span class="lbl">Claude Code</span></a>
+  <a href="#check" data-s="check"><span class="tick"></span><span class="lbl">终检清单</span></a>
+  <a href="#pits" data-s="pits"><span class="tick"></span><span class="lbl">坑位速查</span></a>
+</nav>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero" id="hero">
+    <span class="tag rv"><span class="pulse"></span>新人上手指南 · 每一步可复制执行</span>
+    <h1 class="rv">新 Mac 的<br><span class="accent">开荒手册</span><span class="cursor"></span></h1>
+    <p class="desc rv">从拆箱到 <b>Claude Code 在终端里跑起来</b>——网络隧道、海外环境、基础依赖、AI 工具链，一条动线走完，不用来回问人。</p>
+    <p class="role rv">// 面向第一次配置开发环境的新同学 · 顺序执行即可 · 全程约 60–90 分钟</p>
+    <div class="ticker rv">
+      <span class="chip"><span class="d b"></span>APPLE SILICON</span>
+      <span class="chip"><span class="d b"></span>SHADOWROCKET · TUN</span>
+      <span class="chip"><span class="d v"></span>XCODE CLT</span>
+      <span class="chip"><span class="d v"></span>HOMEBREW</span>
+      <span class="chip"><span class="d v"></span>NODE LTS · FNM</span>
+      <span class="chip"><span class="d"></span>CLAUDE CODE</span>
+      <span class="chip"><span class="d a"></span>约 60–90 MIN</span>
+    </div>
+    <div class="scrollcue"><span class="bar"></span>SCROLL / 向下滚动</div>
+  </section>
+
+  <!-- 00 路线图 -->
+  <section id="map">
+    <div class="sec-head rv">
+      <span class="idx">00</span>
+      <div><span class="eyebrow">Roadmap · Do It In Order</span>
+      <h2>五段路线，顺序不能乱</h2></div>
+    </div>
+    <p class="lede rv">整个开荒过程是一条<strong>严格有序</strong>的管线：网络层没搭好，后面每一步的下载都会失败或慢到怀疑人生。跟着流光走一遍，心里先有全图。</p>
+    <div class="pipe rv">
+      <div class="flowdot"></div>
+      <div class="pstep" style="--who:var(--blue)">
+        <span class="who">STEP 1<br>网络层</span>
+        <span class="txt"><b>装 Shadowrocket、导入节点、开启隧道</b>——让整台 Mac 的流量都能出海<span class="est">≈ 20 min</span></span>
+      </div>
+      <div class="pstep" style="--who:var(--teal)">
+        <span class="who">STEP 2<br>出口验证</span>
+        <span class="txt">终端里 <b>curl 验证出口 IP</b>，确认 Google / GitHub / claude.ai 全部可达<span class="est">≈ 5 min</span></span>
+      </div>
+      <div class="pstep" style="--who:var(--violet)">
+        <span class="who">STEP 3<br>基础依赖</span>
+        <span class="txt"><b>Xcode CLT → Homebrew → git → Node → pnpm</b>，一条链装完开发地基<span class="est">≈ 30 min</span></span>
+      </div>
+      <div class="pstep" style="--who:var(--teal)">
+        <span class="who">STEP 4<br>Claude Code</span>
+        <span class="txt">一条命令安装，<b>浏览器扫码登录</b>，跑 <code>/doctor</code> 自检<span class="est">≈ 10 min</span></span>
+      </div>
+      <div class="pstep" style="--who:var(--amber)">
+        <span class="who">STEP 5<br>终检</span>
+        <span class="txt">对照<b>终检清单</b>逐行跑命令，全绿即毕业<span class="est">≈ 5 min</span></span>
+      </div>
+    </div>
+    <p class="pipe-note rv">// 卡在任何一步：先跳到本页最后一章<b>「坑位速查」</b>对症状，九成问题在那里有现成解法。</p>
+  </section>
+
+  <!-- 01 网络层 -->
+  <section id="net">
+    <div class="sec-head rv">
+      <span class="idx">01</span>
+      <div><span class="eyebrow">Network Layer · Shadowrocket</span>
+      <h2>先把隧道搭好</h2></div>
+    </div>
+    <p class="lede rv">国内网络<strong>直连不了</strong> GitHub、Homebrew、Google 字体、Claude 的服务器。我们用 Shadowrocket（本是 iOS 应用，M 系列 Mac 可以直接跑）建一条系统级隧道：它接管<strong>整台电脑</strong>的流量，终端、浏览器、所有 App 自动走隧道，<strong>不需要再单独配任何代理变量</strong>。</p>
+
+    <div class="note-band rv">
+      <span class="k">先决条件</span>
+      <p>开工前找管理员要两样东西：① 一条<b>节点链接 / 订阅</b>（形如 <code>vless://…</code> 或订阅 URL）；② 一个<b>海外区 Apple ID</b>（Shadowrocket 只在海外区 App Store 上架，约 $2.99，团队一般有公用账号）。</p>
+    </div>
+
+    <div class="hflow rv" aria-label="流量路径示意">
+      <div class="hnode" style="--c:var(--blue)">
+        <span class="hk">你的 Mac</span>
+        <span class="hi">💻</span>
+        <span class="ht">全部流量</span>
+        <span class="hs">终端 / 浏览器 / App</span>
+      </div>
+      <div class="hlink"><span class="pk"></span><span class="pk d2"></span></div>
+      <div class="hnode" style="--c:var(--teal)">
+        <span class="hk">Shadowrocket</span>
+        <span class="hi">🚀</span>
+        <span class="ht">TUN 虚拟网卡</span>
+        <span class="hs">系统级接管 + 分流规则</span>
+      </div>
+      <div class="hlink"><span class="pk"></span><span class="pk d2"></span></div>
+      <div class="hnode" style="--c:var(--violet)">
+        <span class="hk">加密隧道</span>
+        <span class="hi">🔐</span>
+        <span class="ht">海外节点</span>
+        <span class="hs">团队自建 VPS 出口</span>
+      </div>
+      <div class="hlink"><span class="pk"></span><span class="pk d2"></span></div>
+      <div class="hnode" style="--c:var(--amber)">
+        <span class="hk">目标站点</span>
+        <span class="hi">🌐</span>
+        <span class="ht">GitHub · Claude · Google</span>
+        <span class="hs">看到的是节点的海外 IP</span>
+      </div>
+    </div>
+    <p class="hflow-cap rv">// <b>TUN 模式</b>的含义：Shadowrocket 在系统里虚拟出一张网卡，所有进程的流量先进它、再按规则分流——国内站点直连、海外站点走隧道。所以<b>终端不需要设 http_proxy</b>，装完即全局生效。</p>
+
+    <div class="pipe rv" style="margin-top:40px">
+      <div class="flowdot"></div>
+      <div class="pstep" style="--who:var(--amber)">
+        <span class="who">1 · 安装</span>
+        <span class="txt">用海外区 Apple ID 登录 <b>Mac App Store</b> → 搜索 Shadowrocket → 结果页切到 <b>「iPhone 与 iPad App」标签</b>才能看到它 → 购买安装</span>
+      </div>
+      <div class="pstep" style="--who:var(--amber)">
+        <span class="who">2 · 导入节点</span>
+        <span class="txt">打开 Shadowrocket → 右上角 <b>+</b> → Type 选对协议（团队节点多为 <b>VLESS</b>，默认是 Shadowsocks，<b>必须手动切</b>）→ 粘贴节点信息保存；或直接在浏览器打开管理员给的订阅链接自动导入</span>
+      </div>
+      <div class="pstep" style="--who:var(--amber)">
+        <span class="who">3 · 开启隧道</span>
+        <span class="txt">首页选中节点 → 打开<b>主开关</b> → macOS 弹「添加 VPN 配置」→ <b>允许</b>并输入开机密码。菜单栏出现 VPN 图标即成功</span>
+      </div>
+      <div class="pstep" style="--who:var(--teal)">
+        <span class="who">4 · 模式检查</span>
+        <span class="txt">首页 <b>Global Routing 保持 Config</b>（按规则分流：国内直连、海外走隧道）。切成 Proxy 会把国内站点也推到海外出口，微信、国内网站反而变慢或打不开</span>
+      </div>
+    </div>
+
+    <div class="grid2 stagger" style="margin-top:34px">
+      <div class="cell">
+        <span class="ico">🎭</span>
+        <h3><span class="m r">坑 · 别信它</span>Connectivity Test 会说谎</h3>
+        <p>列表里的延迟数字和 Connectivity Test 只测 TCP 握手，<b>绿色 ≠ 真能用，Timeout ≠ 节点挂了</b>。唯一可信的验证是下一章的 <code>curl</code> 出口 IP。</p>
+      </div>
+      <div class="cell">
+        <span class="ico">🔁</span>
+        <h3><span class="m r">坑 · 记住这个动作</span>切节点后必须重启主开关</h3>
+        <p>在列表里换了默认节点，<b>隧道不会自动切换</b>，旧节点还在跑。必须把主开关<b>关掉再打开</b>，新节点才真正生效。</p>
+      </div>
+      <div class="cell">
+        <span class="ico">🧯</span>
+        <h3><span class="m r">坑 · 全局模式副作用</span>Proxy 模式架空一切规则</h3>
+        <p>Global Routing 切到 Proxy 后<b>所有分流规则失效</b>，国内流量也全走海外。排障时临时用可以，用完记得切回 <b>Config</b>。</p>
+      </div>
+      <div class="cell">
+        <span class="ico">🏷️</span>
+        <h3><span class="m r">坑 · 静默失败</span>带 emoji 的节点名导入会失败</h3>
+        <p>通过链接导入时，节点标签里含 emoji 会<b>静默失败</b>——不报错、节点也不出现。把标签里的 emoji 删掉再导入即可。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 出口验证 -->
+  <section id="verify">
+    <div class="sec-head rv">
+      <span class="idx">02</span>
+      <div><span class="eyebrow">Verify Your Exit · Trust Only curl</span>
+      <h2>验证出口，只认 curl</h2></div>
+    </div>
+    <p class="lede rv">隧道开了不等于真的通了。打开<strong>终端</strong>（Terminal，在启动台里搜），跑下面三条命令——这是全页<strong>唯一可信</strong>的网络验证方式，之后任何时候怀疑网络，都回到这三条。</p>
+
+    <div class="term rv">
+      <div class="tbar"><span class="td"></span><span class="td"></span><span class="td"></span><span class="tt">Terminal — 出口验证（循环演示）</span></div>
+      <div class="tbody" id="term1"></div>
+    </div>
+    <p class="hflow-cap rv" style="margin-top:16px">// 上面是循环演示动画。<b>出口 IP 应该是海外 IP</b>（不是你家宽带的 IP）；三条全部有正常返回，网络层就算毕业。</p>
+
+    <div class="cmd rv">
+      <button class="copy" data-copy>复制</button>
+      <pre><span class="cm"># ① 出口 IP：应返回一个海外 IP</span>
+curl https://api.ipify.org
+
+<span class="cm"># ② Google 可达：应返回 HTTP/2 200</span>
+curl -I https://www.google.com
+
+<span class="cm"># ③ Claude 可达：应返回 HTTP/2 200 或 3xx</span>
+curl -I https://claude.ai</pre>
+    </div>
+
+    <div class="band rv">
+      <span class="k">为什么不用浏览器验证</span>
+      <p>浏览器有缓存、有自己的 DNS，「网页打得开」不能证明<b>终端</b>的流量也走了隧道——而后面所有安装命令都跑在终端里。<b>curl 的返回就是终端视角的真相</b>，眼见为实。</p>
+    </div>
+  </section>
+
+  <!-- 03 基础依赖 -->
+  <section id="deps">
+    <div class="sec-head rv">
+      <span class="idx">03</span>
+      <div><span class="eyebrow">Foundations · CLT → Brew → Git → Node</span>
+      <h2>基础依赖，一条链装完</h2></div>
+    </div>
+    <p class="lede rv">这五步是<strong>依赖链</strong>：Homebrew 需要 Xcode 命令行工具，Node 用 Homebrew 装的 fnm 管理，pnpm 跑在 Node 上。<strong>按顺序执行</strong>，每步末尾都有「验证」命令，跑通再进下一步。</p>
+
+    <div class="steps stagger">
+      <div class="step" style="--c:var(--violet)">
+        <div class="sn"><span>STEP 3.1 · XCODE COMMAND LINE TOOLS</span><span class="est">≈ 10 MIN</span></div>
+        <h3>Xcode 命令行工具</h3>
+        <p>编译器、git 底座，一切开发工具的地基。弹出安装窗口后点「安装」，等进度条走完。</p>
+        <div class="cmd"><button class="copy" data-copy>复制</button><pre>xcode-select --install</pre></div>
+        <p class="expect">验证：<b>xcode-select -p</b> → 输出 <b>/Library/Developer/CommandLineTools</b></p>
+      </div>
+
+      <div class="step" style="--c:var(--violet)">
+        <div class="sn"><span>STEP 3.2 · HOMEBREW</span><span class="est">≈ 8 MIN</span></div>
+        <h3>Homebrew — Mac 的软件包管家</h3>
+        <p>之后装任何命令行工具都靠它。安装脚本走 GitHub，<b>隧道必须已开启</b>。装完后<b>务必执行它最后提示的两行 <code>eval</code> 命令</b>（把 brew 加进 PATH），或直接复制下面第二段。</p>
+        <div class="cmd"><button class="copy" data-copy>复制</button><pre>/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"</pre></div>
+        <div class="cmd"><button class="copy" data-copy>复制</button><pre><span class="cm"># 安装完执行（写入 PATH，然后重开一个终端窗口）</span>
+echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+eval "$(/opt/homebrew/bin/brew shellenv)"</pre></div>
+        <p class="expect">验证：<b>brew --version</b> → 输出 <b>Homebrew 4.x</b></p>
+      </div>
+
+      <div class="step" style="--c:var(--violet)">
+        <div class="sn"><span>STEP 3.3 · GIT</span><span class="est">≈ 3 MIN</span></div>
+        <h3>Git — 版本控制</h3>
+        <p>系统自带的 git 也能用，但用 brew 装最新版，并把你的名字和邮箱写进全局配置（提交记录会署这个名）。</p>
+        <div class="cmd"><button class="copy" data-copy>复制</button><pre>brew install git
+git config --global user.name "你的名字"
+git config --global user.email "你的邮箱@example.com"</pre></div>
+        <p class="expect">验证：<b>git --version</b> → 输出 <b>git version 2.x</b></p>
+      </div>
+
+      <div class="step" style="--c:var(--violet)">
+        <div class="sn"><span>STEP 3.4 · NODE.JS（经 FNM）</span><span class="est">≈ 6 MIN</span></div>
+        <h3>Node.js — 用版本管理器装，别装全局单版本</h3>
+        <p>不同项目要求的 Node 版本不同，直接 <code>brew install node</code> 以后会打架。用 <b>fnm</b>（快、轻）管理，随时切版本。</p>
+        <div class="cmd"><button class="copy" data-copy>复制</button><pre>brew install fnm
+echo 'eval "$(fnm env --use-on-cd)"' >> ~/.zshrc
+source ~/.zshrc
+fnm install --lts
+fnm default lts-latest</pre></div>
+        <p class="expect">验证：<b>node -v</b> → 输出 <b>v22.x</b>（当前 LTS）；<b>npm -v</b> 有输出</p>
+      </div>
+
+      <div class="step" style="--c:var(--violet)">
+        <div class="sn"><span>STEP 3.5 · PNPM ＋ 可选件</span><span class="est">≈ 3 MIN</span></div>
+        <h3>pnpm — 团队默认的包管理器</h3>
+        <p>前端项目统一用 pnpm 装依赖（更快、更省磁盘）。顺手可以把 Python 工具链 <b>uv</b> 也装上（跑 Python 项目才需要，可跳过）。</p>
+        <div class="cmd"><button class="copy" data-copy>复制</button><pre>npm install -g pnpm
+
+<span class="cm"># 可选：Python 工具链（需要跑 Python 项目时再装也行）</span>
+brew install uv</pre></div>
+        <p class="expect">验证：<b>pnpm -v</b> → 输出 <b>9.x / 10.x</b></p>
+      </div>
+    </div>
+
+    <div class="band rv">
+      <span class="k">这一章的通用心法</span>
+      <p>任何一步卡住报网络错误（<code>Connection refused</code> / <code>timeout</code> / 卡在 0%），<b>先回第 02 章跑三条 curl</b>——九成是隧道断了或节点抖了，而不是命令写错。</p>
+    </div>
+  </section>
+
+  <!-- 04 Claude Code -->
+  <section id="cc">
+    <div class="sec-head rv">
+      <span class="idx">04</span>
+      <div><span class="eyebrow">Claude Code · Install → Login → Doctor</span>
+      <h2>装上 Claude Code</h2></div>
+    </div>
+    <p class="lede rv">Claude Code 是跑在终端里的 AI 编码 Agent，也是团队的日常主力工具。官方推荐 <strong>native 安装器</strong>（一条命令，自带自动更新，和 npm 无关）。登录需要一个 <strong>Claude 订阅账号</strong>（Pro / Max / Team）——没有的话先找管理员。</p>
+
+    <div class="term rv">
+      <div class="tbar"><span class="td"></span><span class="td"></span><span class="td"></span><span class="tt">Terminal — 安装 Claude Code（循环演示）</span></div>
+      <div class="tbody" id="term2"></div>
+    </div>
+
+    <div class="cmd rv" style="margin-top:22px">
+      <button class="copy" data-copy>复制</button>
+      <pre><span class="cm"># ① 安装（native 安装器，装到 ~/.local/bin/claude）</span>
+curl -fsSL https://claude.ai/install.sh | bash
+
+<span class="cm"># ② 重开一个终端窗口，启动</span>
+claude</pre>
+    </div>
+
+    <div class="pipe rv" style="margin-top:36px">
+      <div class="flowdot"></div>
+      <div class="pstep" style="--who:var(--teal)">
+        <span class="who">安装</span>
+        <span class="txt">一条命令装完。版本文件在 <code>~/.local/share/claude/</code>，命令是 <code>~/.local/bin/claude</code>，以后<b>自动更新</b>，不用管</span>
+      </div>
+      <div class="pstep" style="--who:var(--amber)">
+        <span class="who">登录</span>
+        <span class="txt">第一次运行 <code>claude</code> 会打开浏览器 → 用团队给的 <b>Claude 账号</b>授权 → 回到终端自动完成登录</span>
+      </div>
+      <div class="pstep" style="--who:var(--teal)">
+        <span class="who">自检</span>
+        <span class="txt">在 Claude Code 里输入 <code>/doctor</code>——它会检查安装、网络、权限，<b>全绿即就绪</b></span>
+      </div>
+      <div class="pstep" style="--who:var(--blue)">
+        <span class="who">开工</span>
+        <span class="txt"><code>cd</code> 进任意项目目录再运行 <code>claude</code>，直接用中文描述你要做的事</span>
+      </div>
+    </div>
+
+    <div class="rv" style="overflow-x:auto;margin-top:34px">
+      <table class="spec">
+        <thead><tr><th>常用入口</th><th>命令</th><th>作用</th></tr></thead>
+        <tbody>
+          <tr><td>启动</td><td>claude</td><td>在当前目录开一个会话</td></tr>
+          <tr><td>自检</td><td>/doctor</td><td>体检安装 / 网络 / 配置，<b>排障第一步</b></td></tr>
+          <tr><td>帮助</td><td>/help</td><td>会话内查看全部命令</td></tr>
+          <tr><td>设置</td><td>/config</td><td>主题、模型等偏好</td></tr>
+          <tr><td>手动更新</td><td>claude update</td><td>平时自动更新，报错时手动跑一次看真实错误信息</td></tr>
+          <tr><td>版本</td><td>claude --version</td><td>确认装好了、看当前版本号</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 05 终检清单 -->
+  <section id="check">
+    <div class="sec-head rv">
+      <span class="idx">05</span>
+      <div><span class="eyebrow">Final Checklist · All Green = Done</span>
+      <h2>终检清单：逐行跑，全绿毕业</h2></div>
+    </div>
+    <p class="lede rv">开一个<strong>全新的终端窗口</strong>（保证 PATH 都已生效），从上到下逐行执行。任何一行不符合预期，就回到对应章节重来那一步。</p>
+    <div class="rv" style="overflow-x:auto">
+      <table class="spec">
+        <thead><tr><th>检查项</th><th>命令</th><th>预期结果</th></tr></thead>
+        <tbody>
+          <tr><td>① 出口 IP</td><td>curl https://api.ipify.org</td><td>返回<b>海外 IP</b>（对应章节 01/02）</td></tr>
+          <tr><td>② GitHub 可达</td><td>curl -I https://github.com</td><td><b>HTTP/2 200</b></td></tr>
+          <tr><td>③ 编译工具</td><td>xcode-select -p</td><td>输出 CommandLineTools 路径（03.1）</td></tr>
+          <tr><td>④ Homebrew</td><td>brew --version</td><td><b>Homebrew 4.x</b>（03.2）</td></tr>
+          <tr><td>⑤ Git 身份</td><td>git config user.email</td><td>输出<b>你的邮箱</b>（03.3）</td></tr>
+          <tr><td>⑥ Node LTS</td><td>node -v</td><td><b>v22.x</b>（03.4）</td></tr>
+          <tr><td>⑦ pnpm</td><td>pnpm -v</td><td>有版本号输出（03.5）</td></tr>
+          <tr><td>⑧ Claude Code</td><td>claude --version</td><td>有版本号输出（04）</td></tr>
+          <tr><td>⑨ 会话自检</td><td>claude 内跑 /doctor</td><td><b>全部通过</b>（04）</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="quote rv">
+      <b>一句话总括：</b>新 Mac 开荒 = <b>先修路，再盖楼</b>——隧道（Shadowrocket TUN）是路，curl 出口 IP 是验路的唯一标准；路通之后 CLT → Homebrew → Node 一条链盖地基，最后 Claude Code 一条命令上楼。任何环节报网络错，<b>先验路，再查楼</b>。
+    </div>
+  </section>
+
+  <!-- 06 坑位速查 -->
+  <section id="pits">
+    <div class="sec-head rv">
+      <span class="idx">06</span>
+      <div><span class="eyebrow">Troubleshooting · Symptom → Fix</span>
+      <h2>坑位速查：按症状对号入座</h2></div>
+    </div>
+    <p class="lede rv">这些坑我们全都真实踩过。按<strong>症状</strong>找到你的情况，照方子执行即可。</p>
+    <div class="grid2 stagger">
+      <div class="cell">
+        <span class="ico">🐌</span>
+        <h3><span class="m r">症状</span>brew / git clone 卡住或超时</h3>
+        <p><b>先跑 curl 验出口 IP</b>（第 02 章）。IP 不对或超时 → 隧道断了：Shadowrocket 主开关关掉重开；还不行就换一个节点（记得<b>切完重启主开关</b>）。</p>
+      </div>
+      <div class="cell">
+        <span class="ico">⬇️</span>
+        <h3><span class="m r">症状</span>claude update 报下载超时</h3>
+        <p>其它网站都正常、只有更新失败——个别节点会掐 <code>downloads.claude.ai</code> 这个下载域。<b>换一个节点</b>再跑 <code>claude update</code> 即可。</p>
+      </div>
+      <div class="cell">
+        <span class="ico">👻</span>
+        <h3><span class="m r">症状</span>command not found: brew / fnm / claude</h3>
+        <p>命令装了但 PATH 没生效。<b>重开一个终端窗口</b>；还不行就检查对应步骤里 <code>echo … >> ~/.zprofile</code> / <code>~/.zshrc</code> 那行有没有执行过。</p>
+      </div>
+      <div class="cell">
+        <span class="ico">📵</span>
+        <h3><span class="m r">症状</span>微信 / 国内网站突然变慢打不开</h3>
+        <p>八成是 Global Routing 被切到了 <b>Proxy</b>（全局），国内流量也被推到海外出口。切回 <b>Config</b> 模式即恢复。</p>
+      </div>
+      <div class="cell">
+        <span class="ico">🎥</span>
+        <h3><span class="m r">症状</span>云电脑 / 视频会议连不上</h3>
+        <p>代理客户端的 fake-IP 模式会拦掉 UDP 流量，云桌面、实时音视频首当其冲。详见专文 <b>「云电脑 / 云手机连不上？先查代理」</b>（本页底部相关阅读）。</p>
+      </div>
+      <div class="cell">
+        <span class="ico">🔑</span>
+        <h3><span class="m r">症状</span>App Store 搜不到 Shadowrocket</h3>
+        <p>两个原因：① 当前登录的是<b>国区 Apple ID</b>（它没在国区上架）；② 搜索结果没切到<b>「iPhone 与 iPad App」标签页</b>。都对了还没有，找管理员用公用账号处理。</p>
+      </div>
+    </div>
+
+    <div class="band rv">
+      <span class="k">相关阅读 · upio.ai/learn</span>
+      <p>网络这条线想弄懂原理，接着读下面三篇。</p>
+    </div>
+    <div class="related rv">
+      <a href="/learn/self-hosted-vpn">自建科学上网节点 →</a>
+      <a href="/learn/cloud-device-network">云电脑连不上？先查代理 →</a>
+      <a href="/learn/mac-for-ai">为什么 Mac 更适合做 AI →</a>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="fl">
+    <span class="brand">新 Mac 开荒手册 <span style="color:var(--teal)">/</span> 从拆箱到 Claude Code</span>
+    <span class="meta">面向新同学的环境配置指引 · 2026-07<br><b>upio.ai/learn/new-mac-setup</b></span>
+  </div>
+</footer>
+
+<script>
+  // 滚动进度条
+  const prog=document.getElementById('progress');
+  const onScroll=()=>{
+    const h=document.documentElement;
+    const p=h.scrollTop/(h.scrollHeight-h.clientHeight);
+    prog.style.width=(p*100)+'%';
+  };
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+
+  // reveal + stagger（IO 主触发 + 滚动兜底，保证快速滚动/锚点跳转也不留空白）
+  const io=new IntersectionObserver((es)=>{
+    es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});
+  },{threshold:.16,rootMargin:'0px 0px -8% 0px'});
+  document.querySelectorAll('.rv,.stagger').forEach(el=>io.observe(el));
+  const revealPast=()=>{
+    document.querySelectorAll('.rv:not(.in),.stagger:not(.in)').forEach(el=>{
+      if(el.getBoundingClientRect().top < window.innerHeight*0.9){el.classList.add('in');io.unobserve(el);}
+    });
+  };
+  document.addEventListener('scroll',revealPast,{passive:true});
+  // 轮询兜底：程序化 scrollTo / 锚点跳转可能不触发 scroll 事件；全部 reveal 后自动停
+  const rvTimer=setInterval(()=>{
+    revealPast();
+    if(!document.querySelector('.rv:not(.in),.stagger:not(.in)'))clearInterval(rvTimer);
+  },300);
+
+  // hero 首屏立即显示
+  window.addEventListener('load',()=>{
+    document.querySelectorAll('#hero .rv').forEach((el,i)=>{
+      setTimeout(()=>el.classList.add('in'),120+i*110);
+    });
+  });
+
+  // 侧栏章节高亮
+  const rail=[...document.querySelectorAll('.rail a')];
+  const secObs=new IntersectionObserver((es)=>{
+    es.forEach(e=>{
+      if(e.isIntersecting){
+        rail.forEach(a=>a.classList.toggle('on',a.dataset.s===e.target.id));
+      }
+    });
+  },{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('main section').forEach(s=>secObs.observe(s));
+
+  // ── 复制按钮 ──
+  document.querySelectorAll('[data-copy]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const pre=btn.parentElement.querySelector('pre');
+      // 去掉注释行，只复制可执行命令
+      const text=[...pre.childNodes].map(n=>n.textContent).join('')
+        .split('\n').filter(l=>!l.trim().startsWith('#')).join('\n').trim();
+      navigator.clipboard.writeText(text).then(()=>{
+        btn.textContent='已复制 ✓';btn.classList.add('ok');
+        setTimeout(()=>{btn.textContent='复制';btn.classList.remove('ok');},1600);
+      }).catch(()=>{btn.textContent='手动选择复制';});
+    });
+  });
+
+  // ── 模拟终端循环打字动图 ──
+  // script: 数组元素 {c:命令, o:[输出行]}；命令逐字打出，输出瞬间打印
+  function runTerm(id,script){
+    const el=document.getElementById(id);
+    if(!el)return;
+    let started=false;
+    const obs=new IntersectionObserver((es)=>{
+      es.forEach(e=>{if(e.isIntersecting&&!started){started=true;loop();obs.disconnect();}});
+    },{threshold:.3});
+    obs.observe(el.closest('.term'));
+
+    const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    function render(lines,typing){
+      let html=lines.map(l=>{
+        if(l.t==='c')return '<span class="p">$ </span>'+esc(l.v);
+        if(l.t==='ok')return '<span class="ok">'+esc(l.v)+'</span>';
+        return '<span class="o">'+esc(l.v)+'</span>';
+      }).join('\n');
+      if(typing)html+='<span class="tc"></span>';
+      el.innerHTML=html;
+    }
+    async function loop(){
+      const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+      for(;;){
+        const done=[];
+        for(const step of script){
+          // 逐字打命令
+          let cur='';
+          for(const ch of step.c){
+            cur+=ch;
+            render([...done,{t:'c',v:cur}],true);
+            await sleep(34+Math.floor(cur.length%3)*14);
+          }
+          done.push({t:'c',v:step.c});
+          render(done,true);
+          await sleep(420);
+          // 输出
+          for(const o of step.o){
+            done.push(o);
+            render(done,true);
+            await sleep(190);
+          }
+          await sleep(750);
+        }
+        render(done.concat([{t:'c',v:''}]),true);
+        await sleep(3200);
+      }
+    }
+  }
+
+  runTerm('term1',[
+    {c:'curl https://api.ipify.org',o:[{t:'ok',v:'203.0.113.42        ← 海外 IP，隧道生效 ✓'}]},
+    {c:'curl -I https://www.google.com',o:[{t:'ok',v:'HTTP/2 200 ✓'},{t:'o',v:'content-type: text/html; charset=ISO-8859-1'}]},
+    {c:'curl -I https://claude.ai',o:[{t:'ok',v:'HTTP/2 200 ✓'},{t:'o',v:'server: cloudflare'}]}
+  ]);
+
+  runTerm('term2',[
+    {c:'curl -fsSL https://claude.ai/install.sh | bash',o:[
+      {t:'o',v:'Downloading Claude Code…'},
+      {t:'ok',v:'✓ Installed to ~/.local/bin/claude'}
+    ]},
+    {c:'claude --version',o:[{t:'ok',v:'2.1.x (Claude Code)'}]},
+    {c:'claude',o:[
+      {t:'o',v:'Opening browser for login…'},
+      {t:'ok',v:'✓ Logged in. Type /doctor to run a health check.'}
+    ]}
+  ]);
+</script>
+</body>
+</html>

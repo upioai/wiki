@@ -54,6 +54,7 @@ const CATEGORIES = [
     label: 'TOOLS · GETTING STARTED',
     title: '工具入门',
     items: [
+      { slug: 'new-mac-setup', title: '新 Mac 开荒手册 · 从拆箱到 Claude Code', desc: '新同学第一天的完整动线：Shadowrocket 隧道 → curl 出口验证 → Xcode CLT / Homebrew / Node 依赖链 → Claude Code 安装登录，每步可复制执行，附终检清单与真实踩坑速查（深色技术长页 + 动画终端演示）。' },
       { slug: 'mac-for-ai', title: '为什么 Mac 更适合做 AI', desc: 'AI 时代的日常 = 终端里的 Agent + 想跑就跑的本地模型：macOS 的 Unix 底子和 Apple Silicon 统一内存各接住一半，也诚实讲清 Mac 什么时候不是答案。' },
       { slug: 'vercel-supabase', title: 'Vercel × Supabase', desc: '我们几乎每个产品都在用的两件套——前端托管 + 后端数据库：来历、能力全景，以及我们用了哪些、没用哪些、为什么。' },
       { slug: 'flyio', title: 'Fly.io 是什么', desc: '我们的「重活」都跑在 Fly.io 上：它到底是什么、和自己租一台 VPS 有什么本质区别、Render / Railway / Heroku / Cloud Run 这些竞品各自站哪，以及我们为什么选它、踩过哪些坑。' },
