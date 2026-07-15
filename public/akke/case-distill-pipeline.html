@@ -246,7 +246,7 @@
   <header class="hero">
     <p class="eyebrow">Akke · 销售案例 → 话术</p>
     <h1>金牌销售案例，是怎么变成 AI 话术的？</h1>
-    <p class="lede">一份聊天截图进来，要走完 <b>入库 → 蒸馏 → 注入话术</b> 三大段，才真正影响 AI 对客户说的每一句话。这张图把整条路拆开讲清楚——哪里是自动的、哪里得人管、哪里有断点。</p>
+    <p class="lede">一份聊天截图进来，要走完 <b>入库 → 蒸馏 → 注入话术</b> 三大段，才真正影响 AI 对客户说的每一句话；到了对话现场，一条客户消息进来、系统又怎么一步步决定回什么。这张图把整条路拆开讲清楚——哪里是自动的、哪里得人管、哪里有断点。</p>
     <div class="legend">
       <span class="lg"><span class="dot ok"></span>已跑通，自动生效</span>
       <span class="lg"><span class="dot warn"></span>要人手动跑 / 有缺口</span>
@@ -416,8 +416,8 @@
   <!-- 4. 自动调用 + Langfuse + 话术分层 + 改哪块 -->
   <section>
     <p class="snum">04</p>
-    <h2>话术是怎么"调"出来的？想改话术，该动哪一块？</h2>
-    <p class="sublede">企微 / 抖音是不是自动注入案例、Langfuse 到底管什么、话术 prompt 由哪几层拼成、想改一句话该动哪一层——五个问题一节答完。</p>
+    <h2>话术是怎么"拼"出来的：案例注入到哪、Langfuse 管什么</h2>
+    <p class="sublede">料备好了，一次生成到底把哪些东西拼进了那条 prompt？企微 / 抖音是不是自动注入案例、Langfuse 到底管什么、调用路径长什么样、prompt 由哪几层叠成——四个问题一节答完。</p>
 
     <h3 style="font-size:16px;margin:0 0 10px;font-weight:700;">① 生成话术时，案例是自动注入的 —— 是</h3>
     <div class="chan">
@@ -480,8 +480,116 @@
       <div class="bar"></div>
       <p><span class="k">案例在哪一块？</span>案例<b>不是单独一层</b>——蒸馏后<b>分散注入到第 6、7、8 这三层</b>：产品事实 → 知识、招式 → 决策原则、金牌问答 → few-shot 示例。所以「喂案例」能影响话术，靠的就是这三层里的案例料；其余几层是人设 / 语气 / 记忆 / 品牌骨架，跟具体案例无关。</p>
     </div>
+  </section>
 
-    <h3 style="font-size:16px;margin:30px 0 6px;font-weight:700;">⑤ 每次改话术，改的到底是哪一块？</h3>
+  <!-- 5. 对话背后的逻辑（运行时引擎） -->
+  <section>
+    <p class="snum">05</p>
+    <h2>对话背后的逻辑：客户发来一句话，系统怎么决定回什么</h2>
+    <p class="sublede">前面讲的是"料怎么备好、怎么拼进 prompt"。这一段讲<b>运行时</b>——一条真实的客户消息进来，到发出一句回复之间，系统一步步在做哪些判断。一句话贯穿始终：<b>凡是代码能确定性判定的，绝不交给 AI 自觉</b>；AI 只负责把话说得像人，"该不该回、能不能发"都有确定性闸门兜着。</p>
+
+    <h3 style="font-size:16px;margin:0 0 10px;font-weight:700;">先认个底：每通对话都有「阶段」</h3>
+    <p class="sublede" style="margin-bottom:12px;">系统给每通对话记一个阶段，决定这一轮用什么口吻、走哪套规则。</p>
+    <div class="callpath">
+      <span class="node"><b>ice_break</b> 破冰<span style="color:var(--faint)"> · 首次开场</span></span>
+      <span class="arr">→</span>
+      <span class="node"><b>nurture</b> 培育<span style="color:var(--faint)"> · 多轮接话</span></span>
+      <span class="arr">→</span>
+      <span class="node"><b>decision</b> 临门<span style="color:var(--faint)"> · 谈价 / 逼单</span></span>
+    </div>
+    <p class="sublede" style="margin:10px 0 0;">两条硬规矩：① <b>回复客户时永远走 nurture</b>（哪怕阶段还卡在 ice_break 也纠正过来）——否则会拿"开场白模式"去接客户的话，把开场白当回复重发一遍（真踩过的坑）；② <b>decision 谈判阶段默认转人工</b>（怕一句话拍错就丢单），只有纯价格问答放行自动发。</p>
+
+    <h3 style="font-size:16px;margin:28px 0 10px;font-weight:700;">第一步：还没惊动 AI，先过一排「确定性前置闸」</h3>
+    <p class="sublede" style="margin-bottom:14px;">很多场景根本不用麻烦 AI——代码一眼能判、直接确定性处置，又快又不会说错。这排闸决定<b>这条消息要不要回、用什么方式回</b>。</p>
+    <div class="flow">
+      <div class="card">
+        <h3><span class="pill stop">拦</span> 客户发的是 [图片] / [视频] / [语音]</h3>
+        <p>系统读不到里面的内容（只有个占位符），不硬着头皮瞎回，<span class="who">直接转人工</span>——上手机 / 云电脑看了再回。</p>
+      </div>
+      <div class="arrow">↓</div>
+      <div class="card">
+        <h3><span class="pill stop">拦</span> 这条"回复"其实不是客户说的</h3>
+        <p>可能是我方自己发的气泡被抓回来了（回声循环），或是视频文案 / 界面文字被误当成客户消息。<span class="who">语义门认出来 → 不回</span>，避免自己跟自己聊。</p>
+      </div>
+      <div class="arrow">↓</div>
+      <div class="card">
+        <h3><span class="pill ok">确定性接</span> 客户把微信号发过来了</h3>
+        <p>不靠 AI 自觉说客套话——<span class="who">写死一句"添加您啦"</span>确定性回过去（还会提醒去微信服务号点通过），把人稳稳接到微信侧。</p>
+      </div>
+      <div class="arrow">↓</div>
+      <div class="card">
+        <h3><span class="pill ok">确定性接</span> 加微已完成，客户还在抖音说话</h3>
+        <p>纯确认（"好的""嗯嗯"）→ <span class="who">静默不回</span>（阵地已转微信）；有实质新问题 → 走受限的"收尾 + 引导去微信"回复，不再没完没了地培育。</p>
+      </div>
+    </div>
+    <div class="callout">
+      <div class="bar"></div>
+      <p><span class="k">为什么先堆这么多确定性闸</span>这些都是高频又容易翻车的场景。判断题（是不是图片、是不是回声、客户给没给号）交给代码，"一眼假"的错误就永远不会发出去；AI 只在"真得开口好好聊"时才上场。</p>
+    </div>
+
+    <h3 style="font-size:16px;margin:28px 0 10px;font-weight:700;">第二步：真要"开口聊"，才生成——而且分场景走不同逻辑</h3>
+    <p class="sublede" style="margin-bottom:14px;">到这一步才调 AI（chatReply），把上一节那 9 层料拼成 prompt 生成回复。关键是<b>不同类型的客户，对话逻辑不一样</b>。最典型、也最容易翻车的一类：</p>
+    <div class="card layer rule">
+      <div class="layerrole">活案例 · 索取型客户（来要清单 / 手册 / 资料 / 案例 / 888）</div>
+      <h3 style="font-size:15px;">这类人全程走「资料交付四步」，而且<span style="color:var(--stop)">全程禁反问</span></h3>
+      <p style="margin-top:8px;">① <b>证明有货</b>（拿客户给的信息 + 两个具体的坑）→ ② <b>完整版还在我手上</b>（整份是带图的表格，只先给一小块）→ ③ <b>说清为什么必须加微信</b>（抖音发不了文件、发图会压糊，是平台限制不是借口）→ ④ <b>收尾是加 v 的引子，绝不甩一个问题回去</b>。</p>
+      <p style="margin-top:8px;color:var(--stop)"><b>为什么死磕"禁反问"：</b>实测 20 个开口要资料的客户，17 个流失，其中 <b>12 个的死因就是被回了一句反问</b>（"给个 v 我发你，你家几室几厅？"）。他要的是"现在就给"，你回他一个问题 = 又给他派了个活，他就走了。这类人越聊越容易流失，所以要给个加 v 的引子、赶紧把人接到微信。</p>
+    </div>
+
+    <h3 style="font-size:16px;margin:28px 0 10px;font-weight:700;">第三步：AI 写完不直接发，两层确定性闸门先把关</h3>
+    <p class="sublede" style="margin-bottom:14px;">AI 会犯的错就那么几种固定形状，代码逐条兜——能修的当场修好再发（不静默丢单），修不动的才转人工。</p>
+    <div class="libmap">
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th>哪一层闸</th><th>拦什么</th><th>怎么处置</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="lib"><span class="tag stage">生成层</span><span class="role">自查 + 重生成</span></td>
+              <td>生成崩（空 / 乱码 / 错语言）、索取型里冒出反问、超长、自曝私人生活（"我自己家装的时候…"）</td>
+              <td><span class="pill ok">修好再发</span> 先重生成至多 3 次；仍不行就<b>确定性修</b>——砍掉反问句、压回长度、删掉穿帮句，不转人工、不丢单</td>
+            </tr>
+            <tr>
+              <td class="lib"><span class="tag base">送出前</span><span class="role">置信度门 gateDraft</span></td>
+              <td>疑似回声循环、长度异常、索取型仍带反问、命中负面 / 投诉、decision 谈判阶段、闭口客套句号话（"有啥不懂随时问"把热客户晾凉）</td>
+              <td><span class="pill warn">转人工</span> 任一命中 = 不自动发，落库等人接手</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <h3 style="font-size:16px;margin:28px 0 10px;font-weight:700;">最后：两个出口</h3>
+    <div class="cols">
+      <div class="outcard a">
+        <span class="pill ok">过闸</span>
+        <h3>自动发</h3>
+        <ul>
+          <li>草稿标 <b>approved</b>，无影 / 云电脑 claim 后就地发出</li>
+          <li>价格 2026-07-10 起<b>全放开</b>：价格讨论、AI 报的具体数字都直接发，不再卡等审批</li>
+        </ul>
+      </div>
+      <div class="outcard b">
+        <span class="pill warn">没过</span>
+        <h3>转人工（needs_human）</h3>
+        <ul>
+          <li>躺库里、<b>不推通知</b>，绝不自动发一句可能翻车的话</li>
+          <li>滞留哨兵 needs-human-watch 在 <b>30 分钟 / 4 小时 / 24 小时</b> 推 Lark 卡催人接</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout warn">
+      <div class="bar"></div>
+      <p><span class="k">这一节的骨架就一句话</span>确定性的判断（是不是图片、是不是回声、有没有反问、超没超长、是不是谈判阶段）<b>全归代码</b>，AI 只管把话说得自然。所以"AI 会不会说错话"这个担心，大半被前后这几排确定性闸挡在了发送之前。</p>
+    </div>
+  </section>
+
+  <!-- 6. 改哪块 -->
+  <section>
+    <p class="snum">06</p>
+    <h2>想改话术，该动哪一块？</h2>
     <p class="sublede" style="margin-bottom:0;">「改话术」不是一件事，是<b>四件事</b>——落在不同地方、生效速度完全不同。先想清楚你要改的是哪一类，再去动对应的那块，别一上来就找代码。</p>
 
     <div class="libmap">
@@ -532,7 +640,7 @@
     </div>
   </section>
 
-  <p class="foot">2026-07-10 建设：知识按问题相关性调取 · 暂存表 case_distill_candidates + 上传自动蒸馏 + 审核队列 /case-distill · 冲突红点 + 说话人标反嗅探 · AI 判官 + 分级自动落库。核心：src/lib/distill/candidates.ts · src/lib/distill/pipeline.ts · src/app/api/upload/[token] · src/app/api/case-distill · src/lib/llm.ts:buildKnowledgeSection · 读取器 loadOrgContext。</p>
+  <p class="foot">2026-07-10 建设：知识按问题相关性调取 · 暂存表 case_distill_candidates + 上传自动蒸馏 + 审核队列 /case-distill · 冲突红点 + 说话人标反嗅探 · AI 判官 + 分级自动落库。核心：src/lib/distill/candidates.ts · src/lib/distill/pipeline.ts · src/app/api/upload/[token] · src/app/api/case-distill · src/lib/llm.ts:buildKnowledgeSection · 读取器 loadOrgContext。<br>2026-07-15 增补第 05 节「对话背后的逻辑」运行时引擎：阶段机（ice_break / nurture / decision）+ 生成前确定性前置分流 + 索取型资料交付分支（禁反问）+ 生成后两层确定性闸门。核心：src/lib/dm-reply/{run,generate,gate}.ts · src/lib/llm/material-delivery.ts · 滞留哨兵 /api/cron/needs-human-watch。</p>
 
 </div>
 
