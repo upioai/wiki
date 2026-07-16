@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>爆款视频复刻产线 · 换人换声技术方案</title>
+<meta name="description" content="把任意爆款视频复刻成自家主播出镜配音的投放素材：MiniMax 零样本音色克隆、sync-lipsync 唇形同步、真人底片表情保真、OpenCV 逐帧字幕擦除，单条 $1.8。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#06080c;
+    --bg2:#0a0e15;
+    --panel:#0d1119;
+    --panel2:#11161f;
+    --line:rgba(255,255,255,.07);
+    --line2:rgba(255,255,255,.12);
+    --ink:#dbe3ec;
+    --head:#f2f6fb;
+    --muted:#7c8798;
+    --dim:#525c6b;
+    --teal:#3fe0c5;      /* 机器 / 自动 */
+    --teal-d:#1c9d8b;
+    --amber:#f6b352;     /* 人工 / 人在环 */
+    --blue:#6fa8ff;      /* 云端模型 */
+    --violet:#b48cff;    /* 本地计算 */
+    --rose:#ff7d97;      /* 风险 / 否决 */
+    --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+    --serif:"Noto Serif SC",serif;
+    --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:var(--sans);
+    background:var(--bg);
+    color:var(--ink);
+    line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  /* ── 固定背景：网格 + 辉光 + 颗粒 ── */
+  .bg{position:fixed;inset:0;z-index:0;pointer-events:none}
+  .bg .grid{
+    position:absolute;inset:-2px;
+    background-image:
+      linear-gradient(var(--line) 1px,transparent 1px),
+      linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:64px 64px;
+    -webkit-mask-image:radial-gradient(circle at 50% 32%,#000 0%,transparent 78%);
+    mask-image:radial-gradient(circle at 50% 32%,#000 0%,transparent 78%);
+    opacity:.5;
+  }
+  .bg .glow{position:absolute;border-radius:50%;filter:blur(120px);opacity:.5}
+  .bg .g1{width:640px;height:640px;top:-260px;left:50%;transform:translateX(-50%);
+    background:radial-gradient(circle,rgba(63,224,197,.28),transparent 68%);animation:drift 22s ease-in-out infinite}
+  .bg .g2{width:520px;height:520px;top:38%;left:-160px;
+    background:radial-gradient(circle,rgba(111,168,255,.16),transparent 70%);animation:drift 28s ease-in-out infinite reverse}
+  .bg .g3{width:480px;height:480px;bottom:-120px;right:-120px;
+    background:radial-gradient(circle,rgba(246,179,82,.12),transparent 70%);animation:drift 26s ease-in-out infinite}
+  @keyframes drift{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,40px)}}
+  .bg .noise{position:absolute;inset:0;opacity:.035;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+  /* ── 顶部滚动进度 ── */
+  .progress{position:fixed;top:0;left:0;height:2px;width:0;z-index:60;
+    background:linear-gradient(90deg,var(--teal),var(--blue));box-shadow:0 0 12px var(--teal)}
+
+  /* ── 侧栏章节导航 ── */
+  .rail{position:fixed;top:50%;left:26px;transform:translateY(-50%);z-index:50;
+    display:flex;flex-direction:column;gap:15px}
+  .rail a{display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--dim);
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+    transition:color .3s}
+  .rail a .tick{width:22px;height:2px;background:currentColor;transition:width .3s,background .3s}
+  .rail a .lbl{opacity:0;transform:translateX(-6px);transition:.3s}
+  .rail a:hover .lbl,.rail a.on .lbl{opacity:1;transform:none}
+  .rail a.on{color:var(--teal)}
+  .rail a.on .tick{width:38px;box-shadow:0 0 10px var(--teal)}
+  @media(max-width:1180px){.rail{display:none}}
+
+  main{position:relative;z-index:2;max-width:1080px;margin:0 auto;padding:0 40px}
+  section{padding:118px 0;border-top:1px solid transparent}
+
+  /* ── 通用 reveal ── */
+  .rv{opacity:0;transform:translateY(26px);transition:opacity .8s cubic-bezier(.16,1,.3,1),transform .8s cubic-bezier(.16,1,.3,1)}
+  .rv.in{opacity:1;transform:none}
+  .stagger>*{opacity:0;transform:translateY(22px);transition:opacity .7s cubic-bezier(.16,1,.3,1),transform .7s cubic-bezier(.16,1,.3,1)}
+  .stagger.in>*{opacity:1;transform:none}
+  .stagger.in>*:nth-child(1){transition-delay:.05s}
+  .stagger.in>*:nth-child(2){transition-delay:.13s}
+  .stagger.in>*:nth-child(3){transition-delay:.21s}
+  .stagger.in>*:nth-child(4){transition-delay:.29s}
+  .stagger.in>*:nth-child(5){transition-delay:.37s}
+
+  /* ── 章节头 ── */
+  .sec-head{display:flex;align-items:baseline;gap:20px;margin-bottom:42px}
+  .sec-head .idx{font-family:var(--mono);font-size:13px;color:var(--teal);
+    font-weight:500;padding-top:6px;position:relative}
+  .sec-head .idx::before{content:"";position:absolute;left:-14px;top:11px;width:8px;height:8px;
+    border-radius:50%;background:var(--teal);box-shadow:0 0 10px var(--teal)}
+  .eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--muted);display:block;margin-bottom:8px}
+  .sec-head h2{font-family:var(--serif);font-weight:700;font-size:clamp(27px,4vw,42px);
+    line-height:1.18;color:var(--head);letter-spacing:.01em}
+  .lede{font-size:16.5px;color:var(--muted);max-width:660px;margin:-24px 0 40px;line-height:1.75}
+  .lede b,.lede strong{color:var(--ink);font-weight:600}
+  code{font-family:var(--mono);font-size:.85em;background:rgba(63,224,197,.09);color:#8ff0e0;
+    border:1px solid rgba(63,224,197,.16);border-radius:5px;padding:1px 6px}
+
+  /* ── HERO ── */
+  .hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;
+    padding:120px 0 90px;border:0;position:relative}
+  .hero .tag{font-family:var(--mono);font-size:12px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--teal);display:inline-flex;align-items:center;gap:10px;margin-bottom:26px}
+  .hero .tag .pulse{width:9px;height:9px;border-radius:50%;background:var(--teal);
+    box-shadow:0 0 0 0 rgba(63,224,197,.6);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(63,224,197,.55)}70%{box-shadow:0 0 0 12px rgba(63,224,197,0)}100%{box-shadow:0 0 0 0 rgba(63,224,197,0)}}
+  .hero h1{font-family:var(--serif);font-weight:900;font-size:clamp(46px,9vw,104px);line-height:1.02;
+    color:var(--head);letter-spacing:.005em;margin-bottom:8px}
+  .hero h1 .accent{background:linear-gradient(115deg,var(--teal),var(--blue) 70%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero h1 .cursor{display:inline-block;width:.06em;height:.92em;background:var(--teal);
+    vertical-align:-6px;margin-left:6px;animation:blink 1.1s steps(1) infinite;box-shadow:0 0 14px var(--teal)}
+  @keyframes blink{50%{opacity:0}}
+  .hero .desc{font-size:clamp(17px,2.3vw,22px);color:var(--ink);max-width:680px;margin:24px 0 14px;line-height:1.6}
+  .hero .desc b{color:var(--teal);font-weight:600}
+  .hero .role{font-family:var(--mono);font-size:13px;color:var(--muted);margin-bottom:44px}
+  .ticker{display:flex;gap:10px;flex-wrap:wrap;max-width:820px}
+  .chip{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;color:var(--ink);
+    border:1px solid var(--line2);border-radius:100px;padding:7px 15px;background:rgba(255,255,255,.02);
+    display:inline-flex;align-items:center;gap:8px;transition:.3s}
+  .chip:hover{border-color:var(--teal);color:var(--teal);box-shadow:0 0 20px -6px var(--teal)}
+  .chip .d{width:6px;height:6px;border-radius:50%;background:var(--teal)}
+  .chip .d.a{background:var(--amber)}.chip .d.b{background:var(--blue)}.chip .d.v{background:var(--violet)}
+  .scrollcue{position:absolute;bottom:34px;left:0;font-family:var(--mono);font-size:11px;
+    letter-spacing:.2em;color:var(--dim);display:flex;align-items:center;gap:10px}
+  .scrollcue .bar{width:1px;height:34px;background:linear-gradient(var(--teal),transparent);
+    animation:cue 1.8s ease-in-out infinite}
+  @keyframes cue{0%,100%{opacity:.3;transform:scaleY(.6)}50%{opacity:1;transform:scaleY(1)}}
+
+  /* ── 三件套 pillars ── */
+  .pillars{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;position:relative}
+  .pillar{background:linear-gradient(165deg,var(--panel),var(--bg2));border:1px solid var(--line);
+    border-radius:16px;padding:26px 24px 24px;position:relative;overflow:hidden;transition:.4s}
+  .pillar::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;
+    background:var(--c,var(--teal));opacity:.7;box-shadow:0 0 16px var(--c,var(--teal))}
+  .pillar:hover{transform:translateY(-6px);border-color:var(--line2);
+    box-shadow:0 24px 60px -30px var(--c,var(--teal))}
+  .pillar .mk{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--c,var(--teal));
+    text-transform:uppercase;margin-bottom:16px;display:flex;justify-content:space-between}
+  .pillar h3{font-family:var(--serif);font-weight:700;font-size:21px;color:var(--head);margin-bottom:6px}
+  .pillar .path{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:14px}
+  .pillar p{font-size:14px;color:var(--muted);line-height:1.65}
+  .pillar .ver{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);
+    font-family:var(--mono);font-size:12px;color:var(--ink)}
+  .note-band{margin-top:22px;background:rgba(246,179,82,.06);border:1px solid rgba(246,179,82,.2);
+    border-radius:14px;padding:18px 22px;display:flex;gap:16px;align-items:flex-start}
+  .note-band .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--amber);
+    text-transform:uppercase;white-space:nowrap;padding-top:2px}
+  .note-band p{font-size:14.5px;color:var(--ink);margin:0}
+
+  /* ── 管线 spine ── */
+  .pipe{position:relative;padding-left:38px;margin-top:8px}
+  .pipe::before{content:"";position:absolute;left:11px;top:8px;bottom:8px;width:2px;
+    background:linear-gradient(var(--teal),var(--violet),var(--amber),var(--rose))}
+  .pipe .flowdot{position:absolute;left:6px;width:12px;height:12px;border-radius:50%;
+    background:var(--teal);box-shadow:0 0 16px 3px var(--teal);animation:flow 4.2s cubic-bezier(.5,0,.5,1) infinite}
+  @keyframes flow{0%{top:2px;opacity:0}8%{opacity:1}92%{opacity:1}100%{top:calc(100% - 14px);opacity:0}}
+  .pstep{position:relative;padding:16px 0;display:grid;grid-template-columns:112px 1fr;gap:18px;align-items:start}
+  .pstep+.pstep{border-top:1px dashed var(--line)}
+  .pstep::before{content:"";position:absolute;left:-32px;top:24px;width:10px;height:10px;border-radius:50%;
+    background:var(--bg);border:2px solid var(--who,var(--teal));box-shadow:0 0 0 4px var(--bg)}
+  .pstep .who{font-family:var(--mono);font-size:11px;letter-spacing:.05em;padding:5px 9px;border-radius:7px;
+    background:color-mix(in srgb,var(--who) 15%,transparent);color:var(--who);
+    border:1px solid color-mix(in srgb,var(--who) 30%,transparent);text-align:center;line-height:1.35}
+  .pstep .txt{font-size:14.5px;color:var(--ink)}
+  .pstep .txt b{color:var(--head);font-weight:600}
+  .pipe-note{margin-top:20px;font-size:13.5px;color:var(--muted);font-family:var(--mono);
+    padding-left:38px;line-height:1.6}
+  .pipe-note b{color:var(--teal)}
+
+  /* ── 通用卡片网格 ── */
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  .cell{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 22px;transition:.35s}
+  .cell:hover{border-color:var(--line2);background:var(--panel2);transform:translateY(-3px)}
+  .cell .ico{font-size:22px;margin-bottom:12px;display:block;filter:grayscale(.1)}
+  .cell h3{font-size:16px;color:var(--head);margin-bottom:7px;font-weight:600}
+  .cell h3 .m{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:.08em;display:block;margin-bottom:4px;font-weight:500}
+  .cell p{font-size:13.5px;color:var(--muted);line-height:1.65}
+  .cell .model{margin-top:12px;font-family:var(--mono);font-size:12px;color:var(--teal);
+    background:rgba(63,224,197,.07);border:1px solid rgba(63,224,197,.15);border-radius:7px;padding:5px 10px;display:inline-block}
+
+  /* ── 风险/约束 ── */
+  .why{background:linear-gradient(160deg,rgba(255,125,151,.07),transparent);
+    border:1px solid rgba(255,125,151,.2);border-radius:16px;padding:26px 28px;margin-bottom:20px}
+  .why .k{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--rose);
+    text-transform:uppercase;margin-bottom:10px;display:block}
+  .why p{font-size:15.5px;color:var(--ink);margin:0}
+  .why p b{color:var(--rose)}
+
+  /* ── 三列 ── */
+  .cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .colbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 22px}
+  .colbox h4{font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--teal);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+  .colbox ul{list-style:none}
+  .colbox li{font-size:13.5px;color:var(--ink);padding:6px 0 6px 18px;position:relative;line-height:1.5}
+  .colbox li::before{content:"▸";position:absolute;left:0;color:var(--dim)}
+  .colbox li b{color:var(--head)}
+  .colbox.ship h4{color:var(--teal)}.colbox.wip h4{color:var(--amber)}.colbox.hard h4{color:var(--rose)}
+  .colbox.ship{border-color:rgba(63,224,197,.18)}
+  .colbox.wip{border-color:rgba(246,179,82,.18)}
+  .colbox.hard{border-color:rgba(255,125,151,.18)}
+
+  /* ── 取向 band ── */
+  .band{margin-top:22px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--teal);
+    border-radius:12px;padding:20px 24px}
+  .band .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--teal);text-transform:uppercase;margin-bottom:8px;display:block}
+  .band p{font-size:15px;color:var(--ink);margin:0}
+  .band p b{color:var(--head)}
+
+  /* ── 规格表 ── */
+  .spec{width:100%;border-collapse:collapse;font-size:13.5px}
+  .spec thead th{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--muted);text-align:left;padding:12px 14px;border-bottom:1px solid var(--line2)}
+  .spec td{padding:13px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  .spec tbody tr{transition:.25s}
+  .spec tbody tr:hover{background:rgba(63,224,197,.03)}
+  .spec td:first-child{color:var(--head);font-weight:600;white-space:nowrap}
+  .spec td:nth-child(2){color:var(--ink)}
+  .spec td:nth-child(3){font-family:var(--mono);font-size:12.5px;color:var(--teal)}
+  .spec tr.sub td:first-child{color:var(--muted);font-weight:400;padding-left:28px;font-size:12.5px}
+  .quote{margin-top:30px;background:linear-gradient(160deg,var(--panel2),var(--bg2));
+    border:1px solid var(--line);border-radius:16px;padding:28px 30px;font-size:16px;line-height:1.75;color:var(--ink)}
+  .quote b{color:var(--teal)}
+
+  footer{position:relative;z-index:2;max-width:1080px;margin:0 auto;padding:60px 40px 80px;
+    border-top:1px solid var(--line);margin-top:40px}
+  footer .fl{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:18px}
+  footer .brand{font-family:var(--serif);font-weight:700;font-size:20px;color:var(--head)}
+  footer .meta{font-family:var(--mono);font-size:11.5px;color:var(--dim);letter-spacing:.08em;text-align:right;line-height:1.9}
+  footer .meta b{color:var(--teal)}
+
+  @media(max-width:820px){
+    main{padding:0 22px}
+    section{padding:82px 0}
+    .pillars,.grid3,.grid2,.cols3{grid-template-columns:1fr}
+    .sec-head{gap:14px;margin-bottom:32px}
+    .lede{margin-top:-16px}
+    .pstep{grid-template-columns:1fr;gap:8px}
+    .pstep .who{justify-self:start}
+    .spec{font-size:12.5px}
+    .spec td,.spec thead th{padding:10px 8px}
+  }
+  ::selection{background:rgba(63,224,197,.28);color:#fff}
+  ::-webkit-scrollbar{width:10px}
+  ::-webkit-scrollbar-track{background:var(--bg)}
+  ::-webkit-scrollbar-thumb{background:#1c2430;border-radius:8px;border:2px solid var(--bg)}
+  ::-webkit-scrollbar-thumb:hover{background:var(--teal-d)}
+</style>
+</head>
+<body>
+
+<div class="bg">
+  <div class="grid"></div>
+  <div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
+  <div class="noise"></div>
+</div>
+<div class="progress" id="progress"></div>
+
+<nav class="rail" id="rail">
+  <a href="#hero" data-s="hero"><span class="tick"></span><span class="lbl">概览</span></a>
+  <a href="#pipe" data-s="pipe"><span class="tick"></span><span class="lbl">全景管线</span></a>
+  <a href="#voice" data-s="voice"><span class="tick"></span><span class="lbl">语音技术</span></a>
+  <a href="#lipsync" data-s="lipsync"><span class="tick"></span><span class="lbl">嘴型技术</span></a>
+  <a href="#face" data-s="face"><span class="tick"></span><span class="lbl">人物表情</span></a>
+  <a href="#clean" data-s="clean"><span class="tick"></span><span class="lbl">穿帮消除</span></a>
+  <a href="#cost" data-s="cost"><span class="tick"></span><span class="lbl">成本账本</span></a>
+  <a href="#usage" data-s="usage"><span class="tick"></span><span class="lbl">团队使用</span></a>
+</nav>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero" id="hero">
+    <span class="tag rv"><span class="pulse"></span>视频复刻产线 · 技术方案讲解</span>
+    <h1 class="rv">爆款视频的<br><span class="accent">换人换声</span>引擎<span class="cursor"></span></h1>
+    <p class="desc rv">拿一条已经跑出成绩的爆款，换成<b>自家主播的脸和声音</b>重新出片——观众看不出是 AI 做的，单条成本 <b>$1.8</b>、全程约 40 分钟。</p>
+    <p class="role rv">// 面向团队同事的技术讲解 · 三大核心：音色克隆 / 唇形同步 / 表情保真</p>
+    <div class="ticker rv">
+      <span class="chip"><span class="d b"></span>MINIMAX VOICE-CLONE</span>
+      <span class="chip"><span class="d b"></span>SYNC LIPSYNC-2</span>
+      <span class="chip"><span class="d v"></span>WHISPER TIMELINE</span>
+      <span class="chip"><span class="d v"></span>OPENCV INPAINT</span>
+      <span class="chip"><span class="d"></span>$1.8 / 条</span>
+      <span class="chip"><span class="d a"></span>4 轮真人审片迭代</span>
+    </div>
+    <div class="scrollcue"><span class="bar"></span>SCROLL / 向下滚动</div>
+  </section>
+
+  <!-- 01 全景管线 -->
+  <section id="pipe">
+    <div class="sec-head rv">
+      <span class="idx">01</span>
+      <div><span class="eyebrow">End-to-End Pipeline</span>
+      <h2>一条爆款怎么变成自家素材</h2></div>
+    </div>
+    <p class="lede rv">九段流水线：<strong>只有两段真正花钱</strong>（克隆 TTS 与唇形同步），其余全部本地零成本。LLM 只负责判断类工作（改稿、分镜），机械步骤全部脚本化。</p>
+    <div class="pipe rv">
+      <div class="flowdot"></div>
+      <div class="pstep" style="--who:var(--teal)">
+        <span class="who">本地<br>取片</span>
+        <span class="txt">分享页 <code>_ROUTER_DATA</code> 提取<b>无水印直链</b>下载（yt-dlp 会被风控拦，不用）</span>
+      </div>
+      <div class="pstep" style="--who:var(--violet)">
+        <span class="who">本地<br>转写</span>
+        <span class="txt"><b>mlx-whisper large-v3-turbo</b> 出逐句时间戳；按 4 秒抽帧看清源视频镜头结构（口播段 / 文件特写段）</span>
+      </div>
+      <div class="pstep" style="--who:var(--amber)">
+        <span class="who">LLM<br>改稿</span>
+        <span class="txt">保留全部核心要点和数字，<b>重写措辞不逐句照搬</b>；按底片场景数切段，每段时长 ≤ 对应底片长度</span>
+      </div>
+      <div class="pstep" style="--who:var(--blue)">
+        <span class="who">云端<br>克隆+TTS</span>
+        <span class="txt">主播真声 62s → <b>MiniMax 零样本克隆</b> → 用她自己的音色合成新口播（详见 02 章）</span>
+      </div>
+      <div class="pstep" style="--who:var(--amber)">
+        <span class="who">LLM<br>分镜</span>
+        <span class="txt">按 TTS 实测时间戳划定<b>真人出镜窗口</b>与<b>插页窗口</b>（条款文件特写）——这是省钱的关键一刀</span>
+      </div>
+      <div class="pstep" style="--who:var(--blue)">
+        <span class="who">云端<br>唇形</span>
+        <span class="txt"><b>先剪后驱动</b>：只把出镜窗口切段送 sync-lipsync v2，插页时段一分不花（详见 03 章）</span>
+      </div>
+      <div class="pstep" style="--who:var(--violet)">
+        <span class="who">本地<br>擦字幕</span>
+        <span class="txt">OpenCV 逐帧 <b>inpaint 擦除底片自带的烧录字幕</b>，构图零改动（详见 05 章）</span>
+      </div>
+      <div class="pstep" style="--who:var(--teal)">
+        <span class="who">本地<br>合成</span>
+        <span class="txt"><code>storyboard.json</code> 驱动 ffmpeg 单 pass：真人段 + Pillow 真实条款插页 + 逐句字幕 + 分段标题</span>
+      </div>
+      <div class="pstep" style="--who:var(--amber)">
+        <span class="who">人在环<br>验收</span>
+        <span class="txt">抽帧逐段目检 + 音轨校验 + <b>真人听配音、看嘴型</b>；投放前按平台政策做 AIGC 标注</span>
+      </div>
+    </div>
+    <p class="pipe-note rv">// 设计取向：<b>确定性步骤交给代码，模糊判断才交给模型</b>——下载、切片、擦除、合成全是脚本；只有改稿和分镜由 LLM 做。</p>
+  </section>
+
+  <!-- 02 语音技术 -->
+  <section id="voice">
+    <div class="sec-head rv">
+      <span class="idx">02</span>
+      <div><span class="eyebrow">Voice · Zero-Shot Cloning + TTS</span>
+      <h2>声音：不是像她，就是她</h2></div>
+    </div>
+    <p class="lede rv">第一版用微软 edge-tts 免费合成，用户一票否决——「<strong>声音不像真人，很生硬</strong>」。根因是通用 TTS 音色与真人主播完全对不上。解法：先把主播自己的声纹<strong>克隆</strong>下来，再用她的音色合成任何新台词。</p>
+    <div class="pillars stagger">
+      <div class="pillar" style="--c:var(--blue)">
+        <div class="mk"><span>Step A · 克隆</span><span>一次性</span></div>
+        <h3>零样本音色克隆</h3>
+        <p class="path">fal-ai/minimax/voice-clone</p>
+        <p>喂 <b>≥10 秒</b>主播真声（我们用两条底片合并的 62s），模型抽取声纹特征生成专属 <code>voice_id</code>。开 <code>noise_reduction</code> + 音量归一化，带 BGM 的素材也能克隆。</p>
+        <div class="ver">$1.50 / 主播 · 一次性 · 登记进 voice registry 复用</div>
+      </div>
+      <div class="pillar" style="--c:var(--teal)">
+        <div class="mk"><span>Step B · 合成</span><span>按字计费</span></div>
+        <h3>speech-02-hd 出片</h3>
+        <p class="path">fal-ai/minimax/speech-02-hd</p>
+        <p>MiniMax 是中文语音赛道的第一梯队，韵律、停顿、儿化都自然。参数：<code>speed 1.05</code> 贴抖音口播节奏、<code>language_boost: Chinese</code>、32kHz 采样。</p>
+        <div class="ver">$0.10 / 千字 → 一条 52s 口播 ≈ $0.03</div>
+      </div>
+      <div class="pillar" style="--c:var(--violet)">
+        <div class="mk"><span>Step C · 质检</span><span>本地免费</span></div>
+        <h3>Whisper 回环校验</h3>
+        <p class="path">mlx-whisper · 双用途</p>
+        <p>TTS 产物<b>回喂 whisper 再转写一遍</b>：①逐字比对确认没吞字错读（本条 235 字零错）；②拿到的逐句时间戳是后续<b>字幕轴和分镜窗口的唯一事实源</b>，长段内再按字数比例细分。</p>
+        <div class="ver">时间轴禁止按字数估全片 —— 必须用实测时间戳</div>
+      </div>
+    </div>
+    <div class="note-band rv">
+      <span class="k">选型账</span>
+      <p>备选里 <b>F5-TTS</b>（开源）中文偏平、<b>CosyVoice</b> 需要 DashScope 账号、<b>IndexTTS-2</b>（B站开源）是自建首选——量大后可搬到 RunPod 把 TTS 成本归零。当前量级下 MiniMax 的自然度溢价完全值得。⚠️ voice_id 闲置 7 天会被回收，克隆前先查共享登记表 <code>fal-voice-registry.md</code>，别重复花 $1.5。</p>
+    </div>
+  </section>
+
+  <!-- 03 嘴型技术 -->
+  <section id="lipsync">
+    <div class="sec-head rv">
+      <span class="idx">03</span>
+      <div><span class="eyebrow">Lip-Sync · Diffusion Mouth Resynthesis</span>
+      <h2>嘴型：让底片说出它没说过的话</h2></div>
+    </div>
+    <p class="lede rv">第一版「照片 + 配音」嘴完全不动，用户反馈「<strong>说话时声音跟嘴型对不上</strong>」。解法是唇形同步（lip-sync）：模型听着新音频，<strong>只重绘画面中嘴部区域</strong>的每一帧——牙齿、舌位、唇形跟随音素变化，脸的其余部分和背景一个像素都不动。</p>
+    <div class="grid2 stagger">
+      <div class="cell">
+        <span class="ico">👄</span>
+        <h3><span class="m">HOW IT WORKS</span>扩散式嘴部重绘</h3>
+        <p>sync.so 的 lipsync-2 属于音频条件扩散模型：逐帧检测人脸 → 抠出嘴部区域 → 以音频特征为条件重新生成该区域 → 贴回原帧。因为只动嘴部，<b style="color:var(--ink)">身份、肤质、光影全部原生保留</b>——这是「看不出 AI」的基础。</p>
+        <span class="model">fal-ai/sync-lipsync/v2 · model: lipsync-2</span>
+      </div>
+      <div class="cell">
+        <span class="ico">✂️</span>
+        <h3><span class="m">COST TRICK</span>先剪后驱动</h3>
+        <p>唇形按<b style="color:var(--ink)">视频秒数</b>计费（$3/分钟）。插页（条款特写）时段观众根本看不到嘴——所以<b style="color:var(--ink)">先按分镜把真人出镜窗口切出来，只驱动这些秒数</b>。本条：出镜 35.5s vs 整条 52.3s，唇形费 $2.62 → $1.77，省 32%。</p>
+        <span class="model">sync_mode: cut_off · 输出时长 = 音频切片时长</span>
+      </div>
+    </div>
+    <div class="rv" style="overflow-x:auto;margin-top:24px">
+      <table class="spec">
+        <thead><tr><th>方案</th><th>结论</th><th>价格 / 约束</th></tr></thead>
+        <tbody>
+          <tr><td>sync lipsync-2 ✅</td><td>嘴部细节最佳、无时长切块限制、720p 竖屏原生——<b>采用</b></td><td>$3/min</td></tr>
+          <tr class="sub"><td>· lipsync-2-pro</td><td>特写镜头嘴部细节升级档，标准档不够再上</td><td>$5/min</td></tr>
+          <tr><td>Kling 官方对口型</td><td>质量好但 <b>2–10s/次硬限制</b>，60s 要切 6 块拼接，接缝风险</td><td>~$0.014/5s</td></tr>
+          <tr><td>LatentSync 1.6</td><td>字节开源（Apache-2.0），512px 嘴部精度、中文调优，<b>自建质量上限</b></td><td>RunPod 自跑 · 18GB VRAM</td></tr>
+          <tr><td>MuseTalk</td><td>实时级速度，但嘴部内部分辨率低 → 720p 上牙齿发糊</td><td>$0.04/次 · 草稿档</td></tr>
+          <tr><td>Wav2Lip 系</td><td>老一代 GAN，嘴糊 + 原版权重不可商用——弃</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="band rv">
+      <span class="k">工程护栏</span>
+      <p>每段 VO 切片必须 <b>≤ 对应底片段长</b>（cut_off 模式下超长会被拦腰截断）；合成时对每段做 <code>tpad + trim</code> 帧级对齐，防止毫秒级漂移逐段累积拖歪整条时间轴。</p>
+    </div>
+  </section>
+
+  <!-- 04 人物表情 -->
+  <section id="face">
+    <div class="sec-head rv">
+      <span class="idx">04</span>
+      <div><span class="eyebrow">Facial Expression · Real Footage First</span>
+      <h2>表情：不是生成出来的，是保留下来的</h2></div>
+    </div>
+    <p class="lede rv">这是整套方案最反直觉的一点：我们<strong>不用任何模型去「生成」表情</strong>。表情、眼神、挑眉、点头、手势——全部来自主播真实拍摄的底片，唇形模型只接管嘴部一小块区域。<strong>真实的东西不需要以假乱真。</strong></p>
+    <div class="grid3 stagger">
+      <div class="cell">
+        <span class="ico">🚫</span>
+        <h3><span class="m">否决 · 路线一</span>AI 生成人像</h3>
+        <p>v1 用 FLUX 生成「相似的人」当画面——静态图没有微表情，Ken Burns 推拉也救不了，AI 感一眼穿。<b style="color:var(--ink)">生成路线在「像真人」这件事上天花板太低。</b></p>
+      </div>
+      <div class="cell">
+        <span class="ico">🚫</span>
+        <h3><span class="m">否决 · 路线二</span>数字人开口（s2v）</h3>
+        <p>照片驱动的数字人（如 Wan s2v）实测「照片开口」感强烈：<b style="color:var(--ink)">眨眼频率机械、头部僵直、情绪与语义脱节</b>——外部评测同样结论。表情是数字人的阿喀琉斯之踵。</p>
+      </div>
+      <div class="cell">
+        <span class="ico">✅</span>
+        <h3><span class="m">采用 · 路线三</span>真人底片 + 局部重绘</h3>
+        <p>底片里她的每一次微笑、每个手势都是<b style="color:var(--ink)">真实表演</b>。唇形模型只重绘嘴部 ~5% 的像素，其余 95% 原封不动——表情保真度天然 100%。</p>
+      </div>
+    </div>
+    <div class="grid2 stagger" style="margin-top:16px">
+      <div class="cell">
+        <span class="ico">🎬</span>
+        <h3>表情与内容对齐 = 选片的艺术</h3>
+        <p>分镜时按台词情绪挑底片区间：钩子段选<b style="color:var(--ink)">手势强调</b>的部分、CTA 选<b style="color:var(--ink)">笑容收尾</b>的部分；两条底片（展厅黄裙 / 工厂黑西装）做双场景切换，讲「材料」时正好站在工厂里——场景为内容背书。</p>
+      </div>
+      <div class="cell">
+        <span class="ico">🔭</span>
+        <h3>表情升级路线（待开通）</h3>
+        <p>需要「照着新台词重新表演」时的下一代方案：<b style="color:var(--ink)">OmniHuman-1.5</b>（音频驱动全身表演 + 语义情绪，火山引擎）与 <b style="color:var(--ink)">Seedance 1.5 Pro</b>（原生毫秒级对口型）。工法要点：3–5s 短镜多切、prompt 加乱发丝等「不完美」词防塑料感、禁露齿笑。</p>
+      </div>
+    </div>
+    <div class="note-band rv">
+      <span class="k">Human Loop</span>
+      <p>本方案是<b> 4 轮真人审片</b>逼出来的：v1 声音生硬+嘴不动被否 → v2 换克隆+唇形但字幕带太重 → v3 裁切去字幕但构图变形被否 → v4/v5 逐帧擦除+原构图通过。<b>审片人的眼睛是最终的损失函数。</b></p>
+    </div>
+  </section>
+
+  <!-- 05 穿帮消除 -->
+  <section id="clean">
+    <div class="sec-head rv">
+      <span class="idx">05</span>
+      <div><span class="eyebrow">Artifact Removal · Burned-in Subtitle Inpainting</span>
+      <h2>穿帮消除：旧字幕必须凭空消失</h2></div>
+    </div>
+    <p class="lede rv">底片自带烧录字幕（旧广告词），和新口播完全对不上——是最大穿帮点。四代方案迭代后的结论：<strong>遮不如擦</strong>。</p>
+    <div class="why rv">
+      <span class="k">Dead Ends · 三条死路</span>
+      <p><b>黑色字幕带</b>盖住 → 被否「黑色区域过大」；<b>重度模糊+压暗</b> → 大号高对比字幕的残影仍可读；<b>裁切放大</b>把字幕裁出画面 → 人物变低变近、构图被否。通用视频 inpainting 模型（ProPainter 等）对「全程被盖的静态区域」无源可借，只会生成一团糊——调研后放弃。</p>
+    </div>
+    <div class="grid2 stagger">
+      <div class="cell">
+        <span class="ico">🎯</span>
+        <h3><span class="m">WINNING MOVE</span>逐帧字形级擦除</h3>
+        <p>不遮整条区域，只擦<b style="color:var(--ink)">字本身</b>：条带内检测白色字芯（RGB&gt;185 且近灰白）∪ 贴边黑描边（暗像素 ∩ 字芯 13px 邻域），膨胀 5px 成掩膜，<code>cv2.inpaint(TELEA)</code> 用周围像素插值填充。字幕落在纯色衣物上时<b style="color:var(--ink)">基本无痕</b>。</p>
+      </div>
+      <div class="cell">
+        <span class="ico">⚡</span>
+        <h3><span class="m">ZERO COST</span>本地流式处理</h3>
+        <p>ffmpeg rawvideo 管道解码 → NumPy 逐帧处理 → 管道回编码，1569 帧约 1 分钟跑完，零 GPU 零 API 费。新字幕恰好压在擦除区上方，进一步掩盖手部经过时的轻微涂抹感。</p>
+      </div>
+    </div>
+    <div class="band rv">
+      <span class="k">ffmpeg 冷知识（都翻过车）</span>
+      <p>concat 分支内 overlay 无限循环图片流必须 <code>shortest=1</code>，否则其它分支整段消失而总时长正常——极难察觉；JPEG 是全范围色域，进视频链路必须 <code>in_range=pc:out_range=tv</code>；静态 PNG overlay 必须 <code>-loop 1</code> 否则跨拼接边界后 enable 窗口失效。</p>
+    </div>
+  </section>
+
+  <!-- 06 成本账本 -->
+  <section id="cost">
+    <div class="sec-head rv">
+      <span class="idx">06</span>
+      <div><span class="eyebrow">Unit Economics</span>
+      <h2>一条 52 秒成片的账</h2></div>
+    </div>
+    <div class="rv" style="overflow-x:auto">
+      <table class="spec">
+        <thead><tr><th>环节</th><th>说明</th><th>成本</th></tr></thead>
+        <tbody>
+          <tr><td>音色克隆</td><td>每位主播一次性，voice_id 登记复用</td><td>$1.50（摊销后 ≈ 0）</td></tr>
+          <tr><td>TTS 合成</td><td>235 字 × $0.10/千字</td><td>$0.03</td></tr>
+          <tr><td>唇形同步</td><td>先剪后驱动：只驱动出镜 35.5s × $0.05/s</td><td>$1.77</td></tr>
+          <tr><td>取片 / 转写 / 擦字幕 / 合成</td><td>全部本地脚本</td><td>$0</td></tr>
+          <tr><td><b>单条合计</b></td><td>同主播稳态成本</td><td><b>≈ $1.80 / 条</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="grid2 stagger" style="margin-top:24px">
+      <div class="cell">
+        <span class="ico">📉</span>
+        <h3>成本主要由片长决定</h3>
+        <p>95% 的钱花在唇形按秒计费上：30s 短版 ≈ $1.2，60s ≈ $2.4。压成本的杠杆是<b style="color:var(--ink)">多用插页、少驱动出镜秒数</b>，而不是压质量档位。</p>
+      </div>
+      <div class="cell">
+        <span class="ico">🏗️</span>
+        <h3>量大后的自建路线</h3>
+        <p>LatentSync 1.6 + IndexTTS-2 部署到自有 RunPod（4090/A6000 Pod），单条 GPU 成本 <b style="color:var(--ink)">$0.3–0.7</b>、无限重跑挑最好一版；搭建验证约一天，<b style="color:var(--ink)">产量 &gt;15 条/月才回本</b>——试投阶段不值得。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 07 团队使用 -->
+  <section id="usage">
+    <div class="sec-head rv">
+      <span class="idx">07</span>
+      <div><span class="eyebrow">Team Playbook · Skill</span>
+      <h2>怎么用：一句话触发</h2></div>
+    </div>
+    <p class="lede rv">整条产线已沉淀为 Workflow 仓库的共享 skill <code>.claude/skills/douyin-replica</code>（PR #28 已合并），文档经过「新人代理干跑测试」修订，照着走不会踩坑。</p>
+    <div class="cols3 stagger">
+      <div class="colbox ship">
+        <h4>✅ 触发方式</h4>
+        <ul>
+          <li>在 <b>Workflow 仓库</b>目录打开 Claude Code</li>
+          <li>说「<b>复刻这条视频 &lt;链接&gt;，换成 xx 主播</b>」并附底片路径</li>
+          <li>全流程约 30–40 分钟，唇形任务并行提交</li>
+        </ul>
+      </div>
+      <div class="colbox wip">
+        <h4>📋 前置条件</h4>
+        <ul>
+          <li>主播口播底片 <b>≥30s</b>（720×1280，脸部清晰）</li>
+          <li><b>FAL_API_KEY</b>：softie-n8n Fly secrets（skill 内有取法）</li>
+          <li>克隆前查 <code>fal-voice-registry.md</code> 登记表</li>
+          <li>本机 flyctl 已授权（没有找 Gus 开）</li>
+        </ul>
+      </div>
+      <div class="colbox hard">
+        <h4>⚠️ 投放红线</h4>
+        <ul>
+          <li>口播稿<b>重写</b>，不逐句照搬源视频</li>
+          <li>音色克隆仅限<b>已授权的自家主播</b></li>
+          <li>投放前按抖音政策做 <b>AIGC 标注</b></li>
+          <li>成片必须真人过一遍：听配音、看嘴型</li>
+        </ul>
+      </div>
+    </div>
+    <div class="quote rv">
+      <b>一句话总括：</b>用<b>零样本音色克隆</b>让声音「就是她」，用<b>扩散式嘴部重绘</b>让嘴跟上新台词，用<b>真人底片</b>让表情天然为真，再用<b>逐帧擦除</b>消掉唯一的穿帮点——四件事拼起来，就是一条观众看不出 AI 的投放素材，$1.8 一条。
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="fl">
+    <span class="brand">复刻产线 <span style="color:var(--teal)">/</span> 换人换声技术方案</span>
+    <span class="meta">音色克隆 · 唇形同步 · 表情保真 · 2026-07<br><b>upio.ai/learn/douyin-replica-tech</b></span>
+  </div>
+</footer>
+
+<script>
+  // 滚动进度条
+  const prog=document.getElementById('progress');
+  const onScroll=()=>{
+    const h=document.documentElement;
+    const p=h.scrollTop/(h.scrollHeight-h.clientHeight);
+    prog.style.width=(p*100)+'%';
+  };
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+
+  // reveal + stagger（IO 主触发 + 滚动兜底，保证快速滚动/锚点跳转也不留空白）
+  const io=new IntersectionObserver((es)=>{
+    es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});
+  },{threshold:.16,rootMargin:'0px 0px -8% 0px'});
+  document.querySelectorAll('.rv,.stagger').forEach(el=>io.observe(el));
+  const revealPast=()=>{
+    document.querySelectorAll('.rv:not(.in),.stagger:not(.in)').forEach(el=>{
+      if(el.getBoundingClientRect().top < window.innerHeight*0.9){el.classList.add('in');io.unobserve(el);}
+    });
+  };
+  document.addEventListener('scroll',revealPast,{passive:true});
+  revealPast();window.addEventListener('load',revealPast); // 锚点直达/恢复滚动位置时 scroll 不触发，立即兜底一次
+
+  // hero 首屏立即显示
+  window.addEventListener('load',()=>{
+    document.querySelectorAll('#hero .rv').forEach((el,i)=>{
+      setTimeout(()=>el.classList.add('in'),120+i*110);
+    });
+  });
+
+  // 侧栏章节高亮
+  const rail=[...document.querySelectorAll('.rail a')];
+  const secObs=new IntersectionObserver((es)=>{
+    es.forEach(e=>{
+      if(e.isIntersecting){
+        rail.forEach(a=>a.classList.toggle('on',a.dataset.s===e.target.id));
+      }
+    });
+  },{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('main section').forEach(s=>secObs.observe(s));
+</script>
+</body>
+</html>
