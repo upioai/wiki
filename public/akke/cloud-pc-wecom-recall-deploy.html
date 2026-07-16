@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>企微 7 天召回 · 部署与验证</title>
+<style>
+  :root{
+    --bg:#f5f8f5; --surface:#ffffff; --surface-2:#edf2ee; --code-bg:#f0f3ef;
+    --ink:#182019; --ink-2:#4a564d; --ink-3:#6d7a70; --line:#dae2dc;
+    --accent:#0e7a58; --accent-2:#0b5f45; --accent-soft:#e2f0ea;
+    --warn:#9c630f; --warn-bg:#f7eeda; --warn-line:#e6d3a6;
+    --stop:#a63636; --stop-bg:#f7e6e4; --stop-line:#e8c6c2;
+    --ok:#227a4a;
+    --shadow:0 1px 2px rgba(20,40,30,.04),0 4px 16px rgba(20,40,30,.05);
+    --mono:ui-monospace,"SFMono-Regular","Cascadia Code",Consolas,"Liberation Mono",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#0e1210; --surface:#151b17; --surface-2:#1b231d; --code-bg:#11170f;
+      --ink:#e8eee9; --ink-2:#a7b4aa; --ink-3:#7d8b81; --line:#28322b;
+      --accent:#43b78d; --accent-2:#63c9a2; --accent-soft:#152a22;
+      --warn:#d7a748; --warn-bg:#241d10; --warn-line:#3d3117;
+      --stop:#df8078; --stop-bg:#271512; --stop-line:#3f211d;
+      --ok:#5cb37f;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 18px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#f5f8f5; --surface:#ffffff; --surface-2:#edf2ee; --code-bg:#f0f3ef;
+    --ink:#182019; --ink-2:#4a564d; --ink-3:#6d7a70; --line:#dae2dc;
+    --accent:#0e7a58; --accent-2:#0b5f45; --accent-soft:#e2f0ea;
+    --warn:#9c630f; --warn-bg:#f7eeda; --warn-line:#e6d3a6;
+    --stop:#a63636; --stop-bg:#f7e6e4; --stop-line:#e8c6c2; --ok:#227a4a;
+    --shadow:0 1px 2px rgba(20,40,30,.04),0 4px 16px rgba(20,40,30,.05);
+  }
+  :root[data-theme="dark"]{
+    --bg:#0e1210; --surface:#151b17; --surface-2:#1b231d; --code-bg:#11170f;
+    --ink:#e8eee9; --ink-2:#a7b4aa; --ink-3:#7d8b81; --line:#28322b;
+    --accent:#43b78d; --accent-2:#63c9a2; --accent-soft:#152a22;
+    --warn:#d7a748; --warn-bg:#241d10; --warn-line:#3d3117;
+    --stop:#df8078; --stop-bg:#271512; --stop-line:#3f211d; --ok:#5cb37f;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 18px rgba(0,0,0,.35);
+  }
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    line-height:1.65;font-size:16px;letter-spacing:.005em;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:880px;margin:0 auto;padding:0 24px 96px}
+  h1,h2,h3{text-wrap:balance;line-height:1.2;letter-spacing:-.01em}
+  code,pre,.mono{font-family:var(--mono)}
+  a{color:var(--accent-2);text-decoration-thickness:1px;text-underline-offset:2px}
+
+  /* ── hero ── */
+  header.hero{padding:56px 0 30px;border-bottom:1px solid var(--line)}
+  .eyebrow{
+    font-size:12.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--accent-2);margin:0 0 14px;display:flex;align-items:center;gap:9px;
+  }
+  .eyebrow::before{content:"";width:22px;height:2px;background:var(--accent);border-radius:2px}
+  h1{font-size:clamp(28px,5vw,40px);font-weight:750;margin:0 0 14px}
+  .lede{font-size:clamp(16px,2.4vw,19px);color:var(--ink-2);margin:0;max-width:60ch}
+  .lede b{color:var(--ink);font-weight:650}
+
+  /* ── status chips row ── */
+  .status{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}
+  .chip{
+    display:inline-flex;align-items:center;gap:8px;padding:7px 13px;border-radius:999px;
+    font-size:13px;font-weight:600;background:var(--surface);border:1px solid var(--line);
+    box-shadow:var(--shadow);
+  }
+  .dot{width:8px;height:8px;border-radius:50%;flex:none}
+  .dot.ok{background:var(--ok)} .dot.wait{background:var(--warn)} .dot.off{background:var(--ink-3)}
+  .chip .k{color:var(--ink-3);font-weight:500}
+
+  /* ── sections ── */
+  section{padding-top:44px}
+  h2{font-size:22px;font-weight:700;margin:0 0 4px;display:flex;align-items:baseline;gap:12px}
+  h2 .num{
+    font-family:var(--mono);font-size:14px;font-weight:600;color:var(--accent);
+    font-variant-numeric:tabular-nums;flex:none;
+  }
+  .sub{color:var(--ink-3);font-size:14.5px;margin:0 0 20px;padding-left:0}
+  h3{font-size:16px;font-weight:660;margin:26px 0 10px;color:var(--ink)}
+  p{margin:0 0 14px} p:last-child{margin-bottom:0}
+
+  /* ── flow diagram ── */
+  .flow{
+    background:var(--surface);border:1px solid var(--line);border-radius:14px;
+    padding:20px;margin:22px 0;box-shadow:var(--shadow);overflow-x:auto;
+  }
+  .flow-row{display:flex;align-items:stretch;gap:0;min-width:640px}
+  .stage{flex:1;padding:2px 14px;position:relative}
+  .stage:not(:last-child)::after{
+    content:"→";position:absolute;right:-8px;top:50%;transform:translateY(-50%);
+    color:var(--accent);font-size:18px;font-weight:700;
+  }
+  .stage .t{font-weight:650;font-size:14px;margin-bottom:3px}
+  .stage .d{font-size:12.5px;color:var(--ink-3);line-height:1.5}
+  .stage.brain .t{color:var(--accent-2)}
+  .stage.leg .t{color:var(--warn)}
+
+  /* ── cards grid ── */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:22px 0}
+  @media(max-width:640px){.grid{grid-template-columns:1fr}}
+  .card{
+    background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;
+    box-shadow:var(--shadow);
+  }
+  .card h3{margin:0 0 4px;display:flex;align-items:center;gap:9px}
+  .tag{
+    font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+    padding:3px 8px;border-radius:6px;background:var(--accent-soft);color:var(--accent-2);
+  }
+  .tag.b{background:var(--warn-bg);color:var(--warn)}
+  .card ul{margin:12px 0 0;padding-left:18px;color:var(--ink-2);font-size:14px}
+  .card li{margin-bottom:7px}
+  .card .where{font-size:12.5px;color:var(--ink-3);margin-top:12px;font-family:var(--mono)}
+
+  /* ── numbered steps ── */
+  ol.steps{list-style:none;counter-reset:s;margin:8px 0 0;padding:0}
+  ol.steps>li{
+    counter-increment:s;position:relative;padding:0 0 24px 52px;
+  }
+  ol.steps>li::before{
+    content:counter(s);position:absolute;left:0;top:-2px;width:34px;height:34px;
+    display:grid;place-items:center;border-radius:9px;background:var(--accent);color:#fff;
+    font-family:var(--mono);font-weight:700;font-size:15px;
+  }
+  :root[data-theme="dark"] ol.steps>li::before{color:#0e1210}
+  @media (prefers-color-scheme:dark){ol.steps>li::before{color:#0e1210}}
+  ol.steps>li:not(:last-child)::after{
+    content:"";position:absolute;left:16px;top:34px;bottom:6px;width:2px;background:var(--line);
+  }
+  ol.steps>li .st{font-weight:660;font-size:16px;margin-bottom:6px}
+  ol.steps>li .sd{color:var(--ink-2);font-size:14.5px}
+  ol.steps>li .sd p{margin:0 0 9px}
+
+  /* ── code ── */
+  pre{
+    background:var(--code-bg);border:1px solid var(--line);border-radius:10px;
+    padding:14px 16px;overflow-x:auto;font-size:13px;line-height:1.7;margin:12px 0;
+    color:var(--ink);
+  }
+  pre .c{color:var(--ink-3)} /* comment */
+  pre .g{color:var(--accent-2);font-weight:600} /* highlight */
+  p code,li code,td code{
+    background:var(--surface-2);padding:1.5px 6px;border-radius:5px;font-size:.87em;
+    border:1px solid var(--line);
+  }
+
+  /* ── callouts ── */
+  .call{border-radius:12px;padding:15px 18px;margin:18px 0;font-size:14.5px;border:1px solid}
+  .call .h{font-weight:700;margin-bottom:5px;display:flex;align-items:center;gap:8px;letter-spacing:.01em}
+  .call.warn{background:var(--warn-bg);border-color:var(--warn-line);color:var(--ink)}
+  .call.warn .h{color:var(--warn)}
+  .call.stop{background:var(--stop-bg);border-color:var(--stop-line);color:var(--ink)}
+  .call.stop .h{color:var(--stop)}
+  .call.info{background:var(--accent-soft);border-color:transparent;color:var(--ink)}
+  .call.info .h{color:var(--accent-2)}
+  .call.done{background:var(--surface);border-color:var(--ok);color:var(--ink)}
+  .call.done .h{color:var(--ok)}
+  .call code{background:rgba(125,125,125,.14);border-color:transparent}
+
+  /* ── tables ── */
+  .tbl{overflow-x:auto;margin:16px 0;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:520px}
+  th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:var(--surface-2);font-weight:650;color:var(--ink-2);font-size:12.5px;letter-spacing:.02em}
+  tr:last-child td{border-bottom:none}
+  td.mono,th.mono{font-family:var(--mono);font-size:12.5px}
+  td b{color:var(--ink)}
+  .pill{font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px;white-space:nowrap}
+  .pill.on{background:var(--stop-bg);color:var(--stop)}
+  .pill.off{background:var(--accent-soft);color:var(--accent-2)}
+
+  /* ── case row ── */
+  .cases{display:grid;grid-template-columns:1fr;gap:0;margin:18px 0;
+    border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
+  .case{display:grid;grid-template-columns:130px 1fr auto;gap:14px;align-items:center;
+    padding:12px 16px;background:var(--surface);border-bottom:1px solid var(--line);font-size:13.5px}
+  .case:last-child{border-bottom:none}
+  .case .nm{font-weight:650}
+  .case .ds{color:var(--ink-2)}
+  .case .vd{font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px;white-space:nowrap;text-align:center}
+  .vd.yes{background:var(--accent-soft);color:var(--accent-2)}
+  .vd.no{background:var(--surface-2);color:var(--ink-3)}
+  @media(max-width:560px){.case{grid-template-columns:1fr auto;gap:6px}.case .ds{grid-column:1/-1}}
+
+  /* ── logic section ── */
+  .logic-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0 10px}
+  @media(max-width:560px){.logic-grid{grid-template-columns:1fr}}
+  .lg{display:flex;gap:11px;align-items:flex-start;background:var(--surface);border:1px solid var(--line);
+    border-radius:10px;padding:12px 14px;font-size:14px;box-shadow:var(--shadow)}
+  .lg .n{flex:none;width:22px;height:22px;border-radius:6px;background:var(--accent-soft);color:var(--accent-2);
+    font-family:var(--mono);font-weight:700;font-size:12px;display:grid;place-items:center;margin-top:1px}
+  .depth{display:flex;flex-direction:column;gap:9px;margin:14px 0 4px}
+  .d-step{display:flex;gap:14px;align-items:baseline;font-size:14px;color:var(--ink-2)}
+  .d-step .lbl{flex:none;width:74px;font-weight:700;color:var(--accent-2);font-size:13px}
+  .d-arrow{color:var(--ink-3);text-align:center;font-size:13px;margin:-2px 0}
+  /* timeline */
+  .timeline{overflow-x:auto;margin:18px 0 8px;padding-bottom:4px}
+  .tl-track{display:flex;min-width:660px;gap:0;position:relative;padding-top:4px}
+  .tl-node{flex:1;text-align:center;position:relative;padding:0 4px}
+  .tl-node::before{content:"";position:absolute;top:17px;left:0;right:0;height:2px;background:var(--line);z-index:0}
+  .tl-node:first-child::before{left:50%} .tl-node:last-child::before{right:50%}
+  .tl-dot{position:relative;z-index:1;width:34px;height:34px;margin:0 auto 8px;border-radius:50%;display:grid;
+    place-items:center;font-family:var(--mono);font-weight:700;font-size:14px;background:var(--accent);color:#fff;
+    border:3px solid var(--bg)}
+  .tl-node.spaced .tl-dot{background:var(--warn)} .tl-node.out .tl-dot{background:var(--ink-3)}
+  :root[data-theme="dark"] .tl-dot{color:#0e1210}
+  @media (prefers-color-scheme:dark){.tl-dot{color:#0e1210}}
+  .tl-day{font-size:11.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .tl-topic{font-size:13px;font-weight:650;margin-top:2px}
+  .tl-freq{font-size:11px;margin-top:5px;font-weight:700;letter-spacing:.02em;color:var(--accent-2)}
+  .tl-node.spaced .tl-freq{color:var(--warn)} .tl-node.out .tl-freq{color:var(--ink-3)}
+  .tl-note{font-size:14px;color:var(--ink-2);margin-top:2px}
+  .stops{display:flex;flex-direction:column;gap:8px;margin:14px 0 0}
+  .stop-c{display:flex;gap:10px;align-items:baseline;background:var(--surface);border:1px solid var(--line);
+    border-left:3px solid var(--ink-3);border-radius:8px;padding:10px 14px;font-size:14px;box-shadow:var(--shadow)}
+  .stop-c.ok{border-left-color:var(--ok)} .stop-c.warn{border-left-color:var(--stop)}
+  .stop-c b{flex:none;color:var(--ink)} .stop-c span{color:var(--ink-2)}
+  /* topic library */
+  .lib-head{display:flex;align-items:center;gap:10px;margin:22px 0 2px}
+  .lib-head h3{margin:0}
+  .lib-tag{font-size:11px;font-weight:700;letter-spacing:.04em;padding:3px 9px;border-radius:6px}
+  .lib-tag.std{background:var(--accent-soft);color:var(--accent-2)}
+  .lib-tag.hook{background:var(--warn-bg);color:var(--warn)}
+  table.topics{min-width:600px}
+  table.topics td:first-child{font-weight:650;color:var(--ink);white-space:nowrap}
+  .need{display:inline-block;margin-top:5px;font-size:11.5px;font-weight:600;color:var(--warn);
+    background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:5px;padding:1px 7px}
+  .stdrules{margin:14px 0;padding:0;list-style:none;counter-reset:r}
+  .stdrules li{counter-increment:r;position:relative;padding:8px 0 8px 34px;font-size:14.5px;color:var(--ink-2);
+    border-bottom:1px solid var(--line)}
+  .stdrules li:last-child{border-bottom:none}
+  .stdrules li::before{content:counter(r);position:absolute;left:0;top:7px;width:22px;height:22px;
+    display:grid;place-items:center;border-radius:6px;background:var(--accent);color:#fff;
+    font-family:var(--mono);font-weight:700;font-size:12px}
+  :root[data-theme="dark"] .stdrules li::before{color:#0e1210}
+  @media (prefers-color-scheme:dark){.stdrules li::before{color:#0e1210}}
+  .stdrules b{color:var(--ink)}
+  /* deploy phase headers */
+  .phz{display:flex;align-items:center;gap:12px;margin:28px 0 8px}
+  .phz .b{flex:none;width:30px;height:30px;border-radius:8px;background:var(--accent);color:#fff;
+    display:grid;place-items:center;font-weight:800;font-family:var(--mono);font-size:15px}
+  :root[data-theme="dark"] .phz .b{color:#0e1210}
+  @media (prefers-color-scheme:dark){.phz .b{color:#0e1210}}
+  .phz h3{margin:0;font-size:17px}
+  .phz .s{color:var(--ink-3);font-size:13px;font-weight:500}
+  ol.steps .k2{font-family:var(--mono);font-size:12.5px;background:var(--surface-2);border:1px solid var(--line);
+    border-radius:5px;padding:1px 6px}
+
+  footer{margin-top:56px;padding-top:22px;border-top:1px solid var(--line);color:var(--ink-3);font-size:13px}
+  .kbd{font-family:var(--mono);font-size:12px;background:var(--surface-2);border:1px solid var(--line);
+    border-bottom-width:2px;border-radius:5px;padding:1px 6px}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+
+  <header class="hero">
+    <p class="eyebrow">Akke · 企微好友单聊</p>
+    <h1>7 天召回 · 部署与验证指南</h1>
+    <p class="lede">给企微好友里<b>加了资料就沉默</b>的客户做召回：结合抖音+企微对话和画像，从甲方话术库里挑 <b>7 个可能戳中他的话题，每天发一条、连推 7 天</b>，把人唤回、最终邀约到店。这一页写给帮忙部署验证的同事——照着走即可。</p>
+
+    <div class="status" role="list">
+      <span class="chip" role="listitem"><span class="dot ok"></span>服务端 <span class="k">已部署 · 候选验通 5 个</span></span>
+      <span class="chip" role="listitem"><span class="dot ok"></span>企微账号 + 派单 cron <span class="k">已建 · 已挂</span></span>
+      <span class="chip" role="listitem"><span class="dot wait"></span>待办 <span class="k">只剩野荞云电脑部署（阶段 B→C）</span></span>
+      <span class="chip" role="listitem"><span class="dot off"></span>真发开关 <span class="k">默认关（dry-run）</span></span>
+    </div>
+  </header>
+
+  <section>
+    <h2><span class="num">01</span>它是怎么跑起来的</h2>
+    <p class="sub">一条流水线，两半：服务端「大脑」选人选话术，云电脑「手」去发。</p>
+
+    <div class="flow" aria-label="数据流">
+      <div class="flow-row">
+        <div class="stage brain">
+          <div class="t">① 扫沉默客户</div>
+          <div class="d">Vercel cron 扫企微会话：最后一条是我方发的、≥24h 没回、没删你、没在人工聊</div>
+        </div>
+        <div class="stage brain">
+          <div class="t">② 选题 + 写话术</div>
+          <div class="d">首日 LLM 从甲方话题库挑 7 个、排序、冻结；每天取当天话题按画像写一条勾回的话</div>
+        </div>
+        <div class="stage brain">
+          <div class="t">③ 入队</div>
+          <div class="d">写进 wecom_recall_dispatch_queue，等云电脑来拉</div>
+        </div>
+        <div class="stage leg">
+          <div class="t">④ 云电脑发</div>
+          <div class="d">搜到人 → 身份门确认 → 点开 → 发 → 探红点感叹号 → 回执</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="call info">
+      <div class="h">自清场 &amp; 出库，全自动</div>
+      客户<b>一回复</b> → 最后一条变成他发的 → 下一轮自动掉出队列；发消息出<b>红点感叹号</b>（被删）→ 只白发这 1 条、永久出库；<b>满 7 次</b> → 出库；连推没回应 → 从每天改隔天（退避）。
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="num">02</span>7 天召回的逻辑</h2>
+    <p class="sub">这套系统怎么决定「发给谁 · 发什么 · 发几次 · 什么时候停」——设置召回前先看懂这四件事。</p>
+
+    <h3>① 谁会被召回：入池 4 个条件，全满足才进</h3>
+    <div class="logic-grid">
+      <div class="lg"><span class="n">1</span><span>企微好友，且这段对话<b>最后一条是我方发的</b>（他没接话）</span></div>
+      <div class="lg"><span class="n">2</span><span>已经 <b>≥24 小时没回</b>——不是刚发完就当他沉默</span></div>
+      <div class="lg"><span class="n">3</span><span><b>没删你、没在人工深聊</b>（有潜力、人工在跟的客户标 <code>handed_off</code> 自动豁免，不打扰）</span></div>
+      <div class="lg"><span class="n">4</span><span>这 7 次召回<b>还没走完</b>、也不在冷却里</span></div>
+    </div>
+    <p style="color:var(--ink-3);font-size:13.5px;margin-top:4px">这四条每天扫一遍自动判定。他<b>一旦回复</b>，「最后一条」就变成他发的 → 第 2 条自动不成立 → 当天起不再召回（自清场，不用人管）。</p>
+
+    <h3>② 发什么：7 个话题怎么挑、怎么排</h3>
+    <p>客户<b>首次进池</b>那一刻，系统让 AI 看他的抖音+企微对话和画像，从下面这个话题库（<b>甲方话术 9 类 + 4 个画像钩子，共 13 项</b>）里挑出 <b>7 个最可能戳中他的</b>、排好顺序、<b>一次冻结</b>（后面 6 天都照这份走，不天天重挑）。</p>
+
+    <p style="margin-bottom:6px"><b>AI 选中话题的 3 条标准：</b></p>
+    <ol class="stdrules">
+      <li><b>贴他的实际诉求和画像</b>——他最初求什么、聊到过什么（户型 / 面积 / 城市 / 风格 / 预算 / 顾虑），就优先选相关话题。</li>
+      <li><b>画像钩子只在画像真有对应信息时才选</b>——比如没读到城市/户型就不选「同小区实拍」，防止 AI 脑补穿帮。</li>
+      <li><b>由浅入深排序</b>——先勾兴趣、再谈价值、后推行动，不会第 1 天就硬推报价或催名额。</li>
+    </ol>
+
+    <div class="depth">
+      <div class="d-step"><span class="lbl">先勾兴趣</span><span>同小区实拍 / 免费效果图 / 硬核配置单——低门槛、跟他有关，先把人唤回来</span></div>
+      <div class="d-arrow">↓</div>
+      <div class="d-step"><span class="lbl">再谈价值</span><span>品质保障 / 服务流程 / 样板房专属权益——建立信任</span></div>
+      <div class="d-arrow">↓</div>
+      <div class="d-step"><span class="lbl">后推行动</span><span>稀缺名额 / 按面积粗估报价——制造行动理由，引导到店</span></div>
+    </div>
+
+    <div class="lib-head"><span class="lib-tag std">甲方话术库</span><h3>9 类 · 主动可抛</h3></div>
+    <div class="tbl"><table class="topics">
+      <thead><tr><th>话题</th><th>聊什么</th><th>什么样的客户会被选中（标准）</th></tr></thead>
+      <tbody>
+        <tr><td>产品核心配置</td><td>ENF 环保兜底 · 三大品牌板材任选 · 悍高五金 · PUR封边 · 六面防伪</td><td>还没确认过配置/价格，或最初就是冲板材 / 性价比 / 环保来的</td></tr>
+        <tr><td>正品与品质保障</td><td>环保补充协议 + 假一赔三，白纸黑字盖公章、有法律效力</td><td>可能担心品质 / 真假，性格谨慎，或问过品牌真伪</td></tr>
+        <tr><td>标准化服务流程</td><td>设计→生产→安装→售后全流程 SOP，总部系统全程兜底</td><td>担心售后 / 交付掉链子，或第一次装修没经验</td></tr>
+        <tr><td>样板房活动稀缺性</td><td>568 补贴的由来，名额按套限量、抢完即止</td><td>有一定意向但在犹豫 / 拖延，需要一个行动理由</td></tr>
+        <tr><td>样板房专属权益</td><td>每平直降 300 + 品质工艺加码 + 顶配设计师和安装班组</td><td>在意性价比 / 预算，或想要更好的设计与落地效果</td></tr>
+        <tr><td>报价与预算</td><td>按面积给个总价区间的钩子（细清单留到到店算）</td><td>问过价格 / 预算，或画像里有面积但没报过总价<br><span class="need">⚑ 需画像有：面积 / 户型</span></td></tr>
+        <tr><td>板材防伪与选材</td><td>六面防伪 vs 5 个防伪等级，选板材看等级+基材才不踩坑</td><td>在多家比价，或很在意板材真假 / 等级</td></tr>
+        <tr><td>售后方案</td><td>免费基础（保修1年+终身保养）/ 升级 5 年超长保修，二选一</td><td>担心后期维修找不到人，或问过质保</td></tr>
+        <tr><td>品牌与口碑答疑</td><td>客观看待网上评价（有评价=正规品牌），绝不主动评竞品</td><td>提过对品牌的疑虑，看过负面评价，或问过认不认识某品牌</td></tr>
+      </tbody>
+    </table></div>
+
+    <div class="lib-head"><span class="lib-tag hook">画像钩子</span><h3>4 个 · 画像里有对应信息才选</h3></div>
+    <div class="tbl"><table class="topics">
+      <thead><tr><th>话题</th><th>聊什么</th><th>什么样的客户会被选中（标准）</th></tr></thead>
+      <tbody>
+        <tr><td>同小区/同户型实拍</td><td>拿他所在城市/小区或同户型的真实落地案例勾（「你们那边刚做完一套同户型」）</td><td>用地域/户型相关性制造「这跟我有关」的信任<br><span class="need">⚑ 需画像有：城市 / 小区 / 户型 / 面积</span></td></tr>
+        <tr><td>免费效果图钩子</td><td>针对他户型/风格，提「可以先给你出个参考效果图看看」</td><td>表达过要效果图/看设计，或画像有明确风格/户型<br><span class="need">⚑ 需画像有：风格 / 户型 / 面积</span></td></tr>
+        <tr><td>风格灵感/搭配建议</td><td>顺着他偏好的装修风格（法式/极简/现代…）聊落地要点或搭配</td><td>画像里有明确装修风格偏好<br><span class="need">⚑ 需画像有：装修风格</span></td></tr>
+        <tr><td>新样板房名额</td><td>同步「本片区新放出样板房名额」的限时钩子，给一个再聊的由头</td><td>之前有意向但沉默，需要一个不突兀的重启话题（无画像门槛，可兜底）</td></tr>
+      </tbody>
+    </table></div>
+
+    <p style="margin-top:18px">选好后，每天取当天那个话题，结合他的画像写成<b>一条自然的、主动勾回的话</b>，不是干巴巴甩海报——实测里客户就是被「重复自我介绍 + 重问已知信息」这种话问沉默的。</p>
+
+    <h3>③ 发几次、隔多久：节奏时间线</h3>
+    <div class="timeline" aria-label="7 次召回节奏时间线">
+      <div class="tl-track">
+        <div class="tl-node daily"><div class="tl-dot">1</div><div class="tl-day">第 1 天</div><div class="tl-topic">话题 ①</div><div class="tl-freq">每天</div></div>
+        <div class="tl-node daily"><div class="tl-dot">2</div><div class="tl-day">第 2 天</div><div class="tl-topic">话题 ②</div><div class="tl-freq">每天</div></div>
+        <div class="tl-node daily"><div class="tl-dot">3</div><div class="tl-day">第 3 天</div><div class="tl-topic">话题 ③</div><div class="tl-freq">每天</div></div>
+        <div class="tl-node spaced"><div class="tl-dot">4</div><div class="tl-day">第 5 天</div><div class="tl-topic">话题 ④</div><div class="tl-freq">退避·隔天</div></div>
+        <div class="tl-node spaced"><div class="tl-dot">5</div><div class="tl-day">第 7 天</div><div class="tl-topic">话题 ⑤</div><div class="tl-freq">隔天</div></div>
+        <div class="tl-node spaced"><div class="tl-dot">6</div><div class="tl-day">第 9 天</div><div class="tl-topic">话题 ⑥</div><div class="tl-freq">隔天</div></div>
+        <div class="tl-node out"><div class="tl-dot">7</div><div class="tl-day">第 11 天</div><div class="tl-topic">话题 ⑦</div><div class="tl-freq">发完出库</div></div>
+      </div>
+    </div>
+    <p class="tl-note"><b>前 3 次每天一条</b>；连推 3 次他都没回应 = 暂时不想聊，系统<b>自动放慢到隔天一条</b>，把剩下 4 次摊开——既保持节奏、又压低骚扰/拉黑/封号风险。7 个话题走完约 1.5 周。（这就是你定的「连推 7 天、遇信号退避」。）</p>
+
+    <h3>④ 随时可能提前出库：三个停止条件</h3>
+    <div class="stops">
+      <div class="stop-c ok"><b>他回复了</b><span>→ 立刻停，转正常对话/人工。召回的目的就是把他唤回，达到即止。</span></div>
+      <div class="stop-c warn"><b>发消息出红点感叹号 = 被删</b><span>→ 永久出库，只白发这 1 条、不再推剩下的。</span></div>
+      <div class="stop-c"><b>满 7 次</b><span>→ 7 个话题走完，正常出库。</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="num">03</span>两块拼图</h2>
+    <p class="sub">Block A 是服务端「大脑」（已上线），Block B 是云电脑「手」（本次要部署验证的部分）。</p>
+
+    <div class="grid">
+      <div class="card">
+        <h3><span class="tag">Block A</span>服务端大脑</h3>
+        <p style="color:var(--ink-2);font-size:14px;margin:10px 0 0">已合并部署、迁移已 apply。全程 dry-run，什么都不发。</p>
+        <ul>
+          <li>新建召回队列表 + 节奏状态表 + 派单/回执/选题 RPC</li>
+          <li>候选筛选 + LLM 选 7 话题 + 按画像写当天话术</li>
+          <li>cron 派单 + 端点 <code>claim_recall</code>/<code>complete_recall</code> 供云电脑拉/回执</li>
+        </ul>
+        <div class="where">src/lib/wecom-recall/ · /api/cron/wecom-recall-dispatch</div>
+      </div>
+      <div class="card">
+        <h3><span class="tag b">Block B</span>云电脑主动发起腿</h3>
+        <p style="color:var(--ink-2);font-size:14px;margin:10px 0 0">代码已在 main。云电脑现在只会<b>被动回未读</b>，这条腿补上<b>主动找人发</b>——按阶段 B 更新上去。</p>
+        <ul>
+          <li>经端点领当天召回话术 → 点搜索框搜客户名</li>
+          <li><b>身份门</b>：读会话标题匹配才发（无 DOM 下防发错人的唯一防线）</li>
+          <li>复用现有发送 + 落库 + 计数；发后 VL 探红点感叹号判是否被删</li>
+        </ul>
+        <div class="where">worker/scripts/wecom-chat/wecom_reply_loop.py</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="num">04</span>部署流程 · 加到云电脑现有的企微自动回复上</h2>
+    <p class="sub">召回腿和被动代回是<b>同一个 loop</b>——部署 = 更新那个文件 + 加几个 env + 量一个坐标 + 重启。分四个阶段：先配后台，再更新云电脑，空跑验证，最后灰度真发。</p>
+
+    <div class="call info">
+      <div class="h">先理清关系</div>
+      云电脑上 <code>C:\akke-wecom\wecom_reply_loop.py</code> 那个常驻脚本，现在多了一条<b>召回腿</b>（代码已在 main）。它跟原来的被动代回<b>串在同一个 loop 里、不抢窗口</b>，且<b>默认关</b>。所以不用新装东西，只是把这个文件更新到新版 + 配置 + 逐步打开。全程被动回复照常工作。
+    </div>
+
+    <div class="call done">
+      <div class="h">✅ 服务端全就绪并验通（截至现在）</div>
+      候选查询修复 · <b>按人设隔离</b>（多操作员不串号）· 企微账号已建（<code>0242b7ff</code>，<code>wecom_persona=xiaowen</code>）· 派单 cron 已挂 · dry-run 验通（隔离后<b>只出野荞自己的会话</b>、用小文人设）。<b>剩下 = 只有 野荞的云电脑部署（阶段 B → C）。</b>
+    </div>
+
+    <div class="phz"><span class="b">A</span><div><h3>服务端配置</h3><span class="s">后台一次性，先别开真发</span></div></div>
+    <ol class="steps">
+      <li>
+        <div class="st">✅ 建企微销售号的账号行 —— 已由我建好</div>
+        <div class="sd">
+          <p>召回派单/领单按这个账号走。已建好一个<b>专用行</b>（channel_pref 独立，不跟抖音号混）：</p>
+          <pre>name = 野荞企微召回(小文)
+channel_pref = <span class="g">'wecom'</span>   type = 'messaging'   status = 'active'
+id = <span class="g">0242b7ff-e003-44df-b929-ce71722e6853</span>   <span class="c"># ← 阶段 B 的 AKKE_ACCOUNT_ID 用它</span></pre>
+        </div>
+      </li>
+      <li>
+        <div class="st">✅ persona 已随账号设好 —— 不用再动 Vercel</div>
+        <div class="sd"><p>人设现在<b>设在账号行上</b>（<code>accounts.wecom_persona=xiaowen</code>），已建好。每个操作员的账号带各自人设、只发各自客户，互不串。全局 <code>WECOM_RECALL_PERSONA</code> 只在账号没填时兜底 —— <b>野荞不用设</b>。<b>真发总开关 <code>WECOM_RECALL_AUTOSEND_ENABLED</code> 先别设</b>（保持 dry-run）。</p></div>
+      </li>
+    </ol>
+
+    <div class="phz"><span class="b">B</span><div><h3>更新云电脑上的自动回复</h3><span class="s">野荞在云电脑 PowerShell 里按顺序跑，每步跑完看一眼输出；召回还关着，被动回复不受影响</span></div></div>
+    <ol class="steps">
+      <li>
+        <div class="st">停当前正在跑的 loop</div>
+        <div class="sd"><pre>ni C:\akke-wecom\wecom_reply_STOP
+Get-CimInstance Win32_Process | ? {$_.CommandLine -like '*wecom_reply_loop*'} | % { Stop-Process -Id $_.ProcessId -Force }</pre></div>
+      </li>
+      <li>
+        <div class="st">git pull + 拷新版文件（两个都拷）</div>
+        <div class="sd">
+          <pre>cd <span class="g">&lt;你 git 仓库路径&gt;</span>          <span class="c"># clone 的位置，如 C:\Akke</span>
+git checkout main; git pull origin main
+copy worker\scripts\wecom-chat\wecom_reply_loop.py     C:\akke-wecom\ -Force
+copy worker\scripts\wecom-chat\measure_wecom_coords.py C:\akke-wecom\ -Force</pre>
+          <p style="font-size:13px;color:var(--ink-3)">git pull 若报未提交改动，先 <code>git stash</code> 再 pull。</p>
+        </div>
+      </li>
+      <li>
+        <div class="st">.env 加召回 4 变量（RECALL 先关）</div>
+        <div class="sd"><pre>Add-Content C:\akke-wecom\.env "`nAKKE_WECOM_RECALL_ENABLED=<span class="g">0</span>`nAKKE_ACCOUNT_ID=<span class="g">0242b7ff-e003-44df-b929-ce71722e6853</span>`nAKKE_WECOM_C_SEARCH=`nAKKE_WECOM_RECALL_CLAIM_LIMIT=2"</pre></div>
+      </li>
+      <li>
+        <div class="st">量搜索框坐标 → 填进 .env</div>
+        <div class="sd">
+          <pre>cd C:\akke-wecom
+python measure_wecom_coords.py</pre>
+          <p>鼠标<b>悬停在企微左上角搜索框</b>上，它打印 <code>AKKE_WECOM_C_SEARCH=x,y</code>；把这行填进 <code>.env</code> 的 <code>AKKE_WECOM_C_SEARCH=</code>（纯读坐标，不点击不发消息）。</p>
+        </div>
+      </li>
+      <li>
+        <div class="st">删 STOP + 重启，确认没搞坏现有功能</div>
+        <div class="sd">
+          <pre>del C:\akke-wecom\wecom_reply_STOP
+cd C:\akke-wecom
+.\start-wecom-reply.bat</pre>
+          <p>黑窗第一行应是 <code>=== 企微自动代回 主循环启动 <b>v2026-07-16.recall-b1</b> ===</code>（版本对上=新版生效）。此时召回还关着，<b>原来的被动自动回复应照常工作</b>。</p>
+        </div>
+      </li>
+    </ol>
+
+    <div class="phz"><span class="b">C</span><div><h3>空跑验证</h3><span class="s">不发任何消息，验通了再开真发</span></div></div>
+    <ol class="steps">
+      <li>
+        <div class="st">✅ 本机 dry-run —— dev 机器（有 repo）上跑，已由我跑过</div>
+        <div class="sd">
+          <p>这步在<b>有代码仓库的电脑</b>上跑、不是云电脑，同事不用管。<b>已跑过，结果：选出 5 个候选、话题/话术正常。</b>需要重跑时：</p>
+          <pre><span class="c"># 务必带 eval key，不烧生产额度</span>
+AKKE_USE_EVAL_KEY=1 AKKE_ORG_ID=<span class="g">00000000-0000-0000-0000-000000000001</span> \
+  pnpm tsx scripts/_wecom-recall-dryrun.ts --max=10</pre>
+          <p style="color:var(--ink-3);font-size:13px">⚠️ 候选里可能混着测试/误加的联系人（实测见到 <code>fanny</code>、某工程师号）。真上线前扫一眼那几个候选是不是真客户，不是的把会话标 <code>handed_off</code> 排除。</p>
+        </div>
+      </li>
+      <li>
+        <div class="st">云电脑 DRY_RUN：空跑验召回腿（野荞做）</div>
+        <div class="sd">
+          <p>用记事本打开 <code>C:\akke-wecom\.env</code>，把这两行改成：</p>
+          <pre>AKKE_WECOM_RECALL_ENABLED=<span class="g">1</span>    <span class="c"># 打开召回腿</span>
+AKKE_WECOM_DRY_RUN=<span class="g">1</span>          <span class="c"># 只空跑不真发</span></pre>
+          <p>存盘后重启（建 <code>wecom_reply_STOP</code> → 删 → 跑 <code>start-wecom-reply.bat</code>）。看黑窗日志走完一整条<b>但不真发</b>：</p>
+          <pre>[recall] claim 到 N 条待召回  →  <span class="c">搜人</span>  →  <span class="c">身份门读标题</span>  →  <span class="c">点开</span>  →  [DRY_RUN] 不真发</pre>
+          <p>重点验三件事点得准：<b>搜到人 · 身份门读对标题 · 点开对话</b>，顺便看红点探测。<b>坐标偏</b>就回上一步重量搜索框。</p>
+          <div class="call warn" style="margin-top:12px">
+            <div class="h">⚠ DRY_RUN=1 是全局的</div>
+            这期间<b>被动自动回复也会暂时只空跑不真发</b>（同一个开关管整个 loop）。所以别在 DRY_RUN=1 状态停太久；验完召回腿点得准，就进阶段 D 把 <code>DRY_RUN</code> 改回 <code>0</code>，被动回复 + 召回一起真发。
+          </div>
+        </div>
+      </li>
+    </ol>
+
+    <div class="phz"><span class="b">D</span><div><h3>灰度真发</h3><span class="s">日限从低起，盯账号</span></div></div>
+    <ol class="steps">
+      <li>
+        <div class="st">两开关打开，日限压到 5</div>
+        <div class="sd">
+          <p>确认阶段 C 都点得准后，才开真发：</p>
+          <pre><span class="c"># Vercel</span>       WECOM_RECALL_AUTOSEND_ENABLED = <span class="g">true</span>
+<span class="c"># 云电脑 .env</span>  AKKE_WECOM_DRY_RUN = <span class="g">0</span>   <span class="c"># RECALL_ENABLED 已 = 1</span>
+<span class="c"># 建议</span>       WECOM_RECALL_DAILY_CAP = 5</pre>
+          <p>重启，盯账号状态没异常再慢慢往上爬。任何异常先建 <span class="k2">wecom_reply_STOP</span> 急停（见下方急停回滚）。</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <section id="env">
+    <h2><span class="num">05</span>配置清单</h2>
+    <p class="sub">两处：Vercel 后台（服务端）+ 云电脑 <code>.env</code>（发送端）。带 <span class="pill on">开关</span> 的默认关。</p>
+
+    <h3>Vercel 环境变量（服务端大脑）</h3>
+    <div class="tbl"><table>
+      <thead><tr><th class="mono">变量</th><th>作用</th><th>建议值</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">WECOM_RECALL_AUTOSEND_ENABLED</td><td>总真发开关 <span class="pill on">开关</span>。关=只算候选/选题/写话术，不入真发队列</td><td class="mono">灰度前 <b>不设</b>；上线设 true</td></tr>
+        <tr><td class="mono">WECOM_RECALL_PERSONA</td><td>全局兜底人设（现在 persona 存在账号行 <code>wecom_persona</code>，此项仅账号没填时用）</td><td class="mono">可不设</td></tr>
+        <tr><td class="mono">WECOM_RECALL_DAILY_CAP</td><td>单号召回日上限</td><td class="mono">起步 <b>5</b></td></tr>
+        <tr><td class="mono">WECOM_RECALL_MIN_HOURS</td><td>最后一条我方消息隔多久没回才进队</td><td class="mono">24</td></tr>
+        <tr><td class="mono">WECOM_RECALL_COMBINED_HOURLY_CAP</td><td>DM+召回合并 1h 活跃门</td><td class="mono">3</td></tr>
+        <tr><td class="mono">WECOM_RECALL_CHANNEL_PREF</td><td>企微号在 accounts 的通道值</td><td class="mono">wecom</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>云电脑 <code>.env</code>（发送端，<code>C:\akke-wecom\.env</code>）</h3>
+    <div class="tbl"><table>
+      <thead><tr><th class="mono">变量</th><th>作用</th><th>值</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">AKKE_WECOM_RECALL_ENABLED</td><td>云电脑侧召回腿开关 <span class="pill on">开关</span></td><td class="mono">灰度前 0；上线 1</td></tr>
+        <tr><td class="mono">AKKE_ACCOUNT_ID</td><td>企微销售号 accounts.id（已建好的 wecom 账号）</td><td class="mono">0242b7ff-…-ce71722e6853</td></tr>
+        <tr><td class="mono">AKKE_WECOM_C_SEARCH</td><td>顶部搜索框坐标（measure 量出）</td><td class="mono">如 60,30</td></tr>
+        <tr><td class="mono">AKKE_WECOM_DRY_RUN</td><td>只读空跑（验腿用）/ 真发</td><td class="mono">验证 1 → 上线 0</td></tr>
+        <tr><td class="mono">AKKE_WECOM_RECALL_CLAIM_LIMIT</td><td>每轮最多领几条召回</td><td class="mono">2</td></tr>
+      </tbody>
+    </table></div>
+    <div class="call warn">
+      <div class="h">⚠ persona 按账号隔离（每个操作员各一份）</div>
+      人设现在存在<b>账号行</b>上：每个 wecom 账号的 <code>wecom_persona</code> 决定该操作员召回用谁的口吻 + <b>只发谁的客户</b>（按 <code>persona:%</code> 隔离，不串号）。野荞账号已设 <code>xiaowen</code>。以后加夏夏/饭粒/Gus，各自账号填各自 persona（xiaoxia / xiaofan / xiaowu）。全局 <code>WECOM_RECALL_PERSONA</code> 仅兜底。
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="num">06</span>防翻车护栏</h2>
+    <p class="sub">好友单聊主动推，封号风险最高。护栏都在代码里，这里是心里有数。</p>
+    <div class="grid">
+      <div class="card">
+        <h3>发之前</h3>
+        <ul>
+          <li><b>进队门槛</b>：≥24h 没回才进，不会刚发完就当沉默</li>
+          <li><b>排除人工在聊</b>：把有潜力、人工在深聊的客户标 <code>handed_off</code>，自动豁免、不打扰</li>
+          <li><b>身份门</b>：搜到的人标题对不上就不发，防重名发错人</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>发之后 / 节奏</h3>
+        <ul>
+          <li><b>红点感叹号</b>=被删 → 只白发 1 条、永久出库</li>
+          <li><b>满 7 次</b>出库；连推没回应 → 每天改隔天退避</li>
+          <li><b>封号护栏</b>：日限 5 起步 + DM/召回合并 1h 门 + 工作时间 9–21，灰度从低起、盯账号随时停</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="num">07</span>急停 &amp; 回滚</h2>
+    <p class="sub">出任何异常，先停再查。三条独立开关，任一即停。</p>
+    <div class="call stop">
+      <div class="h">⏹ 立即停发（三选一，都是秒级生效）</div>
+      <pre style="margin:8px 0 0;background:rgba(125,125,125,.10)"><span class="c"># 1. 服务端停派单</span>       Vercel 删 WECOM_RECALL_AUTOSEND_ENABLED
+<span class="c"># 2. 云电脑停消费</span>       .env 设 AKKE_WECOM_RECALL_ENABLED=0
+<span class="c"># 3. 云电脑一键急停</span>     在 C:\akke-wecom\ 建空文件 wecom_reply_STOP</pre>
+    </div>
+    <p style="margin-top:16px">数据库要回退整套表：跑 <code>supabase/migrations-rollback/20260716120432_wecom_recall_rollback.sql</code>（drop 新表/RPC，无数据依赖）。</p>
+  </section>
+
+  <section>
+    <h2><span class="num">08</span>这批人是谁</h2>
+    <p class="sub">昨天 5 个企微案例，正好说明召回<b>只对一部分人成立</b>——身份门 + 红点探测就是为了兜住其余情况。</p>
+    <div class="cases">
+      <div class="case"><span class="nm">猫了个咪</span><span class="ds">验证都没通过 · 根本发不出</span><span class="vd no">不适用</span></div>
+      <div class="case"><span class="nm">用户1026</span><span class="ds">拿完资料就删好友 · 已发不出</span><span class="vd no">红点出库</span></div>
+      <div class="case"><span class="nm">快乐挖掘机</span><span class="ds">删 + 重加无效 · 已发不出</span><span class="vd no">红点出库</span></div>
+      <div class="case"><span class="nm">在路上·144平</span><span class="ds">人工正在深聊、有潜力</span><span class="vd no">标 handed_off 豁免</span></div>
+      <div class="case"><span class="nm">多喝水·24</span><span class="ds">加成功、没删、就是没回</span><span class="vd yes">标准召回目标</span></div>
+    </div>
+    <p style="color:var(--ink-3);font-size:14px">所以阶段 C 的 dry-run 先量出「加成功 + 没删 + 没回」这类人到底有多少，是整套方案值不值得铺开的分母。</p>
+  </section>
+
+  <footer>
+    <p>Akke · 企微好友单聊 7 天召回 · 服务端已就绪并验通（候选 5·迁移 apply·账号 <code>0242b7ff</code>·cron 已挂）· 待办：Vercel 设 <code>WECOM_RECALL_PERSONA=xiaowen</code> + 云电脑部署（阶段 B/C/D）。切换右上角可换明暗主题。</p>
+  </footer>
+
+</div>
+
+</body>
+</html>
