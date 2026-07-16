@@ -32,6 +32,7 @@ const CATEGORIES = [
     items: [
       { slug: 'akke-tech-overview', title: 'Akke 项目技术全景 · 顾问速览', desc: '给第一次接触项目的技术顾问：一页滚动读懂 Akke 的部署三件套、评论→打分→触达数据管线、分通道 LLM 路由、绕抖音风控的真机/云电脑执行层、多租户 RLS，以及现阶段进展与最新技术栈版本（深色技术长页）。' },
       { slug: 'hdyx-progress-2026-07', title: '有大有小 · 获客四线实时进展与卡点', desc: '视频制作 → 广告投放 → 加微承接 → 企微 AI 自动化：四条业务线各自走到哪、哪段全绿、哪里在等谁——含 M1 图源对照实验、三生态投放评估排序、加微链路事实澄清、企微 AI 灰度真发数据与按「球在谁手里」排的卡点总表（甲方分享会深色长页，数据截至 2026-07-15）。' },
+      { slug: 'hdyx-tech-blueprint-2026-07', title: '有大有小 · 获客四线技术方案蓝图', desc: '与进展页配套的工程口径：「想在云端、手在终端」三层总架构，视频产线 M1 图源对照实验设计与八工位流水线，三生态投放承接链路形态与归因埋点，抖音→企微 hard-gate 收口与短信桥，企微方案 A/B 对比与云电脑 GUI + VL 读屏数据链——含全栈选型表与两条贯穿性工程原则。' },
       { slug: 'ai-growth-landscape', title: '谁在生成内容，谁在挖线索 · AI 获客赛道地图', desc: 'AI 营销视频与社媒获客两个赛道、国内外 60+ 家公司的全景扫描：Sora 为何关停、Icon 为何从 AI 退回真人拍摄、13 倍估值差从哪来，以及 Meta 与抖音的私信 API 如何决定了「谁能主动跟陌生人说第一句话」。每条结论标注信源与证据档位，查不到就写查不到（深色长页，2026-07）。' },
       { slug: 'langchain-langgraph-langfuse', title: 'LangChain · LangGraph · Langfuse', desc: '三个都带 lang 的名字怎么分？前两个帮 AI 干活、第三个帮你看清 AI——结合 Akke 讲我们用了哪个、没用哪个、为什么。' },
       { slug: 'claude-tag',       title: 'Claude Tag · Slack 队友', desc: '把 Claude 拉进 Slack 当常驻队友：@一下就接活、会主动盯事（Opus 4.8）。' },
