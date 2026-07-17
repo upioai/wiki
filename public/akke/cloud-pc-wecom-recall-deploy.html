@@ -458,7 +458,14 @@
       </li>
     </ol>
 
-    <div class="phz"><span class="b">B</span><div><h3>更新云电脑上的自动回复</h3><span class="s">操作员（野荞 / 饭粒）在<b>自己</b>的云电脑 PowerShell 里按顺序跑，每步看一眼输出；召回还关着，被动回复不受影响</span></div></div>
+    <div class="phz"><span class="b">B</span><div><h3>更新云电脑上的自动回复</h3><span class="s">操作员（野荞 / 饭粒 / 夏夏 / Gus）在<b>自己</b>的云电脑 PowerShell 里按顺序跑，每步看一眼输出；召回还关着，被动回复不受影响</span></div></div>
+
+    <div class="call stop">
+      <div class="h">⚠ 部署前先查 CROP_RATIO（饭粒实测踩过、坑很大）</div>
+      有些机器的 <code>AKKE_WECOM_CROP_RATIO=0.18</code> 会把客户气泡 + 会话标题<b>整个裁掉</b> → 机器人把<b>自己发的话当成客户消息回复、自问自答，还会真发出垃圾</b>（饭粒那台回过「哈哈您抢我词儿啦」）。日志里出现 <code>客户[小范]</code>（自己人设名）或 <code>客户[系统横幅碎片]</code> 就是中招了。先查：
+      <pre style="margin:8px 0 0;background:rgba(125,125,125,.10)">Select-String -Path C:\akke-wecom\.env -Pattern "AKKE_WECOM_CROP_RATIO"</pre>
+      是 <code>0.10x</code> 就没事；是 <code>0.18</code> 或日志有自问自答 → <b>别抄别人的值</b>（跟屏幕分辨率/会话列表宽度绑死），<b>截张企微全屏图发 Claude，它给你算</b>。改完重启生效。
+    </div>
     <ol class="steps">
       <li>
         <div class="st">停当前正在跑的 loop</div>
@@ -466,13 +473,19 @@
 Get-CimInstance Win32_Process | ? {$_.CommandLine -like '*wecom_reply_loop*'} | % { Stop-Process -Id $_.ProcessId -Force }</pre></div>
       </li>
       <li>
-        <div class="st">git pull + 拷新版文件（两个都拷）</div>
+        <div class="st">把两个脚本更新到新版（wecom_reply_loop.py + measure_wecom_coords.py）</div>
         <div class="sd">
+          <p><b>有 git 仓库的机器</b>（<code>C:\Users</code> 下能搜到 <code>.git</code>）：</p>
           <pre>cd <span class="g">&lt;你 git 仓库路径&gt;</span>          <span class="c"># clone 的位置，如 C:\Akke</span>
 git checkout main; git pull origin main
 copy worker\scripts\wecom-chat\wecom_reply_loop.py     C:\akke-wecom\ -Force
 copy worker\scripts\wecom-chat\measure_wecom_coords.py C:\akke-wecom\ -Force</pre>
           <p style="font-size:13px;color:var(--ink-3)">git pull 若报未提交改动，先 <code>git stash</code> 再 pull。</p>
+          <div class="call warn" style="margin-top:12px">
+            <div class="h">⚠ 没有 git 仓库的机器（实测饭粒那台就没有）</div>
+            <code>C:\Users</code> 下搜不到 <code>.git</code> = 这台没仓库、脚本一直是人工传的 → <b>上面的 git 命令跑不了</b>。改让 Claude 从 <code>origin/main</code> 导出最新 <code>wecom_reply_loop.py</code> → 传文件（paste.rs / curl 下载 / 网盘 / 复制粘贴）→ 放进 <code>C:\akke-wecom\</code>，核对节点数/大小。<br>
+            <b>⛔ 千万别从 jsDelivr 镜像拉</b> —— 那个冻在 <code>v2026-07-02.11</code>（旧版、没召回）。拿到后启动看版本号必须带 <code>recall-bN</code> 才对。
+          </div>
         </div>
       </li>
       <li>
@@ -531,6 +544,11 @@ AKKE_WECOM_DRY_RUN=<span class="g">1</span>          <span class="c"># 只空跑
     </ol>
 
     <div class="phz"><span class="b">D</span><div><h3>灰度真发</h3><span class="s">日限从低起，盯账号</span></div></div>
+
+    <div class="call info">
+      <div class="h">脚本在跑 ≠ 在发召回</div>
+      阶段 B/C 之后脚本一直转、召回腿也在轮询，但 <b>Vercel 主开关 <code>WECOM_RECALL_AUTOSEND_ENABLED</code> 不打开，服务端就不派单</b> → 云电脑领到的都是空 → <b>一条召回都不会发</b>（现在就是这状态，安全）。这个开关是<b>全局的</b>：一开，所有已部署的号（野荞+饭粒+…）一起真发。<b>开之前先喊一声、一起验腿 + 盯第一批。</b>
+    </div>
     <ol class="steps">
       <li>
         <div class="st">两开关打开，日限压到 5</div>
