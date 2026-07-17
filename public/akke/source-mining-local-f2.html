@@ -59,7 +59,7 @@
   <h1>本地 f2 实拉号源新方法</h1>
   <div class="meta">Akke 项目 · 持续迭代文档（无固定截止）· 页内数字均标 as-of 日期</div>
   <div class="note" style="background:#f7f7f9;border-left-color:var(--gray)">
-    <b>📅 本页信息时段</b>：方法于 <b>2026-06-04</b> 首次验证、<b>2026-06-05</b> 第二批实战定型，此后每日跑「关键词 search + 本机 f2 富化」track 持续迭代。<b>本页按 6 段结构重构于 2026-06-21</b>，把过去的逐日日志收口成「怎么拉 · 现状 · 成效 · case」叙事。<b>页内一切数字都带 as-of 日期</b>（如「累计快照截至 6/19」「构成 as-of 6/19」），是写作时段的快照、会随并行运营持续变动；<b>实时的号源动态请以监控页为准</b>（见下方交叉引用），不要把某个具体数字当长期定值。
+    <b>📅 本页信息时段</b>：方法于 <b>2026-06-04</b> 首次验证、<b>2026-06-05</b> 第二批实战定型，此后每日跑「关键词 search + 本机 f2 富化」track 持续迭代。<b>本页按 6 段结构重构于 2026-06-21</b>，把过去的逐日日志收口成「怎么拉 · 现状 · 成效 · case」叙事。<b>页内一切数字都带 as-of 日期</b>（如「累计快照截至 7/17」「构成 as-of 6/19」），是写作时段的快照、会随并行运营持续变动；<b>实时的号源动态请以监控页为准</b>（见下方交叉引用），不要把某个具体数字当长期定值。
   </div>
   <div class="note" style="background:#eef6ff;border-left-color:#2563eb">
     <b>🔗 交叉引用（本页不复述，深度看这两页）</b>：
@@ -91,7 +91,7 @@
       <div class="step"><div class="when">② 捞作者</div><div class="body"><span class="big">raw-CDP 捞 sec_uid</span><div style="font-size:13px;color:var(--gray);margin-top:4px">本机登录态 Chrome <code>:9222</code>，<b>原始 CDP websocket</b> 开搜索页滚动触发 <code>discover/search</code> 接口、取响应体里的 sec_uid。<b>弃 playwright</b>（Chrome149 上 <code>connect_over_cdp</code> 静默捞 0、时灵时不灵）。</div></div></div>
       <div class="step"><div class="when">③ 富化</div><div class="body"><span class="big">本机 f2 实拉真信号</span><div style="font-size:13px;color:var(--gray);margin-top:4px">本机 <code>f2</code>（httpx 签名）串行拉每个号最近视频的<b>评论数 / 活跃度</b>两个真信号：<br>· <b>评论数 <code>avg_comments</code>(avgC)</b> = <b>拉这个号最近 10 条视频、每条评论数取平均</b>（实拉最多 20 条、取最近 10 条算整体均值；<code>avgC7</code>/<code>avgC30</code> 是这 10 条里落在近 7 天 / 30 天窗口内的子集）= <b>评论池多大 = 能挖多少潜客</b>（例：一口的装修日记 avgC 40198）；<br>· <b>活跃度 <code>posts_30d</code>(p30)</b> = 近 30 天发了几条视频 = 还更不更新；<b><code>p30=0</code> = 休眠号（历史火、现在不更、挖不动），高 avgC + p30=0 是典型「死矿」要剔</b>。<br>美国 IP 走 <b>seed-ttwid 绕法</b>（注入登录态 ttwid 免 anon warmup 超时）。</div></div></div>
       <div class="step"><div class="when">④ 分流</div><div class="body"><span class="big">置信度分桶</span><div style="font-size:13px;color:var(--gray);margin-top:4px">按 avgC / 脉命中 / 是否同行<b>自动分桶</b>：高置信度自动入、边缘号推 Lark 人工确认、同行号否决（<b>具体数据标准见下方「分流标准」表</b>）。</div></div></div>
-      <div class="step"><div class="when">⑤ 入库</div><div class="body"><span class="big">写库 + 联动</span><div style="font-size:13px;color:var(--gray);margin-top:4px">写 <code>source_accounts</code> → 升 tier1 → 自动排 T+7 提醒 → 回写关键词产量 → 重生成监控页。</div></div></div>
+      <div class="step"><div class="when">⑤ 入库</div><div class="body"><span class="big">写库 + 联动</span><div style="font-size:13px;color:var(--gray);margin-top:4px">写 <code>source_accounts</code>（<b>一律 tier0</b>）→ 自动排 T+7 提醒 → 回写关键词产量 → 重生成监控页。<b>2026-06-21 起入库不再标 tier1</b>——高 avgC 是伪信号，tier1 只由 <code>auto-tier1</code> cron 按「近 10 天真实产出高+中≥10」自动升。</div></div></div>
     </div>
     <div class="note"><b>关键变化</b>：判断闸门从「<b>入库后等 7 天抓取看产出</b>」<b>前移到「入库前 f2 实拉验证</b>」——分钟级出真分，不用等抓取队列回流，刚入库的活号不会被「DB 里暂时 0 评论」误杀。</div>
 
@@ -135,7 +135,7 @@ import-douyin-search
     <div class="note"><b>新率（new_rate）</b>＝ <code>total_new / total_authors</code> ＝ 本批捞到的作者里「<b>不在 source_accounts 库</b>」的比例。<b>⚠️ 新率高 ≠ 可入库率高</b>——「新」只是没入过库，能不能入还要过下方的 avgC 落库门（6/18「晒家」新率 0.92 但 <code>total_imported=0</code> 就是这原因）。新率 &lt;20% 且用 ≥2 次的词自动退役。</div>
 
     <h3 style="margin-top:28px" id="split">分流标准（④ 分桶具体阈值）</h3>
-    <p style="color:var(--gray);font-size:13px;margin:6px 0">富化实拉出 avgC / p30 后，<code>source-mining-split</code> 按下表把候选自动分成三桶；自动入的再按高意向排序选 top-N 升 tier1。<b>阈值是代码里的硬判定（<code>scripts/chanmama/source-mining-split.ts</code>），不是人拍脑袋</b>。</p>
+    <p style="color:var(--gray);font-size:13px;margin:6px 0">富化实拉出 avgC / p30 后，<code>source-mining-split</code> 按下表把候选自动分成三桶；<b>自动入的一律 tier0</b>（2026-06-21 起不再按 avgC top-N 标 tier1，那是伪信号；tier1 交给 <code>auto-tier1</code> cron 按真实产出升）。<b>阈值是代码里的硬判定（<code>scripts/chanmama/source-mining-split.ts</code>），不是人拍脑袋</b>。</p>
     <div class="note"><b>先把这表里的 3 个词钉死（都按「号」算、不是按单条视频）：</b>
       <ul style="margin:6px 0;padding-left:20px">
         <li><b>脉命中</b>＝<b>号名命中「业主自住脉」正则</b>（区分真业主 vs 机构号），词表：<code>装修日记 / 晒家 / 晒新家 / 我家 / 新家 / 小户型 / 懒人 / 装修日常 / 住进 / 入住 / 改造 / 二房 / 顶楼 / 复式 / loft / 自装 / 装修中 / 装修ing / 新房 / 毛坯 / 户型 / 的家</code>。<b>同行号</b>＝命中排除正则：<code>工厂 / 品牌 / 定制公司 / 建材 / 装饰公司 / 装企 / 招商 / 加盟 / 代理 / 厂家直 / 源头 / 批发 / 官方号</code>（设计师个人不算同行）。</li>
@@ -164,7 +164,7 @@ import-douyin-search
     <div class="note" style="background:#eef6ff;border-left-color:#2563eb"><b>🔗 实时数看监控页</b>：tier 曲线、升降流水、快车道这些<b>每天自动刷新</b>的现状数，在 <a href="https://upio.ai/akke/source-evolution" style="color:#2563eb" target="_blank" rel="noopener"><b>source-evolution</b></a> 上看；本段只给写作时点的文字快照。</div>
 
     <div class="grid">
-      <div class="card"><div class="lbl">每天拉多少</div><div class="val" style="font-size:22px">~0–40</div><div class="sub">近批 6/18:<b>10</b> · 6/19:<b>2</b> · 6/20:<b>14</b> · 6/22:<b>18</b>。<b>目标 20 入库 / 10 tier1</b>，近期多日未达（候选丰枯 + US 隧道丢包）</div></div>
+      <div class="card"><div class="lbl">每天拉多少</div><div class="val" style="font-size:22px">~1–2</div><div class="sub">严筛口径（<code>--from-split</code>）下的正常值。<b>原「目标 20 入库 / 10 tier1」已废（2026-07-17）</b>——冲数量只能灌死号（6/10 的 40 号仅 7.6 中高/号、6/08 的 26 号仅 3/号），目标改为<b>「入的号是活的」</b></div></div>
       <div class="card"><div class="lbl">每天用时</div><div class="val" style="font-size:22px">~20–30min</div><div class="sub">干净一轮；<b>富化串行 conc=1 占大头</b>（不能并发，并发必崩 + 限流）</div></div>
       <div class="card"><div class="lbl">tier1 / tier0（active）</div><div class="val" style="font-size:22px">140 / 1094</div><div class="sub">total 3258，inactive 2024（占 62%，持续淘汰换血）</div></div>
     </div>
@@ -185,38 +185,56 @@ import-douyin-search
     <div class="sec-h"><span class="sec-n">SECTION 03</span><span class="sec-t">数据成效（入库后真实下游产出）</span></div>
     <div class="note" style="background:#eef6ff;border-left-color:#2563eb"><b>🔗 深度切片看演进页</b>：Pareto 分布、渠道转热率、分类画像这些深度分析在 <a href="https://upio.ai/akke/source-system-evolution-2026-06-16" style="color:#2563eb" target="_blank" rel="noopener"><b>source-system-evolution-2026-06-16</b></a>；本段只给累计快照 + 显眼号源。</div>
 
-    <div class="note good"><b>累计快照（截至 2026-06-19 · DB 实查）</b>：方法到目前 <b>入库 201 号 → 188 号（94%）真抓到视频 + 评论</b>，累计 <b>2136 视频 / 15451 评论</b> → <b>中高意向（≥60）1351 条（8.74%）</b>、<b>高意向（≥80）251 条</b>、<b>可触达 204</b>、已联系 45。复现：<code>worker/.venv/bin/python scripts/_source-mining-effect-cumulative.py</code>。</div>
+    <div class="note good"><b>累计快照（截至 2026-07-17 · DB 实查 · 32 批次全量）</b>：方法到目前 <b>入库 389 号 → 368 号（95%）真抓到视频</b>，累计 <b>5447 视频 / 81387 评论</b> → <b>中高意向（≥60）7536 条（9.26%）</b>、<b>高意向（≥80）1142 条（1.40%）</b>。复现：<code>no_proxy="*" pnpm tsx scripts/_cohort-table-rebuild.ts</code>。</div>
     <div class="grid">
-      <div class="card"><div class="lbl">真抓到产出</div><div class="val">94%</div><div class="sub">入库 201 → 188 号有视频 + 评论</div></div>
-      <div class="card"><div class="lbl">累计视频 / 评论</div><div class="val" style="font-size:22px">2136 / 15451</div><div class="sub">所有 douyin-search-* 批次累计</div></div>
-      <div class="card"><div class="lbl">中高意向（≥60）</div><div class="val">1351</div><div class="sub">占比 8.74%（唯一中高用户 1318）</div></div>
-      <div class="card"><div class="lbl">高意向（≥80）</div><div class="val">251</div><div class="sub">可触达 204 · 已联系 45</div></div>
+      <div class="card"><div class="lbl">真抓到产出</div><div class="val">95%</div><div class="sub">入库 389 → 368 号有视频</div></div>
+      <div class="card"><div class="lbl">累计视频 / 评论</div><div class="val" style="font-size:22px">5447 / 81387</div><div class="sub">所有 douyin-search-* 批次累计</div></div>
+      <div class="card"><div class="lbl">中高意向（≥60）</div><div class="val">7536</div><div class="sub">占比 9.26%</div></div>
+      <div class="card"><div class="lbl">高意向（≥80）</div><div class="val">1142</div><div class="sub">占比 1.40%</div></div>
     </div>
 
-    <p style="margin-top:24px"><b>每批入库后 7 天累计产出</b>（按批次，截至 6/19 DB 实查；🆕 标记仍在 9 天宽限期、产出待回流）：</p>
+    <div class="note" style="background:#fff7ed;border-left-color:#ea580c"><b>⚠️ 2026-07-17 复盘：批次大 ≠ 产出多，恰恰相反</b><br>按「每号产出中高意向」排：<b>6/07-intent 6 号 → 1182 条（197/号）</b>、6/05 22 号 → 4369 条（199/号）；而 <b>6/10 的 40 号只出 304 条（7.6/号）、6/08 的 26 号只出 80 条（3/号）、6/20 的 14 号和 7/03 的 26 号出 0 条</b>。<br><b>根因</b>：入库脚本 <code>--min-comments</code> 卡的是 <code>avg_comments</code>＝<b>全期均值（历史值）</b>，不看号还活着没有。放宽阈值冲数量，灌进来的是「历史火过、现在死了」的号——2026-07-17 实测放宽口径会入一个 <b>全期均评 3729、但已 2314 天（6 年）没发作品</b> 的号。<br><b>已改</b>：入库改走 <code>--from-split</code>（分流白名单，带 <code>posts_30d==0</code> + <code>avgC30</code> 双闸挡凉号），<b>「每天入库 20」这个 KPI 已废</b>——目标是「入的号是活的」，严格筛完 ~1-2 个/天是正常值。</div>
+
+    <p style="margin-top:24px"><b>每批入库后【累计】产出</b>（按批次，截至 <b>2026-07-17 DB 实查 · 32 批次全量</b>；🆕 标记仍在 9 天宽限期、产出待回流）。<span style="color:var(--gray);font-size:13px">口径修正：本表原标「7 天累计」但取数脚本算的是 lifetime 累计，2026-07-17 已按实际口径改标「累计」。</span></p>
     <table>
-      <thead><tr><th>批次</th><th class="n">入库</th><th class="n">t1</th><th class="n">有视频</th><th class="n">视频</th><th class="n">评论</th><th class="n">高意向</th><th class="n">高%</th><th class="n">可触达</th><th>备注</th></tr></thead>
+      <thead><tr><th>批次</th><th class="n">入库</th><th class="n">t1</th><th class="n">有视频</th><th class="n">视频</th><th class="n">评论</th><th class="n">高意向</th><th class="n">高%</th><th class="n">中高</th><th>备注</th></tr></thead>
       <tbody>
-        <tr><td><b>5/30</b>(前情)</td><td class="n">16</td><td class="n">1</td><td class="n">16</td><td class="n">181</td><td class="n">684</td><td class="n gA">13</td><td class="n">1.90%</td><td class="n">12</td><td>首批，一只芋圆仔 tier1</td></tr>
-        <tr style="background:#f0fff4"><td><b>6/05</b></td><td class="n">22</td><td class="n">3</td><td class="n">22</td><td class="n">240</td><td class="n"><b>5574</b></td><td class="n gA"><b>88</b></td><td class="n">1.58%</td><td class="n">63</td><td><b>量产标杆</b>：评论最多、已联系最多（24）</td></tr>
-        <tr style="background:#f0fff4"><td><b>6/06</b></td><td class="n">9</td><td class="n">3</td><td class="n">9</td><td class="n">142</td><td class="n">284</td><td class="n gA">24</td><td class="n gA">8.45%</td><td class="n">22</td><td>旧改/毛坯脉，<b>高纯度</b>（评论少占比最高）</td></tr>
-        <tr style="background:#fff5f5"><td><b>6/07</b></td><td class="n">10</td><td class="n">0</td><td class="n">10</td><td class="n">85</td><td class="n">257</td><td class="n">0</td><td class="n">0.00%</td><td class="n">0</td><td><b>证伪</b>：装修vlog 脉 0 高意向</td></tr>
-        <tr style="background:#f0fff4"><td><b>6/07-intent</b></td><td class="n">6</td><td class="n">2</td><td class="n">6</td><td class="n">95</td><td class="n"><b>2391</b></td><td class="n gA"><b>37</b></td><td class="n">1.55%</td><td class="n">28</td><td><b>ROI 之王</b>：动态法 6 号出 37 高意向（6.2/号）</td></tr>
-        <tr><td><b>6/08</b></td><td class="n">26</td><td class="n">1</td><td class="n">23</td><td class="n">301</td><td class="n">1313</td><td class="n gA">16</td><td class="n">1.22%</td><td class="n">16</td><td>晒家/我的家保量批</td></tr>
-        <tr><td><b>6/09</b></td><td class="n">17</td><td class="n">1</td><td class="n">17</td><td class="n">180</td><td class="n"><b>2031</b></td><td class="n gA">30</td><td class="n">1.48%</td><td class="n">25</td><td>avgC≥80 放量批</td></tr>
-        <tr><td><b>6/10</b></td><td class="n">40</td><td class="n">3</td><td class="n">38</td><td class="n">335</td><td class="n">1216</td><td class="n gA">25</td><td class="n">2.06%</td><td class="n">21</td><td>原木风/奶油风出货最多（单批最多 40）</td></tr>
-        <tr><td><b>6/11</b></td><td class="n">10</td><td class="n">1</td><td class="n">10</td><td class="n">86</td><td class="n">258</td><td class="n gA">3</td><td class="n">1.16%</td><td class="n">3</td><td>—</td></tr>
-        <tr><td><b>6/12</b></td><td class="n">9</td><td class="n">2</td><td class="n">6</td><td class="n">53</td><td class="n">493</td><td class="n gA">8</td><td class="n">1.62%</td><td class="n">7</td><td>装修高脉号稀缺批</td></tr>
-        <tr><td><b>6/13</b></td><td class="n">7</td><td class="n">2</td><td class="n">7</td><td class="n">123</td><td class="n">355</td><td class="n gA">2</td><td class="n">0.56%</td><td class="n">2</td><td>全业主晒家号；US 隧道丢包批</td></tr>
-        <tr><td><b>6/14</b></td><td class="n">5</td><td class="n">2</td><td class="n">5</td><td class="n">47</td><td class="n">196</td><td class="n gA">5</td><td class="n">2.55%</td><td class="n">5</td><td>隧道丢包批，小批占比不低</td></tr>
-        <tr style="background:#fffbeb"><td><b>6/17</b> 🆕</td><td class="n">11</td><td class="n">2</td><td class="n">9</td><td class="n">126</td><td class="n">151</td><td class="n">0</td><td class="n">0.00%</td><td class="n">0</td><td>宽限期，高意向待回流</td></tr>
-        <tr style="background:#fffbeb"><td><b>6/18</b> 🆕</td><td class="n">10</td><td class="n">2</td><td class="n">10</td><td class="n">142</td><td class="n">240</td><td class="n">0</td><td class="n">0.00%</td><td class="n">0</td><td>宽限期（入库 1 天），待回流</td></tr>
-        <tr style="background:#fffbeb"><td><b>6/19</b> 🆕</td><td class="n">2</td><td class="n">2</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">–</td><td class="n">0</td><td>宽限期（入库当天），最弱批 2 号</td></tr>
-        <tr style="background:#fffbeb"><td><b>6/22</b> 🆕</td><td class="n">18</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">–</td><td class="n">0</td><td>宽限期（入库当天）；<b>tier0 入</b>（入库不再标 t1）；业主13+脉6；6/19 快照后新增未计入合计</td></tr>
-        <tr style="background:var(--soft)"><td><b>合计</b></td><td class="n"><b>201</b></td><td class="n"><b>27</b></td><td class="n"><b>188</b></td><td class="n"><b>2136</b></td><td class="n"><b>15451</b></td><td class="n gA"><b>251</b></td><td class="n"><b>1.62%</b></td><td class="n"><b>204</b></td><td>94% 号有产出；中高(≥60) 1351</td></tr>
+        <tr><td><b>5/30</b></td><td class="n">16</td><td class="n">2</td><td class="n">16</td><td class="n">271</td><td class="n">2472</td><td class="n gA">46</td><td class="n">1.86%</td><td class="n">202</td><td>首批，一只芋圆仔</td></tr>
+        <tr style="background:#f0fff4"><td><b>6/05</b></td><td class="n">22</td><td class="n">5</td><td class="n">22</td><td class="n">356</td><td class="n">39240</td><td class="n gA">387</td><td class="n">0.99%</td><td class="n">4369</td><td>量产标杆：评论/中高最多（199 中高/号）</td></tr>
+        <tr style="background:#f0fff4"><td><b>6/06</b></td><td class="n">9</td><td class="n">2</td><td class="n">9</td><td class="n">265</td><td class="n">915</td><td class="n gA">58</td><td class="n">6.34%</td><td class="n">215</td><td>旧改/毛坯脉，高纯度（高% 最高）</td></tr>
+        <tr style="background:#fff5f5"><td><b>6/07</b></td><td class="n">10</td><td class="n">0</td><td class="n">10</td><td class="n">140</td><td class="n">366</td><td class="n gA">0</td><td class="n">0.00%</td><td class="n">0</td><td>证伪：装修vlog 脉 0 高意向</td></tr>
+        <tr style="background:#f0fff4"><td><b>6/07-intent</b></td><td class="n">6</td><td class="n">3</td><td class="n">6</td><td class="n">170</td><td class="n">12463</td><td class="n gA">242</td><td class="n">1.94%</td><td class="n">1182</td><td>ROI 之王：6 号出 1182 中高（197/号）</td></tr>
+        <tr style="background:#fff5f5"><td><b>6/08</b></td><td class="n">26</td><td class="n">0</td><td class="n">24</td><td class="n">543</td><td class="n">2046</td><td class="n gA">20</td><td class="n">0.98%</td><td class="n">80</td><td>晒家/我的家保量批 → 3 中高/号，放量反噬</td></tr>
+        <tr><td><b>6/09</b></td><td class="n">17</td><td class="n">1</td><td class="n">17</td><td class="n">315</td><td class="n">8850</td><td class="n gA">193</td><td class="n">2.18%</td><td class="n">501</td><td>avgC≥80 放量批</td></tr>
+        <tr style="background:#fff5f5"><td><b>6/10</b></td><td class="n">40</td><td class="n">3</td><td class="n">39</td><td class="n">450</td><td class="n">3940</td><td class="n gA">54</td><td class="n">1.37%</td><td class="n">304</td><td>单批最多 40 号，但仅 7.6 中高/号</td></tr>
+        <tr><td><b>6/11</b></td><td class="n">10</td><td class="n">1</td><td class="n">10</td><td class="n">148</td><td class="n">560</td><td class="n gA">9</td><td class="n">1.61%</td><td class="n">53</td><td>—</td></tr>
+        <tr><td><b>6/12</b></td><td class="n">9</td><td class="n">1</td><td class="n">6</td><td class="n">84</td><td class="n">706</td><td class="n gA">12</td><td class="n">1.70%</td><td class="n">89</td><td>装修高脉号稀缺批</td></tr>
+        <tr><td><b>6/13</b></td><td class="n">7</td><td class="n">1</td><td class="n">7</td><td class="n">144</td><td class="n">1987</td><td class="n gA">19</td><td class="n">0.96%</td><td class="n">41</td><td>全业主晒家号；US 隧道丢包批</td></tr>
+        <tr><td><b>6/14</b></td><td class="n">5</td><td class="n">1</td><td class="n">5</td><td class="n">60</td><td class="n">801</td><td class="n gA">21</td><td class="n">2.62%</td><td class="n">69</td><td>隧道丢包批，小批占比不低</td></tr>
+        <tr><td><b>6/15</b></td><td class="n">1</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n gA">0</td><td class="n">–</td><td class="n">0</td><td>仅 1 号，无产出</td></tr>
+        <tr><td><b>6/17</b></td><td class="n">11</td><td class="n">0</td><td class="n">9</td><td class="n">184</td><td class="n">331</td><td class="n gA">1</td><td class="n">0.30%</td><td class="n">9</td><td>—</td></tr>
+        <tr><td><b>6/18</b></td><td class="n">10</td><td class="n">2</td><td class="n">10</td><td class="n">181</td><td class="n">1343</td><td class="n gA">5</td><td class="n">0.37%</td><td class="n">39</td><td>—</td></tr>
+        <tr><td><b>6/19</b></td><td class="n">2</td><td class="n">0</td><td class="n">2</td><td class="n">68</td><td class="n">184</td><td class="n gA">0</td><td class="n">0.00%</td><td class="n">0</td><td>最弱批 2 号</td></tr>
+        <tr style="background:#fff5f5"><td><b>6/20</b></td><td class="n">14</td><td class="n">0</td><td class="n">12</td><td class="n">134</td><td class="n">110</td><td class="n gA">0</td><td class="n">0.00%</td><td class="n">0</td><td>14 号 0 中高</td></tr>
+        <tr><td><b>6/21</b></td><td class="n">2</td><td class="n">0</td><td class="n">2</td><td class="n">59</td><td class="n">460</td><td class="n gA">0</td><td class="n">0.00%</td><td class="n">5</td><td>—</td></tr>
+        <tr><td><b>6/22</b></td><td class="n">18</td><td class="n">1</td><td class="n">16</td><td class="n">139</td><td class="n">1259</td><td class="n gA">26</td><td class="n">2.07%</td><td class="n">89</td><td>tier0 入（入库不再标 t1）；业主13+脉6</td></tr>
+        <tr><td><b>6/23</b></td><td class="n">7</td><td class="n">1</td><td class="n">7</td><td class="n">139</td><td class="n">1270</td><td class="n gA">22</td><td class="n">1.73%</td><td class="n">124</td><td>—</td></tr>
+        <tr><td><b>6/24</b></td><td class="n">2</td><td class="n">0</td><td class="n">2</td><td class="n">53</td><td class="n">12</td><td class="n gA">0</td><td class="n">0.00%</td><td class="n">0</td><td>—</td></tr>
+        <tr><td><b>6/25</b></td><td class="n">4</td><td class="n">0</td><td class="n">4</td><td class="n">67</td><td class="n">0</td><td class="n gA">–</td><td class="n">–</td><td class="n">0</td><td>有视频无评论</td></tr>
+        <tr><td><b>6/26</b></td><td class="n">4</td><td class="n">1</td><td class="n">4</td><td class="n">98</td><td class="n">579</td><td class="n gA">3</td><td class="n">0.52%</td><td class="n">41</td><td>—</td></tr>
+        <tr><td><b>6/28</b></td><td class="n">11</td><td class="n">0</td><td class="n">10</td><td class="n">139</td><td class="n">126</td><td class="n gA">4</td><td class="n">3.17%</td><td class="n">13</td><td>—</td></tr>
+        <tr><td><b>6/29</b></td><td class="n">17</td><td class="n">2</td><td class="n">14</td><td class="n">229</td><td class="n">1089</td><td class="n gA">12</td><td class="n">1.10%</td><td class="n">88</td><td>—</td></tr>
+        <tr><td><b>7/01</b></td><td class="n">10</td><td class="n">1</td><td class="n">10</td><td class="n">126</td><td class="n">125</td><td class="n gA">8</td><td class="n">6.40%</td><td class="n">23</td><td>—</td></tr>
+        <tr><td><b>7/02</b></td><td class="n">1</td><td class="n">0</td><td class="n">1</td><td class="n">9</td><td class="n">1</td><td class="n gA">0</td><td class="n">0.00%</td><td class="n">0</td><td>—</td></tr>
+        <tr style="background:#fff5f5"><td><b>7/03</b></td><td class="n">26</td><td class="n">0</td><td class="n">24</td><td class="n">242</td><td class="n">41</td><td class="n gA">0</td><td class="n">0.00%</td><td class="n">0</td><td>26 号 0 中高（放量批再次归零）</td></tr>
+        <tr><td><b>7/06</b></td><td class="n">3</td><td class="n">0</td><td class="n">3</td><td class="n">29</td><td class="n">111</td><td class="n gA">0</td><td class="n">0.00%</td><td class="n">0</td><td>—</td></tr>
+        <tr style="background:#fffbeb"><td><b>7/14</b> 🆕</td><td class="n">55</td><td class="n">0</td><td class="n">55</td><td class="n">492</td><td class="n">0</td><td class="n gA">–</td><td class="n">–</td><td class="n">0</td><td>单批最多 55 号；有视频但评论未回流</td></tr>
+        <tr style="background:#fffbeb"><td><b>7/15</b> 🆕</td><td class="n">12</td><td class="n">0</td><td class="n">12</td><td class="n">113</td><td class="n">0</td><td class="n gA">–</td><td class="n">–</td><td class="n">0</td><td>同上，待回流</td></tr>
+        <tr style="background:#fffbeb"><td><b>7/17</b> 🆕</td><td class="n">2</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n gA">–</td><td class="n">–</td><td class="n">0</td><td>入库当天；首个走 --from-split 严筛的批次</td></tr>
+        <tr style="background:var(--soft)"><td><b>合计</b></td><td class="n"><b>389</b></td><td class="n"><b>28</b></td><td class="n"><b>368</b></td><td class="n"><b>5447</b></td><td class="n"><b>81387</b></td><td class="n gA"><b>1142</b></td><td class="n"><b>1.40%</b></td><td class="n"><b>7536</b></td><td>95% 号有视频；中高(≥60) 7536 / 9.26%</td></tr>
       </tbody>
     </table>
-    <p style="font-size:13px;color:var(--gray)">口径：<code>intent_score</code> ≥80 高 / ≥60 中 / ≥30 低；<b>中高</b>＝≥60（累计 1351 条 / 8.74%）；<b>可触达</b>＝高意向用户中 <code>status≠contacted</code>。🆕 批高意向为 0 是因仍在 <code>GRACE_DAYS=9</code> 宽限期、worker 还没抓够，不代表号差。<b>7 天口径</b>：每批入库即排 T+7，满 7 天跑 <code>TAG=&lt;批次&gt; python3 scripts/source-cohort-yield.py</code> 查真实产出（带 9 天宽限期防误杀）。</p>
+    <p style="font-size:13px;color:var(--gray)">口径：<code>intent_score</code> ≥80 高 / ≥60 中 / ≥30 低；<b>中高</b>＝≥60（累计 7536 条 / 9.26%）。<b>「可触达」列已去掉</b>（原＝高意向用户中 <code>status≠contacted</code>，是随发送进度漂移的动态值，放在按批次的历史成效表里会越看越旧；要看可触达去实时页）。🆕 批高意向为 0 是因仍在 <code>GRACE_DAYS=9</code> 宽限期、worker 还没抓够，<b>不代表号差</b>。逐批查 7 天口径：<code>TAG=&lt;批次&gt; python3 scripts/source-cohort-yield.py</code>；重算本表：<code>no_proxy="*" pnpm tsx scripts/_cohort-table-rebuild.ts</code>（⚠️ 旧的 <code>_source-mining-effect-cumulative.py</code> 用原生 urllib，扛不住美国 IP → Supabase 的 SSL EOF 抖动，已两次跑挂）。</p>
 
     <p style="margin-top:24px"><b>显眼号源 · 显眼脉</b>（依据 = 上表 + cohort-yield 实测）：</p>
     <table>
