@@ -70,6 +70,8 @@
   <h1>号源体系 × 抓取机制 · 6/1→6/16 演进与效果</h1>
   <div class="meta">Akke 项目 · 2026-06-16 收口 · 数据窗口 2026-06-01 → 2026-06-16（北京时）</div>
   <div class="meta">前序：<a href="/akke/source-scoring-2026-06-04">号源评分方法论(6/4)</a> · <a href="/akke/source-mining-2026-06-11">每日扩源·tier体系(6/11)</a> · <a href="/akke/source-mining-local-f2">本地 f2 实拉方法</a></div>
+  <div class="note warn" style="margin-top:12px"><b>⚠️ 2026-07-17 口径校准</b>：本页是 <b>6/16 的快照</b>，下面 ②B / ③ 写的<b>升降档口径与抓取频率已经变了</b>，照着做会走错。<b>现行口径以 <a href="/akke/acquisition-loop-2026-07-15#s2">获客链路页 §2</a> 为准</b>（已逐条对过真实代码）。三处要点：① tier1 是 <b>每 3 分钟</b>（<code>*/3</code>）不是每 2 分钟——本页原「口径修正」那条<b>反而把对的改错了</b>，已订正；② 升 tier1 = <b>近 10 天「高+中意向」≥ 10 条</b>，不再是「近 3 天高意向 ≥ 5」；③ 「只升不降 + 手动清理」已被 <b>每天 01:00 一轮跑的自动三闸（升→降→出池）</b>取代。本页正文只订正这些「现行机制」句，<b>当时的叙事与判断保留原样</b>。</div>
+
   <div class="note good" style="margin-top:12px"><b>📡 2026-06-21 更新</b>：本页 ⑥ 当时标「by-day tier 曲线 / 完整流转链<b>不可重建</b>」、⑧#1 列「待补每日快照表」——<b>那张表 6/16 当天即落地（<code>daily_source_tier_stats</code> + <code>source_tier_change_log</code>），数据已自动积累</b>。续作 <b><a href="/akke/source-evolution">→ 号源动态监控（实时活曲线）</a></b> 已接棒：每日扩源后自动重生成，画 by-day tier0/1 号数 + 升降流水 + 快车道。本页留作 6/16 纵向叙事快照不动，下面 ⑥/⑧ 已标注「已修复」。</div>
 
   <div class="jumps">
@@ -109,10 +111,10 @@
     <div class="subh">B. 分档依据 = 近 7 天「高+中意向」产出数（不是粉丝/历史火过）</div>
     <p>升降档只看一个量：<b>这个号近 7 天抓到多少条高/中意向评论</b>。粉丝多、历史爆过、评论总数大——都不算数，只认「现在评论区里还有没有人在问价」。两条落地路径：</p>
     <ul>
-      <li><b>自动升档</b>：<code>auto-tier1</code> cron 每天 01:00 把「近 3 天高意向 ≥ 5」的号升 tier1。</li>
-      <li><b>手动清理/补漏</b>：<code>_retier-cleanup.ts</code>（口径=近 7 天高+中），降「热号近 7 天 0 产出」、升「未分档近 7 天高+中 ≥ 16」。</li>
+      <li><b>自动升档</b>：<code>auto-tier1</code> cron 每天 01:00 把「近 3 天高意向 ≥ 5」的号升 tier1。<br><span style="color:var(--gray);font-size:12px">（6/16 当时口径。<b>现已改成「近 10 天高+中意向 ≥ 10 条」</b>——<code>AUTO_TIER1_WINDOW_DAYS=10</code> / <code>AUTO_TIER1_MIN_HIMID=10</code>，2026-06-21 落地。）</span></li>
+      <li><b>手动清理/补漏</b>：<code>_retier-cleanup.ts</code>（口径=近 7 天高+中），降「热号近 7 天 0 产出」、升「未分档近 7 天高+中 ≥ 16」。<br><span style="color:var(--gray);font-size:12px">（6/16 当时靠手动跑脚本。<b>现已被 cron 自动化取代</b>，不再需要人工实拉复检。）</span></li>
     </ul>
-    <div class="note">⚠️ 已知口径裂缝：<code>auto-tier1</code> 看「高意向≥5/3天」，会漏掉「中意向多、高意向不足 5」的优质号（如某号高 5 中 35）。建议把口径统一成「高+中/7 天」——属动 cron 的高危改动，走 PR，当前 parked。</div>
+    <div class="note good"><b>✅ 这条裂缝已修（2026-06-21 落地）</b>：本页当时写「<code>auto-tier1</code> 看「高意向≥5/3天」，会漏掉中意向多、高意向不足 5 的优质号（如某号高 5 中 35）；建议统一成「高+中」——高危改动走 PR，当前 parked」。<b>已不再 parked</b>，而且改得比当时的建议更彻底：<b>升</b>=近 10 天「高+中」≥ 10；<b>降</b>=tier1 近 7 天「高+中」= 0 → 回 tier0；<b>出池</b>=tier0 且「最新视频 30 天前」+「近 30 天 0 条高+中」→ <code>is_active=false</code>（可逆）。三闸都在 <code>/api/cron/auto-tier1</code> 每天 01:00 一轮里跑（先升→再降→再淘汰→落快照）。意向口径：每条评论 0–100 分，<b>≥80 算高、≥60 算中</b>。</div>
 
     <div class="subh">C. 另有两套正交标签（与 tier 不是一回事，别混）</div>
     <p>同一个号身上挂三套坐标：<b>tier</b>（抓取优先级）、<b>category_v2</b>（号是谁/9 类画像）、<b>评分 A/B/C/D</b>（号质量分，详见 <a href="/akke/source-scoring-2026-06-04">评分方法论页</a>）。当前 active 池（<b>1234</b>，数字刷新至 2026-06-21）的画像分布（构成与 6/16 基本一致，同行 peer_decoration 仍最大）：</p>
@@ -146,11 +148,12 @@
     <p>分类之后，抓取频率<b>只按 tier 分两档</b>（口径来自 <code>vercel.json</code> 实测，下面是 6/16 真实值）：</p>
     <table>
       <tr><th>cron</th><th>频率</th><th>覆盖</th><th>作用</th></tr>
-      <tr><td><code>/api/cron/scrape-hot</code></td><td class="t1"><b>每 2 分钟</b>（<code>*/2</code>）</td><td>tier1 热号（6/21: <b>140</b>）</td><td>买家窗口短，热号要近实时盯</td></tr>
-      <tr><td><code>/api/cron/scrape</code></td><td><b>每小时</b>（<code>10 * * * *</code>）</td><td>tier0 全部（6/21: <b>1094</b>）</td><td>兜底扫，省预算</td></tr>
-      <tr><td><code>/api/cron/auto-tier1</code></td><td>每天 01:00（<code>0 1 * * *</code>）</td><td>升档判定</td><td>把近 3 天高意向≥5 的号升进热车道</td></tr>
+      <tr><td><code>/api/cron/scrape-hot</code></td><td class="t1"><b>每 3 分钟</b>（<code>*/3</code>）</td><td>tier1 热号（6/21: <b>140</b>）</td><td>买家窗口短，热号要近实时盯</td></tr>
+      <tr><td><code>/api/cron/scrape</code></td><td><b>每小时</b>（<code>10 * * * *</code>）</td><td>tier0 全部（6/21: <b>1094</b>）</td><td>兜底扫，省预算；每轮取 <b>150</b> 个最久没抓的</td></tr>
+      <tr><td><code>/api/cron/auto-tier1</code></td><td>每天 01:00（<code>0 1 * * *</code>）</td><td>升档 + 降档 + 出池</td><td>一轮跑完三闸（先升→再降→再淘汰→落快照）</td></tr>
     </table>
-    <div class="note warn"><b>口径修正</b>：早前内部记忆写 tier1 为「每 3min」，已与 <code>vercel.json</code> 核对——<b>真实为每 2min</b>（<code>*/2</code>），本页以代码为准。</div>
+    <div class="note warn"><b>⚠️ 订正（2026-07-17）：本页原来这条「口径修正」是错的，把对的改成了错的。</b>它当时写「早前内部记忆写 tier1 为『每 3min』，已与 <code>vercel.json</code> 核对——真实为每 2min（<code>*/2</code>）」。<b>事实反过来：记忆里的『每 3min』一直是对的</b>，<code>vercel.json</code> 里 <code>scrape-hot</code> 从头到尾都是 <code>*/3</code>。<br><b>错因</b>：<code>*/2</code> 来自 <code>src/app/api/cron/scrape-hot/route.ts</code> 顶部一句<b>计划注释</b>——「2026-06-15 提速阶梯第 1 步：默认 45→30min，<b>配合 vercel.json scrape-hot */3→*/2</b>」。那是「跑稳 24-48h 后再推」的<b>下一步计划，从没执行</b>。把计划注释当成了现值。<b>教训：核 cron 频率只认 <code>vercel.json</code> 的 <code>schedule</code> 字段，别读代码注释。</b></div>
+    <div class="note"><b>补：tier1 的「每 3 分钟」是轮次频率，不等于每个号 3 分钟被抓一次</b>。同一个号有<b>整号节流下限 30 分钟</b>（<code>SCRAPE_HOT_SOURCE_THROTTLE_MINUTES</code> 默认 30）；其中「<b>近 6 小时刚产过高/中意向</b>」的号才把节流缩到<b>最快 10 分钟</b>一次（<code>HOT_TIER1_INTENT_THROTTLE_MINUTES</code> 默认 10 / <code>HOT_TIER1_INTENT_WINDOW_HOURS</code> 默认 6，2026-06-24 上线的 intent-aware 加密）。所以「3 分钟」是<b>扫描轮次</b>，「10–30 分钟」才是<b>单号真实复抓间隔</b>。</div>
     <div class="note"><b>parked 的 4 档再切方案</b>：按近 7 天高+中切 T1≥16 / T2 6-15 / T3 1-5 / T4 连续14天0，配每日全量再分档 job。预期抓取量降 ~70%。落地最大地雷：<code>scrape</code> 现是 <code>.eq("tier",0)</code> 精确匹配，若直接打 2/3/4 标会<b>静默永不抓</b>——必须先改路由 cover 所有非 tier1 档，再 retier 打标。动 cron + 可能动 migration = 高危，走 PR。</div>
   </div>
 
@@ -272,7 +275,7 @@
     <div class="sec-h"><span class="sec-n">08</span><span class="sec-t">下一步 (Next)</span><span class="pill todo">待办</span></div>
     <ul>
       <li><b>✅ 已完成（6/16 落地）：每日 tier 快照表 + 流转日志</b>（<code>daily_source_tier_stats</code> + <code>source_tier_change_log</code>，auto-tier1 cron 每天 01:00 落）。「by-day tier 曲线 / 完整流转链」已从「不可得」变「每天自动刷」——续作 <b><a href="/akke/source-evolution">号源动态监控实时页</a></b> 已画真曲线（每日扩源后自动重生成）。</li>
-      <li><b>auto-tier1 cron 也写回滚锚点</b>，堵上⑤C 那 ~72 个升档无记录的缺口；顺手把口径从「高≥5/3天」改成「高+中/7天」（②B 的裂缝）。同 PR。</li>
+      <li><b>auto-tier1 cron 也写回滚锚点</b>，堵上⑤C 那 ~72 个升档无记录的缺口；顺手把口径从「高≥5/3天」改成「高+中/7天」（②B 的裂缝）。同 PR。<br><span style="color:var(--gray);font-size:12px"><b>✅ 已落地（2026-06-21）</b>：升降都写 <code>source_tier_change_log</code>（回滚锚点有了）；口径实际改成<b>升=近 10 天高+中 ≥ 10</b>、<b>降=近 7 天高+中 = 0</b>，比这里提的还多一道<b>死号出池</b>（30 天没新视频 + 近 30 天 0 高+中 → <code>is_active=false</code>）。</span></li>
       <li><b>扩源全押本地 f2 实拉</b>（17% 转热 vs B2B 批 0.3%），停止无验证的批量进号；按 <a href="/akke/source-mining-local-f2">f2 方法页</a> 日跑。</li>
       <li><b>4 档再切落地</b>（T1≥16/T2 6-15/T3 1-5/T4 连续14天0），把 1019 个 tier0 里 74% 长期 0 产出的号收进 T4 休眠、降抓取量 ~70%。先改 <code>scrape</code> 路由 cover 所有非 tier1 档再 retier 打标，否则静默不抓。</li>
     </ul>
