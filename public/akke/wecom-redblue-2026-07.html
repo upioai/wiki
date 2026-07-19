@@ -68,5 +68,29 @@ blockquote{border-left:3px solid #ccc;margin:8px 0;padding:4px 12px;color:#555;b
 <li>测试环境清理：蓝方 .env 删 TEST_ALLOW / TEST_FOCUS_ONLY / HOURS=0-24 / MIN·MAX_INTERVAL 并重启；红方云电脑关机。</li>
 </ol></div>
 
+
+<h2>七、能力规划：R2 资料库 → 抖音引流企微用户自动发资料（可行方案）</h2>
+<div class="box"><b>结论：可行，且 70% 的积木已在生产运行。</b>同事已把「户型图片 + 装修清单」部署到 Cloudflare R2；把它接进企微自动代回，就能对「抖音加过来的客户」自动兑现「加微发资料」的承诺——这正好补上 (R)资料交付分支的最后一环（抖音侧承诺清单 → 企微侧真的把货给出去）。</div>
+
+<div class="tablewrap"><table>
+<tr><th>已有积木</th><th>现状</th></tr>
+<tr><td>企微 GUI 发图链路</td><td>✅ 生产在用：enterprise_posters 表（触发词→public_url）→ 服务端命中 → 云电脑剪贴板贴图发送。本次对抗实测过（价格海报自动配发），会话内防重复（[图片:id] 记账）。</td></tr>
+<tr><td>抖音 ↔ 企微身份互认</td><td>✅ douyin_wecom_link + 统一记忆：企微会话能拿到该客户在抖音侧留下的户型/面积/城市画像。</td></tr>
+<tr><td>户型/面积识别</td><td>✅ material-delivery 模块已有（30-500平过滤、几室归一）。</td></tr>
+<tr><td>R2 资料库接线</td><td>❌ 未接：仓库里无 R2 相关配置，需与部署同事对齐（见下方待对齐项）。</td></tr>
+</table></div>
+
+<div class="box"><b>推荐分三步走：</b><ol>
+<li><b>Phase 1（最小可用，约 1 天）</b>：建 enterprise_materials 元数据表（kind=户型图/清单、户型标签[三室/四室…]、面积段、r2_url、触发词、发送时机），R2 只存文件本体。复用现有 matchPosters→GUI 发图通道：客户话里命中触发词（"户型图/清单/资料"）或画像已知户型时，挑对应资料随回复发出。<b>图片类资料零新开发</b>。</li>
+<li><b>Phase 2（文件类资料）</b>：装修清单若是 PDF/Excel，两条路二选一——<b>a) 转长图发送</b>（推荐：复用图片通道，客户手机端体验也更好）；b) GUI 发原文件：云电脑先把 R2 文件下载到本地，win32 CF_HDROP 复制为文件粘贴发送（需给 loop 新增 send_file()，中风险）。</li>
+<li><b>Phase 3（智能匹配）</b>：画像无户型时先追一句「几室/多少平」再发对应包；发送进 messages 记账防重复；每客户资料日限防刷屏；Langfuse 记发送成功率。</li>
+</ol></div>
+
+<div class="box"><b>需与部署同事对齐的 3 个问题：</b><ol>
+<li><b>访问域名</b>：R2 的 *.r2.dev 公网域在国内访问慢且不稳，云电脑要直连下载——建议套 Cloudflare 自定义域，或干脆把常用资料镜像到 upio.ai（现有海报就是这么托管的）。</li>
+<li><b>命名/目录规范</b>：按「户型/面积段」组织（如 <code>layouts/3room/100-120/xxx.jpg</code>），或维护一张映射表——没有规范就没法自动匹配。</li>
+<li><b>触发时机口径</b>：加好友即发（激进、易被动风控）vs 客户开口命中触发词再发（现有海报模式，稳）——建议后者 + 首触话术里预告「资料我整理好了，您说下户型我发对应的」。</li>
+</ol></div>
+
 <div class="sub" style="margin-top:30px">生成：2026-07-19 · 数据源 docs/analysis/wecom-redblue-2026-07-{17,19}.json · 有大有小 · Akke 红蓝对抗第一期</div>
 </div></body></html>
