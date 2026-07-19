@@ -323,9 +323,12 @@ def alert_backfill_suspect(nick: str, preview: str) -> None:
 
 
 def alert_ambiguous_nickname(nick: str, n_convs: int, preview: str = "") -> None:
-    """同昵称歧义转人工告警。去重：同一条回复(昵称+预览)只报一次、永不重复；
-    该客户发新内容(预览变了)会再报一次(台账协议见 _AMBIG_LEDGER 上方注释)。"""
-    key = _norm(nick) + "|" + _norm(preview)[:40]
+    """同昵称歧义转人工告警。去重：同一歧义昵称在本号下【只报一次、永不重复】——
+    2026-07-19 用户指令收紧为按【昵称】去重(原按 昵称+预览, 该客户每发新内容都再报,
+    对结构性歧义是噪声)。代价(接受)：报过后该昵称即便再发新内容也不再提醒——歧义是
+    结构问题(本号下 N 个同名会话), 靠人工消歧/合并会话根治, 一次提醒足够; 要重置删台账
+    json。台账协议见 _AMBIG_LEDGER 上方注释。"""
+    key = _norm(nick)
     now = time.time()
     led = {}
     try:
