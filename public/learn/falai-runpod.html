@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>fal.ai × RunPod · AI 生成的两种买法 — upio.ai 知识分享</title>
+<meta name="description" content="做 AI 图片 / 视频生成，绕不开两类平台：fal.ai 这样「按结果收费」的模型 API 市场，和 RunPod 这样「按时间收费」的 GPU 云。这篇讲清楚：两家各自是什么、一张图到底该在哪生成、Replicate / Modal / Vast.ai 这些名字各站在哪，以及我们两家都在用、分别用来干什么、踩过哪些坑。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700;800&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+
+<style>
+:root {
+  --bg: #0a0d14; --bg-elevated: #131720; --bg-deep: #1a1f2b;
+  --border: #232936; --border-strong: #2f3646;
+  --text: #e8eaef; --text-dim: #9ba3b4; --text-muted: #6b7384;
+  --accent:   #8b5cf6; --accent-soft:   rgba(139, 92, 246, 0.15);
+  --accent-2: #60a5fa; --accent-2-soft: rgba(96, 165, 250, 0.13);
+  --accent-3: #34d399; --accent-3-soft: rgba(52, 211, 153, 0.14);
+  --warning:  #fbbf24; --warning-soft:  rgba(251, 191, 36, 0.14);
+  --danger:   #f87171; --danger-soft:   rgba(248, 113, 113, 0.14);
+  --font-display: 'Instrument Serif', 'Source Han Serif SC', Georgia, serif;
+  --font-ui:      'Inter Tight', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; padding: 0;
+  background: var(--bg); color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 15.5px; line-height: 1.7;
+  font-feature-settings: 'cv11', 'ss01', 'tnum';
+  -webkit-font-smoothing: antialiased;
+}
+.crumb-bar {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(10, 13, 20, 0.82);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border-bottom: 1px solid var(--border);
+}
+.crumb-inner {
+  max-width: 920px; margin: 0 auto; padding: 11px 24px;
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--text-muted); letter-spacing: 0.04em;
+}
+.crumb-inner a { color: var(--text-dim); text-decoration: none; transition: color .2s; }
+.crumb-inner a:hover { color: var(--accent); }
+.crumb-inner .sep { margin: 0 8px; color: var(--border-strong); }
+.crumb-inner .cur { color: var(--text-dim); }
+
+.container { max-width: 860px; margin: 0 auto; padding: 52px 24px 100px; }
+
+header.hero { padding: 4px 0 34px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.tag {
+  display: inline-block; padding: 4px 12px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent);
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 18px;
+}
+h1 {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 50px; font-weight: 400; margin: 0 0 16px;
+  letter-spacing: -0.02em; line-height: 1.1;
+  background: linear-gradient(135deg, #f4f5f8 28%, var(--accent) 70%, var(--accent-2) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.subtitle { font-size: 16.5px; color: var(--text-dim); margin: 0 0 24px; max-width: 720px; line-height: 1.65; }
+.subtitle strong { color: var(--text); font-weight: 600; }
+.hero-meta { display: flex; gap: 24px; flex-wrap: wrap; font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); }
+.hero-meta strong { color: var(--text-dim); font-weight: 500; }
+
+.section-head { display: flex; gap: 20px; align-items: baseline; padding-top: 28px; margin-top: 48px; border-top: 1px solid var(--border); }
+.section-head .num { font-family: var(--font-display); font-style: italic; font-size: 64px; line-height: 1; font-weight: 400; color: var(--accent); flex-shrink: 0; }
+.section-head .meta { flex: 1; padding-top: 12px; }
+.section-head h2 { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); letter-spacing: 0.14em; text-transform: uppercase; margin: 0 0 6px; font-weight: 700; }
+.section-head .lede { font-family: var(--font-display); font-style: italic; font-size: 26px; line-height: 1.3; color: var(--text); }
+section { margin-bottom: 20px; }
+section > p { margin: 14px 0; color: var(--text-dim); }
+section > p strong { color: var(--text); font-weight: 600; }
+h3 { font-family: var(--font-ui); font-size: 17.5px; font-weight: 600; color: var(--text); margin: 30px 0 10px; letter-spacing: -0.01em; }
+code { background: var(--bg-deep); padding: 1px 6px; border-radius: 4px; font-size: 0.86em; color: #c4b5fd; font-family: var(--font-mono); }
+a { color: var(--accent-2); text-decoration: none; transition: color .2s; }
+a:hover { color: var(--accent); }
+
+.callout { border-radius: 10px; padding: 14px 18px; margin: 16px 0; font-size: 14px; line-height: 1.7; }
+.callout.info    { background: var(--accent-2-soft); border-left: 3px solid var(--accent-2); color: var(--text-dim); }
+.callout.info strong    { color: var(--accent-2); }
+.callout.warn    { background: var(--warning-soft); border-left: 3px solid var(--warning); color: var(--text-dim); }
+.callout.warn strong    { color: var(--warning); }
+.callout.purple  { background: var(--accent-soft); border-left: 3px solid var(--accent); color: var(--text-dim); }
+.callout.purple strong  { color: var(--accent); }
+.callout.green   { background: var(--accent-3-soft); border-left: 3px solid var(--accent-3); color: var(--text-dim); }
+.callout.green strong   { color: var(--accent-3); }
+.callout .src { display:block; margin-top:6px; font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+
+.snip { background: var(--bg-deep); border: 1px solid var(--border); border-radius: 10px; margin: 16px 0; overflow: hidden; }
+.snip .snip-bar { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); letter-spacing: 0.06em; padding: 8px 14px; border-bottom: 1px solid var(--border); background: var(--bg-elevated); }
+.snip pre { margin: 0; padding: 14px 16px; overflow-x: auto; }
+.snip code { background: none; padding: 0; color: var(--text-dim); font-family: var(--font-mono); font-size: 12.5px; line-height: 1.65; white-space: pre; }
+
+.dtable-wrap { overflow-x: auto; margin: 18px 0; border: 1px solid var(--border); border-radius: 12px; }
+.dtable { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 480px; }
+.dtable th, .dtable td { text-align: left; padding: 11px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.dtable tr:last-child td { border-bottom: none; }
+.dtable th { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); font-weight: 700; background: var(--bg-deep); }
+.dtable td { color: var(--text-dim); line-height: 1.55; }
+.dtable td.feat { color: var(--text); font-weight: 600; white-space: nowrap; }
+.dtable tbody tr:hover td { background: var(--bg-elevated); }
+
+.versus { display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch; margin: 16px 0; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+@media (max-width: 560px) { .versus { grid-template-columns: 1fr; } }
+.vs-side { padding: 16px 18px; }
+.vs-side h4 { margin: 0 0 6px; font-size: 14px; font-weight: 700; font-family: var(--font-mono); letter-spacing: 0.01em; }
+.vs-side p { margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.6; }
+.vs-side.left h4 { color: var(--accent-2); }
+.vs-side.right h4 { color: var(--warning); }
+.vs-mid { display: flex; align-items: center; justify-content: center; padding: 0 8px; font-family: var(--font-display); font-style: italic; font-size: 18px; color: var(--text-muted); border-left: 1px solid var(--border); border-right: 1px solid var(--border); background: var(--bg-deep); }
+@media (max-width: 560px) { .vs-mid { border: none; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 6px; } }
+
+.checklist { list-style: none; margin: 18px 0 0; padding: 0; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.checklist li { display: flex; gap: 12px; padding: 13px 18px; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--text-dim); background: var(--bg-elevated); }
+.checklist li:last-child { border-bottom: none; }
+.checklist li::before { content: "→"; color: var(--accent); font-weight: 700; flex-shrink: 0; font-family: var(--font-mono); }
+.checklist li strong { color: var(--text); font-weight: 600; }
+
+.punchline { font-family: var(--font-display); font-style: italic; font-size: 24px; line-height: 1.45; color: var(--text); text-align: center; margin: 44px auto 8px; max-width: 700px; padding: 26px 24px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.punchline .hl { background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight: 400; }
+
+footer { text-align: center; padding: 48px 0 0; font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted); letter-spacing: 0.06em; line-height: 1.8; }
+
+.reveal { opacity: 0; filter: blur(6px); transform: translateY(12px); transition: opacity .6s ease-out, filter .6s ease-out, transform .6s ease-out; }
+.reveal.in-view { opacity: 1; filter: blur(0); transform: translateY(0); }
+
+@media (max-width: 560px) {
+  h1 { font-size: 36px; }
+  .section-head { gap: 12px; }
+  .section-head .num { font-size: 46px; }
+  .section-head .lede { font-size: 21px; }
+  .punchline { font-size: 19px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .reveal { opacity: 1 !important; filter: none !important; transform: none !important; }
+}
+</style>
+</head>
+
+<body>
+
+<nav class="crumb-bar">
+  <div class="crumb-inner">
+    <a href="/">upio.ai</a><span class="sep">/</span><a href="/learn">知识分享</a><span class="sep">/</span><span class="cur">fal.ai × RunPod</span>
+  </div>
+</nav>
+
+<div class="container">
+
+  <header class="hero">
+    <span class="tag">工具入门 · AI 生成基建</span>
+    <h1>fal.ai × RunPod</h1>
+    <p class="subtitle">在 <a href="/learn/generative-media">AI 内容生成四件套</a> 里我们讲过「用什么模型生成」；这篇讲的是<strong>「生成这件事发生在哪台机器上、钱按什么算」</strong>。fal.ai 和 RunPod 是我们做图片 / 视频生成绕不开的两类平台的代表：一个按「结果」收费，一个按「GPU 时间」收费。读完你会知道两家各自是什么、一张图到底该在哪生成、Replicate / Modal / Vast.ai 这些名字各站在哪，以及我们两家都在用、分别用来干什么、踩过哪些坑。</p>
+    <div class="hero-meta">
+      <span><strong>篇幅</strong> 6 章 · 约 12 分钟</span>
+      <span><strong>受众</strong> 全员 · 不需要会写代码</span>
+      <span><strong>主线</strong> 团队图片 / 视频生成链路的真实选型</span>
+    </div>
+  </header>
+
+  <!-- ════════════ 引言 ════════════ -->
+  <section style="margin-top:30px">
+    <p>先给一句话版本：<strong>fal.ai 是「餐厅」——菜单上一千多道现成模型，点一道上一道，按份收钱；RunPod 是「出租厨房」——按小时租给你一台带 GPU 的灶台，里面做什么、怎么做全由你</strong>。同一个需求「AI 生成一张图」，在这两家是完全不同的买法。</p>
+    <div class="callout purple">
+      <strong>怎么用这篇 ·</strong> 读完你应该能回答三个问题：① 同事说「这个模型跑在 RunPod 上」和「这个直接调 fal」时，两句话分别意味着什么；② 新的生成需求来了，该点菜还是该开火；③ 为什么我们的图像生成走 RunPod 自建、视频模型横评却用 fal。文中所有价格均为 2026 年 7 月官方牌价，以两家 pricing 页为准。
+    </div>
+  </section>
+
+  <!-- ════════════ 一、两种买法 ════════════ -->
+  <div class="section-head reveal">
+    <div class="num">01</div>
+    <div class="meta">
+      <h2>Section 01 · Two Ways to Buy</h2>
+      <div class="lede">按结果付钱，还是按时间付钱</div>
+    </div>
+  </div>
+  <section>
+    <p>所有「AI 生成」的成本，最后都落在 GPU 上。区别只在于<strong>你站在离 GPU 多远的地方付钱</strong>：</p>
+
+    <div class="versus">
+      <div class="vs-side left">
+        <h4>fal.ai（模型 API 市场）</h4>
+        <p>你调一个现成模型的 API，传入提示词，拿回图片/视频。按「每张图 / 每秒视频」计费。GPU、模型部署、扩缩容全部不可见——你买的是<strong>结果</strong>。</p>
+      </div>
+      <div class="vs-mid">vs</div>
+      <div class="vs-side right">
+        <h4>RunPod（GPU 云）</h4>
+        <p>你租一台带 GPU 的机器（或一个自动扩缩的容器），把自己的模型和工作流装进去跑。按「GPU 每秒 / 每小时」计费。生成什么、怎么生成全由你——你买的是<strong>算力</strong>。</p>
+      </div>
+    </div>
+
+    <p>这不是「谁更好」的关系，而是<strong>灵活性和省心程度的交换</strong>。往下每一层，你多担一层责任、也多拿一层控制权：</p>
+    <div class="dtable-wrap">
+      <table class="dtable">
+        <tr><th>层次</th><th>代表</th><th>你负责</th><th>平台负责</th></tr>
+        <tr><td class="feat">模型 API</td><td>fal.ai、Replicate</td><td>写提示词、调 API</td><td>模型、GPU、部署、扩缩容</td></tr>
+        <tr><td class="feat">Serverless GPU</td><td>RunPod Serverless、Modal</td><td>打包自己的模型进 Docker 镜像</td><td>GPU、按请求启停、排队</td></tr>
+        <tr><td class="feat">整租 GPU</td><td>RunPod Pods、Lambda、Vast.ai</td><td>模型、环境、启停、利用率</td><td>只管把带卡的机器交给你</td></tr>
+      </table>
+    </div>
+    <div class="callout info">
+      <strong>似曾相识？·</strong> 这和 <a href="/learn/flyio">Fly.io 那篇</a>讲的「全托管 PaaS vs 租 VPS」是同一个故事在 GPU 世界的重演：fal 之于 RunPod，约等于 Vercel 之于 Fly.io——只是这里租的机器上多了一块几万块钱的显卡，账单数字也跟着放大了一个量级。
+    </div>
+  </section>
+
+  <!-- ════════════ 二、fal.ai 拆解 ════════════ -->
+  <div class="section-head reveal">
+    <div class="num">02</div>
+    <div class="meta">
+      <h2>Section 02 · What is fal.ai</h2>
+      <div class="lede">一千多个生成模型的「统一点菜口」</div>
+    </div>
+  </div>
+  <section>
+    <p>fal.ai 自我定位是「面向开发者的生成式媒体平台」：把市面上的图像、视频、音频、3D 生成模型——官方口径超过 <strong>1,000 个</strong>——包装成同一套 API。FLUX、Kling、Veo、Seedance、Wan、Seedream 这些当红模型全在菜单上，<strong>一个账号一个 key，今天调字节的模型、明天换 Google 的，代码几乎不用改</strong>。</p>
+    <p>它不是小作坊：2021 年成立，2025 年 12 月完成 Sequoia 领投的 D 轮融资 1.4 亿美元，估值 <strong>45 亿美元</strong>——一年之内估值翻了三倍，是生成式媒体基建赛道目前的头部玩家。</p>
+
+    <h3>按结果计费长什么样</h3>
+    <p>图像按张（或按百万像素 MP），视频按秒。几个当前牌价感受一下量级：</p>
+    <div class="dtable-wrap">
+      <table class="dtable">
+        <tr><th>模型</th><th>类型</th><th>当前牌价</th><th>换算</th></tr>
+        <tr><td class="feat">FLUX.2 [dev]</td><td>文生图</td><td>$0.012 / MP</td><td>一张 1024×1024 约 1 毛钱人民币</td></tr>
+        <tr><td class="feat">Seedream V4</td><td>文生图</td><td>$0.03 / 张</td><td>一张约 2 毛</td></tr>
+        <tr><td class="feat">Wan 2.5</td><td>视频</td><td>$0.05 / 秒</td><td>5 秒一条约 1.8 元</td></tr>
+        <tr><td class="feat">Kling 2.5 Turbo Pro</td><td>视频</td><td>$0.07 / 秒</td><td>5 秒一条约 2.5 元</td></tr>
+        <tr><td class="feat">Kling O3 Standard</td><td>视频</td><td>$0.084–0.112 / 秒</td><td>5 秒含音频约 4 元</td></tr>
+        <tr><td class="feat">Veo 3</td><td>视频</td><td>$0.40 / 秒</td><td>5 秒一条约 14 元——旗舰价</td></tr>
+      </table>
+    </div>
+    <p>工程侧的体验也是它的卖点：Python / JS 官方 SDK，所有模型天生支持<strong>异步队列 + Webhook 回调</strong>（提交任务立刻返回，生成完回调你的接口——长视频生成必须这么干），还有网页 Playground 让你不写代码先试效果。</p>
+
+    <h3>三个容易误解的地方</h3>
+    <div class="callout warn">
+      <strong>「Serverless GPU」不是随开随用 ·</strong> fal 的 pricing 页挂着 H100 $3.99/小时之类的 GPU 牌价，容易让人以为它也能像 RunPod 一样随开随用。实际上 fal Serverless 现在是<strong>企业客户申请制</strong>——个人注册后点进去是「Request Access」。对绝大多数用户，fal 就是一个模型 API 平台。
+    </div>
+    <div class="callout warn">
+      <strong>第三方模型含「中介费」·</strong> Kling、Veo 这些别家的模型经 fal 转售，价格通常高于去厂商官方直调。你多付的是「一个 key 调所有家」的聚合便利。量小、在横评阶段，这笔钱花得值；量大、模型已锁定时，直调厂商更省（下文第 5 章我们自己的迁移就是例子）。
+    </div>
+    <div class="callout warn">
+      <strong>预充值余额烧完，服务立刻停 ·</strong> fal 是充值扣款模式。余额清零不是「降速」而是直接开始报错——生产链路挂它上面，必须把「余额监控」当成一个正经运维项。我们真实地被这个停过一次工。
+    </div>
+  </section>
+
+  <!-- ════════════ 三、RunPod 拆解 ════════════ -->
+  <div class="section-head reveal">
+    <div class="num">03</div>
+    <div class="meta">
+      <h2>Section 03 · What is RunPod</h2>
+      <div class="lede">把带显卡的机器，按秒租给你</div>
+    </div>
+  </div>
+  <section>
+    <p>RunPod 自我定位是「AI Developer Cloud」：2022 年成立，2024 年拿了 Intel Capital 与 Dell 资本共同领投的 2000 万美元种子轮，2026 年 6 月又完成 Summit Partners 领投的 <strong>1 亿美元 A 轮，估值 10 亿美元</strong>，宣称开发者超百万、31 个地区有机房。它卖的东西很纯粹——带 GPU 的算力，主要三种形态：</p>
+    <div class="dtable-wrap">
+      <table class="dtable">
+        <tr><th>形态</th><th>它是什么</th><th>适合</th></tr>
+        <tr><td class="feat">Pods</td><td>整租一台 GPU 虚拟机，按需或抢占式（Spot），拿到就是你的</td><td>训练、微调、交互式实验（开着 ComfyUI 慢慢调）</td></tr>
+        <tr><td class="feat">Serverless</td><td>你交一个 Docker 镜像 + 处理函数，请求来了自动起 worker、按秒计费、没请求缩到零</td><td>线上推理服务——我们的图像生成就是这个形态</td></tr>
+        <tr><td class="feat">Instant Clusters</td><td>多机多卡集群，一键拉起分布式环境</td><td>大规模训练，小团队基本用不到</td></tr>
+      </table>
+    </div>
+    <p>另外还有两个新面孔：<strong>Runpod Hub</strong>（开源 AI 项目一键部署市场）和 <strong>Public Endpoints</strong>（RunPod 自己也开始卖现成模型 API 了——按调用付费，等于在自家厨房里开了个小餐厅，直接对标 fal 的生意）。</p>
+
+    <h3>两个机房档位</h3>
+    <p>RunPod 的卡分两池：<strong>Secure Cloud</strong> 是正经 T3/T4 数据中心的卡，给生产负载用；<strong>Community Cloud</strong> 是经审核的第三方算力主机（有点像「算力界的顺风车」），同卡便宜一到三成，但机器可能被中断——共识是<strong>实验用 Community，生产必须 Secure</strong>。</p>
+
+    <h3>当前牌价（Secure Cloud）</h3>
+    <div class="dtable-wrap">
+      <table class="dtable">
+        <tr><th>GPU</th><th>Pods 整租</th><th>Serverless（Flex）</th><th>一句话定位</th></tr>
+        <tr><td class="feat">RTX 4090 · 24GB</td><td>$0.69 / 小时</td><td>$1.10 / 小时</td><td>SDXL / FLUX 出图的性价比主力——我们用的就是这一档</td></tr>
+        <tr><td class="feat">RTX 5090 · 32GB</td><td>$0.99 / 小时</td><td>$1.58 / 小时</td><td>4090 的接班人</td></tr>
+        <tr><td class="feat">A100 · 80GB</td><td>$1.39–1.49 / 小时</td><td>$2.72 / 小时</td><td>上一代训练卡，大显存推理</td></tr>
+        <tr><td class="feat">H100 · 80GB</td><td>$2.89–2.99 / 小时</td><td>$4.55 / 小时</td><td>训练 / 大模型推理旗舰</td></tr>
+      </table>
+    </div>
+    <p>Serverless 单价比整租贵约六成，买的是<strong>弹性</strong>：按秒计费、空闲缩到零。像我们这种「一天几百张图、请求一阵一阵」的负载，Serverless 一个月几十美元；同样的活整租一台 4090 常开，一个月 $500 起步。存储另计：容器盘 $0.10/GB/月，Network Volume $0.07/GB/月。</p>
+    <div class="callout info">
+      <strong>冷启动的宣传与现实 ·</strong> 官方宣传 FlashBoot「冷启动低于 200 毫秒」——那说的是容器本身。真实世界里你的镜像动辄十几 GB（模型权重占大头），第一次请求要等拉镜像 + 载模型，社区实测几秒到十几秒是常态，大镜像首次冷启动可达分钟级。设计链路时要按「首次请求很慢、热着以后很快」来预期，或花钱配常驻 worker。
+    </div>
+  </section>
+
+  <!-- ════════════ 四、怎么选 + 竞品格局 ════════════ -->
+  <div class="section-head reveal">
+    <div class="num">04</div>
+    <div class="meta">
+      <h2>Section 04 · The Landscape</h2>
+      <div class="lede">什么时候点菜，什么时候开火</div>
+    </div>
+  </div>
+  <section>
+    <h3>决策清单</h3>
+    <ul class="checklist">
+      <li><strong>用现成模型、要结果、量还不大</strong> → fal.ai 点菜。零部署成本，十分钟接通</li>
+      <li><strong>要横评多家模型选型</strong> → fal.ai 一个 key 全试遍，别逐家开户折腾</li>
+      <li><strong>工作流是自己攒的</strong>（自定义 ComfyUI 节点、LoRA、私有 checkpoint）→ RunPod Serverless。菜单上根本没有这道菜，只能自己开火</li>
+      <li><strong>训练 / 微调 / 交互式炼丹</strong> → RunPod Pods 整租，按小时开关</li>
+      <li><strong>模型已锁定、量大成本敏感</strong> → 绕过聚合层：开源模型自部署摊薄成本，商业模型去厂商官方直调砍掉中介费</li>
+    </ul>
+
+    <h3>两家各自的邻居</h3>
+    <div class="dtable-wrap">
+      <table class="dtable">
+        <tr><th>平台</th><th>和谁一个赛道</th><th>一句话定位</th></tr>
+        <tr><td class="feat">Replicate</td><td>fal 的直接对手</td><td>社区模型生态最广（长尾模型多），但热度低的模型冷启动明显；fal 胜在快和「生成媒体」专注度</td></tr>
+        <tr><td class="feat">Together / Fireworks</td><td>隔壁赛道</td><td>同是模型 API，但主战场是开源 LLM 文本推理（按 token 计费），和 fal 的图像视频赛道错位</td></tr>
+        <tr><td class="feat">Modal</td><td>RunPod Serverless 的对手</td><td>纯代码优先的 serverless（Python 装饰器即部署），开发体验极佳，价格略高，不租整机</td></tr>
+        <tr><td class="feat">Lambda Labs</td><td>RunPod Pods 的对手</td><td>开箱即用的训练 VM，预装 PyTorch，研究向口碑好</td></tr>
+        <tr><td class="feat">Vast.ai</td><td>Community Cloud 的对手</td><td>纯 P2P 算力集市，全场最低价，机器质量看运气——RunPod Community 是它的「有审核版」</td></tr>
+        <tr><td class="feat">CoreWeave</td><td>不同量级</td><td>企业级 GPU 云（几十万张卡、InfiniBand），服务大厂大模型训练，不是小团队的选项</td></tr>
+      </table>
+    </div>
+    <div class="callout green">
+      <strong>行情背景 ·</strong> GPU 租赁是眼下竞争最惨烈的市场之一：H100 时租从 2024 年底的 $8–10 一路杀到 2026 年初专业云的 $1.5–2.5。这对用户是好事——也解释了为什么各家都在往上层「模型 API」卷（RunPod 开 Public Endpoints、fal 冲 45 亿估值）：<strong>卖裸算力越来越不赚钱，卖「结果」才有溢价</strong>。
+    </div>
+  </section>
+
+  <!-- ════════════ 五、我们怎么用 ════════════ -->
+  <div class="section-head reveal">
+    <div class="num">05</div>
+    <div class="meta">
+      <h2>Section 05 · How We Use Them</h2>
+      <div class="lede">一个当厨房，一个当试吃摊</div>
+    </div>
+  </div>
+  <section>
+    <p>我们不是二选一，而是<strong>两家都在用，各干各的活</strong>：</p>
+    <div class="dtable-wrap">
+      <table class="dtable">
+        <tr><th>场景</th><th>用谁</th><th>为什么非它不可</th></tr>
+        <tr><td class="feat">Softie 图像生成</td><td>RunPod Serverless</td><td>工作流是自己攒的 ComfyUI 镜像（SDXL / FLUX + 角色一致性节点，同一个虚拟角色反复出图），任何模型 API 菜单上都没有这道菜</td></tr>
+        <tr><td class="feat">视频模型横评</td><td>fal.ai</td><td>Seedance / Kling / Veo 多家旗舰同题对照选型，一个 key 全试遍，不用逐家开户充值</td></tr>
+        <tr><td class="feat">锁定后的量产</td><td>厂商官方直调</td><td>横评定下模型后，SFW 图像量产迁到了字节火山方舟官方 API——同款模型比走聚合层便宜</td></tr>
+      </table>
+    </div>
+    <p>这三行连起来正好是一条<strong>「探索 → 锁定 → 降本」</strong>的路径：探索期用 fal 低成本试遍所有选项；需求非标就在 RunPod 自建；需求标准且量大了,就绕过中介直连厂商。聚合平台最大的价值在探索期，<strong>它挣的就是你「还没想清楚用哪个模型」时的钱</strong>——这没什么不对，但想清楚之后要记得重新算账。</p>
+    <p>工程形态上，我们的 RunPod 链路是：模型权重直接<strong>烘焙进 Docker 镜像</strong>（约 27GB）→ 推到镜像仓库 → RunPod Serverless 拉起 worker → 工作流引擎异步提交任务并轮询结果。0–2 个 worker 按需启停，闲时费用趋近于零。</p>
+  </section>
+
+  <!-- ════════════ 六、踩过的坑 ════════════ -->
+  <div class="section-head reveal">
+    <div class="num">06</div>
+    <div class="meta">
+      <h2>Section 06 · Lessons Learned</h2>
+      <div class="lede">这些坑我们都真实踩过，你不用再踩一遍</div>
+    </div>
+  </div>
+  <section>
+    <div class="callout warn">
+      <strong>RunPod：Serverless 挂 Network Volume 不可靠 ·</strong> 教科书方案是「模型放共享网络盘，镜像做小」。我们在三个地区反复实测：endpoint 一绑 Network Volume，worker 就随机性起不来；解绑立刻正常。团队铁律：<strong>Serverless 一律把模型烘焙进镜像</strong>，镜像大点（27GB）没关系，稳定压倒一切。
+    </div>
+    <div class="callout warn">
+      <strong>RunPod：更新镜像必须用 digest，别信 latest ·</strong> 推了新镜像、endpoint 却还在跑旧代码——因为 <code>latest</code> 标签有缓存。必须用 <code>镜像名@sha256:…</code> 指定唯一版本，并且改完模板要重新保存 endpoint、等旧 worker 过期，新冷启动的 worker 才拉新镜像。「推上去了」不等于「跑的是新的」。
+    </div>
+    <div class="callout warn">
+      <strong>RunPod：改了配置，老 worker 不会自动刷新 ·</strong> 修改 endpoint 配置后，已经热着的 worker 继续按旧配置跑。要强制生效：先把最大 worker 数调成 0 逼停所有旧 worker，再调回来。和上一条同源——<strong>控制台显示的配置和线上真实状态是两回事，以后者为准</strong>。
+    </div>
+    <div class="callout warn">
+      <strong>RunPod：两个域名各管一套 API ·</strong> <code>api.runpod.ai</code> 管任务调用（提交 / 查状态），<code>api.runpod.io</code> 管资源管理（GraphQL）。用错域名返回 404，报错信息完全看不出是域名的问题。排查任务失败时，先用「列出最近任务 → 查单个任务详情」两步拿到真实报错，别瞎猜。
+    </div>
+    <div class="callout warn">
+      <strong>fal：把余额监控当成运维项 ·</strong> 预充值余额烧完服务立刻报错，没有缓冲。接进生产链路的那天，就要把「余额低于阈值告警」配上——我们是被真实停工教育后才补的课。
+    </div>
+    <div class="callout warn">
+      <strong>fal：模型各有各的「隐形门槛」·</strong> 同在 fal 菜单上，各家模型的内容政策不同。例如字节 Seedance 内置真人人脸检测：拿真实照片当参考图会直接被拦（返回 face detected），AI 生成的人像则能通过。选型横评时把这类政策差异当成和「画质、价格」并列的正式评测项，别到量产才发现走不通。
+    </div>
+    <div class="callout warn">
+      <strong>通用：异步是必修课 ·</strong> 视频生成动辄几十秒到几分钟，同步等结果的 HTTP 请求必超时。fal 的队列 + Webhook、RunPod 的提交 + 轮询，本质都是「先拿号、后取餐」。接任何生成类 API，第一天就按异步设计，别先写同步版再返工。
+    </div>
+  </section>
+
+  <div class="punchline">fal.ai 卖的是<span class="hl">做好的菜</span>，RunPod 租的是<span class="hl">带灶的厨房</span>——试菜阶段尽管点，独门配方就得自己开火，而吃定了一道菜时，记得去找灶台的主人谈个批发价。</div>
+
+  <footer>
+    价格与平台状态核实于 2026-07-19 · 来源：fal.ai/pricing · runpod.io/pricing · docs.runpod.io · 各家融资信息来自公开报道<br>
+    团队案例来自内部真实部署记录（已脱敏） · upio.ai · 知识分享
+  </footer>
+
+</div>
+
+<script>
+document.querySelectorAll('.reveal').forEach(el => {
+  new IntersectionObserver((entries, obs) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in-view'); obs.unobserve(e.target); } });
+  }, { threshold: 0.15 }).observe(el);
+});
+</script>
+
+</body>
+</html>

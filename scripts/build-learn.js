@@ -63,6 +63,7 @@ const CATEGORIES = [
       { slug: 'mac-for-ai', title: '为什么 Mac 更适合做 AI', desc: 'AI 时代的日常 = 终端里的 Agent + 想跑就跑的本地模型：macOS 的 Unix 底子和 Apple Silicon 统一内存各接住一半，也诚实讲清 Mac 什么时候不是答案。' },
       { slug: 'vercel-supabase', title: 'Vercel × Supabase', desc: '我们几乎每个产品都在用的两件套——前端托管 + 后端数据库：来历、能力全景，以及我们用了哪些、没用哪些、为什么。' },
       { slug: 'flyio', title: 'Fly.io 是什么', desc: '我们的「重活」都跑在 Fly.io 上：它到底是什么、和自己租一台 VPS 有什么本质区别、Render / Railway / Heroku / Cloud Run 这些竞品各自站哪，以及我们为什么选它、踩过哪些坑。' },
+      { slug: 'falai-runpod', title: 'fal.ai × RunPod', desc: 'AI 生成的两种买法：fal.ai 按「结果」收费（一千多个模型的统一点菜口），RunPod 按「GPU 时间」收费（把带显卡的厨房租给你）。什么时候点菜、什么时候开火，以及我们两家都在用、分别用来干什么、踩过哪些坑。' },
       { slug: 'nextjs-nodejs-python', title: 'Next.js · Node.js · Python', desc: 'Akke 是用哪几种语言搭起来的？用「一条请求的旅程」串起 TypeScript / Next.js / Node.js / Python，全员不写代码也能看懂同事每天在改什么。' },
       { slug: 'sql-python-intro', title: 'SQL 与 Python 入门', desc: '数据分析基础速成。' },
       { slug: 'pr-git-worktree', title: 'PR 与 Git Worktree', desc: '合并前的检查点，和多会话并行开发的隔离工具——结合 Akke 最近 3 天的真实提交举例。' },
