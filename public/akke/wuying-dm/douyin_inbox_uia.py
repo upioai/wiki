@@ -286,6 +286,23 @@ _AMBIG_LEDGER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_ambig
 
 _BACKFILL_LEDGER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_backfill_alerts.json")
 
+# 昵称静音名单(2026-07-19 饭粒定)：确认过【不是真客户】的同名会话(抖音活动号/薅红包号/
+# 内部号)永不推歧义卡。按昵称去重(上面那层)只保证"一辈子报一次"，静音名单是"一次都不报"。
+# 每行一个昵称，# 开头为注释；每次告警重读文件 → 加人不用重启脚本。
+# 代价：名单里若混进真客户，他的等待就没人提醒(歧义会话客户回复本来就不入库)——只放确认过的。
+# 文件缺失/读失败 = 不静音(fail-open，宁可多报一张卡也不静默吞掉真客户)。
+# 不带 `_` 前缀：.gitignore 的 `worker/scripts/wuying-dm/_*` 会挡掉，那样进不了镜像分发。
+_AMBIG_MUTE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ambig-mute.txt")
+
+
+def _ambig_muted(nick: str) -> bool:
+    try:
+        with open(_AMBIG_MUTE, encoding="utf-8") as f:
+            names = {_norm(ln) for ln in f if ln.strip() and not ln.lstrip().startswith("#")}
+    except Exception:
+        return False
+    return _norm(nick) in names
+
 
 def alert_backfill_suspect(nick: str, preview: str) -> None:
     """全量对账发现疑似漏检回复：【不自动补录】只推卡人工确认。
@@ -327,7 +344,11 @@ def alert_ambiguous_nickname(nick: str, n_convs: int, preview: str = "") -> None
     2026-07-19 用户指令收紧为按【昵称】去重(原按 昵称+预览, 该客户每发新内容都再报,
     对结构性歧义是噪声)。代价(接受)：报过后该昵称即便再发新内容也不再提醒——歧义是
     结构问题(本号下 N 个同名会话), 靠人工消歧/合并会话根治, 一次提醒足够; 要重置删台账
-    json。台账协议见 _AMBIG_LEDGER 上方注释。"""
+    json。台账协议见 _AMBIG_LEDGER 上方注释。
+    另：静音名单 _ambig_mute.txt 里的昵称【一次都不报】(见 _AMBIG_MUTE 注释)。"""
+    if _ambig_muted(nick):
+        print(f"  [skip] 同昵称歧义已静音(名单 ambig-mute.txt): {nick}")
+        return
     key = _norm(nick)
     now = time.time()
     led = {}
