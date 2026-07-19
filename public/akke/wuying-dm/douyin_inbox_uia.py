@@ -286,19 +286,6 @@ _AMBIG_LEDGER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_ambig
 
 _BACKFILL_LEDGER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_backfill_alerts.json")
 
-# 昵称静音名单(2026-07-19 用户定)：确认过不是真客户的同名会话(如抖音活动号/薅红包号)
-# 永久不再推歧义卡。每行一个昵称，# 开头为注释；改完即时生效(每次告警重读)。
-_AMBIG_MUTE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_ambig_mute.txt")
-
-
-def _ambig_muted(nick: str) -> bool:
-    try:
-        with open(_AMBIG_MUTE, encoding="utf-8") as f:
-            names = {_norm(ln) for ln in f if ln.strip() and not ln.lstrip().startswith("#")}
-    except Exception:
-        return False
-    return _norm(nick) in names
-
 
 def alert_backfill_suspect(nick: str, preview: str) -> None:
     """全量对账发现疑似漏检回复：【不自动补录】只推卡人工确认。
@@ -336,16 +323,11 @@ def alert_backfill_suspect(nick: str, preview: str) -> None:
 
 
 def alert_ambiguous_nickname(nick: str, n_convs: int, preview: str = "") -> None:
-    """同昵称歧义转人工告警。两层收敛(2026-07-19 用户指令)：
-    ① 静音名单 _ambig_mute.txt 里的昵称【永不报】——确认过不是真客户的活动号/内部号；
-    ② 其余按【昵称】去重, 同一歧义昵称在本号下只报一次、永不重复(原按 昵称+预览,
-       该客户每发新内容都再报, 对结构性歧义是噪声)。
-    代价(接受)：报过后该昵称即便再发新内容也不再提醒——歧义是结构问题(本号下 N 个同名
-    会话), 靠人工消歧/合并会话根治, 一次提醒足够; 要重置删台账 json。
-    台账协议见 _AMBIG_LEDGER 上方注释。"""
-    if _ambig_muted(nick):
-        print(f"  [skip] 同昵称歧义已静音(名单 _ambig_mute.txt): {nick}")
-        return
+    """同昵称歧义转人工告警。去重：同一歧义昵称在本号下【只报一次、永不重复】——
+    2026-07-19 用户指令收紧为按【昵称】去重(原按 昵称+预览, 该客户每发新内容都再报,
+    对结构性歧义是噪声)。代价(接受)：报过后该昵称即便再发新内容也不再提醒——歧义是
+    结构问题(本号下 N 个同名会话), 靠人工消歧/合并会话根治, 一次提醒足够; 要重置删台账
+    json。台账协议见 _AMBIG_LEDGER 上方注释。"""
     key = _norm(nick)
     now = time.time()
     led = {}
