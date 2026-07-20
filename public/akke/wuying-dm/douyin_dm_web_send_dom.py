@@ -224,10 +224,10 @@ def _engage_profile(page) -> None:
     print(f"    [engage] follow={f} like={lk}")
 
 
-def open_via_profile(page, sec_uid: str, engage: bool = False) -> bool:
-    """B/A 通用: 进对方主页 → (首触: 关注+点赞) → 点「私信」开聊天框。返回输入框是否出现。
+def _open_via_profile_once(page, sec_uid: str, engage: bool) -> bool:
+    """单次尝试: 进对方主页 → (首触: 关注+点赞) → 点「私信」开聊天框。返回输入框是否出现。
     关键(实测): headless 下主页加载慢, 必须【等 networkidle + 多等】再点, 点早了不触发;
-    点不出输入框就再等再点(最多 3 次)。"""
+    点不出输入框就再等再点(最多 6 次)。"""
     try:
         page.goto(f"https://www.douyin.com/user/{sec_uid}", wait_until="domcontentloaded", timeout=20000)
     except Exception:
@@ -267,6 +267,19 @@ def open_via_profile(page, sec_uid: str, engage: bool = False) -> bool:
                 pass
         page.wait_for_timeout(1500)
     return _find_input(page) is not None
+
+
+def open_via_profile(page, sec_uid: str, engage: bool = False) -> bool:
+    """B/A 通用: 进对方主页点「私信」开聊天框。首次失败→整页重载再试一次。
+
+    加固(2026-07-20, 治 dm_panel_failed 系统性失败): 三个云电脑号近一周 dm_panel_failed
+    占失败大头(小文 18.8%/文哥 14.2%/有大有小 7.3%), 主因是主页 DOM 半加载/卡态时点「私信」
+    不触发、开不出输入框。单次已内置 6 次点击重试仍失败时, 大概率是页面处于坏态——整页重载
+    一次拿到新鲜 DOM 常能解开。第二次不再关注/点赞(engage=False), 避免对同一用户重复互动。"""
+    if _open_via_profile_once(page, sec_uid, engage):
+        return True
+    print("    [open_via_profile] 首次未开出私信面板 → 整页重载重试一次")
+    return _open_via_profile_once(page, sec_uid, engage=False)
 
 
 def open_conversation(page, nick: str) -> bool:
