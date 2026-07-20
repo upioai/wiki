@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Akke · 企微资料交付方案</title>
+<meta name="description" content="客户加上企业微信后，系统按他说的话自动发对应资料：布局示意图 / 配置清单 / 风格效果图。">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body, h1, h2, h3, p, figure, ul, li, table { margin: 0; padding: 0; }
+  ul { list-style: none; }
+  img { max-width: 100%; }
+  table { border-collapse: collapse; }
+</style>
+<style>
+  :root {
+    --paper: #ffffff;
+    --raise: #f7f8fa;
+    --ink: #14161c;
+    --ink-2: #4a4f5c;
+    --ink-3: #868d9c;
+    --line: #e4e7ec;
+    --line-2: #eef0f4;
+    --accent: #306cee;
+    --accent-soft: #eaf0fe;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    --sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #0f1116; --raise: #171a21; --ink: #e8eaef; --ink-2: #a8afbd;
+      --ink-3: #737b8a; --line: #262a33; --line-2: #1e222a;
+      --accent: #6c9bff; --accent-soft: #1a2337;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0f1116; --raise: #171a21; --ink: #e8eaef; --ink-2: #a8afbd;
+    --ink-3: #737b8a; --line: #262a33; --line-2: #1e222a;
+    --accent: #6c9bff; --accent-soft: #1a2337;
+  }
+  :root[data-theme="light"] {
+    --paper: #ffffff; --raise: #f7f8fa; --ink: #14161c; --ink-2: #4a4f5c;
+    --ink-3: #868d9c; --line: #e4e7ec; --line-2: #eef0f4;
+    --accent: #306cee; --accent-soft: #eaf0fe;
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    max-width: 940px;
+    margin: 0 auto;
+    padding: 76px 28px 120px;
+    display: flex;
+    flex-direction: column;
+    gap: 80px;
+  }
+  section { display: flex; flex-direction: column; gap: 26px; }
+
+  /* ── 排版基座 ─────────────────────────────── */
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  h1 {
+    font-size: clamp(31px, 4.6vw, 45px);
+    font-weight: 700;
+    letter-spacing: -.022em;
+    line-height: 1.18;
+    text-wrap: balance;
+    margin-top: 15px;
+  }
+  .lede { font-size: 18px; color: var(--ink-2); max-width: 60ch; margin-top: 19px; }
+  h2 { font-size: 24px; font-weight: 650; letter-spacing: -.012em; text-wrap: balance; }
+  h2 .num {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--accent);
+    margin-right: 13px;
+  }
+  .sec-intro { color: var(--ink-2); max-width: 64ch; margin-top: 12px; }
+  .sec-head { display: flex; flex-direction: column; }
+
+  code {
+    font-family: var(--mono);
+    font-size: .88em;
+    background: var(--accent-soft);
+    color: var(--accent);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+
+  /* ── 三类图展示 ───────────────────────────── */
+  .shots { display: grid; grid-template-columns: 1fr; gap: 24px; }
+  @media (min-width: 660px) { .shots { grid-template-columns: repeat(3, 1fr); } }
+  .shot { display: flex; flex-direction: column; gap: 13px; min-width: 0; }
+  .shot a {
+    display: block;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    overflow: hidden;
+    background: #fff;
+    transition: border-color .15s, transform .15s;
+  }
+  .shot a:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .shot img { width: 100%; height: auto; display: block; }
+  .shot .cap { display: flex; flex-direction: column; gap: 4px; }
+  .shot .cap b { font-size: 15px; font-weight: 650; }
+  .shot .cap span { font-size: 13.5px; color: var(--ink-3); line-height: 1.5; }
+  .shot .cap em {
+    font-style: normal;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--accent);
+  }
+  @media (prefers-reduced-motion: reduce) { .shot a { transition: none; } .shot a:hover { transform: none; } }
+
+  /* ── 分诊表 ───────────────────────────────── */
+  .rules { display: flex; flex-direction: column; gap: 2px; }
+  .rule-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 21px 0;
+    border-bottom: 1px solid var(--line-2);
+  }
+  @media (min-width: 700px) {
+    .rule-row { grid-template-columns: 270px 1fr; gap: 30px; align-items: start; }
+  }
+  .rule-row .said { display: flex; flex-direction: column; gap: 7px; }
+  .rule-row .said b { font-size: 16px; font-weight: 650; }
+  .rule-row .said q {
+    font-size: 14px;
+    color: var(--ink-3);
+    quotes: "「" "」";
+    display: block;
+  }
+  .rule-row .got { font-size: 15.5px; color: var(--ink-2); }
+  .rule-row .got strong { color: var(--ink); font-weight: 650; }
+  .rule-row .why { font-size: 13.5px; color: var(--ink-3); margin-top: 7px; }
+
+  /* ── 环节清单 ─────────────────────────────── */
+  .pipeline {
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 26px 26px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .pipeline h3 { font-size: 17px; font-weight: 650; }
+  .pipe-intro, .pipe-note { font-size: 14.5px; color: var(--ink-2); line-height: 1.65; }
+  .pipe-note { color: var(--ink-3); border-top: 1px solid var(--line-2); padding-top: 15px; }
+  .steps { display: flex; flex-direction: column; gap: 1px; counter-reset: step; }
+  .steps li {
+    display: grid;
+    grid-template-columns: 52px 1fr;
+    gap: 14px;
+    align-items: baseline;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--line-2);
+  }
+  .steps li:last-child { border-bottom: 0; }
+  .steps .st {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .04em;
+    color: var(--ink-3);
+    background: var(--raise);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 3px 0;
+    text-align: center;
+  }
+  .steps li.done .st { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+  .steps .sd { font-size: 14.5px; color: var(--ink-3); line-height: 1.6; }
+  .steps .sd b { color: var(--ink); font-weight: 600; }
+  .steps li.done .sd { color: var(--ink-2); }
+
+  /* ── 关键词 ───────────────────────────────── */
+  .kwblock { padding: 22px 0; border-bottom: 1px solid var(--line-2); }
+  .kwhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; margin-bottom: 14px; }
+  .kwtitle { font-size: 16px; font-weight: 650; }
+  .kwout { font-family: var(--mono); font-size: 12.5px; color: var(--accent); }
+  .terms { display: flex; flex-wrap: wrap; gap: 7px; }
+  .terms span {
+    font-size: 13.5px;
+    color: var(--ink-2);
+    background: var(--raise);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 4px 10px;
+  }
+  .kwnote { font-size: 13.5px; color: var(--ink-3); margin-top: 13px; line-height: 1.6; }
+
+  /* ── 表格 ─────────────────────────────────── */
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 15px; min-width: 620px; }
+  th, td { text-align: left; padding: 13px 16px 13px 0; border-bottom: 1px solid var(--line-2); vertical-align: top; }
+  th {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    font-weight: 500;
+    border-bottom-color: var(--line);
+  }
+  td.n { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td .path { font-family: var(--mono); font-size: 12.5px; color: var(--ink-3); display: block; margin-top: 3px; }
+
+  /* ── 取舍问答 ─────────────────────────────── */
+  .call { display: grid; grid-template-columns: 1fr; gap: 7px; padding: 21px 0; border-bottom: 1px solid var(--line-2); }
+  @media (min-width: 700px) { .call { grid-template-columns: 270px 1fr; gap: 30px; align-items: baseline; } }
+  .call .q { font-weight: 650; font-size: 16px; }
+  .call .a { color: var(--ink-2); }
+  .call .a em { font-style: normal; color: var(--ink); font-weight: 600; }
+
+  .note {
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    background: var(--raise);
+    border-radius: 4px;
+    padding: 18px 22px;
+    font-size: 15px;
+    color: var(--ink-2);
+  }
+  .note b { color: var(--ink); font-weight: 650; }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding-top: 22px;
+    font-size: 13px;
+    color: var(--ink-3);
+    font-family: var(--mono);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 20px;
+  }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">Akke · 方案设计</div>
+    <h1>企微资料交付：谁来了、发什么、东西哪来的</h1>
+    <p class="lede">
+      客户从抖音加上企业微信后，系统按他说的话自动发对应资料。
+      这页讲清三类图分别长什么样、什么情况发哪一类、客户说哪些词会触发，以及几个关键取舍。
+    </p>
+  </header>
+
+  <section>
+    <div class="sec-head">
+      <h2><span class="num">01</span>会发出去的是这三类图</h2>
+      <p class="sec-intro">点图看完整大图。三类<b>互斥</b>，一轮只发一类。</p>
+    </div>
+
+    <div class="shots">
+      <div class="shot">
+        <a href="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/guides/layout/3room.png" target="_blank" rel="noopener">
+          <img alt="" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/guides/layout/3room.png" loading="lazy">
+        </a>
+        <div class="cap">
+          <b>柜体布局示意图</b>
+          <span>方块画出户型，蓝条标在该做柜的那面墙上，配三条做法要点。</span>
+          <em>6 版户型 · 预生成</em>
+        </div>
+      </div>
+
+      <div class="shot">
+        <a href="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/guides/checklist/3room.png" target="_blank" rel="noopener">
+          <img alt="" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/guides/checklist/3room.png" loading="lazy">
+        </a>
+        <div class="cap">
+          <b>全屋定制配置清单</b>
+          <span>逐空间列做什么柜、价格口径、抽屉怎么算、哪几项容易多花钱。</span>
+          <em>7 版户型 · 预生成 · 不含总价</em>
+        </div>
+      </div>
+
+      <div class="shot">
+        <a href="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/xiaoguotu/v2/full/style-11/0007.jpg" target="_blank" rel="noopener">
+          <img alt="" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/xiaoguotu/v2/full/style-11/0007.jpg" loading="lazy">
+        </a>
+        <div class="cap">
+          <b>风格效果图</b>
+          <span>从对应分类随机抽 3 张，避免每个客户收到同一批。</span>
+          <em>11,252 张实拍 · 32 个分类</em>
+        </div>
+      </div>
+    </div>
+
+    <div class="note">
+      <b>为什么必须互斥。</b>
+      配置清单是 7000px 的竖向长图，跟效果图混着发既刷屏，
+      又会拖慢云电脑那边的剪贴板 —— 图越大越吃内存。所以按需求具体程度排优先级，只发最贴切的那一类。
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2><span class="num">02</span>什么情况发哪一类</h2>
+      <p class="sec-intro">从上往下判断，命中即停。</p>
+    </div>
+
+    <div class="rules">
+
+      <div class="rule-row">
+        <div class="said">
+          <b>报了户型</b>
+          <q>我家三房两厅</q>
+        </div>
+        <div class="got">
+          发<strong>该户型的布局示意图</strong>（资料库里现成的标准版）。
+          <div class="why">
+            报户型本身就是明确信号，不用等他问「怎么设计」。
+            客户发来自己的户型图时，才走「生成专属图」那条路。
+          </div>
+        </div>
+      </div>
+
+      <div class="rule-row">
+        <div class="said">
+          <b>问怎么设计，且知道几房</b>
+          <q>三房两厅怎么布局</q>
+        </div>
+        <div class="got">
+          同样发<strong>布局示意图</strong>。户型可以来自这句话，也可以来自之前几轮存下的档案。
+        </div>
+      </div>
+
+      <div class="rule-row">
+        <div class="said">
+          <b>问怎么设计，但不知道几房</b>
+          <q>我家要怎么设计</q>
+        </div>
+        <div class="got">
+          <strong>什么都不发</strong>，继续问几房几厅。
+          <div class="why">
+            这是唯一一种不发图的情况。不知道户型画不了布局图，
+            也不拿配置清单顶替 —— 他问的是设计不是价格。
+          </div>
+        </div>
+      </div>
+
+      <div class="rule-row">
+        <div class="said">
+          <b>聊别的，还没给过清单</b>
+          <q>你们价格怎么算</q>
+        </div>
+        <div class="got">
+          发<strong>配置清单</strong>。知道户型就发对应版本，不知道就发通用版。
+          <div class="why">
+            通用版内容对所有客户都成立，没有发错的风险 —— 宁可发通用版也不要不发。
+            一个会话只发一次。
+          </div>
+        </div>
+      </div>
+
+      <div class="rule-row">
+        <div class="said">
+          <b>提到风格或空间</b>
+          <q>我喜欢奶油风那种</q>
+        </div>
+        <div class="got">
+          从该分类<strong>随机抽 3 张效果图</strong>，附一句引导语。同一张不重复发。
+        </div>
+      </div>
+
+      <div class="rule-row">
+        <div class="said">
+          <b>发来了户型图</b>
+          <q>一张链家截图 / 手机拍的纸质图</q>
+        </div>
+        <div class="got">
+          <strong>还没做。</strong>目标是模型读图认出房间数和朝向 → 换掉模板数据 → 出一张更贴他家的布局图。
+          <div class="why">
+            渲染器已经就位，但<b>卡在拿不到那张图</b>：云电脑靠截屏读消息，
+            而读屏被明确要求「不要描述图片内容」，客户发的图一律读成「[图片]」三个字 ——
+            服务端收到的就是这三个字。要做这条，得先在云电脑上加一整套
+            「认出是户型图 → 点开 → 截图 → 送多模态模型」，是云电脑脚本的大改。
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="note">
+      <b>官方海报是另一个维度。</b>
+      11 张官方物料（价格 / 环保协议 / 假一赔三 / 售后流程等）配好了触发词，
+      命中就发，<b>不占</b>上面三选一的名额。
+    </div>
+
+    <div class="pipeline">
+      <h3>「发来户型图」这条还差什么</h3>
+      <p class="pipe-intro">
+        整条链拆成 8 步，<b>现在只有最后 2 步是现成的</b>。
+        卡点不在画图，在<b>拿不到那张图</b>。
+      </p>
+      <ol class="steps">
+        <li class="done">
+          <span class="st">已有</span>
+          <span class="sd"><b>知道客户发了张图</b>　云电脑截屏读到一个「[图片]」气泡</span>
+        </li>
+        <li>
+          <span class="st">缺</span>
+          <span class="sd">
+            <b>判断这是不是户型图</b>
+            　现在读屏被明确要求「不要描述图片内容」，自拍、表情包、户型图一律读成同样的三个字
+          </span>
+        </li>
+        <li>
+          <span class="st">缺</span>
+          <span class="sd">
+            <b>把图拿到手</b>
+            　要在企微窗口里点开图片 → 截图或另存。这是新的 GUI 操作，云电脑脚本得改
+          </span>
+        </li>
+        <li>
+          <span class="st">缺</span>
+          <span class="sd"><b>把图送到服务端</b>　上传或转 base64 回传，现在没有这条通道</span>
+        </li>
+        <li>
+          <span class="st">缺</span>
+          <span class="sd">
+            <b>模型读图</b>
+            　认出房间数、朝向、大致开间进深。链家截图 / 售楼处宣传图 / 手机拍的纸质图，
+            清晰度和标注方式全不一样
+          </span>
+        </li>
+        <li>
+          <span class="st">缺</span>
+          <span class="sd">
+            <b>读图结果转成布局数据</b>
+            　还要兜住读错的情况 —— 把承重墙当隔墙、2.4m 认成 3m，方案就做不出来
+          </span>
+        </li>
+        <li class="done">
+          <span class="st">已有</span>
+          <span class="sd"><b>渲染成图</b>　现成的渲染器，换掉布局数据就能出图</span>
+        </li>
+        <li class="done">
+          <span class="st">已有</span>
+          <span class="sd"><b>发给客户</b>　跟另外三类图走同一条通路</span>
+        </li>
+      </ol>
+      <p class="pipe-note">
+        另外有个前提还没验证：<b>客户到底会不会在企微里主动发户型图</b>。
+        十个里只有一两个发的话，这条做出来利用率很低，该整体后移。建议先人工统计一周。
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2><span class="num">03</span>客户说哪些词会触发</h2>
+      <p class="sec-intro">
+        下面是<b>系统实际在用的词</b>，直接从代码里取的，不是举例。
+        判断的是「这句话里包不包含这个词」，不做分词也不猜语义 ——
+        所以「我家墙是白色的」不会被当成极简风。
+      </p>
+    </div>
+
+    <div>
+      <div class="kwblock">
+        <div class="kwhead">
+          <span class="kwtitle">报户型</span>
+          <span class="kwout">→ 布局示意图，并决定发哪一版</span>
+        </div>
+        <div class="terms">
+          <span>一房 / 1房 / 一室 / 1室 / 单间 / 开间</span>
+          <span>两房 / 2房 / 两室 / 二房 / 二室</span>
+          <span>三房 / 3房 / 三室 / 3室</span>
+          <span>四房 / 4房 / 四室 / 4室</span>
+          <span>五房 / 5房 / 五室 / 5室</span>
+          <span>复式 / 跃层 / loft / 别墅 / 自建房</span>
+        </div>
+        <p class="kwnote">
+          复式、别墅优先于房间数 —— 说「复式四房」走复式版。
+          一个都没命中就是「户型未知」，配置清单发通用版。
+        </p>
+      </div>
+
+      <div class="kwblock">
+        <div class="kwhead">
+          <span class="kwtitle">问怎么设计</span>
+          <span class="kwout">→ 布局示意图</span>
+        </div>
+        <div class="terms">
+          <span>怎么设计</span><span>怎么布局</span><span>怎么规划</span><span>怎么做</span>
+          <span>如何设计</span><span>如何布局</span><span>做个方案</span><span>出个方案</span>
+          <span>有没有方案</span><span>给个建议</span><span>怎么弄</span>
+          <span>哪些地方要做柜</span><span>做哪些柜</span><span>柜子怎么…</span>
+        </div>
+        <p class="kwnote">这组词还必须配上户型（上面那组，或之前几轮存下的），否则不发图、继续问。</p>
+      </div>
+
+      <div class="kwblock">
+        <div class="kwhead">
+          <span class="kwtitle">提到风格</span>
+          <span class="kwout">→ 该风格效果图 3 张</span>
+        </div>
+        <div class="terms">
+          <span>侘寂 / 奶油风 / 奶油色 / 奶油系</span>
+          <span>新中式 / 中式 / 国风 / 禅意</span>
+          <span>现代简约 / 简约风 / 现代风</span>
+          <span>轻奢</span><span>极简 / 性冷淡</span>
+          <span>北欧 / 宜家风</span>
+          <span>日式 / 原木风 / 无印 / 木质风</span>
+          <span>法式 / 复古法式</span>
+          <span>欧式 / 美式 / 田园</span>
+          <span>工业风 / loft / 复古工业</span>
+          <span>混搭</span><span>别墅 / 自建房 / 大平层</span>
+        </div>
+      </div>
+
+      <div class="kwblock">
+        <div class="kwhead">
+          <span class="kwtitle">提到空间</span>
+          <span class="kwout">→ 该空间效果图 3 张</span>
+        </div>
+        <div class="terms">
+          <span>客厅</span><span>餐厅</span><span>主卧 / 次卧 / 卧室</span>
+          <span>厨房 / 橱柜</span><span>卫生间 / 浴室 / 洗手间</span>
+          <span>儿童房 / 小孩房 / 宝宝房</span><span>书房 / 办公区</span>
+          <span>玄关 / 入户</span><span>鞋柜</span><span>衣柜</span><span>衣帽间</span>
+          <span>阳台 / 露台 / 花园</span><span>飘窗</span><span>榻榻米</span>
+          <span>楼梯</span><span>吊顶 / 天花</span>
+          <span>电视墙 / 电视背景墙</span><span>沙发背景墙 / 沙发墙</span>
+        </div>
+        <p class="kwnote">
+          风格和空间都提到时走风格 —— 两个库不交叉，给不了「日式的厨房」。
+          「玄关鞋柜」走玄关（整体场景 176 张），单说「鞋柜」才走鞋柜特写（101 张）。
+        </p>
+      </div>
+
+      <div class="kwblock">
+        <div class="kwhead">
+          <span class="kwtitle">问到这些</span>
+          <span class="kwout">→ 官方海报，独立于三选一</span>
+        </div>
+        <div class="terms">
+          <span>什么配置 / 包含什么 / 用什么板材 / 568都有啥</span>
+          <span>价格怎么算 / 大概多少钱 / 总价 / 预算 / 怎么收费</span>
+          <span>为什么这么便宜 / 样板房 / 568是真的吗</span>
+          <span>样板房有什么好处 / 有什么优惠 / 样板房权益</span>
+          <span>环保吗 / 甲醛 / 环保协议 / 板材检测</span>
+          <span>是正品吗 / 质量保障 / 假一赔三</span>
+          <span>样板房要签什么 / 样板房协议</span>
+          <span>流程是怎样 / 设计流程 / 下单后怎么走</span>
+          <span>怎么安装 / 安装流程 / 上门安装</span>
+          <span>售后怎么样 / 质保 / 出问题找谁</span>
+          <span>验收标准 / 怎么验收 / 验收单</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2><span class="num">04</span>东西都是哪来的</h2>
+      <p class="sec-intro">
+        数字是对 R2 全量清点 + 查库得来的，不是估的。没有任何一项是模型现编的。
+      </p>
+    </div>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>资料</th><th>来源</th><th>数量</th><th>怎么产出</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>布局示意图</td>
+            <td>户型模板<span class="path">tuwen/layouts → R2 guides/layout/</span></td>
+            <td class="n">6 版</td>
+            <td>一室一厅到五房、复式。柜体口径与配置清单对齐（客户会对照看）。</td>
+          </tr>
+          <tr>
+            <td>配置清单长图</td>
+            <td>产品知识库<span class="path">knowledge_documents · pricing / product</span></td>
+            <td class="n">63 条<br>→ 7 版图</td>
+            <td>照参考成品排版，价目逐条核对。价目改了要重出图。</td>
+          </tr>
+          <tr>
+            <td>效果图</td>
+            <td>效果图库<span class="path">R2 · xiaoguotu/v2/full</span></td>
+            <td class="n">11,252 张</td>
+            <td>风格 14 类 + 空间 18 类，已去广告图、已脱敏。</td>
+          </tr>
+          <tr>
+            <td>装修避坑指南</td>
+            <td>PDF 原件<span class="path">R2 · guides/</span></td>
+            <td class="n">108 页</td>
+            <td>发链接。企微发不了文件本身。</td>
+          </tr>
+          <tr>
+            <td>官方海报</td>
+            <td>已配触发词<span class="path">DB · enterprise_posters</span></td>
+            <td class="n">11 张</td>
+            <td>价格 / 环保协议 / 假一赔三 / 售后流程等，命中触发词自动发。</td>
+          </tr>
+          <tr>
+            <td>专题资料</td>
+            <td>第三方资料库<span class="path">R2 · docs/ + pgvector 检索</span></td>
+            <td class="n">314 份</td>
+            <td>另有 807 张图片版资料无元数据。目前只喂模型当参考、没直接发过。</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <b>视频：没有能发客户的。</b>
+      库里确实有 21 个 mp4，但 20 个在一个用途不明的目录里（配着音频和姿态帧截图，
+      看着像口播素材，全仓没有任何代码引用它），另 1 个是资料包里夹带的。
+      要发装修视频得另想办法。
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2><span class="num">05</span>怎么验证它真能发出去</h2>
+      <p class="sec-intro">
+        拿测试号在企微里逐条发下面的话，对照「应该看到什么」。
+        <b>别拿真客户试</b>。图是附加的 —— 每条都会先有一段正常的文字回复，图跟在后面。
+      </p>
+    </div>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>发这句话</th><th>应该看到</th><th>不通过的样子</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>你们价格怎么算</b><span class="path">先测这条 · 压力最大</span></td>
+            <td>
+              文字回复 + 一句「这份配置清单你先看看…」<br>
+              <b>1 张配置清单长图</b>（竖版，很长）<br>
+              可能另带 1-2 张官方海报
+            </td>
+            <td>文字到了但图没来 → 多半是长图卡了剪贴板</td>
+          </tr>
+          <tr>
+            <td><b>我家三房两厅</b></td>
+            <td>
+              文字回复 + 一句「按你说的户型画了张柜体位置示意图…」<br>
+              <b>1 张三房版布局图</b>（蓝条标在该做柜的墙上）
+            </td>
+            <td>收到的是配置清单 → 说明没识别出户型词</td>
+          </tr>
+          <tr>
+            <td><b>我喜欢奶油风那种</b></td>
+            <td>
+              文字回复 + 一句「给你挑了几张侘寂风、奶油风的实拍参考…」<br>
+              <b>3 张实拍效果图</b>
+            </td>
+            <td>只有 1-2 张 → 有图下载失败，看日志</td>
+          </tr>
+          <tr>
+            <td><b>我家要怎么设计</b><span class="path">反例 · 验证不该发时不发</span></td>
+            <td>
+              <b>只有文字</b>，追问几房几厅，<b>不该有任何图</b>
+            </td>
+            <td>冒出一张图 → 户型未知的兜底判断有问题</td>
+          </tr>
+          <tr>
+            <td>再发一次 <b>我家三房两厅</b><span class="path">验去重</span></td>
+            <td>
+              这次<b>不该再来布局图</b>（同一张不重发），
+              若之前没给过清单则给清单
+            </td>
+            <td>又发一遍同样的布局图 → 去重失效</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <b>同时看云电脑黑窗日志。</b>
+      正常应该出现 <code>命中官方海报 N 张，随文本一并发</code>，
+      结束时 <code>已发送并落库(文本 + N 图)</code>。<br>
+      看到 <code>[send_image] 下载/剪贴板失败</code> 就是图这一步挂了 —— 文字仍会正常送达，不影响客户体验。
+    </div>
+
+    <div class="note">
+      <b>最可能出问题的地方：配置清单那张图。</b>
+      它是 2160×7216 的长图，硬盘上只有 800KB，
+      但发图要先转成不压缩的 BMP 塞进剪贴板 —— <b>2160 × 7216 × 3 = 46.7 MB</b>，膨胀 58 倍。
+      这块内存要在云电脑上实打实占住，可能只是慢几秒，也可能卡住。
+      真挂了就把长图切成 2-3 张，或者降分辨率。<br><br>
+      另外确认云电脑上设了 <code>AKKE_WECOM_DRY_RUN=0</code> —— 代码里默认是 <code>1</code>（不真发），
+      没设的话日志会说发了、实际一张没发。
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2><span class="num">06</span>几个关键取舍</h2>
+      <p class="sec-intro">每一条都是因为踩过或看见了坑才这么定的。</p>
+    </div>
+
+    <div>
+      <div class="call">
+        <div class="q">为什么不直接发 PDF 文件</div>
+        <div class="a">
+          企微这条通道是<em>云电脑上模拟键鼠操作</em>，只能发文字和图片，没有发文件的能力。
+          108 页也不可能转成图片发。所以只能发链接。
+        </div>
+      </div>
+      <div class="call">
+        <div class="q">没有客户的户型图，怎么还能出布局图</div>
+        <div class="a">
+          画不出「你家的」平面图 ≠ 画不出图。真实户型图需要墙体尺寸、门窗位置、承重结构，
+          没图就是没有；但<em>「一室一厅该在哪儿做柜子」本身有确定答案</em>，跟他家墙具体多长无关。
+          所以画典型格局 + 柜体位置建议，图上明确标「示意图 · 以设计师上门量尺为准」。
+          这句限定写死在渲染层、不经过模型 —— 客户拿示意图当施工图去要求，是要出事的。
+        </div>
+      </div>
+      <div class="call">
+        <div class="q">为什么清单是预先做好的，不是每人现生成</div>
+        <div class="a">
+          比对参考成品发现，除了「逐空间柜体配置」那一节，其余五节<em>一字不差</em>。
+          这是模板加户型变量，不是一客一生成。预先做好、人工审过，
+          零出错风险、发送零延迟，客户感知几乎没差别。
+        </div>
+      </div>
+      <div class="call">
+        <div class="q">为什么清单上不写总价</div>
+        <div class="a">
+          只给单价口径（568 元/投影㎡、各项增项价），<em>不给总数</em>。
+          自动发出去的报价客户是会拿来谈的，写了就是商务承诺。
+          这样也给设计师量尺后的正式报价留了口子。
+        </div>
+      </div>
+      <div class="call">
+        <div class="q">为什么风格识别用词典不用模型</div>
+        <div class="a">
+          风格词是封闭集合、说法有限，<em>确定性匹配零成本零抖动</em>，
+          也不会把「我家墙是白色的」误判成极简风。没命中就不发图，走正常聊天。
+        </div>
+      </div>
+      <div class="call">
+        <div class="q">认错人怎么办</div>
+        <div class="a">
+          企微是按显示名认人的，有重名串台的风险。所以只在<em>高置信度匹配</em>时才用客户档案，
+          否则一律发通用版 —— 通用版内容对所有客户都成立，没有发错的风险。
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>方案｜docs/specs/2026-07-20-wecom-material-card-delivery.md</span>
+    <span>素材库用法｜docs/runbooks/asset-library-usage.md</span>
+    <span>2026-07-20</span>
+  </footer>
+
+</div>
+</body>
+</html>
