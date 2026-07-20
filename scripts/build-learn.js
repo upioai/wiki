@@ -59,6 +59,7 @@ const CATEGORIES = [
     label: 'TOOLS · GETTING STARTED',
     title: '工具入门',
     items: [
+      { slug: 'claude-code-skills', title: 'Claude Code 技能体系 · 团队上手手册', desc: '把反复要说的一长段话存成一个 /命令：技能怎么存怎么触发、常用技能逐个拆解（grill-me / brainstorming / deep-research / code-review / simplify）、开源生态该从哪装、worktree 与子智能体怎么并行不打架。含从分享会笔记到 2026-07 的现状更正——「think / megathink 三档思考」已被官方文档推翻，以及我们这台机器上实测在跑的 23 个插件与 32 个自建技能。' },
       { slug: 'new-mac-setup', title: '新 Mac 开荒手册 · 从拆箱到 Claude Code', desc: '新同学第一天的完整动线：Shadowrocket 隧道 → curl 出口验证 → Xcode CLT / Homebrew / Node 依赖链 → Claude Code 安装登录，每步可复制执行，附终检清单与真实踩坑速查（深色技术长页 + 动画终端演示）。' },
       { slug: 'mac-for-ai', title: '为什么 Mac 更适合做 AI', desc: 'AI 时代的日常 = 终端里的 Agent + 想跑就跑的本地模型：macOS 的 Unix 底子和 Apple Silicon 统一内存各接住一半，也诚实讲清 Mac 什么时候不是答案。' },
       { slug: 'vercel-supabase', title: 'Vercel × Supabase', desc: '我们几乎每个产品都在用的两件套——前端托管 + 后端数据库：来历、能力全景，以及我们用了哪些、没用哪些、为什么。' },
