@@ -77,6 +77,7 @@ const CATEGORIES = [
     title: '网络 · 科学上网',
     items: [
       { slug: 'self-hosted-vpn', title: '自建科学上网节点', desc: '协议·选 IP·客户端·排障：自建节点的完整脱敏科普。' },
+      { slug: 'team-vpn-architecture', title: '团队跨境 VPN · 双层中转架构全景', desc: '给协作团队的架构脱敏速览：搬瓦工入口 VPS 终结加密隧道、透明中转到 10 个独占美国 ISP 出口，每人一 UUID 死绑一出口；协议被防火墙逼从 TCP 一路走到 Hysteria2 UDP（含 TCP 掐数据 vs UDP 放行动图与协议进化时间轴）、Clash / Shadowrocket 终端接入切换、双机热备与 15 分钟深度巡检——不含任何 IP 与凭据（深色技术长页，2026-07）。' },
       { slug: 'cloud-device-network', title: '云电脑 / 云手机连不上？先查代理', desc: '云电脑、云手机时不时打不开、连不上网络，九成是本机代理软件的 fake-IP 模式挡住了 UDP——一眼认出症状 + 三步修复。' },
     ],
   },
