@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>企微自动回复的"眼睛"：VL 读屏通俗讲解</title>
+<style>
+  :root{
+    --ink:#1a1730;
+    --muted:#6b6486;
+    --accent:#6c5ce7;
+    --accent2:#00b4d8;
+    --paper:#ffffff;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+    background:linear-gradient(135deg,#ede9fe 0%,#e0f2fe 50%,#fce7f3 100%);
+    color:var(--ink);
+    min-height:100vh;
+    display:flex;align-items:center;justify-content:center;
+    overflow:hidden;
+  }
+  .deck{
+    width:min(880px,92vw);
+    height:min(680px,90vh);
+    position:relative;
+  }
+  .slide{
+    position:absolute;inset:0;
+    background:var(--paper);
+    border-radius:28px;
+    box-shadow:0 30px 80px -20px rgba(76,29,149,.35);
+    padding:46px 54px;
+    display:flex;flex-direction:column;
+    opacity:0;transform:translateY(24px) scale(.98);
+    pointer-events:none;
+    transition:opacity .5s ease,transform .5s ease;
+    overflow:auto;
+  }
+  .slide.active{opacity:1;transform:none;pointer-events:auto}
+  .kicker{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:14px;font-weight:600;letter-spacing:.08em;
+    color:var(--accent);text-transform:uppercase;
+    margin-bottom:12px;
+  }
+  .kicker .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);}
+  h1{
+    font-size:33px;line-height:1.2;font-weight:800;
+    letter-spacing:-.01em;margin-bottom:8px;
+    background:linear-gradient(120deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .sub{font-size:16.5px;color:var(--muted);margin-bottom:18px;line-height:1.6}
+  p{font-size:15.5px;line-height:1.7;color:#33304a;margin-bottom:12px}
+  .hl{background:linear-gradient(transparent 60%,#ffe27a 60%);font-weight:600;padding:0 2px}
+  .hl2{background:linear-gradient(transparent 60%,#a5f3d0 60%);font-weight:600;padding:0 2px}
+  .cards{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:6px}
+  .card{
+    background:linear-gradient(160deg,#f6f4ff,#eef6ff);
+    border:1px solid #e6e1f7;border-radius:18px;padding:18px 20px;
+  }
+  .card .emoji{font-size:28px;margin-bottom:8px;display:block}
+  .card h3{font-size:17px;margin-bottom:5px}
+  .card p{font-size:14px;color:var(--muted);margin:0;line-height:1.6}
+  .akke{
+    margin-top:6px;background:linear-gradient(160deg,#fff7ed,#fef2f2);
+    border:1px solid #fcd9b6;border-radius:18px;padding:16px 20px;
+  }
+  .akke .tagline{
+    display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;
+    letter-spacing:.06em;color:#c2410c;text-transform:uppercase;margin-bottom:7px;
+  }
+  .akke .tagline .ai{font-size:16px}
+  .akke p{font-size:14.5px;color:#3a2e26;margin:0 0 7px}
+  .akke p:last-child{margin-bottom:0}
+  .bad{color:#b91c1c;font-weight:600}
+  .good{color:#047857;font-weight:600}
+  .quote{
+    margin-top:auto;background:#1a1730;color:#e7e3ff;border-radius:18px;
+    padding:18px 22px;font-size:15.5px;line-height:1.7;
+  }
+  .quote b{color:#ffd966}
+  .flow{display:flex;flex-direction:column;gap:8px;margin:2px 0 6px}
+  .step{
+    display:flex;align-items:center;gap:14px;
+    border:1px solid #e6e1f7;border-radius:14px;padding:10px 15px;
+    background:#faf9ff;
+  }
+  .step .who{
+    flex-shrink:0;width:88px;text-align:center;font-size:12px;font-weight:700;
+    border-radius:9px;padding:6px 4px;line-height:1.3;
+  }
+  .who.eye{background:#dcfce7;color:#15803d}
+  .who.brain{background:#ede9fe;color:#6d28d9}
+  .who.hand{background:#fef9c3;color:#a16207}
+  .step .txt{font-size:14px;color:#3a2e26;line-height:1.5}
+  .step .txt b{color:#1a1730}
+  .arrow{text-align:center;color:#c3bce0;font-size:14px;line-height:.4;margin:-2px 0}
+  .reasons{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:4px}
+  .reason{background:#f7f5ff;border:1px solid #ebe7fb;border-radius:16px;padding:14px 16px}
+  .reason h3{font-size:15px;margin-bottom:5px;display:flex;align-items:center;gap:8px}
+  .reason p{font-size:13px;color:var(--muted);margin:0;line-height:1.6}
+  .deadtbl{width:100%;border-collapse:separate;border-spacing:0 8px;margin-top:2px}
+  .deadtbl td{
+    background:#faf9ff;border:1px solid #e6e1f7;padding:10px 14px;
+    font-size:13.5px;line-height:1.55;vertical-align:top;color:#3a2e26;
+  }
+  .deadtbl td:first-child{border-radius:12px 0 0 12px;font-weight:700;white-space:nowrap;width:150px;border-right:none}
+  .deadtbl td:last-child{border-radius:0 12px 12px 0;border-left:none}
+  .deadtbl .x{color:#b91c1c;font-weight:800;margin-right:6px}
+  .deadtbl .w{color:#b45309;font-weight:800;margin-right:6px}
+  footer{
+    position:absolute;left:0;right:0;bottom:-46px;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .dots{display:flex;gap:9px}
+  .dots i{width:9px;height:9px;border-radius:50%;background:#c9c2e8;cursor:pointer;transition:.3s}
+  .dots i.on{background:var(--accent);width:26px;border-radius:6px}
+  .nav{display:flex;gap:10px}
+  .nav button{
+    border:none;cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;
+    padding:10px 20px;border-radius:12px;background:#fff;color:var(--accent);
+    box-shadow:0 6px 18px -6px rgba(108,92,231,.5);transition:.2s;
+  }
+  .nav button:hover{transform:translateY(-2px)}
+  .nav button.primary{background:linear-gradient(120deg,var(--accent),var(--accent2));color:#fff}
+  .nav button:disabled{opacity:.35;cursor:default;transform:none}
+  .pageno{position:absolute;top:26px;right:32px;font-size:13px;color:#c3bce0;font-weight:600}
+</style>
+</head>
+<body>
+<div class="deck">
+
+  <!-- 第 1 页：封面 -->
+  <section class="slide active">
+    <span class="pageno">01 / 07</span>
+    <span class="kicker"><span class="dot"></span>企微自动回复 · 为什么总在"读消息"上出事</span>
+    <h1>系统的"眼睛"：VL 读屏是怎么回事</h1>
+    <p class="sub">企微好友单聊的 AI 自动代回，偶尔会漏回、答非所问、甚至把自己的话当客户的话。这些问题九成都出在同一个环节——"读消息"。这一页讲清它。</p>
+    <div class="cards">
+      <div class="card">
+        <span class="emoji">👀</span>
+        <h3>直觉里的做法</h3>
+        <p>程序直接"读到"客户发了什么文字，就像我们从数据库里查一条记录，一个字都不会错。</p>
+      </div>
+      <div class="card">
+        <span class="emoji">📸</span>
+        <h3>实际的做法</h3>
+        <p>程序<strong>给企微窗口拍一张截图</strong>，交给一个"会看图的 AI"（VL 模型）去认字、判断哪句是客户说的。</p>
+      </div>
+    </div>
+    <div class="quote">
+      一句话先记住：<b>系统不是"读"聊天记录，是"看"聊天截图</b>。看，就有看错的可能——后面所有的坑和修法，都围绕这一点展开。
+    </div>
+    <footer>
+      <div class="dots"><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="nav"><button disabled>← 上一页</button><button class="primary" data-go="1">下一页 →</button></div>
+    </footer>
+  </section>
+
+  <!-- 第 2 页：VL 是什么 · 三分工 -->
+  <section class="slide">
+    <span class="pageno">02 / 07</span>
+    <span class="kicker"><span class="dot"></span>VL 是什么 · 眼睛、脑子、手</span>
+    <h1>一次自动回复，其实是三个角色接力</h1>
+    <p class="sub">VL = Vision-Language 模型，"能看图说话的 AI"。它只是整条流水线里的一环——负责"看"。</p>
+    <div class="flow">
+      <div class="step"><span class="who eye">👀 眼睛 VL</span><span class="txt">云电脑截屏企微窗口 → VL 模型<b>认出每个气泡的文字、判断左（客户）还是右（我方）</b></span></div>
+      <div class="arrow">▼</div>
+      <div class="step"><span class="who brain">🧠 脑子 LLM</span><span class="txt">读出来的客户消息发给云端服务器 → 对话大模型结合<b>整段历史和客户画像</b>，以"小艳"人设想好回复</span></div>
+      <div class="arrow">▼</div>
+      <div class="step"><span class="who hand">🖐️ 手 GUI</span><span class="txt">云电脑把回复<b>一个字一个字打进企微输入框</b>，按发送——跟真人操作一模一样</span></div>
+    </div>
+    <div class="akke">
+      <span class="tagline"><span class="ai">🏠</span>用 Akke 来说</span>
+      <p>眼睛和脑子是<strong>两个不同的模型</strong>：看图认字的是一个轻量视觉模型，聊天回复的是另一个更大的对话模型。所以"回复质量不行"和"漏看消息"是两类问题，别混为一谈。</p>
+      <p>同事说的"卡顿"，绝大多数是<span class="bad">眼睛看漏了</span>，不是<span class="good">脑子想不出来</span>。</p>
+    </div>
+    <footer>
+      <div class="dots"><i></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="nav"><button data-go="0">← 上一页</button><button class="primary" data-go="2">下一页 →</button></div>
+    </footer>
+  </section>
+
+  <!-- 第 3 页：为什么只能看截图 -->
+  <section class="slide">
+    <span class="pageno">03 / 07</span>
+    <span class="kicker"><span class="dot"></span>灵魂拷问 · 为什么不"直接读数据"</span>
+    <h1>四条"正经路"全试过了，全是死路</h1>
+    <p class="sub">"别猜像素了，直接拿结构化数据不行吗？"——行不通，四条路都实测验证过：</p>
+    <table class="deadtbl">
+      <tr><td><span class="x">✗</span>无障碍接口</td><td>企微聊天区是自己画出来的界面（自绘），系统的无障碍树里是<strong>空的</strong>，读不到任何文字。</td></tr>
+      <tr><td><span class="x">✗</span>浏览器调试口</td><td>企微确实开着调试端口，但只挂到内嵌的"腾讯文档"网页——<strong>聊天主窗根本不是网页</strong>，够不着。</td></tr>
+      <tr><td><span class="x">✗</span>官方 API</td><td>腾讯不提供"替员工在好友单聊里发言"的接口；客服接口只管客服会话，不管好友聊天。</td></tr>
+      <tr><td><span class="w">⚠</span>会话存档（付费）</td><td>技术上能读，但客户端会给客户弹"<strong>对方已开启会话存档</strong>"——直接穿帮，"真人小艳"人设崩了。业务上否掉。</td></tr>
+    </table>
+    <div class="quote" style="margin-top:14px">
+      结论：<b>VL 看截图不是偷懒的权宜之计，是平台逼出来的唯一可行读法</b>。既然眼睛换不掉，功夫就得花在"给这双会看错的眼睛配护栏"上。
+    </div>
+    <footer>
+      <div class="dots"><i></i><i></i><i class="on"></i><i></i><i></i><i></i><i></i></div>
+      <div class="nav"><button data-go="1">← 上一页</button><button class="primary" data-go="3">下一页 →</button></div>
+    </footer>
+  </section>
+
+  <!-- 第 4 页：VL 会怎么看错 -->
+  <section class="slide">
+    <span class="pageno">04 / 07</span>
+    <span class="kicker"><span class="dot"></span>翻车图鉴 · 眼睛会怎么看错</span>
+    <h1>看错的五种典型姿势（都真实发生过）</h1>
+    <p class="sub">VL 不是每次都错，但它是"概率性"的——偶尔看错一次，后果就可能是漏回或答错人。</p>
+    <div class="reasons">
+      <div class="reason">
+        <h3>🫥 漏抄短气泡</h3>
+        <p>客户紧贴我方长回复下面发了句"嗯嗯"，小气泡贴着屏幕底边，VL 整条没看见 → 这句话就"消失"了。</p>
+      </div>
+      <div class="reason">
+        <h3>🔄 左右判反</h3>
+        <p>我方发的长文案气泡接近满宽，VL 把它判成"靠左=客户说的" → 机器把自己的话当客户消息，<strong>自问自答回给真客户</strong>。</p>
+      </div>
+      <div class="reason">
+        <h3>📋 系统条当消息</h3>
+        <p>"你撤回了一条消息"这种居中灰条，被读成客户发言 → 对着系统提示一本正经地回复。</p>
+      </div>
+      <div class="reason">
+        <h3>🏷️ 名字读飘</h3>
+        <p>同一个客户的昵称，这次读"愿"、下次读"原" → 系统以为是仨人，聊天记忆被拆碎。</p>
+      </div>
+    </div>
+    <div class="akke" style="margin-top:10px">
+      <span class="tagline"><span class="ai">✂️</span>还有第五种</span>
+      <p>VL 回答被<strong>字数上限截断</strong>，吐出半截坏数据 → 整轮读取作废。现在加了"截断抢救"：坏数据里能捞出完整的部分就先用上。</p>
+    </div>
+    <footer>
+      <div class="dots"><i></i><i></i><i></i><i class="on"></i><i></i><i></i><i></i></div>
+      <div class="nav"><button data-go="2">← 上一页</button><button class="primary" data-go="4">下一页 →</button></div>
+    </footer>
+  </section>
+
+  <!-- 第 5 页：diff 矫正为什么一度不行 -->
+  <section class="slide">
+    <span class="pageno">05 / 07</span>
+    <span class="kicker"><span class="dot"></span>关键一课 · "diff 矫正"为什么一度失灵</span>
+    <h1>可靠的像素，不可靠的眼睛</h1>
+    <p class="sub">为了少看错，系统用"像素对比（diff）"：把上一次的截图存成<span class="hl">基线</span>，新截图跟基线一比，哪块像素变了，就只让 VL 去看那一小块。想法很好，但早期版本埋了个雷：</p>
+    <div class="flow">
+      <div class="step"><span class="who hand">1️⃣ 像素说</span><span class="txt">"画面变了！"（客户真的发了新消息，<b>像素对比是可靠的</b>）</span></div>
+      <div class="arrow">▼</div>
+      <div class="step"><span class="who eye">2️⃣ VL 说</span><span class="txt">"我看了，那块没消息呀"（短气泡漏抄了，<b>眼睛这次看走眼</b>）</span></div>
+      <div class="arrow">▼</div>
+      <div class="step"><span class="who brain">3️⃣ 老代码</span><span class="txt">照样把新截图<b>存成新基线</b> → 这条消息的像素"进了账"却没被处理 → 之后每轮对比都说"没变化" → <span style="color:#b91c1c;font-weight:700">永久沉默，只能人工重启救回</span></span></div>
+    </div>
+    <div class="akke">
+      <span class="tagline"><span class="ai">🔧</span>现在的修法（test-22，已上线）</span>
+      <p>抓住一个矛盾信号：<strong>像素说"变了"、VL 却说"没消息"——两者打架时，绝不相信眼睛、绝不推进基线</strong>，改走一次"全屏重读"复核（就是以前"重启能救回来"的那条路，现在每轮自动走）。连续两次全读都确认没消息，才当作已读回执之类的噪音放行。</p>
+      <p>一句话：<span class="good">把"重启大法"做成了系统的自动反射</span>。</p>
+    </div>
+    <footer>
+      <div class="dots"><i></i><i></i><i></i><i></i><i class="on"></i><i></i><i></i></div>
+      <div class="nav"><button data-go="3">← 上一页</button><button class="primary" data-go="5">下一页 →</button></div>
+    </footer>
+  </section>
+
+  <!-- 第 6 页：治理原则 -->
+  <section class="slide">
+    <span class="pageno">06 / 07</span>
+    <span class="kicker"><span class="dot"></span>治理思路 · 怎么跟"会看错的眼睛"共处</span>
+    <h1>四条护栏原则，比逐个打补丁管用</h1>
+    <p class="sub">个案补丁打不完，真正收敛问题靠的是这几条通用原则：</p>
+    <div class="reasons">
+      <div class="reason">
+        <h3>🧾 失败不消费状态</h3>
+        <p>读取、生成、发送任何一步失败，都<strong>不许把消息"记账"成已处理</strong>——留给下一轮重试。上一页的基线雷、"生成失败后永久沉默"的弃单雷，根子都是违反了这条。</p>
+      </div>
+      <div class="reason">
+        <h3>🙅 弃权优于瞎猜</h3>
+        <p>拿不准就这轮不回。未回的消息一直在屏幕上，下轮还能看到；<strong>瞎回一条错话，代价大得多</strong>。</p>
+      </div>
+      <div class="reason">
+        <h3>🎨 确定性兜底</h3>
+        <p>能用死规则判的绝不交给 AI 猜：比如我方气泡是<strong>浅蓝色</strong>、客户是灰白色——查像素颜色比让 VL 判"左右"可靠，用它做最后一道否决。</p>
+      </div>
+      <div class="reason">
+        <h3>📊 可观测</h3>
+        <p>给"看错率、弃权率、回复时延"埋点数数。<strong>没有度量，每次修复都不知道有没有效</strong>，同类问题就会反复出现。</p>
+      </div>
+    </div>
+    <div class="akke" style="margin-top:10px">
+      <span class="tagline"><span class="ai">⚔️</span>这些雷是怎么被挖出来的</span>
+      <p>靠"红蓝对抗"：另一台云电脑跑一个 <strong>AI 扮演的假客户</strong>，按完整人设连续找真系统聊天，专门把它聊到出错。单元测试测不出的链路脆弱点，被镜像对手一冲就现形。</p>
+    </div>
+    <footer>
+      <div class="dots"><i></i><i></i><i></i><i></i><i></i><i class="on"></i><i></i></div>
+      <div class="nav"><button data-go="4">← 上一页</button><button class="primary" data-go="6">下一页 →</button></div>
+    </footer>
+  </section>
+
+  <!-- 第 7 页：总结 -->
+  <section class="slide">
+    <span class="pageno">07 / 07</span>
+    <span class="kicker"><span class="dot"></span>一页带走</span>
+    <h1>下次再遇到"卡顿"，这样想</h1>
+    <p class="sub">给运营同学的三条实用判断：</p>
+    <div class="flow">
+      <div class="step"><span class="who eye">现象</span><span class="txt">客户发了消息没人回、或答非所问 → 先想"<b>是不是眼睛看漏/看错了</b>"，而不是"模型变笨了"</span></div>
+      <div class="arrow">▼</div>
+      <div class="step"><span class="who brain">自查</span><span class="txt">企微必须<b>在前台、不被遮挡</b>——截屏机制决定了窗口被盖住 = 系统失明；重启后确认脚本版本是最新（云电脑不自动更新代码）</span></div>
+      <div class="arrow">▼</div>
+      <div class="step"><span class="who hand">上报</span><span class="txt">反馈问题时带上<b>时间点 + 客户名 + 截图</b>，工程侧能对着当轮日志和 VL 实际看到的画面快速定位</span></div>
+    </div>
+    <div class="quote" style="margin-top:14px">
+      <b>总结：</b>企微不给数据接口，系统只能"看截图"聊天——看，就会偶尔看错。<br>
+      治它不靠换眼睛（换不掉），靠<b>像素对比缩小范围、矛盾时全读复核、失败不记账、拿不准就弃权</b>。
+      每一次"卡顿"被定位，护栏就厚一层。
+    </div>
+    <footer>
+      <div class="dots"><i></i><i></i><i></i><i></i><i></i><i></i><i class="on"></i></div>
+      <div class="nav"><button data-go="5">← 上一页</button><button class="primary" data-go="0">↺ 重新看</button></div>
+    </footer>
+  </section>
+
+</div>
+
+<script>
+  const slides=[...document.querySelectorAll('.slide')];
+  let cur=0;
+  function show(i){
+    cur=(i+slides.length)%slides.length;
+    slides.forEach((s,k)=>s.classList.toggle('active',k===cur));
+  }
+  document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>show(+b.dataset.go));
+  document.querySelectorAll('.dots').forEach(group=>{
+    group.querySelectorAll('i').forEach((d,k)=>d.onclick=()=>show(k));
+  });
+  document.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight') show(cur+1);
+    if(e.key==='ArrowLeft') show(cur-1);
+  });
+</script>
+</body>
+</html>
