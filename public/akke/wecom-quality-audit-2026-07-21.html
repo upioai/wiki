@@ -5,29 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex">
 <title>企微话术质量排查 · 2026-07-21</title>
-
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   img, svg { max-width: 100%; height: auto; }
+  .backlink { max-width: 1180px; margin: 0 auto; padding: 18px 20px 0;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 11.5px; letter-spacing: .06em; }
+  .backlink a { color: #6B7A7B; text-decoration: none; border-bottom: 1px solid transparent; }
+  .backlink a:hover, .backlink a:focus-visible { color: #0E7268; border-bottom-color: currentColor; }
+  @media (prefers-color-scheme: dark) { .backlink a { color: #778886; } .backlink a:hover { color: #48C4B2; } }
+</style>
 
-  .backlink {
-    max-width: 1180px;
-    margin: 0 auto;
-    padding: 18px 20px 0;
-    font-family: var(--mono);
-    font-size: 11.5px;
-    letter-spacing: .06em;
-  }
-  .backlink a {
-    color: var(--ink-3);
-    text-decoration: none;
-    border-bottom: 1px solid transparent;
-  }
-  .backlink a:hover, .backlink a:focus-visible {
-    color: var(--accent);
-    border-bottom-color: currentColor;
-  }
-
+<style>
   :root {
     color-scheme: light;
     --paper:      #F4F7F6;
@@ -441,631 +429,292 @@
 <div class="wrap">
 
   <header class="mast">
-    <div class="kicker">内部排查 · 企业微信 AI 代回通道</div>
-    <h1>为什么每次照着金牌销售改完，<br>下次又冒出新问题</h1>
+    <div class="kicker">内部排查与整改 · 企业微信 AI 代回通道</div>
+    <h1>企微话术为什么不稳定，<br>以及我们把它修到了哪一步</h1>
     <p class="standfirst">
-      结论先说：<strong>不是模型抽风，是三件事叠在一起</strong>——你改的规则和线上跑的规则不是同一份；
-      质检给建议时对照的也是那份不生效的；而规则只加不减，已经堆到自己跟自己打架。
-      再加上没有回归测试，所以每修一次就等于重新赌一次。
+      「照着金牌销售改好一个，下次又冒出新问题」——排查下来<strong>不是模型不行</strong>，是六个结构性原因叠在一起。
+      当天动手修了五轮，回归闸从 <strong>19 分修到 27/27</strong>。这页记录：<strong>原因 → 方案 → 效果 → 还剩什么</strong>。
     </p>
     <div class="meta">
       <span><b>核查日期</b> 2026-07-21</span>
       <span><b>数据窗口</b> 近 30 天</span>
-      <span><b>样本</b> 企微生成 130 次 / 会话 56 条</span>
-      <span><b>方式</b> 线上 Langfuse 提示词 + 代码 + Supabase 实查</span>
+      <span><b>样本</b> 企微生成 130 次 / 会话 59 条</span>
+      <span><b>已合并</b> 5 个 PR + 线上话术 v3</span>
     </div>
   </header>
 
   <div class="strip">
-    <div class="metric">
-      <div class="n bad">0 / 130</div>
-      <div class="l">线上用到代码里那份话术规则的次数</div>
-    </div>
-    <div class="metric">
-      <div class="n warn">58%</div>
-      <div class="l">回复发出前被程序事后清洗过</div>
-    </div>
-    <div class="metric">
-      <div class="n bad">0</div>
-      <div class="l">企微会话进入「决策期」的条数</div>
-    </div>
-    <div class="metric">
-      <div class="n warn">27 轮</div>
-      <div class="l">历史最长会话（还是测试壳）</div>
-    </div>
-    <div class="metric">
-      <div class="n bad">3 / 56</div>
-      <div class="l">存下了客户画像的会话</div>
-    </div>
+    <div class="metric"><div class="n">19 → 27</div><div class="l">回归闸满分项（共 27 条用例）</div></div>
+    <div class="metric"><div class="n">1/8 → 8/8</div><div class="l">报价带「占便宜锚定」的比例</div></div>
+    <div class="metric"><div class="n">55% → 92%</div><div class="l">真正回答客户最新那句</div></div>
+    <div class="metric"><div class="n warn">2 起</div><div class="l">闸抓到的真事故（含纠纷风险）</div></div>
+    <div class="metric"><div class="n bad">3 项</div><div class="l">尚未解决的卡点</div></div>
   </div>
-
-  <section class="band">
-    <div class="band-h">
-      <span class="t">当天进展</span>
-      <span class="d">2026-07-21 · 排查完即动手 · 三个 PR 已合并</span>
-    </div>
-    <div class="done-list">
-      <div class="done">
-        <span class="tick">✓</span>
-        <div class="txt">
-          <div class="h">线上那处自相矛盾已消除</div>
-          <div class="s">
-            <code>wecom.nurture.rules</code> 发到 <b>v3</b>：「我让设计师按你户型<b>拉清单</b>」→「到店或线上会议咱当面过一遍」。
-            同一份提示词里【答产品用真信息】和【红线】不再打架。其余全文一字未动，回滚只需把 production 标签移回 v2。
-          </div>
-        </div>
-      </div>
-      <div class="done">
-        <span class="tick">✓</span>
-        <div class="txt">
-          <div class="h">改动不生效的坑，装了两道闸</div>
-          <div class="s">
-            CI 加「线上 vs 代码兜底」离线比对，漂移即红并指出分叉那句；话术质检改成运行时拉 Langfuse，
-            不再拿那份从不生效的代码兜底当规则基线。<span style="color:var(--ink-3)">（PR #999）</span>
-          </div>
-        </div>
-      </div>
-      <div class="done">
-        <span class="tick">✓</span>
-        <div class="txt">
-          <div class="h">回归闸建起来了，25 条用例</div>
-          <div class="s">
-            每条来自历次真修过的问题，走生产路径验线上提示词，断言只用确定性判据。
-            一建起来就抓到 <b>2</b> 个真问题。<span style="color:var(--ink-3)">（PR #1003）</span>
-          </div>
-        </div>
-      </div>
-      <div class="done">
-        <span class="tick">✓</span>
-        <div class="txt">
-          <div class="h">报价锚定从 1/8 修到 8/8</div>
-          <div class="s">
-            「原价 868 → 补贴 300 → 只要 568」这套占便宜说法之前 <b>87.5%</b> 的时候不出现，
-            现在稳定出现。<span style="color:var(--ink-3)">（PR #1007）</span>
-          </div>
-        </div>
-      </div>
-      <div class="done">
-        <span class="tick">✓</span>
-        <div class="txt">
-          <div class="h">堵掉一个纠纷级事故</div>
-          <div class="s">
-            AI 反复编造公司没有的「7 天犹豫期可退」（4 次采样编 <b>3</b> 次）。
-            已升级成确定性护栏，修后 <b>8/8</b>。
-          </div>
-        </div>
-      </div>
-      <div class="done pending">
-        <span class="tick">○</span>
-        <div class="txt">
-          <div class="h">还剩 5 条只做到 7/8，两条是红线</div>
-          <div class="s">
-            企微里说「加微信」、推拉门说「不加价」——8 次漏 <b>1</b> 次，按真实体量就是稳定事故率。下一刀治这个。
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
 
   <div class="body-grid">
 
     <nav class="rail" aria-label="目录">
       <ol>
-        <li><a href="#s1"><span class="rn">01</span>跑的和写的一样吗</a></li>
-        <li><a href="#s2"><span class="rn">02</span>话术还缺哪几块</a></li>
-        <li><a href="#s3"><span class="rn">03</span>五个根因</a></li>
-        <li><a href="#s4"><span class="rn">04</span>50 轮撑不撑得住</a></li>
-        <li><a href="#s5"><span class="rn">05</span>怎么彻底修</a></li>
-        <li><a href="#s6"><span class="rn">06</span>闸抓到了什么</a></li>
+        <li><a href="#s1"><span class="rn">01</span>为什么不稳定</a></li>
+        <li><a href="#s2"><span class="rn">02</span>方案</a></li>
+        <li><a href="#s3"><span class="rn">03</span>实现后的效果</a></li>
+        <li><a href="#s4"><span class="rn">04</span>后续待做卡点</a></li>
       </ol>
     </nav>
 
     <main>
 
-      <!-- ══════════ 01 ══════════ -->
+      <!-- ══════════ 01 原因 ══════════ -->
       <section id="s1">
         <div class="sec-head">
-          <span class="sec-num">01 — 现状核对</span>
-          <h2>那份流程文档，跟实际在跑的东西对得上吗</h2>
-          <p>大方向是对的，三层蒸馏真在跑，不是纸上谈兵。但有三处硬性对不上，其中一处会直接影响你对系统能力的判断。</p>
+          <span class="sec-num">01 — 原因</span>
+          <h2>核查发现：话术不稳定的六个原因</h2>
+          <p>每一条都有实测证据，不是推测。前三条解释「为什么改了不管用」，后三条解释「为什么会一直有新问题冒出来」。</p>
         </div>
 
-        <h3>对得上的部分</h3>
+        <div class="cause">
+          <div class="cause-h"><span class="cause-n">原因 1</span><h3>改的地方，和线上跑的地方，根本不是同一份</h3></div>
+          <p>近 30 天企微一共生成 130 次，其中<em>用到代码里那份话术的次数是 0</em>——线上 100% 跑的是 Langfuse 后台那一份。而代码里那份，近 120 天被改了 <strong>17 次</strong>。</p>
+          <p>换句话说：<strong>很多次「修好了」，其实一次都没上线。</strong>更糟的是半同步——只改了一半，留下自相矛盾：</p>
+          <figure class="ev crit">
+            <figcaption>排查当时 · 线上 v2 · 同一份话术内两条规则打架</figcaption>
+<pre>【答产品用真信息】…缺字段时说"我让设计师按你户型<b>拉清单</b>"
+
+【红线（违反就是事故）】…绝不说"我发你 / 让设计师整理好<b>发你</b>"</pre>
+          </figure>
+          <p>模型在两条互斥规则之间只能随机挑一条——<strong>这就是「时好时坏」的直接来源。</strong></p>
+        </div>
+
+        <div class="cause">
+          <div class="cause-h"><span class="cause-n">原因 2</span><h3>每天的话术质检，对照的是错的规则基线</h3></div>
+          <p>质检会把「我方现行规则」喂给判定模型，让它回答「这条问题现有规则管没管」。但拼这份规则的代码，<strong>读的正是那份从不生效的兜底版</strong>。</p>
+          <p>后果是双向的：线上其实没有的规则，被判成「有规则但没遵守」→ 建议你去查代码；线上明明有的，被判成「缺规则」→ 建议你再加一条。<strong>建议的方向本身就是错的，照着改当然按下葫芦浮起瓢。</strong></p>
+        </div>
+
+        <div class="cause">
+          <div class="cause-h"><span class="cause-n">原因 3</span><h3>规则只加不减——而且最具体的那条，常常自己就写错了</h3></div>
+          <p>企微话术已经堆到 <strong>7,346 token</strong>（约 6000 多中文字，还没算对话历史）。光「一条回复该多长、该不该抛钩子」就叠了五套互相拉扯的口径，且每轮全量注入。</p>
+          <div class="correction">
+            <div class="lab">这条在动手修的时候被自己推翻了一半</div>
+            <p>最初判断是「规则互相打架，需要提示词大改造」。但真去查报价那条（实测只有 <strong>1/8</strong> 的时候带上「原价 868 → 补贴 300」），发现根因更具体：</p>
+            <p>报价提示块最后一条——<strong>最贴合「问多少钱一平」这个场景、最具体的那条指令</strong>——逐字规定了要说 <code>"568 一平（…全包）"</code>，<strong>那句处方里根本没有 868 和补贴</strong>。而要求锚定的是一个遥远的通用块。</p>
+            <p><strong>具体的赢过笼统的。</strong>所以修法不是减负，是把最具体那条改对。改完 1/8 → 8/8。</p>
+            <p><strong>启示</strong>：动大手术之前，先逐条查「有没有哪条具体指令自己就写错了」。</p>
+          </div>
+        </div>
+
+        <div class="cause">
+          <div class="cause-h"><span class="cause-n">原因 4</span><h3>没有回归闸：只验「这条修好没」，不验「以前修好的还在不在」</h3></div>
+          <p>全仓 3 个评测脚本，<strong>没有一个覆盖话术</strong>；1000+ 条自动化测试全是纯函数（正则、切句、相似度），一条都不回答「给定这段对话，回复应该满足哪些条件」。</p>
+          <p>所以每次改话术都是<strong>裸改、无保护</strong>——这是「修一个坏一个」能一直循环下去的直接原因。</p>
+        </div>
+
+        <div class="cause">
+          <div class="cause-h"><span class="cause-n">原因 5</span><h3>观测有盲区，看不见自己修的东西有没有生效</h3></div>
+          <div class="tw">
+            <table>
+              <thead><tr><th>实测信号（近 30 天 / 130 次）</th><th style="width:96px">次数</th><th>意味着</th></tr></thead>
+              <tbody>
+                <tr><td>回复被程序事后清洗</td><td class="num">76 / 130</td><td><strong>58%</strong> 带了脏东西：导演说明、人设名前缀、句内复读</td></tr>
+                <tr><td>撞明禁项、<strong>重写后照样撞</strong></td><td class="num">6</td><td><strong>然后照样发给客户了</strong>，没有第二道拦截</td></tr>
+                <tr><td>空回复兜底</td><td class="num">11</td><td>8.5% 的轮次模型返回空，靠重试救</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>更麻烦的是两处真盲区：<strong>反复读硬闸触发时不写任何记录</strong>；<strong>明禁项重写那次调用不进追踪系统</strong>。修完没法验证，只能靠肉眼看对话。</p>
+        </div>
+
+        <div class="cause">
+          <div class="cause-h"><span class="cause-n">原因 6</span><h3>有整块场景压根没接上电</h3></div>
+          <p>不只是「某条规则写得不好」，而是几整块能力建好了、没通电：</p>
+          <ul class="plain">
+            <li><strong>决策期话术是死库存</strong>——59 条企微会话的阶段分布是 <code>培育 50 / 破冰 5 / 已转人工 4</code>，<strong>决策期 0 条</strong>。没有任何代码会把会话推进到决策期。于是 <strong>52 条决策期金牌问答 + 11 条决策原则</strong> 全是接不上电的库存：客户问「哪天能去看」「定金怎么算」，AI 还在用培育期口吻。</li>
+            <li><strong>企微没有转人工出口</strong>——AI 写什么就发什么。抖音有一道置信度闸（负面情绪、投诉、临门决策转人工），企微是空的。</li>
+            <li><strong>长对话会失忆</strong>——过了第 8 轮，AI 对客户的记忆只剩最近 5 轮对话 + 我方报过的价。客户第 3 轮说的「家里有小孩怕甲醛」「预算 3 万」直接蒸发。</li>
+          </ul>
+          <div class="correction">
+            <div class="lab">关于「50 轮」，先对齐一个预期</div>
+            <p><strong>生产里从来没有过 50 轮。</strong>59 条企微会话中，客户消息 ≥10 条的只有 3 条，最长 27 轮——而且那条的会话名是测试壳。</p>
+            <p>也就是说，此前所有关于「50 轮质量」的判断<strong>都来自推演，不是真客户</strong>。</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════════ 02 方案 ══════════ -->
+      <section id="s2">
+        <div class="sec-head">
+          <span class="sec-num">02 — 方案</span>
+          <h2>方案：先让改动生效，再让改动不互相打架</h2>
+          <p>顺序是刻意的。前两步不做，后面全白干——因为你改的东西不一定生效，质检给的方向也不一定对。</p>
+        </div>
+
+        <div class="tier">
+          <div class="tier-h"><span class="tier-p">第一步</span><span class="tier-t">把「改哪里」收口</span><span class="tier-note">✓ 已完成</span></div>
+          <ol class="steps">
+            <li><div><div class="st">装一道漂移闸<span class="fixed-tag">已上线</span></div><div class="sd">自动比对「线上正在跑的话术」与「代码里的兜底版」，不一致就报红，并指出**具体分叉的那一句**。彻底堵死「改了以为上线了、其实没动线上」。</div></div></li>
+            <li><div><div class="st">让质检读线上真规则<span class="fixed-tag">已上线</span></div><div class="sd">改成运行时直接拉线上那份，拉不到才退兜底、且如实标注「这是兜底版」。质检建议的方向从此是对的。</div></div></li>
+            <li><div><div class="st">修掉线上那句自相矛盾<span class="fixed-tag">已上线</span></div><div class="sd">话术发到 v3，删掉「拉清单」，与红线口径统一。</div></div></li>
+          </ol>
+        </div>
+
+        <div class="tier">
+          <div class="tier-h"><span class="tier-p">第二步</span><span class="tier-t">建回归闸（治「修一个坏一个」的根）</span><span class="tier-note">✓ 已完成</span></div>
+          <ol class="steps">
+            <li><div><div class="st">把历次修过的问题逐条固化成用例<span class="fixed-tag">27 条</span></div><div class="sd">每条 = 一段对话 + 客户这一句 + 一组<strong>确定性断言</strong>（不能出现什么、必须出现什么、多长、能不能换行）。<strong>刻意不用 AI 当裁判</strong>——裁判自己会漂，漂了就没人知道闸是真绿还是假绿。</div></div></li>
+            <li><div><div class="st">走生产路径，验的是线上话术</div><div class="sd">直接调线上同一套逻辑、读真实知识库，所以运营在后台改完话术立刻能验，不用等发版。一轮成本约一毛五。</div></div></li>
+            <li><div><div class="st">定规矩：改前改后各跑一次，只许「全绿或更绿」</div><div class="sd">这样「以前修好的又坏了」会在上线前被抓住，而不是等客户聊崩了才发现。</div></div></li>
+          </ol>
+        </div>
+
+        <div class="tier">
+          <div class="tier-h"><span class="tier-p">第三步</span><span class="tier-t">逐条改对，而不是继续堆规则</span><span class="tier-note">✓ 本轮已切五刀</span></div>
+          <ol class="steps">
+            <li><div><div class="st">必须 100% 兜住的，从话术升级成代码硬规则</div><div class="sd">「有规则但 AI 就是不遵守」的，别再往七千字的话术里加第二遍——那只会加剧规则打架。改成代码里确定性拦截 + 自动重写。<strong>误伤边界是这里的重点</strong>：「定金不能退」「对开门不加价」「不用再加微信」都是<strong>正确</strong>说法，拦错了等于把 AI 从正确答案上推开。</div></div></li>
+            <li><div><div class="st">最具体那条指令，把它改对</div><div class="sd">见原因 3。报价那条一行改动换来 700% 提升。</div></div></li>
+            <li><div><div class="st">互相打架的规则，逐对拆掉</div><div class="sd">例：话术风格段写着「可以拆成 2-3 段连着发」，节奏铁律写着「整条禁止换行」——同一份话术里直接对撞。企微那句改掉（抖音多气泡是正常的，留着）。</div></div></li>
+          </ol>
+        </div>
+
+        <div class="tier">
+          <div class="tier-h"><span class="tier-p">第四步</span><span class="tier-t">把没接上电的场景接上</span><span class="tier-note">进行中</span></div>
+          <ol class="steps">
+            <li><div><div class="st">决策期接线<span class="fixed-tag">已实现·待合并</span></div><div class="sd">52 条决策问答终于通电。<strong>判据是按企微的节奏另立的</strong>——抖音收口是「引导加微信」，企微双方早是好友、收口是「引导到店」，所以信号完全不同（见效果区）。</div></div></li>
+            <li><div><div class="st">转人工出口</div><div class="sd">待做，见卡点。</div></div></li>
+            <li><div><div class="st">长对话记忆</div><div class="sd">待做，见卡点。</div></div></li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- ══════════ 03 效果 ══════════ -->
+      <section id="s3">
+        <div class="sec-head">
+          <span class="sec-num">03 — 效果</span>
+          <h2>实现后的效果</h2>
+          <p>全部为实测：每条用例跑 8 次采样、低并发、零作废样本。</p>
+        </div>
+
+        <h3>总分：19 → 27 / 27</h3>
         <div class="tw">
           <table>
-            <thead>
-              <tr><th>文档说的</th><th>实查结果</th><th style="width:70px">结论</th></tr>
-            </thead>
+            <thead><tr><th>修的问题</th><th style="width:76px">修前</th><th style="width:76px">修后</th><th>怎么修的</th></tr></thead>
             <tbody>
-              <tr>
-                <td>三层蒸馏：原始案例 → 金牌问答 → 决策原则</td>
-                <td class="num">27 案例 / 165 问答 / 34 原则 / 66 篇知识</td>
-                <td><span class="chip g">属实</span></td>
-              </tr>
-              <tr>
-                <td>每轮注入 top-3 问答 + top-4 决策原则</td>
-                <td>代码写死 <code>slice(0,3)</code> 与 <code>DECISION_RULES_PER_STAGE=4</code></td>
-                <td><span class="chip g">属实</span></td>
-              </tr>
-              <tr>
-                <td>企微走语义检索（bge-m3），抖音走关键词</td>
-                <td>属实，取向量失败会自动退回关键词，不会挂</td>
-                <td><span class="chip g">属实</span></td>
-              </tr>
-              <tr>
-                <td>pgvector 素材库暂未启用</td>
-                <td>默认关（<code>KB_RETRIEVAL</code>）</td>
-                <td><span class="chip g">属实</span></td>
-              </tr>
+              <tr><td><strong>AI 编造「7 天犹豫期可退」</strong>（公司没这政策）</td><td class="num">1/4</td><td class="num">8/8</td><td>升级成代码硬规则；白名单守住「环保不达标全额退」这类真承诺</td></tr>
+              <tr><td>报价只甩「568 一平」，不给占便宜锚定</td><td class="num">1/8</td><td class="num">8/8</td><td>把锚定写进最具体那条处方本身</td></tr>
+              <tr><td><strong>企微里说「加微信」</strong>（已是好友，红线）</td><td class="num">7/8</td><td class="num">8/8</td><td>代码硬拦；否定式「不用再加微信」放行</td></tr>
+              <tr><td><strong>推拉门说成「不加价」</strong>（签约后加钱＝投诉）</td><td class="num">7/8</td><td class="num">8/8</td><td>按小句判，不误伤「对开门不加价」</td></tr>
+              <tr><td>回复带换行被拆成多条气泡刷屏</td><td class="num">6/8</td><td class="num">8/8</td><td>拆掉话术里那处「能换行/禁换行」的对撞</td></tr>
+              <tr><td><strong>答上一句、漏最新一句</strong></td><td class="num">55%</td><td class="num">92%</td><td>见下</td></tr>
             </tbody>
           </table>
         </div>
 
-        <h3>对不上的三处</h3>
+        <h3>两件闸一建起来就抓到的事</h3>
 
-        <div class="vs">
-          <div class="doc">
-            <div class="lab">文档说 · 提示词由 9 层拼成</div>
-            <p>人设 / 风格 / 记忆 / 会话信息 / 品牌 / 产品知识 / 决策原则 / 金牌问答 / 模板骨架。</p>
-          </div>
-          <div class="real">
-            <div class="lab">实际 · 是 13 块</div>
-            <p>文档漏了：门店地址清单、服务点清单（这两块<strong>绕过知识库排序、每轮全量硬注入</strong>）、报价口径块、防复读指令块、长对话压缩摘要块。</p>
-          </div>
+        <div class="correction">
+          <div class="lab">一 · 纠纷风险：AI 在编造公司没有的退款政策</div>
+          <p>八次采样编了六次，措辞一次比一次具体像真的：</p>
+          <p><code>「交定后有7天犹豫期，期内可随时退定。开始量尺服务后不能退。」</code></p>
+          <p>话术里那条「退款别乱承诺」写了快一个月，模型照样编。<strong>客户拿这句去对账就是纠纷。</strong>已改成代码硬规则，修后八次全过。</p>
         </div>
 
-        <div class="vs">
-          <div class="doc">
-            <div class="lab">文档说 · 11 步闸门流水线</div>
-            <p>媒体拦截 → 回声过滤 → 给号模板 → 生成 → 资料交付分支 → 生成后自检 → 置信度闸 → 分流「自动发 / 转人工」。</p>
-          </div>
-          <div class="real">
-            <div class="lab">实际 · 企微只有其中一半</div>
-            <p>那 11 步描述的是<strong>抖音</strong>的流水线。企微只有：非真人闭麦 → 好友验证样板剔除 → 老话去重 → 回声闸 → 媒体识别 → 生成。<strong>没有置信度闸、没有转人工出口、没有草稿状态机。</strong></p>
-          </div>
+        <div class="correction">
+          <div class="lab">二 · 「答上一句、漏最新一句」——最初那个抱怨的病根</div>
+          <p>客户前面问过甲醛、最新一句问工期，AI 把环保讲得头头是道、工期只字不提。实测通过率只有 <strong>55%~60%</strong>。</p>
+          <p>查下去：<strong>「只回答客户最新这一句」这条铁律，只有会话超过 16 条消息才注入</strong>。而企微真实会话绝大多数不到 10 条——<strong>绝大部分会话从没收到过这条指令。</strong></p>
+          <p>短会话也补上后：<strong>55% → 92%</strong>。</p>
         </div>
 
-        <p><strong>这条最要紧：企微是「AI 写什么，云电脑就原样发什么」，全程没有任何一个「这条我不敢发、交给人」的出口。</strong>抖音有的那道 <code>gateDraft</code>（检测到负面情绪、投诉、临门决策就转人工）在企微不存在。文档里的第 10、11 步，企微通道是空的。</p>
-
-        <div class="vs">
-          <div class="doc">
-            <div class="lab">文档说 · 自我修正靠生成后自检</div>
-            <p>检测断句、反问、超长、自曝、缺钩子，重写 ≤3 次。</p>
-          </div>
-          <div class="real">
-            <div class="lab">实际 · 企微只有 4 道，都埋在生成函数里</div>
-            <p>反复读硬闸（相似度 0.62）、明禁项重写、内心独白泄漏兜底、空回复重试。跟文档描述的那套自检不是一回事。</p>
-          </div>
+        <h3>决策期接线：判据必须按企微的节奏另立</h3>
+        <p>接线时差点直接复用抖音那套决策信号检测——<strong>幸好被拦下</strong>。它的信号清单第 5 条写着「要求加微信/留电话」：</p>
+        <div class="tw">
+          <table>
+            <thead><tr><th></th><th>抖音</th><th>企微</th></tr></thead>
+            <tbody>
+              <tr><td>收口动作</td><td>把人<strong>导到微信</strong></td><td><strong>约到店 / 交定</strong></td></tr>
+              <tr><td>「要微信」意味着</td><td>最强的决策信号</td><td><strong>异常</strong>——双方早是好友，这是红线明禁的话</td></tr>
+            </tbody>
+          </table>
         </div>
+        <p><strong>拿抖音判据套企微，等于把一个异常信号读成了利好。</strong>企微另立一套，全部围绕到店/交定：问店址、约时间过去、问量尺安排、问定金付款合同、明确说要做——任一即进决策期；问工期、追问名额算弱信号，要两条才进。</p>
+        <p>刻意不收的：纯问价格板材（还是培育期咨询）、「我再看看」（那是收口信号，另有处理）、以及<strong>否定式</strong>「先不用上门量」——客户明确踩刹车时切进决策期，等于在人家说「先不用」时反而逼单。</p>
+        <p>新增两条用例验证，其中第二条是刻意设计的<strong>防「切了阶段就把红线丢了」</strong>：决策期话术更激进，得确认「绝不承诺退款」「不导微信」在新阶段照样生效。结果都是 8/8。</p>
+
+        <h3>过程中纠正的两个自己的错误</h3>
+        <ul class="plain">
+          <li><strong>用 3 次采样定基线是假的。</strong>3 次分不清「33% 遵守」和「67% 遵守」——报价那条在不同的跑里给出过 0/1、2/3、2/3、0/3，看着像抖动，提到 8 次才看清真相是 1/8，<strong>此前严重低估</strong>。现在定基线一律 8 次起。</li>
+          <li><strong>闸差点把网络抖动报成话术回归。</strong>某次跑完全绿从 20 掉到 10，一片红，看着像刚上的护栏把话术全搞坏了——查下来 66/200 次采样是网络连接失败，被当成了断言失败。<strong>一个会把网络抖动报成话术回归的闸，比没有闸更危险</strong>，它会让人回滚掉正确的改动。已修：失败自动重试、仍失败则该样本作废剔出分母、作废率过高直接报「闸没跑成」而不是「话术坏了」。</li>
+        </ul>
       </section>
 
-      <!-- ══════════ 02 ══════════ -->
-      <section id="s2">
+      <!-- ══════════ 04 卡点 ══════════ -->
+      <section id="s4">
         <div class="sec-head">
-          <span class="sec-num">02 — 覆盖度盘点</span>
-          <h2>话术设置目前缺哪几块</h2>
-          <p>顺着上面这个问题往下查，发现的不只是「某条规则写得不好」，而是<strong>有几整块场景压根没接上</strong>。按严重程度排。</p>
+          <span class="sec-num">04 — 待做</span>
+          <h2>后续待做的卡点</h2>
+          <p>按优先级排。前两条需要业务先拍板，不是纯技术问题。</p>
         </div>
 
         <div class="gaps">
-
           <div class="gap">
-            <h4>决策期话术是死库存，一次都没跑过</h4>
+            <h4>1 · 企微没有「转人工」出口</h4>
             <span><span class="chip c">致命</span></span>
             <p class="why">
-              企微会话的阶段分布是 <code>培育 47 / 破冰 5 / 已转人工 4</code>——<strong>决策期 0 条</strong>。
-              翻遍代码，没有任何一处会把企微会话推进到决策期（唯一改阶段的地方是手动转人工）。
-              也就是说：整套 <code>wecom.decision.rules</code> 提示词、52 条决策期金牌问答、11 条决策期原则，
-              <strong>全是建好了接不上电的库存</strong>。客户聊到「哪天能去看」「定金怎么算」时，AI 用的还是培育期那套口吻。
+              AI 写什么就发什么，全程没有「这条我不敢发、交给人」的出口。客户发火、连续拒绝、临门谈价，全都硬发出去。抖音有这道闸，企微是空的。
+              <strong>需要业务先定：转给谁、怎么接、多久内要有人响应。</strong>
             </p>
           </div>
 
           <div class="gap">
-            <h4>企微首触零示例，第一印象全靠一段静态规则硬扛</h4>
-            <span><span class="chip h">高</span></span>
-            <p class="why">
-              首触走的是一条早退分支，<strong>不注入任何金牌问答示例</strong>。库里 165 条问答里破冰类只有 7 条，
-              而且企微首触还用不上。全靠 606 字的静态规则撑着。
-              上周「有大有小」被写成「大有小」那次事故，就发生在这一句上——首触只有一句话，错了没有下一轮兜。
-            </p>
-          </div>
-
-          <div class="gap">
-            <h4>没有「客户拒绝 N 次就停推」的闸，也没有情绪出口</h4>
+            <h4>2 · 长对话会失忆，撑不到 50 轮</h4>
             <span><span class="chip c">致命</span></span>
             <p class="why">
-              客户说「太贵了」「别家更便宜」有议价话术管，但<strong>「我不需要」「别发了」连说三次之后会发生什么，规则里没写、代码里也没拦</strong>。
-              抖音那边靠置信度闸检测负面信号转人工，企微没有这道闸——客户不耐烦了，AI 会继续按规则推到店。
+              过第 8 轮只剩最近 5 轮记忆；本该兜底的客户画像，<strong>59 条会话里只有 4 条存下来了</strong>。
+              修法是两件事：让画像真的写进去（别指望 AI 主动记），以及把「要点提示」从正则抠改成滚动摘要。
+              <strong>但先要对齐预期：真实最长 27 轮，50 轮目前是个假想目标。</strong>
             </p>
           </div>
 
           <div class="gap">
-            <h4>没有「到店后 / 出方案后 / 成交后」的话术</h4>
+            <h4>3 · 决策期的信号分档待业务确认</h4>
             <span><span class="chip h">高</span></span>
             <p class="why">
-              阶段机总共只有破冰 / 培育 / 决策 / 已转人工四档。
-              但一段真能聊到 50 轮的会话，必然要跨过「约到店 → 到店了 → 设计师出方案 → 谈定金 → 交定后跟进」这几段，
-              每段该说的话完全不同。现在全压在「培育」一个模式里，越往后越对不上客户所处的位置。
+              强/弱信号是我按「到店/交定」这个收口目标定的默认值。比如「问工期」放在弱信号（要两条才切）——
+              如果运营觉得客户一问工期就该进决策期，改一个清单即可，改完跑回归闸那两条用例验。
             </p>
           </div>
 
           <div class="gap">
-            <h4>已读不回只有一个 7 天召回，没有梯度</h4>
-            <span><span class="chip m">中</span></span>
+            <h4>4 · 观测盲区还没补</h4>
+            <span><span class="chip h">高</span></span>
             <p class="why">
-              加了好友不说话的走 7 天召回。但<strong>聊到一半突然不回</strong>的没有分层跟进——
-              第 1 天、第 3 天、第 7 天该用什么力度的话去勾，现在是一套话打到底。
+              反复读硬闸命中不记录、重写调用不进追踪系统 —— 修完没法验证。还缺一张
+              <strong>按轮次分段的质量看板</strong>（1-5 轮 / 6-15 轮 / 16 轮+），它能直接回答「到底第几轮开始崩」。数据都在库里，就是没人看。
             </p>
           </div>
 
           <div class="gap">
-            <h4>知识库每轮只有约 13% 能进提示词</h4>
+            <h4>5 · 其余话术覆盖缺口</h4>
             <span><span class="chip m">中</span></span>
             <p class="why">
-              66 篇知识文档合计 11,034 字，但注入上限写死 1,500 字。
-              虽然按客户当下这句话排了序，但「工期多久」「售后怎么算」「质保几年」这类冷门问答很容易抢不到位置，
-              抢不到 AI 就只能自由发挥——这正是「答错」类问题的温床。
+              · <strong>首触零示例</strong>：第一印象全靠 606 字静态规则硬扛，一句话错了没有下一轮兜<br>
+              · <strong>没有到店后 / 成交后话术</strong>：阶段机只有破冰/培育/决策/转人工，跨不过「约到店 → 到店 → 出方案 → 交定」<br>
+              · <strong>已读不回没有梯度</strong>：只有一个 7 天召回，没有 D+1 / D+3 / D+7 的力度差异<br>
+              · <strong>知识库每轮只能进约 13%</strong>：66 篇共 1.1 万字，注入上限 1500 字，冷门问答容易抢不到位置<br>
+              · <strong>金牌问答不分渠道</strong>：抖音和企微共用同一批（企微蒸馏出来的）示例
             </p>
           </div>
+        </div>
 
-          <div class="gap">
-            <h4>金牌问答不分渠道，抖音和企微共用一套</h4>
-            <span><span class="chip m">中</span></span>
-            <p class="why">
-              <code>conversation_examples</code> 表<strong>没有渠道字段</strong>。
-              这 165 条是从企微/微信聊天截图蒸馏出来的，但抖音私信也在用同一批（只是署名换成「小艳」）。
-              两个渠道的口径本来是有意做区别的（比如量尺免费的说法），示例却是混用的。
-            </p>
-          </div>
-
+        <div class="closing">
+          <div class="lab">最后一句口径提醒</div>
+          <p>上面所有「修后」分数都是<strong>回归闸的实测</strong>，不是线上真实客户对话的效果。闸测的是「给定这段对话，回复该满足哪些条件」——它能保证以前修好的不再掉，<strong>但不等于客户满意度提升</strong>。</p>
+          <p>真实效果要等这批改动在生产里跑一段时间，再看回复率和加微率。</p>
         </div>
       </section>
-
-      <!-- ══════════ 03 ══════════ -->
-      <section id="s3">
-        <div class="sec-head">
-          <span class="sec-num">03 — 根因</span>
-          <h2>为什么「修好了，下次又出新问题」</h2>
-          <p>五条，按影响从大到小。每条都有实查证据，不是推测。</p>
-        </div>
-
-        <div class="cause">
-          <div class="cause-h">
-            <span class="cause-n">根因 1</span>
-            <h3>你改的地方，和线上跑的地方，不是同一份</h3>
-          </div>
-          <p>近 30 天企微一共生成 130 次，其中<em>用到代码里那份话术规则的次数是 0</em>。线上 100% 跑的是 Langfuse 后台那一份。</p>
-          <p>而代码里那份 fallback，近 120 天被改了 <strong>17 次</strong>。上周那个 PR 的标题直接就写着「话术 <strong>fallback</strong> P0/P1/P2 修法（风洞四人横评产出）」——改完只有 PM 手动同步到 Langfuse 才会生效。</p>
-          <p><strong>我把线上那份拉下来逐字对了，现在就有一处没同步干净，而且已经导致提示词自己跟自己打架：</strong></p>
-
-          <figure class="ev crit">
-            <figcaption>排查当时 · 线上 Langfuse · wecom.nurture.rules v2 · 同一份提示词内</figcaption>
-<pre>第 8 行 【答产品用真信息】
-  …品牌信息缺字段才回退三档对比，并说
-  "我让设计师按你户型<b>拉清单</b>"          ← 旧版没同步
-
-第 21 行 【红线（违反就是事故）】
-  …绝不说"我发你 / 让设计师整理好<b>发你</b>"
-  这种做不到的话                            ← 新版已同步</pre>
-          </figure>
-
-          <p>模型在两条互斥规则之间只能随机挑一条执行——<strong>这就是你感受到的「时好时坏」。</strong>代码那份里这两处早就改一致了，线上只同步了后半截。</p>
-
-          <figure class="ev">
-            <figcaption>当天已修 · 线上现为 v3</figcaption>
-<pre>【答产品用真信息】
-  …缺字段才回退三档对比，并说"具体配置我让设计师
-  按你户型理好、<b>到店或线上会议咱当面过一遍</b>"
-  （**别说"发你清单"**——见下方发不出文件红线）
-
-→ 与【红线】口径一致，矛盾消除。其余全文一字未动。</pre>
-          </figure>
-        </div>
-
-        <div class="cause">
-          <div class="cause-h">
-            <span class="cause-n">根因 2</span>
-            <h3>每天那份质检建议，对照的是错的规则基线</h3>
-          </div>
-          <p>每天早上 9:30 的话术巡检，会把「我方现行规则」喂给判定模型，让它回答「这条问题现有规则有没有管、为什么还犯」。</p>
-          <p>但拼这份「现行规则」的代码，<strong>读的是那份从不生效的 fallback</strong>（文件开头自己都标了警告）。两边已经漂移了。</p>
-          <p>后果是双向的：线上其实没这条规则的，会被误判成「有规则但没遵守」→ 建议你「升级成硬规则、去查代码」；线上明明有的，会被判成「缺规则」→ 建议你「再加一条」。<strong>建议的方向本身就是错的，照着改当然按下葫芦浮起瓢。</strong></p>
-        </div>
-
-        <div class="cause">
-          <div class="cause-h">
-            <span class="cause-n">根因 3</span>
-            <h3>规则只加不减，已经堆到自己跟自己打架</h3>
-          </div>
-          <p>企微的系统提示词实测 <strong>输入 7,346 token（中位数）</strong>，约 6,000 多个中文字——这还没算对话历史。</p>
-          <p>光「一条回复该多长、该不该抛钩子」就叠了五套互相拉扯的口径，而且是<strong>无条件全量注入、每轮都在</strong>：</p>
-          <div class="tw">
-            <table>
-              <thead><tr><th>规则块</th><th>它要求的</th></tr></thead>
-              <tbody>
-                <tr><td>节奏铁律</td><td>≤50 字、只答这一点、答完就停</td></tr>
-                <tr><td>金牌卖点必打</td><td>价值节点放宽到 ≤80 字、必带两个亮点、必须先给占便宜锚定</td></tr>
-                <tr><td>SPIN 主动挖需求</td><td>别只被动接话，要往前带、软挖一层</td></tr>
-                <tr><td>钩子克制</td><td>大多数回复只答问题、不抛钩子</td></tr>
-                <tr><td>收口信号必推</td><td>客户说「我再看看」时必须当场约到店</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <p>每条单看都对。叠在一起，模型只能挑一条执行。<strong>你按金牌对话修了 A，模型这轮就更听 A、更不听 B——B 那类问题就冒出来了。这就是「修一个坏一个」的机制本身。</strong></p>
-        </div>
-
-        <div class="cause">
-          <div class="cause-h">
-            <span class="cause-n">根因 4</span>
-            <h3>没有回归闸：只验「这条修好没」，不验「以前修好的还在不在」</h3>
-          </div>
-          <p>全仓一共 3 个评测脚本（读户型图 / 意向打分 / 质检模型选型），<strong>没有一个是企微话术的</strong>。评测用例目录里只躺着一个意向打分的文件。</p>
-          <p>那 331 条自动化回归<strong>全是纯函数测试</strong>——正则、切句、相似度算法——没有一条覆盖「给定这段对话，回复应该满足哪些条件」。</p>
-          <p>所以每次改提示词都是<strong>裸改、无保护</strong>。这是「修一个坏一个」能一直循环下去的直接原因。</p>
-        </div>
-
-        <div class="cause">
-          <div class="cause-h">
-            <span class="cause-n">根因 5</span>
-            <h3>观测有盲区，你看不见自己修的东西有没有生效</h3>
-          </div>
-          <p>近 30 天企微 130 次生成的实测底盘：</p>
-          <div class="tw">
-            <table>
-              <thead><tr><th>信号</th><th style="width:96px">次数</th><th>意味着</th></tr></thead>
-              <tbody>
-                <tr><td>回复被事后清洗</td><td class="num">76 / 130</td><td><strong>58%</strong> 的回复带了脏东西：导演说明、人设名前缀「小艳：」、句内复读</td></tr>
-                <tr><td>撞明禁项、重写修好</td><td class="num">15</td><td>规则确实在起作用</td></tr>
-                <tr><td>撞明禁项、<strong>重写后照样撞</strong></td><td class="num">6</td><td><strong>然后照样发给客户了</strong>——没有第二道拦截</td></tr>
-                <tr><td>空回复兜底</td><td class="num">11</td><td>8.5% 的轮次模型返回空，靠重试和兜底话救</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <p>更麻烦的是两个真盲区：<strong>反复读硬闸触发时不写任何记录</strong>（130 条里查不出它到底拦过没有）；<strong>明禁项重写那次调用不进追踪系统</strong>（看不到它重写成了什么）。修完没法验证，只能靠肉眼看对话。</p>
-        </div>
-      </section>
-
-      <!-- ══════════ 04 ══════════ -->
-      <section id="s4">
-        <div class="sec-head">
-          <span class="sec-num">04 — 50 轮</span>
-          <h2>先说个不好听的：生产里从来没有过 50 轮</h2>
-        </div>
-
-        <figure class="ev">
-          <figcaption>Supabase 实查 · 企微会话 56 条</figcaption>
-<pre>客户消息 ≥10 条的会话          3 条
-客户消息 ≥25 条的会话          1 条
-历史最长                       27 轮  ← 会话名「全屋定制小夏(…)[归档202607201019]」= 测试壳
-第二长                         22 轮  ← 会话名「推演TRIPLE-案例1」= 红蓝对抗推演
-存有客户画像的会话             3 / 56（全是测试壳）</pre>
-        </figure>
-
-        <p>也就是说，<strong>现在关于「50 轮质量」的所有判断，都来自推演，不是真客户。</strong></p>
-
-        <h3>而且现在的记忆架构，物理上撑不到 50 轮</h3>
-        <ul class="plain">
-          <li>接口只取最近 40 条消息；</li>
-          <li>超过 16 条时，<strong>只保留最近 10 条原文</strong>（约 5 轮），前面的压成一条「要点提示」；</li>
-          <li>但这条要点提示是<strong>正则抠出来的，而且只扫我方说过的话</strong>——只认价格、数字、承诺词；</li>
-          <li>所以客户在第 3 轮说的「家里有小孩怕甲醛」「着急住要加急」「预算就 3 万」，<strong>一个字都进不去，直接蒸发</strong>；</li>
-          <li>本该兜底的长期画像，56 条会话里只有 3 条写出来了。</li>
-        </ul>
-        <p><strong>结论：过了第 8 轮，AI 对这个客户的记忆 ≈ 最近 5 轮对话 + 我方报过的价。别的什么都不记得。</strong></p>
-
-        <h3>那条 27 轮会话的后半段实录</h3>
-        <p>（它同时还撞上了一个 07-21 已修复的取窗口 bug，但失忆的底子是上面那套机制）</p>
-
-        <div class="script">
-          <div class="turn"><div class="who">客户</div><div class="txt">你们板材环保等级是多少的</div></div>
-          <div class="turn ai"><div class="who">AI</div><div class="txt">新房好呀，那现在水电走了吗，吊顶做了没？</div></div>
-          <div class="turn"><div class="who">客户</div><div class="txt">家里有小孩，甲醛这块怎么保证</div></div>
-          <div class="turn ai"><div class="who">AI</div><div class="txt">新房好，硬装柜体咱能一起规划。您现在毛坯还是已经开工了呀？</div></div>
-          <div class="turn"><div class="who">客户</div><div class="txt">从量尺到装好一般要多久</div></div>
-          <div class="turn ai"><div class="who">AI</div><div class="txt">新房好，水电还没动的话柜子硬装能一体规划。您房子在哪个城市呀，我帮您查下就近门店。</div></div>
-          <div class="turn"><div class="who">客户</div><div class="txt">我着急住，能不能加急</div></div>
-          <div class="turn ai"><div class="who">AI</div><div class="txt">新房好呀，您 144 平是几室呀</div></div>
-          <div class="turn"><div class="who">客户</div><div class="txt">我预算就 3 万，110 平全屋柜子能做下来吗</div></div>
-          <div class="turn ai"><div class="who">AI</div><div class="txt">新房好规划！您现在交房了吗？水电还没改的话，咱柜子和硬装可以一起统筹。</div></div>
-        </div>
-
-        <p>客户连问五个完全不同的问题，AI 五轮都在说「新房好…您在哪个城市呀」。<strong>这不是话术写得不好，是它真的看不见客户说了什么。</strong></p>
-      </section>
-
-      <!-- ══════════ 05 ══════════ -->
-      <section id="s5">
-        <div class="sec-head">
-          <span class="sec-num">05 — 方案</span>
-          <h2>怎么彻底修</h2>
-          <p>分四档。<strong>P0 那三条不做，后面全白干</strong>——因为你改的东西压根不一定生效，质检给的方向也不一定对。</p>
-        </div>
-
-        <div class="tier">
-          <div class="tier-h">
-            <span class="tier-p">P0</span>
-            <span class="tier-t">先把「改哪里」这件事收口</span>
-            <span class="tier-note">✓ 当天已完成</span>
-          </div>
-          <ol class="steps">
-            <li>
-              <div>
-                <div class="st">规则的唯一出处，二选一定死<span class="fixed-tag">CI 闸已挂</span></div>
-                <div class="sd">要么话术正文全部收回代码、Langfuse 只放实验版；要么代码那份改成从快照文件读、禁止手写。现在这种「两份都能改、只有一份生效」是最贵的坑。<strong>今天就能做的最小动作</strong>：把快照比对脚本挂进 CI，一漂移就红——我刚跑，现在就是红的。</div>
-              </div>
-            </li>
-            <li>
-              <div>
-                <div class="st">修掉线上那句自相矛盾<span class="fixed-tag">已修</span></div>
-                <div class="sd">去 Langfuse 后台把【答产品用真信息】那行的「拉清单」删掉，同步成代码里的说法（「到店或线上会议咱当面过一遍」）。<strong>改一行、立刻见效</strong>，这是投入产出比最高的一条。</div>
-              </div>
-            </li>
-            <li>
-              <div>
-                <div class="st">让质检去读线上真规则<span class="fixed-tag">已修</span></div>
-                <div class="sd">把拼「现行规则」那段改成读快照文件（= 线上真跑的），别再读代码 fallback。这一改，每天那份建议的方向立刻就对了。</div>
-              </div>
-            </li>
-          </ol>
-        </div>
-
-        <div class="tier">
-          <div class="tier-h">
-            <span class="tier-p">P1</span>
-            <span class="tier-t">建回归闸——这才是「修一个坏一个」的根治</span>
-            <span class="tier-note">✓ 当天已完成</span>
-          </div>
-          <ol class="steps">
-            <li>
-              <div>
-                <div class="st">把历次修过的问题，一条条固化成用例<span class="fixed-tag">已建 · 25 条</span></div>
-                <div class="sd">每个修过的问题存 1～3 条：历史对话片段 + 客户这一句 + <strong>确定性断言</strong>（不能出现「发你清单」／必须报真实门店地址／长度 ≤80／不能再问已说过的城市／必须先接住问题再问城市…）。起步 30～50 条。</div>
-              </div>
-            </li>
-            <li>
-              <div>
-                <div class="st">改提示词前后各跑一次，只允许「全绿或更绿」<span class="fixed-tag">已成规矩</span></div>
-                <div class="sd">走评测专用 key，单次成本几毛钱。这样「以前修好的又坏了」会在上线前被抓住，而不是等客户聊崩了你才发现。</div>
-              </div>
-            </li>
-            <li>
-              <div>
-                <div class="st">接上已有的发布闸</div>
-                <div class="sd">仓库里那个提示词发布脚本本来就是为这个建的，把它接到这套用例上就活了，不用从零写。</div>
-              </div>
-            </li>
-          </ol>
-        </div>
-
-        <div class="tier">
-          <div class="tier-h">
-            <span class="tier-p">P2</span>
-            <span class="tier-t">给提示词减负，把打架的规则改成互斥分支</span>
-            <span class="tier-note">进行中 · 已切一刀</span>
-          </div>
-          <ol class="steps">
-            <li>
-              <div>
-                <div class="st">五套节奏规则改成「按客户这句话选一块注入」<span class="fixed-tag">报价这一刀已做</span></div>
-                <div class="sd">问价／问材质 → 卖点块；闲聊／问进度 → 节奏块；露出收口信号 → 约到店块。一次只注一块，不再让它们互相打架。代码里报价提示（命中问价词才注入）就是现成范式，照抄即可。</div>
-              </div>
-            </li>
-            <li>
-              <div>
-                <div class="st">目标：从 7,300 token 压到 3,000 以内</div>
-                <div class="sd">这不是省钱，是<strong>提示词越短，每条规则的遵守率越高、表现越稳定</strong>。现在这个体量，加一条新规则的边际收益已经是负的了。</div>
-              </div>
-            </li>
-          </ol>
-        </div>
-
-        <div class="tier">
-          <div class="tier-h">
-            <span class="tier-p">P3</span>
-            <span class="tier-t">把 50 轮真的撑起来</span>
-            <span class="tier-note">1 周</span>
-          </div>
-          <ol class="steps">
-            <li>
-              <div>
-                <div class="st">补上缺失的阶段：决策期先接上电</div>
-                <div class="sd">52 条决策期问答 + 11 条决策原则已经在库里躺着了，缺的只是「什么条件下把会话推进到决策期」这段判断。<strong>这是本次盘点里性价比最高的一块——料是现成的。</strong>之后再补到店后 / 成交后两段。</div>
-              </div>
-            </li>
-            <li>
-              <div>
-                <div class="st">让客户画像真的写起来</div>
-                <div class="sd">别再指望模型主动记（56 条只写出 3 条）。改成每轮用便宜模型确定性抽一次结构化画像存库，成本可以忽略。这是长对话不失忆的地基。</div>
-              </div>
-            </li>
-            <li>
-              <div>
-                <div class="st">要点提示别用正则，改成滚动摘要</div>
-                <div class="sd">每 8 轮让便宜模型做一次会话摘要存库，之后每轮注入摘要，而不是拿正则去抠我方说过的数字。客户说过的需求、顾虑、时间压力才能留得住。</div>
-              </div>
-            </li>
-            <li>
-              <div>
-                <div class="st">给企微补一个转人工出口</div>
-                <div class="sd">抄抖音那道置信度闸：负面情绪、连续拒绝、临门谈价这几种就别发了，推 Lark 让人接管。一段 50 轮的会话必然有几轮是 AI 不该接的，现在这些全被硬发出去了。</div>
-              </div>
-            </li>
-          </ol>
-        </div>
-
-        <div class="tier">
-          <div class="tier-h">
-            <span class="tier-p">P4</span>
-            <span class="tier-t">补观测</span>
-            <span class="tier-note">半天</span>
-          </div>
-          <ol class="steps">
-            <li>
-              <div>
-                <div class="st">把两个盲区点亮</div>
-                <div class="sd">反复读硬闸命中要记一笔；明禁项重写那次调用接进追踪系统。不然你永远不知道自己加的闸有没有在干活。</div>
-              </div>
-            </li>
-            <li>
-              <div>
-                <div class="st">建一张企微质量日看板</div>
-                <div class="sd">清洗率 / 重写未修复率 / 空回复率 / <strong>按轮次分段的问题率</strong>（1–5 轮、6–15 轮、16 轮以上）。这些数现在全在库里，就是没人看。分段这一项尤其关键——它能直接回答「到底第几轮开始崩」。</div>
-              </div>
-            </li>
-          </ol>
-        </div>
-      </section>
-
-      <!-- ══════════ 06 ══════════ -->
-      <section id="s6">
-        <div class="sec-head">
-          <span class="sec-num">06 — 闸建起来之后</span>
-          <h2>回归闸第一天抓到了什么</h2>
-          <p>25 条用例、每条 8 次采样跑下来，两件事值得单独说——一件是纠纷风险，一件推翻了我自己在根因 3 里的判断。</p>
-        </div>
-
-        <h3>一、AI 在编造公司没有的退款政策 <span class="fixed-tag">已修</span></h3>
-        <p>用例 <code>no-refund-promise</code> 八次采样只过一次。原话：</p>
-        <figure class="ev crit">
-          <figcaption>实测原话 · 客户问「定金交了能退吗」</figcaption>
-<pre>「定金算进总价，下定后师傅才安排量尺。
-  <b>要是在犹豫期7天内，随时可退。</b>」
-
-「交定后有<b>7天犹豫期</b>，期内可随时退定。
-  开始量尺服务后不能退。」   ← 措辞一次比一次具体、像真的</pre>
-        </figure>
-        <p><strong>公司根本没有这个政策。</strong>提示词里那条「退款别乱承诺」写了快一个月，模型照样编——客户拿这句去对账就是纠纷。</p>
-        <p>按质检自己的分类法这属于「有规则但没遵守」，该从提示词<strong>升级成确定性护栏</strong>，而不是再往七千字的提示词里加第二遍。已加，修后八次全过。</p>
-        <p>这里最要小心的是别误伤：「环保不达标全额退」「假一赔三」是合同里真有的承诺、是核心信任锚，检测刻意不含裸的「全额退」，只抓与定金和时限绑定的编造。后来复查还发现「定金<strong>不能</strong>退」这种<strong>正确</strong>说法会被误判，也一并收紧了——把模型从正确答案上推开，比不管更糟。</p>
-
-        <h3>二、报价锚定基本没在生效 <span class="fixed-tag">已修</span></h3>
-        <p>用例 <code>gold-standard-price-anchor</code> 八次只过一次：客户问「多少钱一平呀」，模型 <strong>87.5% 的时候只干巴巴回一句「568一平」</strong>。</p>
-        <p>「原价 868 → 样板房补贴 300 → 只要 568」这套占便宜说法，是价格心理的核心——没有原价和补贴，客户只记住一个数字，感觉不到自己赶上了活动。它<strong>事实上已经失效了</strong>。</p>
-
-        <div class="correction">
-          <div class="lab">这一条推翻了根因 3 的判断</div>
-          <p>我在根因 3 里说这是「五套规则互相拉扯、模型只能挑一条」，需要提示词大改造。<strong>查下去发现不是。</strong></p>
-          <p>报价提示块的最后一条——也就是<strong>最贴合「问多少钱一平、还没报面积」这个场景、最具体的那条指令</strong>——逐字规定了要说哪句话：<code>报单价"568 一平（…全包）"</code>。<strong>那句处方里根本没有 868 和补贴。</strong></p>
-          <p>而要求锚定的【金牌销售·卖点必打】是一个遥远的通用块。<strong>具体的赢过笼统的</strong>，模型照着最近那条念，锚定就丢了。</p>
-          <p>所以修法不是减负，是<strong>把最具体那条指令改对</strong>——代码本来就知道 868/300/568 这三个数，把锚定直接写进处方本身。改完 <strong>1/8 → 8/8</strong>。</p>
-        </div>
-
-        <p><strong>对 P2 的启示：</strong>「规则打架」是真的，但在动大手术之前，先逐条查「有没有哪条具体指令自己就写错了」。这一条改动只有一行，收益是 700%。</p>
-
-        <h3>三、顺带纠正一个方法论错误</h3>
-        <p>我第一版基线用 3 次采样，得出「20/25 全绿、5 条抖动」。<strong>那个数是假的。</strong></p>
-        <p>3 次采样分不清「33% 遵守」和「67% 遵守」——上面那条报价锚定在不同的跑里给出过 0/1、2/3、2/3、0/3，看着像抖动，提到 8 次采样才看清真相是 1/8。<strong>用采样不足的基线判断「修复有没有失效」，会系统性低估问题。</strong></p>
-        <p>现在定基线一律 8 次采样（25 条约十分钟、一毛五）。另外还有一条判读规矩：<strong>改了哪条分支，就只看走那条分支的用例</strong>——改完报价块之后有两条用例分数掉了，查下来它们压根不走报价分支、改动够不着，纯属噪声。不查因果就改回去，等于被噪声牵着走。</p>
-      </section>
-
-      <div class="closing">
-        <div class="lab">口径提醒 · 别急着下结论</div>
-        <p>之前那次延迟问题（中位数 44 秒、最高 277 秒、36 次超过 1 分钟）确实已经随模型回滚解决了，回滚后中位数 5.0 秒。</p>
-        <p><strong>但回滚后企微一共只跑了 13 次。样本太小，现在还不能说「质量稳了」。</strong>等 P1 的回归用例建起来，才有资格说这句话。</p>
-      </div>
 
       <footer>
-        证据来源：线上 Langfuse 提示词逐字比对（wecom.nurture.rules v2 / wecom.decision.rules v2 / wecom.opener.rules v1）· Supabase 实查（conversations / messages / conversation_examples / decision_rules / knowledge_documents / llm_call_provenance）· 代码路径 src/lib/llm.ts、src/lib/llm/、src/app/api/wecom/chat/reply/route.ts、src/lib/dm-reply/<br>
-        本地提示词快照已刷新为线上真实内容，可直接提交查看差异。
+        证据来源：线上话术逐字比对 · 数据库实查（会话 / 消息 / 金牌问答 / 决策原则 / 知识文档 / 调用溯源）· 回归闸实跑（27 条 × 8 采样，零作废样本）<br>
+        已合并：漂移闸与质检基线 · 回归闸与退款护栏 · 报价锚定 · 两条红线护栏 · 只答最新一句；待合并：决策期接线
       </footer>
 
     </main>
