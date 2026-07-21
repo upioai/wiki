@@ -46,6 +46,7 @@ const CATEGORIES = [
       { slug: 'tencent-hy3', title: '腾讯 Hy3：新旗舰拆解，我们要换吗', desc: '腾讯混元刚发布的开源权重旗舰：架构、定价、优缺点，和生产在用的 Qwen3-2507 / DeepSeek V4 Flash 摆在一起算账——结论是两个槽都不换。' },
       { slug: 'scheduling-terms', title: 'Cron / Routine / Schedule 辨析', desc: '定时·事件·常驻：一堆易混的自动化机制怎么选。' },
       { slug: 'loop-goal-orchestration', title: '用 /loop × goal 编排任务', desc: '/loop 是让 prompt「反复醒来」的骨架，goal 是写进 prompt 的「何时停」判据——两者配起来让 Claude 自己盯一件事干到达标。结合 Akke 讲轮询/指标收敛/backlog 磨盘三种落法与四道护栏。' },
+      { slug: 'dynamic-workflows', title: '动态工作流 · 让 Claude 调度一群 Agent', desc: '让 Claude 写一段脚本去编排几十上百个子代理并行干活、脚本本身不烧 token 的用法：两种触发（关键词 ultracode / 会话默认 /effort ultracode）、临时与默认两种限流（use at most N agents / config 四档规模）、以及全库审计·大规模迁移·交叉验证·循环到达标四类该用场景与「一下午能干完就别叫蜂群」的别用边界（深色技术长页）。' },
       { slug: 'autoreply-supabase-relay', title: '自动回复为什么"绕"数据库', desc: '客户回复→数据库中转→生成→发送：为什么不一步到位。' },
       { slug: 'enterprise-brain-distillation', title: '有大有小 · 企业 AI 大脑', desc: '从 41 页企业手册与金牌销售对话，蒸馏出一颗"管得住嘴"的 AI 大脑——搭建、训练与护栏全景（甲方分享版深色 Deck）。' },
       { slug: 'deconstruct-pipeline', title: '解构复刻产线 · 动态图解', desc: '一条高播放竞品视频链接进来，一条合规 AI 成片出去——六工位产线总控动画（解构→重写→生图→生视频→配音→成片），三个人工卡口、重 roll 熔断、单条成本账与 M1-M3 落地路线。' },
