@@ -45,7 +45,7 @@ import urllib.request
 from datetime import datetime
 
 # 版本号：每次改动递增。启动行打印 + 启动自检，杜绝"云电脑跑的到底哪版"对不上。
-VERSION = "v2026-07-20.redblue-test-22"  # test-22: 治像素基线vs语义读取不一致——diff触发但bbox抄空(VL漏抄)时不推基线,走全读复核捞回,连续EMPTY_DIFF_MAX次才判噪音放行(把"重启能救回来"做成每轮自动)。含test-21两洞
+VERSION = "v2026-07-23.nonext-suppress"  # detect_unread_rows 连会话名返回 + 非外部会话名 300s 抑制缓存：治「橙红头像被 VL 误判成未读红点(旺德福)→ 每轮 churn 挤掉真客户→不够灵敏」。外部客户永不进抑制=零漏接。含 test-22 全部
 
 WORK_DIR = os.path.dirname(os.path.abspath(__file__))
 STATUS_FILE = os.path.join(WORK_DIR, "wecom_reply_status.json")
@@ -1337,9 +1337,17 @@ def _screen_looks_dark() -> bool:
         return False
 
 
+# 非外部会话短时抑制缓存（治「橙红头像被 VL 误判成未读红点」的 churn，2026-07-23）：
+# 读到「非外部」的会话名 → 缓存 TTL 秒，期内 detect 到同名不再点开，避免每轮 churn 在
+# 内部会话（旺德福那种彩色头像）上、把真客户挤后面。外部客户(@微信)永不进此缓存 → 零漏接。
+# key = _recall_norm_name(会话名/标题)，value = 过期时间戳(time.time())。
+_NONEXT_SUPPRESS: dict = {}
+_NONEXT_SUPPRESS_TTL = 300.0
+
+
 def detect_unread_rows() -> list:
-    """VL 只看左侧会话列表窄条，返回每个【带红色未读数字圆点】行的中心 y（0-1000 归一，
-    相对全屏高——裁剪条高度=全屏高度，归一值直接可用于 click_norm）。"""
+    """VL 只看左侧会话列表窄条，返回每个【带红色未读数字圆点】行的 {y, name}：
+    y=行中心纵向位置(0-1000 归一，相对全屏高，直接可用于 click_norm)；name=会话名(供抑制缓存匹配)。"""
     try:
         import pyautogui
 
@@ -1348,15 +1356,17 @@ def detect_unread_rows() -> list:
         os.makedirs("screenshots", exist_ok=True)
         path = os.path.join("screenshots", "_wecom_list.png")
         pyautogui.screenshot(path, region=(0, 0, crop_w, H))
-        p = ("这是企业微信左侧会话列表的截图。找出所有【带红色未读数字小圆点】的会话行，"
-             '只回严格JSON：{"rows":[{"y":该行中心的纵向位置，按 0-1000 归一化(相对整张图高度)}]}。'
-             '没有红点回 {"rows":[]}。只认红色数字圆点；灰色免打扰小点、绿色图标都不算。')
-        d = _pjson(_vision(_b64(path), p, mt=200))
+        p = ("这是企业微信左侧会话列表的截图。找出所有【会话名右侧/右上角带红色未读数字小圆点】的会话行，"
+             '只回严格JSON：{"rows":[{"y":该行中心纵向位置(0-1000归一,相对整张图高度),'
+             '"name":"该行会话名(每行顶部那行黑色粗体文字,不含时间和下方灰色预览)"}]}。'
+             '没有红点回 {"rows":[]}。只认【会话名右侧那个红色数字圆点】；'
+             '灰色免打扰小点、绿色图标、以及【左侧彩色/橙红色头像本身】都不算红点(头像不是红点)。')
+        d = _pjson(_vision(_b64(path), p, mt=300))
         out = []
         for r in (d.get("rows") or []):
             y = r.get("y")
             if isinstance(y, (int, float)) and 0 <= y <= 1000:
-                out.append(int(y))
+                out.append({"y": int(y), "name": str(r.get("name") or "")})
         return out[:5]
     except Exception as e:  # noqa: BLE001
         log("  [unread-rows] VL 失败:", e)
@@ -1593,16 +1603,33 @@ def handle_one(counter: dict) -> bool:
             rows = detect_unread_rows()
             if not rows:
                 break
-            y = rows[0]
-            click_norm(C_SESSION1[0], y, label=f"未读会话(y={y})")
+            now = time.time()
+            # 抑制近期已判「非外部」的会话（治橙红头像被误判成红点 → 每轮 churn 挤掉真客户）：
+            # 外部客户永不进 _NONEXT_SUPPRESS，故绝不会误抑制真客户。
+            fresh = [r for r in rows
+                     if _NONEXT_SUPPRESS.get(_recall_norm_name(r.get("name", "")), 0) < now]
+            if not fresh:
+                log(f"  [unread] {len(rows)} 个红点均为近期已判内部会话，跳过不重复点开"
+                    f"（治头像误判 churn）")
+                break
+            r0 = fresh[0]
+            y = r0["y"]
+            click_norm(C_SESSION1[0], y, label=f"未读会话(y={y} {r0.get('name', '')[:8]})")
             time.sleep(1.2)
             scroll_chat_bottom()
             time.sleep(0.4)
             d = read_open_conversation()
             _reset_chat_baseline()  # 切了会话，通道① 的基线作废
             _reset_title_cache()  # 换了会话，标题缓存作废
-            if d and _process_conversation(d, counter):
-                sent_any = True
+            if d:
+                if not d.get("is_external"):
+                    # 缓存会话名(detect 列表名 + 读到的标题双 key)抑制 TTL 秒，防橙红头像每轮重点开
+                    for nm in {_recall_norm_name(d.get("customer_name", "")),
+                               _recall_norm_name(r0.get("name", ""))}:
+                        if nm:
+                            _NONEXT_SUPPRESS[nm] = now + _NONEXT_SUPPRESS_TTL
+                if _process_conversation(d, counter):
+                    sent_any = True
             time.sleep(random.uniform(2, 5))  # 会话间随机小间隔，拟人
 
     # ── 通道③：7 天召回·主动发起（默认关；串在被动腿之后，subprocess 级串行不抢窗口）──
