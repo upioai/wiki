@@ -193,6 +193,7 @@
   <!-- ============ 6-15 → 6-29 全流程对比 ============ -->
   <div class="card">
     <h2><span class="n">📚</span>名词参考：号的 tier 分级 &amp; 任务的 pri 优先级</h2>
+    <div class="truth" style="margin-bottom:10px"><b>✅ 本卡 2026-07-22 已逐条对代码核过，数值全部准确</b>：tier-0 每小时 150 个（`scrape/route.ts` <code>SCRAPE_LIMIT=150</code> + cron <code>10 * * * *</code>）· tier-1 每源 30min、产过高/中意向的缩到 10min（<code>SOURCE_THROTTLE_MINUTES=30</code> / <code>INTENT_THROTTLE_MINUTES=10</code> / 窗口 6h）· 每轮 5 新+5 回扫（<code>queue.py:809-816</code>）· aging 每 6 小时升一级（<code>QUEUE_CLAIM_AGING_HOURS=6.0</code>）· 升 tier-1 近 10 天≥10、降回 tier-0 近 7 天=0、每天 01:00 跑（cron <code>0 1 * * *</code>）。<b>唯一改过的是空跑退避封顶：30min → 240min（7/19 A 杠杆）</b>，下表已更新。</div>
     <p class="lead">上面反复出现 tier-0/tier-1、pri=0/1/3/5。这张卡一次讲清——它俩是两套不同的东西：<b>tier 是"号"的分级（决定多久去扫这个号）</b>，<b>pri 是"每个抓取任务"的优先级（决定 worker 先抓谁）</b>。</p>
 
     <p style="margin:12px 0 6px;font-size:15.5px"><b>① tier：号源分级</b>（`source_accounts.tier`）</p>
@@ -200,7 +201,7 @@
       <tr><th></th><th>tier-0（普通号）</th><th>tier-1（好号 / 在产货）</th></tr>
       <tr><td>是什么</td><td>大多数号，很少出 lead</td><td><b>近 10 天「高+中意向」≥ 10 条</b>的号</td></tr>
       <tr><td>谁去扫 / 多久</td><td><code>/api/cron/scrape</code>，<b>每小时</b>挑最久没抓的 150 个</td><td><code>/api/cron/scrape-hot</code>，<b>每源 30min</b>（其中近 6h 产过高/中意向的缩到 <b>10min</b>）</td></tr>
-      <tr><td>每轮看几条 / 抓几条</td><td>看 10 条、<b>全抓</b>（5 新+5 回扫，刚好 10）</td><td><b>看 20 条，但每轮只真抓其中 10 条</b>（5 新+5 回扫，`queue.py:640,734-741`）→ 这就是"20≠5+5"：20 是看到的清单、10 是真去抓的，剩 10 条这轮跳过</td></tr>
+      <tr><td>每轮看几条 / 抓几条</td><td>看 10 条、<b>全抓</b>（5 新+5 回扫，刚好 10）</td><td><b>看 20 条，但每轮只真抓其中 10 条</b>（5 新+5 回扫，`queue.py:809-816`）→ 这就是"20≠5+5"：20 是看到的清单、10 是真去抓的，剩 10 条这轮跳过</td></tr>
       <tr><td>整号扫任务的 pri</td><td>pri=5（慢道）</td><td>pri=3</td></tr>
       <tr><td>升 / 降级（每天 01:00 自动）</td><td colspan="2"><b>升 tier-1</b>：近 <b>10 天</b>「高+中意向」<b>≥ 10 条</b>；<b>降回 tier-0</b>：近 <b>7 天</b>「高+中」<b>= 0 条</b>（#365 对称 auto-demote；env 可调）</td></tr>
     </table>
