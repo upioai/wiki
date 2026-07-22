@@ -1621,15 +1621,19 @@ def handle_one(counter: dict) -> bool:
             d = read_open_conversation()
             _reset_chat_baseline()  # 切了会话，通道① 的基线作废
             _reset_title_cache()  # 换了会话，标题缓存作废
-            if d:
-                if not d.get("is_external"):
-                    # 缓存会话名(detect 列表名 + 读到的标题双 key)抑制 TTL 秒，防橙红头像每轮重点开
-                    for nm in {_recall_norm_name(d.get("customer_name", "")),
-                               _recall_norm_name(r0.get("name", ""))}:
-                        if nm:
-                            _NONEXT_SUPPRESS[nm] = now + _NONEXT_SUPPRESS_TTL
-                if _process_conversation(d, counter):
-                    sent_any = True
+            replied = bool(d and _process_conversation(d, counter))
+            if replied:
+                sent_any = True
+            else:
+                # 没回这条 → 若名字是【清晰的非@微信名】(内部/系统会话，如旺德福) → 缓存抑制 TTL 秒，
+                # 治「橙红头像被 VL 误判成未读红点、每轮反复点开同一内部会话」的 churn。
+                # 判据不用 VL 的 is_external(整幅兜底时不可靠)，改用【名字里有没有@微信】：
+                # 带@微信=真客户，永不缓存；名字读空的也不缓存(防漏读真客户)。detect 列表名兜底(读失败也能缓存)。
+                for nm in (r0.get("name", ""), (d or {}).get("customer_name", "")):
+                    if nm and "@微信" not in nm:
+                        key = _recall_norm_name(nm)
+                        if key:
+                            _NONEXT_SUPPRESS[key] = now + _NONEXT_SUPPRESS_TTL
             time.sleep(random.uniform(2, 5))  # 会话间随机小间隔，拟人
 
     # ── 通道③：7 天召回·主动发起（默认关；串在被动腿之后，subprocess 级串行不抢窗口）──
