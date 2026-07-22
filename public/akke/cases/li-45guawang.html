@@ -665,7 +665,10 @@
       <strong>② 19:42-19:43</strong> · <code>dm.ice_break.system</code> <strong>production v54</strong> 拿着这个结论起草 → opener 写成「45 平…这种小户型」<br>
       <strong>③ 19:43:25</strong> 发出 → <strong>19:51:53</strong> 客户回来纠正 → <strong>19:52:03</strong> <code>dm.nurture.system</code> <strong>production v19</strong> 生成那句漂亮的纠偏<br>
       也就是说：<em>三条 opener 全部是当时的 production 版现场生成的，不是旧版残留</em>，归因不存在"prompt 早就改过了"的可能。<br>
-      <strong>修复进展</strong>：已在 <code>analyze.comments.system</code> 上追加「数字必须带量词才算面积」的例外（数字后无量词、或同句含施工工种/工费词时不得判面积），创建为 staging 版本，<strong>production 仍是 v11 未动</strong>。首轮离线 A/B 已见效（本案原文的 <code>type_reason</code> 从「极简购买信号+数字+装修阶段词」变成「<em>数字含义不明，疑似工费行情</em>」），<em>但采样显示模型在该条上本身抖动较大、且首版措辞偏泛会波及「报面积+询问句」的正常判定</em> —— 已收窄措辞重新验证，<strong>确认无误伤前不挂 production</strong>。
+      <strong>修复已上线（7-22 当日）</strong>：<code>analyze.comments.system</code> <strong>production v11 → v13</strong>。改动是给「数字+平/方/㎡ = 报面积」这条判定加一个例外——<em>只有数字紧跟量词才算报面积；光秃秃的数字（如本案「我这45」）不得当作面积，<code>type_reason</code> 写「数字含义不明」</em>，同时显式声明不改变对真实报面积的任何判定。<br>
+      上线前跑了 <strong>40 条探针 × 4 个候选版本 × 6 轮</strong>的 A/B（脚本 <code>scripts/eval-analyze-number-disambiguation.ts</code>），v13 四项全部优于基线、无一退化：<em>硬闸组（报面积+询问句必须判 product，这是 PM 早年拍板过的方向）84.8% → 92.4%；主目标组 89.7% → 100%；防误伤组 46.7% → 53.3%</em>。另两个候选被否决——一个让硬闸掉了 15 个点，一个主目标反而低于基线。<br>
+      线上冒烟：本案原文「我这45 全家挂网」现在判定为<strong>未报面积</strong>（<code>数字含义不明，无明确询问</code>），而「我家131平想做全屋」仍正确识别为报面积、「90平米三室两厅怎么设计」仍判 <code>product</code>。<br>
+      <em>一个方法论插曲值得记下来</em>：最早用 6 条探针 × 4 轮做的小样本 A/B，曾得出「v13 会让硬闸退化、不能上」的结论；扩到 40 条探针后<strong>结论完全反转</strong>——v13 恰恰是唯一全面达标的版本。原因是 production 基线自身的采样波动就比要测的效应还大（同一条探针在两次实验里分别是 0/4 和 2/4 误判）。<strong>小样本不是"弱证据"，它能给出方向相反的答案。</strong>
     </div>
   </section>
 
