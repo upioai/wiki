@@ -658,6 +658,15 @@
       ② <em>客户纠正必须写回画像</em> — 命中"我说的是 / 不是 / 我的意思是"这类纠正句式时，把纠正后的事实写进 <code>customer_profile</code>，防止下一轮重犯同一个错；<br>
       ③ <em>话术里禁止对模型推断出的事实再做二次演绎</em> — 可以复述，不能据此推断痛点（本案"小户型怕浪费空间"就是二次演绎的产物）。
     </div>
+    <div class="annotation" style="margin-top: 12px;">
+      <div class="a-title">7-22 追查补充 · 传播链已逐环拿到版本号证据</div>
+      事后按 <code>comment_id</code> 拉了 <code>llm_call_provenance</code>（opener 生成时会话还没建，所以这条记录只挂 comment_id、不挂 conversation_id——按会话查是查不到的），把整条链的每一环都钉死了：<br>
+      <strong>① 19:42:35</strong> · <code>analyze.comments.system</code> <strong>production v11</strong> 判定 → <code>comment_type_reason</code> 落库「报面积+挂网工艺」<br>
+      <strong>② 19:42-19:43</strong> · <code>dm.ice_break.system</code> <strong>production v54</strong> 拿着这个结论起草 → opener 写成「45 平…这种小户型」<br>
+      <strong>③ 19:43:25</strong> 发出 → <strong>19:51:53</strong> 客户回来纠正 → <strong>19:52:03</strong> <code>dm.nurture.system</code> <strong>production v19</strong> 生成那句漂亮的纠偏<br>
+      也就是说：<em>三条 opener 全部是当时的 production 版现场生成的，不是旧版残留</em>，归因不存在"prompt 早就改过了"的可能。<br>
+      <strong>修复进展</strong>：已在 <code>analyze.comments.system</code> 上追加「数字必须带量词才算面积」的例外（数字后无量词、或同句含施工工种/工费词时不得判面积），创建为 staging 版本，<strong>production 仍是 v11 未动</strong>。首轮离线 A/B 已见效（本案原文的 <code>type_reason</code> 从「极简购买信号+数字+装修阶段词」变成「<em>数字含义不明，疑似工费行情</em>」），<em>但采样显示模型在该条上本身抖动较大、且首版措辞偏泛会波及「报面积+询问句」的正常判定</em> —— 已收窄措辞重新验证，<strong>确认无误伤前不挂 production</strong>。
+    </div>
   </section>
 
   <!-- ============ 8. 当前状态 ============ -->
