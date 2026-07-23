@@ -423,6 +423,11 @@
         </ul>
       </div>
     </div>
+
+    <div class="callout">
+      <div class="bar"></div>
+      <p><span class="k">其实还长出了第三条输出</span>2026-07 起，系统不只教 AI「怎么说 / 说什么」，还能<b>顺手发图</b>——效果图、户型布局图、配置清单、官方海报都能随文本一并下发。这条<mark class="hl">图片素材</mark>通道是最近一周补上的，单独放在<b>第 06 节</b>讲。</p>
+    </div>
   </section>
 
   <!-- 4. 自动调用 + Langfuse + 话术分层 + 改哪块 -->
@@ -479,7 +484,7 @@
     <div class="promptstack">
       <div class="player"><span class="n">1</span><span class="lbl">人设 PERSONA</span><span style="color:var(--muted)">小艳 / 身份 · 口吻底子</span></div>
       <div class="player"><span class="n">2</span><span class="lbl">语气 STYLE</span><span style="color:var(--muted)">用「你 / 您」· 长度 · 一次一问</span></div>
-      <div class="player"><span class="n">3</span><span class="lbl">客户记忆 MEMORY</span><span style="color:var(--muted)"><code>customer_profile</code> 跨会话</span></div>
+      <div class="player"><span class="n">3</span><span class="lbl">客户记忆 MEMORY</span><span style="color:var(--muted)"><code>customer_profile</code> 跨会话 + 滚动摘要 <code>context_summary</code>（撑长对话不失忆，详见第 06 节）</span></div>
       <div class="player"><span class="n">4</span><span class="lbl">称呼 + 客户画像</span><span style="color:var(--muted)">这通对话已知的</span></div>
       <div class="player"><span class="n">5</span><span class="lbl">品牌档案</span><span style="color:var(--muted)"><code>brand_profile</code> 品牌 / 卖点</span></div>
       <div class="player casey"><span class="n">6</span><span class="lbl">产品知识 <code>knowledge_documents</code></span><span class="casebadge">案例来的</span></div>
@@ -526,7 +531,7 @@
   <section>
     <p class="snum">05</p>
     <h2>对话背后的逻辑：客户发来一句话，系统怎么决定回什么</h2>
-    <p class="sublede">前面讲的是"料怎么备好、怎么拼进 prompt"。这一段讲<b>运行时</b>——一条真实的客户消息进来，到发出一句回复之间，系统一步步在做哪些判断。一句话贯穿始终：<mark class="hl">凡是代码能确定性判定的，绝不交给 AI 自觉</mark>；AI 只负责把话说得像人，"该不该回、能不能发"都有确定性闸门兜着。想直接看代码锚点（入口 / 函数 / 文件 / 表）的，跳到下一节「技术逻辑 · 代码地图」。</p>
+    <p class="sublede">前面讲的是"料怎么备好、怎么拼进 prompt"。这一段讲<b>运行时</b>——一条真实的客户消息进来，到发出一句回复之间，系统一步步在做哪些判断。一句话贯穿始终：<mark class="hl">凡是代码能确定性判定的，绝不交给 AI 自觉</mark>；AI 只负责把话说得像人，"该不该回、能不能发"都有确定性闸门兜着。想直接看代码锚点（入口 / 函数 / 文件 / 表）的，跳到第 07 节「技术逻辑 · 代码地图」。</p>
 
     <h3 style="font-size:16px;margin:0 0 10px;font-weight:700;">先认个底：每通对话都有「阶段」</h3>
     <p class="sublede" style="margin-bottom:12px;">系统给每通对话记一个阶段，决定这一轮用什么口吻、走哪套规则。</p>
@@ -663,11 +668,172 @@
     </div>
   </section>
 
-  <!-- 6. 技术逻辑 · 代码地图 -->
+  <!-- 6. 本周新增三块 -->
   <section>
     <p class="snum">06</p>
+    <h2>最近一周补上的三块（2026-07-20 ~ 22）</h2>
+    <p class="sublede">上面 01–05 讲的是「案例怎么变话术、一条消息怎么决定回什么<b>文字</b>」。这一周又给运行时补了三块能力，分别补强了三个环节：<b>会发图了</b>（不只发文字）、<b>记得住了</b>（长对话不失忆）、<b>能数了</b>（把「约到店」变成看得见的指标）。三块都<mark class="hl">刻意走确定性、不额外烧 LLM</mark>，跟前面几节一个脾气。</p>
+
+    <!-- ① 发图 -->
+    <h3 style="font-size:18px;margin:8px 0 6px;font-weight:800;">① 图片素材：除了发文字，现在还会「发图」</h3>
+    <p class="sublede" style="margin-bottom:14px;">以前 AI 只能打字。现在一条回复可以<b>随文本一并甩几张图</b>——效果图、户型布局图、配置清单长图、装修资料、官方海报。<mark class="hl">发不发、发哪张，全是代码确定性判的，不交给 AI 自觉</mark>（怕它乱发，被客户一眼看成群发素材反而更伤）。</p>
+
+    <div class="libmap">
+      <p class="cap">能发的六类图 —— 各有各的来源和触发</p>
+      <p class="capsub">图片本身不进数据库，托管在 R2 图床（22G 家底）；只有官方海报单独存一张表。发过的图会在会话里记个 <code>[图片:xx]</code> 标记，防同一张反复发。</p>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th>类别</th><th>是什么</th><th>存哪</th><th>什么时候发</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="lib"><span class="tag live">效果图</span><span class="role">风格案例</span></td>
+              <td><b>11253 张</b>实拍案例图，按「风格 × 空间」交叉（现代简约 × 卫生间…）</td>
+              <td>R2 <code>xiaoguotu/v2</code></td>
+              <td>客户提风格/空间、或泛泛要图；同分类里随机抽，避免每人收到同一批</td>
+            </tr>
+            <tr>
+              <td class="lib"><span class="tag live">知识图集</span><span class="role">干货长图</span></td>
+              <td><b>726 张</b>装修干货图（避坑清单 / 流程图…），15 大类</td>
+              <td>R2（已带我方水印）</td>
+              <td>客户问「有没有清单/参考图」，按主题精准命中</td>
+            </tr>
+            <tr>
+              <td class="lib"><span class="tag live">装修资料</span><span class="role">原创长图</span></td>
+              <td><b>48+ 份</b>「有大有小」原创资料（硬装 / 预算 / 验收 / 主材）</td>
+              <td>R2 <code>guides/materials</code></td>
+              <td>硬装类问题分流到这里（不发柜体物料）</td>
+            </tr>
+            <tr>
+              <td class="lib"><span class="tag stage">布局图</span><span class="role">柜体示意</span></td>
+              <td>按几室几厅出的<b>柜体位置示意图</b>（1–5 室 / 复式）</td>
+              <td>R2 <code>guides/layout</code></td>
+              <td>客户报了户型、或发来户型图（见下）</td>
+            </tr>
+            <tr>
+              <td class="lib"><span class="tag stage">配置清单</span><span class="role">价格长图</span></td>
+              <td>柜体配置 + 价格口径长图（2160×7216 超长图）</td>
+              <td>R2 <code>guides/checklist</code></td>
+              <td>客户明确要「配置单 / 报价单」</td>
+            </tr>
+            <tr>
+              <td class="lib"><span class="tag base">官方海报</span><span class="role">品牌图</span></td>
+              <td><b>11 张</b>品牌海报（价格表 / 环保承诺…），一张只发一次</td>
+              <td>表 <code>enterprise_posters</code></td>
+              <td>触发词命中（如说到「环保」）+ 主动/问则答</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <p class="sublede" style="margin:20px 0 10px;"><b>怎么挑那一张：LLM 先出文字，发图是文字之后按优先级「一轮只发一类」地兜</b>——五类图互斥，避免又刷屏又拖慢云电脑剪贴板：</p>
+    <div class="callpath">
+      <span class="node">客户发来图 → <b>只可能发布局图</b></span>
+      <span class="arr">否则→</span>
+      <span class="node">硬装类 → 发对应<b>资料长图</b></span>
+      <span class="arr">→</span>
+      <span class="node"><code>pickAsset</code> 布局图 / 清单图</span>
+      <span class="arr">→</span>
+      <span class="node"><code>matchZhishi</code> 知识图集</span>
+      <span class="arr">→</span>
+      <span class="node">兜底 <code>galleryReplyFor</code> 效果图</span>
+    </div>
+    <p class="sublede" style="margin:8px 0 0;">官方海报是<b>另一条独立线</b>（<code>matchPosters</code> 触发词命中即挂），跟上面五选一互不干扰。这些判定<mark class="hl">全是关键词/正则字典，没有一步问 AI</mark>——所以「该不该发图」这件事稳定可复现，不会今天发明天不发。</p>
+
+    <div class="card layer live" style="margin-top:16px;">
+      <div class="layerrole">户型图识别 · floorplan-vision（唯一用到视觉模型的地方）</div>
+      <h3 style="font-size:15px;">客户把自家户型图拍给你 → <span style="color:var(--ok)">VL 读出「几室几厅」→ 选对应的标准布局示意图</span></h3>
+      <p style="margin-top:8px;">这是发图链路里<b>唯一</b>调 AI（视觉模型）的一步：读户型图上有几个卧室、几个客厅。读准了就发那套户型对应的<b>现成</b>布局图。<mark class="hl">它不自己画图、也绝不猜承重墙</mark>——读不准（置信度不够）就老实说不知道、或退回按画像选，宁可不发也不瞎给（同全篇「一眼假的错误不发出去」的脾气）。</p>
+    </div>
+
+    <div class="chan" style="margin-top:16px;">
+      <div class="chanbox">
+        <div class="ct">企微方案 B（能发图）</div>
+        <div class="cd">服务端把图的 URL 一起回给云电脑 → 云电脑<b>下载 → 剪贴板 → Ctrl+V 内联发出</b>，图和文字一起到。</div>
+      </div>
+      <div class="chanbox">
+        <div class="ct">抖音私信（发不了图）</div>
+        <div class="cd">平台限制：<code>抖音发不了文件、发图会压糊</code>。所以抖音这条<b>不发图，只备料</b>，等客户转到企微、被认领后再由企微侧发。</div>
+      </div>
+    </div>
+
+    <div class="callout warn">
+      <div class="bar"></div>
+      <p><span class="k">还差最后一口气：云电脑「取图」没接上</span>客户发来的图，云电脑目前只读到一个 <code>[图片]</code> 占位符、<b>拿不到图的原始像素</b>。所以：户型图识别那条（B1）<b>还在等取图才能真正验证</b>；已知小坑——<mark class="hl">客户连发两张图，第二张会被悄悄丢掉</mark>。这块补上，发图闭环才算真跑通。</p>
+    </div>
+
+    <!-- ② 长对话记忆 -->
+    <h3 style="font-size:18px;margin:34px 0 6px;font-weight:800;">② 记忆工具：撑住长对话不失忆</h3>
+    <p class="sublede" style="margin-bottom:14px;">夏夏反馈「聊到二三十轮，AI 把客户前面说的城市、面积、预算全忘了」。这块就是治长对话失忆的，落到 prompt 拼装的<b>第 3 层「客户记忆」</b>。</p>
+    <div class="cols">
+      <div class="outcard b">
+        <span class="pill stop">病根</span>
+        <h3>为什么会「忘」</h3>
+        <ul>
+          <li>历史一超 16 条<b>只留最近 10 条</b>，旧轮里客户说的城市/面积/预算<b>全被截掉</b></li>
+          <li>提取旧信息的正则<b>只扫我方消息</b>——客户自己说的信息压根没在扫</li>
+          <li>写画像靠模型<b>自愿</b>调工具，59 条会话只写进 4 条</li>
+        </ul>
+      </div>
+      <div class="outcard a">
+        <span class="pill ok">✓ 修法（自建，不上 mem0）</span>
+        <h3>两条腿：抽画像 + 滚动摘要</h3>
+        <ul>
+          <li><b>确定性抽画像</b>：<code>extractProfileFacts</code> 用便宜的分析模型硬抽 7 个字段（城市/面积/预算/房型…），纯附和的话跳过省钱</li>
+          <li><b>滚动摘要</b>：<code>context_summary</code> 按「水位」增量把老对话压成一段摘要，直读 DB、不受 40 条窗口限，乐观锁防重复记</li>
+          <li>回复后 <code>after()</code> 异步落库，<b>不占云电脑等待时延</b>；全程 fail-safe</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout warn">
+      <div class="bar"></div>
+      <p><span class="k">诚实的注脚：能力造好了，还没派上用场</span>50 轮记忆和「决策期」这两套至今<mark class="hl">0 次真实触发</mark>——因为实测 46 条真客户会话里，<b>33 条客户开口不到 2 句就没下文</b>，最长的真人对话也才 11 个来回。<b>瓶颈不在「记不住」，在「聊不下去」</b>。所以下一步不是继续堆能力，是拿真实案例去实测——没跑过的东西没法优化。</p>
+    </div>
+
+    <!-- ③ 到店引导 + 漏斗 -->
+    <h3 style="font-size:18px;margin:34px 0 6px;font-weight:800;">③ 到店引导：把「约到店」变成能数的指标</h3>
+    <p class="sublede" style="margin-bottom:14px;">企微通道的业务目标本来就是<b>「把客户引导到店」</b>，可之前<mark class="hl">全仓没有任何一处度量它</mark>——日报报的是加了几个好友，跟「约成了几个到店」一点关系没有。结果所有话术改动在业务层<b>不可证伪</b>：只能看回归闸绿不绿，看不到到底约成没。这块补齐了从「催」到「数」的闭环。</p>
+    <div class="flow">
+      <div class="card">
+        <h3><span class="pill gold">催</span> 决策期每条顺一个到店钩子（hookMode=always）</h3>
+        <p>但把<b>「用哪套话术」和「DB 记什么阶段」拆开</b>了：话术按<span class="who">最近 4 条客户消息</span>重算，客户一句「我再看看」的信号过去了就<b>降温回培育期口吻</b>；而 DB 里的阶段<b>只进不退</b>当漏斗指标用。防的是「随口说句我再看看 → 从此每条都被推到店」的催单机器人。</p>
+      </div>
+      <div class="arrow">↓</div>
+      <div class="card">
+        <h3><span class="pill ok">数</span> 约成判据 <code>detectStoreVisitCommit</code>（确定性，判据收紧）</h3>
+        <p>必须有<b>确定时间锚点</b>（明天/周六/28号/下午三点）<b>或明确应约</b>（「好，那我过去」）才算约成；<span class="who">「哪天过去方便」这种反问不算</span>——那还没约成。记进 <code>conversations.store_visit_committed_at</code>（只写第一次）+ 推绿卡告警。<mark class="hl">宁可少记：错记一个，到店转化率这个指标从第一天起就不可信。</mark></p>
+      </div>
+      <div class="arrow">↓<small>每天 21:00 汇总</small></div>
+      <div class="card layer live">
+        <h3>✅ 每天推「五档漏斗」到 Lark（<code>/api/cron/wecom-funnel-digest</code>）</h3>
+        <p>每档都带「占上一档的比例」，一眼看出哪一级在漏。</p>
+      </div>
+    </div>
+
+    <div class="callpath" style="margin-top:14px;">
+      <span class="node">新建会话</span>
+      <span class="arr">→</span>
+      <span class="node">① 客户开过口</span>
+      <span class="arr">→</span>
+      <span class="node">② 聊起来了 <span style="color:var(--faint)">≥3 句</span></span>
+      <span class="arr">→</span>
+      <span class="node">③ 聊得深 <span style="color:var(--faint)">≥6 句</span> / 到过决策期</span>
+      <span class="arr">→</span>
+      <span class="node"><b>⑤ 约成到店</b></span>
+    </div>
+    <div class="callout">
+      <div class="bar"></div>
+      <p><span class="k">量出来才知道漏在哪</span>漏斗把<b>前段</b>也量出来后，最大的漏点一目了然：<mark class="hl">不在「记不住」，在最前面——加上了好友但客户根本不开口 / 聊不过 3 句</mark>。所以「继续优化记忆/决策期话术」的边际收益其实在掉，真正该攻的是首触承接。日报还会自动挑出「客户说了话我方没回」的会话——那多半是<b>云电脑没在跑</b>，比改话术更该先查。</p>
+    </div>
+  </section>
+
+  <!-- 7. 技术逻辑 · 代码地图 -->
+  <section>
+    <p class="snum">07</p>
     <h2>技术逻辑 · 运行时引擎的代码地图</h2>
-    <p class="sublede">上一节的每一步，落到代码上是哪个入口、哪个函数、哪个文件、通向哪个出口——开发照这张表顺藤摸瓜就行。贯穿全表一条设计原则：<mark class="hl">判断题归代码，AI 只管把话说得像人</mark>（是不是图片、是不是回声、有没有反问、超没超长，全是确定性判定，不靠模型自觉）。</p>
+    <p class="sublede">第 05 节的每一步，落到代码上是哪个入口、哪个函数、哪个文件、通向哪个出口——开发照这张表顺藤摸瓜就行。贯穿全表一条设计原则：<mark class="hl">判断题归代码，AI 只管把话说得像人</mark>（是不是图片、是不是回声、有没有反问、超没超长，全是确定性判定，不靠模型自觉）。</p>
 
     <div class="callpath" style="margin-top:6px;">
       <span class="node">cron <code>/api/cron/dm-auto-reply</code></span>
@@ -769,9 +935,9 @@
     </div>
   </section>
 
-  <!-- 7. 改哪块 -->
+  <!-- 8. 改哪块 -->
   <section>
-    <p class="snum">07</p>
+    <p class="snum">08</p>
     <h2>想改话术，该动哪一块？</h2>
     <p class="sublede" style="margin-bottom:0;">「改话术」不是一件事，是<b>四件事</b>——落在不同地方、生效速度完全不同。先想清楚你要改的是哪一类，再去动对应的那块，别一上来就找代码。</p>
 
@@ -823,7 +989,7 @@
     </div>
   </section>
 
-  <p class="foot">2026-07-10 建设：知识按问题相关性调取 · 暂存表 case_distill_candidates + 上传自动蒸馏 + 审核队列 /case-distill · 冲突红点 + 说话人标反嗅探 · AI 判官 + 分级自动落库。核心：src/lib/distill/candidates.ts · src/lib/distill/pipeline.ts · src/app/api/upload/[token] · src/app/api/case-distill · src/lib/llm.ts:buildKnowledgeSection · 读取器 loadOrgContext。<br>2026-07-15 增补第 05 节「对话背后的逻辑」运行时引擎（大白话）+ 第 06 节「技术逻辑 · 代码地图」（11 步调用链 + 函数/文件/出口一览）：阶段机（ice_break / nurture / decision）+ 生成前确定性前置分流 + 索取型资料交付分支（禁反问）+ 生成后两层确定性闸门。核心：src/lib/dm-reply/{run,generate,gate}.ts · src/lib/llm/material-delivery.ts · 滞留哨兵 /api/cron/needs-human-watch。</p>
+  <p class="foot">2026-07-10 建设：知识按问题相关性调取 · 暂存表 case_distill_candidates + 上传自动蒸馏 + 审核队列 /case-distill · 冲突红点 + 说话人标反嗅探 · AI 判官 + 分级自动落库。核心：src/lib/distill/candidates.ts · src/lib/distill/pipeline.ts · src/app/api/upload/[token] · src/app/api/case-distill · src/lib/llm.ts:buildKnowledgeSection · 读取器 loadOrgContext。<br>2026-07-15 增补第 05 节「对话背后的逻辑」运行时引擎（大白话）+ 第 07 节「技术逻辑 · 代码地图」（11 步调用链 + 函数/文件/出口一览）：阶段机（ice_break / nurture / decision）+ 生成前确定性前置分流 + 索取型资料交付分支（禁反问）+ 生成后两层确定性闸门。核心：src/lib/dm-reply/{run,generate,gate}.ts · src/lib/llm/material-delivery.ts · 滞留哨兵 /api/cron/needs-human-watch。<br>2026-07-23 增补第 06 节「最近一周补上的三块」（2026-07-20~22）：① 图片素材发图（六类图 R2 图床 + enterprise_posters，五选一互斥 + 户型图 VL 识别选布局图，企微内联发/抖音不发，取图未接上）② 长对话记忆（确定性画像抽取 extractProfileFacts + 滚动摘要 context_summary，注入 prompt 第 3 层）③ 到店引导（决策期 hookMode=always 拆话术/阶段 + detectStoreVisitCommit 约成判据 + 每日 21:00 五档漏斗日报）。核心：src/lib/kb/{gallery-intent,style-gallery,asset-delivery,material-library,zhishi-gallery,floorplan-vision}.ts · src/lib/wecom/{context-memory,store-visit,funnel}.ts · /api/cron/wecom-funnel-digest。</p>
 
 </div>
 
