@@ -46,6 +46,7 @@ const CATEGORIES = [
       { slug: 'tencent-hy3', title: '腾讯 Hy3：新旗舰拆解，我们要换吗', desc: '腾讯混元刚发布的开源权重旗舰：架构、定价、优缺点，和生产在用的 Qwen3-2507 / DeepSeek V4 Flash 摆在一起算账——结论是两个槽都不换。' },
       { slug: 'scheduling-terms', title: 'Cron / Routine / Schedule 辨析', desc: '定时·事件·常驻：一堆易混的自动化机制怎么选。' },
       { slug: 'loop-goal-orchestration', title: '用 /loop × goal 编排任务', desc: '/loop 是让 prompt「反复醒来」的骨架，goal 是写进 prompt 的「何时停」判据——两者配起来让 Claude 自己盯一件事干到达标。结合 Akke 讲轮询/指标收敛/backlog 磨盘三种落法与四道护栏。' },
+      { slug: 'usage-limit-auto-resume', title: '撞了 5 小时限额，让长任务自己等到点续跑', desc: '长任务跑到一半撞了 Claude Code 的 5 小时限额、人又不在？先破除一个普遍误解——撞限额不是进程被杀，是会话暂停等输入、上下文全在，于是「派个哨兵守着终端、到点自动续」就成立。梳理官方现状（至今未内置、一串 open issue）与社区四派方案，深讲首选工具 unsnooze 的双通道检测 / epoch 轮询扛睡眠 / tmux resume 机制与上手姿势，附 prompt cache 成本坑，以及 Akke/Workflow 长线程的实际落法（深色技术长页，2026-07）。' },
       { slug: 'dynamic-workflows', title: '动态工作流 · 让 Claude 调度一群 Agent', desc: '让 Claude 写一段脚本去编排几十上百个子代理并行干活、脚本本身不烧 token 的用法：两种触发（关键词 ultracode / 会话默认 /effort ultracode）、临时与默认两种限流（use at most N agents / config 四档规模）、以及全库审计·大规模迁移·交叉验证·循环到达标四类该用场景与「一下午能干完就别叫蜂群」的别用边界（深色技术长页）。' },
       { slug: 'autoreply-supabase-relay', title: '自动回复为什么"绕"数据库', desc: '客户回复→数据库中转→生成→发送：为什么不一步到位。' },
       { slug: 'wecom-vl-reading', title: '企微自动回复的"眼睛" · VL 读屏', desc: '系统不是"读"聊天记录，是"看"截图——为什么四条正经读法全是死路、VL 会怎么看错、diff 矫正为什么一度失灵（test-22 修法）、四条护栏原则与给运营的"卡顿"三步判断（深色技术长页）。' },
