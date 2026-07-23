@@ -102,6 +102,9 @@ TEST_ALLOW = [s.strip() for s in os.environ.get("AKKE_WECOM_TEST_ALLOW", "").spl
 # 红蓝测试专注模式：只轮询【当前打开的会话】（通道①），跳过红点遍历（通道②）和召回（通道③）
 # ——loop 不再切走会话，响应最快、测试确定性最高。⚠️ 开着期间不服务其他客户，测完必须删。
 TEST_FOCUS_ONLY = os.environ.get("AKKE_WECOM_TEST_FOCUS_ONLY", "0") == "1"
+# 发不发官方海报/配图。=0 关掉：省掉每条回复 ~10s 的图片下载(部分图床被出口墙 getaddrinfo 失败
+# 空耗)+消除「文案说发了图却没图」的错位。图片链路修好后设回 1。默认 1(不改行为)。
+SEND_POSTERS = os.environ.get("AKKE_WECOM_SEND_POSTERS", "1") == "1"
 
 
 def log(*a):
@@ -988,7 +991,9 @@ def _deliver(counter: dict, name: str, reply: str, conv_id, started: float,
 
     # 文本发完 → 逐张发官方海报（首触 single_bubble 不带 poster，这里自然为空）
     sent_poster_ids = []
-    for idx, url in enumerate(poster_urls):
+    if poster_urls and not SEND_POSTERS:
+        log(f"  [poster] SEND_POSTERS=0，跳过 {len(poster_urls)} 张图(只发文本，图片链路待修)")
+    for idx, url in enumerate(poster_urls if SEND_POSTERS else []):
         if send_image(url):
             sent_poster_ids.append(poster_ids[idx] if idx < len(poster_ids) else "")
             time.sleep(random.uniform(0.6, 1.4))  # 图间拟人间隔
