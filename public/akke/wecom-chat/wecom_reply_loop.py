@@ -532,6 +532,26 @@ def press_send():
         pyautogui.press("enter")
 
 
+def clear_input_draft():
+    """清空输入框残留草稿。自动账号本不该有输入内容；但上次发送失败（如 paste 粘进去却没回车发出、
+    或失前台中止）会留下草稿，而【草稿落在读屏底部条带里、会被当成"最底一条客户消息"顶掉真实新消息
+    → 漏回】（2026-07-23 实测：客户发"你帮我约一个去门店的时间"被输入框草稿"有大有小在湛江…"顶掉）。
+    故每次点开会话、读屏之前先清一次。企微不在前台则跳过（避免打到别的窗口）。"""
+    try:
+        import pyautogui
+
+        if not _wecom_is_foreground():
+            return
+        click_norm(*C_INPUT, label="清草稿")
+        time.sleep(0.2)
+        pyautogui.hotkey("ctrl", "a")
+        time.sleep(0.1)
+        pyautogui.press("delete")
+        time.sleep(0.15)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 # ── 发图（内联图片·剪贴板粘贴）──
 # 官方产品海报由端点按触发词命中后回 posterUrls；这里下载→放进 Windows 剪贴板→Ctrl+V 粘进
 # 企微输入框→发送键。pyperclip 只能放文本，图片必须走 win32clipboard 的 CF_DIB。
@@ -1539,6 +1559,7 @@ def handle_one(counter: dict) -> bool:
             _EMPTY_DIFF["n"] = 0  # 无变化 → 复核 streak 清零（基线不动）
         elif kind == "FULL":
             _EMPTY_DIFF["n"] = 0
+            clear_input_draft()  # 读前清残留草稿，否则草稿落进底部条带被当"最底一条客户消息"顶掉真消息
             scroll_chat_bottom()
             time.sleep(0.3)
             # ⚠️ 基线必须在【读取之前】拍（TOCTOU）：曾在读取后补拍基线，读取截图与
@@ -1621,6 +1642,7 @@ def handle_one(counter: dict) -> bool:
             y = r0["y"]
             click_norm(C_SESSION1[0], y, label=f"未读会话(y={y} {r0.get('name', '')[:8]})")
             time.sleep(1.2)
+            clear_input_draft()  # 读前清残留草稿，否则草稿会被读成"最底一条客户消息"顶掉真实新消息→漏回
             scroll_chat_bottom()
             time.sleep(0.4)
             d = read_open_conversation()
