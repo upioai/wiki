@@ -34,7 +34,6 @@ const CATEGORIES = [
       { slug: 'douyin-replica-tech', title: '爆款视频复刻产线 · 换人换声技术方案', desc: '把一条跑出成绩的爆款换成自家主播的脸和声音重新出片：MiniMax 零样本音色克隆、sync-lipsync 扩散式嘴部重绘、真人底片表情保真、OpenCV 逐帧字幕擦除与「先剪后驱动」成本工法——单条 $1.8，附完整选型对比与团队 skill 用法（深色技术长页，2026-07）。' },
       { slug: 'hdyx-progress-2026-07', title: '有大有小 · 获客四线实时进展与卡点', desc: '视频制作 → 广告投放 → 加微承接 → 企微 AI 自动化：四条业务线各自走到哪、哪段全绿、哪里在等谁——含 M1 图源对照实验、三生态投放评估排序、加微链路事实澄清、企微 AI 灰度真发数据与按「球在谁手里」排的卡点总表（甲方分享会深色长页，数据截至 2026-07-15）。' },
       { slug: 'hdyx-tech-blueprint-2026-07', title: '有大有小 · 获客四线技术方案蓝图', desc: '与进展页配套的工程口径：「想在云端、手在终端」三层总架构，视频产线 M1 图源对照实验设计与八工位流水线，三生态投放承接链路形态与归因埋点，抖音→企微 hard-gate 收口与短信桥，企微方案 A/B 对比与云电脑 GUI + VL 读屏数据链——含全栈选型表与两条贯穿性工程原则。' },
-      { slug: 'ai-growth-landscape', title: '谁在生成内容，谁在挖线索 · AI 获客赛道地图', desc: 'AI 营销视频与社媒获客两个赛道、国内外 60+ 家公司的全景扫描：Sora 为何关停、Icon 为何从 AI 退回真人拍摄、13 倍估值差从哪来，以及 Meta 与抖音的私信 API 如何决定了「谁能主动跟陌生人说第一句话」。每条结论标注信源与证据档位，查不到就写查不到（深色长页，2026-07）。' },
       { slug: 'langchain-langgraph-langfuse', title: 'LangChain · LangGraph · Langfuse', desc: '三个都带 lang 的名字怎么分？前两个帮 AI 干活、第三个帮你看清 AI——结合 Akke 讲我们用了哪个、没用哪个、为什么。' },
       { slug: 'claude-tag',       title: 'Claude Tag · Slack 队友', desc: '把 Claude 拉进 Slack 当常驻队友：@一下就接活、会主动盯事（Opus 4.8）。' },
       { slug: 'hermes-agent',     title: 'Hermes Agent 框架',  desc: '团队自研 Agent 系统讲解。' },
@@ -58,6 +57,14 @@ const CATEGORIES = [
       { slug: 'claude-code-cloud-pc', title: '用 Claude Code 遥控一台云电脑', desc: '企业微信和抖音都没有可用的对外发消息接口，于是「发消息」这件事只能落到一台登录着真账号的 Windows 云电脑上用 GUI 去点。这篇讲清楚怎么把这台机器交给终端里的 Claude：控制链七层全景、阿里无影企业版 RunCommand 的官方口径（16KB 命令体 / 300 秒超时 / 24KB 输出截断）、会话 0 与会话 1 的硬边界与 InteractiveToken 跳板、把 88KB 脚本塞进 16KB 管子的分块校验法、SNI 阻断的判据与中转修法、十四条坑位速查——以及一次把自己三条「已知死路」实测推翻的记录（深色技术长页，2026-07）。' },
       { slug: 'i2v-quality-triage', title: '图生视频效果不好，怪谁？', desc: 'AI 生图 → 可灵/Seedance 图生视频的成片效果不理想，问题在提示词、图片还是模型？一次真实产线的三层归因排查：图片 > 模型参数 > 提示词，含嘴形破案实录（V3 无音频输入回退 v2.5）与可迁移的排查方法。' },
       { slug: 'omnihuman-short-drama', title: '抖音短剧 OmniHuman 生成技术方案', desc: 'AI 短剧口播视频怎么生成：从 v1 的 Kling+lipsync 多步级联，到 v2 的 OmniHuman 一步音频驱动（audio→video+face+body）。含 Seedream 真人锚点、反打单人架构（多人同框会两张脸同时张嘴）、fal/RunPod 调用地图澄清，以及逐环节的 RunPod 自建替代评估——空镜可换 Sulphur Pod 省 5×，口播真人的脸/口型/音色永远留 fal，单条 $14.82（深色技术长页，2026-07）。' },
+    ],
+  },
+  {
+    label: 'BUSINESS · MARKET INSIGHT',
+    title: '商业 · 市场洞察',
+    items: [
+      { slug: 'enterprise-ai-business-models', title: '卖结果，不卖工位 · 2026 企服 AI 商业模式全景', desc: '2026 年跑通的企服 AI 没有一家靠「按人头订阅」赢——它们把收费口径从软件预算挪到了人力预算。拆解三种正在跑通的模式（按结果计费 / Service-as-Software / AI Rollup）、海外公司档案与真实增长基准（80+ 家过 $100M ARR、人均 ARR 差一个数量级、纯 SaaS 倍数跌 80%），中国现场的结构性差异（用友金蝶市值双双 -80%、北森 AI 新签已是传统 4 倍且要建 300 人 FDE 队伍），以及一套判断切入点的五条硬标准 + 可交互自查打分器与四个候选象限。全文数据标注 A/B/C 证据档位（深色技术长页，2026-07）。' },
+      { slug: 'ai-growth-landscape', title: '谁在生成内容，谁在挖线索 · AI 获客赛道地图', desc: 'AI 营销视频与社媒获客两个赛道、国内外 60+ 家公司的全景扫描：Sora 为何关停、Icon 为何从 AI 退回真人拍摄、13 倍估值差从哪来，以及 Meta 与抖音的私信 API 如何决定了「谁能主动跟陌生人说第一句话」。每条结论标注信源与证据档位，查不到就写查不到（深色长页，2026-07）。' },
     ],
   },
   {
