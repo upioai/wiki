@@ -148,6 +148,18 @@ _handle_cookie = None  # 懒加载的登录态 cookie 头串（DB 优先，cooki
 ENRICH_REQUIRE_NUMBER = os.environ.get('AKKE_ENRICH_REQUIRE_NUMBER', '0' if _dm_script_is_web else '1').lower() in ('1', 'true', 'yes')
 
 
+def _http_detail(where: str, e: urllib.error.HTTPError) -> RuntimeError:
+    """把 PostgREST 的 HTTPError 翻成「哪个接口 + HTTP 码 + 服务端真实报错」。
+    500 时 body 里就是数据库那条真错(PostgREST 会把 PG 错误原样透出)——
+    否则主循环只打得出 `HTTPError: HTTP Error 500`,谁都不知道是哪个调用/为啥。"""
+    detail = ''
+    try:
+        detail = e.read().decode()[:500]
+    except Exception:
+        pass
+    return RuntimeError(f'{where} → HTTP {e.code}{": " + detail if detail else ""}')
+
+
 def _rpc(name: str, payload: dict):
     """调 PostgREST RPC(stdlib urllib,无 supabase 依赖)。失败抛异常,由调用方/主循环兜。"""
     req = urllib.request.Request(
@@ -160,8 +172,11 @@ def _rpc(name: str, payload: dict):
         },
         method='POST',
     )
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        body = resp.read().decode()
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            body = resp.read().decode()
+    except urllib.error.HTTPError as e:
+        raise _http_detail(f'rpc/{name}', e) from e
     return json.loads(body) if body else None
 
 
@@ -176,8 +191,12 @@ def _get(path_and_query: str):
         },
         method='GET',
     )
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        body = resp.read().decode()
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            body = resp.read().decode()
+    except urllib.error.HTTPError as e:
+        # path 可能含 sec_uid 等参数,截前 120 字符定位到表+关键过滤即可,不刷屏
+        raise _http_detail(f'GET {path_and_query[:120]}', e) from e
     return json.loads(body) if body else None
 
 
