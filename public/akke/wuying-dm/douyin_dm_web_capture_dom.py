@@ -45,6 +45,12 @@ COMMIT = ("--commit" in sys.argv) or _os.environ.get("AKKE_WEB_DM_DOM_COMMIT", "
 # 的情况下验完 match 之后的整条判回复链。合成 conv 写 TEST → 即便 --commit 也不落库。
 TEST_NICK = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--test-nick=")), "")
 
+# SYS_NOTICE 里【会盖住真客户回复】的子集: 撤回把前一条真文字回复顶掉、"不可展示类型"
+# 是抖音读不出的客户消息(分享卡/小程序等)。红点亮着(客户确有新动作)+这两类预览 = 大概率
+# 有条读不到的真回复 → 推人工核对卡, 不静默丢。其余 SYS_NOTICE(隐私/无法发送/相关搜索)
+# 确非客户回复, 不在此列。见下方红点分支用法(2026-07-26 三例失联复盘)。
+_HIDDEN_REPLY_NOTICE = ("撤回了一条消息", "该消息类型暂不能展示")
+
 
 # 事件触发起草: record_dm_inbound 写完后立刻打 Fly 中转 → Vercel /api/dm-reply/draft-one,
 # 去掉等 */5 cron 那段 0-5min 调度延迟(端到端 ~3-7min → ~15-40s)。
@@ -309,16 +315,32 @@ def capture_dom():
                 print(f"  [no_reply] {nick}: 预览=我方 opener")
                 continue
             if any(t in preview for t in SYS_NOTICE):
-                print(f"  [no_reply] {nick}: 系统提示")
+                # 撤回/不可展示类型: 红点为证=客户确实发了条读不到内容的消息。这类常盖住
+                # 前一条真文字回复(放水哥"全包"被"撤回了一条消息"盖住 → 凭空消失)。别再静默
+                # 丢, 推一张人工核对卡(复用兜底对账同款告警+去重台账)。其余 SYS_NOTICE
+                # (隐私/无法发送/相关搜索)确非客户回复, 仍静默跳过。
+                if COMMIT and any(t in preview for t in _HIDDEN_REPLY_NOTICE):
+                    print(f"  [疑似·撤回/不可展示] {nick}: {preview[:18]} → 推卡人工核对")
+                    alert_backfill_suspect(nick, preview)
+                else:
+                    print(f"  [no_reply] {nick}: 系统提示")
                 continue
             if _is_noise_preview(preview):
                 print(f"  [no_reply] {nick}: 纯时间戳/状态行")
                 continue
             if preview.startswith("[") and preview.endswith("]"):
                 # 媒体占位([图片]/[视频]…)≠贴纸: 发图的常是决策期客户(户型图/报价截图), 放行
-                # 占位入库→通知→转人工; 贴纸(名字不可枚举)仍丢, 但留日志不再静默(微笑早晨案)。
+                # 占位入库→通知→转人工; 贴纸(名字不可枚举)读不到内容。
                 if not is_media_preview(preview):
-                    print(f"  [no_reply] {nick}: 纯表情贴纸 → {preview[:18]}")
+                    # 纯表情贴纸: 红点为证=客户刚发了东西, 而贴纸常跟在真文字回复后面
+                    # (佳人有约"太阳/hi/我家三室一厅/感谢"四连, 尾贴纸盖住"我家三室一厅",
+                    # 列表预览只显尾条 → 那句真回复读都读不到)。改推人工核对卡, 不再静默丢
+                    # (2026-07-26 三例失联复盘; 去重台账保证同人只报一次)。
+                    if COMMIT:
+                        print(f"  [疑似·贴纸] {nick}: {preview[:18]} → 推卡人工核对")
+                        alert_backfill_suspect(nick, preview)
+                    else:
+                        print(f"  [no_reply] {nick}: 纯表情贴纸 → {preview[:18]}")
                     continue
                 print(f"  [媒体] {nick}: {preview[:18]} → 占位入库转人工")
             if not is_relevant(preview):
