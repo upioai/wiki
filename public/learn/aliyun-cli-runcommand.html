@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>阿里云 CLI × RunCommand 实战教程 · 以 Akke 云电脑机队为例</title>
+<meta name="description" content="从零上手 aliyun CLI 与无影云电脑 RunCommand：凭据与 profile、api-version/region 三坐标、run-command 与 describe-invocations 回执、会话 0 与会话 1 的边界、分块传文件，全部以 Akke 四台生产云电脑的真实命令与回执为例。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#06080c;
+    --bg2:#0a0e15;
+    --panel:#0d1119;
+    --panel2:#11161f;
+    --line:rgba(255,255,255,.07);
+    --line2:rgba(255,255,255,.12);
+    --ink:#dbe3ec;
+    --head:#f2f6fb;
+    --muted:#7c8798;
+    --dim:#525c6b;
+    --teal:#3fe0c5;      /* 机器 / 自动 */
+    --teal-d:#1c9d8b;
+    --amber:#f6b352;     /* 人工 / 人在环 */
+    --blue:#6fa8ff;      /* 服务器 / 大脑 */
+    --violet:#b48cff;    /* worker / python */
+    --rose:#ff7d97;      /* 执行 / 真机 */
+    --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+    --serif:"Noto Serif SC",serif;
+    --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:var(--sans);
+    background:var(--bg);
+    color:var(--ink);
+    line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  /* ── 固定背景：网格 + 辉光 + 颗粒 ── */
+  .bg{position:fixed;inset:0;z-index:0;pointer-events:none}
+  .bg .grid{
+    position:absolute;inset:-2px;
+    background-image:
+      linear-gradient(var(--line) 1px,transparent 1px),
+      linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:64px 64px;
+    -webkit-mask-image:radial-gradient(circle at 50% 32%,#000 0%,transparent 78%);
+    mask-image:radial-gradient(circle at 50% 32%,#000 0%,transparent 78%);
+    opacity:.5;
+  }
+  .bg .glow{position:absolute;border-radius:50%;filter:blur(120px);opacity:.5}
+  .bg .g1{width:640px;height:640px;top:-260px;left:50%;transform:translateX(-50%);
+    background:radial-gradient(circle,rgba(63,224,197,.28),transparent 68%);animation:drift 22s ease-in-out infinite}
+  .bg .g2{width:520px;height:520px;top:38%;left:-160px;
+    background:radial-gradient(circle,rgba(111,168,255,.16),transparent 70%);animation:drift 28s ease-in-out infinite reverse}
+  .bg .g3{width:480px;height:480px;bottom:-120px;right:-120px;
+    background:radial-gradient(circle,rgba(246,179,82,.12),transparent 70%);animation:drift 26s ease-in-out infinite}
+  @keyframes drift{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,40px)}}
+  .bg .noise{position:absolute;inset:0;opacity:.035;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+  /* ── 顶部滚动进度 ── */
+  .progress{position:fixed;top:0;left:0;height:2px;width:0;z-index:60;
+    background:linear-gradient(90deg,var(--teal),var(--blue));box-shadow:0 0 12px var(--teal)}
+
+  /* ── 侧栏章节导航 ── */
+  .rail{position:fixed;top:50%;left:26px;transform:translateY(-50%);z-index:50;
+    display:flex;flex-direction:column;gap:15px}
+  .rail a{display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--dim);
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+    transition:color .3s}
+  .rail a .tick{width:22px;height:2px;background:currentColor;transition:width .3s,background .3s}
+  .rail a .lbl{opacity:0;transform:translateX(-6px);transition:.3s}
+  .rail a:hover .lbl,.rail a.on .lbl{opacity:1;transform:none}
+  .rail a.on{color:var(--teal)}
+  .rail a.on .tick{width:38px;box-shadow:0 0 10px var(--teal)}
+  @media(max-width:1180px){.rail{display:none}}
+
+  main{position:relative;z-index:2;max-width:1080px;margin:0 auto;padding:0 40px}
+  section{padding:118px 0;border-top:1px solid transparent}
+
+  /* ── 通用 reveal ── */
+  .rv{opacity:0;transform:translateY(26px);transition:opacity .8s cubic-bezier(.16,1,.3,1),transform .8s cubic-bezier(.16,1,.3,1)}
+  .rv.in{opacity:1;transform:none}
+  .stagger>*{opacity:0;transform:translateY(22px);transition:opacity .7s cubic-bezier(.16,1,.3,1),transform .7s cubic-bezier(.16,1,.3,1)}
+  .stagger.in>*{opacity:1;transform:none}
+  .stagger.in>*:nth-child(1){transition-delay:.05s}
+  .stagger.in>*:nth-child(2){transition-delay:.13s}
+  .stagger.in>*:nth-child(3){transition-delay:.21s}
+  .stagger.in>*:nth-child(4){transition-delay:.29s}
+  .stagger.in>*:nth-child(5){transition-delay:.37s}
+
+  /* ── 章节头 ── */
+  .sec-head{display:flex;align-items:baseline;gap:20px;margin-bottom:42px}
+  .sec-head .idx{font-family:var(--mono);font-size:13px;color:var(--teal);
+    font-weight:500;padding-top:6px;position:relative}
+  .sec-head .idx::before{content:"";position:absolute;left:-14px;top:11px;width:8px;height:8px;
+    border-radius:50%;background:var(--teal);box-shadow:0 0 10px var(--teal)}
+  .eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--muted);display:block;margin-bottom:8px}
+  .sec-head h2{font-family:var(--serif);font-weight:700;font-size:clamp(27px,4vw,42px);
+    line-height:1.18;color:var(--head);letter-spacing:.01em}
+  .lede{font-size:16.5px;color:var(--muted);max-width:660px;margin:-24px 0 40px;line-height:1.75}
+  .lede b,.lede strong{color:var(--ink);font-weight:600}
+  code{font-family:var(--mono);font-size:.85em;background:rgba(63,224,197,.09);color:#8ff0e0;
+    border:1px solid rgba(63,224,197,.16);border-radius:5px;padding:1px 6px}
+
+  /* ── HERO ── */
+  .hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;
+    padding:120px 0 90px;border:0;position:relative}
+  .hero .tag{font-family:var(--mono);font-size:12px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--teal);display:inline-flex;align-items:center;gap:10px;margin-bottom:26px}
+  .hero .tag .pulse{width:9px;height:9px;border-radius:50%;background:var(--teal);
+    box-shadow:0 0 0 0 rgba(63,224,197,.6);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(63,224,197,.55)}70%{box-shadow:0 0 0 12px rgba(63,224,197,0)}100%{box-shadow:0 0 0 0 rgba(63,224,197,0)}}
+  .hero h1{font-family:var(--serif);font-weight:900;font-size:clamp(46px,9vw,104px);line-height:1.02;
+    color:var(--head);letter-spacing:.005em;margin-bottom:8px}
+  .hero h1 .accent{background:linear-gradient(115deg,var(--teal),var(--blue) 70%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero h1 .cursor{display:inline-block;width:.06em;height:.92em;background:var(--teal);
+    vertical-align:-6px;margin-left:6px;animation:blink 1.1s steps(1) infinite;box-shadow:0 0 14px var(--teal)}
+  @keyframes blink{50%{opacity:0}}
+  .hero .desc{font-size:clamp(17px,2.3vw,22px);color:var(--ink);max-width:680px;margin:24px 0 14px;line-height:1.6}
+  .hero .desc b{color:var(--teal);font-weight:600}
+  .hero .role{font-family:var(--mono);font-size:13px;color:var(--muted);margin-bottom:44px}
+  .ticker{display:flex;gap:10px;flex-wrap:wrap;max-width:820px}
+  .chip{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;color:var(--ink);
+    border:1px solid var(--line2);border-radius:100px;padding:7px 15px;background:rgba(255,255,255,.02);
+    display:inline-flex;align-items:center;gap:8px;transition:.3s}
+  .chip:hover{border-color:var(--teal);color:var(--teal);box-shadow:0 0 20px -6px var(--teal)}
+  .chip .d{width:6px;height:6px;border-radius:50%;background:var(--teal)}
+  .chip .d.a{background:var(--amber)}.chip .d.b{background:var(--blue)}.chip .d.v{background:var(--violet)}
+  .scrollcue{position:absolute;bottom:34px;left:0;font-family:var(--mono);font-size:11px;
+    letter-spacing:.2em;color:var(--dim);display:flex;align-items:center;gap:10px}
+  .scrollcue .bar{width:1px;height:34px;background:linear-gradient(var(--teal),transparent);
+    animation:cue 1.8s ease-in-out infinite}
+  @keyframes cue{0%,100%{opacity:.3;transform:scaleY(.6)}50%{opacity:1;transform:scaleY(1)}}
+
+  /* ── 三件套 pillars ── */
+  .pillars{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;position:relative}
+  .pillar{background:linear-gradient(165deg,var(--panel),var(--bg2));border:1px solid var(--line);
+    border-radius:16px;padding:26px 24px 24px;position:relative;overflow:hidden;transition:.4s}
+  .pillar::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;
+    background:var(--c,var(--teal));opacity:.7;box-shadow:0 0 16px var(--c,var(--teal))}
+  .pillar:hover{transform:translateY(-6px);border-color:var(--line2);
+    box-shadow:0 24px 60px -30px var(--c,var(--teal))}
+  .pillar .mk{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--c,var(--teal));
+    text-transform:uppercase;margin-bottom:16px;display:flex;justify-content:space-between}
+  .pillar h3{font-family:var(--serif);font-weight:700;font-size:21px;color:var(--head);margin-bottom:6px}
+  .pillar .path{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:14px}
+  .pillar p{font-size:14px;color:var(--muted);line-height:1.65}
+  .pillar .ver{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);
+    font-family:var(--mono);font-size:12px;color:var(--ink)}
+  .note-band{margin-top:22px;background:rgba(246,179,82,.06);border:1px solid rgba(246,179,82,.2);
+    border-radius:14px;padding:18px 22px;display:flex;gap:16px;align-items:flex-start}
+  .note-band .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--amber);
+    text-transform:uppercase;white-space:nowrap;padding-top:2px}
+  .note-band p{font-size:14.5px;color:var(--ink);margin:0}
+
+  /* ── 管线 spine ── */
+  .pipe{position:relative;padding-left:38px;margin-top:8px}
+  .pipe::before{content:"";position:absolute;left:11px;top:8px;bottom:8px;width:2px;
+    background:linear-gradient(var(--teal),var(--violet),var(--amber),var(--rose))}
+  .pipe .flowdot{position:absolute;left:6px;width:12px;height:12px;border-radius:50%;
+    background:var(--teal);box-shadow:0 0 16px 3px var(--teal);animation:flow 4.2s cubic-bezier(.5,0,.5,1) infinite}
+  @keyframes flow{0%{top:2px;opacity:0}8%{opacity:1}92%{opacity:1}100%{top:calc(100% - 14px);opacity:0}}
+  .pstep{position:relative;padding:16px 0;display:grid;grid-template-columns:112px 1fr;gap:18px;align-items:start}
+  .pstep+.pstep{border-top:1px dashed var(--line)}
+  .pstep::before{content:"";position:absolute;left:-32px;top:24px;width:10px;height:10px;border-radius:50%;
+    background:var(--bg);border:2px solid var(--who,var(--teal));box-shadow:0 0 0 4px var(--bg)}
+  .pstep .who{font-family:var(--mono);font-size:11px;letter-spacing:.05em;padding:5px 9px;border-radius:7px;
+    background:color-mix(in srgb,var(--who) 15%,transparent);color:var(--who);
+    border:1px solid color-mix(in srgb,var(--who) 30%,transparent);text-align:center;line-height:1.35}
+  .pstep .txt{font-size:14.5px;color:var(--ink)}
+  .pstep .txt b{color:var(--head);font-weight:600}
+  .pipe-note{margin-top:20px;font-size:13.5px;color:var(--muted);font-family:var(--mono);
+    padding-left:38px;line-height:1.6}
+  .pipe-note b{color:var(--teal)}
+
+  /* ── 通用卡片网格 ── */
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  .cell{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 22px;transition:.35s}
+  .cell:hover{border-color:var(--line2);background:var(--panel2);transform:translateY(-3px)}
+  .cell .ico{font-size:22px;margin-bottom:12px;display:block;filter:grayscale(.1)}
+  .cell h3{font-size:16px;color:var(--head);margin-bottom:7px;font-weight:600}
+  .cell h3 .m{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:.08em;display:block;margin-bottom:4px;font-weight:500}
+  .cell p{font-size:13.5px;color:var(--muted);line-height:1.65}
+  .cell .model{margin-top:12px;font-family:var(--mono);font-size:12px;color:var(--teal);
+    background:rgba(63,224,197,.07);border:1px solid rgba(63,224,197,.15);border-radius:7px;padding:5px 10px;display:inline-block}
+
+  /* ── 执行通道 ── */
+  .why{background:linear-gradient(160deg,rgba(255,125,151,.07),transparent);
+    border:1px solid rgba(255,125,151,.2);border-radius:16px;padding:26px 28px;margin-bottom:20px}
+  .why .k{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--rose);
+    text-transform:uppercase;margin-bottom:10px;display:block}
+  .why p{font-size:15.5px;color:var(--ink);margin:0}
+  .why p b{color:var(--rose)}
+
+  /* ── 数据模型三列 ── */
+  .cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .colbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 22px}
+  .colbox h4{font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--teal);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+  .colbox ul{list-style:none}
+  .colbox li{font-size:13.5px;color:var(--ink);padding:6px 0 6px 18px;position:relative;line-height:1.5}
+  .colbox li::before{content:"▸";position:absolute;left:0;color:var(--dim)}
+  .colbox li b{color:var(--head)}
+  .colbox.ship h4{color:var(--teal)}.colbox.wip h4{color:var(--amber)}.colbox.hard h4{color:var(--rose)}
+  .colbox.ship{border-color:rgba(63,224,197,.18)}
+  .colbox.wip{border-color:rgba(246,179,82,.18)}
+  .colbox.hard{border-color:rgba(255,125,151,.18)}
+
+  /* ── 取向 band ── */
+  .band{margin-top:22px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--teal);
+    border-radius:12px;padding:20px 24px}
+  .band .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--teal);text-transform:uppercase;margin-bottom:8px;display:block}
+  .band p{font-size:15px;color:var(--ink);margin:0}
+  .band p b{color:var(--head)}
+
+  /* ── 技术栈表 ── */
+  .spec{width:100%;border-collapse:collapse;font-size:13.5px}
+  .spec thead th{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--muted);text-align:left;padding:12px 14px;border-bottom:1px solid var(--line2)}
+  .spec td{padding:13px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  .spec tbody tr{transition:.25s}
+  .spec tbody tr:hover{background:rgba(63,224,197,.03)}
+  .spec td:first-child{color:var(--head);font-weight:600;white-space:nowrap}
+  .spec td:nth-child(2){color:var(--ink)}
+  .spec td:nth-child(3){font-family:var(--mono);font-size:12.5px;color:var(--teal)}
+  .spec tr.sub td:first-child{color:var(--muted);font-weight:400;padding-left:28px;font-size:12.5px}
+  .quote{margin-top:30px;background:linear-gradient(160deg,var(--panel2),var(--bg2));
+    border:1px solid var(--line);border-radius:16px;padding:28px 30px;font-size:16px;line-height:1.75;color:var(--ink)}
+  .quote b{color:var(--teal)}
+
+  footer{position:relative;z-index:2;max-width:1080px;margin:0 auto;padding:60px 40px 80px;
+    border-top:1px solid var(--line);margin-top:40px}
+  footer .fl{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:18px}
+  footer .brand{font-family:var(--serif);font-weight:700;font-size:20px;color:var(--head)}
+  footer .meta{font-family:var(--mono);font-size:11.5px;color:var(--dim);letter-spacing:.08em;text-align:right;line-height:1.9}
+  footer .meta b{color:var(--teal)}
+
+  @media(max-width:820px){
+    main{padding:0 22px}
+    section{padding:82px 0}
+    .pillars,.grid3,.grid2,.cols3{grid-template-columns:1fr}
+    .sec-head{gap:14px;margin-bottom:32px}
+    .lede{margin-top:-16px}
+    .pstep{grid-template-columns:1fr;gap:8px}
+    .pstep .who{justify-self:start}
+    .spec{font-size:12.5px}
+    .spec td,.spec thead th{padding:10px 8px}
+  }
+  /* ---- 教程页新增：代码块 + SVG 线条图标 ---- */
+  .code{margin-top:18px;background:linear-gradient(165deg,#0b0f16,#080b11);border:1px solid var(--line);
+    border-radius:14px;overflow:hidden}
+  .code .hd{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+  .code .hd .dt{width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 10px var(--teal)}
+  .code .hd .dt.a{background:var(--amber);box-shadow:0 0 10px var(--amber)}
+  .code .hd .dt.r{background:var(--rose);box-shadow:0 0 10px var(--rose)}
+  .code pre{margin:0;padding:16px 18px;overflow-x:auto;font-family:var(--mono);font-size:12.5px;
+    line-height:1.85;color:#c7d3e2;white-space:pre;-webkit-overflow-scrolling:touch}
+  .code pre b{color:var(--teal);font-weight:500}
+  .code pre i{color:var(--dim);font-style:normal}
+  .code pre u{color:var(--amber);text-decoration:none}
+  .cell .ico,.ico{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+    border:1px solid rgba(63,224,197,.3);background:linear-gradient(160deg,rgba(63,224,197,.1),transparent);
+    box-shadow:inset 0 0 18px -8px var(--teal);color:var(--teal);margin-bottom:14px;font-size:0}
+  .ico svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .ico.b{border-color:rgba(111,168,255,.3);background:linear-gradient(160deg,rgba(111,168,255,.1),transparent);
+    box-shadow:inset 0 0 18px -8px var(--blue);color:var(--blue)}
+  .ico.a{border-color:rgba(246,179,82,.3);background:linear-gradient(160deg,rgba(246,179,82,.1),transparent);
+    box-shadow:inset 0 0 18px -8px var(--amber);color:var(--amber)}
+  .ico.v{border-color:rgba(180,140,255,.3);background:linear-gradient(160deg,rgba(180,140,255,.1),transparent);
+    box-shadow:inset 0 0 18px -8px var(--violet);color:var(--violet)}
+  .ico.r{border-color:rgba(255,125,151,.3);background:linear-gradient(160deg,rgba(255,125,151,.1),transparent);
+    box-shadow:inset 0 0 18px -8px var(--rose);color:var(--rose)}
+  .ico.rank{font-family:var(--mono);font-size:14.5px;font-weight:600}
+  .verdict{margin-top:16px;display:grid;grid-template-columns:112px 1fr;gap:14px;align-items:start;
+    border-left:2px solid var(--rose);padding:12px 0 12px 16px}
+  .verdict .lb{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--rose);padding-top:3px}
+  .verdict p{margin:0;font-size:14px;color:var(--ink);line-height:1.7}
+  .verdict.ok{border-color:var(--teal)}.verdict.ok .lb{color:var(--teal)}
+  @media(max-width:820px){.verdict{grid-template-columns:1fr;gap:6px}}
+  ::selection{background:rgba(63,224,197,.28);color:#fff}
+  ::-webkit-scrollbar{width:10px}
+  ::-webkit-scrollbar-track{background:var(--bg)}
+  ::-webkit-scrollbar-thumb{background:#1c2430;border-radius:8px;border:2px solid var(--bg)}
+  ::-webkit-scrollbar-thumb:hover{background:var(--teal-d)}
+</style>
+</head>
+<body>
+
+<div class="bg">
+  <div class="grid"></div>
+  <div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
+  <div class="noise"></div>
+</div>
+<div class="progress" id="progress"></div>
+
+<nav class="rail" id="rail">
+  <a href="#hero" data-s="hero"><span class="tick"></span><span class="lbl">概览</span></a>
+  <a href="#why" data-s="why"><span class="tick"></span><span class="lbl">为什么要 CLI</span></a>
+  <a href="#setup" data-s="setup"><span class="tick"></span><span class="lbl">装与配凭据</span></a>
+  <a href="#axes" data-s="axes"><span class="tick"></span><span class="lbl">三坐标：命令集/版本/区域</span></a>
+  <a href="#fleet" data-s="fleet"><span class="tick"></span><span class="lbl">Akke 机队现状</span></a>
+  <a href="#run" data-s="run"><span class="tick"></span><span class="lbl">RunCommand 全流程</span></a>
+  <a href="#session" data-s="session"><span class="tick"></span><span class="lbl">会话 0 与会话 1</span></a>
+  <a href="#trust" data-s="trust"><span class="tick"></span><span class="lbl">回执可信度</span></a>
+  <a href="#files" data-s="files"><span class="tick"></span><span class="lbl">传文件</span></a>
+  <a href="#lifecycle" data-s="lifecycle"><span class="tick"></span><span class="lbl">开通与账号</span></a>
+  <a href="#traps" data-s="traps"><span class="tick"></span><span class="lbl">坑位速查</span></a>
+  <a href="#bounds" data-s="bounds"><span class="tick"></span><span class="lbl">边界与纪律</span></a>
+</nav>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero" id="hero">
+    <span class="tag rv"><span class="pulse"></span>实战教程 · 以 Akke 生产机队为例</span>
+    <h1 class="rv">用一行命令<br>遥控<span class="accent">四台真机</span><span class="cursor"></span></h1>
+    <p class="desc rv"><b>阿里云 CLI</b> ＋ 无影云电脑 <b>RunCommand</b>：不连远程桌面、不用人坐在机器前，从 Mac 终端把脚本送进 Windows，再把结果读回来。</p>
+    <p class="role rv">// 全文命令均在 Akke 生产云电脑上实跑验证 · 回执为真实输出，非示意</p>
+    <div class="ticker rv">
+      <span class="chip"><span class="d"></span>ALIYUN CLI 3.3.22</span>
+      <span class="chip"><span class="d b"></span>ECD API 2020-09-30</span>
+      <span class="chip"><span class="d a"></span>RAM · ECD FULL ACCESS</span>
+      <span class="chip"><span class="d"></span>4 台 · 成都 ×2 / 杭州 ×2</span>
+      <span class="chip"><span class="d v"></span>RUNPOWERSHELLSCRIPT</span>
+      <span class="chip"><span class="d r"></span>SESSION 0 / SESSION 1</span>
+    </div>
+    <div class="scrollcue"><span class="bar"></span>SCROLL / 向下滚动</div>
+  </section>
+
+  <!-- 01 为什么 -->
+  <section id="why">
+    <div class="sec-head rv">
+      <span class="idx">01</span>
+      <div><span class="eyebrow">Why A CLI At All</span>
+      <h2>有些活只能在真机上干</h2></div>
+    </div>
+    <p class="lede rv">Akke 有一类工作没法在服务器上跑：<strong>企业微信自动代回</strong>、<strong>抖音私信 / 反向评论</strong>。这些平台没有可用的对外接口，只能开一台真 Windows、装真客户端、用<strong>模拟人操作</strong>的方式干活。于是就有了云电脑机队——而机队一旦超过一台，「人连远程桌面手动操作」立刻变成瓶颈。</p>
+    <div class="grid3 stagger">
+      <div class="cell">
+        <span class="ico b"><svg viewBox="0 0 24 24"><rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M8 20.5h8M12 17v3.5"/></svg></span>
+        <h3><span class="m">GUI 层</span>真机才有的能力</h3>
+        <p>企微 / 抖音客户端跑在真实 Windows 桌面上，靠截屏读、模拟点击写。没有接口可调，也就没法搬到无头容器里。</p>
+      </div>
+      <div class="cell">
+        <span class="ico"><svg viewBox="0 0 24 24"><path d="M4 17V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10"/><path d="M2 17h20M9.5 12.5l2 2 3.5-4"/></svg></span>
+        <h3><span class="m">控制层</span>CLI ＝ 唯一无人化入口</h3>
+        <p><code>aliyun ecd run-command</code> 让脚本从 Mac 直达机器内部：装依赖、改配置、重启进程、读日志，全程不开远程桌面。</p>
+      </div>
+      <div class="cell">
+        <span class="ico a"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.2"/><path d="M5.5 20c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5"/></svg></span>
+        <h3><span class="m">人在环</span>只剩不可替代的那几步</h3>
+        <p>首次企微扫码登录、拍板放开真发——这些留给人。其余的部署、校准、验活、恢复都自动化掉。</p>
+      </div>
+    </div>
+    <div class="note-band rv">
+      <span class="k">Prerequisite</span>
+      <p><b>必须是企业版无影（ECD / API 2020-09-30）才有 RunCommand。</b>个人版没有云助手通道，只能靠人连客户端——这也是 Akke 当初从个人版升企业版的唯一理由。</p>
+    </div>
+  </section>
+
+  <!-- 02 装与配 -->
+  <section id="setup">
+    <div class="sec-head rv">
+      <span class="idx">02</span>
+      <div><span class="eyebrow">Install &amp; Credentials</span>
+      <h2>装 CLI，配一把只能干这件事的钥匙</h2></div>
+    </div>
+    <p class="lede rv">CLI 本身没什么可说的；<strong>凭据的粒度</strong>才是要想清楚的地方。不要用主账号 AccessKey——建一个专职 RAM 用户，只授它需要的那一类权限。</p>
+    <div class="code rv">
+      <div class="hd"><span class="dt"></span>Terminal · macOS</div>
+<pre><i># 1. 装（Homebrew 或直接下二进制均可）</i>
+brew install aliyun-cli
+aliyun version          <i># → 3.3.22</i>
+
+<i># 2. 配一个具名 profile（不要往 default 里塞生产钥匙）</i>
+aliyun configure set \
+  --profile <b>akke-wuying</b> \
+  --mode AK \
+  --access-key-id     &lt;RAM 用户的 AK ID&gt; \
+  --access-key-secret &lt;RAM 用户的 AK Secret&gt; \
+  --region cn-chengdu
+
+<i># 3. 核实这把钥匙确实活着</i>
+aliyun configure list</pre>
+    </div>
+    <div class="code rv">
+      <div class="hd"><span class="dt a"></span>实测输出 · 2026-07-28</div>
+<pre>Profile       | Credential  | Valid   | Region       | Language
+default       |             | <u>Invalid</u>  |              | en
+<b>akke-wuying</b> * | AK:***61w   | <b>Valid</b>   | cn-shenzhen  | en</pre>
+    </div>
+    <p class="pipe-note rv">// 注意那个 <b>*</b>：它标的是当前默认 profile。Akke 这台 Mac 上 <code>default</code> 是空的、有效的是 <code>akke-wuying</code>——所以 <b>profile 的默认 region 是 cn-shenzhen，而机器一台都不在深圳</b>。这正是下一节第一个坑的来源。</p>
+    <div class="grid2 stagger" style="margin-top:22px">
+      <div class="cell">
+        <span class="ico"><svg viewBox="0 0 24 24"><path d="M12 2.5 20 6v6c0 4.4-3.3 8.2-8 9.5-4.7-1.3-8-5.1-8-9.5V6z"/><path d="M9.2 12.2l2 2 3.6-4.2"/></svg></span>
+        <h3>权限：ECD 与账单是两件事</h3>
+        <p>Akke 的 RAM 用户 <code>akke-wuying-bot</code> 挂 <code>AliyunECDFullAccess</code>——足够查机器、发命令、重启。但<b style="color:var(--ink)">开新机器还需要 <code>AliyunBSSOpenAPIFullAccess</code></b>（费用权限），否则子账号既看不到余额也改不了支付方式，会卡在「机器好像没创」。</p>
+      </div>
+      <div class="cell">
+        <span class="ico r"><svg viewBox="0 0 24 24"><path d="M12 3v9"/><path d="M6.5 6.8a8 8 0 1 0 11 0"/></svg></span>
+        <h3>钥匙的爆炸半径</h3>
+        <p><code>ECDFullAccess</code> 含 <b style="color:var(--ink)">run-command（任意代码执行）</b>与 <code>delete-desktops</code>。它等价于机队 root，别塞进 CI 的公共 secret、别写进会被打包的 <code>.env</code>；轮换要当成换生产密码来对待。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 三坐标 -->
+  <section id="axes">
+    <div class="sec-head rv">
+      <span class="idx">03</span>
+      <div><span class="eyebrow">The Three Axes</span>
+      <h2>命令集 × API 版本 × 区域</h2></div>
+    </div>
+    <p class="lede rv">无影 CLI 最反直觉的一点：<strong>同一件事在不同 API 版本里叫不同的名字，甚至根本不存在</strong>。绝大多数「命令找不到 / 返回空」都不是权限问题，而是这三个坐标之一填错了。</p>
+    <table class="spec rv">
+      <thead><tr><th>API 版本</th><th>管什么</th><th>典型命令</th></tr></thead>
+      <tbody>
+        <tr><td>2020-09-30</td><td>企业版 ECD（经典无影）——机器本身与远程命令，本文主角</td><td>ecd run-command<br>ecd describe-desktops<br>ecd create-desktops<br>ecd reboot-desktops</td></tr>
+        <tr><td>2021-03-08</td><td>便捷账号 / 用户管理。区域固定 <code>cn-shanghai</code>，与机器所在区无关</td><td>eds-user create-users<br>eds-user describe-users</td></tr>
+        <tr><td>2021-06-22</td><td>新版 EDS（轻量无影）。CLI 默认走它，<b>删掉了用户管理命令</b></td><td>get-user-by-token<br>start-token</td></tr>
+      </tbody>
+    </table>
+    <p class="pipe-note rv">// 所以 <code>describe-users</code>「命令不存在」的真相是：CLI 默认挑了 2021-06-22。显式 <code>--api-version 2021-03-08</code> 它就回来了。<b>本文所有命令都显式写版本，一个都别省。</b></p>
+    <div class="verdict rv">
+      <span class="lb">坑 01</span>
+      <p><b>region 要写两遍，而且必须是机器真实所在区。</b><code>--region</code> 决定请求打到哪个 API 端点，<code>--biz-region-id</code> 决定查哪个区的资源——两个都不写，CLI 直接拒绝；只写 <code>--region</code> 却让它继承 profile 的 cn-shenzhen，返回的是<b>空列表而不是报错</b>，最容易被误读成「机器没了 / 在别的阿里云账号里」。</p>
+    </div>
+    <div class="code rv">
+      <div class="hd"><span class="dt r"></span>省掉参数会怎样 · 实测</div>
+<pre>$ aliyun ecd describe-desktops --api-version 2020-09-30
+<u>Error: --biz-region-id is required</u></pre>
+    </div>
+    <div class="code rv">
+      <div class="hd"><span class="dt"></span>正确姿势 · 两处 region 都写</div>
+<pre>aliyun ecd describe-desktops \
+  --api-version 2020-09-30 \
+  <b>--region cn-chengdu --biz-region-id cn-chengdu</b> \
+  | jq -r '.Desktops[] | [.DesktopId,.DesktopName,.DesktopStatus] | @tsv'</pre>
+    </div>
+  </section>
+
+  <!-- 04 机队 -->
+  <section id="fleet">
+    <div class="sec-head rv">
+      <span class="idx">04</span>
+      <div><span class="eyebrow">Akke Fleet · Live Inventory</span>
+      <h2>四台机器，两个区</h2></div>
+    </div>
+    <p class="lede rv">下表是把上面那条命令在成都、杭州各跑一次的<strong>真实返回</strong>（2026-07-28）。规格统一 <code>eds.enterprise_office.6c12g</code> ＋ 80 G <code>cloud_auto</code>，约 ¥249/月一台。</p>
+    <table class="spec rv">
+      <thead><tr><th>用途 / 人设</th><th>区域与授权账号</th><th>DesktopId</th></tr></thead>
+      <tbody>
+        <tr><td>小顾</td><td>成都 · 企微自动代回 · 授权 shawsnk</td><td>ecd-5qfbmvz3yvpvbiog0</td></tr>
+        <tr><td>夏伟</td><td>成都 · 企微自动代回 · 授权 shawsnk / xix5494</td><td>ecd-eq68qf5rxfcpvxrl2</td></tr>
+        <tr><td>野荞</td><td>杭州 · 抖音触达 · 授权 xix5494 / shawsnk</td><td>ecd-6mc7dgh8kldv19baa</td></tr>
+        <tr><td>夏夏</td><td>杭州 · 抖音触达 · 授权 yuanyurou545 / shawsnk</td><td>ecd-1yrf84368u89vysox</td></tr>
+      </tbody>
+    </table>
+    <div class="note-band rv">
+      <span class="k">认机器别认名字</span>
+      <p>无影客户端里显示的卡片名（<code>YDYX-Xiawei</code> 之类）是<b>客户端本地别名，控制台和 API 里查不到</b>——曾按客户端名全区域扫，扫不到就以为「机器在另一个阿里云账号」。可靠做法：认 <b>DesktopId</b>，或让脚本回报机内的人设标识（Akke 读 <code>C:\akke-wecom\.env</code> 的 <code>AKKE_WECOM_PERSONA</code>）。</p>
+    </div>
+    <div class="verdict rv">
+      <span class="lb">坑 02</span>
+      <p><b>给机器加人用 <code>modify-user-entitlement</code>，绝不要用 <code>modify-entitlement</code>。</b>后者语义是「把该机器的授权用户整体设成你传的这批」——它会先删掉原有全部用户，手滑就把 <code>shawsnk</code> 踢掉、连带杀掉跑在它交互会话里的自动化。而且单会话机上<b>新用户一连上就会强制注销原会话</b>，想共用同一套自动化只能共用同一个账号，而不是加用户。</p>
+    </div>
+  </section>
+
+  <!-- 05 RunCommand -->
+  <section id="run">
+    <div class="sec-head rv">
+      <span class="idx">05</span>
+      <div><span class="eyebrow">RunCommand End-To-End</span>
+      <h2>一条命令的完整旅程</h2></div>
+    </div>
+    <p class="lede rv">RunCommand 是<strong>异步</strong>的：发命令拿到一个 <code>InvokeId</code>，再用它去查结果。两步分开是刻意设计——脚本可以跑几分钟，而 HTTP 请求早就返回了。</p>
+    <div class="pipe rv">
+      <div class="flowdot"></div>
+      <div class="pstep" style="--who:var(--teal)">
+        <span class="who">MAC<br>编码</span>
+        <span class="txt">PowerShell 脚本 → <b>base64</b>（<code>--content-encoding Base64</code>）。命令体上限 <b>16 KB</b>（编码后），大脚本得先落盘再执行</span>
+      </div>
+      <div class="pstep" style="--who:var(--blue)">
+        <span class="who">API<br>下发</span>
+        <span class="txt"><code>ecd run-command</code> 交给云助手，立刻返回 <b>InvokeId</b>。一次最多 <b>50 台</b>，默认超时 <b>300 s</b>（Akke 按脚本长短显式给 60～400 s）</span>
+      </div>
+      <div class="pstep" style="--who:var(--rose)">
+        <span class="who">机内<br>执行</span>
+        <span class="txt">机器上的云助手 agent 以 <b>nt authority\system</b> 身份在<b>会话 0</b>跑脚本——看不到任何 GUI（下一节详述）</span>
+      </div>
+      <div class="pstep" style="--who:var(--teal)">
+        <span class="who">MAC<br>读回</span>
+        <span class="txt"><code>describe-invocations --include-output true</code> 取 base64 的 stdout。回执留存约 <b>2 周</b>，输出超 <b>24 KB 截断</b>（丢弃字节数记在 <code>Dropped</code>）</span>
+      </div>
+    </div>
+    <div class="code rv">
+      <div class="hd"><span class="dt"></span>两步走 · 可直接复制</div>
+<pre><i># ① 下发（脚本用 printf 避免 echo 带尾换行）</i>
+B64=$(printf '%s' 'Write-Output "PROBE $(hostname) $(Get-Date -Format o)"' | base64)
+
+INV=$(aliyun ecd run-command \
+  --api-version 2020-09-30 \
+  --region cn-chengdu --biz-region-id cn-chengdu \
+  --type <b>RunPowerShellScript</b> \
+  --content-encoding Base64 --command-content "$B64" \
+  --desktop-id <b>ecd-5qfbmvz3yvpvbiog0</b> \
+  --timeout 60 | jq -r '.InvokeId')
+
+<i># ② 读回（--include-output true 是关键，见下）</i>
+aliyun ecd describe-invocations \
+  --api-version 2020-09-30 \
+  --region cn-chengdu --biz-region-id cn-chengdu \
+  --invoke-id "$INV" <b>--include-output true</b> \
+  | jq -r '.Invocations[0].<b>InvokeDesktops[]</b>
+           | [.DesktopId,.InvocationStatus,.ExitCode,(.Output|@base64d)] | @tsv'</pre>
+    </div>
+    <div class="code rv">
+      <div class="hd"><span class="dt a"></span>本页写作时实跑的回执 · InvokeId t-cd06s9k9wfvrqww</div>
+<pre>Success
+ecd-5qfbmvz3yvpvbiog0   Success   <b>0</b>   PROBE fbmvz3yvpvbiog0 <b>2026-07-28T15:56:50</b>+08:00
+                                     py=2</pre>
+    </div>
+    <p class="pipe-note rv">// 回执带机内主机名和<b>当下秒级时间戳</b>——这是判断「命令真的执行了」而不是读到缓存的硬证据。顺手把 <code>py=2</code>（loop 的 Python 进程数）也带回来，一次调用同时完成连通性验证和业务巡检。</p>
+    <div class="verdict ok rv">
+      <span class="lb">最贵的教训</span>
+      <p><b>输出为空 ≠ 平台吞了 stdout。</b>官方文档明写 <code>Output</code> 只在请求带 <code>IncludeOutput=true</code> 时才返回。Akke 曾把「Output 全空」当成云助手 bug，为绕它发明了一整套第三方消息中转方案；后来发现只是<b>少传了一个参数</b>。读回不通时，先把文档里的参数列表逐个对一遍，再怀疑平台。</p>
+    </div>
+  </section>
+
+  <!-- 06 会话 -->
+  <section id="session">
+    <div class="sec-head rv">
+      <span class="idx">06</span>
+      <div><span class="eyebrow">Session 0 vs Session 1</span>
+      <h2>能执行，不代表看得见</h2></div>
+    </div>
+    <p class="lede rv">这是 RunCommand 最硬的一条约束，也是所有「命令成功了但界面毫无反应」的根源：<strong>脚本跑在会话 0，桌面在会话 1</strong>。Windows 从设计上就把服务与交互桌面隔开了。</p>
+    <div class="grid2 stagger">
+      <div class="cell">
+        <span class="ico b"><svg viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="M3 9h18M7 13h6"/></svg></span>
+        <h3><span class="m">SESSION 0 · SYSTEM</span>RunCommand 直接跑的地方</h3>
+        <p><b style="color:var(--ink)">能做：</b>装 Python / 依赖、下载与替换脚本、写 <code>.env</code>、查进程、读日志、静默装软件、重启常驻任务。</p>
+        <p style="margin-top:8px"><b style="color:var(--ink)">不能做：</b>截屏、点击、打字——看不到桌面。这里 <code>pyautogui.size()</code> 报的是无显示器的兜底值（如 1024×768），不是真分辨率。</p>
+      </div>
+      <div class="cell">
+        <span class="ico a"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v10H4z"/><path d="M8 19.5h8"/><circle cx="17" cy="8.5" r="1.2"/></svg></span>
+        <h3><span class="m">SESSION 1 · 交互桌面</span>GUI 自动化真正的舞台</h3>
+        <p>企微 / 抖音客户端、模拟点击、截屏读屏都在这里。前提是<b style="color:var(--ink)">有人登录着</b>（<code>query user</code> 显示 console 会话运行中）。</p>
+        <p style="margin-top:8px">Akke 的机器上 <code>shawsnk</code> 常驻登录，因此会话 1 一直存在——这是整条自动化链的隐含依赖。</p>
+      </div>
+    </div>
+    <div class="note-band rv">
+      <span class="k">跨越边界的办法</span>
+      <p>会话 0 虽然自己碰不到 GUI，但它可以<b>注册一个 <code>LogonType=InteractiveToken</code> 的计划任务</b>（<code>schtasks /create /xml</code>，指定 <code>机器名\用户</code>），该任务就会<b>在登录着的会话 1 桌面里</b>运行 → 截屏、点击、打字全部可用，且免密码。Akke 用它把坐标标定、空跑验证、常驻 loop 的启停全部搬到了 Mac 端遥控，只剩<b>首次扫码登录</b>必须真人。跑 GUI 脚本用 <code>pythonw.exe</code>，免黑窗盖住被操作的窗口。</p>
+    </div>
+    <div class="verdict rv">
+      <span class="lb">坑 03</span>
+      <p><b>会话 0 里 <code>py.exe</code> 起不来、<code>python</code> 也可能不在 PATH。</b>Akke 的机器上 Python 装在 <code>C:\Program Files\Python312\</code> 但没勾 Add to PATH：<code>where python</code> 是空的，只有 <code>C:\Windows\py.exe</code> 可用；而 SYSTEM 身份下 py 启动器又找不到注册表项。稳妥做法：<b>脚本里写绝对路径</b>，或干脆纯 PowerShell 实现。另外把 PATH 写进注册表后，<b>云助手服务的环境块有缓存、当场新起的 RunCommand 进程看不到</b>，要重启才刷。</p>
+    </div>
+  </section>
+
+  <!-- 07 回执可信度 -->
+  <section id="trust">
+    <div class="sec-head rv">
+      <span class="idx">07</span>
+      <div><span class="eyebrow">Trusting The Feedback Channel</span>
+      <h2>我们判死过三条通道，两条是自己按错了</h2></div>
+    </div>
+    <p class="lede rv">遥控一台看不见的机器，<strong>回执通道的可信度就是全部</strong>。Akke 在这上面栽过三次，每次都得出「平台坏了」的结论，复测后两次是自己的错。这一节是那三次的净结论。</p>
+    <table class="spec rv">
+      <thead><tr><th>通道</th><th>现在的口径</th><th>取值位置</th></tr></thead>
+      <tbody>
+        <tr><td>Output（stdout）</td><td><b>可信</b>。必须带 <code>--include-output true</code>；base64 解码，超 24 KB 截断</td><td>InvokeDesktops[].Output</td></tr>
+        <tr><td>ExitCode</td><td><b>可信</b>。忠实反映脚本里的 <code>exit N</code>，可用来编码诊断结果</td><td>InvokeDesktops[].ExitCode</td></tr>
+        <tr><td>InvocationStatus</td><td><b>可信</b>。非零退出会翻 Failed ＋ <code>ExitCodeNonzero</code></td><td>顶层 与 InvokeDesktops[] 各有一份</td></tr>
+        <tr><td>机内 HTTPS 外发</td><td><b>看域名</b>。国内直连出口，部分域名被按 SNI 阻断（下述）</td><td>—</td></tr>
+        <tr><td>schtasks 返回码</td><td><b>不可信</b>。rc=0 不代表任务动作真起来了</td><td>改看进程存在性 / 业务指标</td></tr>
+      </tbody>
+    </table>
+    <p class="pipe-note rv">// 前三行都曾被写进内部记忆当成「不可信」，后来用对照探针（脚本里故意 <code>exit 7</code> / <code>exit 3</code>）逐台复测推翻：<b>写的 7 回的就是 7</b>。当初的误判是读错了层级——<b>逐台的 ExitCode 在 <code>InvokeDesktops[]</code> 里，不在顶层</b>。</p>
+    <div class="grid2 stagger" style="margin-top:22px">
+      <div class="cell">
+        <span class="ico r"><svg viewBox="0 0 24 24"><path d="M12 3.2 21 19H3z"/><path d="M12 9v4.5M12 16.4v.1"/></svg></span>
+        <h3>TCP 通了，HTTPS 不通</h3>
+        <p>机器出口是国内阿里云直连、无代理。<code>Test-NetConnection openrouter.ai -443</code> <b style="color:var(--ink)">握手成功</b>，但 HTTPS GET 全超时——<b style="color:var(--amber)">按 SNI 定向阻断</b>，不是断网（同机 baidu 200、Fly 东京 200）。GitHub raw / gist / jsDelivr 同样中招。<br>Akke 的解法：把要用的境外端点<b style="color:var(--ink)">统一经自家 Fly worker 中转</b>，机器只认一个可达域名。</p>
+      </div>
+      <div class="cell">
+        <span class="ico a"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M15.8 15.8 21 21"/></svg></span>
+        <h3>探针本身要先过对照组</h3>
+        <p>Akke 曾用「机内 GET 一个不存在的路径 → Mac 端 grep 服务器日志」当回执，发 3 次、抓 86 秒日志、0 命中，结论写成「这两台机器的 RunCommand 不执行」。<b style="color:var(--ink)">次日复测两台全部正常。</b>真因是那个日志通道一次只回 100 行、而日志约 25 行/秒——<b>快照窗口只有 4 秒</b>，稀疏事件必然抓不到。</p>
+      </div>
+    </div>
+    <div class="verdict rv">
+      <span class="lb">纪律</span>
+      <p><b>否定性证据要先证明通道在正例下会响。</b>拿某条日志 / 字段当回执前，先用一个「必然产生该信号」的动作跑一遍、确认看得见；否则「收不到信号」和「动作没发生」无法区分，好通道会被判死。<br><b>对照组管假成功，通道存在性管假失败——两面缺一不可。</b></p>
+    </div>
+    <div class="verdict rv">
+      <span class="lb">坑 04</span>
+      <p><b>重启常驻进程时 <code>schtasks /run</code> 返回 0 也可能什么都没起来。</b>Akke 的任务动作是 <code>cmd /c "... &gt;&gt; _loop.log 2&gt;&amp;1"</code>；刚被杀掉的上一个实例还攥着日志句柄 4～8 秒，追加重定向建不起来 → cmd 立刻 exit 1，而<b>错误信息本身要走那个失败的重定向，所以哪儿都看不到</b>。修法：拉起前用同一个操作探测日志可写（<code>echo. &gt;&gt; _loop.log</code>，rc=0 才继续，最多等 60 s），<b>验收一律看进程存在性和业务指标</b>。这是 Windows 通用坑，不限无影。</p>
+    </div>
+  </section>
+
+  <!-- 08 传文件 -->
+  <section id="files">
+    <div class="sec-head rv">
+      <span class="idx">08</span>
+      <div><span class="eyebrow">File Transfer</span>
+      <h2>怎么把 88 KB 塞进 16 KB 的管子</h2></div>
+    </div>
+    <p class="lede rv">Akke 的企微 loop 主脚本已经 <strong>88 KB</strong>，而命令体上限 16 KB；同时这台机器上 GitHub raw / gist / jsDelivr <strong>全部被墙</strong>，公共粘贴板对 &gt;85 KB 直接 500。外部中转全死，只剩把文件<strong>顺着 RunCommand 本身灌进去</strong>。</p>
+    <div class="pipe rv">
+      <div class="flowdot"></div>
+      <div class="pstep" style="--who:var(--teal)">
+        <span class="who">MAC<br>压缩</span>
+        <span class="txt"><code>git show origin/main:&lt;file&gt; | gzip | base64</code> → 88 KB 压到 <b>43 KB</b></span>
+      </div>
+      <div class="pstep" style="--who:var(--teal)">
+        <span class="who">MAC<br>切块</span>
+        <span class="txt"><code>split -b 9000</code> → <b>5 块</b>，每块塞得进 16 KB 命令体</span>
+      </div>
+      <div class="pstep" style="--who:var(--blue)">
+        <span class="who">机内<br>拼接</span>
+        <span class="txt">逐块 <code>Add-Content -NoNewline</code> 追加到 <code>_loop.gz.b64</code></span>
+      </div>
+      <div class="pstep" style="--who:var(--rose)">
+        <span class="who">机内<br>解压校验</span>
+        <span class="txt"><code>FromBase64String</code> ＋ <code>GZipStream</code> 解出 → <b><code>Get-FileHash MD5</code> 与 Mac 侧 <code>md5 -q</code> 对齐</b>，匹配才替换旧文件</span>
+      </div>
+    </div>
+    <p class="pipe-note rv">// <b>MD5 对齐这一步不能省。</b>分块传输任何一块丢了都会得到一个「看起来完整」的坏文件；Akke 曾因为部署链接过期，把缺了几周护栏的旧版脚本部上生产，症状是「代码明明修了、线上还在犯老错」。<b>先校验，再替换，留 <code>.bak</code>。</b></p>
+    <div class="verdict rv">
+      <span class="lb">坑 05</span>
+      <p><b>写 <code>.env</code> 千万别用 <code>Set-Content -Encoding UTF8</code>——它会加 BOM。</b>三个字节 <code>EF BB BF</code> 贴到文件开头，如果<b>第一行恰好是一个 key</b>，key 名就被污染成 <code>﻿ANTHROPIC_API_KEY</code>，程序读不到、自检失败死循环。Akke 同一个操作在两台机上命运不同：一台第一行是 key（坏了），另一台第一行是注释（侥幸没事）。<br>正确写法：<code>New-Object System.Text.UTF8Encoding($false)</code> ＋ <code>[IO.File]::WriteAllLines</code>。排查时别只看 key 存不存在，<b>读原始字节验首三字节</b>。</p>
+    </div>
+    <div class="verdict rv">
+      <span class="lb">坑 06</span>
+      <p><b>中文日志会在 PowerShell → jq 的管道里烂掉。</b>中文系统 PowerShell 默认 GBK（936），Python 输出是 UTF-8，读回来是 <code>鈿狅笍 鍒嗚鲸鐜囧彉浜</code> 这种乱码（原文是「⚠️ 分辨率变了」）。读之前先 <code>[Console]::OutputEncoding=UTF8</code> ＋ <code>Get-Content -Encoding UTF8</code>。<br>还有一个更阴的：<b>被常驻进程独占的日志文件，<code>[IO.File]::ReadAllLines</code> 会静默返回 0 行</b>——看起来像「日志是空的」，其实是没用共享读模式打开（要 <code>FileStream(..., FileShare::ReadWrite)</code>）。</p>
+    </div>
+  </section>
+
+  <!-- 09 开通与账号 -->
+  <section id="lifecycle">
+    <div class="sec-head rv">
+      <span class="idx">09</span>
+      <div><span class="eyebrow">Provisioning &amp; Accounts</span>
+      <h2>从零开一台，到把人加上去</h2></div>
+    </div>
+    <p class="lede rv">机队扩容也全走 CLI。顺序是：查办公网络 → 建便捷账号 → 建机器（同时授权）→ 付款 → 验状态。</p>
+    <div class="code rv">
+      <div class="hd"><span class="dt"></span>开一台新机 · 完整序列</div>
+<pre><i># ① 查办公网络 ID（机器必须落在某个 office site 里）</i>
+aliyun ecd describe-office-sites --region cn-hangzhou \
+  | jq -r '.OfficeSites[].OfficeSiteId'
+
+<i># ② 建便捷账号（注意：固定 cn-shanghai，且是 2021-03-08）</i>
+aliyun eds-user create-users \
+  --api-version <b>2021-03-08</b> --region <b>cn-shanghai</b> \
+  --name xix5494 --nickname '野荞' --is-local-admin true
+
+<i># ③ 建机器，同时用 --end-user-id 直接授权（不必事后再分配）</i>
+aliyun ecd create-desktops \
+  --api-version 2020-09-30 \
+  --region cn-hangzhou --biz-region-id cn-hangzhou \
+  --office-id 'cn-hangzhou+dir-xxxxxxxx' \
+  --end-user-id xix5494 \
+  --desktop-name akke-cloudpc-hz-yeqiao \
+  --desktop-type eds.enterprise_office.6c12g \
+  --system-disk-category cloud_auto --system-disk-size 80 \
+  --image-id '&lt;enterprise-image-id&gt;' \
+  <u>--auto-pay false</u> \
+  --desktop-attachment '{"SystemDiskCategory":"cloud_auto",<b>"DataDiskCategory":"cloud_auto"</b>,"DataDiskSize":0}'
+
+<i># ④ 到费用中心付返回的 OrderId → ⑤ 等状态变 Running</i>
+aliyun ecd describe-desktops --api-version 2020-09-30 \
+  --region cn-hangzhou --biz-region-id cn-hangzhou | jq '.Desktops[].DesktopStatus'</pre>
+    </div>
+    <div class="grid2 stagger" style="margin-top:22px">
+      <div class="cell">
+        <span class="ico r"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10.5h18"/></svg></span>
+        <h3>坑 07 · 盘类型必须成对写</h3>
+        <p><code>--desktop-attachment</code> 里只写 <code>SystemDiskCategory</code> 会 400：<code>User disk category is not same as root disk</code>。阿里云要求数据盘与系统盘类型一致，<b style="color:var(--ink)">两个字段都要写、且值相同</b>（即便 <code>DataDiskSize</code> 是 0）。</p>
+      </div>
+      <div class="cell">
+        <span class="ico a"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v9M9.4 10h5.2M9.4 14h5.2"/></svg></span>
+        <h3>坑 08 · <code>--auto-pay true</code> ＋余额不足＝整单作废</h3>
+        <p>包月机创建即冻结余额（¥249/月）。余额不够时 API 直接 400、<b style="color:var(--ink)">连 DesktopId 都不返回</b>，现象就是「机器好像没创」。用 <code>--auto-pay false</code>：先返回 OrderId ＋预分配 DesktopId，人去付款，机器随即 Running——体验友好得多。价格可先 <code>ecd describe-price</code> 查。</p>
+      </div>
+    </div>
+    <div class="code rv">
+      <div class="hd"><span class="dt a"></span>日常运维三条</div>
+<pre><i># 给已有机器追加授权用户（保留原用户！）</i>
+aliyun ecd modify-user-entitlement --api-version 2020-09-30 \
+  --region cn-chengdu --biz-region-id cn-chengdu \
+  --authorize-desktop-id ecd-xxxx --end-user-id xix5494
+<i># 移除换成 --revoke-desktop-id</i>
+
+<i># 重启（Akke 唯一治好过「机内 HTTPS 送达失效」的手段）</i>
+aliyun ecd reboot-desktops --api-version 2020-09-30 \
+  --region cn-chengdu --biz-region-id cn-chengdu --desktop-id ecd-xxxx
+
+<i># 查便捷账号清单</i>
+aliyun eds-user describe-users --api-version 2021-03-08 --region cn-shanghai</pre>
+    </div>
+    <div class="note-band rv">
+      <span class="k">重启之后</span>
+      <p>Akke 的机器重启后<b>需要有人连一次无影客户端触发用户登录</b>，会话 1 才回来（企微靠注册表 Run 自启、常驻任务靠登录触发器延迟 90 s 拉起）。所以「重启」在这套架构里不是纯远程操作——这是<b>依赖交互会话的固有代价</b>。</p>
+    </div>
+  </section>
+
+  <!-- 10 坑位速查 -->
+  <section id="traps">
+    <div class="sec-head rv">
+      <span class="idx">10</span>
+      <div><span class="eyebrow">Trap Cheat Sheet</span>
+      <h2>坑位速查表</h2></div>
+    </div>
+    <p class="lede rv">全部来自 Akke 生产实践，按「症状 → 真因」组织——照症状查最快。</p>
+    <table class="spec rv">
+      <thead><tr><th>症状</th><th>真因与修法</th><th>类别</th></tr></thead>
+      <tbody>
+        <tr><td>返回空列表 / 0 台机器</td><td><code>--region</code> 继承了 profile 默认区。两处 region 都显式写成机器所在区</td><td>参数</td></tr>
+        <tr><td>命令不存在</td><td>CLI 默认挑了新版 API。显式 <code>--api-version</code>（用户管理＝2021-03-08）</td><td>参数</td></tr>
+        <tr><td>Output 字段全空</td><td>没传 <code>--include-output true</code>。不是平台吞输出</td><td>参数</td></tr>
+        <tr><td>ExitCode 恒为 0</td><td>读错层级。逐台的在 <code>InvokeDesktops[]</code>，不在顶层</td><td>参数</td></tr>
+        <tr><td>命令成功但界面没反应</td><td>会话 0 看不到 GUI。改走 InteractiveToken 计划任务</td><td>会话</td></tr>
+        <tr><td>SYSTEM 下 Python 起不来</td><td>PATH 里没有 python、py 启动器在 SYSTEM 下失灵。写绝对路径</td><td>会话</td></tr>
+        <tr><td>脚本里的中文变问号 / 乱码</td><td>GBK 与 UTF-8 冲突。显式切 <code>[Console]::OutputEncoding</code></td><td>编码</td></tr>
+        <tr><td>emoji 让脚本崩 UnicodeEncodeError</td><td>重定向到文件后 stdout 退回系统编码。设 <code>PYTHONUTF8=1</code></td><td>编码</td></tr>
+        <tr><td>改完 .env 自检报缺 key</td><td><code>Set-Content -Encoding UTF8</code> 加了 BOM 污染首行 key。用无 BOM 写法</td><td>编码</td></tr>
+        <tr><td>日志读回 0 行</td><td>文件被常驻进程独占。用 FileShare::ReadWrite 打开</td><td>编码</td></tr>
+        <tr><td>多层引号 SyntaxError</td><td>base64 → PowerShell → Python 多层转义绞杀。改写 .ps1 文件，别用 <code>-c</code> 单行</td><td>编码</td></tr>
+        <tr><td>HTTPS 请求全超时但 TCP 通</td><td>按 SNI 定向阻断。境外端点统一走自建中转</td><td>网络</td></tr>
+        <tr><td>pip install 超时</td><td>挂国内 PyPI 镜像 <code>-i https://mirrors.aliyun.com/pypi/simple/</code></td><td>网络</td></tr>
+        <tr><td>下载脚本失败 / 半截</td><td>GitHub 系全被墙。gzip+base64 分块经 RunCommand 灌进去 ＋ MD5 校验</td><td>网络</td></tr>
+        <tr><td>schtasks /run rc=0 但进程没起</td><td>日志句柄未释放，追加重定向建不起来。先探测可写再拉起</td><td>进程</td></tr>
+        <tr><td>加了个用户，原用户没了</td><td>用错 <code>modify-entitlement</code>（整体覆盖）。要用 <code>modify-user-entitlement</code></td><td>账号</td></tr>
+        <tr><td>创建机器 400 disk category</td><td>attachment 必须同时写 System 与 Data 两个盘类型且相同</td><td>开通</td></tr>
+        <tr><td>创建返回 400 余额不足、无 DesktopId</td><td>用 <code>--auto-pay false</code> 预分配后人工付款；RAM 还需账单权限</td><td>开通</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- 11 边界 -->
+  <section id="bounds">
+    <div class="sec-head rv">
+      <span class="idx">11</span>
+      <div><span class="eyebrow">Boundaries &amp; Discipline</span>
+      <h2>什么时候值得这么干</h2></div>
+    </div>
+    <p class="lede rv">RunCommand 遥控真机是一条<strong>有真实成本</strong>的路：机器月费、GUI 自动化的脆弱性、看不见机器时的诊断难度。判断标准很简单——<strong>有没有接口可用</strong>。</p>
+    <div class="grid2 stagger">
+      <div class="cell">
+        <span class="ico"><svg viewBox="0 0 24 24"><path d="M4.5 12.5l4.5 4.5L19.5 6.5"/></svg></span>
+        <h3>值得</h3>
+        <p>目标平台没有可用接口、只有客户端能干（企微代回、抖音私信）；机器数量已经多到人工连桌面成为瓶颈；操作可脚本化且需要留痕、可复现、可批量。</p>
+      </div>
+      <div class="cell">
+        <span class="ico r"><svg viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></span>
+        <h3>不值得</h3>
+        <p>有官方 API 就走 API，别为了「像人操作」去养一台 Windows；一次性的、只跑一遍的操作，人连桌面点两下更快；需要毫秒级稳定性的链路——GUI 自动化做不到。</p>
+      </div>
+    </div>
+    <div class="band rv">
+      <span class="k">让 Claude 干这活需要的三条纪律</span>
+      <p><b>① 只信硬事实。</b>「命令成功」不是证据，带主机名和当下时间戳的回执、数据库里真实落的行、进程存在性才是。<br><b>② 通道先自证。</b>用任何日志 / 字段做回执前，先跑一个必然产生信号的动作确认它会响。<br><b>③ 危险操作先看清。</b>覆盖 <code>.env</code>、替换脚本、改授权前先读原文并留备份——机器看不见，误伤没有撤销键。</p>
+    </div>
+    <div class="quote rv">
+      这套控制链在 Akke 的落地形态与更上层的架构叙事，另有一页专讲：<b><a href="/learn/claude-code-cloud-pc" style="color:var(--teal)">upio.ai/learn/claude-code-cloud-pc</a></b>——本页是它的<b>命令行工具手册面</b>，那页是<b>系统设计面</b>。
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="fl">
+    <span class="brand">Akke <span style="color:var(--teal)">/</span> 云电脑控制链</span>
+    <span class="meta">阿里云 CLI × RunCommand 实战教程 · 命令均于生产机队实跑验证<br><b>upio.ai/learn/aliyun-cli-runcommand</b></span>
+  </div>
+</footer>
+
+<script>
+  // 滚动进度条
+  const prog=document.getElementById('progress');
+  const onScroll=()=>{
+    const h=document.documentElement;
+    const p=h.scrollTop/(h.scrollHeight-h.clientHeight);
+    prog.style.width=(p*100)+'%';
+  };
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+
+  // reveal + stagger（IO 主触发 + 滚动兜底，保证快速滚动/锚点跳转也不留空白）
+  const io=new IntersectionObserver((es)=>{
+    es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});
+  },{threshold:.16,rootMargin:'0px 0px -8% 0px'});
+  document.querySelectorAll('.rv,.stagger').forEach(el=>io.observe(el));
+  const revealPast=()=>{
+    document.querySelectorAll('.rv:not(.in),.stagger:not(.in)').forEach(el=>{
+      if(el.getBoundingClientRect().top < window.innerHeight*0.9){el.classList.add('in');io.unobserve(el);}
+    });
+  };
+  document.addEventListener('scroll',revealPast,{passive:true});
+  revealPast();window.addEventListener('load',revealPast); // 锚点直达/恢复滚动位置时 scroll 不触发，立即兜底一次
+
+  // hero 首屏立即显示
+  window.addEventListener('load',()=>{
+    document.querySelectorAll('#hero .rv').forEach((el,i)=>{
+      setTimeout(()=>el.classList.add('in'),120+i*110);
+    });
+  });
+
+  // 侧栏章节高亮
+  const rail=[...document.querySelectorAll('.rail a')];
+  const secObs=new IntersectionObserver((es)=>{
+    es.forEach(e=>{
+      if(e.isIntersecting){
+        rail.forEach(a=>a.classList.toggle('on',a.dataset.s===e.target.id));
+      }
+    });
+  },{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('main section').forEach(s=>secObs.observe(s));
+</script>
+</body>
+</html>
