@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>夏伟企业微信 · 客户咨询优先自动回复部署复盘</title>
+  <style>
+    :root{--bg:#f4f7fb;--card:#fff;--ink:#172033;--muted:#637086;--blue:#2563eb;--green:#087f5b;--red:#c92a2a;--line:#dfe6f0}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.75 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif}
+    main{max-width:980px;margin:auto;padding:40px 20px 80px}.hero{padding:38px;border-radius:22px;background:linear-gradient(135deg,#15264c,#2457bd);color:#fff}
+    h1{font-size:32px;line-height:1.25;margin:0 0 12px}h2{font-size:23px;margin:42px 0 14px}h3{font-size:17px;margin:0 0 8px}
+    .hero p{max-width:760px;color:#dce8ff;margin:0}.meta{margin-top:18px;color:#bfd1fa;font-size:13px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;margin:14px 0;box-shadow:0 4px 18px rgba(24,42,75,.04)}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.tag{display:inline-block;padding:3px 9px;border-radius:99px;background:#e8f0ff;color:#174ca6;font-size:12px;font-weight:700}
+    .ok{color:var(--green);font-weight:700}.stop{color:var(--red);font-weight:700}code{background:#eef2f8;border-radius:5px;padding:2px 5px;font-size:.92em}
+    pre{overflow:auto;background:#101828;color:#dbe7ff;border-radius:12px;padding:16px;font-size:13px;line-height:1.55}
+    table{width:100%;border-collapse:collapse;background:#fff}th,td{padding:12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:#f8faff}
+    .flow{display:grid;gap:10px}.step{display:flex;gap:13px;align-items:flex-start}.n{flex:0 0 28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--blue);color:#fff;font-weight:700}
+    ul{padding-left:22px}.note{border-left:4px solid #f59f00;background:#fff8e6;padding:12px 16px;border-radius:8px}
+    footer{margin-top:48px;color:var(--muted);font-size:13px;text-align:center}@media(max-width:680px){.grid{grid-template-columns:1fr}.hero{padding:28px 22px}h1{font-size:27px}}
+  </style>
+</head>
+<body><main>
+  <section class="hero">
+    <span class="tag">企业微信 · 无影云电脑 · 单机特例</span>
+    <h1>夏伟「客户咨询优先」自动回复<br>操作逻辑与故障修复复盘</h1>
+    <p>一台企业版无影云电脑存在双层会话结构：普通会话在主列表，咨询客户藏在“客户咨询”工作台。本文记录专用调度、与其他机器的隔离边界、DRY RUN 实测发现的问题，以及逐层加固后的安全策略。</p>
+    <div class="meta">公开脱敏版 · 更新于 2026-07-28 · 不含密钥、设备 ID 与客户隐私</div>
+  </section>
+
+  <h2>1. 最终业务逻辑</h2>
+  <div class="card flow">
+    <div class="step"><div class="n">1</div><div><h3>先进入“客户咨询”</h3>打开聚合入口，确认负责人正确，并强制选择“咨询中”。</div></div>
+    <div class="step"><div class="n">2</div><div><h3>图二严格最高优先级</h3>扫描红点、未读数字和当前高亮客户；只处理最后一条确认为客户发送的消息。</div></div>
+    <div class="step"><div class="n">3</div><div><h3>咨询队列未清空时绝不下沉</h3>识别失败、页面不确定、身份碰撞或仍有未读时，本轮停止，不处理普通会话。</div></div>
+    <div class="step"><div class="n">4</div><div><h3>图二清空后，图一最多处理一个</h3>点击最左侧“消息”模块返回主列表，过滤系统入口后最多处理一位普通外部客户。</div></div>
+    <div class="step"><div class="n">5</div><div><h3>立即回查图二</h3>普通客户处理结束后立刻重新进入“客户咨询”，确保新咨询不会被图一长队列饿死。</div></div>
+  </div>
+
+  <h2>2. 与其他企业版云电脑的隔离</h2>
+  <div class="grid">
+    <div class="card"><h3>默认关闭</h3><p>全局默认布局仍为 <code>standard</code>。其他云电脑不设置特殊开关，行为完全不变。</p></div>
+    <div class="card"><h3>双条件自检</h3><p>只有指定 persona 与 <code>consultation_priority</code> 同时成立才启动特殊调度；错配直接自检失败。</p></div>
+    <div class="card"><h3>独立坐标与裁剪</h3><p>咨询列表、聊天区左右边界、输入框、入口和“消息”导航均使用独立 <code>CONSULT_*</code> 配置。</p></div>
+    <div class="card"><h3>独立会话身份</h3><p>图二客户以“昵称＋头像感知哈希”生成身份键。同名不同头像不会串会话，也不会和图一客户混桶。</p></div>
+  </div>
+  <pre>AKKE_WECOM_PERSONA=xiawei
+AKKE_WECOM_LAYOUT=consultation_priority
+AKKE_WECOM_DRY_RUN=1   # 验收完成前始终不真发</pre>
+
+  <h2>3. 身份与发送安全门</h2>
+  <div class="card">
+    <ul>
+      <li><b>聚合入口硬拦截：</b>标题包含“客户咨询＋负责人”时，直接拒绝生成和发送。</li>
+      <li><b>工作台强验证：</b>负责人可见，且“咨询中 / 全部 / 排队中”三个标签同时存在，才承认页面正确。</li>
+      <li><b>图二发送前复核：</b>重新扫描当前高亮行，其昵称与头像身份必须和待回复目标完全一致。</li>
+      <li><b>最后消息门：</b>最后一条必须来自客户；我方消息、系统消息、已回复内容均跳过。</li>
+      <li><b>Fail closed：</b>OCR/VL 空响应、JSON 截断、身份不明、窗口不在前台或分辨率漂移时一律不发。</li>
+      <li><b>DRY RUN 也走身份门：</b>空跑不再绕过安全验证，因此能真实预演未来真发是否会放行。</li>
+    </ul>
+  </div>
+
+  <h2>4. 实测问题与修复</h2>
+  <div class="card" style="padding:0;overflow:auto">
+    <table>
+      <thead><tr><th>实测现象</th><th>根因</th><th>修复</th></tr></thead>
+      <tbody>
+        <tr><td>把我方历史话术读成客户消息</td><td>三栏界面中，截图混入左侧咨询列表和右侧服务栏</td><td>图二使用独立左右裁剪，只保留中间聊天区</td></tr>
+        <tr><td>输入框预测点落在聊天空白区</td><td>沿用普通布局纵坐标</td><td>为咨询布局设置独立输入框坐标</td></tr>
+        <tr><td>左上返回箭头点击后仍留在工作台</td><td>该箭头在此客户端不能稳定退出</td><td>改点最左侧“消息”模块，并验证工作台特征消失</td></tr>
+        <tr><td>重新进入工作台点到列表外</td><td>入口横坐标继承普通会话配置</td><td>使用夏伟左侧列表专用横坐标，纵坐标仍由视觉动态识别</td></tr>
+        <tr><td>聚合入口被当成客户生成回复</td><td>主列表与工作台页面被视觉模型误判</td><td>增加确定性的聚合标题硬拦截；实测被成功阻断</td></tr>
+        <tr><td>9 行咨询列表 JSON 在约 1400 字符截断</td><td>视觉模型输出预算不足</td><td>提高结构化输出预算，限制最多 10 行并要求单行紧凑 JSON</td></tr>
+        <tr><td>咨询客户标题偶尔读成负责人姓名</td><td>顶部标题 OCR 把左侧负责人当客户</td><td>客户名改取左侧高亮行；发送前用昵称＋头像身份再次复核</td></tr>
+        <tr><td>“智能文档”被当成图一未读客户</td><td>系统入口图标被误识别为红点</td><td>点击前过滤企业微信系统入口；打开后仍保留外部客户门</td></tr>
+        <tr><td>远程会话尺寸在多个分辨率间跳动</td><td>无影窗口模式、截图工具或远程画布发生变化</td><td>连续稳定后才换基线；漂移期间全部跳过，不进行 GUI 点击</td></tr>
+        <tr><td>Windows 未激活水印被抄成消息</td><td>水印覆盖聊天截图右下角</td><td>加入水印样板过滤；根治仍建议激活 Windows</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>5. 验收与上线规则</h2>
+  <div class="card">
+    <p class="stop">当前原则：未完成 DRY RUN 端到端验收，不切换真发。</p>
+    <ol>
+      <li>固定无影全屏与企业微信最大化，连续确认 Python 看到的屏幕尺寸一致。</li>
+      <li>在 <code>DRY_RUN=1</code> 下观察：正确进入图二、识别客户、通过选中行身份门、返回图一、最多处理一个、立即回查图二。</li>
+      <li>任何误点、身份不一致或页面不确定，立即创建 STOP 文件。</li>
+      <li>验收通过后仅修改这台机器的 DRY RUN 与工作时间；其他机器配置不动。</li>
+      <li>真发后先小流量观察日志与真实送达，再逐步恢复生产限额。</li>
+    </ol>
+    <div class="note">紧急停止机制：本机出现 STOP 标志后，启动器不再拉起循环。排查完成前不得直接删除。</div>
+  </div>
+
+  <h2>6. 已验证结果</h2>
+  <div class="grid">
+    <div class="card"><h3 class="ok">✓ 服务器发布</h3><p>生产接口健康检查通过，共享企业微信话术与会话服务保持连通。</p></div>
+    <div class="card"><h3 class="ok">✓ 回归覆盖</h3><p>决策、身份隔离、调度、分辨率保护等回归测试持续全绿。</p></div>
+    <div class="card"><h3 class="ok">✓ 安全拦截实测</h3><p>聚合入口误识别时，代码级安全门成功阻断；DRY RUN 全程未发送。</p></div>
+    <div class="card"><h3>待最终确认</h3><p>需要在固定 2560×1600 画布下完成一轮“图二客户 → 图一一位 → 回查图二”的完整空跑。</p></div>
+  </div>
+
+  <footer>Akke · 企业微信自动化部署复盘 · 本页为公开脱敏说明，不包含生产密钥与客户内容</footer>
+</main></body>
+</html>
