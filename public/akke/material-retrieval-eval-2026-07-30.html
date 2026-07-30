@@ -4,477 +4,819 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>素材调用能力评估 · R2 家底 × 企微投递 × 视频产线 · Akke</title>
+<meta name="description" content="R2 里 58.55 GiB 素材如何被企业微信与视频产线精准调用的评估：台账漂移 4.8 倍、pgvector 检索建完未启用、图片检索须走结构化过滤、效果图正是视频产线缺的真图。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@500;700;900&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg: #0b0d12;
-    --bg-elevated: #141821;
-    --bg-code: #1a1f2b;
-    --border: #242a38;
-    --border-strong: #2f3646;
-    --text: #e4e7ed;
-    --text-dim: #9ba3b4;
-    --text-muted: #6b7384;
-    --accent: #8b5cf6;
-    --accent-soft: rgba(139, 92, 246, 0.15);
-    --success: #34d399;
-    --warning: #fbbf24;
-    --danger: #f87171;
-    --info: #60a5fa;
+  :root{
+    --bg:#06080c;
+    --bg2:#0a0e15;
+    --panel:#0d1119;
+    --panel2:#11161f;
+    --line:rgba(255,255,255,.07);
+    --line2:rgba(255,255,255,.12);
+    --ink:#dbe3ec;
+    --head:#f2f6fb;
+    --muted:#7c8798;
+    --dim:#525c6b;
+    --teal:#3fe0c5;      /* 机器 / 自动 / 已就绪 */
+    --teal-d:#1c9d8b;
+    --amber:#f6b352;     /* 人工 / 人在环 / 待拍板 */
+    --blue:#6fa8ff;      /* 服务器 / 检索 */
+    --violet:#b48cff;    /* worker / 后台 */
+    --rose:#ff7d97;      /* 阻塞 / 硬约束 */
+    --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+    --serif:"Noto Serif SC",serif;
+    --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
   }
-  * { box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
-  body {
-    margin: 0; padding: 0;
-    background: var(--bg); color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-    font-size: 16px; line-height: 1.75;
-    -webkit-font-smoothing: antialiased;
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{font-family:var(--sans);background:var(--bg);color:var(--ink);line-height:1.7;
+    -webkit-font-smoothing:antialiased;overflow-x:hidden}
+
+  /* ── 固定背景 ── */
+  .bg{position:fixed;inset:0;z-index:0;pointer-events:none}
+  .bg .grid{position:absolute;inset:-2px;
+    background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:64px 64px;
+    -webkit-mask-image:radial-gradient(circle at 50% 32%,#000 0%,transparent 78%);
+    mask-image:radial-gradient(circle at 50% 32%,#000 0%,transparent 78%);opacity:.5}
+  .bg .glow{position:absolute;border-radius:50%;filter:blur(120px);opacity:.5}
+  .bg .g1{width:640px;height:640px;top:-260px;left:50%;transform:translateX(-50%);
+    background:radial-gradient(circle,rgba(63,224,197,.28),transparent 68%);animation:drift 22s ease-in-out infinite}
+  .bg .g2{width:520px;height:520px;top:38%;left:-160px;
+    background:radial-gradient(circle,rgba(111,168,255,.16),transparent 70%);animation:drift 28s ease-in-out infinite reverse}
+  .bg .g3{width:480px;height:480px;bottom:-120px;right:-120px;
+    background:radial-gradient(circle,rgba(246,179,82,.12),transparent 70%);animation:drift 26s ease-in-out infinite}
+  @keyframes drift{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,40px)}}
+  .bg .noise{position:absolute;inset:0;opacity:.035;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+  .progress{position:fixed;top:0;left:0;height:2px;width:0;z-index:60;
+    background:linear-gradient(90deg,var(--teal),var(--blue));box-shadow:0 0 12px var(--teal)}
+
+  /* ── 侧栏导航 ── */
+  .rail{position:fixed;top:50%;left:26px;transform:translateY(-50%);z-index:50;display:flex;flex-direction:column;gap:15px}
+  .rail a{display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--dim);
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;transition:color .3s}
+  .rail a .tick{width:22px;height:2px;background:currentColor;transition:width .3s,background .3s}
+  .rail a .lbl{opacity:0;transform:translateX(-6px);transition:.3s;white-space:nowrap}
+  .rail a:hover .lbl,.rail a.on .lbl{opacity:1;transform:none}
+  .rail a.on{color:var(--teal)}
+  .rail a.on .tick{width:38px;box-shadow:0 0 10px var(--teal)}
+  @media(max-width:1180px){.rail{display:none}}
+
+  main{position:relative;z-index:2;max-width:1080px;margin:0 auto;padding:0 40px}
+  section{padding:118px 0;border-top:1px solid transparent}
+
+  .rv{opacity:0;transform:translateY(26px);transition:opacity .8s cubic-bezier(.16,1,.3,1),transform .8s cubic-bezier(.16,1,.3,1)}
+  .rv.in{opacity:1;transform:none}
+  .stagger>*{opacity:0;transform:translateY(22px);transition:opacity .7s cubic-bezier(.16,1,.3,1),transform .7s cubic-bezier(.16,1,.3,1)}
+  .stagger.in>*{opacity:1;transform:none}
+  .stagger.in>*:nth-child(1){transition-delay:.05s}
+  .stagger.in>*:nth-child(2){transition-delay:.13s}
+  .stagger.in>*:nth-child(3){transition-delay:.21s}
+  .stagger.in>*:nth-child(4){transition-delay:.29s}
+  .stagger.in>*:nth-child(5){transition-delay:.37s}
+  .stagger.in>*:nth-child(6){transition-delay:.45s}
+
+  .sec-head{display:flex;align-items:baseline;gap:20px;margin-bottom:42px}
+  .sec-head .idx{font-family:var(--mono);font-size:13px;color:var(--teal);font-weight:500;padding-top:6px;position:relative}
+  .sec-head .idx::before{content:"";position:absolute;left:-14px;top:11px;width:8px;height:8px;border-radius:50%;
+    background:var(--teal);box-shadow:0 0 10px var(--teal)}
+  .eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:8px}
+  .sec-head h2{font-family:var(--serif);font-weight:700;font-size:clamp(27px,4vw,42px);line-height:1.18;color:var(--head);letter-spacing:.01em}
+  .lede{font-size:16.5px;color:var(--muted);max-width:680px;margin:-24px 0 40px;line-height:1.75}
+  .lede b,.lede strong{color:var(--ink);font-weight:600}
+  code{font-family:var(--mono);font-size:.85em;background:rgba(63,224,197,.09);color:#8ff0e0;
+    border:1px solid rgba(63,224,197,.16);border-radius:5px;padding:1px 6px}
+
+  /* ── HERO ── */
+  .hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:120px 0 90px;border:0;position:relative}
+  .hero .tag{font-family:var(--mono);font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--teal);
+    display:inline-flex;align-items:center;gap:10px;margin-bottom:26px}
+  .hero .tag .pulse{width:9px;height:9px;border-radius:50%;background:var(--teal);
+    box-shadow:0 0 0 0 rgba(63,224,197,.6);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(63,224,197,.55)}70%{box-shadow:0 0 0 12px rgba(63,224,197,0)}100%{box-shadow:0 0 0 0 rgba(63,224,197,0)}}
+  .hero h1{font-family:var(--serif);font-weight:900;font-size:clamp(42px,8vw,92px);line-height:1.04;color:var(--head);letter-spacing:.005em;margin-bottom:8px}
+  .hero h1 .accent{background:linear-gradient(115deg,var(--teal),var(--blue) 70%);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero h1 .cursor{display:inline-block;width:.06em;height:.92em;background:var(--teal);vertical-align:-6px;margin-left:6px;
+    animation:blink 1.1s steps(1) infinite;box-shadow:0 0 14px var(--teal)}
+  @keyframes blink{50%{opacity:0}}
+  .hero .desc{font-size:clamp(17px,2.3vw,22px);color:var(--ink);max-width:700px;margin:24px 0 14px;line-height:1.6}
+  .hero .desc b{color:var(--teal);font-weight:600}
+  .hero .role{font-family:var(--mono);font-size:13px;color:var(--muted);margin-bottom:44px}
+  .ticker{display:flex;gap:10px;flex-wrap:wrap;max-width:840px}
+  .chip{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;color:var(--ink);border:1px solid var(--line2);
+    border-radius:100px;padding:7px 15px;background:rgba(255,255,255,.02);display:inline-flex;align-items:center;gap:8px;transition:.3s}
+  .chip:hover{border-color:var(--teal);color:var(--teal);box-shadow:0 0 20px -6px var(--teal)}
+  .chip .d{width:6px;height:6px;border-radius:50%;background:var(--teal)}
+  .chip .d.a{background:var(--amber)}.chip .d.b{background:var(--blue)}.chip .d.r{background:var(--rose)}
+  .scrollcue{position:absolute;bottom:34px;left:0;font-family:var(--mono);font-size:11px;letter-spacing:.2em;color:var(--dim);
+    display:flex;align-items:center;gap:10px}
+  .scrollcue .bar{width:1px;height:34px;background:linear-gradient(var(--teal),transparent);animation:cue 1.8s ease-in-out infinite}
+  @keyframes cue{0%,100%{opacity:.3;transform:scaleY(.6)}50%{opacity:1;transform:scaleY(1)}}
+
+  /* ── 四发现 pillars ── */
+  .pillars{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+  .pillar{background:linear-gradient(165deg,var(--panel),var(--bg2));border:1px solid var(--line);border-radius:16px;
+    padding:24px 22px 22px;position:relative;overflow:hidden;transition:.4s}
+  .pillar::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:var(--c,var(--teal));
+    opacity:.7;box-shadow:0 0 16px var(--c,var(--teal))}
+  .pillar:hover{transform:translateY(-6px);border-color:var(--line2);box-shadow:0 24px 60px -30px var(--c,var(--teal))}
+  .pillar .mk{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;color:var(--c,var(--teal));text-transform:uppercase;margin-bottom:14px}
+  .pillar h3{font-family:var(--serif);font-weight:700;font-size:19px;color:var(--head);margin-bottom:8px;line-height:1.35}
+  .pillar p{font-size:13.5px;color:var(--muted);line-height:1.62}
+  .pillar p b{color:var(--ink)}
+
+  /* ── 卡片 ── */
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  .cell{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;transition:.35s}
+  .cell:hover{border-color:var(--line2);background:var(--panel2);transform:translateY(-3px)}
+  .cell .ico{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+    margin-bottom:14px;border:1px solid rgba(63,224,197,.28);color:var(--teal);
+    background:linear-gradient(150deg,rgba(63,224,197,.13),rgba(63,224,197,.02));box-shadow:0 0 22px -10px var(--teal) inset}
+  .cell .ico svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .cell .ico.b{border-color:rgba(111,168,255,.28);color:var(--blue);
+    background:linear-gradient(150deg,rgba(111,168,255,.13),rgba(111,168,255,.02));box-shadow:0 0 22px -10px var(--blue) inset}
+  .cell .ico.a{border-color:rgba(246,179,82,.28);color:var(--amber);
+    background:linear-gradient(150deg,rgba(246,179,82,.13),rgba(246,179,82,.02));box-shadow:0 0 22px -10px var(--amber) inset}
+  .cell .ico.v{border-color:rgba(180,140,255,.28);color:var(--violet);
+    background:linear-gradient(150deg,rgba(180,140,255,.13),rgba(180,140,255,.02));box-shadow:0 0 22px -10px var(--violet) inset}
+  .cell .ico.r{border-color:rgba(255,125,151,.28);color:var(--rose);
+    background:linear-gradient(150deg,rgba(255,125,151,.13),rgba(255,125,151,.02));box-shadow:0 0 22px -10px var(--rose) inset}
+  .cell .ico.d{border-color:var(--line2);color:var(--muted);background:rgba(255,255,255,.03);box-shadow:none}
+  .cell .ico.rank{font-family:var(--mono);font-size:14.5px;font-weight:600;letter-spacing:.04em}
+  .cell h3{font-size:16px;color:var(--head);margin-bottom:7px;font-weight:600;line-height:1.4}
+  .cell h3 .m{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:.08em;display:block;margin-bottom:4px;font-weight:500}
+  .cell p{font-size:13.5px;color:var(--muted);line-height:1.65}
+  .cell p+p{margin-top:9px}
+  .cell p b{color:var(--ink)}
+
+  /* ── 统计带 ── */
+  .statband{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:26px}
+  .stat{background:linear-gradient(165deg,var(--panel),var(--bg2));border:1px solid var(--line);
+    border-radius:14px;padding:20px 20px 16px;transition:.35s}
+  .stat:hover{border-color:rgba(63,224,197,.3);transform:translateY(-3px)}
+  .stat .v{font-family:var(--mono);font-size:34px;font-weight:600;color:var(--teal);line-height:1.1;
+    text-shadow:0 0 24px rgba(63,224,197,.35)}
+  .stat .v .suf{font-size:16px;color:var(--muted);margin-left:2px}
+  .stat .l{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.5}
+  .stat.warn .v{color:var(--amber);text-shadow:0 0 24px rgba(246,179,82,.32)}
+
+  /* ── 横向条形图 ── */
+  .hbar{margin-top:8px}
+  .hbar .row{display:grid;grid-template-columns:160px 1fr 96px;gap:14px;align-items:center;padding:9px 0}
+  .hbar .lab{font-size:13.5px;color:var(--ink);text-align:right;line-height:1.35}
+  .hbar .track{display:block;height:18px;background:rgba(255,255,255,.04);border-radius:5px;overflow:hidden;position:relative}
+  .hbar .fill{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,var(--teal-d),var(--teal));
+    box-shadow:0 0 14px -2px var(--teal);width:0;transition:width 1.1s cubic-bezier(.16,1,.3,1)}
+  .hbar .fill.dim{background:linear-gradient(90deg,#2a3644,#46586c);box-shadow:none}
+  .hbar .fill.warn{background:linear-gradient(90deg,#b7803a,var(--amber));box-shadow:0 0 14px -2px var(--amber)}
+  .hbar .fill.rose{background:linear-gradient(90deg,#a8455a,var(--rose));box-shadow:0 0 14px -2px var(--rose)}
+  .hbar .val{font-family:var(--mono);font-size:13px;color:var(--head)}
+  .hbar .val .u{color:var(--muted);font-size:11px}
+  .chart-note{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:12px;line-height:1.7}
+  .chart-note b{color:var(--teal)}
+
+  /* ── 管线脊线 ── */
+  .pipe{position:relative;padding-left:38px;margin-top:8px}
+  .pipe::before{content:"";position:absolute;left:11px;top:8px;bottom:8px;width:2px;
+    background:linear-gradient(var(--teal),var(--violet),var(--amber),var(--rose))}
+  .pipe .flowdot{position:absolute;left:6px;width:12px;height:12px;border-radius:50%;background:var(--teal);
+    box-shadow:0 0 16px 3px var(--teal);animation:flow 4.6s cubic-bezier(.5,0,.5,1) infinite}
+  @keyframes flow{0%{top:2px;opacity:0}8%{opacity:1}92%{opacity:1}100%{top:calc(100% - 14px);opacity:0}}
+  .pstep{position:relative;padding:16px 0;display:grid;grid-template-columns:120px 1fr;gap:18px;align-items:start}
+  .pstep+.pstep{border-top:1px dashed var(--line)}
+  .pstep::before{content:"";position:absolute;left:-32px;top:24px;width:10px;height:10px;border-radius:50%;
+    background:var(--bg);border:2px solid var(--who,var(--teal));box-shadow:0 0 0 4px var(--bg)}
+  .pstep .who{font-family:var(--mono);font-size:11px;letter-spacing:.05em;padding:5px 9px;border-radius:7px;
+    background:color-mix(in srgb,var(--who) 15%,transparent);color:var(--who);
+    border:1px solid color-mix(in srgb,var(--who) 30%,transparent);text-align:center;line-height:1.35}
+  .pstep .txt{font-size:14.5px;color:var(--ink)}
+  .pstep .txt b{color:var(--head);font-weight:600}
+
+  /* ── 三列状态盒 ── */
+  .cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .colbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px}
+  .colbox h4{font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--teal);
+    margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+  .colbox h4 .st{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor;flex:0 0 auto}
+  .colbox ul{list-style:none}
+  .colbox li{font-size:13.5px;color:var(--ink);padding:6px 0 6px 18px;position:relative;line-height:1.55}
+  .colbox li::before{content:"▸";position:absolute;left:0;color:var(--dim)}
+  .colbox li b{color:var(--head)}
+  .colbox.ship h4{color:var(--teal)}.colbox.wip h4{color:var(--amber)}.colbox.hard h4{color:var(--rose)}
+  .colbox.ship{border-color:rgba(63,224,197,.18)}
+  .colbox.wip{border-color:rgba(246,179,82,.18)}
+  .colbox.hard{border-color:rgba(255,125,151,.18)}
+
+  /* ── 提示 band ── */
+  .band{margin-top:22px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--teal);
+    border-radius:12px;padding:20px 24px}
+  .band .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--teal);text-transform:uppercase;margin-bottom:8px;display:block}
+  .band p{font-size:15px;color:var(--ink);margin:0}
+  .band p+p{margin-top:10px}
+  .band p b{color:var(--head)}
+  .band.a{border-left-color:var(--amber)}.band.a .k{color:var(--amber)}
+  .band.r{border-left-color:var(--rose)}.band.r .k{color:var(--rose)}
+  .note-band{margin-top:22px;background:rgba(246,179,82,.06);border:1px solid rgba(246,179,82,.2);
+    border-radius:14px;padding:18px 22px;display:flex;gap:16px;align-items:flex-start}
+  .note-band .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--amber);text-transform:uppercase;white-space:nowrap;padding-top:2px}
+  .note-band p{font-size:14.5px;color:var(--ink);margin:0}
+  .note-band.r{background:rgba(255,125,151,.06);border-color:rgba(255,125,151,.2)}
+  .note-band.r .k{color:var(--rose)}
+  .why{background:linear-gradient(160deg,rgba(63,224,197,.07),transparent);border:1px solid rgba(63,224,197,.2);
+    border-radius:16px;padding:26px 28px;margin-bottom:20px}
+  .why .k{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--teal);text-transform:uppercase;margin-bottom:10px;display:block}
+  .why p{font-size:15.5px;color:var(--ink);margin:0}
+  .why p b{color:var(--teal)}
+
+  pre{font-family:var(--mono);font-size:12.5px;line-height:1.7;background:var(--bg2);border:1px solid var(--line);
+    border-radius:12px;padding:16px 18px;overflow-x:auto;color:var(--muted);margin-top:18px}
+  pre b{color:var(--teal);font-weight:400}
+
+  /* ── 规格表 ── */
+  .spec{width:100%;border-collapse:collapse;font-size:13.5px}
+  .spec thead th{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
+    text-align:left;padding:12px 14px;border-bottom:1px solid var(--line2)}
+  .spec td{padding:13px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  .spec tbody tr{transition:.25s}
+  .spec tbody tr:hover{background:rgba(63,224,197,.03)}
+  .spec td:first-child{color:var(--head);font-weight:600}
+  .spec td:nth-child(2){color:var(--ink)}
+  .spec .mn{font-family:var(--mono);font-size:12.5px;color:var(--teal)}
+  .spec .rk{font-family:var(--mono);font-size:13px;color:var(--teal);white-space:nowrap;font-weight:600}
+  .lt{display:inline-block;padding:2px 9px;border-radius:6px;font-family:var(--mono);font-size:10.5px;
+    letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;font-weight:500}
+  .lt.g{background:rgba(63,224,197,.14);color:#7fecd8;border:1px solid rgba(63,224,197,.26)}
+  .lt.y{background:rgba(246,179,82,.14);color:#fbd08a;border:1px solid rgba(246,179,82,.26)}
+  .lt.r{background:rgba(255,125,151,.14);color:#ffa8b9;border:1px solid rgba(255,125,151,.26)}
+  .lt.d{background:rgba(255,255,255,.05);color:var(--muted);border:1px solid var(--line2)}
+
+  /* ── 否决清单 ── */
+  .nolist{margin-top:8px}
+  .noitem{display:flex;gap:14px;align-items:flex-start;background:var(--panel);border:1px solid var(--line);
+    border-left:3px solid var(--rose);border-radius:12px;padding:16px 20px;margin-bottom:10px;transition:.3s}
+  .noitem:hover{background:var(--panel2);border-color:var(--line2);border-left-color:var(--rose)}
+  .noitem .x{flex:0 0 auto;width:20px;height:20px;color:var(--rose);margin-top:2px}
+  .noitem .x svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round}
+  .noitem p{font-size:14.5px;color:var(--ink);margin:0}
+  .noitem p b{color:var(--head)}
+
+  .quote{margin-top:30px;background:linear-gradient(160deg,var(--panel2),var(--bg2));border:1px solid var(--line);
+    border-radius:16px;padding:28px 30px;font-size:16px;line-height:1.75;color:var(--ink)}
+  .quote b{color:var(--teal)}
+
+  footer{position:relative;z-index:2;max-width:1080px;margin:40px auto 0;padding:60px 40px 80px;border-top:1px solid var(--line)}
+  footer .fl{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:22px}
+  footer .brand{font-family:var(--serif);font-weight:700;font-size:20px;color:var(--head)}
+  footer .brand a{color:var(--muted);text-decoration:none;font-family:var(--mono);font-size:11.5px;
+    display:block;margin-top:8px;letter-spacing:.06em;font-weight:400}
+  footer .brand a:hover{color:var(--teal)}
+  footer .meta{font-family:var(--mono);font-size:11.5px;color:var(--dim);letter-spacing:.06em;text-align:right;line-height:1.95;max-width:520px}
+  footer .meta b{color:var(--teal)}
+  footer .meta .warn{color:var(--amber)}
+
+  @media(max-width:980px){.pillars{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:820px){
+    main{padding:0 22px}
+    section{padding:82px 0}
+    .pillars,.grid3,.grid2,.cols3{grid-template-columns:1fr}
+    .statband{grid-template-columns:repeat(2,1fr)}
+    .sec-head{gap:14px;margin-bottom:32px}
+    .lede{margin-top:-16px}
+    .pstep{grid-template-columns:1fr;gap:8px}
+    .pstep .who{justify-self:start}
+    .hbar .row{grid-template-columns:104px 1fr 76px;gap:8px}
+    .hbar .lab{font-size:12px}
+    .spec{font-size:12.5px}
+    .spec td,.spec thead th{padding:10px 8px}
+    footer .meta{text-align:left}
   }
-  .container { max-width: 960px; margin: 0 auto; padding: 40px 24px 120px; }
-
-  .breadcrumb { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
-  .breadcrumb a { color: var(--text-dim); text-decoration: none; }
-  .breadcrumb a:hover { color: var(--accent); }
-  .breadcrumb span { margin: 0 8px; color: var(--border-strong); }
-
-  header.hero { padding: 24px 0 40px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
-  .tag { display: inline-block; padding: 4px 12px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 13px; font-weight: 500; margin-bottom: 16px; }
-  h1 { font-size: 38px; font-weight: 700; margin: 0 0 14px; letter-spacing: -0.02em; line-height: 1.2; }
-  .subtitle { font-size: 18px; color: var(--text-dim); margin: 0 0 22px; }
-  .meta { display: flex; gap: 20px; flex-wrap: wrap; font-size: 14px; color: var(--text-muted); }
-  .meta span::before { content: ""; display: inline-block; width: 4px; height: 4px; background: var(--text-muted); border-radius: 50%; margin-right: 8px; vertical-align: middle; }
-
-  h2 { font-size: 27px; font-weight: 700; margin: 64px 0 16px; letter-spacing: -0.01em; }
-  h2 .num { display: inline-block; width: 34px; height: 34px; line-height: 34px; text-align: center; background: var(--accent); color: #fff; border-radius: 10px; font-size: 17px; margin-right: 12px; vertical-align: middle; }
-  h3 { font-size: 20px; font-weight: 600; margin: 34px 0 12px; }
-  p { margin: 12px 0; color: var(--text-dim); }
-  p strong, li strong, td strong { color: var(--text); }
-  ul, ol { color: var(--text-dim); padding-left: 22px; }
-  li { margin: 7px 0; }
-  code { background: var(--bg-code); padding: 2px 6px; border-radius: 4px; font-size: 0.88em; color: var(--info); font-family: "SF Mono", Monaco, Consolas, monospace; }
-
-  .alert { padding: 16px 20px; border-radius: 10px; margin: 22px 0; display: flex; gap: 14px; align-items: flex-start; }
-  .alert .icon { flex: 0 0 24px; font-size: 21px; line-height: 1; padding-top: 2px; }
-  .alert .body { flex: 1; }
-  .alert .body p { margin: 6px 0 0; color: inherit; opacity: .92; }
-  .alert .body p:first-child { margin-top: 0; }
-  .alert.warn { background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.25); color: #fde68a; }
-  .alert.info { background: rgba(96,165,250,0.08); border: 1px solid rgba(96,165,250,0.25); color: #bfdbfe; }
-  .alert.danger { background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.25); color: #fecaca; }
-  .alert.good { background: rgba(52,211,153,0.08); border: 1px solid rgba(52,211,153,0.25); color: #a7f3d0; }
-  .alert .body strong { color: #fff; }
-
-  /* 结论卡 */
-  .find-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 16px; margin: 28px 0; }
-  .find-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 14px; padding: 20px; position: relative; overflow: hidden; }
-  .find-card::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--accent); }
-  .find-card.c2::before { background: var(--warning); }
-  .find-card.c3::before { background: var(--info); }
-  .find-card.c4::before { background: var(--success); }
-  .find-card .k { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); font-weight: 700; font-family: "SF Mono", Monaco, monospace; }
-  .find-card.c2 .k { color: var(--warning); }
-  .find-card.c3 .k { color: var(--info); }
-  .find-card.c4 .k { color: var(--success); }
-  .find-card .t { font-size: 17px; font-weight: 700; margin: 6px 0 8px; line-height: 1.35; }
-  .find-card p { margin: 0; font-size: 13.5px; line-height: 1.55; }
-
-  /* 表格 */
-  .table-wrap { overflow-x: auto; margin: 24px 0; border: 1px solid var(--border); border-radius: 12px; }
-  table { border-collapse: collapse; width: 100%; min-width: 620px; font-size: 14px; }
-  thead th { background: var(--bg-elevated); color: var(--text); font-weight: 600; text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--border); }
-  tbody td { padding: 12px 16px; border-bottom: 1px solid var(--border); color: var(--text-dim); vertical-align: top; }
-  tbody tr:last-child td { border-bottom: none; }
-  .n { font-family: "SF Mono", Monaco, monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .pos { color: var(--success); font-weight: 600; }
-  .neg { color: var(--danger); font-weight: 600; }
-  .warnc { color: var(--warning); font-weight: 600; }
-
-  .light { display: inline-block; padding: 1px 8px; border-radius: 5px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
-  .light.green { background: rgba(52,211,153,0.15); color: #6ee7b7; }
-  .light.yellow { background: rgba(251,191,36,0.15); color: #fcd34d; }
-  .light.red { background: rgba(248,113,113,0.15); color: #fca5a5; }
-  .light.grey { background: rgba(155,163,180,0.13); color: #9ba3b4; }
-
-  /* 三层架构 */
-  .layer { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; padding: 18px 22px; margin-bottom: 14px; }
-  .layer.miss { border-color: rgba(248,113,113,0.4); }
-  .layer.built { border-color: rgba(251,191,36,0.4); }
-  .layer.ok { border-color: rgba(52,211,153,0.4); }
-  .layer .top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; margin-bottom: 6px; }
-  .layer h4 { font-size: 18px; font-weight: 650; margin: 0; color: var(--text); }
-  .layer .lv { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); background: var(--accent-soft); padding: 3px 9px; border-radius: 6px; font-family: "SF Mono", Monaco, monospace; }
-  .layer p { margin: 0 0 10px; font-size: 14.5px; }
-  .layer .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-  .chip { font-size: 12.5px; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-code); color: var(--text-dim); font-family: "SF Mono", Monaco, monospace; }
-
-  pre { background: var(--bg-code); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; overflow-x: auto; font-size: 13px; line-height: 1.6; color: var(--text-dim); font-family: "SF Mono", Monaco, Consolas, monospace; }
-  pre code { background: none; padding: 0; color: inherit; }
-
-  .no-list { list-style: none; padding: 0; margin: 20px 0; }
-  .no-list li { display: flex; gap: 12px; align-items: flex-start; padding: 12px 16px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; font-size: 14.5px; }
-  .no-list .x { flex: 0 0 auto; color: var(--danger); font-weight: 700; }
-
-  footer { margin-top: 84px; padding-top: 26px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 13px; line-height: 1.8; }
-  footer a { color: var(--text-dim); }
-  footer strong { color: var(--text-dim); }
+  ::selection{background:rgba(63,224,197,.28);color:#fff}
+  ::-webkit-scrollbar{width:10px}
+  ::-webkit-scrollbar-track{background:var(--bg)}
+  ::-webkit-scrollbar-thumb{background:#1c2430;border-radius:8px;border:2px solid var(--bg)}
+  ::-webkit-scrollbar-thumb:hover{background:var(--teal-d)}
 </style>
 </head>
 <body>
-<div class="container">
 
-  <nav class="breadcrumb">
-    <a href="/">upio.ai</a><span>/</span><a href="/akke">Akke</a><span>/</span><span style="color: var(--text-dim);">素材调用能力评估</span>
-  </nav>
-
-  <header class="hero">
-    <span class="tag">技术方案 · 评估报告</span>
-    <h1>素材调用能力评估</h1>
-    <p class="subtitle">R2 里的 58.55 GiB 家底，怎样被企业微信和视频产线更高效、更精准地调用</p>
-    <div class="meta">
-      <span>2026-07-30</span>
-      <span>实测 + 代码盘点</span>
-      <span>结论：不需要训练模型</span>
-    </div>
-  </header>
-
-  <div class="alert good">
-    <div class="icon">✅</div>
-    <div class="body">
-      <strong>一句话结论</strong>
-      <p>调用能力已经建好约 70%，卡在最后一公里——<strong>不需要训练任何模型，也不需要上多模态向量库</strong>。最高性价比的动作是一个环境变量：把已经建完、验完、但生产从未启用的 pgvector 检索打开。</p>
-    </div>
-  </div>
-
-  <h2><span class="num">0</span>四个发现</h2>
-
-  <div class="find-grid">
-    <div class="find-card">
-      <div class="k">Finding 01</div>
-      <div class="t">台账漂移 4.8 倍</div>
-      <p>文档记 13130 个文件 / 22.21 G，今日实测 <strong>63429 个对象 / 58.55 GiB</strong>。没有单一事实源，「我们有什么素材」这个最基本的问题现在答不准。</p>
-    </div>
-    <div class="find-card c2">
-      <div class="k">Finding 02</div>
-      <div class="t">检索建完了没开</div>
-      <p>pgvector 检索在真实客户消息上命中率 <strong>35%</strong>、硬命中 0.60–0.72，但 Vercel 上没设开关，线上<strong>一次都没用过</strong>。</p>
-    </div>
-    <div class="find-card c3">
-      <div class="k">Finding 03</div>
-      <div class="t">图片检索别靠向量</div>
-      <p>效果图 + 知识图集是纯图，无文本可抽。已实测：视觉模型判<strong>风格</strong>会全塌成「现代简约」。图片必须走结构化元数据过滤。</p>
-    </div>
-    <div class="find-card c4">
-      <div class="k">Finding 04</div>
-      <div class="t">效果图＝视频产线缺的真图</div>
-      <p>可灵效果差被归因为「喂的是 AI 假图」。R2 里 11265 张真实效果图，正是那个待跑实验缺的输入。零新增成本。</p>
-    </div>
-  </div>
-
-  <h2><span class="num">1</span>家底：实测数字与台账不符</h2>
-
-  <p>今天用 Cloudflare API 直接查了 <code>akke-kb</code> 桶的用量，和项目文档里记的家底对不上：</p>
-
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr><th>维度</th><th>文档记载（07-18 / 07-26 快照）</th><th>今日实测（07-30）</th><th>差异</th></tr>
-      </thead>
-      <tbody>
-        <tr><td>对象数</td><td class="n">13,130</td><td class="n">63,429</td><td class="neg n">4.8×</td></tr>
-        <tr><td>体积</td><td class="n">22.21 G</td><td class="n">58.55 GiB</td><td class="neg n">2.6×</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <p>桶在两周内长了近 5 万个对象。文档里那份「素材家底与调用口径」是 07-26 更新的，四天就失真了——不是谁没维护，而是<strong>人工维护的清单必然追不上一个天天在写入的对象存储</strong>。</p>
-
-  <div class="alert danger">
-    <div class="icon">🔴</div>
-    <div class="body">
-      <strong>这不只是数字不准，它有三个真实后果</strong>
-      <p>① 运营答不准客户「你们有什么资料」；② AI 回复可能承诺一份实际不存在的素材（编造的一种）；③ <strong>「R2 里的视频」这件事，用现有台账无法确认</strong>——文档明确写着 13130 个文件里只有 1 个 mp4、「不构成视频库」，但那是 07-26 的快照，而桶此后又长了 4.8 倍。视频可能就在新增的那批里。</p>
-    </div>
-  </div>
-
-  <div class="alert warn">
-    <div class="icon">⚠️</div>
-    <div class="body">
-      <strong>本次未能独立核实的一项</strong>
-      <p>要按类型分解那 63429 个对象需要 R2 的 S3 密钥（<code>R2_ACCESS_KEY_ID</code> / <code>R2_SECRET_ACCESS_KEY</code>），本机 <code>.env.local</code> 里没有，Cloudflare API token 只能拿总量、列不了对象，<code>wrangler</code> 也没有 <code>r2 object list</code> 子命令。所以<strong>「视频有多少、在哪个前缀下」这条本报告不下结论</strong>。补齐凭据后一条命令即可核实：</p>
-    </div>
-  </div>
-
-<pre><code>aws s3api list-objects-v2 --bucket akke-kb \
-  --endpoint-url https://&lt;account-id&gt;.r2.cloudflarestorage.com \
-  --query 'Contents[].Key' --output text | tr '\t' '\n' \
-  | awk -F. '{print tolower($NF)}' | sort | uniq -c | sort -rn</code></pre>
-
-  <p>已知的素材构成（文档 07-26 口径，作为量级参考而非现状）：第三方资料 <strong>314</strong> 份、效果图 <strong>11265</strong> 张、知识图集 <strong>726</strong> 张、原创图文 <strong>48</strong> 篇、官方海报 <strong>11</strong> 张。</p>
-
-  <h2><span class="num">2</span>现有三条调用通路：能力已建，卡在最后一公里</h2>
-
-  <p>盘完代码，「把素材调出来」这件事其实已经有三套机制，成熟度差别很大：</p>
-
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr><th>通路</th><th>机制</th><th>覆盖素材</th><th>状态</th></tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><strong>海报确定性投递</strong></td>
-          <td><code>enterprise_posters.triggers[]</code> + GIN 索引，客户话里命中词 → 取 <code>public_url</code> 发图</td>
-          <td class="n">11 张海报</td>
-          <td><span class="light green">生产在跑</span><br><span style="font-size:12.5px">唯一真正在服务客户的图片投递</span></td>
-        </tr>
-        <tr>
-          <td><strong>pgvector 语义检索</strong></td>
-          <td><code>kb_entries</code> 362 条 / <code>kb_chunks</code> 482 块，bge-small-zh-v1.5 / 512 维</td>
-          <td class="n">314 文档的「精要」+ 48 图文</td>
-          <td><span class="light red">建完没开</span><br><span style="font-size:12.5px">线上 0 次调用</span></td>
-        </tr>
-        <tr>
-          <td><strong>关键词 → 资料投递</strong></td>
-          <td>L1 确定性词典 + L2 LLM 判断题兜底 + 投递状态机</td>
-          <td>设计覆盖全量</td>
-          <td><span class="light yellow">spec 定稿未实施</span><br><span style="font-size:12.5px">07-13 设计稿</span></td>
-        </tr>
-        <tr>
-          <td><strong>效果图图集站</strong></td>
-          <td>风格（源目录标签）× 空间（视觉补标）二维筛选</td>
-          <td class="n">11265 张</td>
-          <td><span class="light green">人工可用</span><br><span style="font-size:12.5px">AI 侧未接</span></td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <h3>发现 ②：那套检索不是效果不好，是根本没开</h3>
-
-  <p>2026-07-20 有人做过一次很扎实的验证，结论值得重复一遍，因为它意味着一笔已经付过的投入正躺着不产出：</p>
-
-  <ul>
-    <li>拿 <strong>20 条真实客户消息</strong>本地跑检索 → 命中 <strong>7/20 = 35%</strong>，且都是硬命中（0.60–0.72）</li>
-    <li>命中的全是真问题：「我预算就 3 万，110 平全屋柜子能做下来吗」0.666、「两万九只是基础价吧」0.719、「你们是什么牌子的板子」0.602</li>
-    <li>寒暄类（谢谢 / Hello / 我这边在山东）<strong>全部正确未命中</strong>——闸门是准的</li>
-    <li>但 Langfuse 近 24h 的 97 次对话生成里，含知识注入块的是 <strong>0 次</strong></li>
-  </ul>
-
-  <div class="alert info">
-    <div class="icon">🔍</div>
-    <div class="body">
-      <strong>「0 命中」本身不是证据，这个排除做得很对</strong>
-      <p>开着但没命中同样是 0。按 35% 的命中率，97 次里本应约 34 次带注入，实际 0 次 ⇒ <strong>不是没命中，是没开</strong>。缺的就是 Vercel 上一个 <code>KB_RETRIEVAL</code> 环境变量。</p>
-    </div>
-  </div>
-
-  <p>开之前要知道的两件事：一是知识块会稀释人设语气、输出客服腔（当年就是为此把注入从 3000 字砍到 1500），建议开完当天翻几条真实回复看语气；二是相似度闸 <strong>0.6 比 0.5 更稳</strong>，会滤掉 0.602 / 0.622 那两条边缘命中。回滚就是删这个 env。</p>
-
-  <h3>另一个一行代码级的阻塞</h3>
-
-  <div class="alert danger">
-    <div class="icon">🔴</div>
-    <div class="body">
-      <strong><code>buildKbSection</code> 把 <code>KbHit.file_url</code> 丢掉了</strong>
-      <p>即使检索命中，模型也看不见文件链接，<strong>所以它发不出资料</strong>。这意味着「问 X 发 X」这个需求在当前代码下不可能实现，跟检索质量无关。修法是仿企微 <code>matchPosters</code> 的套路加一个确定性投递分支——注意 <code>src/lib/llm.ts</code> 属高危路径，必须走 PR。</p>
-    </div>
-  </div>
-
-  <h2><span class="num">3</span>图片检索：结构化元数据，不是向量</h2>
-
-  <p>效果图 11265 张、知识图集 726 张，都是纯图片，没有可切块的文本。这里有一条已经用钱和时间买到的教训，不要重犯：</p>
-
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr><th>维度</th><th>视觉模型打标是否可用</th><th>实测结果</th><th>该怎么做</th></tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><strong>空间</strong><br><span style="font-size:12.5px">客厅/卧室/厨房…</span></td>
-          <td><span class="light green">可用</span></td>
-          <td>qwen2.5-vl 给 7679 张补标成功，成本约 $1。分布：客厅 3522 / 卧室 1290 / 餐厅 798 / 厨房 509 / 卫生间 434</td>
-          <td>已完成，图集站已按此筛选</td>
-        </tr>
-        <tr>
-          <td><strong>风格</strong><br><span style="font-size:12.5px">现代简约/新中式…</span></td>
-          <td><span class="light red">不可用</span></td>
-          <td>判风格<strong>全塌成「现代简约」</strong>；7 张工业风只对 1 张。缩略图和全分辨率都塌</td>
-          <td>用源目录标签，别视觉打标</td>
-        </tr>
-        <tr>
-          <td><strong>面积 / 户型</strong></td>
-          <td><span class="light grey">未做</span></td>
-          <td>—</td>
-          <td>核心缺口，见下</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <p>为什么这条重要：真实的调用场景锚点是<strong>「客户报 113 平 → 调 ±15 平的方案图」</strong>。这是一个 SQL 范围查询，语义向量帮不上任何忙。同理「只要现代简约的卫生间」是两个标签的交集，不是相似度排序。</p>
-
-  <div class="alert info">
-    <div class="icon">💡</div>
-    <div class="body">
-      <strong>所以图片这条路的正确形态</strong>
-      <p>把「风格（源目录）× 空间（已补标）× 面积/户型（待补）」做成结构化列 + 索引，检索是 <code>WHERE</code> 过滤而非向量召回。<strong>多模态 embedding 当前不值得上</strong>——它解决的是「找一张海边日落空镜」这种开放语义检索，而这里的查询都是可枚举的维度。</p>
-    </div>
-  </div>
-
-  <h2><span class="num">4</span>效果图正是视频产线缺的那个「真图」</h2>
-
-  <p>这是本次评估里最有价值的一个连接，目前没人接：</p>
-
-  <div class="layer built">
-    <div class="top"><h4>视频产线 v3 现状</h4><span class="lv">六工位</span></div>
-    <p>解构 → 重写 → <strong>即梦 Seedream 生图</strong> → 可灵 3.0 无声档图生视频 → 豆包 TTS → ffmpeg on Fly.io。成本 ¥50–120 / 条。</p>
-    <div class="chips">
-      <span class="chip">即梦 Seedream</span><span class="chip">可灵 3.0</span><span class="chip">豆包 TTS</span><span class="chip">ffmpeg / Fly.io</span>
-    </div>
-  </div>
-
-  <p>产线投产后反馈「可灵效果一般」（画质、真实感、跨镜一致性）。但归因存在混淆，而且这个混淆已经被记录下来了：</p>
-
-  <div class="alert warn">
-    <div class="icon">⚠️</div>
-    <div class="body">
-      <strong>当时的链路是「AI 生图 → 图生视频」，喂进去的是假图</strong>
-      <p>所以不能就此给引擎定罪。为此立了 M1 图源对照实验（真图 vs AI 图盲评），脚本 <code>ad-studio/tryout/arm_i2v.py</code> <strong>已就绪但一直没跑</strong>——因为 <code>jobs.json</code> 里还是占位 URL，缺真实图源。</p>
-    </div>
-  </div>
-
-  <div class="alert good">
-    <div class="icon">✅</div>
-    <div class="body">
-      <strong>而 R2 里躺着 11265 张真实效果图</strong>
-      <p>那正是占位 URL 缺的东西。用 <code>xiaoguotu/v2/…</code> 的真图填进 <code>jobs.json</code>，M1 立刻能跑——<strong>图已有、脚本已有、零新增采购</strong>，就能回答「假图是不是根因」这个决定视频产线走向的问题。考虑到已决定不再为可灵新增花费，先花近乎零的成本把归因搞清楚，明显优于换引擎重试。</p>
-    </div>
-  </div>
-
-  <p>换个角度说：<strong>效果图不只是「发给客户的素材」，它同时是视频产线的原料</strong>。现在这两个系统各自把 R2 当仓库用，但没有共享的素材索引，所以一边缺图、一边有图，互相不知道。</p>
-
-  <h2><span class="num">5</span>企微链路的两个硬阻塞</h2>
-
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>阻塞</th><th>性质</th><th>说明</th><th>能否绕过</th></tr></thead>
-      <tbody>
-        <tr>
-          <td><strong>ICP 备案主体校验</strong></td>
-          <td>行政</td>
-          <td>企微「客服 kf 回调」和「自建应用接收消息 API」都要求回调域名已 ICP 备案、且备案主体＝企业营业执照主体。<code>*.fly.dev</code> / <code>*.vercel.app</code> / 裸 IP 全部被 <code>Domain entity verification failed</code> 拦下，连握手都到不了</td>
-          <td class="neg">不能。<code>.ai</code> 是安圭拉国别域，不在工信部可备案 TLD 名单内——不是没去备，是备不了</td>
-        </tr>
-        <tr>
-          <td><strong><code>buildKbSection</code> 丢 <code>file_url</code></strong></td>
-          <td>代码</td>
-          <td>检索结果里的文件链接没进 prompt，模型看不见 → 发不出资料</td>
-          <td class="pos">能，一个小 PR（高危路径需走 PR 流程）</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <p>顺序建议：备案是行政前置、周期不可控，<strong>不要让它挡住其他事</strong>。先把不依赖备案的部分（检索开关、file_url、台账、M1 实验）全部推进，备案通了再接回调。</p>
-
-  <h2><span class="num">6</span>建议的三层结构（不新增任何供应商）</h2>
-
-  <div class="layer miss">
-    <div class="top"><h4>台账层 · 素材的单一事实源</h4><span class="lv">L1 · 缺失</span></div>
-    <p>R2 里每个对象一行：key、类型、尺寸、所属集合、结构化标签（风格 / 空间 / 面积 / 主题）、水印状态、授权状态、对外可用与否。由定时任务对账 R2，而不是人工维护 JSON。<strong>这是 Finding 01 那个 4.8 倍漂移的唯一解</strong>，也是让两个系统能互相看见素材的前提。</p>
-    <div class="chips"><span class="chip">Postgres 表</span><span class="chip">定时对账 R2</span><span class="chip">不存二进制</span></div>
-  </div>
-
-  <div class="layer built">
-    <div class="top"><h4>检索层 · 文本走向量，图片走过滤</h4><span class="lv">L2 · 已建未启用</span></div>
-    <p>文本（314 文档 + 图文 + 话术）走已建好的 pgvector；图片走台账层的结构化列做 <code>WHERE</code> 过滤。两条路径并存，不要试图用一种覆盖另一种。</p>
-    <div class="chips"><span class="chip">pgvector · bge-small-zh-v1.5</span><span class="chip">结构化过滤</span><span class="chip">MIN_SIM 0.6</span></div>
-  </div>
-
-  <div class="layer ok">
-    <div class="top"><h4>投递层 · 确定性优先</h4><span class="lv">L3 · 部分就绪</span></div>
-    <p><code>matchPosters</code> 那套「命中词 → 取 URL → 发图」的确定性套路是对的，扩展它而不是重写。抖音侧只发纯文字（风控红线：私信不发外链、不发我方微信号），文件链接只在企微侧发。</p>
-    <div class="chips"><span class="chip">matchPosters 模式</span><span class="chip">deliverMaterial() 待建</span><span class="chip">投递状态机防重发</span></div>
-  </div>
-
-  <h2><span class="num">7</span>行动清单（按性价比排序）</h2>
-
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>#</th><th>动作</th><th>成本</th><th>收益</th></tr></thead>
-      <tbody>
-        <tr>
-          <td class="n">1</td>
-          <td><strong>打开 pgvector 检索</strong><br><span style="font-size:13px">Vercel 设 <code>KB_RETRIEVAL=on</code>，<code>KB_RETRIEVAL_MIN_SIM=0.6</code></span></td>
-          <td><span class="light green">一个 env</span></td>
-          <td>35% 的真实客户消息立刻获得知识注入。已验证过的能力，目前零产出</td>
-        </tr>
-        <tr>
-          <td class="n">2</td>
-          <td><strong>修 <code>buildKbSection</code> 保留 <code>file_url</code></strong></td>
-          <td><span class="light green">小 PR</span></td>
-          <td>让「问 X 发 X」从不可能变为可能。是 #1 的收益放大器</td>
-        </tr>
-        <tr>
-          <td class="n">3</td>
-          <td><strong>拿真图跑 M1 盲评</strong><br><span style="font-size:13px">用 <code>xiaoguotu/v2</code> 填 <code>jobs.json</code> 的占位 URL</span></td>
-          <td><span class="light green">近零</span></td>
-          <td>回答「假图是否为可灵效果差的根因」，直接决定视频产线走向</td>
-        </tr>
-        <tr>
-          <td class="n">4</td>
-          <td><strong>建素材台账表 + 定时对账</strong></td>
-          <td><span class="light yellow">中</span></td>
-          <td>止住 4.8× 漂移；「有什么素材」可被准确回答；两个系统开始共享素材视图</td>
-        </tr>
-        <tr>
-          <td class="n">5</td>
-          <td><strong>效果图补面积 / 户型标签</strong></td>
-          <td><span class="light yellow">小额视觉打标</span></td>
-          <td>支撑「客户报 113 平 → ±15 平方案图」这个核心场景。<strong>只补可判维度，风格维度别碰</strong></td>
-        </tr>
-        <tr>
-          <td class="n">6</td>
-          <td><strong>完成 C 方案：抽全文</strong><br><span style="font-size:13px">314 份现在只索引了一句话精要</span></td>
-          <td><span class="light yellow">中</span></td>
-          <td>让「生成清单」有真原料。<strong>现状靠一句话精要生成 = 编造发生器</strong></td>
-        </tr>
-        <tr>
-          <td class="n">7</td>
-          <td><strong>企微备案域名</strong></td>
-          <td><span class="light red">行政 · 周期不可控</span></td>
-          <td>解锁企微回调。<strong>并行推进，不要挡住 1–6</strong></td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <div class="alert warn">
-    <div class="icon">⚠️</div>
-    <div class="body">
-      <strong>#6 的三个已知坑（别踩第二遍）</strong>
-      <p>① <code>xlrd</code> 未装，而 67 份 xls 恰恰是清单类内容最密集的，不能跳；② 11 份 pdf 是扫描件（<code>pdftotext</code> 无效），且恰是最像干货书的几本，要么 OCR 要么明确挂账，别静默跳过；③ bge-small-zh-v1.5 上限 512 token，单块正文必须卡在 450 字符内，超了<strong>静默截断</strong>；④ 灌完全文<strong>必须重新标定 <code>MIN_SIM</code></strong>——0.5 / 0.6 是拿摘要块标的，全文块相似度分布不同。</p>
-    </div>
-  </div>
-
-  <h2><span class="num">8</span>明确不建议做的事</h2>
-
-  <ul class="no-list">
-    <li><span class="x">✗</span><div><strong>微调 / 训练任何模型。</strong>这里没有一个需求是训练能解决的。资料改一次就要重训，事实准确率还不如直接检索。</div></li>
-    <li><span class="x">✗</span><div><strong>为图片检索上多模态 embedding。</strong>查询维度是可枚举的（风格 / 空间 / 面积），结构化过滤更准更便宜。而且风格维度的视觉打标已实测不可用。</div></li>
-    <li><span class="x">✗</span><div><strong>新增向量库供应商。</strong>pgvector 在这个量级（482 → 预计 4000–6000 chunk）远未到瓶颈，多一个供应商多一份会静默烧钱的账单。</div></li>
-    <li><span class="x">✗</span><div><strong>为可灵新增花费来「再试试」。</strong>先用 R2 真图把归因做掉（动作 #3），再决定要不要花钱。</div></li>
-    <li><span class="x">✗</span><div><strong>在抖音私信发外链或我方微信号。</strong>风控红线，现有代码已经守住了，新增投递逻辑不要破坏它。</div></li>
-    <li><span class="x">✗</span><div><strong>把「有什么素材」写死在文档里。</strong>这次的 4.8 倍漂移已经证明人工快照必然失真，要么查台账要么别答。</div></li>
-  </ul>
-
-  <footer>
-    <p><strong>数据来源与核验方式。</strong>桶用量（63429 对象 / 58.55 GiB）为 2026-07-30 经 Cloudflare API <code>/r2/buckets/akke-kb/usage</code> 实测；桶清单同日实测。素材构成（314 / 11265 / 726 / 48 / 11）、检索命中率 35%、视觉打标实测结论、产线选型与 M1 实验状态均引自项目 memory 与 <code>docs/specs/</code>，为 07-13 至 07-26 期间的记录。企微 ICP 校验结论为 07-07 实测。</p>
-    <p><strong>本报告未能独立核实的一项：</strong>63429 个对象按类型的分解（含视频数量与前缀）。需要 R2 S3 密钥，本机不可得；核查命令见第 1 节。<strong>在核实之前，不要对外承诺发送视频素材。</strong></p>
-    <p><a href="/akke">← 返回 Akke 知识库目录</a> · <a href="/">upio.ai</a></p>
-  </footer>
-
+<div class="bg">
+  <div class="grid"></div>
+  <div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
+  <div class="noise"></div>
 </div>
+<div class="progress" id="progress"></div>
+
+<nav class="rail" id="rail">
+  <a href="#hero" data-s="hero"><span class="tick"></span><span class="lbl">结论</span></a>
+  <a href="#inv" data-s="inv"><span class="tick"></span><span class="lbl">家底实测</span></a>
+  <a href="#ch" data-s="ch"><span class="tick"></span><span class="lbl">三条通路</span></a>
+  <a href="#switch" data-s="switch"><span class="tick"></span><span class="lbl">没开的开关</span></a>
+  <a href="#img" data-s="img"><span class="tick"></span><span class="lbl">图片检索</span></a>
+  <a href="#video" data-s="video"><span class="tick"></span><span class="lbl">缺失的真图</span></a>
+  <a href="#block" data-s="block"><span class="tick"></span><span class="lbl">硬阻塞</span></a>
+  <a href="#arch" data-s="arch"><span class="tick"></span><span class="lbl">三层结构</span></a>
+  <a href="#act" data-s="act"><span class="tick"></span><span class="lbl">行动清单</span></a>
+</nav>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero" id="hero">
+    <span class="tag rv"><span class="pulse"></span>素材调用能力评估 · 2026-07-30</span>
+    <h1 class="rv">58.55 GiB 素材<br>怎样被<span class="accent">精准调出来</span><span class="cursor"></span></h1>
+    <p class="desc rv">R2 里的资料、效果图与视频，如何被<b>企业微信</b>和<b>视频产线</b>更高效地调用——盘完代码后的结论是：能力已建约七成，<b>卡在最后一公里</b>，而且不需要训练任何模型。</p>
+    <p class="role rv">// 实测 + 代码盘点口径 · 未核实项在页尾明确挂账</p>
+    <div class="ticker rv">
+      <span class="chip"><span class="d"></span>R2 · 63,429 对象</span>
+      <span class="chip"><span class="d a"></span>台账漂移 4.8×</span>
+      <span class="chip"><span class="d r"></span>PGVECTOR · 建完未启用</span>
+      <span class="chip"><span class="d b"></span>效果图 11,265 张</span>
+      <span class="chip"><span class="d"></span>结构化过滤 &gt; 多模态向量</span>
+      <span class="chip"><span class="d a"></span>不需要训练模型</span>
+    </div>
+    <div class="scrollcue"><span class="bar"></span>SCROLL / 向下滚动</div>
+  </section>
+
+  <!-- 01 家底 -->
+  <section id="inv">
+    <div class="sec-head rv">
+      <span class="idx">01</span>
+      <div><span class="eyebrow">Inventory · Ledger Drift</span>
+      <h2>家底实测，和台账不符</h2></div>
+    </div>
+    <p class="lede rv">今天用 Cloudflare API 直接查了 <code>akke-kb</code> 桶的用量，和项目文档里记的家底<strong>差了近 5 倍</strong>。这不是谁没维护——而是<strong>人工维护的清单追不上一个天天在写入的对象存储</strong>。</p>
+
+    <div class="statband stagger">
+      <div class="stat"><div class="v"><span class="cnum" data-v="63429">0</span></div><div class="l">对象数<br>2026-07-30 实测</div></div>
+      <div class="stat"><div class="v">58.55<span class="suf">GiB</span></div><div class="l">桶体积<br>同日实测</div></div>
+      <div class="stat warn"><div class="v">4.8<span class="suf">×</span></div><div class="l">对象数漂移<br>相对文档记载</div></div>
+      <div class="stat"><div class="v"><span class="cnum" data-v="11265">0</span></div><div class="l">效果图张数<br>07-26 口径</div></div>
+    </div>
+
+    <div class="hbar rv" style="margin-top:34px">
+      <div class="row">
+        <span class="lab">文档记载<br><span style="color:var(--dim);font-size:11.5px">07-18 / 07-26 快照</span></span>
+        <span class="track"><span class="fill dim" data-w="21"></span></span>
+        <span class="val">13,130 <span class="u">obj</span></span>
+      </div>
+      <div class="row">
+        <span class="lab">今日实测<br><span style="color:var(--dim);font-size:11.5px">Cloudflare API</span></span>
+        <span class="track"><span class="fill" data-w="100"></span></span>
+        <span class="val">63,429 <span class="u">obj</span></span>
+      </div>
+    </div>
+    <p class="chart-note rv">// 桶在两周内长了近 <b>5 万个对象</b>，体积从 22.21 G 到 58.55 GiB。那份「素材家底与调用口径」是 07-26 更新的，<b>四天就失真</b>。</p>
+
+    <div class="note-band r rv">
+      <span class="k">Impact</span>
+      <p>三个真实后果：① 运营答不准客户「你们有什么资料」；② AI 回复可能承诺一份<b>实际不存在</b>的素材（编造的一种）；③ <b>「R2 里的视频」这件事，用现有台账无法确认</b>——文档明确写着 13130 个文件里只有 1 个 mp4、「不构成视频库」，但那是 07-26 的快照，而桶此后又长了 4.8 倍。视频可能就在新增的那批里。</p>
+    </div>
+
+    <div class="band a rv">
+      <span class="k">本报告未能独立核实的一项</span>
+      <p>要按类型分解那 63429 个对象需要 R2 的 S3 密钥。本机 <code>.env.local</code> 里没有，Cloudflare API token 只能拿总量、列不了对象，<code>wrangler</code> 也没有 <code>r2 object list</code> 子命令。<b>所以「视频有多少、在哪个前缀下」这条不下结论。</b>补齐凭据后一条命令即可核实：</p>
+    </div>
+
+<pre>aws s3api list-objects-v2 --bucket akke-kb \
+  --endpoint-url https://<b>&lt;account-id&gt;</b>.r2.cloudflarestorage.com \
+  --query 'Contents[].Key' --output text | tr '\t' '\n' \
+  | awk -F. '{print tolower($NF)}' | sort | uniq -c | sort -rn</pre>
+
+    <p class="chart-note rv">// 已知素材构成（07-26 口径，量级参考非现状）：第三方资料 <b>314</b> 份 · 效果图 <b>11265</b> 张 · 知识图集 <b>726</b> 张 · 原创图文 <b>48</b> 篇 · 官方海报 <b>11</b> 张。</p>
+  </section>
+
+  <!-- 02 三条通路 -->
+  <section id="ch">
+    <div class="sec-head rv">
+      <span class="idx">02</span>
+      <div><span class="eyebrow">Existing Channels · 70% Built</span>
+      <h2>调用能力其实已经有三套</h2></div>
+    </div>
+    <p class="lede rv">盘完代码，「把素材调出来」已经有三套机制，成熟度差别很大——<strong>缺的不是能力，是把它们接通</strong>。</p>
+
+    <div class="rv" style="overflow-x:auto">
+      <table class="spec">
+        <thead><tr><th>通路</th><th>机制</th><th>覆盖</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>海报确定性投递</td>
+            <td><code>enterprise_posters.triggers[]</code> + GIN 索引，客户话里命中词 → 取 <code>public_url</code> 发图</td>
+            <td class="mn">11 张</td>
+            <td><span class="lt g">生产在跑</span><br><span style="font-size:12px;color:var(--muted)">唯一真正在服务客户的图片投递</span></td>
+          </tr>
+          <tr>
+            <td>pgvector 语义检索</td>
+            <td><code>kb_entries</code> 362 条 / <code>kb_chunks</code> 482 块 · bge-small-zh-v1.5 · 512 维</td>
+            <td class="mn">314 文档精要<br>+ 48 图文</td>
+            <td><span class="lt r">建完没开</span><br><span style="font-size:12px;color:var(--muted)">线上 0 次调用</span></td>
+          </tr>
+          <tr>
+            <td>关键词 → 资料投递</td>
+            <td>L1 确定性词典 + L2 LLM 判断题兜底 + 投递状态机防重发</td>
+            <td class="mn">设计覆盖全量</td>
+            <td><span class="lt y">spec 定稿未实施</span><br><span style="font-size:12px;color:var(--muted)">07-13 设计稿</span></td>
+          </tr>
+          <tr>
+            <td>效果图图集站</td>
+            <td>风格（源目录标签）× 空间（视觉补标）二维筛选</td>
+            <td class="mn">11265 张</td>
+            <td><span class="lt g">人工可用</span><br><span style="font-size:12px;color:var(--muted)">AI 侧未接</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 03 没开的开关 -->
+  <section id="switch">
+    <div class="sec-head rv">
+      <span class="idx">03</span>
+      <div><span class="eyebrow">The Switch · Highest ROI</span>
+      <h2>那套检索不是效果不好，是根本没开</h2></div>
+    </div>
+    <p class="lede rv">2026-07-20 有人做过一次很扎实的验证。结论值得重复，因为它意味着<strong>一笔已经付过的投入正躺着不产出</strong>。</p>
+
+    <div class="hbar rv">
+      <div class="row">
+        <span class="lab">检索命中<br><span style="color:var(--dim);font-size:11.5px">相似度 0.60–0.72</span></span>
+        <span class="track"><span class="fill" data-w="35"></span></span>
+        <span class="val">7 / 20 <span class="u">条</span></span>
+      </div>
+      <div class="row">
+        <span class="lab">正确未命中<br><span style="color:var(--dim);font-size:11.5px">寒暄 / 无关话</span></span>
+        <span class="track"><span class="fill dim" data-w="65"></span></span>
+        <span class="val">13 / 20 <span class="u">条</span></span>
+      </div>
+      <div class="row">
+        <span class="lab">线上实际注入<br><span style="color:var(--dim);font-size:11.5px">Langfuse 近 24h / 97 次</span></span>
+        <span class="track"><span class="fill rose" data-w="1"></span></span>
+        <span class="val">0 <span class="u">次</span></span>
+      </div>
+    </div>
+    <p class="chart-note rv">// 命中的全是真问题：「我预算就 3 万，110 平全屋柜子能做下来吗」<b>0.666</b> · 「两万九只是基础价吧」<b>0.719</b> · 「你们是什么牌子的板子」<b>0.602</b>。寒暄类全部正确未命中——<b>闸门是准的</b>。</p>
+
+    <div class="why rv" style="margin-top:30px">
+      <span class="k">Reasoning</span>
+      <p>「0 命中」本身<b>不算证据</b>——开着但没命中同样是 0。按 35% 命中率，97 次里本应约 <b>34 次</b>带注入，实际 0 次 ⇒ <b>不是没命中，是没开</b>。缺的就是 Vercel 上一个 <code>KB_RETRIEVAL</code> 环境变量。</p>
+    </div>
+
+    <div class="grid2 stagger" style="margin-top:20px">
+      <div class="cell">
+        <span class="ico a"><svg viewBox="0 0 24 24"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></span>
+        <h3>开之前要知道的两件事</h3>
+        <p><b>一、语气会被稀释。</b>知识块会冲淡人设、输出客服腔——当年就是为此把注入从 3000 字砍到 1500。建议开完当天翻几条真实回复看语气。</p>
+        <p><b>二、闸门用 0.6 更稳。</b>会滤掉 0.602 / 0.622 那两条边缘命中。回滚就是删这个 env。</p>
+      </div>
+      <div class="cell">
+        <span class="ico r"><svg viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>
+        <h3>另一个一行代码级的阻塞</h3>
+        <p><code>buildKbSection</code> 把 <code>KbHit.file_url</code> 丢掉了——即使检索命中，<b>模型也看不见文件链接，所以它发不出资料</b>。</p>
+        <p>这意味着「问 X 发 X」在当前代码下<b>不可能实现</b>，跟检索质量无关。修法是仿企微 <code>matchPosters</code> 加一个确定性投递分支。<code>src/lib/llm.ts</code> 属高危路径，必须走 PR。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 图片检索 -->
+  <section id="img">
+    <div class="sec-head rv">
+      <span class="idx">04</span>
+      <div><span class="eyebrow">Image Retrieval · Metadata Over Vectors</span>
+      <h2>图片这条路，别指望向量</h2></div>
+    </div>
+    <p class="lede rv">效果图 11265 张、知识图集 726 张，都是纯图片，<strong>没有可切块的文本</strong>。这里有一条已经用钱和时间买到的教训，不要重犯。</p>
+
+    <div class="rv" style="overflow-x:auto">
+      <table class="spec">
+        <thead><tr><th>维度</th><th>视觉打标</th><th>实测结果</th><th>该怎么做</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>空间<br><span style="font-size:12px;color:var(--muted);font-weight:400">客厅 / 卧室 / 厨房…</span></td>
+            <td><span class="lt g">可用</span></td>
+            <td>qwen2.5-vl 给 <span class="mn">7679</span> 张补标成功，成本约 <span class="mn">$1</span></td>
+            <td>已完成，图集站已按此筛选</td>
+          </tr>
+          <tr>
+            <td>风格<br><span style="font-size:12px;color:var(--muted);font-weight:400">现代简约 / 新中式…</span></td>
+            <td><span class="lt r">不可用</span></td>
+            <td>判风格<b style="color:var(--rose)">全塌成「现代简约」</b>；7 张工业风只对 1 张。缩略图和全分辨率都塌</td>
+            <td>用源目录标签，别视觉打标</td>
+          </tr>
+          <tr>
+            <td>面积 / 户型</td>
+            <td><span class="lt d">未做</span></td>
+            <td>—</td>
+            <td><b>核心缺口</b>，支撑「113 平 → ±15 平」</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="hbar rv" style="margin-top:30px">
+      <div class="row"><span class="lab">客厅</span><span class="track"><span class="fill" data-w="100"></span></span><span class="val">3,522</span></div>
+      <div class="row"><span class="lab">卧室</span><span class="track"><span class="fill" data-w="37"></span></span><span class="val">1,290</span></div>
+      <div class="row"><span class="lab">餐厅</span><span class="track"><span class="fill" data-w="23"></span></span><span class="val">798</span></div>
+      <div class="row"><span class="lab">厨房</span><span class="track"><span class="fill" data-w="15"></span></span><span class="val">509</span></div>
+      <div class="row"><span class="lab">卫生间</span><span class="track"><span class="fill" data-w="13"></span></span><span class="val">434</span></div>
+    </div>
+    <p class="chart-note rv">// 视觉补标出来的空间分布（7679 张「按风格」图）。这是<b>可用</b>的那一半——风格维度同样试过，塌了。</p>
+
+    <div class="band rv">
+      <span class="k">所以图片检索的正确形态</span>
+      <p>真实调用场景的锚点是<b>「客户报 113 平 → 调 ±15 平的方案图」</b>——这是一个 SQL 范围查询，语义向量帮不上任何忙。同理「只要现代简约的卫生间」是两个标签的交集，不是相似度排序。</p>
+      <p>把「风格（源目录）× 空间（已补标）× 面积/户型（待补）」做成结构化列 + 索引，检索走 <code>WHERE</code> 过滤。<b>多模态 embedding 当前不值得上</b>——它解决的是「找一张海边日落空镜」这种开放语义检索，而这里的查询维度都是可枚举的。</p>
+    </div>
+  </section>
+
+  <!-- 05 缺失的真图 -->
+  <section id="video">
+    <div class="sec-head rv">
+      <span class="idx">05</span>
+      <div><span class="eyebrow">The Missing Input · Cross-System</span>
+      <h2>效果图正是视频产线缺的那个真图</h2></div>
+    </div>
+    <p class="lede rv">这是本次评估里<strong>最有价值的一个连接</strong>，目前没人接。</p>
+
+    <div class="pipe rv">
+      <div class="flowdot"></div>
+      <div class="pstep" style="--who:var(--blue)"><span class="who">LLM<br>解构</span><span class="txt">拆解原片结构 → <b>重写文稿</b></span></div>
+      <div class="pstep" style="--who:var(--amber)"><span class="who">生图<br>即梦</span><span class="txt">即梦 Seedream 出图 —— <b>问题就在这一步：喂进下游的是 AI 生成的假图</b></span></div>
+      <div class="pstep" style="--who:var(--violet)"><span class="who">I2V<br>可灵</span><span class="txt">可灵 3.0 <b>无声档</b>图生视频（省配音成本）</span></div>
+      <div class="pstep" style="--who:var(--teal)"><span class="who">TTS<br>豆包</span><span class="txt">豆包授权音色配音</span></div>
+      <div class="pstep" style="--who:var(--rose)"><span class="who">合成<br>ffmpeg</span><span class="txt">ffmpeg on Fly.io 拼接 + 打 AIGC 标 → 成本 <b>¥50–120 / 条</b></span></div>
+    </div>
+
+    <div class="note-band rv" style="margin-top:28px">
+      <span class="k">归因混淆</span>
+      <p>产线投产后反馈「可灵效果一般」（画质、真实感、跨镜一致性）。但<b>当时的链路是「AI 生图 → 图生视频」，喂进去的是假图</b>——不能就此给引擎定罪。为此立了 M1 图源对照实验（真图 vs AI 图盲评），脚本 <code>ad-studio/tryout/arm_i2v.py</code> <b>已就绪但一直没跑</b>，因为 <code>jobs.json</code> 里还是占位 URL，缺真实图源。</p>
+    </div>
+
+    <div class="why rv">
+      <span class="k">The Connection</span>
+      <p>而 R2 里躺着 <b>11265 张真实效果图</b>，那正是占位 URL 缺的东西。用 <code>xiaoguotu/v2/…</code> 的真图填进 <code>jobs.json</code>，M1 立刻能跑——<b>图已有、脚本已有、零新增采购</b>，就能回答「假图是不是根因」这个决定视频产线走向的问题。</p>
+    </div>
+
+    <div class="band rv">
+      <span class="k">换个角度</span>
+      <p><b>效果图不只是「发给客户的素材」，它同时是视频产线的原料。</b>现在这两个系统各自把 R2 当仓库用，但没有共享的素材索引，所以一边缺图、一边有图，<b>互相不知道</b>。考虑到已决定不再为可灵新增花费，先花近乎零的成本把归因搞清楚，明显优于换引擎重试。</p>
+    </div>
+  </section>
+
+  <!-- 06 硬阻塞 -->
+  <section id="block">
+    <div class="sec-head rv">
+      <span class="idx">06</span>
+      <div><span class="eyebrow">Blockers · One Admin, One Code</span>
+      <h2>企微链路的两个硬阻塞</h2></div>
+    </div>
+    <div class="grid2 stagger">
+      <div class="cell">
+        <span class="ico r"><svg viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
+        <h3><span class="m">ADMIN · 不可绕过</span>ICP 备案主体校验</h3>
+        <p>企微「客服 kf 回调」和「自建应用接收消息 API」都要求回调域名<b>已 ICP 备案、且备案主体 = 企业营业执照主体</b>。<code>*.fly.dev</code> / <code>*.vercel.app</code> / 裸 IP 全部被 <code>Domain entity verification failed</code> 拦下，连握手都到不了。</p>
+        <p><b style="color:var(--rose)">不能绕。</b><code>.ai</code> 是安圭拉国别域，不在工信部可备案 TLD 名单内——不是没去备，是<b>备不了</b>。</p>
+      </div>
+      <div class="cell">
+        <span class="ico a"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15h6"/></svg></span>
+        <h3><span class="m">CODE · 一个小 PR</span>buildKbSection 丢 file_url</h3>
+        <p>检索结果里的文件链接没进 prompt，模型看不见 → <b>发不出资料</b>。</p>
+        <p><b style="color:var(--teal)">能修。</b>一个小 PR 即可，属高危路径需走 PR 流程。它是「打开检索」那个动作的<b>收益放大器</b>——不修的话，检索开了也只能「说」不能「发」。</p>
+      </div>
+    </div>
+    <div class="band a rv">
+      <span class="k">顺序建议</span>
+      <p>备案是行政前置、<b>周期不可控</b>，不要让它挡住其他事。先把不依赖备案的部分（检索开关、file_url、台账、M1 实验）全部推进，备案通了再接回调。</p>
+    </div>
+  </section>
+
+  <!-- 07 三层结构 -->
+  <section id="arch">
+    <div class="sec-head rv">
+      <span class="idx">07</span>
+      <div><span class="eyebrow">Target Architecture · No New Vendor</span>
+      <h2>建议的三层结构</h2></div>
+    </div>
+    <p class="lede rv">不新增任何供应商——pgvector 在这个量级远未到瓶颈，多一个向量库就多一份<strong>会静默烧钱的账单</strong>。</p>
+    <div class="cols3 stagger">
+      <div class="colbox hard">
+        <h4><span class="st"></span>L1 台账层 · 缺失</h4>
+        <ul>
+          <li>R2 里每个对象<b>一行记录</b></li>
+          <li>key / 类型 / 尺寸 / 所属集合</li>
+          <li>结构化标签：<b>风格 × 空间 × 面积 × 主题</b></li>
+          <li>水印状态 / 授权状态 / 对外可用与否</li>
+          <li><b>定时对账 R2</b>，而非人工维护 JSON</li>
+          <li>这是 4.8 倍漂移的<b>唯一解</b></li>
+        </ul>
+      </div>
+      <div class="colbox wip">
+        <h4><span class="st"></span>L2 检索层 · 已建未启用</h4>
+        <ul>
+          <li>文本走 <b>pgvector</b>（已建好）</li>
+          <li>图片走台账层<b>结构化列过滤</b></li>
+          <li>两条路径<b>并存</b>，别用一种覆盖另一种</li>
+          <li><code>MIN_SIM</code> 用 <b>0.6</b> 更稳</li>
+          <li>灌全文后<b>必须重标闸门</b></li>
+        </ul>
+      </div>
+      <div class="colbox ship">
+        <h4><span class="st"></span>L3 投递层 · 部分就绪</h4>
+        <ul>
+          <li><code>matchPosters</code> 那套确定性套路<b>是对的</b></li>
+          <li><b>扩展它</b>，不要重写</li>
+          <li>抖音侧<b>只发纯文字</b>（风控红线）</li>
+          <li>文件链接<b>只在企微侧</b>发</li>
+          <li>投递状态机<b>防重发</b></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 08 行动清单 -->
+  <section id="act">
+    <div class="sec-head rv">
+      <span class="idx">08</span>
+      <div><span class="eyebrow">Actions · Ranked by ROI</span>
+      <h2>按性价比排序的七件事</h2></div>
+    </div>
+    <div class="rv" style="overflow-x:auto">
+      <table class="spec">
+        <thead><tr><th>#</th><th>动作</th><th>成本</th><th>收益</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="rk">01</td>
+            <td><b>打开 pgvector 检索</b><br><span style="font-size:12.5px;color:var(--muted)">Vercel 设 <code>KB_RETRIEVAL=on</code> · <code>KB_RETRIEVAL_MIN_SIM=0.6</code></span></td>
+            <td><span class="lt g">一个 env</span></td>
+            <td>35% 的真实客户消息立刻获得知识注入。<b>已验证过的能力，目前零产出</b></td>
+          </tr>
+          <tr>
+            <td class="rk">02</td>
+            <td><b>修 <code>buildKbSection</code> 保留 <code>file_url</code></b></td>
+            <td><span class="lt g">小 PR</span></td>
+            <td>让「问 X 发 X」从不可能变为可能。是 01 的<b>收益放大器</b></td>
+          </tr>
+          <tr>
+            <td class="rk">03</td>
+            <td><b>拿真图跑 M1 盲评</b><br><span style="font-size:12.5px;color:var(--muted)">用 <code>xiaoguotu/v2</code> 填 <code>jobs.json</code> 占位 URL</span></td>
+            <td><span class="lt g">近零</span></td>
+            <td>回答「假图是否为可灵效果差的根因」，直接决定<b>视频产线走向</b></td>
+          </tr>
+          <tr>
+            <td class="rk">04</td>
+            <td><b>建素材台账表 + 定时对账</b></td>
+            <td><span class="lt y">中</span></td>
+            <td>止住 4.8× 漂移；「有什么素材」可被准确回答；<b>两个系统开始共享素材视图</b></td>
+          </tr>
+          <tr>
+            <td class="rk">05</td>
+            <td><b>效果图补面积 / 户型标签</b></td>
+            <td><span class="lt y">小额打标</span></td>
+            <td>支撑「113 平 → ±15 平方案图」核心场景。<b>只补可判维度，风格别碰</b></td>
+          </tr>
+          <tr>
+            <td class="rk">06</td>
+            <td><b>完成 C 方案：抽全文</b><br><span style="font-size:12.5px;color:var(--muted)">314 份现在只索引了一句话精要</span></td>
+            <td><span class="lt y">中</span></td>
+            <td>让「生成清单」有真原料。<b>现状靠一句话精要生成 = 编造发生器</b></td>
+          </tr>
+          <tr>
+            <td class="rk">07</td>
+            <td><b>企微备案域名</b></td>
+            <td><span class="lt r">行政 · 不可控</span></td>
+            <td>解锁企微回调。<b>并行推进，不要挡住 01–06</b></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note-band rv">
+      <span class="k">06 的四个坑</span>
+      <p>① <code>xlrd</code> 未装，而 67 份 xls 恰恰是<b>清单类内容最密集</b>的，不能跳；② 11 份 pdf 是扫描件（<code>pdftotext</code> 无效），且恰是最像干货书的几本，要么 OCR 要么明确挂账，<b>别静默跳过</b>；③ bge-small-zh-v1.5 上限 512 token，单块正文必须卡在 <b>450 字符</b>内，超了<b>静默截断</b>；④ 灌完全文<b>必须重新标定 <code>MIN_SIM</code></b>——0.5 / 0.6 是拿摘要块标的，全文块相似度分布不同。</p>
+    </div>
+
+    <h3 style="font-family:var(--serif);font-size:22px;color:var(--head);margin:56px 0 4px">明确不建议做的事</h3>
+    <p class="lede rv" style="margin:10px 0 26px">每一条都对应一个已经踩过或算过的坑。</p>
+    <div class="nolist stagger">
+      <div class="noitem"><span class="x"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></span>
+        <p><b>微调 / 训练任何模型。</b>这里没有一个需求是训练能解决的。资料改一次就要重训，事实准确率还不如直接检索。</p></div>
+      <div class="noitem"><span class="x"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></span>
+        <p><b>为图片检索上多模态 embedding。</b>查询维度是可枚举的（风格 / 空间 / 面积），结构化过滤更准更便宜。而且风格维度的视觉打标<b>已实测不可用</b>。</p></div>
+      <div class="noitem"><span class="x"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></span>
+        <p><b>新增向量库供应商。</b>pgvector 在这个量级（482 → 预计 4000–6000 chunk）远未到瓶颈。</p></div>
+      <div class="noitem"><span class="x"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></span>
+        <p><b>为可灵新增花费来「再试试」。</b>先用 R2 真图把归因做掉（动作 03），再决定要不要花钱。</p></div>
+      <div class="noitem"><span class="x"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></span>
+        <p><b>在抖音私信发外链或我方微信号。</b>风控红线，现有代码已经守住了，新增投递逻辑不要破坏它。</p></div>
+      <div class="noitem"><span class="x"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></span>
+        <p><b>把「有什么素材」写死在文档里。</b>这次的 4.8 倍漂移已经证明人工快照必然失真——<b>要么查台账，要么别答</b>。</p></div>
+    </div>
+
+    <div class="quote rv">
+      <b>一句话总括：</b>调用能力已建约七成，卡在最后一公里。<b>不需要训练模型</b>，也<b>不需要多模态向量库</b>——最高性价比的动作是打开一个已经建完、验完、但生产从未启用的检索开关；最被低估的机会是让<b>效果图同时成为视频产线的原料</b>；最该先修的结构性缺口是一份<b>能自己对账的素材台账</b>。
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="fl">
+    <span class="brand">Akke <span style="color:var(--teal)">/</span> 素材调用能力评估
+      <a href="/akke">← 返回 Akke 知识库目录</a>
+    </span>
+    <span class="meta">
+      桶用量（<b>63,429 对象 / 58.55 GiB</b>）为 2026-07-30 经 Cloudflare API <code style="font-size:11px">/r2/buckets/akke-kb/usage</code> 实测<br>
+      素材构成 · 检索命中率 · 视觉打标结论 · 产线选型引自项目 memory 与 docs/specs（07-13 至 07-26 记录）<br>
+      企微 ICP 校验结论为 07-07 实测<br>
+      <span class="warn">未独立核实：63429 对象的类型分解（含视频数量）—— 核实前不要对外承诺发送视频素材</span><br>
+      <b>upio.ai/akke/material-retrieval-eval-2026-07-30</b>
+    </span>
+  </div>
+</footer>
+
+<script>
+  // 滚动进度条
+  const prog=document.getElementById('progress');
+  const onScroll=()=>{
+    const h=document.documentElement;
+    const p=h.scrollTop/(h.scrollHeight-h.clientHeight);
+    prog.style.width=(p*100)+'%';
+  };
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+
+  // reveal + stagger（IO 主触发 + 滚动兜底，保证快速滚动/锚点跳转不留空白）
+  const io=new IntersectionObserver((es)=>{
+    es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});
+  },{threshold:.16,rootMargin:'0px 0px -8% 0px'});
+  document.querySelectorAll('.rv,.stagger').forEach(el=>io.observe(el));
+  const revealPast=()=>{
+    document.querySelectorAll('.rv:not(.in),.stagger:not(.in)').forEach(el=>{
+      if(el.getBoundingClientRect().top < window.innerHeight*0.9){el.classList.add('in');io.unobserve(el);}
+    });
+  };
+  document.addEventListener('scroll',revealPast,{passive:true});
+  revealPast();window.addEventListener('load',revealPast); // 锚点直达/恢复滚动位置时 scroll 不触发，立即兜底
+
+  // hero 首屏立即显示
+  window.addEventListener('load',()=>{
+    document.querySelectorAll('#hero .rv').forEach((el,i)=>{
+      setTimeout(()=>el.classList.add('in'),120+i*110);
+    });
+  });
+
+  // 条形图：进入视口后展开到目标宽度
+  const fillBars=(h)=>{h.querySelectorAll('.fill').forEach(f=>{if(!f.style.width)f.style.width=f.dataset.w+'%';});};
+  const barIO=new IntersectionObserver((es)=>{
+    es.forEach(e=>{
+      if(e.isIntersecting){fillBars(e.target);barIO.unobserve(e.target);}
+    });
+  },{threshold:.3});
+  document.querySelectorAll('.hbar').forEach(el=>barIO.observe(el));
+
+  // 数字 count-up
+  const runCount=(el)=>{
+    if(el.dataset.done)return;
+    el.dataset.done='1';
+    const target=parseInt(el.dataset.v,10),t0=performance.now(),dur=1300;
+    const tick=(t)=>{
+      const p=Math.min((t-t0)/dur,1),ease=1-Math.pow(1-p,3);
+      el.textContent=Math.round(target*ease).toLocaleString('en-US');
+      if(p<1)requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  };
+  const cntIO=new IntersectionObserver((es)=>{
+    es.forEach(e=>{if(e.isIntersecting){runCount(e.target);cntIO.unobserve(e.target);}});
+  },{threshold:.5});
+  document.querySelectorAll('.cnum').forEach(el=>cntIO.observe(el));
+
+  // 大跨度滚动 / 锚点直达时 IO 同样会漏派发（与 reveal 同源的坑），给 hbar 和 count-up 也加滚动兜底：
+  // 实测一次滚 ~970px 会整块跨过 threshold:.3 的条形图，留下永久空条。
+  const animatePast=()=>{
+    document.querySelectorAll('.hbar').forEach(h=>{
+      if(h.getBoundingClientRect().top < window.innerHeight*0.9){fillBars(h);barIO.unobserve(h);}
+    });
+    document.querySelectorAll('.cnum').forEach(el=>{
+      if(!el.dataset.done && el.getBoundingClientRect().top < window.innerHeight*0.9){runCount(el);cntIO.unobserve(el);}
+    });
+  };
+  document.addEventListener('scroll',animatePast,{passive:true});
+  animatePast();window.addEventListener('load',animatePast);
+
+  // 侧栏章节高亮
+  const rail=[...document.querySelectorAll('.rail a')];
+  const secObs=new IntersectionObserver((es)=>{
+    es.forEach(e=>{
+      if(e.isIntersecting){
+        rail.forEach(a=>a.classList.toggle('on',a.dataset.s===e.target.id));
+      }
+    });
+  },{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('main section').forEach(s=>secObs.observe(s));
+</script>
 </body>
 </html>
