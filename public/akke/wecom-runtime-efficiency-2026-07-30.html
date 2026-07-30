@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>企微自动化效率解剖 · 97.8% 的轮次没有产出</title>
+<meta name="description" content="3 台生产云电脑实测：企微 GUI 自动化的时间与成本花在哪里——遥控通道全绿，97.8% 的轮次零产出，每发 1 条消息要读屏 54–231 次。附漏斗、四张空转账单与按杠杆排序的修法。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#06080c;
+    --bg2:#0a0e15;
+    --panel:#0d1119;
+    --panel2:#11161f;
+    --line:rgba(255,255,255,.07);
+    --line2:rgba(255,255,255,.12);
+    --ink:#dbe3ec;
+    --head:#f2f6fb;
+    --muted:#7c8798;
+    --dim:#525c6b;
+    --teal:#3fe0c5;      /* 已在生产 / 自动 */
+    --teal-d:#1c9d8b;
+    --amber:#f6b352;     /* 待拍板 / 人在环 */
+    --blue:#6fa8ff;      /* 云端 / 大脑 */
+    --violet:#b48cff;    /* worker / 生产线 */
+    --rose:#ff7d97;      /* 执行 / 真机 */
+    --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+    --serif:"Noto Serif SC",serif;
+    --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:var(--sans);
+    background:var(--bg);
+    color:var(--ink);
+    line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  /* ── 固定背景：网格 + 辉光 + 颗粒 ── */
+  .bg{position:fixed;inset:0;z-index:0;pointer-events:none}
+  .bg .grid{
+    position:absolute;inset:-2px;
+    background-image:
+      linear-gradient(var(--line) 1px,transparent 1px),
+      linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:64px 64px;
+    -webkit-mask-image:radial-gradient(circle at 50% 32%,#000 0%,transparent 78%);
+    mask-image:radial-gradient(circle at 50% 32%,#000 0%,transparent 78%);
+    opacity:.5;
+  }
+  .bg .glow{position:absolute;border-radius:50%;filter:blur(120px);opacity:.5}
+  .bg .g1{width:640px;height:640px;top:-260px;left:50%;transform:translateX(-50%);
+    background:radial-gradient(circle,rgba(63,224,197,.28),transparent 68%);animation:drift 22s ease-in-out infinite}
+  .bg .g2{width:520px;height:520px;top:38%;left:-160px;
+    background:radial-gradient(circle,rgba(111,168,255,.16),transparent 70%);animation:drift 28s ease-in-out infinite reverse}
+  .bg .g3{width:480px;height:480px;bottom:-120px;right:-120px;
+    background:radial-gradient(circle,rgba(246,179,82,.12),transparent 70%);animation:drift 26s ease-in-out infinite}
+  @keyframes drift{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,40px)}}
+  .bg .noise{position:absolute;inset:0;opacity:.035;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+  /* ── 顶部滚动进度 ── */
+  .progress{position:fixed;top:0;left:0;height:2px;width:0;z-index:60;
+    background:linear-gradient(90deg,var(--teal),var(--blue));box-shadow:0 0 12px var(--teal)}
+
+  /* ── 侧栏章节导航 ── */
+  .rail{position:fixed;top:50%;left:26px;transform:translateY(-50%);z-index:50;
+    display:flex;flex-direction:column;gap:15px}
+  .rail a{display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--dim);
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+    transition:color .3s}
+  .rail a .tick{width:22px;height:2px;background:currentColor;transition:width .3s,background .3s}
+  .rail a .lbl{opacity:0;transform:translateX(-6px);transition:.3s}
+  .rail a:hover .lbl,.rail a.on .lbl{opacity:1;transform:none}
+  .rail a.on{color:var(--teal)}
+  .rail a.on .tick{width:38px;box-shadow:0 0 10px var(--teal)}
+  @media(max-width:1180px){.rail{display:none}}
+
+  main{position:relative;z-index:2;max-width:1080px;margin:0 auto;padding:0 40px}
+  section{padding:112px 0;border-top:1px solid transparent}
+
+  /* ── 通用 reveal ── */
+  .rv{opacity:0;transform:translateY(26px);transition:opacity .8s cubic-bezier(.16,1,.3,1),transform .8s cubic-bezier(.16,1,.3,1)}
+  .rv.in{opacity:1;transform:none}
+  .stagger>*{opacity:0;transform:translateY(22px);transition:opacity .7s cubic-bezier(.16,1,.3,1),transform .7s cubic-bezier(.16,1,.3,1)}
+  .stagger.in>*{opacity:1;transform:none}
+  .stagger.in>*:nth-child(1){transition-delay:.05s}
+  .stagger.in>*:nth-child(2){transition-delay:.13s}
+  .stagger.in>*:nth-child(3){transition-delay:.21s}
+  .stagger.in>*:nth-child(4){transition-delay:.29s}
+  .stagger.in>*:nth-child(5){transition-delay:.37s}
+  .stagger.in>*:nth-child(6){transition-delay:.45s}
+
+  /* ── 章节头 ── */
+  .sec-head{display:flex;align-items:baseline;gap:20px;margin-bottom:42px}
+  .sec-head .idx{font-family:var(--mono);font-size:13px;color:var(--teal);
+    font-weight:500;padding-top:6px;position:relative}
+  .sec-head .idx::before{content:"";position:absolute;left:-14px;top:11px;width:8px;height:8px;
+    border-radius:50%;background:var(--teal);box-shadow:0 0 10px var(--teal)}
+  .eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--muted);display:block;margin-bottom:8px}
+  .sec-head h2{font-family:var(--serif);font-weight:700;font-size:clamp(27px,4vw,42px);
+    line-height:1.18;color:var(--head);letter-spacing:.01em}
+  .lede{font-size:16.5px;color:var(--muted);max-width:680px;margin:-24px 0 40px;line-height:1.75}
+  .lede b,.lede strong{color:var(--ink);font-weight:600}
+  code{font-family:var(--mono);font-size:.85em;background:rgba(63,224,197,.09);color:#8ff0e0;
+    border:1px solid rgba(63,224,197,.16);border-radius:5px;padding:1px 6px}
+
+  /* ── HERO ── */
+  .hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;
+    padding:120px 0 90px;border:0;position:relative}
+  .hero .tag{font-family:var(--mono);font-size:12px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--teal);display:inline-flex;align-items:center;gap:10px;margin-bottom:26px}
+  .hero .tag .pulse{width:9px;height:9px;border-radius:50%;background:var(--teal);
+    box-shadow:0 0 0 0 rgba(63,224,197,.6);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(63,224,197,.55)}70%{box-shadow:0 0 0 12px rgba(63,224,197,0)}100%{box-shadow:0 0 0 0 rgba(63,224,197,0)}}
+  .hero h1{font-family:var(--serif);font-weight:900;font-size:clamp(42px,8vw,92px);line-height:1.06;
+    color:var(--head);letter-spacing:.005em;margin-bottom:8px}
+  .hero h1 .accent{background:linear-gradient(115deg,var(--teal),var(--blue) 70%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero h1 .cursor{display:inline-block;width:.06em;height:.92em;background:var(--teal);
+    vertical-align:-6px;margin-left:6px;animation:blink 1.1s steps(1) infinite;box-shadow:0 0 14px var(--teal)}
+  @keyframes blink{50%{opacity:0}}
+  .hero .desc{font-size:clamp(16px,2.2vw,20px);color:var(--ink);max-width:720px;margin:24px 0 14px;line-height:1.7}
+  .hero .desc b{color:var(--teal);font-weight:600}
+  .hero .role{font-family:var(--mono);font-size:13px;color:var(--muted);margin-bottom:44px}
+  .ticker{display:flex;gap:10px;flex-wrap:wrap;max-width:860px}
+  .chip{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;color:var(--ink);
+    border:1px solid var(--line2);border-radius:100px;padding:7px 15px;background:rgba(255,255,255,.02);
+    display:inline-flex;align-items:center;gap:8px;transition:.3s}
+  .chip:hover{border-color:var(--teal);color:var(--teal);box-shadow:0 0 20px -6px var(--teal)}
+  .chip .d{width:6px;height:6px;border-radius:50%;background:var(--teal)}
+  .chip .d.a{background:var(--amber)}.chip .d.b{background:var(--blue)}.chip .d.v{background:var(--violet)}
+  .scrollcue{position:absolute;bottom:34px;left:0;font-family:var(--mono);font-size:11px;
+    letter-spacing:.2em;color:var(--dim);display:flex;align-items:center;gap:10px}
+  .scrollcue .bar{width:1px;height:34px;background:linear-gradient(var(--teal),transparent);
+    animation:cue 1.8s ease-in-out infinite}
+  @keyframes cue{0%,100%{opacity:.3;transform:scaleY(.6)}50%{opacity:1;transform:scaleY(1)}}
+
+  /* ── 飞轮 SVG ── */
+  .flywrap{display:flex;justify-content:center;margin:6px 0 34px}
+  .flywrap svg{width:100%;max-width:660px;height:auto}
+  .fly-node{fill:var(--panel);stroke-width:2.5}
+  .fly-idx{font-family:var(--mono);font-size:17px;font-weight:600}
+  .fly-lbl{font-family:var(--sans);font-size:16px;fill:var(--ink);font-weight:600}
+  .fly-sub{font-family:var(--mono);font-size:10.5px;fill:var(--muted);letter-spacing:.1em}
+  .fly-center{font-family:var(--serif);font-size:30px;font-weight:700;fill:var(--head)}
+  .fly-center-sub{font-family:var(--mono);font-size:11px;fill:var(--muted);letter-spacing:.22em}
+  .fly-legend{display:flex;gap:26px;justify-content:center;font-family:var(--mono);font-size:11.5px;
+    color:var(--muted);letter-spacing:.08em;margin:-14px 0 34px;flex-wrap:wrap}
+  .fly-legend .d{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:-1px}
+
+  /* ── 状态 chip ── */
+  .st{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;border-radius:100px;
+    padding:3px 10px;white-space:nowrap;display:inline-block}
+  .st.ok{color:var(--teal);background:rgba(63,224,197,.09);border:1px solid rgba(63,224,197,.3)}
+  .st.wait{color:var(--amber);background:rgba(246,179,82,.09);border:1px solid rgba(246,179,82,.3)}
+
+  /* ── 管线 spine ── */
+  .pipe{position:relative;padding-left:38px;margin-top:8px}
+  .pipe::before{content:"";position:absolute;left:11px;top:8px;bottom:8px;width:2px;
+    background:linear-gradient(var(--teal),var(--violet),var(--amber),var(--rose))}
+  .pipe .flowdot{position:absolute;left:6px;width:12px;height:12px;border-radius:50%;
+    background:var(--teal);box-shadow:0 0 16px 3px var(--teal);animation:flow 4.2s cubic-bezier(.5,0,.5,1) infinite}
+  @keyframes flow{0%{top:2px;opacity:0}8%{opacity:1}92%{opacity:1}100%{top:calc(100% - 14px);opacity:0}}
+  .pstep{position:relative;padding:16px 0;display:grid;grid-template-columns:112px 1fr;gap:18px;align-items:start}
+  .pstep+.pstep{border-top:1px dashed var(--line)}
+  .pstep::before{content:"";position:absolute;left:-32px;top:24px;width:10px;height:10px;border-radius:50%;
+    background:var(--bg);border:2px solid var(--who,var(--teal));box-shadow:0 0 0 4px var(--bg)}
+  .pstep .who{font-family:var(--mono);font-size:11px;letter-spacing:.05em;padding:5px 9px;border-radius:7px;
+    background:color-mix(in srgb,var(--who) 15%,transparent);color:var(--who);
+    border:1px solid color-mix(in srgb,var(--who) 30%,transparent);text-align:center;line-height:1.35}
+  .pstep .txt{font-size:14.5px;color:var(--ink)}
+  .pstep .txt b{color:var(--head);font-weight:600}
+  .pipe-note{margin-top:20px;font-size:13.5px;color:var(--muted);font-family:var(--mono);
+    padding-left:38px;line-height:1.6}
+  .pipe-note b{color:var(--teal)}
+
+  /* ── 通用卡片网格 ── */
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  .cell{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 22px;transition:.35s}
+  .cell:hover{border-color:var(--line2);background:var(--panel2);transform:translateY(-3px)}
+  .cell .ico{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+    margin-bottom:14px;border:1px solid rgba(63,224,197,.28);color:var(--teal);
+    background:linear-gradient(150deg,rgba(63,224,197,.13),rgba(63,224,197,.02));
+    box-shadow:0 0 22px -10px var(--teal) inset}
+  .cell .ico svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .cell .ico.b{border-color:rgba(111,168,255,.28);color:var(--blue);
+    background:linear-gradient(150deg,rgba(111,168,255,.13),rgba(111,168,255,.02));box-shadow:0 0 22px -10px var(--blue) inset}
+  .cell .ico.a{border-color:rgba(246,179,82,.28);color:var(--amber);
+    background:linear-gradient(150deg,rgba(246,179,82,.13),rgba(246,179,82,.02));box-shadow:0 0 22px -10px var(--amber) inset}
+  .cell .ico.v{border-color:rgba(180,140,255,.28);color:var(--violet);
+    background:linear-gradient(150deg,rgba(180,140,255,.13),rgba(180,140,255,.02));box-shadow:0 0 22px -10px var(--violet) inset}
+  .cell .ico.d{border-color:var(--line2);color:var(--muted);background:rgba(255,255,255,.03);box-shadow:none}
+  .cell .ico.rank{font-family:var(--mono);font-size:14.5px;font-weight:600;letter-spacing:.04em}
+  .cell h3{font-size:16px;color:var(--head);margin-bottom:7px;font-weight:600}
+  .cell h3 .m{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:.08em;display:block;margin-bottom:4px;font-weight:500}
+  .cell p{font-size:13.5px;color:var(--muted);line-height:1.65}
+  .cell p b{color:var(--ink)}
+  .cell .model{margin-top:12px;font-family:var(--mono);font-size:12px;color:var(--teal);
+    background:rgba(63,224,197,.07);border:1px solid rgba(63,224,197,.15);border-radius:7px;padding:5px 10px;display:inline-block}
+  .cell .headrow{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+
+  /* ── 强调 band ── */
+  .note-band{margin-top:22px;background:rgba(246,179,82,.06);border:1px solid rgba(246,179,82,.2);
+    border-radius:14px;padding:18px 22px;display:flex;gap:16px;align-items:flex-start}
+  .note-band .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--amber);
+    text-transform:uppercase;white-space:nowrap;padding-top:2px}
+  .note-band p{font-size:14.5px;color:var(--ink);margin:0}
+  .note-band p b{color:var(--amber)}
+  .band{margin-top:22px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--teal);
+    border-radius:12px;padding:20px 24px}
+  .band .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--teal);text-transform:uppercase;margin-bottom:8px;display:block}
+  .band p{font-size:15px;color:var(--ink);margin:0}
+  .band p b{color:var(--head)}
+
+  /* ── 数字统计带（count-up）── */
+  .statband{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:26px}
+  .stat{background:linear-gradient(165deg,var(--panel),var(--bg2));border:1px solid var(--line);
+    border-radius:14px;padding:20px 20px 16px;text-align:left;transition:.35s}
+  .stat:hover{border-color:rgba(63,224,197,.3);transform:translateY(-3px)}
+  .stat .v{font-family:var(--mono);font-size:34px;font-weight:600;color:var(--teal);line-height:1.1;
+    text-shadow:0 0 24px rgba(63,224,197,.35)}
+  .stat .v .suf{font-size:16px;color:var(--muted);margin-left:2px}
+  .stat .l{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.5}
+
+  /* ── 横向条形图 ── */
+  .hbar{margin-top:8px}
+  .hbar .row{display:grid;grid-template-columns:150px 1fr 84px;gap:14px;align-items:center;padding:9px 0}
+  .hbar .lab{font-size:13.5px;color:var(--ink);text-align:right;line-height:1.35}
+  .hbar .track{display:block;height:18px;background:rgba(255,255,255,.04);border-radius:5px;overflow:hidden;position:relative}
+  .hbar .fill{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,var(--teal-d),var(--teal));
+    box-shadow:0 0 14px -2px var(--teal);width:0;transition:width 1.1s cubic-bezier(.16,1,.3,1)}
+  .hbar .fill.dim{background:linear-gradient(90deg,#2a3644,#46586c);box-shadow:none}
+  .hbar .fill.warn{background:linear-gradient(90deg,#b7803a,var(--amber));box-shadow:0 0 14px -2px var(--amber)}
+  .hbar .val{font-family:var(--mono);font-size:13px;color:var(--head)}
+  .hbar .val .u{color:var(--muted);font-size:11px}
+  .chart-note{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:12px;line-height:1.7}
+  .chart-note b{color:var(--teal)}
+
+  /* ── 三列进展框 ── */
+  .cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .colbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 22px}
+  .colbox h4{font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--teal);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+  .colbox ul{list-style:none}
+  .colbox li{font-size:13.5px;color:var(--ink);padding:6px 0 6px 18px;position:relative;line-height:1.5}
+  .colbox li::before{content:"▸";position:absolute;left:0;color:var(--dim)}
+  .colbox li b{color:var(--head)}
+
+  /* ── 表格 ── */
+  .spec{width:100%;border-collapse:collapse;font-size:13.5px}
+  .spec thead th{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--muted);text-align:left;padding:12px 14px;border-bottom:1px solid var(--line2)}
+  .spec td{padding:13px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  .spec tbody tr{transition:.25s}
+  .spec tbody tr:hover{background:rgba(63,224,197,.03)}
+  .spec td:first-child{color:var(--head);font-weight:600}
+  .spec td:nth-child(2){color:var(--ink)}
+  .spec td .who-tag{font-family:var(--mono);font-size:11px;padding:3px 9px;border-radius:100px;white-space:nowrap}
+  .spec td .who-tag.jf{color:var(--amber);background:rgba(246,179,82,.09);border:1px solid rgba(246,179,82,.3)}
+  .spec td .who-tag.wf{color:var(--teal);background:rgba(63,224,197,.09);border:1px solid rgba(63,224,197,.3)}
+  .quote{margin-top:30px;background:linear-gradient(160deg,var(--panel2),var(--bg2));
+    border:1px solid var(--line);border-radius:16px;padding:28px 30px;font-size:16px;line-height:1.75;color:var(--ink)}
+  .quote b{color:var(--teal)}
+
+  footer{position:relative;z-index:2;max-width:1080px;margin:0 auto;padding:60px 40px 80px;
+    border-top:1px solid var(--line);margin-top:40px}
+  footer .fl{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:18px}
+  footer .brand{font-family:var(--serif);font-weight:700;font-size:20px;color:var(--head)}
+  footer .meta{font-family:var(--mono);font-size:11.5px;color:var(--dim);letter-spacing:.08em;text-align:right;line-height:1.9}
+  footer .meta b{color:var(--teal)}
+
+  @media(max-width:820px){
+    main{padding:0 22px}
+    section{padding:80px 0}
+    .grid3,.grid2,.cols3{grid-template-columns:1fr}
+    .statband{grid-template-columns:repeat(2,1fr)}
+    .sec-head{gap:14px;margin-bottom:32px}
+    .lede{margin-top:-16px}
+    .pstep{grid-template-columns:1fr;gap:8px}
+    .pstep .who{justify-self:start}
+    .hbar .row{grid-template-columns:96px 1fr 70px;gap:8px}
+    .hbar .lab{font-size:12px}
+    .spec{font-size:12.5px}
+    .spec td,.spec thead th{padding:10px 8px}
+    .fly-lbl{font-size:18px}
+  }
+  ::selection{background:rgba(63,224,197,.28);color:#fff}
+  ::-webkit-scrollbar{width:10px}
+  ::-webkit-scrollbar-track{background:var(--bg)}
+  ::-webkit-scrollbar-thumb{background:#1c2430;border-radius:8px;border:2px solid var(--bg)}
+  ::-webkit-scrollbar-thumb:hover{background:var(--teal-d)}
+</style>
+</head>
+<body>
+
+<div class="bg">
+  <div class="grid"></div>
+  <div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
+  <div class="noise"></div>
+</div>
+<div class="progress" id="progress"></div>
+
+<nav class="rail" id="rail">
+  <a href="#hero" data-s="hero"><span class="tick"></span><span class="lbl">结论</span></a>
+  <a href="#layers" data-s="layers"><span class="tick"></span><span class="lbl">三层解剖</span></a>
+  <a href="#clock" data-s="clock"><span class="tick"></span><span class="lbl">时间账</span></a>
+  <a href="#funnel" data-s="funnel"><span class="tick"></span><span class="lbl">漏斗</span></a>
+  <a href="#bills" data-s="bills"><span class="tick"></span><span class="lbl">四张空转账单</span></a>
+  <a href="#drift" data-s="drift"><span class="tick"></span><span class="lbl">配置漂移</span></a>
+  <a href="#economics" data-s="economics"><span class="tick"></span><span class="lbl">读屏经济学</span></a>
+  <a href="#garble" data-s="garble"><span class="tick"></span><span class="lbl">"混乱"从哪来</span></a>
+  <a href="#fix" data-s="fix"><span class="tick"></span><span class="lbl">修什么</span></a>
+  <a href="#method" data-s="method"><span class="tick"></span><span class="lbl">口径与复现</span></a>
+</nav>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero" id="hero">
+    <span class="tag rv"><span class="pulse"></span>Akke 企微通道 · 效率解剖 · 2026-07-30 实测</span>
+    <h1 class="rv">97.8% 的轮次<br><span class="accent">没有产出一条消息</span><span class="cursor"></span></h1>
+    <p class="desc rv">问题不是「PowerShell 里填脚本混乱」——遥控通道实测<b>全绿</b>。真正吃掉时间和效率的，是云电脑那个<b>单窗口、串行、靠截图认字</b>的执行层：它每天看屏幕 <b>9,180 次</b>，只发出 <b>119 条</b>消息。</p>
+    <p class="role rv">// 数据来源：3 台生产云电脑的 _loop.log（30,648 行）＋ Supabase 369 次真实往返＋11 次 RunCommand 远程探针＋当场实测的 VL/端点往返延迟</p>
+    <div class="ticker rv">
+      <span class="chip"><span class="d"></span>RunCommand 11/11 成功 · 0 丢包</span>
+      <span class="chip"><span class="d b"></span>端点往返 0.56–0.82s</span>
+      <span class="chip"><span class="d b"></span>单次读屏 1.5–6.2s</span>
+      <span class="chip"><span class="d a"></span>投递半程 p50 34.5s</span>
+      <span class="chip"><span class="d a"></span>每发 1 条要读屏 54–231 次</span>
+      <span class="chip"><span class="d v"></span>三台配置全不一样</span>
+    </div>
+    <div class="scrollcue"><span class="bar"></span>SCROLL / 向下滚动</div>
+  </section>
+
+  <!-- 01 三层解剖 -->
+  <section id="layers">
+    <div class="sec-head rv">
+      <span class="idx">01</span>
+      <div><span class="eyebrow">Layer Attribution · Where The Time Actually Goes</span>
+      <h2>先把锅摘清：PowerShell 只是遥控器</h2></div>
+    </div>
+    <p class="lede rv">这套系统有三层，反馈里说的「填入脚本混乱 / 操控慢」把三层混在一起了。逐层实测的结论是：<strong>前两层都健康，全部延迟和浪费都在第三层</strong>。</p>
+
+    <div class="pipe rv">
+      <span class="flowdot"></span>
+      <div class="pstep">
+        <span class="who" style="color:var(--teal);border:1px solid rgba(63,224,197,.3);background:rgba(63,224,197,.08)">遥控层</span>
+        <div class="txt"><b>mac → 阿里云助手 → 云电脑 PowerShell</b>（<code>aliyun ecd run-command</code>）。本次分 4 批下发 <b>11 次</b>探针，<b>全部 InvocationStatus=Success、Dropped=0</b>，秒级回执，<code>--include-output true</code> 完整拿到 stdout。<br><span style="color:var(--muted)">→ 通道本身没有"混乱"。历史上的粘贴损坏（多行块静默不执行 / 长行折断 / BOM 污染首行 key / GBK 乱码）属于<b>人工手粘</b>，而 7-25 起 loop 已有自愈同步通道，改代码不该再手粘脚本。</span></div>
+      </div>
+      <div class="pstep">
+        <span class="who" style="color:var(--blue);border:1px solid rgba(111,168,255,.3);background:rgba(111,168,255,.08)">大脑层</span>
+        <div class="txt"><b>云电脑 → Fly relay → Vercel 端点 → LLM</b>。当场 ping 实测：小顾 <b>763 / 679ms</b>、夏伟 <b>805 / 824ms</b>、夏夏 <b>557 / 577ms</b>。生成本身 <code>chatReply</code> p50 <b>5.0s</b>、p90 12.3s（近 10 天 9,153 次调用）。<br><span style="color:var(--muted)">→ 跨境中转没有拖后腿，网络层是这套系统里最稳的一环。</span></div>
+      </div>
+      <div class="pstep">
+        <span class="who" style="color:var(--rose);border:1px solid rgba(255,125,151,.3);background:rgba(255,125,151,.08)">执行层</span>
+        <div class="txt"><b>截图 → 视觉模型认字 → 鼠标点 → 逐字打字 → 再截图确认</b>。没有 DOM、没有 API，一台机器一个企微窗口，所有会话<b>串行</b>。<br><span style="color:var(--amber)">→ 时间和钱全烧在这里。下面五节全部在拆这一层。</span></div>
+      </div>
+    </div>
+
+    <div class="note-band rv">
+      <span class="k">Why it feels like "脚本混乱"</span>
+      <p>执行层是<b>盲打</b>：靠固定坐标点击、靠 SendInput 往当前前台窗口敲字。所以只要前台不是企微（有人开了记事本、弹窗、召回把窗口切到群），"填进去的内容"就会错位、错人、错窗口——<b>看起来像脚本乱了，实际是焦点乱了</b>。</p>
+    </div>
+  </section>
+
+  <!-- 02 时间账 -->
+  <section id="clock">
+    <div class="sec-head rv">
+      <span class="idx">02</span>
+      <div><span class="eyebrow">The Clock · 369 Real Round-trips</span>
+      <h2>时间账：客户从"被读到"到"收到"，中位 34.5 秒</h2></div>
+    </div>
+    <p class="lede rv">口径说明：库里客户消息的时间戳＝<b>loop 读屏并调生成的那一刻</b>，AI 消息时间戳＝<b>打完字点发送后回执落库的那一刻</b>。两者之差＝<strong>投递半程</strong>（生成＋身份门＋打字＋发送＋回执）。近 10 天 369 次紧邻配对：</p>
+
+    <div class="statband rv">
+      <div class="stat"><div class="v">34.5<span class="suf">s</span></div><div class="l">投递半程 <b>p50</b></div></div>
+      <div class="stat"><div class="v">67.2<span class="suf">s</span></div><div class="l"><b>p90</b>（p99 240s）</div></div>
+      <div class="stat"><div class="v"><span class="cnum" data-v="369">0</span></div><div class="l">配对样本数（剔除 8 条断链）</div></div>
+      <div class="stat"><div class="v"><span class="cnum" data-v="780">0</span><span class="suf">s</span></div><div class="l">最坏一次（07-26）</div></div>
+    </div>
+
+    <p class="lede rv" style="margin-top:40px">而这只是<b>半程</b>。另一半「客户真发出 → 被 loop 读到」库里不可见，只能用轮周期估：小顾 24.8 小时跑了 3,882 轮＝<b>平均 23s/轮</b>，夏夏 <b>114s/轮</b>（窗口含离线空档，属上界）。所以客户实际感知的等待，小顾约 <b>45s</b>，夏夏可到 <b>90s 以上</b>。</p>
+
+    <div class="hbar rv">
+      <div class="row"><span class="lab">≤40 字<br><span style="color:var(--dim);font-size:11px">n=75</span></span><span class="track"><span class="fill" data-w="44" style="width:0"></span></span><span class="val">19.3<span class="u">s</span></span></div>
+      <div class="row"><span class="lab">41–90 字<br><span style="color:var(--dim);font-size:11px">n=106</span></span><span class="track"><span class="fill" data-w="59" style="width:0"></span></span><span class="val">25.9<span class="u">s</span></span></div>
+      <div class="row"><span class="lab">&gt;90 字<br><span style="color:var(--dim);font-size:11px">n=188</span></span><span class="track"><span class="fill warn" data-w="100" style="width:0"></span></span><span class="val">43.6<span class="u">s</span></span></div>
+    </div>
+    <p class="chart-note rv">投递半程按回复长度分层的 p50 —— <b>逐字打字让延迟随字数线性增长</b>（每字 0.02–0.08s 随机停顿，模拟人打字）。</p>
+
+    <div class="band rv">
+      <span class="k">被吃掉的优化</span>
+      <p>7-29 那次提速（字间延迟减半 + 一条回复最多 1 张图，预期 41s→21s）方向是对的，但<b>同期话术变长把它吃回去了</b>：回复中位字数 07-27 <b>59 字</b> → 07-28 <b>110 字</b> → 07-29 <b>134 字</b>，而 p50 从 25.8s 涨到 38.5s。<b>07-30 首条样本回到 22.1s（39 字）</b>——短回复确实快了，长回复没有。</p>
+    </div>
+
+    <div style="overflow-x:auto;margin-top:26px" class="rv">
+      <table class="spec">
+        <thead><tr><th>日期</th><th>样本</th><th>p50</th><th>p90</th><th>回复中位字数</th><th>库内吞吐（客户 / AI）</th></tr></thead>
+        <tbody>
+          <tr><td>07-20</td><td>32</td><td>55.2s</td><td>86.9s</td><td>58</td><td>36 / 33</td></tr>
+          <tr><td>07-23</td><td>18</td><td>20.9s</td><td>44.6s</td><td>70</td><td>18 / 18</td></tr>
+          <tr><td>07-27</td><td>49</td><td>25.8s</td><td>49.1s</td><td>59</td><td>142 / 50</td></tr>
+          <tr><td>07-28</td><td>79</td><td>39.2s</td><td>64.0s</td><td>110</td><td>181 / 87</td></tr>
+          <tr><td>07-29</td><td>102</td><td>38.5s</td><td>61.3s</td><td>134</td><td>131 / 112</td></tr>
+          <tr><td>07-30（截至 09:30）</td><td>1</td><td>22.1s</td><td>—</td><td>39</td><td>1 / 1</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="chart-note rv">「客户 / AI」是库内消息条数，<b>不等于漏答率</b>——连发多条会被合并成一次回复，所以比值只能看趋势不能当覆盖率。</p>
+  </section>
+
+  <!-- 03 漏斗 -->
+  <section id="funnel">
+    <div class="sec-head rv">
+      <span class="idx">03</span>
+      <div><span class="eyebrow">The Funnel · Same Code, Three Different Fates</span>
+      <h2>漏斗：三台机器跑同一份代码，效率差 3 倍</h2></div>
+    </div>
+    <p class="lede rv">从 <code>_loop.log</code> 逐行还原一整天（24–26 小时窗口）的漏斗。三台的脚本 md5 <b>完全一致</b>（<code>74BA7E7C</code> / 178,011 字节 / <code>v2026-07-29.recall-draft-clipboard-verified</code>）——所以下面的差异<strong>全部来自配置和现场状态，不是版本差异</strong>。</p>
+
+    <div style="overflow-x:auto" class="rv">
+      <table class="spec">
+        <thead><tr><th>漏斗层</th><th>小顾 · 成都</th><th>夏伟 · 成都</th><th>夏夏 · 杭州</th></tr></thead>
+        <tbody>
+          <tr><td>轮次（本轮无新消息）</td><td>3,882</td><td>1,348</td><td>509</td></tr>
+          <tr><td>读屏调用（read+unread+diff）</td><td><b style="color:var(--amber)">4,684</b></td><td>3,467</td><td>1,029</td></tr>
+          <tr><td>检出待回客户消息</td><td>490</td><td>277</td><td>28</td></tr>
+          <tr><td>送进大脑生成</td><td>484</td><td>221</td><td>28</td></tr>
+          <tr><td>生成出话术</td><td>93</td><td><b>218</b></td><td>24</td></tr>
+          <tr><td>真发出并落库</td><td><b style="color:var(--teal)">86</b></td><td><b style="color:var(--rose)">15</b></td><td><b style="color:var(--teal)">18</b></td></tr>
+          <tr><td>每发 1 条要读屏</td><td>54.5 次</td><td><b style="color:var(--rose)">231 次</b></td><td>57 次</td></tr>
+          <tr><td>有效轮占比</td><td>2.2%</td><td>1.1%</td><td>3.5%</td></tr>
+          <tr><td>主漏点</td><td><span class="who-tag jf">回声环 330 次</span></td><td><span class="who-tag jf">身份门中止 254 次</span></td><td><span class="who-tag wf">最健康 · 64% 通过</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="grid2 stagger" style="margin-top:26px">
+      <div class="cell">
+        <span class="ico a"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 1 2.3 5.6"/><path d="M4 21v-5h5"/><path d="M9.5 12h5"/></svg></span>
+        <h3><span class="m">小顾 · 漏在最前面</span>484 次"待回"里 330 次是自己的话</h3>
+        <p>端点拦下的理由 <b>330 次全是 <code>echo_of_own_reply</code></b>（另有 25 次 <code>suspected_speaker_mislabel</code>、7 次 <code>needs_human</code>）。即：读屏把<b>小艳自己刚发的气泡</b>当成客户新消息，一路送到大脑，被服务端回声闸挡回。每次赔一趟读屏＋一趟跨境端点往返。</p>
+      </div>
+      <div class="cell">
+        <span class="ico a"><svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="14" rx="2"/><path d="M3.5 9.5h17"/><path d="M9 14.5h6"/></svg></span>
+        <h3><span class="m">夏伟 · 漏在最后面</span>生成了 218 条，只发出 15 条</h3>
+        <p>话术都生成好了（钱和时间都花了），却在<b>发送前身份门</b>被丢弃 <b>254 次</b>（含咨询聚合门）。日志原文：<code>当前窗口是 '26072605 全屋定制 天津 服务群'，要回的是 '有大有小｜全屋定制夏伟@微信'</code>——<b>召回腿把窗口切到群，被动腿再想回私聊就对不上了</b>。这台是唯一开着召回的机器。</p>
+      </div>
+    </div>
+
+    <div class="note-band rv">
+      <span class="k">身份门不是 bug，丢弃才是</span>
+      <p>没有 DOM 可问的时候，"发送前重读标题确认是这个人"是<b>防发错人的唯一防线</b>，宁可不发也对。真正的浪费在于：<b>对不上就把已经生成好的话术直接扔了</b>，没有"缓存下轮重投"。夏伟因此每 15 条有效发送要赔掉 200 多次生成。</p>
+    </div>
+  </section>
+
+  <!-- 04 四张空转账单 -->
+  <section id="bills">
+    <div class="sec-head rv">
+      <span class="idx">04</span>
+      <div><span class="eyebrow">Four Bills Nobody Reads</span>
+      <h2>空转的四张账单（都在日志里明码标价）</h2></div>
+    </div>
+    <p class="lede rv">97.8% 的轮次零产出，钱花在哪四件事上——逐条计数，全部来自今天的 <code>_loop.log</code>。</p>
+
+    <div class="grid2 stagger">
+      <div class="cell">
+        <span class="ico rank">B1</span>
+        <h3><span class="m">回声环 · 小顾 330 次 / 24.8h</span>把自己的话读成客户消息</h3>
+        <p>像素 diff 说"屏幕变了"，而变的正是<b>自己刚发出的那条气泡</b>；VL 的左右归属判断又不够硬。本地虽然有"我方近发文案"缓冲，日志里<b>命中 0 次</b>——说明本地闸没拦住，全靠服务端兜。</p>
+        <div class="model">代价：330 × (读屏 3s + 端点 1s) ≈ 22 分钟/日纯空转</div>
+      </div>
+      <div class="cell">
+        <span class="ico rank">B2</span>
+        <h3><span class="m">夏伟 898 次 · 探针时刻仍在运行</span>一个没关的记事本，吃掉一整天</h3>
+        <p>被当成"非外部客户会话"跳过的名字里，排第一的是 <code>.env - Notepad</code>（<b>816 次</b>，加 <code>Notepad</code> 共 <b>898 次</b>，最后一次 09:25:27）。09:35 的进程探针确认：<b>notepad 进程此刻仍在跑</b>。读屏读的是最前窗口，有人开了编辑器就一直误判。</p>
+        <div class="model">代价：≈900 轮/日 归零产出 · 现在就能关掉</div>
+      </div>
+      <div class="cell">
+        <span class="ico rank">B3</span>
+        <h3><span class="m">小顾 2,243 次 / 夏伟 510 次</span>永不消失的红点：「智能文档」</h3>
+        <p>企微自带的<b>智能文档 / 客户联系 / 行业资讯</b>这些系统会话，红点常驻不清。loop 每轮都要花一次 VL 扫红点列表，然后得出同一个结论：<code>1 个红点全是内部号/系统号，不点开</code>。小顾最后一次 09:18:42，还在继续。</p>
+        <div class="model">代价：小顾读屏调用的 48% 花在这上面</div>
+      </div>
+      <div class="cell">
+        <span class="ico rank">B4</span>
+        <h3><span class="m">小顾 967 次 / 夏伟 302 次</span>"确认没有新消息"也要花一次读屏</h3>
+        <p>日志里 <code>末尾方向已确认且无待回客户消息</code>——这是<b>正确</b>的判断，但它是靠一次完整的截图＋VL 全读换来的。像素 diff 抄空后触发"全读复核防漏抄"，也是同一笔账（小顾 507 次 diff 事件）。</p>
+        <div class="model">代价：结构性成本，只能靠减少触发次数摊薄</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 配置漂移 -->
+  <section id="drift">
+    <div class="sec-head rv">
+      <span class="idx">05</span>
+      <div><span class="eyebrow">Config Drift · Code Converged, Config Didn't</span>
+      <h2>代码收敛了，配置还在四个人手里各改各的</h2></div>
+    </div>
+    <p class="lede rv">同一天、同一份脚本 md5，三台 <code>.env</code> 现场读回的关键参数：<strong>没有一项是一致的</strong>。这是"同代码三种效率"的直接原因，也让任何优化都无法归因。</p>
+
+    <div style="overflow-x:auto" class="rv">
+      <table class="spec">
+        <thead><tr><th>参数</th><th>小顾</th><th>夏伟</th><th>夏夏</th></tr></thead>
+        <tbody>
+          <tr><td>读屏模型</td><td><b style="color:var(--amber)">qwen3-vl-235b-a22b</b></td><td>qwen3-vl-30b-a3b</td><td>qwen3-vl-30b-a3b</td></tr>
+          <tr><td>实测单次往返</td><td>2,986 / 3,856ms</td><td>2,203 / 1,454ms</td><td>6,229 / 1,495ms</td></tr>
+          <tr><td>截图体积 / 图 token</td><td>382KB / 2,504</td><td>60KB / 1,476</td><td>130KB / 2,546–3,576</td></tr>
+          <tr><td>打字模式</td><td>unicode 逐字</td><td>unicode 逐字</td><td><b style="color:var(--amber)">paste 粘贴</b></td></tr>
+          <tr><td>轮询节奏（空闲）</td><td>5–12s</td><td>5–12s</td><td>12–30s</td></tr>
+          <tr><td>日限 / 时限 / 单客户</td><td>200 / 50 / 100</td><td>200 / 50 / 100</td><td><b>20 / 8 / 6</b></td></tr>
+          <tr><td>聊天区裁剪比</td><td>0.21</td><td>0.347</td><td>0.107</td></tr>
+          <tr><td>召回支线</td><td>关</td><td><b style="color:var(--amber)">开（唯一）</b></td><td>关</td></tr>
+          <tr><td>今日已发（09:20）</td><td>12</td><td><b style="color:var(--rose)">0</b></td><td>1</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note-band rv">
+      <span class="k">两处值得单独盯</span>
+      <p>① <b>夏夏是唯一跑 <code>paste</code> 模式的机器</b>，而 paste 曾因"粘进去没触发回车＝假发送"被全线回滚。它现在通过率最高（64%）——<b>这是一份现成的灰度样本</b>，别当异常清掉，值得先查清 paste 在这台上为什么没复发假发送（是护栏补上了，还是运气）。<br>② 坐标裁剪比三台差 3 倍是正常的（客户端版本不同、必须逐台量），<b>但模型、节奏、日限没有任何理由不一致</b>。</p>
+    </div>
+  </section>
+
+  <!-- 06 读屏经济学 -->
+  <section id="economics">
+    <div class="sec-head rv">
+      <span class="idx">06</span>
+      <div><span class="eyebrow">Screen-reading Economics</span>
+      <h2>读屏经济学：换小模型省 29%，砍空转省 90%</h2></div>
+    </div>
+    <p class="lede rv">按今天 OpenRouter 官方价目实拉（<code>qwen3-vl-235b-a22b</code> 输入 <b>$0.21/M</b>、<code>qwen3-vl-30b-a3b</code> 输入 <b>$0.15/M</b>）× 实测 token 量算这笔账。结论有点反直觉：<strong>贵的不是模型，是次数</strong>。</p>
+
+    <div class="statband rv">
+      <div class="stat"><div class="v"><span class="cnum" data-v="9180">0</span></div><div class="l">三台合计读屏次数 / 日</div></div>
+      <div class="stat"><div class="v"><span class="cnum" data-v="119">0</span></div><div class="l">同期真发出的消息数</div></div>
+      <div class="stat"><div class="v">$3.7<span class="suf">/日</span></div><div class="l">读屏成本（三台合计）</div></div>
+      <div class="stat"><div class="v"><span class="cnum" data-v="96">0</span><span class="suf">%</span></div><div class="l">花在零产出轮次上<span style="color:var(--dim)">（按每条有效回复约 3 次读屏估）</span></div></div>
+    </div>
+
+    <div class="hbar rv" style="margin-top:34px">
+      <div class="row"><span class="lab">小顾<br><span style="color:var(--dim);font-size:11px">235B · 11.7M tok</span></span><span class="track"><span class="fill warn" data-w="100" style="width:0"></span></span><span class="val">$2.46<span class="u">/日</span></span></div>
+      <div class="row"><span class="lab">夏伟<br><span style="color:var(--dim);font-size:11px">30B · 5.1M tok</span></span><span class="track"><span class="fill" data-w="31" style="width:0"></span></span><span class="val">$0.77<span class="u">/日</span></span></div>
+      <div class="row"><span class="lab">夏夏<br><span style="color:var(--dim);font-size:11px">30B · 3.1M tok</span></span><span class="track"><span class="fill" data-w="19" style="width:0"></span></span><span class="val">$0.46<span class="u">/日</span></span></div>
+    </div>
+    <p class="chart-note rv">按「读屏次数 × 实测 prompt token × 官方单价」估算，未计 completion（每次 200–2000 max_tokens，占比小）。<b>换成 30B 只省 29%；把空转砍掉能省 90% 以上</b>——优化方向应该是次数，不是模型。</p>
+
+    <div class="band rv">
+      <span class="k">一个额外的坑（代码注释里的实录）</span>
+      <p>视觉模型返回 <b>HTTP 200 但 content 为空</b>时，旧代码当成功处理、整轮白跑且不重试——「成都机 07-27 一天 <b>901 次</b>」。现已改成走重试并打印 finish_reason。今天三台的空响应计数：小顾 0、夏伟 11、夏夏 0，<b>这个洞已经堵住了</b>。</p>
+    </div>
+  </section>
+
+  <!-- 07 混乱从哪来 -->
+  <section id="garble">
+    <div class="sec-head rv">
+      <span class="idx">07</span>
+      <div><span class="eyebrow">Where "Garbled Input" Really Comes From</span>
+      <h2>"填入的内容很混乱"——三个真实来源，只有一个和终端有关</h2></div>
+    </div>
+    <p class="lede rv">把反馈里的"混乱"拆开，是三件完全不同的事，修法也完全不同。</p>
+
+    <div class="grid3 stagger">
+      <div class="cell">
+        <span class="ico d"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg></span>
+        <h3><span class="m">来源① 遥控层 · 已有 SOP</span>粘贴通道会改内容</h3>
+        <p>远程桌面粘贴会给每行开头加空格、把超长行从中间折断、把多行块的换行吞掉黏成一行；多行 PowerShell 块还会<b>整块静默不执行</b>。写 <code>.env</code> 用 <code>Set-Content -Encoding UTF8</code> 会加 BOM 污染首行 key。<b>正解：命令一律压成单行逐条发；脚本走自愈通道或 gzip+base64 分块写盘＋md5 双端校验。</b></p>
+      </div>
+      <div class="cell">
+        <span class="ico a"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2.2"/><circle cx="12" cy="10" r="2.6"/><path d="M7.4 17.2c.9-2 2.6-3 4.6-3s3.7 1 4.6 3"/></svg></span>
+        <h3><span class="m">来源② GUI 层 · 主要矛盾</span>认错人、打错窗口</h3>
+        <p>VL 把标题读成半个字（「陈教授」→「授」）、把系统卡片和<b>记事本窗口</b>当成客户会话、把自己的话当客户消息；召回切窗口后被动腿打到群里。这类"混乱"表现为<b>内容错位、发错人、卡成草稿</b>，不是编码问题。</p>
+      </div>
+      <div class="cell">
+        <span class="ico b"><svg viewBox="0 0 24 24"><path d="M12 3.5l8.5 4.7L12 12.9 3.5 8.2 12 3.5z"/><path d="M3.5 12.4l8.5 4.7 8.5-4.7"/></svg></span>
+        <h3><span class="m">来源③ 大脑层 · 刚堵上</span>模型吐乱码，真发给了客户</h3>
+        <p>07-30 00:08 实录：一段混着 <code>Human:</code>、日文假名、<code>${</code> 和 HTML 实体的<b>崩坏输出原样发了出去</b>。原有清洗只认"像话术但不该说的话"，覆盖不到"根本不是话"。已加 4 条崩坏判据（聊天模板词/假名/代码残渣/HTML 实体），命中就改发安全兜底句。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 08 修什么 -->
+  <section id="fix">
+    <div class="sec-head rv">
+      <span class="idx">08</span>
+      <div><span class="eyebrow">Fix List · Ranked By Leverage</span>
+      <h2>按杠杆排序：五件事，前两件今天就能做</h2></div>
+    </div>
+    <p class="lede rv">下面的收益是<b>基于本次实测计数的估算</b>，不是承诺值；每条都写清依据，做完应当能用同一套探针复测验证。</p>
+
+    <div style="overflow-x:auto" class="rv">
+      <table class="spec">
+        <thead><tr><th>动作</th><th>依据（实测）</th><th>预期收益（估算）</th><th>成本</th></tr></thead>
+        <tbody>
+          <tr><td>关掉生产机上的编辑器 / 杂窗口，并在读屏前硬校验前台是企微窗口</td><td>夏伟 <code>.env - Notepad</code> 被当会话 898 次，探针时刻进程仍在</td><td>夏伟 ≈900 轮/日 空转归零</td><td><span class="who-tag wf">分钟级</span></td></tr>
+          <tr><td>系统会话（智能文档/客户联系/行业资讯）红点<b>本地永久黑名单</b>，不再每轮花 VL 去认</td><td>小顾 2,243 次、夏伟 510 次，结论恒为"不点开"</td><td>小顾读屏调用 −48%，日成本 −$1.1</td><td><span class="who-tag wf">小改动</span></td></tr>
+          <tr><td>把服务端的回声判据<b>下沉到云电脑本地</b>（本地"我方近发"缓冲实测命中 0 次，等于没生效）</td><td>小顾 330 次 <code>echo_of_own_reply</code> 全程跑完读屏＋跨境端点才被挡</td><td>空转轮 −68%，省 330 趟端点往返</td><td><span class="who-tag jf">要改判据</span></td></tr>
+          <tr><td>身份门失败的话术<b>缓存下轮重投</b>，不再直接丢；召回与被动代回按"发完再切窗口"串行</td><td>夏伟 218 生成 → 15 发出，身份门中止 254 次</td><td>夏伟有效产出量级提升（15 → 数十）</td><td><span class="who-tag jf">要设计</span></td></tr>
+          <tr><td><code>.env</code> 从服务端下发（<code>/wecom/loop-config</code>），模型/节奏/日限收敛到一份事实源</td><td>三台 9 项参数无一致；代码 md5 却完全相同</td><td>可归因、可灰度、可回滚</td><td><span class="who-tag jf">一次性</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="quote rv">
+      <b>姊妹页：</b>同日另一页 <a href="/akke/wecom-redblue-cycle-audit-2026-07-30" style="color:var(--teal)">红蓝对抗周期审计</a> 从<b>工程修复周期</b>看效率，结论是「每一层失败时都返回成功」；本页从<b>运行时吞吐</b>看，两者互补不冲突。
+    </div>
+
+    <div class="quote rv">
+      <b>一句话总结：</b>这套系统的瓶颈不在命令通道，也不在模型和网络，而在<b>"每一次判断都要重新看一遍屏幕"</b>。前四件事都是同一个动作——<b>把能用确定性代码判定的东西，从视觉模型手里拿回来</b>。做完之后再谈打字速度和模型选型，才有意义。
+    </div>
+  </section>
+
+  <!-- 09 口径与复现 -->
+  <section id="method">
+    <div class="sec-head rv">
+      <span class="idx">09</span>
+      <div><span class="eyebrow">Method · Reproducible</span>
+      <h2>口径与复现：每个数字怎么来的</h2></div>
+    </div>
+
+    <div class="cols3 stagger">
+      <div class="colbox">
+        <h4>数据源</h4>
+        <ul>
+          <li><b>Supabase 直查</b>：<code>conversations(channel=wecom_chat)</code> + <code>messages</code>，近 10 天 1,033 条，配对 369 次往返</li>
+          <li><b>_loop.log 逐行还原</b>：三台各取尾部 1.2MB（共 30,648 条带时间戳的行），窗口 24–26 小时</li>
+          <li><b>RunCommand 探针 11 次</b>：<code>aliyun ecd run-command</code> + <code>describe-invocations --include-output true</code></li>
+          <li><b>当场实测</b>：VL 往返用机器上现成的读屏截图，不新截图、不干扰 loop</li>
+          <li><b>单价</b>：OpenRouter <code>/api/v1/models</code> 今天实拉</li>
+        </ul>
+      </div>
+      <div class="colbox">
+        <h4>已知偏差（别过度解读）</h4>
+        <ul>
+          <li>投递半程<b>不含</b>"客户发出→被读到"那一半，库里没有这个时间戳</li>
+          <li>「客户/AI 条数比」<b>不是漏答率</b>：连发会合并成一次回复</li>
+          <li>成本是<b>估算</b>：读屏次数 × 实测 token × 官方单价，未计 completion</li>
+          <li>日志窗口是<b>尾部 1.2MB</b>，不是完整自然日；小顾窗口 24.8h、夏伟 26.3h、夏夏含离线空档</li>
+          <li>VL 往返只采样 2 次/台，用于判量级不用于判分布</li>
+        </ul>
+      </div>
+      <div class="colbox">
+        <h4>健康的部分（别乱动）</h4>
+        <ul>
+          <li>三台<b>脚本 md5 完全一致</b>，自愈同步链路正常工作</li>
+          <li>跨境中转（Fly relay）<b>0.56–0.82s</b>，不是瓶颈</li>
+          <li>RunCommand <b>11/11 成功、0 丢包</b>，回执可信</li>
+          <li>VL 空响应洞已堵（今天 0/11/0 次）</li>
+          <li><b>身份门本身是对的</b>——防发错人的唯一防线，要改的是"失败后丢弃"</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="fl">
+    <span class="brand">Akke <span style="color:var(--teal)">/</span> 企微自动化效率解剖</span>
+    <span class="meta">3 台生产云电脑实测 · 数据截至 2026-07-30 09:35<br><b>upio.ai/akke/wecom-runtime-efficiency-2026-07-30</b></span>
+  </div>
+</footer>
+
+
+<script>
+  // 滚动进度条
+  const prog=document.getElementById('progress');
+  const onScroll=()=>{
+    const h=document.documentElement;
+    const p=h.scrollTop/(h.scrollHeight-h.clientHeight);
+    prog.style.width=(p*100)+'%';
+  };
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+
+  // reveal + stagger（IO 主触发 + 滚动兜底，保证快速滚动/锚点跳转也不留空白）
+  const io=new IntersectionObserver((es)=>{
+    es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});
+  },{threshold:.16,rootMargin:'0px 0px -8% 0px'});
+  document.querySelectorAll('.rv,.stagger').forEach(el=>io.observe(el));
+  const revealPast=()=>{
+    document.querySelectorAll('.rv:not(.in),.stagger:not(.in)').forEach(el=>{
+      if(el.getBoundingClientRect().top < window.innerHeight*0.9){el.classList.add('in');io.unobserve(el);}
+    });
+  };
+  document.addEventListener('scroll',revealPast,{passive:true});
+  revealPast();window.addEventListener('load',revealPast); // 锚点直达/恢复滚动位置时 scroll 不触发，立即兜底一次
+
+  // hero 首屏立即显示
+  window.addEventListener('load',()=>{
+    document.querySelectorAll('#hero .rv').forEach((el,i)=>{
+      setTimeout(()=>el.classList.add('in'),120+i*110);
+    });
+  });
+
+  // 条形图：进入视口后展开到目标宽度
+  const barIO=new IntersectionObserver((es)=>{
+    es.forEach(e=>{
+      if(e.isIntersecting){
+        e.target.querySelectorAll('.fill').forEach(f=>{f.style.width=f.dataset.w+'%';});
+        barIO.unobserve(e.target);
+      }
+    });
+  },{threshold:.3});
+  document.querySelectorAll('.hbar').forEach(el=>barIO.observe(el));
+
+  // 数字 count-up
+  const cntIO=new IntersectionObserver((es)=>{
+    es.forEach(e=>{
+      if(!e.isIntersecting)return;
+      const el=e.target,target=parseInt(el.dataset.v,10),t0=performance.now(),dur=1300;
+      const tick=(t)=>{
+        const p=Math.min((t-t0)/dur,1),ease=1-Math.pow(1-p,3);
+        el.textContent=Math.round(target*ease).toLocaleString('en-US');
+        if(p<1)requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+      cntIO.unobserve(el);
+    });
+  },{threshold:.5});
+  document.querySelectorAll('.cnum').forEach(el=>cntIO.observe(el));
+
+  // 侧栏章节高亮
+  const rail=[...document.querySelectorAll('.rail a')];
+  const secObs=new IntersectionObserver((es)=>{
+    es.forEach(e=>{
+      if(e.isIntersecting){
+        rail.forEach(a=>a.classList.toggle('on',a.dataset.s===e.target.id));
+      }
+    });
+  },{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('main section').forEach(s=>secObs.observe(s));
+</script>
+</body>
+</html>
