@@ -45,6 +45,8 @@
     .funnel{grid-column:span 7}
     .status-card{grid-column:span 5}
     .funnel-row{display:grid;grid-template-columns:110px 1fr 48px;align-items:center;gap:12px;margin:15px 0}
+    .funnel-row.drill{width:100%;border:0;padding:0;background:transparent;color:inherit;text-align:left}
+    .funnel-row.drill:hover .funnel-label,.funnel-row.drill:focus-visible .funnel-label{color:var(--green);text-decoration:underline}
     .funnel-label{font-size:13px}
     .bar{height:10px;border-radius:99px;background:#ebe9e1;overflow:hidden}
     .bar i{display:block;height:100%;border-radius:99px;background:var(--green-2);width:0;transition:width .5s ease}
@@ -52,6 +54,8 @@
     .definition{margin-top:18px;padding-top:16px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
     .status-list{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
     .status{padding:13px;border:1px solid var(--line);border-radius:13px;background:#faf9f4}
+    button.status{width:100%;text-align:left;color:inherit}
+    button.status:hover,button.status:focus-visible{border-color:var(--green);background:#f1f7f3}
     .status b{display:block;font:700 24px Georgia,serif}
     .status span{color:var(--muted);font-size:12px}
     .trend{grid-column:span 12}
@@ -90,6 +94,21 @@
     .cta{display:block;text-align:center;text-decoration:none;background:#f4cd7b;color:#2b281e;padding:14px 20px;border-radius:12px;font-weight:800;box-shadow:0 8px 25px rgba(0,0,0,.16)}
     .cta:hover{background:#f8d995}
     .privacy{text-align:center;color:var(--muted);font-size:12px;margin-top:20px}
+    .drawer{width:min(900px,calc(100% - 28px));max-height:88vh;border:0;border-radius:22px;padding:0;background:var(--card);color:var(--ink);box-shadow:0 28px 90px rgba(20,35,27,.3)}
+    .drawer::backdrop{background:rgba(20,29,24,.58);backdrop-filter:blur(3px)}
+    .drawer-head{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding:24px 26px 18px;background:var(--card);border-bottom:1px solid var(--line)}
+    .drawer-head h2{font:600 27px Georgia,"Songti SC",serif;margin:0 0 4px}.drawer-head p{margin:0;color:var(--muted);font-size:13px}
+    .close{border:1px solid var(--line);background:white;border-radius:50%;width:38px;height:38px;font-size:20px;color:var(--muted)}
+    .source-note{margin:20px 26px 0;padding:13px 15px;border-radius:12px;background:#eef4ef;color:#526057;font-size:12px}
+    .recipient-list{display:grid;gap:12px;padding:18px 26px 28px}
+    .recipient{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#fff}
+    .recipient summary{list-style:none;cursor:pointer;padding:17px 18px;display:grid;grid-template-columns:1.2fr repeat(3,.7fr);gap:14px;align-items:center}
+    .recipient summary::-webkit-details-marker{display:none}.recipient summary:hover{background:#fafbf8}
+    .recipient-name b{display:block}.recipient-name span,.recipient-metric span{display:block;color:var(--muted);font-size:11px}
+    .recipient-metric b{font-size:14px}.recipient-body{padding:0 18px 17px;border-top:1px solid var(--line)}
+    .timeline{margin:0;padding:13px 0 0;list-style:none;display:grid;gap:8px}
+    .timeline li{display:grid;grid-template-columns:100px 70px 90px 1fr;gap:10px;font-size:12px;padding:9px 10px;border-radius:9px;background:#f5f4ef}
+    .empty-detail{padding:38px;text-align:center;color:var(--muted)}
     .state{max-width:620px;margin:13vh auto;background:var(--card);border:1px solid var(--line);border-radius:23px;padding:38px;text-align:center;box-shadow:var(--shadow)}
     .state .orb{width:58px;height:58px;margin:0 auto 18px;border-radius:50%;background:var(--mint);display:grid;place-items:center;color:var(--green);font:600 25px Georgia,serif}
     .state h1{font:600 30px Georgia,"Songti SC",serif;margin:0 0 10px}
@@ -108,6 +127,8 @@
       .hero-meta{gap:16px}.kpis{grid-template-columns:1fr}.kpis .kpi:last-child{grid-column:auto}
       .card{padding:19px}.funnel-row{grid-template-columns:82px 1fr 36px}.status-list{grid-template-columns:1fr 1fr}
       .chart{gap:3px}.day{gap:1px}.upload{padding:28px 23px}
+      .drawer-head{padding:20px}.source-note{margin:16px 20px 0}.recipient-list{padding:14px 20px 22px}
+      .recipient summary{grid-template-columns:1fr 1fr}.timeline li{grid-template-columns:78px 55px 1fr}.timeline li span:last-child{grid-column:1/-1}
     }
   </style>
 </head>
@@ -185,7 +206,7 @@
         <b>执行状态</b>
         <div style="color:var(--muted);font-size:12px;margin-top:3px">当前范围内的发送质量</div>
         <div class="status-list">
-          <div class="status"><b id="status-queued">—</b><span>进入队列</span></div>
+          <button id="open-recipients-status" class="status" type="button"><b id="status-queued">—</b><span>进入队列 · 点击查看逐客记录</span></button>
           <div class="status"><b id="status-sent">—</b><span>成功发送</span></div>
           <div class="status"><b id="status-failed">—</b><span>失败 / 跳过</span></div>
           <div class="status"><b id="status-handoff">—</b><span>转人工跟进</span></div>
@@ -204,6 +225,15 @@
         <div class="legend"><span><i></i>成功覆盖</span><span><i class="reply"></i>重新回复</span></div>
       </article>
     </section>
+
+    <dialog id="recipients-drawer" class="drawer" aria-labelledby="recipients-title">
+      <div class="drawer-head">
+        <div><h2 id="recipients-title">逐客召回记录</h2><p id="recipients-subtitle">按脱敏客户编号汇总</p></div>
+        <button id="close-recipients" class="close" type="button" aria-label="关闭">×</button>
+      </div>
+      <div id="source-note" class="source-note"></div>
+      <div id="recipient-list" class="recipient-list"></div>
+    </dialog>
 
     <section id="cases-section" hidden>
       <div class="section-title">
@@ -296,6 +326,7 @@
         el("upload-link").href=data.uploadUrl;
         renderFunnel(summary);
         renderChart(data.daily);
+        renderRecipients(data.recipients||[]);
         renderCases(data.cases||[]);
       }
 
@@ -305,10 +336,44 @@
           ["重新回复",s.replied],["有效推进",s.progressed],["转人工",s.handedOff]
         ];
         var max=Math.max(1,s.queued);
-        el("funnel-rows").innerHTML=rows.map(function(row){
+        el("funnel-rows").innerHTML=rows.map(function(row,index){
           var width=Math.max(row[1]?4:0,Math.round(row[1]/max*100));
-          return '<div class="funnel-row"><span class="funnel-label">'+row[0]+'</span><span class="bar"><i style="width:'+width+'%"></i></span><b class="funnel-value">'+row[1]+'</b></div>';
+          var tag=index===0?"button":"div";
+          var attrs=index===0?' type="button" class="funnel-row drill" id="open-recipients-funnel" aria-label="查看逐客召回记录"':' class="funnel-row"';
+          return '<'+tag+attrs+'><span class="funnel-label">'+row[0]+(index===0?" ↗":"")+'</span><span class="bar"><i style="width:'+width+'%"></i></span><b class="funnel-value">'+row[1]+'</b></'+tag+'>';
         }).join("");
+        var trigger=el("open-recipients-funnel");if(trigger)trigger.addEventListener("click",openRecipients);
+      }
+
+      function nextLabel(item){
+        if(item.nextRecallAt==null)return "无后续计划";
+        if(item.nextRecallInDays===0)return "今天可再次召回";
+        return item.nextRecallInDays+" 天后";
+      }
+
+      function renderRecipients(recipients){
+        text("recipients-subtitle",data.range.from+" 至 "+data.range.to+" · "+recipients.length+" 位脱敏客户");
+        var sources=(data.dataSources||[]).map(function(source){return source.table}).join("、");
+        text("source-note","数据来源：Supabase PostgreSQL · "+sources+"。仅展示脱敏编号、状态与计划，不返回姓名、企微 ID 或原始话术。");
+        if(!recipients.length){
+          el("recipient-list").innerHTML='<div class="empty-detail">当前范围内还没有逐客召回记录。</div>';
+          return;
+        }
+        el("recipient-list").innerHTML=recipients.map(function(item){
+          var records=item.records.map(function(record){
+            return '<li><span>'+escapeHtml(fmtDate(record.date))+'</span><b>第 '+record.day+' 次</b><span>'+escapeHtml(record.status)+'</span><span>'+escapeHtml(record.topic||"未标注内容方向")+'</span></li>';
+          }).join("");
+          return '<details class="recipient"><summary><div class="recipient-name"><b>'+escapeHtml(item.id)+'</b><span>'+escapeHtml(item.stage)+' · '+escapeHtml(item.status)+'</span></div>'+
+            '<div class="recipient-metric"><span>已成功召回</span><b>'+item.successfulTouches+' 次</b></div>'+
+            '<div class="recipient-metric"><span>剩余计划</span><b>'+item.remainingTouches+' 次</b></div>'+
+            '<div class="recipient-metric"><span>下次召回</span><b>'+escapeHtml(nextLabel(item))+'</b></div></summary>'+
+            '<div class="recipient-body"><ul class="timeline">'+records+'</ul></div></details>';
+        }).join("");
+      }
+
+      function openRecipients(){
+        var drawer=el("recipients-drawer");
+        if(typeof drawer.showModal==="function")drawer.showModal();
       }
 
       function renderChart(rows){
@@ -340,6 +405,9 @@
       document.querySelectorAll(".tab").forEach(function(btn){
         btn.addEventListener("click",function(){var days=Number(btn.dataset.days);if(days!==currentDays)load(days)});
       });
+      el("open-recipients-status").addEventListener("click",openRecipients);
+      el("close-recipients").addEventListener("click",function(){el("recipients-drawer").close()});
+      el("recipients-drawer").addEventListener("click",function(event){if(event.target===this)this.close()});
       load(7);
     })();
   </script>
