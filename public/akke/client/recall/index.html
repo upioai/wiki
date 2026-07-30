@@ -107,7 +107,9 @@
     .recipient-name b{display:block}.recipient-name span,.recipient-metric span{display:block;color:var(--muted);font-size:11px}
     .recipient-metric b{font-size:14px}.recipient-body{padding:0 18px 17px;border-top:1px solid var(--line)}
     .timeline{margin:0;padding:13px 0 0;list-style:none;display:grid;gap:8px}
-    .timeline li{display:grid;grid-template-columns:100px 70px 90px 1fr;gap:10px;font-size:12px;padding:9px 10px;border-radius:9px;background:#f5f4ef}
+    .timeline li{font-size:12px;padding:11px 12px;border-radius:9px;background:#f5f4ef}
+    .record-meta{display:grid;grid-template-columns:100px 70px 90px 1fr;gap:10px;align-items:center}
+    .recall-message{margin:9px 0 0;padding:9px 11px;border-left:3px solid var(--green);background:white;border-radius:0 8px 8px 0;color:#34443a;white-space:pre-wrap;word-break:break-word}
     .empty-detail{padding:38px;text-align:center;color:var(--muted)}
     .state{max-width:620px;margin:13vh auto;background:var(--card);border:1px solid var(--line);border-radius:23px;padding:38px;text-align:center;box-shadow:var(--shadow)}
     .state .orb{width:58px;height:58px;margin:0 auto 18px;border-radius:50%;background:var(--mint);display:grid;place-items:center;color:var(--green);font:600 25px Georgia,serif}
@@ -128,7 +130,7 @@
       .card{padding:19px}.funnel-row{grid-template-columns:82px 1fr 36px}.status-list{grid-template-columns:1fr 1fr}
       .chart{gap:3px}.day{gap:1px}.upload{padding:28px 23px}
       .drawer-head{padding:20px}.source-note{margin:16px 20px 0}.recipient-list{padding:14px 20px 22px}
-      .recipient summary{grid-template-columns:1fr 1fr}.timeline li{grid-template-columns:78px 55px 1fr}.timeline li span:last-child{grid-column:1/-1}
+      .recipient summary{grid-template-columns:1fr 1fr}.record-meta{grid-template-columns:78px 55px 1fr}.record-meta span:last-child{grid-column:1/-1}
     }
   </style>
 </head>
@@ -155,7 +157,7 @@
     <header class="hero">
       <div class="eyebrow">Customer Recall Report</div>
       <h1><span id="client-name">—</span>，每一次沉默都有下一步。</h1>
-      <p>把每日召回、客户回应和有效推进放在同一张图里。这里展示的是经过脱敏的业务成果，不展示客户身份和原始聊天。</p>
+      <p>把每日召回、客户回应和有效推进放在同一张图里。内部明细可查看客户姓名和实际召回话术，手机号、企微 ID 与客户回复原文继续隐藏。</p>
       <div class="hero-meta">
         <div><b id="range-label">最近 7 天</b>当前统计范围</div>
         <div><b>北京时间</b>统一数据口径</div>
@@ -251,7 +253,7 @@
       </div>
       <a id="upload-link" class="cta" href="#" target="_blank" rel="noopener noreferrer">提交用户画像资料 →</a>
     </section>
-    <p class="privacy">专属链接 · 数据实时更新 · 页面不公开客户身份、联系方式和原始聊天</p>
+    <p class="privacy">内部专属链接 · 数据实时更新 · 不展示手机号、企微 ID 和客户回复原文</p>
   </main>
 
   <script>
@@ -354,16 +356,17 @@
       function renderRecipients(recipients){
         text("recipients-subtitle",data.range.from+" 至 "+data.range.to+" · "+recipients.length+" 位脱敏客户");
         var sources=(data.dataSources||[]).map(function(source){return source.table}).join("、");
-        text("source-note","数据来源：Supabase PostgreSQL · "+sources+"。仅展示脱敏编号、状态与计划，不返回姓名、企微 ID 或原始话术。");
+        text("source-note","数据来源：Supabase PostgreSQL · "+sources+"。内部可查看客户姓名和召回话术；手机号、企微 ID 与客户回复原文不返回。");
         if(!recipients.length){
           el("recipient-list").innerHTML='<div class="empty-detail">当前范围内还没有逐客召回记录。</div>';
           return;
         }
         el("recipient-list").innerHTML=recipients.map(function(item){
           var records=item.records.map(function(record){
-            return '<li><span>'+escapeHtml(fmtDate(record.date))+'</span><b>第 '+record.day+' 次</b><span>'+escapeHtml(record.status)+'</span><span>'+escapeHtml(record.topic||"未标注内容方向")+'</span></li>';
+            return '<li><div class="record-meta"><span>'+escapeHtml(fmtDate(record.date))+'</span><b>第 '+record.day+' 次</b><span>'+escapeHtml(record.status)+'</span><span>'+escapeHtml(record.topic||"未标注内容方向")+'</span></div>'+
+              '<div class="recall-message">'+escapeHtml(record.message||"未记录召回话术")+'</div></li>';
           }).join("");
-          return '<details class="recipient"><summary><div class="recipient-name"><b>'+escapeHtml(item.id)+'</b><span>'+escapeHtml(item.stage)+' · '+escapeHtml(item.status)+'</span></div>'+
+          return '<details class="recipient"><summary><div class="recipient-name"><b>'+escapeHtml(item.name||item.id)+'</b><span>'+escapeHtml(item.id)+' · '+escapeHtml(item.stage)+' · '+escapeHtml(item.status)+'</span></div>'+
             '<div class="recipient-metric"><span>已成功召回</span><b>'+item.successfulTouches+' 次</b></div>'+
             '<div class="recipient-metric"><span>剩余计划</span><b>'+item.remainingTouches+' 次</b></div>'+
             '<div class="recipient-metric"><span>下次召回</span><b>'+escapeHtml(nextLabel(item))+'</b></div></summary>'+
