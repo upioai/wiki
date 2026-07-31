@@ -404,6 +404,15 @@ const FEED = [
   { t: '店长带看：展厅里最值得看的三处', a: '门店日常', d: '00:38', like: 2841, cm: 216, fav: 731, fw: 253, why: '门店场景，可直接复用' },
 ];
 
+/* 02 步的抓取流程。真实系统里对应后端的对标账号扫描与筛选任务。 */
+const FETCH_STAGES = [
+  ['扫描已关注的对标账号', '8 个'],
+  ['拉取近三日新增视频', '128 条'],
+  ['按经营范围过滤无关选题', '保留 43 条'],
+  ['按互动表现与上升趋势排序', '完成'],
+  ['生成待判定样片清单', '10 条'],
+];
+
 const SHOTS = [
   ['00:00–00:03', '开场留人', '33㎡ 也能有 1.8 米台面', '快速推近，数据大字幕'],
   ['00:03–00:10', '痛点陈述', '转角浪费、双人操作空间不足', '环绕运镜，标注浪费区域'],
@@ -452,9 +461,9 @@ const STEPS = [
     points: ['勾选实际承接的品类，支持多选', '勾选可上门服务的区域', '核对已选数量', '保存后进入下一步'],
     done: '品类与服务区域均不为空，且配置已保存' },
   { n: '02', t: '内容偏好', g: 'setup', time: '约 8 分钟', got: '本店内容偏好模型',
-    lede: '对 10 条同行样片逐条判定是否适用于本店。判定结果用于校准后续的选题推荐。',
-    points: ['完整预览后再判定，勿依据标题', '业务相关且门店可拍摄，判为适用', '业务无关或不具备拍摄条件，判为不适用', '10 条全部判定后方可继续'],
-    done: '10 条样片均已判定' },
+    lede: '系统按第 01 步的经营范围抓取同行样片，逐条判定是否适用于本店。判定结果用于校准后续的选题推荐。',
+    points: ['进入本步即自动抓取，无需手动操作', '业务相关且门店可拍摄，判为适用', '业务无关或不具备拍摄条件，判为不适用', '缩略图可预览，但不影响判定'],
+    done: '样片已完成判定，偏好模型生成' },
   { n: '03', t: '门店素材', g: 'setup', time: '约 5–15 分钟', got: '可复用的素材片段',
     lede: '上传工地、安装、展厅与完工实拍。系统自动切分为可复用片段，并生成画面描述。',
     points: ['支持手机或电脑本地文件', '切分期间请勿重复上传', '切分完成后逐段复核描述', '修正描述后保存入库'],
@@ -465,8 +474,8 @@ const STEPS = [
     done: '正面照通过校验，三段素材均可用，授权已确认' },
   { n: '05', t: '今日选题', g: 'daily', time: '约 10 分钟', got: '今日参考样片',
     lede: '从近三日同行表现较优的样片中选定一条。仅参考其叙事结构与节奏，不复用其内容。',
-    points: ['优先查看当日，必要时回溯前两日', '至少完整预览 3 条', '优先选择本店具备拍摄条件的主题', '确认后设为今日参考'],
-    done: '完整预览不少于 3 条，且已设定今日参考' },
+    points: ['优先查看当日，必要时回溯前两日', '建议预览后再选定', '优先选择本店具备拍摄条件的主题', '确认后设为今日参考'],
+    done: '已设定今日参考样片' },
   { n: '06', t: '结构拆解', g: 'daily', time: '约 2–5 分钟', got: '可复用的结构模板',
     lede: '系统按「开场—痛点—方案—佐证—转化」拆解样片，标注可借鉴的结构与不可复用的内容。',
     points: ['先阅读结论，再逐段查看话术与画面', '确认本店具备对应拍摄条件', '确认不可复用项已规避', '确认后按此结构生成'],
@@ -477,8 +486,8 @@ const STEPS = [
     done: '进度 100%，且无待处理异常' },
   { n: '08', t: '审核交付', g: 'daily', time: '约 5 分钟', got: '可发布成片',
     lede: '完整播放成片，重点核对字幕、口播、门店标识、报价与画面。通过后下载发布。',
-    points: ['完整播放全片，不可仅依据自动检测', '逐项核对字幕、声音与报价表述', '存在问题应先修正并重新生成', '全部确认后下载'],
-    done: '已完整播放，自动检测全部通过，人工复核项全部确认' },
+    points: ['建议完整播放，不可仅依据自动检测', '逐项核对字幕、声音与报价表述', '存在问题应先修正并重新生成', '全部确认后下载'],
+    done: '自动检测全部通过，人工复核项全部确认' },
 ];
 
 /* ══════════════ 状态 ══════════════ */
@@ -487,8 +496,11 @@ const S = {
   cats: new Set(['全屋定制', '橱柜', '衣柜', '榻榻米 / 柜体']),
   cities: new Set(['本市城区', '邻近县市']),
   saved: false,
+  fetchStep: 0,        // 02：抓取进度
+  fetchDone: false,
+  fetchTimer: null,
   judged: {},          // 02：{index: 'fit'|'unfit'}
-  watchedIntro: {},    // 02：看完的
+  watchedIntro: {},    // 02：预览过的（仅作标记，不作为判定前提）
   clips: [
     { name: '门店厨房安装实拍.mp4', state: 'ok', n: 12, desc: '柜体安装、封边细节、空间全景' },
     { name: '118㎡ 完工全景.mp4', state: 'ok', n: 9, desc: '完工实景、动线、柜门开合' },
@@ -525,8 +537,8 @@ function toast(msg) {
    加 ?dev 解除顺序限制，方便自己跳着看各步。 */
 const DEV = new URLSearchParams(location.search).has('dev');
 function stepReady(i) {
-  if (DEV || i === 0) return true;
-  return doneUpTo(i - 1);
+  // 测试阶段任意步骤都可进入。接后端后改回 `return DEV || i === 0 || doneUpTo(i - 1)`
+  return true;
 }
 function stepDone(i) {
   switch (i) {
@@ -550,7 +562,7 @@ function renderRail() {
   const mk = g => STEPS.map((s, i) => ({ s, i })).filter(x => x.s.g === g).map(({ s, i }) => {
     const ready = stepReady(i), done = stepDone(i);
     return `<button class="step${done ? ' done' : ''}" ${i === S.cur ? 'aria-current="true"' : ''}
-      ${ready ? '' : 'disabled'} onclick="goStep(${i})">
+      onclick="goStep(${i})">
       <span class="step-n">${s.n}</span><span class="step-t">${esc(s.t)}</span></button>`;
   }).join('');
   $('#rail-setup').innerHTML = mk('setup');
@@ -560,10 +572,34 @@ function renderRail() {
 function goStep(i) {
   if (!stepReady(i)) { toast('请先完成前序步骤'); return; }
   clearInterval(S.makeTimer);
+  clearInterval(S.fetchTimer);
   S.cur = i;
   render();
   window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (i === 1) startFetch();
   if (i === 6) startMaking();
+}
+
+/* 进入第 02 步即开始抓取；完成后停在待判定清单 */
+function startFetch() {
+  if (S.fetchDone) return;
+  clearInterval(S.fetchTimer);
+  S.fetchTimer = setInterval(() => {
+    S.fetchStep++;
+    if (S.fetchStep > FETCH_STAGES.length) {
+      clearInterval(S.fetchTimer);
+      S.fetchDone = true;
+      if (S.cur === 1) { render(); toast('已抓取 10 条待判定样片'); }
+      return;
+    }
+    if (S.cur === 1) render();
+  }, 900);
+}
+function finishFetch() {
+  clearInterval(S.fetchTimer);
+  S.fetchStep = FETCH_STAGES.length;
+  S.fetchDone = true;
+  render();
 }
 
 /* ══════════════ 主区 ══════════════ */
@@ -633,8 +669,33 @@ const BODY = [
       <span class="note">${S.saved ? '配置可随时修改' : '仅用于内容筛选，不影响对外展示的门店资料'}</span>
     </div>`,
 
-  /* 02 内容偏好 */
+  /* 02 内容偏好：进入即抓取，抓完直接判定 */
   () => {
+    if (!S.fetchDone) {
+      const done = FETCH_STAGES.filter((_, i) => i < S.fetchStep);
+      return `
+      <div class="block">
+        <div class="uc lg"><div class="cd">
+          <div class="block-head" style="margin-bottom:14px">
+            <h2>正在抓取同行样片</h2>
+            <span class="mono">${Math.min(99, Math.round(S.fetchStep / FETCH_STAGES.length * 100))}%</span>
+          </div>
+          <div class="track"><i style="width:${S.fetchStep / FETCH_STAGES.length * 100}%"></i></div>
+          <div class="stage-list" style="margin-top:16px">
+            ${FETCH_STAGES.map((s, i) => `
+              <div class="stage-row ${i < S.fetchStep ? 'ok' : i === S.fetchStep ? 'on' : ''}">
+                <i class="sdot"></i><span class="stage-name">${esc(s[0])}</span>
+                <span class="stage-state">${i < S.fetchStep ? esc(s[1]) : i === S.fetchStep ? '进行中' : '等待'}</span>
+              </div>`).join('')}
+          </div>
+          <p class="tiny" style="margin-top:14px">按第 01 步设定的品类与服务区域，从已关注的对标账号抓取近三日样片。</p>
+        </div></div>
+      </div>
+      <div class="actions">
+        <button class="btn" onclick="finishFetch()">跳过抓取（演示）</button>
+        <span class="note">抓取完成后可直接判定</span>
+      </div>`;
+    }
     const n = Object.keys(S.judged).length;
     return `
     <div class="block">
@@ -645,24 +706,24 @@ const BODY = [
       <div class="track"><i style="width:${n / FEED.length * 100}%"></i></div>
       <div class="rows" style="margin-top:14px">
         ${FEED.map((f, i) => {
-          const seen = S.watchedIntro[i], j = S.judged[i];
+          const j = S.judged[i];
           return `<div class="row">
-            <div class="thumb ${seen ? 'seen' : ''}" id="ith-${i}" onclick="watchIntro(${i})">${f.d}</div>
+            <div class="thumb ${S.watchedIntro[i] ? 'seen' : ''}" id="ith-${i}"
+                 title="点击预览" onclick="watchIntro(${i})">${f.d}</div>
             <div class="row-main">
               <div class="row-title">${esc(f.t)}</div>
-              <div class="row-sub">${esc(f.a)} · ${num(f.like)} 赞</div>
+              <div class="row-sub">${esc(f.a)} · ${num(f.like)} 赞 · ${esc(f.why)}</div>
             </div>
-            ${seen ? `
-              <button class="btn sm ${j === 'fit' ? '' : 'ghost'}" onclick="judge(${i},'fit')">适用</button>
-              <button class="btn sm ${j === 'unfit' ? '' : 'ghost'}" onclick="judge(${i},'unfit')">不适用</button>`
-              : `<span class="row-end">预览后判定</span>`}
+            <button class="btn sm ${j === 'fit' ? '' : 'ghost'}" onclick="judge(${i},'fit')">适用</button>
+            <button class="btn sm ${j === 'unfit' ? '' : 'ghost'}" onclick="judge(${i},'unfit')">不适用</button>
           </div>`;
         }).join('')}
       </div>
+      <p class="tiny" style="margin-top:12px">缩略图可点开预览；不预览也能直接判定。</p>
     </div>
     <div class="actions">
-      <button class="btn" ${n === FEED.length ? '' : 'disabled'} onclick="goStep(2)">下一步</button>
-      <span class="note">${n === FEED.length ? '偏好模型已生成' : `尚有 ${FEED.length - n} 条未判定`}</span>
+      <button class="btn" onclick="goStep(2)">下一步</button>
+      <span class="note">${n === FEED.length ? '偏好模型已生成' : `已判定 ${n} / ${FEED.length}`}</span>
     </div>`;
   },
 
@@ -726,7 +787,7 @@ const BODY = [
       </div></div>
     </div>
     <div class="actions">
-      <button class="btn" ${S.hostShots.every(h => h.ok) ? '' : 'disabled'} onclick="goStep(4)">进入日常制作</button>
+      <button class="btn" onclick="goStep(4)">进入日常制作</button>
       <span class="note">${S.hostShots.every(h => h.ok) ? '基准素材已齐备' : '尚有 1 项未上传'}</span>
     </div>`,
 
@@ -752,19 +813,17 @@ const BODY = [
                 <div class="row-title">${esc(f.t)}</div>
                 <div class="row-sub">${esc(f.a)} · ${num(f.like)} 赞 · ${num(f.cm)} 评论 · ${num(f.fav)} 收藏</div>
               </div>
-              ${w
-                ? `<button class="btn sm ${picked ? '' : 'ghost'}" onclick="pickFeed(${i})">${picked ? '已设为参考' : '设为参考'}</button>`
-                : `<span class="row-end">预览后可选</span>`}
+              <button class="btn sm ${picked ? '' : 'ghost'}" onclick="pickFeed(${i})">${picked ? '已设为参考' : '设为参考'}</button>
             </div>`;
           }).join('')}
         </div>`
         : `<div class="empty">${days[S.day]}的候选样片已全部浏览，无更优选项。</div>`}
     </div>
     <div class="actions">
-      <button class="btn" ${S.picked !== null ? '' : 'disabled'} onclick="goStep(5)">查看结构拆解</button>
+      <button class="btn" onclick="goStep(5)">查看结构拆解</button>
       <span class="note">${S.picked !== null
         ? `今日参考：${esc(FEED[S.picked].t)}`
-        : seen < 3 ? `需完整预览至少 3 条，尚差 ${3 - seen} 条` : '选定一条作为今日参考'}</span>
+        : '建议先预览再选定'}</span>
     </div>`;
   },
 
@@ -845,7 +904,7 @@ const BODY = [
       </div></div>
     </div>
     <div class="actions">
-      <button class="btn" ${doneAll ? '' : 'disabled'} onclick="goStep(7)">${doneAll ? '进入审核' : `制作中 ${S.progress}%`}</button>
+      <button class="btn" onclick="goStep(7)">${doneAll ? '进入审核' : '进入审核'}</button>
       ${doneAll ? '' : '<button class="btn ghost" onclick="finishMaking()">跳至完成（演示）</button>'}
       <span class="note">制作期间可关闭页面，完成后将通知</span>
     </div>`;
@@ -870,7 +929,7 @@ const BODY = [
           </div>
           <div class="checks">
             ${HUMAN_CHECKS.map((c, i) => `
-              <div class="check ${S.finalWatched ? '' : 'locked'} ${S.humanTicks[i] ? 'on' : ''}" onclick="tickHuman(${i})">
+              <div class="check ${S.humanTicks[i] ? 'on' : ''}" onclick="tickHuman(${i})">
                 <span class="tick">✓</span>
                 <div><span class="check-t">${esc(c[0])}</span>
                 ${c[1] ? `<span class="check-w">${esc(c[1])}</span>` : ''}</div>
@@ -898,10 +957,9 @@ const BODY = [
       </div>
     </div>
     <div class="actions">
-      <button class="btn" ${ready ? '' : 'disabled'} onclick="toast('已下载')">下载成片</button>
+      <button class="btn" onclick="toast('已下载')">下载成片</button>
       <button class="btn ghost" onclick="goStep(4)">新建任务</button>
-      <span class="note">${!S.finalWatched ? '需完整播放后方可确认'
-        : ready ? '已通过审核，可下载' : `尚有 ${HUMAN_CHECKS.length - ticks} 项未确认`}</span>
+      <span class="note">${ready ? '已通过审核，可下载' : `尚有 ${HUMAN_CHECKS.length - ticks} 项未确认`}</span>
     </div>`;
   },
 ];
@@ -921,7 +979,6 @@ function watchIntro(i) { if (S.watchedIntro[i]) return; playThumb('ith-' + i, ()
 function judge(i, v) { S.judged[i] = v; render(); }
 function watchFeed(i) { if (S.watchedFeed[i]) return; playThumb('fth-' + i, () => { S.watchedFeed[i] = true; render(); }); }
 function pickFeed(i) {
-  if (Object.keys(S.watchedFeed).length < 3) { toast('需完整预览至少 3 条'); return; }
   S.picked = i; render(); toast('已设为今日参考');
 }
 function uploadShot(i) { S.hostShots[i].ok = true; render(); toast('已上传'); }
@@ -949,7 +1006,6 @@ function watchFinal() {
   }, 60);
 }
 function tickHuman(i) {
-  if (!S.finalWatched) { toast('需完整播放后方可确认'); return; }
   S.humanTicks[i] ? delete S.humanTicks[i] : S.humanTicks[i] = true;
   render();
 }
