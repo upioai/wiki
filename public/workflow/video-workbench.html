@@ -164,6 +164,40 @@
   }
   .pick[aria-pressed="true"] .tick { background: var(--t1); border-color: var(--t1); color: var(--on-t1); }
 
+  /* ── 上传区与素材卡 ── */
+  .dropzone {
+    width: 100%; border: 1px dashed var(--t2); border-radius: 10px; background: transparent;
+    padding: 26px; cursor: pointer; font: inherit; color: var(--text-2);
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    transition: border-color 200ms, background 200ms;
+  }
+  .dropzone:hover { border-color: var(--t1); background: var(--overlay); }
+  .dz-plus { font-size: 20px; color: var(--t1); line-height: 1; }
+  .dz-main { color: var(--t1); font-size: 14px; }
+  .dz-sub { font-size: 12.5px; }
+
+  .clip-list { display: flex; flex-direction: column; gap: 10px; }
+  .clip { display: flex; gap: 14px; align-items: flex-start; }
+  .clip-body { flex: 1; min-width: 0; }
+  .clip-name { color: var(--t1); font-size: 13.5px; margin-bottom: 8px; }
+  .note-line { display: flex; gap: 8px; align-items: center; }
+  .note-input {
+    flex: 1; min-width: 0; padding: 9px 12px; font: inherit; font-size: 13px;
+    border: 1px solid var(--panel-border); border-radius: 8px;
+    background: var(--main-bg); color: var(--t1); outline: 0;
+    transition: border-color 200ms;
+  }
+  .note-input:focus { border-color: var(--t1); }
+  .note-input::placeholder { color: var(--text-3); }
+  .mic {
+    width: 34px; height: 34px; flex-shrink: 0; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--panel-border); background: transparent; font-size: 13px;
+    color: var(--text-2); transition: all 200ms;
+  }
+  .mic:hover { border-color: var(--t1); color: var(--t1); }
+  .mic.rec { background: var(--t1); border-color: var(--t1); color: var(--on-t1); animation: pulse 1.2s ease-in-out infinite; }
+  .clip-tags { margin-top: 9px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
   /* ── 行列表 ── */
   .rows { display: flex; flex-direction: column; }
   .row {
@@ -465,9 +499,9 @@ const STEPS = [
     points: ['进入本步即自动抓取，无需手动操作', '业务相关且门店可拍摄，判为适用', '业务无关或不具备拍摄条件，判为不适用', '缩略图可预览，但不影响判定'],
     done: '样片已完成判定，偏好模型生成' },
   { n: '03', t: '门店素材', g: 'setup', time: '约 5–15 分钟', got: '可复用的素材片段',
-    lede: '上传工地、安装、展厅与完工实拍。系统自动切分为可复用片段，并生成画面描述。',
-    points: ['支持手机或电脑本地文件', '切分期间请勿重复上传', '切分完成后逐段复核描述', '修正描述后保存入库'],
-    done: '素材切分完成，且片段描述与画面一致' },
+    lede: '上传工地、安装、展厅与完工实拍。补一句说明，系统结合说明与画面自动归类。',
+    points: ['支持手机或电脑本地文件', '为素材补一句说明，可打字或语音', '说明越具体，归类越准', '不填说明也能上传，系统按画面归类'],
+    done: '素材已上传并完成归类' },
   { n: '04', t: '出镜形象', g: 'setup', time: '约 15 分钟', got: '出镜形象与声纹样本',
     lede: '采集出镜人正面照与三段基准视频。后续所有成片统一使用该形象与声纹。',
     points: ['确认出镜人身份与本人授权', '正面照需平视、无遮挡、光线均匀', '按规格分别录制三段素材', '收音或画面不达标须重录'],
@@ -501,10 +535,15 @@ const S = {
   fetchTimer: null,
   judged: {},          // 02：{index: 'fit'|'unfit'}
   watchedIntro: {},    // 02：预览过的（仅作标记，不作为判定前提）
+  recording: null,
   clips: [
-    { name: '门店厨房安装实拍.mp4', state: 'ok', n: 12, desc: '柜体安装、封边细节、空间全景' },
-    { name: '118㎡ 完工全景.mp4', state: 'ok', n: 9, desc: '完工实景、动线、柜门开合' },
-    { name: '衣柜封边细节.mov', state: 'busy', n: 0, desc: '切分中，约 2 分钟' },
+    { name: '门店厨房安装实拍.mp4', state: 'ok', n: 12,
+      note: '龙文店厨房，师傅在装吊柜和台面',
+      tags: ['柜体安装', '施工现场', '厨房'] },
+    { name: '118㎡ 完工全景.mp4', state: 'ok', n: 9,
+      note: '',
+      tags: ['完工实景', '空间全景'] },
+    { name: '衣柜封边细节.mov', state: 'busy', n: 0, note: '', tags: [] },
   ],
   hostShots: [
     { t: '正面口播 · 30–60 秒', how: '竖屏，镜头与眼睛同高，腰部以上入镜', why: '口型同步基准素材，镜头须平视', ok: true },
@@ -727,32 +766,53 @@ const BODY = [
     </div>`;
   },
 
-  /* 03 门店实拍 */
+  /* 03 门店素材：上传 → 说一句 → AI 归类 */
   () => `
     <div class="block">
-      <div class="block-head"><h2>素材库</h2><span class="mono">共 ${S.clips.reduce((a, c) => a + c.n, 0)} 段可用</span></div>
-      <div class="uc"><div class="cd" style="padding:0 14px">
-        <table>
-          <tr><th>视频</th><th style="width:96px">状态</th><th style="width:78px">片段</th><th>画面描述</th><th style="width:92px"></th></tr>
-          ${S.clips.map((c, i) => `<tr>
-            <td class="k">${esc(c.name)}</td>
-            <td>${c.state === 'ok' ? '<span class="chip">已切分</span>' : '<span class="chip">切分中</span>'}</td>
-            <td>${c.n || '—'}</td>
-            <td class="dim">${esc(c.desc)}</td>
-            <td>${c.state === 'ok' ? `<button class="link" onclick="toast('打开 ${c.n} 个片段逐条复核')">复核 ›</button>` : ''}</td>
-          </tr>`).join('')}
-        </table>
-      </div></div>
-      <div class="uc" style="margin-top:12px"><div class="cd">
-        <p class="tiny"><strong style="color:var(--t1)">片段描述须人工复核。</strong>
-        系统可识别画面中的物件，但对施工环节的判断存在误差（例如将墙面铺贴识别为地面铺贴）。
-        复核后可显著提升素材匹配准确率。</p>
-      </div></div>
+      <button class="dropzone" onclick="addClip()">
+        <span class="dz-plus">＋</span>
+        <span class="dz-main">上传门店实拍</span>
+        <span class="dz-sub">工地、安装、展厅、完工都可以，支持手机或电脑文件</span>
+      </button>
+    </div>
+
+    <div class="block">
+      <div class="block-head">
+        <h2>已上传</h2>
+        <span class="mono">${S.clips.length} 条 · ${S.clips.reduce((a, c) => a + c.n, 0)} 段可用</span>
+      </div>
+      <div class="clip-list">
+        ${S.clips.map((c, i) => `
+          <div class="uc"><div class="cd clip">
+            <div class="thumb" style="width:46px;height:62px">${c.state === 'busy' ? '…' : '视频'}</div>
+            <div class="clip-body">
+              <div class="clip-name">${esc(c.name)}</div>
+              <div class="note-line">
+                <input class="note-input" id="note-${i}" value="${esc(c.note)}"
+                       placeholder="说一句这段拍的是什么，例如：龙文店厨房柜体安装现场"
+                       oninput="setNote(${i}, this.value)">
+                <button class="mic ${S.recording === i ? 'rec' : ''}" title="语音输入"
+                        onclick="voiceNote(${i})">${S.recording === i ? '■' : '◉'}</button>
+              </div>
+              <div class="clip-tags">
+                ${c.classifying
+                  ? '<span class="tiny">正在按你的说明重新归类…</span>'
+                  : c.tags.length
+                    ? c.tags.map(t => `<span class="chip">${esc(t)}</span>`).join('') +
+                      `<span class="tiny" style="margin-left:6px">已切分 ${c.n} 段</span>`
+                    : '<span class="tiny">上传后自动归类；补一句说明会更准</span>'}
+              </div>
+            </div>
+          </div></div>`).join('')}
+      </div>
+      <p class="tiny" style="margin-top:12px">
+        说明可以不填。填了之后系统会结合你的说法和画面重新归类——
+        例如你说"这是墙面贴砖"，就不会被误判成地面铺贴。
+      </p>
     </div>
     <div class="actions">
-      <button class="btn ghost" onclick="toast('选择本地视频文件')">上传素材</button>
       <button class="btn" onclick="goStep(3)">下一步</button>
-      <span class="note">支持工地、安装、展厅与完工实拍</span>
+      <span class="note">素材可以随时补充</span>
     </div>`,
 
   /* 04 出镜素材 */
@@ -982,6 +1042,84 @@ function pickFeed(i) {
   S.picked = i; render(); toast('已设为今日参考');
 }
 function uploadShot(i) { S.hostShots[i].ok = true; render(); toast('已上传'); }
+
+/* ── 03 门店素材：上传 → 说一句 → 重新归类 ── */
+const SAMPLE_UPLOADS = [
+  '展厅样柜实拍.mp4', '工地水电验收.mp4', '客户家完工回访.mov', '柜门安装特写.mp4',
+];
+function addClip() {
+  const name = SAMPLE_UPLOADS[S.clips.length % SAMPLE_UPLOADS.length];
+  S.clips.push({ name, state: 'busy', n: 0, note: '', tags: [] });
+  const idx = S.clips.length - 1;
+  render();
+  toast('正在切分，约 2 分钟');
+  setTimeout(() => {
+    const c = S.clips[idx];
+    if (!c) return;
+    c.state = 'ok';
+    c.n = 6 + (idx % 5);
+    c.tags = ['施工现场'];
+    if (S.cur === 2) render();
+  }, 2200);
+}
+
+/* 说明变化后重新归类。真实系统里这里调用一次多模态理解，
+   把用户说法与画面证据一起送进去；说法只作为先验，不覆盖画面事实。 */
+let noteTimer = null;
+function setNote(i, v) {
+  S.clips[i].note = v;
+  clearTimeout(noteTimer);
+  if (!v.trim()) return;
+  S.clips[i].classifying = true;
+  noteTimer = setTimeout(() => reclassify(i), 900);
+  // 只更新标签区，避免重渲染时输入框失焦
+  const box = document.querySelectorAll('.clip-tags')[i];
+  if (box) box.innerHTML = '<span class="tiny">正在按你的说明重新归类…</span>';
+}
+const KEYWORDS = [
+  [/墙|贴砖|铺贴|瓷砖/, '墙面铺贴'], [/地面|地砖/, '地面铺贴'],
+  [/厨|橱柜|台面/, '厨房'], [/衣柜|柜体|吊柜|柜门/, '柜体安装'],
+  [/水电|管线/, '水电'], [/展厅|门店|样柜/, '展厅'],
+  [/完工|交付|回访/, '完工实景'], [/封边|细节|特写/, '工艺细节'],
+  [/工地|现场|师傅|安装/, '施工现场'],
+];
+function reclassify(i) {
+  const c = S.clips[i];
+  // 先摘出「不是 X / 没有 X」里的 X，否则「墙面贴砖，不是地面」会把地面也打上标签
+  const negated = [];
+  c.note.replace(/(?:不是|不要|没有|并非)([^，。,；;、]{0,8})/g, (_, seg) => {
+    KEYWORDS.forEach(([re, tag]) => { if (re.test(seg)) negated.push(tag); });
+    return '';
+  });
+  const hit = KEYWORDS
+    .filter(([re, tag]) => re.test(c.note) && !negated.includes(tag))
+    .map(([, tag]) => tag);
+  c.tags = [...new Set(hit.length ? hit : ['施工现场'])].slice(0, 3);
+  c.classifying = false;
+  const box = document.querySelectorAll('.clip-tags')[i];
+  if (box) {
+    box.innerHTML = c.tags.map(t => `<span class="chip">${esc(t)}</span>`).join('') +
+      `<span class="tiny" style="margin-left:6px">已切分 ${c.n} 段</span>`;
+  }
+}
+const VOICE_SAMPLES = [
+  '这段是墙面贴砖，不是地面',
+  '客户家完工以后回去拍的全景',
+  '师傅在装衣柜柜门，有封边细节',
+  '展厅里的样柜，光线比较好',
+];
+function voiceNote(i) {
+  if (S.recording !== null) { S.recording = null; render(); return; }
+  S.recording = i;
+  render();
+  setTimeout(() => {
+    S.recording = null;
+    S.clips[i].note = VOICE_SAMPLES[i % VOICE_SAMPLES.length];
+    render();
+    reclassify(i);
+    toast('语音已转成说明');
+  }, 1600);
+}
 
 function startMaking() {
   if (S.progress >= 100) return;
