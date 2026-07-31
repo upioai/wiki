@@ -1,0 +1,691 @@
+<!--
+  门店短视频工作台 · 本地原型
+  风格：marijana-pavlinic-editorial-mosaic（网页风格库）
+  设计前提：使用者是装修门店销售，不懂 AI。整条流程只暴露四个状态，
+  工作流细节默认折叠，只有真的需要人做决定时才把人拉进来。
+-->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>短视频工作台</title>
+<script>
+  /* 在首次绘制前定好主题，避免重载时先闪一下浅色再跳到深色 */
+  (function () {
+    var m = localStorage.getItem('theme') || 'system';
+    var dark = m === 'dark' ||
+      (m === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.className = dark ? 'theme-dark' : 'theme-light';
+    document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- 非阻塞加载：断网或字体慢时页面照常可用，中文本来也走本地 PingFang -->
+<link rel="stylesheet" media="print" onload="this.media='all'"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500&family=Inter:wght@400;500&family=IBM+Plex+Mono:wght@600&display=swap">
+
+<style>
+  .theme-light {
+    --main-background: #f8f8f8;
+    --panel-background: #ffffff;
+    --panel-border: #e6eae9;
+    --theme-1: #1e1e1e;
+    --theme-2: #dadedd;
+    --theme-3: #f0f4f3;
+    --text-primary: #484848;
+    --text-secondary: #48484899;
+    --panel-overlay: #1e1e1e1a;
+    --on-theme-1: #f8f8f8;
+  }
+  .theme-dark {
+    --main-background: #080808;
+    --panel-background: #121212;
+    --panel-border: #292929;
+    --theme-1: #e9e9e2;
+    --theme-2: #383938;
+    --theme-3: #292929;
+    --text-primary: #ddddd6;
+    --text-secondary: #e9e9e299;
+    --panel-overlay: #e9e9e21a;
+    --on-theme-1: #121212;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--main-background);
+    color: var(--text-primary);
+    font-family: "Inter", "PingFang SC", "Noto Sans SC", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 20px;
+    transition: background 300ms ease-in-out, color 300ms ease-in-out;
+    min-height: 100vh;
+    padding-bottom: 120px;
+  }
+
+  .glow {
+    position: fixed; width: 400px; height: 400px; border-radius: 50%;
+    background: var(--theme-1); filter: blur(64px); opacity: .06;
+    pointer-events: none; left: 60%; top: 10%; z-index: 0;
+  }
+
+  /* ── 顶栏 ─────────────────────────────── */
+  .topbar {
+    position: sticky; top: 0; z-index: 20;
+    backdrop-filter: blur(12px);
+    background: color-mix(in srgb, var(--main-background) 80%, transparent);
+    border-bottom: 1px solid var(--panel-border);
+  }
+  .topbar-inner {
+    max-width: 1336px; margin: 0 auto; padding: 14px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .mark { display: flex; align-items: center; gap: 10px; }
+  .mark-glyph {
+    width: 26px; height: 26px; border-radius: 7px;
+    background: var(--theme-1); color: var(--on-theme-1);
+    display: flex; align-items: center; justify-content: center;
+    font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 600;
+  }
+  .mark-name { font-size: 14px; color: var(--theme-1); }
+  .topbar-right { display: flex; align-items: center; gap: 16px; }
+
+  .themeset { display: flex; gap: 2px; padding: 2px; border-radius: 9999px; background: var(--theme-3); }
+  .themebtn {
+    width: 28px; height: 24px; border: 0; border-radius: 9999px;
+    background: transparent; color: var(--text-secondary);
+    cursor: pointer; font-size: 12px; line-height: 1;
+    transition: background 200ms, color 200ms;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .themebtn[aria-pressed="true"] { background: var(--panel-background); color: var(--theme-1); }
+
+  .linkbtn {
+    background: none; border: 0; cursor: pointer; padding: 0;
+    font-family: inherit; font-size: 13px; color: var(--text-secondary);
+    text-decoration: underline; text-underline-offset: 3px;
+    transition: color 200ms;
+  }
+  .linkbtn:hover { color: var(--theme-1); }
+
+  /* ── 版心 ─────────────────────────────── */
+  .stage { max-width: 1336px; margin: 0 auto; padding: 0 20px; position: relative; z-index: 1; }
+  .lane { max-width: 760px; padding-top: 76px; }
+  .lane-wide { max-width: 880px; padding-top: 76px; }
+
+  .label {
+    font-family: "IBM Plex Mono", monospace; font-size: 12px; font-weight: 600;
+    letter-spacing: .2em; text-transform: uppercase; color: var(--text-secondary);
+  }
+
+  h1 {
+    font-family: "Archivo", "PingFang SC", "Noto Sans SC", sans-serif; font-weight: 400;
+    font-size: 64px; line-height: 1; letter-spacing: -.01em;
+    color: var(--theme-1); margin: 18px 0 0; max-width: 1000px;
+  }
+  /* 第二行从次色显影到强调色：动画结束后必须完整可读，不能停在浅灰 */
+  h1 .soft {
+    color: var(--theme-1);
+    animation: reveal 2.3s cubic-bezier(.06,.56,.24,.96) both;
+  }
+  @keyframes reveal {
+    from { color: var(--theme-2); }
+    to   { color: var(--theme-1); }
+  }
+  .lede { margin-top: 18px; max-width: 460px; color: var(--text-secondary); line-height: 24px; }
+
+  /* ── 卡片：外框 + 内层，风格核心 ───────── */
+  .ui-card { padding: 1px; border-radius: 10px; background: var(--panel-border); }
+  /* NOTE: 风格库原式带 min-height:100%，那是给马赛克网格撑满 cell 用的。
+     这里是线性流程页，留着会让卡片被祖先高度撑开（实测 176px 内容撑到 780px）。 */
+  .ui-card > .card {
+    padding: 12px; border-radius: 9px;
+    background: var(--panel-background);
+  }
+  .card-lg > .card { padding: 20px; }
+
+  /* ── 登录 ─────────────────────────────── */
+  .signin-form { max-width: 340px; display: flex; flex-direction: column; gap: 10px; margin-top: 34px; }
+  .signin-form .go { padding: 15px 0; }
+
+  /* ── 输入 ─────────────────────────────── */
+  .capture { display: flex; gap: 10px; margin-top: 34px; align-items: stretch; }
+  .capture .ui-card { flex: 1; }
+  .field {
+    width: 100%; border: 0; outline: 0; background: transparent;
+    font-family: inherit; font-size: 15px; color: var(--theme-1);
+    padding: 14px 14px;
+  }
+  .field::placeholder { color: var(--text-secondary); }
+
+  .go {
+    border: 0; border-radius: 10px; cursor: pointer;
+    background: var(--theme-1); color: var(--on-theme-1);
+    font-family: inherit; font-size: 15px; padding: 0 30px;
+    transition: opacity 200ms;
+  }
+  .go:hover { opacity: .84; }
+  .go:disabled { background: var(--theme-2); color: var(--text-secondary); cursor: default; }
+
+  /* ── 同行列表：一行一条，不做等宽卡片区 ── */
+  .feed { margin-top: 52px; }
+  .feed-head { display: flex; align-items: baseline; justify-content: space-between; }
+  .rows { margin-top: 12px; display: flex; flex-direction: column; }
+  .row {
+    display: flex; align-items: center; gap: 16px; padding: 14px 12px;
+    border-top: 1px solid var(--panel-border); cursor: pointer;
+    transition: background 200ms;
+  }
+  .row:last-child { border-bottom: 1px solid var(--panel-border); }
+  .row:hover { background: var(--theme-3); }
+  .row-rank { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--text-secondary); width: 22px; }
+  .row-title { flex: 1; color: var(--theme-1); }
+  .row-meta { font-size: 13px; color: var(--text-secondary); }
+  .row-go { font-size: 13px; color: var(--text-secondary); opacity: 0; transition: opacity 200ms; }
+  .row:hover .row-go { opacity: 1; }
+
+  .footnote { margin-top: 40px; font-size: 13px; color: var(--text-secondary); }
+
+  /* ── 进度 ─────────────────────────────── */
+  .track { margin-top: 30px; height: 2px; background: var(--theme-2); border-radius: 2px; overflow: hidden; }
+  .track > i { display: block; height: 100%; background: var(--theme-1); transition: width 600ms ease-in-out; }
+  .track-meta { margin-top: 12px; display: flex; justify-content: space-between; font-size: 13px; color: var(--text-secondary); }
+
+  /* ── 折叠：细节默认藏起来 ───────────────── */
+  details { margin-top: 40px; }
+  summary {
+    cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 8px;
+    font-size: 13px; color: var(--text-secondary); transition: color 200ms;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary:hover { color: var(--theme-1); }
+  summary::after { content: "▸"; font-size: 10px; transition: transform 200ms; }
+  details[open] summary::after { transform: rotate(90deg); }
+  .detail-body { margin-top: 16px; }
+
+  .stepline { display: flex; flex-direction: column; }
+  .stepitem {
+    display: flex; align-items: center; gap: 14px; padding: 11px 0;
+    border-top: 1px solid var(--panel-border); font-size: 13px;
+  }
+  .stepitem:last-child { border-bottom: 1px solid var(--panel-border); }
+  .stepdot { width: 6px; height: 6px; border-radius: 50%; background: var(--theme-2); flex-shrink: 0; }
+  .stepitem.on .stepdot { background: var(--theme-1); }
+  .stepitem.on { color: var(--theme-1); }
+  .stepname { flex: 1; }
+  .stepstate { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--text-secondary); }
+
+  /* ── 需要决定 ───────────────────────────── */
+  .choices { margin-top: 30px; display: flex; flex-direction: column; gap: 10px; max-width: 520px; }
+  .choice {
+    width: 100%; text-align: left; cursor: pointer; border: 0;
+    background: transparent; font-family: inherit; padding: 0;
+  }
+  .choice .card { display: flex; align-items: center; gap: 14px; transition: background 200ms; }
+  .choice:hover .card { background: var(--theme-3); }
+  .choice-main { flex: 1; }
+  .choice-name { color: var(--theme-1); font-size: 15px; }
+  .choice-note { font-size: 13px; color: var(--text-secondary); margin-top: 3px; }
+  .choice-tag {
+    font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--text-secondary);
+    border: 1px solid var(--panel-border); border-radius: 9999px; padding: 3px 9px;
+  }
+
+  /* ── 成片 ─────────────────────────────── */
+  .done-grid { display: flex; gap: 32px; margin-top: 34px; align-items: flex-start; }
+  /* 9:16 在桌面端很高；宽度压到 236px 才能和右侧确认区高度接近，不撑出空白 */
+  .player { width: 236px; flex-shrink: 0; }
+  .player .card { padding: 1px; }
+  .screen {
+    width: 100%; aspect-ratio: 9/16; border-radius: 8px;
+    background: var(--theme-3); display: flex; flex-direction: column; gap: 14px;
+    align-items: center; justify-content: center;
+    cursor: pointer; position: relative; overflow: hidden;
+    transition: background 200ms;
+  }
+  .screen:hover { background: var(--theme-2); }
+  .playglyph {
+    width: 54px; height: 54px; border-radius: 50%; background: var(--theme-1); color: var(--on-theme-1);
+    display: flex; align-items: center; justify-content: center; font-size: 16px; padding-left: 3px;
+    transition: transform 200ms;
+  }
+  .screen:hover .playglyph { transform: scale(1.05); }
+  .screen-hint { font-size: 13px; color: var(--text-secondary); }
+  .scrub { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--theme-1); width: 0%; transition: width 300ms linear; }
+  .player-meta { margin-top: 10px; font-size: 12px; color: var(--text-secondary); }
+
+  .confirm { flex: 1; max-width: 520px; display: flex; flex-direction: column; }
+  .checks { display: flex; flex-direction: column; margin-top: 10px; }
+  .check {
+    display: flex; align-items: flex-start; gap: 12px; padding: 13px 0;
+    border-top: 1px solid var(--panel-border); cursor: pointer;
+    transition: opacity 200ms;
+  }
+  .check:last-of-type { border-bottom: 1px solid var(--panel-border); }
+  .check.locked { opacity: .4; cursor: default; }
+  .cbox {
+    width: 17px; height: 17px; border-radius: 5px; flex-shrink: 0; margin-top: 1px;
+    border: 1px solid var(--theme-2); display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: transparent; transition: all 200ms;
+  }
+  .check.on .cbox { background: var(--theme-1); border-color: var(--theme-1); color: var(--on-theme-1); }
+  .check-text { color: var(--theme-1); }
+  .check-why { display: block; font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+  .deliver { margin-top: 24px; display: flex; align-items: center; gap: 16px; }
+  .hint { font-size: 12px; color: var(--text-secondary); }
+
+  /* ── 底部导航 pill ───────────────────── */
+  .dock {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: 32px; z-index: 30;
+    padding: 1px; border-radius: 9999px; background: var(--panel-border);
+  }
+  .dock-inner {
+    display: flex; align-items: center; gap: 2px; padding: 4px;
+    border-radius: 9999px; background: var(--panel-background);
+  }
+  .dockitem {
+    padding: 7px 16px; border-radius: 9999px; border: 0; background: transparent; cursor: pointer;
+    font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 600;
+    letter-spacing: .12em; text-transform: uppercase; color: var(--text-secondary);
+    transition: background 300ms ease-in-out, color 300ms ease-in-out;
+  }
+  .dockitem[aria-current="true"] { background: var(--theme-3); color: var(--theme-1); }
+
+  .screenpanel { display: none; }
+  .screenpanel.live { display: block; }
+
+  @media (max-width: 768px) {
+    h1 { font-size: 36px; }
+    .lane, .lane-wide { padding-top: 44px; }
+    .capture { flex-direction: column; }
+    .go { padding: 15px 0; }
+    .done-grid { flex-direction: column; }
+    .player { width: 100%; max-width: 268px; }
+    .dock { bottom: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="glow" id="glow"></div>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="mark">
+      <div class="mark-glyph">V</div>
+      <div class="mark-name">短视频工作台<span id="storyname"></span></div>
+    </div>
+    <div class="topbar-right">
+      <button class="linkbtn" id="setupentry" onclick="go('setup')" hidden>门店设置</button>
+      <div class="themeset">
+        <button class="themebtn" data-mode="light" title="浅色">○</button>
+        <button class="themebtn" data-mode="dark" title="深色">●</button>
+        <button class="themebtn" data-mode="system" title="跟随系统" aria-pressed="true">◐</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="stage">
+
+  <!-- ══ 状态 0：登录 ══ -->
+  <section class="screenpanel live lane" id="p-signin">
+    <div class="label">门店登录</div>
+    <h1>短视频工作台<br><span class="soft">先登录你的门店</span></h1>
+    <p class="lede">用开通时发给你的门店账号登录。第一次进来会带你把主播和素材准备好，之后每天就只剩贴链接、等、下载。</p>
+
+    <div class="signin-form">
+      <div class="ui-card"><div class="card" style="padding:0">
+        <input class="field" id="acct" placeholder="门店账号" autocomplete="username">
+      </div></div>
+      <div class="ui-card"><div class="card" style="padding:0">
+        <input class="field" id="pwd" type="password" placeholder="密码" autocomplete="current-password">
+      </div></div>
+      <button class="go" onclick="signin()">进入工作台</button>
+    </div>
+
+    <p class="footnote">没有账号，或者忘了密码，找给你开通的同事。</p>
+  </section>
+
+  <!-- ══ 状态 1：空闲 ══ -->
+  <section class="screenpanel lane" id="p-idle">
+    <div class="label" id="todaylabel">今天</div>
+    <h1>贴一条视频<br><span class="soft">换成你们的版本</span></h1>
+    <p class="lede">系统会把它拆开，用你们主播的形象和声音重讲一遍，画面换成门店自己的。大约 40 分钟。</p>
+
+    <div class="capture">
+      <div class="ui-card">
+        <div class="card" style="padding:0">
+          <input class="field" id="urlfield" placeholder="粘贴抖音链接" value="https://v.douyin.com/iRKvNqTd/">
+        </div>
+      </div>
+      <button class="go" onclick="go('working')">开始</button>
+    </div>
+
+    <div class="feed">
+      <div class="feed-head">
+        <div class="label">同行昨天发的</div>
+        <div class="row-meta">来自你关注的 8 个账号</div>
+      </div>
+      <div class="rows">
+        <div class="row" onclick="go('working')">
+          <div class="row-rank">01</div>
+          <div class="row-title">装修公司最怕你问这 5 个问题</div>
+          <div class="row-meta">6842 赞</div>
+          <div class="row-go">用这条 →</div>
+        </div>
+        <div class="row" onclick="go('working')">
+          <div class="row-rank">02</div>
+          <div class="row-title">上班族没空盯装修，6 个节点必须到场</div>
+          <div class="row-meta">5901 赞</div>
+          <div class="row-go">用这条 →</div>
+        </div>
+        <div class="row" onclick="go('working')">
+          <div class="row-rank">03</div>
+          <div class="row-title">568 元一平的套餐到底包含什么</div>
+          <div class="row-meta">5421 赞</div>
+          <div class="row-go">用这条 →</div>
+        </div>
+      </div>
+    </div>
+
+    <p class="footnote" id="readyline">你的主播、声音和门店画面都已就绪。</p>
+  </section>
+
+  <!-- ══ 状态 2：制作中 ══ -->
+  <section class="screenpanel lane" id="p-working">
+    <div class="label">制作中</div>
+    <h1>正在换成<br><span class="soft">你们的版本</span></h1>
+    <p class="lede">你可以关掉这个页面去忙。做好了会在企微上告诉你。</p>
+
+    <div class="track"><i id="bar" style="width:8%"></i></div>
+    <div class="track-meta">
+      <span id="phase">正在重写文稿</span>
+      <span id="eta">大约还要 38 分钟</span>
+    </div>
+
+    <details>
+      <summary>看看在做什么</summary>
+      <div class="detail-body">
+        <div class="stepline" id="steps">
+          <div class="stepitem on"><i class="stepdot"></i><span class="stepname">重写文稿</span><span class="stepstate">进行中</span></div>
+          <div class="stepitem"><i class="stepdot"></i><span class="stepname">安排镜头、配画面</span><span class="stepstate">等待</span></div>
+          <div class="stepitem"><i class="stepdot"></i><span class="stepname">生成主播配音</span><span class="stepstate">等待</span></div>
+          <div class="stepitem"><i class="stepdot"></i><span class="stepname">对口型</span><span class="stepstate">等待</span></div>
+          <div class="stepitem"><i class="stepdot"></i><span class="stepname">合成画面和字幕</span><span class="stepstate">等待</span></div>
+          <div class="stepitem"><i class="stepdot"></i><span class="stepname">自动检查</span><span class="stepstate">等待</span></div>
+        </div>
+        <p class="footnote">中途遇到定不了的事会停下来问你，不会自己乱改。</p>
+      </div>
+    </details>
+  </section>
+
+  <!-- ══ 状态 3：需要你定一件事 ══ -->
+  <section class="screenpanel lane" id="p-ask">
+    <div class="label">需要你定一件事</div>
+    <h1>有一句话<br><span class="soft">配不上画面</span></h1>
+    <p class="lede">「合同里没写违约金，延三个月也白等」——你们的素材里没有对得上的工地画面。挑一个办法，其余的我接着做。</p>
+
+    <div class="choices">
+      <button class="choice" onclick="go('done')">
+        <div class="ui-card"><div class="card">
+          <div class="choice-main">
+            <div class="choice-name">这句改成主播出镜说</div>
+            <div class="choice-note">最稳，不用等素材</div>
+          </div>
+          <div class="choice-tag">推荐</div>
+        </div></div>
+      </button>
+      <button class="choice" onclick="go('done')">
+        <div class="ui-card"><div class="card">
+          <div class="choice-main">
+            <div class="choice-name">现在传一段工地视频</div>
+            <div class="choice-note">传完继续，大约多花 3 分钟</div>
+          </div>
+        </div></div>
+      </button>
+      <button class="choice" onclick="go('done')">
+        <div class="ui-card"><div class="card">
+          <div class="choice-main">
+            <div class="choice-name">这句不要了</div>
+            <div class="choice-note">成片会短 12 秒</div>
+          </div>
+        </div></div>
+      </button>
+    </div>
+  </section>
+
+  <!-- ══ 状态 4：做好了 ══ -->
+  <section class="screenpanel lane-wide" id="p-done">
+    <div class="label">做好了 · 用时 39 分钟</div>
+    <h1>看一遍<br><span class="soft">没问题就能发</span></h1>
+
+    <div class="done-grid">
+      <div class="player">
+        <div class="ui-card card-lg"><div class="card">
+          <div class="screen" id="screen" onclick="watch()">
+            <div class="playglyph" id="playglyph">▶</div>
+            <div class="screen-hint" id="screenhint">点开，看完这 52 秒</div>
+            <i class="scrub" id="scrub"></i>
+          </div>
+        </div></div>
+        <div class="player-meta" id="playermeta">竖屏 1080×1920 · 已加字幕 · 音量已调好</div>
+      </div>
+
+      <div class="confirm">
+        <div class="label" style="font-size:11px" id="confirmlabel">看完之后，确认这 3 件事</div>
+        <div class="checks">
+          <div class="check locked" id="c1" onclick="tick(this)">
+            <div class="cbox">✓</div>
+            <div><span class="check-text">这段话讲得通吗</span>
+            <span class="check-why">机器管得了字数和节奏，管不了讲不讲得明白</span></div>
+          </div>
+          <div class="check locked" id="c2" onclick="tick(this)">
+            <div class="cbox">✓</div>
+            <div><span class="check-text">每句话配的画面对得上吗</span></div>
+          </div>
+          <div class="check locked" id="c3" onclick="tick(this)">
+            <div class="cbox">✓</div>
+            <div><span class="check-text">价格和服务范围说得对吗</span></div>
+          </div>
+        </div>
+
+        <div class="deliver">
+          <button class="go" id="dl" disabled onclick="alert('已下载：装修合同5问.mp4')">下载这条</button>
+          <span class="hint" id="dlhint">先把视频看完</span>
+        </div>
+
+        <details>
+          <summary>系统已经查过的 6 项</summary>
+          <div class="detail-body">
+            <div class="stepline">
+              <div class="stepitem on"><i class="stepdot"></i><span class="stepname">全片没有出现原片的主播</span><span class="stepstate">通过</span></div>
+              <div class="stepitem on"><i class="stepdot"></i><span class="stepname">画面里没有别家公司的招牌</span><span class="stepstate">通过</span></div>
+              <div class="stepitem on"><i class="stepdot"></i><span class="stepname">字幕和口播对得上</span><span class="stepstate">通过</span></div>
+              <div class="stepitem on"><i class="stepdot"></i><span class="stepname">没有闪切和重复画面</span><span class="stepstate">通过</span></div>
+              <div class="stepitem on"><i class="stepdot"></i><span class="stepname">音量符合抖音标准</span><span class="stepstate">通过</span></div>
+              <div class="stepitem on"><i class="stepdot"></i><span class="stepname">时长 52 秒</span><span class="stepstate">通过</span></div>
+            </div>
+          </div>
+        </details>
+
+        <details>
+          <summary>发布建议</summary>
+          <div class="detail-body">
+            <p style="color:var(--theme-1)">今晚 19:40–20:10 发，是你号粉丝最多的时段。</p>
+            <p class="footnote" style="margin-top:10px">
+              标题：签合同前问清这 5 句，能少赔两万<br>
+              首评：评论区留你家面积，我把这 5 句发你
+            </p>
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ 门店设置（第一次用才需要） ══ -->
+  <section class="screenpanel lane" id="p-setup">
+    <div class="label">门店设置</div>
+    <h1>准备一次<br><span class="soft">以后都不用管</span></h1>
+    <p class="lede">这三样弄好，以后每天就只剩「贴链接、等、下载」三件事。</p>
+
+    <div class="stepline" style="margin-top:34px">
+      <div class="stepitem on"><i class="stepdot"></i><span class="stepname">门店做什么、服务哪些城市</span><span class="stepstate">已完成</span></div>
+      <div class="stepitem on"><i class="stepdot"></i><span class="stepname">门店实拍视频　<span style="color:var(--text-secondary)">已传 21 段</span></span><span class="stepstate">已完成</span></div>
+      <div class="stepitem"><i class="stepdot"></i><span class="stepname">出镜主播的照片和声音</span><span class="stepstate">还差一段</span></div>
+    </div>
+
+    <div style="margin-top:24px">
+      <div class="ui-card card-lg"><div class="card">
+        <div class="label" style="font-size:11px">还差这一段</div>
+        <p style="color:var(--theme-1); margin-top:10px">
+          请出镜主播用四种语气各读一遍示例台词：平静、热情、解释、邀约。
+        </p>
+        <p class="footnote" style="margin-top:8px">
+          竖屏，安静环境，镜头与眼睛同高。语气样本越全，配音越不像机器念稿。
+        </p>
+        <div style="margin-top:16px; display:flex; gap:10px; align-items:center">
+          <button class="go" style="padding:11px 22px; font-size:14px" onclick="alert('打开上传')">上传这一段</button>
+          <span class="hint">也可以先跳过，用现有的声音先做</span>
+        </div>
+      </div></div>
+    </div>
+
+    <details>
+      <summary>已经传过的门店画面（21 段）</summary>
+      <div class="detail-body">
+        <div class="stepline">
+          <div class="stepitem on"><i class="stepdot"></i><span class="stepname">龙文店厨房安装　<span style="color:var(--text-secondary)">柜体安装、封边细节、空间全景</span></span><span class="stepstate">12 段</span></div>
+          <div class="stepitem on"><i class="stepdot"></i><span class="stepname">118 平完工全景　<span style="color:var(--text-secondary)">完工实景、动线、柜门开合</span></span><span class="stepstate">9 段</span></div>
+        </div>
+        <p class="footnote" style="margin-top:14px">
+          系统写的画面说明偶尔会认错，比如把贴墙砖写成贴地砖。发现配错画面时回这里改一下，以后就不会再错。
+        </p>
+      </div>
+    </details>
+  </section>
+
+</main>
+
+<nav class="dock" id="dock" hidden>
+  <div class="dock-inner">
+    <button class="dockitem" data-to="idle" aria-current="true">开始</button>
+    <button class="dockitem" data-to="working">制作中</button>
+    <button class="dockitem" data-to="ask">需要你</button>
+    <button class="dockitem" data-to="done">成片</button>
+    <button class="dockitem" data-to="setup">设置</button>
+  </div>
+</nav>
+
+<script>
+  /* 主题类必须挂在 html 上：body 的背景色也要用这些变量，
+     挂在 body 内的容器上会让 body 自己取不到值、退回透明 */
+  const root = document.documentElement;
+
+  /* ── 三态主题：选择写入 localStorage，重载不闪回默认 ── */
+  const media = window.matchMedia('(prefers-color-scheme: dark)');
+  function paint(mode) {
+    const dark = mode === 'dark' || (mode === 'system' && media.matches);
+    root.className = dark ? 'theme-dark' : 'theme-light';
+    root.style.colorScheme = dark ? 'dark' : 'light';
+    document.querySelectorAll('.themebtn').forEach(b =>
+      b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+  }
+  let mode = localStorage.getItem('theme') || 'system';
+  paint(mode);
+  media.addEventListener('change', () => { if (mode === 'system') paint(mode); });
+  document.querySelectorAll('.themebtn').forEach(b => b.onclick = () => {
+    mode = b.dataset.mode; localStorage.setItem('theme', mode); paint(mode);
+  });
+
+  /* ── 登录 ──
+     NOTE: 原型阶段没有后端，这里不发送、不存储任何输入；
+     账号只用于在顶栏显示门店名。接后端时替换成真实鉴权。 */
+  function signin() {
+    const name = document.getElementById('acct').value.trim();
+    document.getElementById('storyname').textContent = name ? ' · ' + name : '';
+    document.getElementById('setupentry').hidden = false;
+    document.getElementById('dock').hidden = false;
+    document.getElementById('pwd').value = '';
+    go('idle');
+  }
+
+  /* ── 状态切换 ── */
+  let timer = null;
+  function go(name) {
+    document.querySelectorAll('.screenpanel').forEach(p => p.classList.remove('live'));
+    document.getElementById('p-' + name).classList.add('live');
+    document.querySelectorAll('.dockitem').forEach(b =>
+      b.setAttribute('aria-current', String(b.dataset.to === name)));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    clearInterval(timer);
+    if (name === 'working') runProgress();
+  }
+  document.querySelectorAll('.dockitem').forEach(b => b.onclick = () => go(b.dataset.to));
+
+  /* ── 制作进度：演示用，走到需要人决定的那一步就停下来问 ── */
+  const PHASES = [
+    ['重写文稿', 8], ['安排镜头、配画面', 26], ['生成主播配音', 48],
+    ['对口型', 70], ['合成画面和字幕', 88], ['自动检查', 97],
+  ];
+  function runProgress() {
+    let i = 0;
+    const bar = document.getElementById('bar');
+    const phase = document.getElementById('phase');
+    const eta = document.getElementById('eta');
+    const items = document.querySelectorAll('#steps .stepitem');
+    timer = setInterval(() => {
+      i++;
+      if (i >= PHASES.length) { clearInterval(timer); go('ask'); return; }
+      const [name, pct] = PHASES[i];
+      bar.style.width = pct + '%';
+      phase.textContent = '正在' + name;
+      eta.textContent = '大约还要 ' + Math.max(1, Math.round(40 * (1 - pct / 100))) + ' 分钟';
+      items.forEach((el, n) => {
+        el.classList.toggle('on', n <= i);
+        el.querySelector('.stepstate').textContent = n < i ? '完成' : n === i ? '进行中' : '等待';
+      });
+    }, 1600);
+  }
+
+  /* ── 成片：必须播到结尾，才解锁人工确认和下载 ── */
+  let watched = false;
+  function watch() {
+    if (watched) return;
+    const scrub = document.getElementById('scrub');
+    const glyph = document.getElementById('playglyph');
+    glyph.textContent = '❚❚';
+    let p = 0;
+    const t = setInterval(() => {
+      p += 5; scrub.style.width = p + '%';
+      if (p >= 100) {
+        clearInterval(t); watched = true;
+        glyph.textContent = '↺';
+        document.getElementById('screenhint').textContent = '再看一遍';
+        document.getElementById('playermeta').textContent = '竖屏 1080×1920 · 已加字幕 · 你已看完整条';
+        document.getElementById('confirmlabel').textContent = '确认这 3 件事';
+        ['c1','c2','c3'].forEach(id => document.getElementById(id).classList.remove('locked'));
+        document.getElementById('dlhint').textContent = '三项都确认后就能下载';
+      }
+    }, 150);
+  }
+  function tick(el) {
+    if (el.classList.contains('locked')) return;
+    el.classList.toggle('on');
+    const all = ['c1','c2','c3'].every(id => document.getElementById(id).classList.contains('on'));
+    document.getElementById('dl').disabled = !all;
+    document.getElementById('dlhint').textContent = all ? '可以发了' : '还差几项';
+  }
+
+  /* ── 鼠标光晕：只动 transform，不驱动重排 ── */
+  const glow = document.getElementById('glow');
+  addEventListener('pointermove', e => {
+    glow.style.transform = `translate(${e.clientX - 200 - innerWidth * .6}px, ${e.clientY - 200 - innerHeight * .1}px)`;
+  });
+</script>
+</body>
+</html>
