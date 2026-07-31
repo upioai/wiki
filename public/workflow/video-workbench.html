@@ -198,6 +198,23 @@
   .mic.rec { background: var(--t1); border-color: var(--t1); color: var(--on-t1); animation: pulse 1.2s ease-in-out infinite; }
   .clip-tags { margin-top: 9px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 
+  /* ── 审查意见 ── */
+  .rate-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .rate {
+    flex: 1; min-width: 130px; padding: 13px; cursor: pointer; font: inherit; text-align: left;
+    border: 1px solid var(--panel-border); border-radius: 9px; background: var(--main-bg);
+    display: flex; flex-direction: column; gap: 3px;
+    transition: border-color 200ms, background 200ms;
+  }
+  .rate:hover { border-color: var(--t2); }
+  .rate.on { border-color: var(--t1); background: var(--panel-bg); }
+  .rate-t { color: var(--t1); font-size: 13.5px; }
+  .rate-s { font-size: 12px; color: var(--text-2); }
+  .issue-row { display: flex; gap: 7px; flex-wrap: wrap; }
+  .issue-row .chip { cursor: pointer; border: 1px solid var(--panel-border); transition: all 200ms; }
+  .issue-row .chip:hover { border-color: var(--t1); color: var(--t1); }
+  .issue-row .chip.solid:hover { color: var(--on-t1); }
+
   /* ── 行列表 ── */
   .rows { display: flex; flex-direction: column; }
   .row {
@@ -481,6 +498,13 @@ const AUTO_CHECKS = [
   ['平台敏感词', '未发现'], ['视频从头到尾完整', '通过'],
 ];
 
+const RATINGS = [
+  ['good', '可直接发布', '不用改'],
+  ['ok', '基本可用', '小改一下'],
+  ['bad', '需要重做', '有明显问题'],
+];
+const ISSUES = ['文案', '画面不对题', '配音', '字幕', '节奏', '出镜人', '报价表述'];
+
 const HUMAN_CHECKS = [
   ['人物和声音自然', ''],
   ['产品与材料说明正确', '自动检测仅覆盖时长与节奏，内容准确性须人工判断'],
@@ -552,13 +576,24 @@ const S = {
   ],
   day: 0,
   watchedFeed: {},
-  picked: null,
+  /* 今日任务队列。一个门店一条，或同一门店多条，可并行制作。 */
+  tasks: [],
+  activeTask: 0,
   approved: false,
-  progress: 0,
   makeTimer: null,
-  finalWatched: false,
-  humanTicks: {},
 };
+
+/* 并发上限：付费环节（配音、口型）同时最多跑这么多条。
+   参见踩过的坑——多实例并行跑同一段会重复扣费，所以队列必须限流并逐条持锁。 */
+const MAX_PARALLEL = 2;
+
+function newTask(feedIdx) {
+  return {
+    feed: feedIdx, progress: 0, running: false, revision: 1,
+    watched: false, ticks: {},
+    review: { rating: null, issues: [], note: '' },
+  };
+}
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
@@ -585,10 +620,11 @@ function stepDone(i) {
     case 1: return Object.keys(S.judged).length === FEED.length;
     case 2: return S.clips.some(c => c.state === 'ok');
     case 3: return S.hostShots.every(h => h.ok);
-    case 4: return S.picked !== null;
+    case 4: return S.tasks.length > 0;
     case 5: return S.approved;
-    case 6: return S.progress >= 100;
-    case 7: return S.finalWatched && Object.keys(S.humanTicks).length === HUMAN_CHECKS.length;
+    case 6: return S.tasks.length > 0 && S.tasks.every(t => t.progress >= 100);
+    case 7: return S.tasks.length > 0 &&
+      S.tasks.every(t => Object.keys(t.ticks).length === HUMAN_CHECKS.length);
   }
 }
 function doneUpTo(i) {
@@ -865,7 +901,7 @@ const BODY = [
       ${S.day === 0 ? `
         <div class="rows">
           ${FEED.map((f, i) => {
-            const w = S.watchedFeed[i], picked = S.picked === i;
+            const w = S.watchedFeed[i], added = S.tasks.some(t => t.feed === i);
             return `<div class="row">
               <span class="row-n">${String(i + 1).padStart(2, '0')}</span>
               <div class="thumb ${w ? 'seen' : ''}" id="fth-${i}" onclick="watchFeed(${i})">${f.d}</div>
@@ -873,24 +909,48 @@ const BODY = [
                 <div class="row-title">${esc(f.t)}</div>
                 <div class="row-sub">${esc(f.a)} · ${num(f.like)} 赞 · ${num(f.cm)} 评论 · ${num(f.fav)} 收藏</div>
               </div>
-              <button class="btn sm ${picked ? '' : 'ghost'}" onclick="pickFeed(${i})">${picked ? '已设为参考' : '设为参考'}</button>
+              <button class="btn sm ${added ? '' : 'ghost'}" onclick="toggleTask(${i})">${added ? '已加入' : '加入任务'}</button>
             </div>`;
           }).join('')}
         </div>`
         : `<div class="empty">${days[S.day]}的候选样片已全部浏览，无更优选项。</div>`}
     </div>
+
+    ${S.tasks.length ? `
+    <div class="block">
+      <div class="block-head">
+        <h2>今日任务</h2>
+        <span class="mono">${S.tasks.length} 条 · 预计 ${estimate(S.tasks.length)}</span>
+      </div>
+      <div class="rows">
+        ${S.tasks.map((t, k) => `<div class="row">
+          <span class="row-n">${String(k + 1).padStart(2, '0')}</span>
+          <div class="row-main">
+            <div class="row-title">${esc(FEED[t.feed].t)}</div>
+            <div class="row-sub">参考自 ${esc(FEED[t.feed].a)}</div>
+          </div>
+          <button class="link" onclick="toggleTask(${t.feed})">移出</button>
+        </div>`).join('')}
+      </div>
+      <p class="tiny" style="margin-top:12px">
+        多条任务会排队并行制作，同时最多跑 ${MAX_PARALLEL} 条。多个门店可以各选一条，一次交付。
+      </p>
+    </div>` : ''}
+
     <div class="actions">
       <button class="btn" onclick="goStep(5)">查看结构拆解</button>
-      <span class="note">${S.picked !== null
-        ? `今日参考：${esc(FEED[S.picked].t)}`
-        : '建议先预览再选定'}</span>
+      <span class="note">${S.tasks.length
+        ? `已加入 ${S.tasks.length} 条`
+        : '可以选多条，一次做完'}</span>
     </div>`;
   },
 
   /* 06 拆解 */
   () => {
-    const f = FEED[S.picked] || FEED[0];
+    const t = S.tasks[S.activeTask];
+    const f = t ? FEED[t.feed] : FEED[0];
     return `
+    ${taskSwitcher()}
     <div class="block">
       <div class="uc lg"><div class="cd">
         <div class="mono" style="margin-bottom:9px">拆解结论</div>
@@ -924,63 +984,83 @@ const BODY = [
       </div></div>
     </div>
     <div class="actions">
-      <button class="btn" onclick="S.approved=true;goStep(6)">按此结构生成</button>
-      <span class="note">确认后启动制作，约 40 分钟</span>
+      <button class="btn" onclick="S.approved=true;goStep(6)">按此结构生成${S.tasks.length > 1 ? `（${S.tasks.length} 条）` : ''}</button>
+      <span class="note">确认后启动制作，预计 ${estimate(S.tasks.length || 1)}</span>
     </div>`;
   },
 
-  /* 07 制作中 */
+  /* 07 制作中：多条任务排队并行 */
   () => {
-    const idx = MAKE_STEPS.findIndex(s => s[1] > S.progress);
-    const cur = idx === -1 ? MAKE_STEPS.length : idx;
-    const doneAll = S.progress >= 100;
+    if (!S.tasks.length) {
+      return `<div class="empty">今日还没有任务，先去第 05 步选题。</div>
+      <div class="actions"><button class="btn" onclick="goStep(4)">去选题</button></div>`;
+    }
+    const allDone = S.tasks.every(t => t.progress >= 100);
+    const running = S.tasks.filter(t => t.running).length;
+    const queued = S.tasks.filter(t => !t.running && t.progress < 100).length;
     return `
     <div class="block">
-      <div class="uc lg"><div class="cd">
-        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px">
-          <h2>${doneAll ? '制作完成' : '制作中'}</h2>
-          <span class="tiny">${doneAll ? '用时 39 分钟' : `总进度 ${S.progress}% · 预计剩余 ${Math.max(1, Math.round(40 * (1 - S.progress / 100)))} 分钟`}</span>
+      <div class="block-head">
+        <h2>${allDone ? '全部制作完成' : '制作队列'}</h2>
+        <span class="mono">${running} 运行 · ${queued} 排队 · 上限 ${MAX_PARALLEL}</span>
+      </div>
+      <div class="clip-list">
+        ${S.tasks.map((t, k) => {
+          const idx = MAKE_STEPS.findIndex(s => s[1] > t.progress);
+          const cur = idx === -1 ? MAKE_STEPS.length : idx;
+          const done = t.progress >= 100;
+          const state = done ? '已完成' : t.running ? MAKE_STEPS[cur]?.[0] || '收尾' : '排队中';
+          return `<div class="uc"><div class="cd">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:14px;margin-bottom:9px">
+              <div class="clip-name">${esc(FEED[t.feed].t)}${t.revision > 1 ? `　<span class="tiny">第 ${t.revision} 版</span>` : ''}</div>
+              <span class="tiny" style="flex-shrink:0">${esc(state)} · ${t.progress}%</span>
+            </div>
+            <div class="track"><i style="width:${t.progress}%"></i></div>
+          </div></div>`;
+        }).join('')}
+      </div>
+      <p class="tiny" style="margin-top:12px">
+        同时最多制作 ${MAX_PARALLEL} 条，其余排队。付费环节逐条独占，不会重复计费。
+      </p>
+
+      <details>
+        <summary>生成日志</summary>
+        <div class="det-body">
+          <table>
+            <tr><th style="width:88px">时间</th><th style="width:110px">模块</th><th>事件</th><th style="width:72px">状态</th></tr>
+            ${MAKE_LOG.map(r => `<tr>
+              <td class="dim">${r[0]}</td><td class="dim">${esc(r[1])}</td>
+              <td class="k">${esc(r[2])}</td><td class="dim">${r[3]}</td>
+            </tr>`).join('')}
+          </table>
         </div>
-        <div class="track"><i style="width:${S.progress}%"></i></div>
-        <div class="stage-list" style="margin-top:16px">
-          ${MAKE_STEPS.map((s, i) => `
-            <div class="stage-row ${i < cur ? 'ok' : i === cur && !doneAll ? 'on' : ''}">
-              <i class="sdot"></i><span class="stage-name">${esc(s[0])}</span>
-              <span class="stage-state">${i < cur ? '完成' : i === cur && !doneAll ? '进行中' : '等待'}</span>
-            </div>`).join('')}
-        </div>
-        <details>
-          <summary>生成日志</summary>
-          <div class="det-body">
-            <table>
-              <tr><th style="width:88px">时间</th><th style="width:110px">模块</th><th>事件</th><th style="width:72px">状态</th></tr>
-              ${MAKE_LOG.map(r => `<tr>
-                <td class="dim">${r[0]}</td><td class="dim">${esc(r[1])}</td>
-                <td class="k">${esc(r[2])}</td><td class="dim">${r[3]}</td>
-              </tr>`).join('')}
-            </table>
-          </div>
-        </details>
-      </div></div>
+      </details>
     </div>
     <div class="actions">
-      <button class="btn" onclick="goStep(7)">${doneAll ? '进入审核' : '进入审核'}</button>
-      ${doneAll ? '' : '<button class="btn ghost" onclick="finishMaking()">跳至完成（演示）</button>'}
+      <button class="btn" onclick="goStep(7)">进入审核</button>
+      ${allDone ? '' : '<button class="btn ghost" onclick="finishMaking()">跳至完成（演示）</button>'}
       <span class="note">制作期间可关闭页面，完成后将通知</span>
     </div>`;
   },
 
   /* 08 检查下载 */
   () => {
-    const ticks = Object.keys(S.humanTicks).length;
-    const ready = S.finalWatched && ticks === HUMAN_CHECKS.length;
+    if (!S.tasks.length) {
+      return `<div class="empty">今日还没有任务，先去第 05 步选题。</div>
+      <div class="actions"><button class="btn" onclick="goStep(4)">去选题</button></div>`;
+    }
+    const t = S.tasks[S.activeTask] || S.tasks[0];
+    const ticks = Object.keys(t.ticks).length;
+    const ready = ticks === HUMAN_CHECKS.length;
+    const rv = t.review;
     return `
+    ${taskSwitcher()}
     <div class="block">
       <div class="player-wrap">
         <div class="screen" id="screen" onclick="watchFinal()">
-          <div class="pglyph" id="pglyph">${S.finalWatched ? '↺' : '▶'}</div>
-          <span class="tiny" id="shint">${S.finalWatched ? '重新播放' : '播放全片 · 42 秒'}</span>
-          <i class="scrub" id="scrub" style="width:${S.finalWatched ? 100 : 0}%"></i>
+          <div class="pglyph" id="pglyph">${t.watched ? '↺' : '▶'}</div>
+          <span class="tiny" id="shint">${t.watched ? '重新播放' : '播放全片 · 42 秒'}</span>
+          <i class="scrub" id="scrub" style="width:${t.watched ? 100 : 0}%"></i>
         </div>
         <div style="flex:1;min-width:0">
           <div class="block-head" style="margin-bottom:6px">
@@ -989,7 +1069,7 @@ const BODY = [
           </div>
           <div class="checks">
             ${HUMAN_CHECKS.map((c, i) => `
-              <div class="check ${S.humanTicks[i] ? 'on' : ''}" onclick="tickHuman(${i})">
+              <div class="check ${t.ticks[i] ? 'on' : ''}" onclick="tickHuman(${i})">
                 <span class="tick">✓</span>
                 <div><span class="check-t">${esc(c[0])}</span>
                 ${c[1] ? `<span class="check-w">${esc(c[1])}</span>` : ''}</div>
@@ -1016,6 +1096,42 @@ const BODY = [
         </div>
       </div>
     </div>
+
+    <div class="block">
+      <div class="block-head">
+        <h2>审查意见</h2>
+        ${t.revision > 1 ? `<span class="mono">当前第 ${t.revision} 版</span>` : ''}
+      </div>
+      <div class="uc"><div class="cd">
+        <div class="rate-row">
+          ${RATINGS.map(r => `
+            <button class="rate ${rv.rating === r[0] ? 'on' : ''}" onclick="setRating('${r[0]}')">
+              <span class="rate-t">${r[1]}</span>
+              <span class="rate-s">${r[2]}</span>
+            </button>`).join('')}
+        </div>
+
+        ${rv.rating && rv.rating !== 'good' ? `
+          <div style="margin-top:16px">
+            <div class="mono" style="margin-bottom:9px">需要改哪里</div>
+            <div class="issue-row">
+              ${ISSUES.map(x => `
+                <button class="chip ${rv.issues.includes(x) ? 'solid' : ''}" onclick="toggleIssue('${x}')">${x}</button>`).join('')}
+            </div>
+            <input class="note-input" style="margin-top:12px;width:100%" id="review-note"
+                   placeholder="补充说明，例如：第 3 句画面配的是地砖，应该换成墙砖"
+                   value="${esc(rv.note)}" oninput="S.tasks[S.activeTask].review.note=this.value">
+            <div style="margin-top:14px;display:flex;gap:10px;align-items:center">
+              <button class="btn" onclick="requestRevision()">提交并重做这条</button>
+              <span class="tiny">重做只改你指出的部分，其余保留</span>
+            </div>
+          </div>` : ''}
+
+        ${rv.rating === 'good' ? `
+          <p class="tiny" style="margin-top:14px">已标记为可直接发布。意见会计入偏好，后续同类选题的处理方式会跟着调整。</p>` : ''}
+      </div></div>
+    </div>
+
     <div class="actions">
       <button class="btn" onclick="toast('已下载')">下载成片</button>
       <button class="btn ghost" onclick="goStep(4)">新建任务</button>
@@ -1038,10 +1154,58 @@ function playThumb(id, done) {
 function watchIntro(i) { if (S.watchedIntro[i]) return; playThumb('ith-' + i, () => { S.watchedIntro[i] = true; render(); }); }
 function judge(i, v) { S.judged[i] = v; render(); }
 function watchFeed(i) { if (S.watchedFeed[i]) return; playThumb('fth-' + i, () => { S.watchedFeed[i] = true; render(); }); }
-function pickFeed(i) {
-  S.picked = i; render(); toast('已设为今日参考');
-}
 function uploadShot(i) { S.hostShots[i].ok = true; render(); toast('已上传'); }
+
+/* ── 任务队列 ── */
+function estimate(n) {
+  // 并发上限决定实际墙钟时间：3 条按 2 并发跑，是两轮而不是三倍
+  const rounds = Math.ceil(n / MAX_PARALLEL);
+  return rounds <= 1 ? '约 40 分钟' : `约 ${rounds * 40} 分钟`;
+}
+function toggleTask(feedIdx) {
+  const at = S.tasks.findIndex(t => t.feed === feedIdx);
+  if (at >= 0) S.tasks.splice(at, 1);
+  else S.tasks.push(newTask(feedIdx));
+  if (S.activeTask >= S.tasks.length) S.activeTask = Math.max(0, S.tasks.length - 1);
+  render();
+}
+function taskSwitcher() {
+  if (S.tasks.length < 2) return '';
+  return `<div class="block" style="margin-bottom:18px">
+    <div class="tabs">
+      ${S.tasks.map((t, k) => `
+        <button class="tab" aria-pressed="${S.activeTask === k}" onclick="S.activeTask=${k};render()">
+          任务 ${k + 1}${t.progress >= 100 ? '' : ' ·'}
+        </button>`).join('')}
+    </div>
+  </div>`;
+}
+
+/* ── 审查意见与返工 ── */
+function setRating(r) {
+  const t = S.tasks[S.activeTask];
+  t.review.rating = t.review.rating === r ? null : r;
+  render();
+}
+function toggleIssue(x) {
+  const arr = S.tasks[S.activeTask].review.issues;
+  const at = arr.indexOf(x);
+  at >= 0 ? arr.splice(at, 1) : arr.push(x);
+  render();
+}
+function requestRevision() {
+  const t = S.tasks[S.activeTask];
+  if (!t.review.issues.length && !t.review.note.trim()) {
+    toast('先说明需要改哪里'); return;
+  }
+  t.revision++;
+  t.progress = 0;
+  t.running = false;
+  t.watched = false;
+  t.ticks = {};
+  toast(`已提交，正在生成第 ${t.revision} 版`);
+  goStep(6);
+}
 
 /* ── 03 门店素材：上传 → 说一句 → 重新归类 ── */
 const SAMPLE_UPLOADS = [
@@ -1121,30 +1285,55 @@ function voiceNote(i) {
   }, 1600);
 }
 
+/* 队列调度：运行中不超过 MAX_PARALLEL 条，其余排队。
+   每条推进自己的进度，完成后腾出名额给下一条。 */
 function startMaking() {
-  if (S.progress >= 100) return;
   clearInterval(S.makeTimer);
+  if (!S.tasks.length) return;
   S.makeTimer = setInterval(() => {
-    S.progress = Math.min(100, S.progress + 4);
-    if (S.cur === 6) render();
-    if (S.progress >= 100) { clearInterval(S.makeTimer); toast('成片已生成'); }
-  }, 700);
+    // 补位：把排队中的任务提到运行态，直到占满并发
+    let running = S.tasks.filter(t => t.running).length;
+    for (const t of S.tasks) {
+      if (running >= MAX_PARALLEL) break;
+      if (!t.running && t.progress < 100) { t.running = true; running++; }
+    }
+    let changed = false;
+    for (const t of S.tasks) {
+      if (!t.running || t.progress >= 100) continue;
+      t.progress = Math.min(100, t.progress + 4);
+      changed = true;
+      if (t.progress >= 100) t.running = false;
+    }
+    if (S.cur === 6 && changed) render();
+    if (S.tasks.every(t => t.progress >= 100)) {
+      clearInterval(S.makeTimer);
+      if (S.cur === 6) render();
+      toast(S.tasks.length > 1 ? `${S.tasks.length} 条成片已生成` : '成片已生成');
+    }
+  }, 600);
 }
-function finishMaking() { clearInterval(S.makeTimer); S.progress = 100; render(); toast('成片已生成'); }
+function finishMaking() {
+  clearInterval(S.makeTimer);
+  S.tasks.forEach(t => { t.progress = 100; t.running = false; });
+  render(); toast('成片已生成');
+}
 
 function watchFinal() {
-  if (S.finalWatched) return;
+  const t = S.tasks[S.activeTask];
+  if (!t || t.watched) return;
   const scrub = $('#scrub'), glyph = $('#pglyph'), hint = $('#shint');
   if (!scrub || scrub._busy) return;
   scrub._busy = true; glyph.textContent = '❚❚'; hint.textContent = '正在播放';
   let p = 0;
-  const t = setInterval(() => {
+  const iv = setInterval(() => {
     p += 4; scrub.style.width = p + '%';
-    if (p >= 100) { clearInterval(t); S.finalWatched = true; render(); }
+    if (p >= 100) { clearInterval(iv); t.watched = true; render(); }
   }, 60);
 }
 function tickHuman(i) {
-  S.humanTicks[i] ? delete S.humanTicks[i] : S.humanTicks[i] = true;
+  const t = S.tasks[S.activeTask];
+  if (!t) return;
+  t.ticks[i] ? delete t.ticks[i] : t.ticks[i] = true;
   render();
 }
 
