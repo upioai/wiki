@@ -583,9 +583,10 @@ const S = {
   makeTimer: null,
 };
 
-/* 并发上限：付费环节（配音、口型）同时最多跑这么多条。
-   参见踩过的坑——多实例并行跑同一段会重复扣费，所以队列必须限流并逐条持锁。 */
-const MAX_PARALLEL = 2;
+/* 并发上限。demo 阶段不限流，全部任务同时开跑。
+   TODO: 产品上线前按 fal 并发配额与本机 ffmpeg 负载定一个实际值，
+   并给付费环节加逐条锁——曾因多实例并行跑同一段唇形同步重复扣费 31%。 */
+const MAX_PARALLEL = Infinity;
 
 function newTask(feedIdx) {
   return {
@@ -933,7 +934,7 @@ const BODY = [
         </div>`).join('')}
       </div>
       <p class="tiny" style="margin-top:12px">
-        多条任务会排队并行制作，同时最多跑 ${MAX_PARALLEL} 条。多个门店可以各选一条，一次交付。
+        多条任务同时制作，不用排队。多个门店可以各选一条，一次交付。
       </p>
     </div>` : ''}
 
@@ -1002,7 +1003,7 @@ const BODY = [
     <div class="block">
       <div class="block-head">
         <h2>${allDone ? '全部制作完成' : '制作队列'}</h2>
-        <span class="mono">${running} 运行 · ${queued} 排队 · 上限 ${MAX_PARALLEL}</span>
+        <span class="mono">${running} 条并行${queued ? ` · ${queued} 排队` : ''}</span>
       </div>
       <div class="clip-list">
         ${S.tasks.map((t, k) => {
@@ -1020,7 +1021,7 @@ const BODY = [
         }).join('')}
       </div>
       <p class="tiny" style="margin-top:12px">
-        同时最多制作 ${MAX_PARALLEL} 条，其余排队。付费环节逐条独占，不会重复计费。
+        ${S.tasks.length} 条同时制作，完成时间与单条相同。
       </p>
 
       <details>
@@ -1158,8 +1159,8 @@ function uploadShot(i) { S.hostShots[i].ok = true; render(); toast('已上传');
 
 /* ── 任务队列 ── */
 function estimate(n) {
-  // 并发上限决定实际墙钟时间：3 条按 2 并发跑，是两轮而不是三倍
-  const rounds = Math.ceil(n / MAX_PARALLEL);
+  // 并发上限决定墙钟时间：全并行时 N 条与 1 条同时完成
+  const rounds = Math.max(1, Math.ceil(n / MAX_PARALLEL));
   return rounds <= 1 ? '约 40 分钟' : `约 ${rounds * 40} 分钟`;
 }
 function toggleTask(feedIdx) {
