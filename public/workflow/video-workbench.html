@@ -1,696 +1,960 @@
-<!--
-  门店短视频工作台 · 本地原型
-  风格：marijana-pavlinic-editorial-mosaic（网页风格库）
-  设计前提：使用者是装修门店销售，不懂 AI。整条流程只暴露四个状态，
-  工作流细节默认折叠，只有真的需要人做决定时才把人拉进来。
--->
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>短视频工作台</title>
+<title>短视频获客 · 门店工作台</title>
 <script>
-  /* 在首次绘制前定好主题，避免重载时先闪一下浅色再跳到深色 */
+  /* 首次绘制前定好主题，避免重载闪一下浅色 */
   (function () {
     var m = localStorage.getItem('theme') || 'system';
-    var dark = m === 'dark' ||
-      (m === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+    var dark = m === 'dark' || (m === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
     document.documentElement.className = dark ? 'theme-dark' : 'theme-light';
     document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
   })();
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<!-- 非阻塞加载：断网或字体慢时页面照常可用，中文本来也走本地 PingFang -->
 <link rel="stylesheet" media="print" onload="this.media='all'"
       href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500&family=Inter:wght@400;500&family=IBM+Plex+Mono:wght@600&display=swap">
 
 <style>
   .theme-light {
-    --main-background: #f8f8f8;
-    --panel-background: #ffffff;
-    --panel-border: #e6eae9;
-    --theme-1: #1e1e1e;
-    --theme-2: #dadedd;
-    --theme-3: #f0f4f3;
-    --text-primary: #484848;
-    --text-secondary: #48484899;
-    --panel-overlay: #1e1e1e1a;
-    --on-theme-1: #f8f8f8;
+    --main-bg: #f8f8f8; --panel-bg: #ffffff; --panel-border: #e6eae9;
+    --t1: #1e1e1e; --t2: #dadedd; --t3: #f0f4f3;
+    --text: #484848; --text-2: #48484899; --text-3: #48484855;
+    --on-t1: #f8f8f8; --overlay: #1e1e1e0a;
   }
   .theme-dark {
-    --main-background: #080808;
-    --panel-background: #121212;
-    --panel-border: #292929;
-    --theme-1: #e9e9e2;
-    --theme-2: #383938;
-    --theme-3: #292929;
-    --text-primary: #ddddd6;
-    --text-secondary: #e9e9e299;
-    --panel-overlay: #e9e9e21a;
-    --on-theme-1: #121212;
+    --main-bg: #080808; --panel-bg: #121212; --panel-border: #292929;
+    --t1: #e9e9e2; --t2: #383938; --t3: #292929;
+    --text: #ddddd6; --text-2: #e9e9e299; --text-3: #e9e9e255;
+    --on-t1: #121212; --overlay: #e9e9e20a;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
-    background: var(--main-background);
-    color: var(--text-primary);
-    font-family: "Inter", "PingFang SC", "Noto Sans SC", ui-sans-serif, system-ui, -apple-system, sans-serif;
-    font-size: 14px;
-    line-height: 20px;
+    background: var(--main-bg); color: var(--text);
+    font-family: "Inter", "PingFang SC", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif;
+    font-size: 14px; line-height: 20px; min-height: 100vh;
     transition: background 300ms ease-in-out, color 300ms ease-in-out;
-    min-height: 100vh;
-    padding-bottom: 120px;
   }
 
-  .glow {
-    position: fixed; width: 400px; height: 400px; border-radius: 50%;
-    background: var(--theme-1); filter: blur(64px); opacity: .06;
-    pointer-events: none; left: 60%; top: 10%; z-index: 0;
+  /* ── 排版角色 ── */
+  .mono {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase;
+    color: var(--text-2);
   }
+  .display {
+    font-family: "Archivo", "PingFang SC", "Noto Sans SC", sans-serif;
+    font-weight: 400; line-height: 1.04; letter-spacing: -.015em; color: var(--t1);
+  }
+  h1.display { font-size: 40px; }
+  h2 { font-size: 16px; font-weight: 500; color: var(--t1); }
+  h3 { font-size: 14px; font-weight: 500; color: var(--t1); }
+  .dim { color: var(--text-2); }
+  .tiny { font-size: 12.5px; line-height: 19px; color: var(--text-2); }
 
-  /* ── 顶栏 ─────────────────────────────── */
-  .topbar {
-    position: sticky; top: 0; z-index: 20;
-    backdrop-filter: blur(12px);
-    background: color-mix(in srgb, var(--main-background) 80%, transparent);
-    border-bottom: 1px solid var(--panel-border);
+  /* ── 卡片：1px 外框 + 内层表面 ── */
+  .uc { padding: 1px; border-radius: 10px; background: var(--panel-border); }
+  .uc > .cd { border-radius: 9px; background: var(--panel-bg); padding: 16px; }
+  .uc.lg > .cd { padding: 22px; }
+  .uc.flat > .cd { background: transparent; }
+
+  /* ── 顶栏 ── */
+  .top {
+    position: sticky; top: 0; z-index: 40;
+    background: color-mix(in srgb, var(--main-bg) 82%, transparent);
+    backdrop-filter: blur(14px); border-bottom: 1px solid var(--panel-border);
   }
-  .topbar-inner {
-    max-width: 900px; margin: 0 auto; padding: 14px 20px;
-    display: flex; align-items: center; justify-content: space-between;
+  .top-in {
+    max-width: 1336px; margin: 0 auto; padding: 13px 24px;
+    display: flex; align-items: center; justify-content: space-between; gap: 20px;
   }
-  .mark { display: flex; align-items: center; gap: 10px; }
-  .mark-glyph {
-    width: 26px; height: 26px; border-radius: 7px;
-    background: var(--theme-1); color: var(--on-theme-1);
+  .brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
+  .glyph {
+    width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0;
+    background: var(--t1); color: var(--on-t1);
     display: flex; align-items: center; justify-content: center;
     font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 600;
   }
-  .mark-name { font-size: 14px; color: var(--theme-1); }
-  .topbar-right { display: flex; align-items: center; gap: 16px; }
+  .brand-txt { font-size: 14px; color: var(--t1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .top-right { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
 
-  .themeset { display: flex; gap: 2px; padding: 2px; border-radius: 9999px; background: var(--theme-3); }
-  .themebtn {
-    width: 28px; height: 24px; border: 0; border-radius: 9999px;
-    background: transparent; color: var(--text-secondary);
-    cursor: pointer; font-size: 12px; line-height: 1;
-    transition: background 200ms, color 200ms;
+  .themeset { display: flex; gap: 2px; padding: 2px; border-radius: 9999px; background: var(--t3); }
+  .tbtn {
+    width: 28px; height: 24px; border: 0; border-radius: 9999px; background: transparent;
+    color: var(--text-2); cursor: pointer; font-size: 11px; line-height: 1;
     display: flex; align-items: center; justify-content: center;
+    transition: background 200ms, color 200ms;
   }
-  .themebtn[aria-pressed="true"] { background: var(--panel-background); color: var(--theme-1); }
+  .tbtn[aria-pressed="true"] { background: var(--panel-bg); color: var(--t1); }
 
-  .linkbtn {
-    background: none; border: 0; cursor: pointer; padding: 0;
-    font-family: inherit; font-size: 13px; color: var(--text-secondary);
-    text-decoration: underline; text-underline-offset: 3px;
+  .link {
+    background: none; border: 0; padding: 0; cursor: pointer; font: inherit; font-size: 13px;
+    color: var(--text-2); text-decoration: underline; text-underline-offset: 3px;
     transition: color 200ms;
   }
-  .linkbtn:hover { color: var(--theme-1); }
+  .link:hover { color: var(--t1); }
 
-  /* ── 版心 ─────────────────────────────── */
-  /* 内容块整体居中：风格库的左对齐是给满宽马赛克用的，
-     这里内容窄，不居中就会全挤在屏幕左角 */
-  .stage { max-width: 900px; margin: 0 auto; padding: 0 20px; position: relative; z-index: 1; }
-  .lane, .lane-wide { width: 100%; padding-top: 76px; }
-
-  .label {
-    font-family: "IBM Plex Mono", monospace; font-size: 12px; font-weight: 600;
-    letter-spacing: .2em; text-transform: uppercase; color: var(--text-secondary);
+  /* ── 三栏骨架 ── */
+  .shell {
+    max-width: 1336px; margin: 0 auto; padding: 0 24px;
+    display: grid; grid-template-columns: 216px minmax(0, 1fr) 268px; gap: 28px;
+    align-items: start;
   }
+  .rail { position: sticky; top: 68px; padding: 34px 0 40px; }
+  .work { padding: 34px 0 96px; min-width: 0; }
+  .aside { position: sticky; top: 68px; padding: 34px 0 40px; display: flex; flex-direction: column; gap: 16px; }
 
-  h1 {
-    font-family: "Archivo", "PingFang SC", "Noto Sans SC", sans-serif; font-weight: 400;
-    font-size: 64px; line-height: 1; letter-spacing: -.01em;
-    color: var(--theme-1); margin: 18px 0 0; max-width: 1000px;
+  /* ── 左侧步骤导航 ── */
+  .rail-group + .rail-group { margin-top: 26px; }
+  .rail-head { padding: 0 10px 9px; }
+  .steps { display: flex; flex-direction: column; gap: 1px; }
+  .step {
+    display: flex; align-items: baseline; gap: 10px; width: 100%;
+    padding: 8px 10px; border: 0; border-radius: 8px; background: transparent;
+    font: inherit; text-align: left; cursor: pointer; color: var(--text-2);
+    transition: background 200ms, color 200ms;
   }
-  /* 第二行从次色显影到强调色：动画结束后必须完整可读，不能停在浅灰 */
-  h1 .soft {
-    color: var(--theme-1);
-    animation: reveal 2.3s cubic-bezier(.06,.56,.24,.96) both;
+  .step:hover:not(:disabled) { background: var(--overlay); color: var(--t1); }
+  .step:disabled { cursor: default; color: var(--text-3); }
+  .step[aria-current="true"] { background: var(--t3); color: var(--t1); }
+  .step-n {
+    font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 600;
+    letter-spacing: .06em; flex-shrink: 0; width: 17px;
   }
-  @keyframes reveal {
-    from { color: var(--theme-2); }
-    to   { color: var(--theme-1); }
-  }
-  .lede { margin-top: 18px; max-width: 460px; color: var(--text-secondary); line-height: 24px; }
+  .step-t { font-size: 13px; line-height: 18px; }
+  .step.done .step-n::after { content: "·"; margin-left: 3px; }
 
-  /* ── 卡片：外框 + 内层，风格核心 ───────── */
-  .ui-card { padding: 1px; border-radius: 10px; background: var(--panel-border); }
-  /* NOTE: 风格库原式带 min-height:100%，那是给马赛克网格撑满 cell 用的。
-     这里是线性流程页，留着会让卡片被祖先高度撑开（实测 176px 内容撑到 780px）。 */
-  .ui-card > .card {
-    padding: 12px; border-radius: 9px;
-    background: var(--panel-background);
+  /* ── 主工作区 ── */
+  .work-head { margin-bottom: 26px; }
+  .crumb { display: flex; align-items: center; gap: 8px; margin-bottom: 13px; }
+  .work-head h1 { margin-bottom: 12px; }
+  .work-lede { max-width: 620px; color: var(--text-2); line-height: 23px; }
+  .work-meta { margin-top: 14px; display: flex; gap: 8px; align-items: center; }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px;
+    border-radius: 9999px; border: 1px solid var(--panel-border);
+    font-size: 12px; color: var(--text-2); background: var(--panel-bg);
   }
-  .card-lg > .card { padding: 20px; }
+  .chip.solid { background: var(--t1); color: var(--on-t1); border-color: var(--t1); }
+  .chip.ghost { background: transparent; }
 
-  /* ── 登录 ─────────────────────────────── */
-  .signin-form { max-width: 340px; display: flex; flex-direction: column; gap: 10px; margin-top: 34px; }
-  .signin-form .go { padding: 15px 0; }
+  .block + .block { margin-top: 18px; }
+  .block-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
 
-  /* ── 输入 ─────────────────────────────── */
-  .capture { display: flex; gap: 10px; margin-top: 34px; align-items: stretch; }
-  .capture .ui-card { flex: 1; }
-  .field {
-    width: 100%; border: 0; outline: 0; background: transparent;
-    font-family: inherit; font-size: 15px; color: var(--theme-1);
-    padding: 14px 14px;
+  /* ── 可选项网格（品类/城市）── */
+  .picks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .pick {
+    display: flex; align-items: center; gap: 10px; padding: 12px 13px;
+    border: 1px solid var(--panel-border); border-radius: 9px; background: var(--panel-bg);
+    cursor: pointer; font: inherit; color: var(--text); text-align: left;
+    transition: border-color 200ms, background 200ms, color 200ms;
   }
-  .field::placeholder { color: var(--text-secondary); }
-
-  .go {
-    border: 0; border-radius: 10px; cursor: pointer;
-    background: var(--theme-1); color: var(--on-theme-1);
-    font-family: inherit; font-size: 15px; padding: 0 30px;
-    transition: opacity 200ms;
+  .pick:hover { border-color: var(--t2); }
+  .pick[aria-pressed="true"] { border-color: var(--t1); color: var(--t1); }
+  .tick {
+    width: 16px; height: 16px; border-radius: 5px; flex-shrink: 0;
+    border: 1px solid var(--t2); display: flex; align-items: center; justify-content: center;
+    font-size: 9px; color: transparent; transition: all 200ms;
   }
-  .go:hover { opacity: .84; }
-  .go:disabled { background: var(--theme-2); color: var(--text-secondary); cursor: default; }
+  .pick[aria-pressed="true"] .tick { background: var(--t1); border-color: var(--t1); color: var(--on-t1); }
 
-  /* ── 同行列表：一行一条，不做等宽卡片区 ── */
-  .feed { margin-top: 52px; }
-  .feed-head { display: flex; align-items: baseline; justify-content: space-between; }
-  .rows { margin-top: 12px; display: flex; flex-direction: column; }
+  /* ── 行列表 ── */
+  .rows { display: flex; flex-direction: column; }
   .row {
-    display: flex; align-items: center; gap: 16px; padding: 14px 12px;
-    border-top: 1px solid var(--panel-border); cursor: pointer;
-    transition: background 200ms;
+    display: flex; align-items: center; gap: 14px; padding: 13px 12px;
+    border-top: 1px solid var(--panel-border);
   }
-  .row:last-child { border-bottom: 1px solid var(--panel-border); }
-  .row:hover { background: var(--theme-3); }
-  .row-rank { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--text-secondary); width: 22px; }
-  .row-title { flex: 1; color: var(--theme-1); }
-  .row-meta { font-size: 13px; color: var(--text-secondary); }
-  .row-go { font-size: 13px; color: var(--text-secondary); opacity: 0; transition: opacity 200ms; }
-  .row:hover .row-go { opacity: 1; }
+  .rows > .row:last-child { border-bottom: 1px solid var(--panel-border); }
+  .row.tap { cursor: pointer; transition: background 200ms; }
+  .row.tap:hover { background: var(--overlay); }
+  .row-n { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--text-3); width: 20px; flex-shrink: 0; }
+  .row-main { flex: 1; min-width: 0; }
+  .row-title { color: var(--t1); font-size: 13.5px; }
+  .row-sub { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+  .row-end { font-size: 12px; color: var(--text-2); flex-shrink: 0; text-align: right; }
 
-  .footnote { margin-top: 40px; font-size: 13px; color: var(--text-secondary); }
+  /* ── 缩略 ── */
+  .thumb {
+    width: 54px; height: 74px; border-radius: 6px; flex-shrink: 0;
+    background: var(--t3); border: 1px solid var(--panel-border);
+    display: flex; align-items: center; justify-content: center;
+    font-family: "IBM Plex Mono", monospace; font-size: 10px; color: var(--text-3);
+    position: relative; overflow: hidden;
+  }
+  .thumb.seen::after {
+    content: "✓"; position: absolute; inset: 0; background: var(--t1); color: var(--on-t1);
+    display: flex; align-items: center; justify-content: center; font-size: 15px;
+  }
+  .thumb.playing::after {
+    content: ""; position: absolute; left: 0; bottom: 0; height: 3px;
+    background: var(--t1); width: var(--p, 0%); transition: width 120ms linear;
+  }
 
-  /* ── 进度 ─────────────────────────────── */
-  .track { margin-top: 30px; height: 2px; background: var(--theme-2); border-radius: 2px; overflow: hidden; }
-  .track > i { display: block; height: 100%; background: var(--theme-1); transition: width 600ms ease-in-out; }
-  .track-meta { margin-top: 12px; display: flex; justify-content: space-between; font-size: 13px; color: var(--text-secondary); }
+  /* ── 按钮 ── */
+  .btn {
+    border: 1px solid var(--t1); border-radius: 9px; cursor: pointer; font: inherit; font-size: 14px;
+    background: var(--t1); color: var(--on-t1); padding: 11px 22px;
+    transition: opacity 200ms, background 200ms, color 200ms, border-color 200ms;
+  }
+  .btn:hover:not(:disabled) { opacity: .85; }
+  .btn:disabled { background: var(--t2); border-color: var(--t2); color: var(--text-3); cursor: default; }
+  .btn.ghost { background: transparent; color: var(--t1); border-color: var(--panel-border); }
+  .btn.ghost:hover { border-color: var(--t1); opacity: 1; }
+  .btn.sm { padding: 7px 14px; font-size: 12.5px; border-radius: 8px; }
 
-  /* ── 折叠：细节默认藏起来 ───────────────── */
-  details { margin-top: 40px; }
+  .actions {
+    margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--panel-border);
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .actions .note { font-size: 12.5px; color: var(--text-2); margin-left: auto; text-align: right; }
+
+  /* ── 表格 ── */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left; padding: 9px 11px; font-weight: 600; font-size: 11px;
+    font-family: "IBM Plex Mono", monospace; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--text-3); border-bottom: 1px solid var(--panel-border);
+  }
+  td { padding: 11px; border-bottom: 1px solid var(--panel-border); vertical-align: top; line-height: 19px; }
+  tr:last-child td { border-bottom: 0; }
+  td.k { color: var(--t1); }
+
+  /* ── 进度 ── */
+  .track { height: 2px; background: var(--t2); border-radius: 2px; overflow: hidden; }
+  .track > i { display: block; height: 100%; background: var(--t1); transition: width 500ms ease-in-out; }
+
+  .stage-list { display: flex; flex-direction: column; }
+  .stage-row {
+    display: flex; align-items: center; gap: 12px; padding: 11px 0;
+    border-bottom: 1px solid var(--panel-border); font-size: 13px; color: var(--text-3);
+  }
+  .stage-list > .stage-row:last-child { border-bottom: 0; }
+  .stage-row.on, .stage-row.ok { color: var(--t1); }
+  .sdot { width: 6px; height: 6px; border-radius: 50%; background: var(--t2); flex-shrink: 0; }
+  .stage-row.ok .sdot { background: var(--t1); }
+  .stage-row.on .sdot { background: var(--t1); animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .25 } }
+  .stage-name { flex: 1; }
+  .stage-state { font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--text-3); }
+
+  /* ── 折叠 ── */
+  details { border-top: 1px solid var(--panel-border); padding-top: 14px; margin-top: 18px; }
   summary {
-    cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 8px;
-    font-size: 13px; color: var(--text-secondary); transition: color 200ms;
+    cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 7px;
+    font-size: 12.5px; color: var(--text-2); transition: color 200ms;
   }
   summary::-webkit-details-marker { display: none; }
-  summary:hover { color: var(--theme-1); }
-  summary::after { content: "▸"; font-size: 10px; transition: transform 200ms; }
+  summary:hover { color: var(--t1); }
+  summary::after { content: "▸"; font-size: 9px; transition: transform 200ms; }
   details[open] summary::after { transform: rotate(90deg); }
-  .detail-body { margin-top: 16px; }
+  .det-body { margin-top: 14px; }
 
-  .stepline { display: flex; flex-direction: column; }
-  .stepitem {
-    display: flex; align-items: center; gap: 14px; padding: 11px 0;
-    border-top: 1px solid var(--panel-border); font-size: 13px;
-  }
-  .stepitem:last-child { border-bottom: 1px solid var(--panel-border); }
-  .stepdot { width: 6px; height: 6px; border-radius: 50%; background: var(--theme-2); flex-shrink: 0; }
-  .stepitem.on .stepdot { background: var(--theme-1); }
-  .stepitem.on { color: var(--theme-1); }
-  .stepname { flex: 1; }
-  .stepstate { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--text-secondary); }
-
-  /* ── 需要决定 ───────────────────────────── */
-  .choices { margin-top: 30px; display: flex; flex-direction: column; gap: 10px; max-width: 520px; }
-  .choice {
-    width: 100%; text-align: left; cursor: pointer; border: 0;
-    background: transparent; font-family: inherit; padding: 0;
-  }
-  .choice .card { display: flex; align-items: center; gap: 14px; transition: background 200ms; }
-  .choice:hover .card { background: var(--theme-3); }
-  .choice-main { flex: 1; }
-  .choice-name { color: var(--theme-1); font-size: 15px; }
-  .choice-note { font-size: 13px; color: var(--text-secondary); margin-top: 3px; }
-  .choice-tag {
-    font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .16em;
-    text-transform: uppercase; color: var(--text-secondary);
-    border: 1px solid var(--panel-border); border-radius: 9999px; padding: 3px 9px;
+  /* ── 右侧要点栏 ── */
+  .aside h3 { margin-bottom: 10px; }
+  .points { display: flex; flex-direction: column; gap: 9px; }
+  .point { display: flex; gap: 10px; font-size: 12.5px; line-height: 18px; color: var(--text-2); }
+  .point-n {
+    font-family: "IBM Plex Mono", monospace; font-size: 10px; color: var(--text-3);
+    flex-shrink: 0; padding-top: 1px;
   }
 
-  /* ── 成片 ─────────────────────────────── */
-  .done-grid { display: flex; gap: 32px; margin-top: 34px; align-items: flex-start; }
-  /* 9:16 在桌面端很高；宽度压到 236px 才能和右侧确认区高度接近，不撑出空白 */
-  .player { width: 236px; flex-shrink: 0; }
-  .player .card { padding: 1px; }
+  /* ── 播放器 ── */
+  .player-wrap { display: flex; gap: 20px; align-items: flex-start; }
   .screen {
-    width: 100%; aspect-ratio: 9/16; border-radius: 8px;
-    background: var(--theme-3); display: flex; flex-direction: column; gap: 14px;
-    align-items: center; justify-content: center;
-    cursor: pointer; position: relative; overflow: hidden;
-    transition: background 200ms;
+    width: 208px; flex-shrink: 0; aspect-ratio: 9/16; border-radius: 8px;
+    background: var(--t3); border: 1px solid var(--panel-border); cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+    position: relative; overflow: hidden; transition: background 200ms;
   }
-  .screen:hover { background: var(--theme-2); }
-  .playglyph {
-    width: 54px; height: 54px; border-radius: 50%; background: var(--theme-1); color: var(--on-theme-1);
-    display: flex; align-items: center; justify-content: center; font-size: 16px; padding-left: 3px;
+  .screen:hover { background: var(--t2); }
+  .pglyph {
+    width: 46px; height: 46px; border-radius: 50%; background: var(--t1); color: var(--on-t1);
+    display: flex; align-items: center; justify-content: center; font-size: 14px; padding-left: 2px;
     transition: transform 200ms;
   }
-  .screen:hover .playglyph { transform: scale(1.05); }
-  .screen-hint { font-size: 13px; color: var(--text-secondary); }
-  .scrub { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--theme-1); width: 0%; transition: width 300ms linear; }
-  .player-meta { margin-top: 10px; font-size: 12px; color: var(--text-secondary); }
+  .screen:hover .pglyph { transform: scale(1.06); }
+  .scrub { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--t1); width: 0; }
 
-  .confirm { flex: 1; max-width: 520px; display: flex; flex-direction: column; }
-  .checks { display: flex; flex-direction: column; margin-top: 10px; }
+  .checks { display: flex; flex-direction: column; }
   .check {
-    display: flex; align-items: flex-start; gap: 12px; padding: 13px 0;
-    border-top: 1px solid var(--panel-border); cursor: pointer;
-    transition: opacity 200ms;
+    display: flex; align-items: flex-start; gap: 11px; padding: 11px 0;
+    border-bottom: 1px solid var(--panel-border); cursor: pointer; transition: opacity 200ms;
   }
-  .check:last-of-type { border-bottom: 1px solid var(--panel-border); }
-  .check.locked { opacity: .4; cursor: default; }
-  .cbox {
-    width: 17px; height: 17px; border-radius: 5px; flex-shrink: 0; margin-top: 1px;
-    border: 1px solid var(--theme-2); display: flex; align-items: center; justify-content: center;
-    font-size: 10px; color: transparent; transition: all 200ms;
+  .checks > .check:last-child { border-bottom: 0; }
+  .check.locked { opacity: .38; cursor: default; }
+  .check .tick { margin-top: 1px; }
+  .check.on .tick { background: var(--t1); border-color: var(--t1); color: var(--on-t1); }
+  .check-t { color: var(--t1); font-size: 13.5px; }
+  .check-w { display: block; font-size: 12px; color: var(--text-2); margin-top: 2px; }
+
+  /* ── 日期切换 ── */
+  .tabs { display: inline-flex; gap: 2px; padding: 2px; border-radius: 9999px; background: var(--t3); }
+  .tab {
+    border: 0; border-radius: 9999px; background: transparent; cursor: pointer;
+    font: inherit; font-size: 12.5px; padding: 6px 15px; color: var(--text-2);
+    transition: background 250ms, color 250ms;
   }
-  .check.on .cbox { background: var(--theme-1); border-color: var(--theme-1); color: var(--on-theme-1); }
-  .check-text { color: var(--theme-1); }
-  .check-why { display: block; font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+  .tab[aria-pressed="true"] { background: var(--panel-bg); color: var(--t1); }
 
-  .deliver { margin-top: 24px; display: flex; align-items: center; gap: 16px; }
-  .hint { font-size: 12px; color: var(--text-secondary); }
+  .empty { padding: 30px 0; text-align: center; font-size: 13px; color: var(--text-3); }
 
-  /* ── 底部导航 pill ───────────────────── */
-  .dock {
-    position: fixed; left: 50%; transform: translateX(-50%); bottom: 32px; z-index: 30;
+  .toast {
+    position: fixed; left: 50%; bottom: 30px; transform: translate(-50%, 14px);
     padding: 1px; border-radius: 9999px; background: var(--panel-border);
+    opacity: 0; pointer-events: none; transition: all 260ms ease-out; z-index: 60;
   }
-  .dock-inner {
-    display: flex; align-items: center; gap: 2px; padding: 4px;
-    border-radius: 9999px; background: var(--panel-background);
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast > span {
+    display: block; padding: 9px 20px; border-radius: 9999px;
+    background: var(--panel-bg); font-size: 13px; color: var(--t1);
   }
-  .dockitem {
-    padding: 7px 16px; border-radius: 9999px; border: 0; background: transparent; cursor: pointer;
-    font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 600;
-    letter-spacing: .12em; text-transform: uppercase; color: var(--text-secondary);
-    transition: background 300ms ease-in-out, color 300ms ease-in-out;
-  }
-  .dockitem[aria-current="true"] { background: var(--theme-3); color: var(--theme-1); }
 
-  .screenpanel { display: none; }
-  .screenpanel.live { display: block; }
-
-  @media (max-width: 768px) {
-    h1 { font-size: 36px; }
-    .lane, .lane-wide { padding-top: 44px; }
-    .capture { flex-direction: column; }
-    .go { padding: 15px 0; }
-    .done-grid { flex-direction: column; }
-    .player { width: 100%; max-width: 268px; }
-    .dock { bottom: 20px; }
+  @media (max-width: 1120px) {
+    .shell { grid-template-columns: 190px minmax(0, 1fr); }
+    .aside { display: none; }
+  }
+  @media (max-width: 760px) {
+    .shell { grid-template-columns: 1fr; gap: 0; padding: 0 18px; }
+    .rail { position: static; padding: 22px 0 0; }
+    .steps { flex-direction: row; overflow-x: auto; gap: 4px; padding-bottom: 6px; }
+    .step { width: auto; white-space: nowrap; }
+    .step-t { display: none; }
+    .work { padding: 24px 0 80px; }
+    h1.display { font-size: 30px; }
+    .picks { grid-template-columns: 1fr; }
+    .player-wrap { flex-direction: column; }
+    .screen { width: 100%; max-width: 208px; }
   }
 </style>
 </head>
 <body>
 
-<div class="glow" id="glow"></div>
-
-<header class="topbar">
-  <div class="topbar-inner">
-    <div class="mark">
-      <div class="mark-glyph">V</div>
-      <div class="mark-name">短视频工作台<span id="storyname"></span></div>
+<header class="top">
+  <div class="top-in">
+    <div class="brand">
+      <div class="glyph">V</div>
+      <div class="brand-txt">短视频获客<span id="storename" class="dim"></span></div>
     </div>
-    <div class="topbar-right">
-      <button class="linkbtn" id="setupentry" onclick="go('setup')" hidden>门店设置</button>
+    <div class="top-right">
       <div class="themeset">
-        <button class="themebtn" data-mode="light" title="浅色">○</button>
-        <button class="themebtn" data-mode="dark" title="深色">●</button>
-        <button class="themebtn" data-mode="system" title="跟随系统" aria-pressed="true">◐</button>
+        <button class="tbtn" data-mode="light" title="浅色">○</button>
+        <button class="tbtn" data-mode="dark" title="深色">●</button>
+        <button class="tbtn" data-mode="system" title="跟随系统" aria-pressed="true">◐</button>
       </div>
     </div>
   </div>
 </header>
 
-<main class="stage">
-
-  <!-- ══ 状态 0：登录 ══ -->
-  <section class="screenpanel live lane" id="p-signin">
-    <div class="label">门店登录</div>
-    <h1>短视频工作台<br><span class="soft">先登录你的门店</span></h1>
-    <p class="lede">用开通时发给你的门店账号登录。第一次进来会带你把主播和素材准备好，之后每天就只剩贴链接、等、下载。</p>
-
-    <div class="signin-form">
-      <div class="ui-card"><div class="card" style="padding:0">
-        <input class="field" id="acct" placeholder="门店账号" autocomplete="username">
-      </div></div>
-      <div class="ui-card"><div class="card" style="padding:0">
-        <input class="field" id="pwd" type="password" placeholder="密码" autocomplete="current-password">
-      </div></div>
-      <button class="go" onclick="signin()">进入工作台</button>
+<div class="shell">
+  <nav class="rail">
+    <div class="rail-group">
+      <div class="rail-head mono">初始配置</div>
+      <div class="steps" id="rail-setup"></div>
     </div>
-
-    <p class="footnote">没有账号，或者忘了密码，找给你开通的同事。</p>
-  </section>
-
-  <!-- ══ 状态 1：空闲 ══ -->
-  <section class="screenpanel lane" id="p-idle">
-    <div class="label" id="todaylabel">今天</div>
-    <h1>贴一条视频<br><span class="soft">换成你们的版本</span></h1>
-    <p class="lede">系统会把它拆开，用你们主播的形象和声音重讲一遍，画面换成门店自己的。大约 40 分钟。</p>
-
-    <div class="capture">
-      <div class="ui-card">
-        <div class="card" style="padding:0">
-          <input class="field" id="urlfield" placeholder="粘贴抖音链接" value="https://v.douyin.com/iRKvNqTd/">
-        </div>
-      </div>
-      <button class="go" onclick="go('working')">开始</button>
+    <div class="rail-group">
+      <div class="rail-head mono">日常制作</div>
+      <div class="steps" id="rail-daily"></div>
     </div>
+  </nav>
 
-    <div class="feed">
-      <div class="feed-head">
-        <div class="label">同行昨天发的</div>
-        <div class="row-meta">来自你关注的 8 个账号</div>
-      </div>
-      <div class="rows">
-        <div class="row" onclick="go('working')">
-          <div class="row-rank">01</div>
-          <div class="row-title">装修公司最怕你问这 5 个问题</div>
-          <div class="row-meta">6842 赞</div>
-          <div class="row-go">用这条 →</div>
-        </div>
-        <div class="row" onclick="go('working')">
-          <div class="row-rank">02</div>
-          <div class="row-title">上班族没空盯装修，6 个节点必须到场</div>
-          <div class="row-meta">5901 赞</div>
-          <div class="row-go">用这条 →</div>
-        </div>
-        <div class="row" onclick="go('working')">
-          <div class="row-rank">03</div>
-          <div class="row-title">568 元一平的套餐到底包含什么</div>
-          <div class="row-meta">5421 赞</div>
-          <div class="row-go">用这条 →</div>
-        </div>
-      </div>
-    </div>
+  <main class="work" id="work"></main>
 
-    <p class="footnote" id="readyline">你的主播、声音和门店画面都已就绪。</p>
-  </section>
+  <aside class="aside" id="aside"></aside>
+</div>
 
-  <!-- ══ 状态 2：制作中 ══ -->
-  <section class="screenpanel lane" id="p-working">
-    <div class="label">制作中</div>
-    <h1>正在换成<br><span class="soft">你们的版本</span></h1>
-    <p class="lede">你可以关掉这个页面去忙。做好了会在企微上告诉你。</p>
-
-    <div class="track"><i id="bar" style="width:8%"></i></div>
-    <div class="track-meta">
-      <span id="phase">正在重写文稿</span>
-      <span id="eta">大约还要 38 分钟</span>
-    </div>
-
-    <details>
-      <summary>看看在做什么</summary>
-      <div class="detail-body">
-        <div class="stepline" id="steps">
-          <div class="stepitem on"><i class="stepdot"></i><span class="stepname">重写文稿</span><span class="stepstate">进行中</span></div>
-          <div class="stepitem"><i class="stepdot"></i><span class="stepname">安排镜头、配画面</span><span class="stepstate">等待</span></div>
-          <div class="stepitem"><i class="stepdot"></i><span class="stepname">生成主播配音</span><span class="stepstate">等待</span></div>
-          <div class="stepitem"><i class="stepdot"></i><span class="stepname">对口型</span><span class="stepstate">等待</span></div>
-          <div class="stepitem"><i class="stepdot"></i><span class="stepname">合成画面和字幕</span><span class="stepstate">等待</span></div>
-          <div class="stepitem"><i class="stepdot"></i><span class="stepname">自动检查</span><span class="stepstate">等待</span></div>
-        </div>
-        <p class="footnote">中途遇到定不了的事会停下来问你，不会自己乱改。</p>
-      </div>
-    </details>
-  </section>
-
-  <!-- ══ 状态 3：需要你定一件事 ══ -->
-  <section class="screenpanel lane" id="p-ask">
-    <div class="label">需要你定一件事</div>
-    <h1>有一句话<br><span class="soft">配不上画面</span></h1>
-    <p class="lede">「合同里没写违约金，延三个月也白等」——你们的素材里没有对得上的工地画面。挑一个办法，其余的我接着做。</p>
-
-    <div class="choices">
-      <button class="choice" onclick="go('done')">
-        <div class="ui-card"><div class="card">
-          <div class="choice-main">
-            <div class="choice-name">这句改成主播出镜说</div>
-            <div class="choice-note">最稳，不用等素材</div>
-          </div>
-          <div class="choice-tag">推荐</div>
-        </div></div>
-      </button>
-      <button class="choice" onclick="go('done')">
-        <div class="ui-card"><div class="card">
-          <div class="choice-main">
-            <div class="choice-name">现在传一段工地视频</div>
-            <div class="choice-note">传完继续，大约多花 3 分钟</div>
-          </div>
-        </div></div>
-      </button>
-      <button class="choice" onclick="go('done')">
-        <div class="ui-card"><div class="card">
-          <div class="choice-main">
-            <div class="choice-name">这句不要了</div>
-            <div class="choice-note">成片会短 12 秒</div>
-          </div>
-        </div></div>
-      </button>
-    </div>
-  </section>
-
-  <!-- ══ 状态 4：做好了 ══ -->
-  <section class="screenpanel lane-wide" id="p-done">
-    <div class="label">做好了 · 用时 39 分钟</div>
-    <h1>看一遍<br><span class="soft">没问题就能发</span></h1>
-
-    <div class="done-grid">
-      <div class="player">
-        <div class="ui-card card-lg"><div class="card">
-          <div class="screen" id="screen" onclick="watch()">
-            <div class="playglyph" id="playglyph">▶</div>
-            <div class="screen-hint" id="screenhint">点开，看完这 52 秒</div>
-            <i class="scrub" id="scrub"></i>
-          </div>
-        </div></div>
-        <div class="player-meta" id="playermeta">竖屏 1080×1920 · 已加字幕 · 音量已调好</div>
-      </div>
-
-      <div class="confirm">
-        <div class="label" style="font-size:11px" id="confirmlabel">看完之后，确认这 3 件事</div>
-        <div class="checks">
-          <div class="check locked" id="c1" onclick="tick(this)">
-            <div class="cbox">✓</div>
-            <div><span class="check-text">这段话讲得通吗</span>
-            <span class="check-why">机器管得了字数和节奏，管不了讲不讲得明白</span></div>
-          </div>
-          <div class="check locked" id="c2" onclick="tick(this)">
-            <div class="cbox">✓</div>
-            <div><span class="check-text">每句话配的画面对得上吗</span></div>
-          </div>
-          <div class="check locked" id="c3" onclick="tick(this)">
-            <div class="cbox">✓</div>
-            <div><span class="check-text">价格和服务范围说得对吗</span></div>
-          </div>
-        </div>
-
-        <div class="deliver">
-          <button class="go" id="dl" disabled onclick="alert('已下载：装修合同5问.mp4')">下载这条</button>
-          <span class="hint" id="dlhint">先把视频看完</span>
-        </div>
-
-        <details>
-          <summary>系统已经查过的 6 项</summary>
-          <div class="detail-body">
-            <div class="stepline">
-              <div class="stepitem on"><i class="stepdot"></i><span class="stepname">全片没有出现原片的主播</span><span class="stepstate">通过</span></div>
-              <div class="stepitem on"><i class="stepdot"></i><span class="stepname">画面里没有别家公司的招牌</span><span class="stepstate">通过</span></div>
-              <div class="stepitem on"><i class="stepdot"></i><span class="stepname">字幕和口播对得上</span><span class="stepstate">通过</span></div>
-              <div class="stepitem on"><i class="stepdot"></i><span class="stepname">没有闪切和重复画面</span><span class="stepstate">通过</span></div>
-              <div class="stepitem on"><i class="stepdot"></i><span class="stepname">音量符合抖音标准</span><span class="stepstate">通过</span></div>
-              <div class="stepitem on"><i class="stepdot"></i><span class="stepname">时长 52 秒</span><span class="stepstate">通过</span></div>
-            </div>
-          </div>
-        </details>
-
-        <details>
-          <summary>发布建议</summary>
-          <div class="detail-body">
-            <p style="color:var(--theme-1)">今晚 19:40–20:10 发，是你号粉丝最多的时段。</p>
-            <p class="footnote" style="margin-top:10px">
-              标题：签合同前问清这 5 句，能少赔两万<br>
-              首评：评论区留你家面积，我把这 5 句发你
-            </p>
-          </div>
-        </details>
-      </div>
-    </div>
-  </section>
-
-  <!-- ══ 门店设置（第一次用才需要） ══ -->
-  <section class="screenpanel lane" id="p-setup">
-    <div class="label">门店设置</div>
-    <h1>准备一次<br><span class="soft">以后都不用管</span></h1>
-    <p class="lede">这三样弄好，以后每天就只剩「贴链接、等、下载」三件事。</p>
-
-    <div class="stepline" style="margin-top:34px">
-      <div class="stepitem on"><i class="stepdot"></i><span class="stepname">门店做什么、服务哪些城市</span><span class="stepstate">已完成</span></div>
-      <div class="stepitem on"><i class="stepdot"></i><span class="stepname">门店实拍视频　<span style="color:var(--text-secondary)">已传 21 段</span></span><span class="stepstate">已完成</span></div>
-      <div class="stepitem"><i class="stepdot"></i><span class="stepname">出镜主播的照片和声音</span><span class="stepstate">还差一段</span></div>
-    </div>
-
-    <div style="margin-top:24px">
-      <div class="ui-card card-lg"><div class="card">
-        <div class="label" style="font-size:11px">还差这一段</div>
-        <p style="color:var(--theme-1); margin-top:10px">
-          请出镜主播用四种语气各读一遍示例台词：平静、热情、解释、邀约。
-        </p>
-        <p class="footnote" style="margin-top:8px">
-          竖屏，安静环境，镜头与眼睛同高。语气样本越全，配音越不像机器念稿。
-        </p>
-        <div style="margin-top:16px; display:flex; gap:10px; align-items:center">
-          <button class="go" style="padding:11px 22px; font-size:14px" onclick="alert('打开上传')">上传这一段</button>
-          <span class="hint">也可以先跳过，用现有的声音先做</span>
-        </div>
-      </div></div>
-    </div>
-
-    <details>
-      <summary>已经传过的门店画面（21 段）</summary>
-      <div class="detail-body">
-        <div class="stepline">
-          <div class="stepitem on"><i class="stepdot"></i><span class="stepname">龙文店厨房安装　<span style="color:var(--text-secondary)">柜体安装、封边细节、空间全景</span></span><span class="stepstate">12 段</span></div>
-          <div class="stepitem on"><i class="stepdot"></i><span class="stepname">118 平完工全景　<span style="color:var(--text-secondary)">完工实景、动线、柜门开合</span></span><span class="stepstate">9 段</span></div>
-        </div>
-        <p class="footnote" style="margin-top:14px">
-          系统写的画面说明偶尔会认错，比如把贴墙砖写成贴地砖。发现配错画面时回这里改一下，以后就不会再错。
-        </p>
-      </div>
-    </details>
-  </section>
-
-</main>
-
-<nav class="dock" id="dock" hidden>
-  <div class="dock-inner">
-    <button class="dockitem" data-to="idle" aria-current="true">开始</button>
-    <button class="dockitem" data-to="working">制作中</button>
-    <button class="dockitem" data-to="ask">需要你</button>
-    <button class="dockitem" data-to="done">成片</button>
-    <button class="dockitem" data-to="setup">设置</button>
-  </div>
-</nav>
+<div class="toast" id="toast"><span></span></div>
 
 <script>
-  /* 主题类必须挂在 html 上：body 的背景色也要用这些变量，
-     挂在 body 内的容器上会让 body 自己取不到值、退回透明 */
-  const root = document.documentElement;
+/* ══════════════ 主题 ══════════════ */
+const media = matchMedia('(prefers-color-scheme: dark)');
+let mode = localStorage.getItem('theme') || 'system';
+function paint() {
+  const dark = mode === 'dark' || (mode === 'system' && media.matches);
+  document.documentElement.className = dark ? 'theme-dark' : 'theme-light';
+  document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+  document.querySelectorAll('.tbtn').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+}
+paint();
+media.addEventListener('change', () => mode === 'system' && paint());
+document.querySelectorAll('.tbtn').forEach(b => b.onclick = () => {
+  mode = b.dataset.mode; localStorage.setItem('theme', mode); paint();
+});
 
-  /* ── 三态主题：选择写入 localStorage，重载不闪回默认 ── */
-  const media = window.matchMedia('(prefers-color-scheme: dark)');
-  function paint(mode) {
-    const dark = mode === 'dark' || (mode === 'system' && media.matches);
-    root.className = dark ? 'theme-dark' : 'theme-light';
-    root.style.colorScheme = dark ? 'dark' : 'light';
-    document.querySelectorAll('.themebtn').forEach(b =>
-      b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+/* ══════════════ 数据 ══════════════ */
+const CATEGORIES = ['全屋定制', '橱柜', '衣柜', '榻榻米 / 柜体', '整木定制 / 护墙板', '木门', '系统门窗', '旧房翻新'];
+const CITIES = ['本市城区', '邻近县市', '同省其他地市', '省会城市', '周边省份', '仅本地'];
+
+/* 每日抓取的同行视频。真实系统里由后端按门店关注的账号每天更新。 */
+const FEED = [
+  { t: '33㎡ 小厨房，台面多出 1.8 米', a: '住小帮', d: '00:42', like: 6842, cm: 312, fav: 1486, fw: 729, why: '面积反差开场，户型类咨询占比高' },
+  { t: '118㎡ 原木风全屋定制完工实拍', a: '定制笔记', d: '00:36', like: 5901, cm: 286, fav: 1224, fw: 614, why: '完工实拍，收藏率突出' },
+  { t: '套餐价到底包含什么', a: '装修避坑指南', d: '00:51', like: 5421, cm: 438, fav: 1063, fw: 508, why: '价格类选题，评论意图明确' },
+  { t: '8㎡ 儿童房收纳翻倍方案', a: '小户型改造局', d: '00:29', like: 4872, cm: 197, fav: 1522, fw: 469, why: '收纳痛点，转发表现好' },
+  { t: 'ENF 板材怎么选：三个误区', a: '板材研究社', d: '00:47', like: 4215, cm: 369, fav: 1305, fw: 392, why: '材料科普，建立专业形象' },
+  { t: '安装现场：柜门缝隙做到 2mm', a: '安装师傅老陈', d: '00:33', like: 3986, cm: 241, fav: 892, fw: 361, why: '工艺细节，门店具备拍摄条件' },
+  { t: '奶油风翻车的 5 个细节', a: '设计师周周', d: '00:55', like: 3744, cm: 412, fav: 1109, fw: 347, why: '风格避坑，互动率高' },
+  { t: '旧房翻新先做柜体还是水电', a: '旧改笔记', d: '00:40', like: 3205, cm: 334, fav: 948, fw: 298, why: '流程科普，面向新客' },
+  { t: '同户型改造前后动线对比', a: '空间答案', d: '00:31', like: 3012, cm: 173, fav: 862, fw: 281, why: '前后对比，说服力强' },
+  { t: '店长带看：展厅里最值得看的三处', a: '门店日常', d: '00:38', like: 2841, cm: 216, fav: 731, fw: 253, why: '门店场景，可直接复用' },
+];
+
+const SHOTS = [
+  ['00:00–00:03', '开场留人', '33㎡ 也能有 1.8 米台面', '快速推近，数据大字幕'],
+  ['00:03–00:10', '痛点陈述', '转角浪费、双人操作空间不足', '环绕运镜，标注浪费区域'],
+  ['00:10–00:24', '方案呈现', '高低台、转角柜、电器高柜', '连续三个细节特写'],
+  ['00:24–00:34', '实拍佐证', '同机位改造前后对比', '前后画面平滑切换'],
+  ['00:34–00:42', '转化引导', '回复关键词领取同户型清单', '出镜人正面口播'],
+];
+
+const MAKE_STEPS = [
+  ['文案改写', 12],
+  ['镜头编排', 28],
+  ['素材匹配', 44],
+  ['配音生成', 64],
+  ['字幕与合成', 84],
+  ['自动检测与封装', 97],
+];
+
+const MAKE_LOG = [
+  ['14:32:01', '写开头', '开场调整为先陈述客户收益', '完成'],
+  ['14:32:18', '安排镜头', '编排为 12 个镜头', '完成'],
+  ['14:32:45', '挑本店画面', '匹配到厨房安装与完工画面', '完成'],
+  ['14:33:02', '替换画面', '第 7 镜替换为更清晰的台面特写', '完成'],
+  ['14:33:38', '生成店长讲话', '首次生成缺少门店标识，已触发重试', '已处理'],
+  ['14:33:52', '生成店长讲话', '门店标识已补齐', '完成'],
+  ['14:34:05', '生成店长讲话', '生成中 6/8', '进行中'],
+];
+
+const AUTO_CHECKS = [
+  ['画面清晰', '97 / 100'], ['字幕没有被平台按钮挡住', '通过'],
+  ['人物说话与字幕一致', '99%'], ['门店标识已显示', '通过'],
+  ['价格和活动表述', '未发现问题'], ['背景音乐允许商用', '通过'],
+  ['平台敏感词', '未发现'], ['视频从头到尾完整', '通过'],
+];
+
+const HUMAN_CHECKS = [
+  ['人物和声音自然', ''],
+  ['产品与材料说明正确', '自动检测仅覆盖时长与节奏，内容准确性须人工判断'],
+  ['价格和活动条件正确', ''],
+  ['服务地区与联系方式正确', ''],
+  ['画面没有客户隐私', ''],
+];
+
+const STEPS = [
+  { n: '01', t: '经营范围', g: 'setup', time: '约 3 分钟', got: '门店经营范围',
+    lede: '设定门店实际承接的品类与服务区域。系统据此筛选选题、匹配素材并约束文案中的服务承诺。',
+    points: ['勾选实际承接的品类，支持多选', '勾选可上门服务的区域', '核对已选数量', '保存后进入下一步'],
+    done: '品类与服务区域均不为空，且配置已保存' },
+  { n: '02', t: '内容偏好', g: 'setup', time: '约 8 分钟', got: '本店内容偏好模型',
+    lede: '对 10 条同行样片逐条判定是否适用于本店。判定结果用于校准后续的选题推荐。',
+    points: ['完整预览后再判定，勿依据标题', '业务相关且门店可拍摄，判为适用', '业务无关或不具备拍摄条件，判为不适用', '10 条全部判定后方可继续'],
+    done: '10 条样片均已判定' },
+  { n: '03', t: '门店素材', g: 'setup', time: '约 5–15 分钟', got: '可复用的素材片段',
+    lede: '上传工地、安装、展厅与完工实拍。系统自动切分为可复用片段，并生成画面描述。',
+    points: ['支持手机或电脑本地文件', '切分期间请勿重复上传', '切分完成后逐段复核描述', '修正描述后保存入库'],
+    done: '素材切分完成，且片段描述与画面一致' },
+  { n: '04', t: '出镜形象', g: 'setup', time: '约 15 分钟', got: '出镜形象与声纹样本',
+    lede: '采集出镜人正面照与三段基准视频。后续所有成片统一使用该形象与声纹。',
+    points: ['确认出镜人身份与本人授权', '正面照需平视、无遮挡、光线均匀', '按规格分别录制三段素材', '收音或画面不达标须重录'],
+    done: '正面照通过校验，三段素材均可用，授权已确认' },
+  { n: '05', t: '今日选题', g: 'daily', time: '约 10 分钟', got: '今日参考样片',
+    lede: '从近三日同行表现较优的样片中选定一条。仅参考其叙事结构与节奏，不复用其内容。',
+    points: ['优先查看当日，必要时回溯前两日', '至少完整预览 3 条', '优先选择本店具备拍摄条件的主题', '确认后设为今日参考'],
+    done: '完整预览不少于 3 条，且已设定今日参考' },
+  { n: '06', t: '结构拆解', g: 'daily', time: '约 2–5 分钟', got: '可复用的结构模板',
+    lede: '系统按「开场—痛点—方案—佐证—转化」拆解样片，标注可借鉴的结构与不可复用的内容。',
+    points: ['先阅读结论，再逐段查看话术与画面', '确认本店具备对应拍摄条件', '确认不可复用项已规避', '确认后按此结构生成'],
+    done: '五段结构已确认，且不复用他方户型、文案与报价' },
+  { n: '07', t: '视频制作', g: 'daily', time: '约 40 分钟', got: '待审核成片',
+    lede: '文案改写、镜头编排、配音、剪辑与自动检测的实时进度。制作期间可关闭页面。',
+    points: ['关注总进度与预计剩余时间', '需人工决策时任务会暂停并通知', '异常时展开生成日志排查', '进度未达 100% 请勿下载'],
+    done: '进度 100%，且无待处理异常' },
+  { n: '08', t: '审核交付', g: 'daily', time: '约 5 分钟', got: '可发布成片',
+    lede: '完整播放成片，重点核对字幕、口播、门店标识、报价与画面。通过后下载发布。',
+    points: ['完整播放全片，不可仅依据自动检测', '逐项核对字幕、声音与报价表述', '存在问题应先修正并重新生成', '全部确认后下载'],
+    done: '已完整播放，自动检测全部通过，人工复核项全部确认' },
+];
+
+/* ══════════════ 状态 ══════════════ */
+const S = {
+  cur: 0,
+  cats: new Set(['全屋定制', '橱柜', '衣柜', '榻榻米 / 柜体']),
+  cities: new Set(['本市城区', '邻近县市']),
+  saved: false,
+  judged: {},          // 02：{index: 'fit'|'unfit'}
+  watchedIntro: {},    // 02：看完的
+  clips: [
+    { name: '门店厨房安装实拍.mp4', state: 'ok', n: 12, desc: '柜体安装、封边细节、空间全景' },
+    { name: '118㎡ 完工全景.mp4', state: 'ok', n: 9, desc: '完工实景、动线、柜门开合' },
+    { name: '衣柜封边细节.mov', state: 'busy', n: 0, desc: '切分中，约 2 分钟' },
+  ],
+  hostShots: [
+    { t: '正面口播 · 30–60 秒', how: '竖屏，镜头与眼睛同高，腰部以上入镜', why: '口型同步基准素材，镜头须平视', ok: true },
+    { t: '肢体动作 · 15–30 秒', how: '竖屏，左右转身，做手势', why: '避免画面长时间静止', ok: true },
+    { t: '四种语气各一遍', how: '平静 / 热情 / 解释 / 邀约', why: '声纹克隆样本，语气覆盖越全，配音自然度越高', ok: false },
+  ],
+  day: 0,
+  watchedFeed: {},
+  picked: null,
+  approved: false,
+  progress: 0,
+  makeTimer: null,
+  finalWatched: false,
+  humanTicks: {},
+};
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+const num = n => n.toLocaleString('zh-CN');
+
+function toast(msg) {
+  const el = $('#toast');
+  el.querySelector('span').textContent = msg;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+/* 每一步能否进入：前面的必做完。
+   加 ?dev 解除顺序限制，方便自己跳着看各步。 */
+const DEV = new URLSearchParams(location.search).has('dev');
+function stepReady(i) {
+  if (DEV || i === 0) return true;
+  return doneUpTo(i - 1);
+}
+function stepDone(i) {
+  switch (i) {
+    case 0: return S.saved;
+    case 1: return Object.keys(S.judged).length === FEED.length;
+    case 2: return S.clips.some(c => c.state === 'ok');
+    case 3: return S.hostShots.every(h => h.ok);
+    case 4: return S.picked !== null;
+    case 5: return S.approved;
+    case 6: return S.progress >= 100;
+    case 7: return S.finalWatched && Object.keys(S.humanTicks).length === HUMAN_CHECKS.length;
   }
-  let mode = localStorage.getItem('theme') || 'system';
-  paint(mode);
-  media.addEventListener('change', () => { if (mode === 'system') paint(mode); });
-  document.querySelectorAll('.themebtn').forEach(b => b.onclick = () => {
-    mode = b.dataset.mode; localStorage.setItem('theme', mode); paint(mode);
-  });
+}
+function doneUpTo(i) {
+  for (let k = 0; k <= i; k++) if (!stepDone(k)) return false;
+  return true;
+}
 
-  /* ── 登录 ──
-     NOTE: 原型阶段没有后端，这里不发送、不存储任何输入；
-     账号只用于在顶栏显示门店名。接后端时替换成真实鉴权。 */
-  function signin() {
-    const name = document.getElementById('acct').value.trim();
-    document.getElementById('storyname').textContent = name ? ' · ' + name : '';
-    document.getElementById('setupentry').hidden = false;
-    document.getElementById('pwd').value = '';
-    if (DEV) document.getElementById('dock').hidden = false;
-    go('idle');
-  }
+/* ══════════════ 左侧导航 ══════════════ */
+function renderRail() {
+  const mk = g => STEPS.map((s, i) => ({ s, i })).filter(x => x.s.g === g).map(({ s, i }) => {
+    const ready = stepReady(i), done = stepDone(i);
+    return `<button class="step${done ? ' done' : ''}" ${i === S.cur ? 'aria-current="true"' : ''}
+      ${ready ? '' : 'disabled'} onclick="goStep(${i})">
+      <span class="step-n">${s.n}</span><span class="step-t">${esc(s.t)}</span></button>`;
+  }).join('');
+  $('#rail-setup').innerHTML = mk('setup');
+  $('#rail-daily').innerHTML = mk('daily');
+}
 
-  /* 状态跳转条只是给自己看各状态用的脚手架，正式访问不出现。
-     调试时在网址后面加 ?dev */
-  const DEV = new URLSearchParams(location.search).has('dev');
+function goStep(i) {
+  if (!stepReady(i)) { toast('请先完成前序步骤'); return; }
+  clearInterval(S.makeTimer);
+  S.cur = i;
+  render();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (i === 6) startMaking();
+}
 
-  /* ── 状态切换 ── */
-  let timer = null;
-  function go(name) {
-    document.querySelectorAll('.screenpanel').forEach(p => p.classList.remove('live'));
-    document.getElementById('p-' + name).classList.add('live');
-    document.querySelectorAll('.dockitem').forEach(b =>
-      b.setAttribute('aria-current', String(b.dataset.to === name)));
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    clearInterval(timer);
-    if (name === 'working') runProgress();
-  }
-  document.querySelectorAll('.dockitem').forEach(b => b.onclick = () => go(b.dataset.to));
+/* ══════════════ 主区 ══════════════ */
+function render() {
+  const st = STEPS[S.cur];
+  $('#work').innerHTML = `
+    <div class="work-head">
+      <div class="crumb">
+        <span class="mono">${st.g === 'setup' ? '初始配置' : '日常制作'} · 第 ${st.n} 步</span>
+      </div>
+      <h1 class="display">${esc(st.t)}</h1>
+      <p class="work-lede">${esc(st.lede)}</p>
+      <div class="work-meta">
+        <span class="chip ghost">${st.time}</span>
+        <span class="chip ghost">产出：${esc(st.got)}</span>
+      </div>
+    </div>
+    ${BODY[S.cur]()}
+  `;
+  $('#aside').innerHTML = `
+    <div class="uc"><div class="cd">
+      <h3>操作要点</h3>
+      <div class="points">
+        ${st.points.map((p, i) => `<div class="point"><span class="point-n">${i + 1}</span><span>${esc(p)}</span></div>`).join('')}
+      </div>
+    </div></div>
+    <div class="uc"><div class="cd">
+      <h3>完成标准</h3>
+      <p class="tiny" style="margin-top:8px">${esc(st.done)}</p>
+    </div></div>
+  `;
+  renderRail();
+}
 
-  /* ── 制作进度：演示用，走到需要人决定的那一步就停下来问 ── */
-  const PHASES = [
-    ['重写文稿', 8], ['安排镜头、配画面', 26], ['生成主播配音', 48],
-    ['对口型', 70], ['合成画面和字幕', 88], ['自动检查', 97],
-  ];
-  function runProgress() {
-    let i = 0;
-    const bar = document.getElementById('bar');
-    const phase = document.getElementById('phase');
-    const eta = document.getElementById('eta');
-    const items = document.querySelectorAll('#steps .stepitem');
-    timer = setInterval(() => {
-      i++;
-      if (i >= PHASES.length) { clearInterval(timer); go('ask'); return; }
-      const [name, pct] = PHASES[i];
-      bar.style.width = pct + '%';
-      phase.textContent = '正在' + name;
-      eta.textContent = '大约还要 ' + Math.max(1, Math.round(40 * (1 - pct / 100))) + ' 分钟';
-      items.forEach((el, n) => {
-        el.classList.toggle('on', n <= i);
-        el.querySelector('.stepstate').textContent = n < i ? '完成' : n === i ? '进行中' : '等待';
-      });
-    }, 1600);
-  }
+/* ── 01 ── */
+function pickGrid(list, set, kind) {
+  return `<div class="picks">${list.map(x => `
+    <button class="pick" aria-pressed="${set.has(x)}" onclick="togglePick('${kind}','${x}')">
+      <span class="tick">✓</span><span>${esc(x)}</span>
+    </button>`).join('')}</div>`;
+}
+function togglePick(kind, v) {
+  const set = kind === 'cat' ? S.cats : S.cities;
+  set.has(v) ? set.delete(v) : set.add(v);
+  S.saved = false;
+  render();
+}
+function saveBiz() {
+  if (!S.cats.size || !S.cities.size) { toast('请至少选择一个品类和一个服务区域'); return; }
+  S.saved = true; render(); toast('已保存');
+}
 
-  /* ── 成片：必须播到结尾，才解锁人工确认和下载 ── */
-  let watched = false;
-  function watch() {
-    if (watched) return;
-    const scrub = document.getElementById('scrub');
-    const glyph = document.getElementById('playglyph');
-    glyph.textContent = '❚❚';
-    let p = 0;
-    const t = setInterval(() => {
-      p += 5; scrub.style.width = p + '%';
-      if (p >= 100) {
-        clearInterval(t); watched = true;
-        glyph.textContent = '↺';
-        document.getElementById('screenhint').textContent = '再看一遍';
-        document.getElementById('playermeta').textContent = '竖屏 1080×1920 · 已加字幕 · 你已看完整条';
-        document.getElementById('confirmlabel').textContent = '确认这 3 件事';
-        ['c1','c2','c3'].forEach(id => document.getElementById(id).classList.remove('locked'));
-        document.getElementById('dlhint').textContent = '三项都确认后就能下载';
-      }
-    }, 150);
-  }
-  function tick(el) {
-    if (el.classList.contains('locked')) return;
-    el.classList.toggle('on');
-    const all = ['c1','c2','c3'].every(id => document.getElementById(id).classList.contains('on'));
-    document.getElementById('dl').disabled = !all;
-    document.getElementById('dlhint').textContent = all ? '可以发了' : '还差几项';
-  }
+const BODY = [
+  /* 01 门店生意 */
+  () => `
+    <div class="block">
+      <div class="block-head"><h2>主营品类</h2><span class="mono">已选 ${S.cats.size}</span></div>
+      ${pickGrid(CATEGORIES, S.cats, 'cat')}
+    </div>
+    <div class="block">
+      <div class="block-head"><h2>服务区域</h2><span class="mono">已选 ${S.cities.size}</span></div>
+      ${pickGrid(CITIES, S.cities, 'city')}
+    </div>
+    <div class="actions">
+      <button class="btn" onclick="saveBiz()">${S.saved ? '已保存' : '保存配置'}</button>
+      ${S.saved ? `<button class="btn ghost" onclick="goStep(1)">下一步</button>` : ''}
+      <span class="note">${S.saved ? '配置可随时修改' : '仅用于内容筛选，不影响对外展示的门店资料'}</span>
+    </div>`,
 
-  /* ── 鼠标光晕：只动 transform，不驱动重排 ── */
-  const glow = document.getElementById('glow');
-  addEventListener('pointermove', e => {
-    glow.style.transform = `translate(${e.clientX - 200 - innerWidth * .6}px, ${e.clientY - 200 - innerHeight * .1}px)`;
-  });
+  /* 02 内容偏好 */
+  () => {
+    const n = Object.keys(S.judged).length;
+    return `
+    <div class="block">
+      <div class="block-head">
+        <h2>样片判定</h2>
+        <span class="mono">${n} / ${FEED.length}</span>
+      </div>
+      <div class="track"><i style="width:${n / FEED.length * 100}%"></i></div>
+      <div class="rows" style="margin-top:14px">
+        ${FEED.map((f, i) => {
+          const seen = S.watchedIntro[i], j = S.judged[i];
+          return `<div class="row">
+            <div class="thumb ${seen ? 'seen' : ''}" id="ith-${i}" onclick="watchIntro(${i})">${f.d}</div>
+            <div class="row-main">
+              <div class="row-title">${esc(f.t)}</div>
+              <div class="row-sub">${esc(f.a)} · ${num(f.like)} 赞</div>
+            </div>
+            ${seen ? `
+              <button class="btn sm ${j === 'fit' ? '' : 'ghost'}" onclick="judge(${i},'fit')">适用</button>
+              <button class="btn sm ${j === 'unfit' ? '' : 'ghost'}" onclick="judge(${i},'unfit')">不适用</button>`
+              : `<span class="row-end">预览后判定</span>`}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn" ${n === FEED.length ? '' : 'disabled'} onclick="goStep(2)">下一步</button>
+      <span class="note">${n === FEED.length ? '偏好模型已生成' : `尚有 ${FEED.length - n} 条未判定`}</span>
+    </div>`;
+  },
+
+  /* 03 门店实拍 */
+  () => `
+    <div class="block">
+      <div class="block-head"><h2>素材库</h2><span class="mono">共 ${S.clips.reduce((a, c) => a + c.n, 0)} 段可用</span></div>
+      <div class="uc"><div class="cd" style="padding:0 14px">
+        <table>
+          <tr><th>视频</th><th style="width:96px">状态</th><th style="width:78px">片段</th><th>画面描述</th><th style="width:92px"></th></tr>
+          ${S.clips.map((c, i) => `<tr>
+            <td class="k">${esc(c.name)}</td>
+            <td>${c.state === 'ok' ? '<span class="chip">已切分</span>' : '<span class="chip">切分中</span>'}</td>
+            <td>${c.n || '—'}</td>
+            <td class="dim">${esc(c.desc)}</td>
+            <td>${c.state === 'ok' ? `<button class="link" onclick="toast('打开 ${c.n} 个片段逐条复核')">复核 ›</button>` : ''}</td>
+          </tr>`).join('')}
+        </table>
+      </div></div>
+      <div class="uc" style="margin-top:12px"><div class="cd">
+        <p class="tiny"><strong style="color:var(--t1)">片段描述须人工复核。</strong>
+        系统可识别画面中的物件，但对施工环节的判断存在误差（例如将墙面铺贴识别为地面铺贴）。
+        复核后可显著提升素材匹配准确率。</p>
+      </div></div>
+    </div>
+    <div class="actions">
+      <button class="btn ghost" onclick="toast('选择本地视频文件')">上传素材</button>
+      <button class="btn" onclick="goStep(3)">下一步</button>
+      <span class="note">支持工地、安装、展厅与完工实拍</span>
+    </div>`,
+
+  /* 04 出镜素材 */
+  () => `
+    <div class="block">
+      <div class="block-head"><h2>出镜人</h2><span class="mono">本人授权已确认</span></div>
+      <div class="uc"><div class="cd" style="display:flex;align-items:center;gap:16px">
+        <div class="thumb" style="width:52px;height:52px;border-radius:50%">照片</div>
+        <div style="flex:1">
+          <h3>出镜人</h3>
+          <p class="tiny" style="margin-top:3px">正面照已通过校验</p>
+        </div>
+        <button class="btn ghost sm" onclick="toast('替换正面照')">替换</button>
+      </div></div>
+    </div>
+    <div class="block">
+      <div class="block-head"><h2>基准素材</h2><span class="mono">${S.hostShots.filter(h => h.ok).length} / 3</span></div>
+      <div class="uc"><div class="cd" style="padding:0 14px">
+        <table>
+          <tr><th>素材类型</th><th style="width:190px">拍摄规格</th><th>用途</th><th style="width:96px"></th></tr>
+          ${S.hostShots.map((h, i) => `<tr>
+            <td class="k">${esc(h.t)}</td>
+            <td class="dim">${esc(h.how)}</td>
+            <td class="dim">${esc(h.why)}</td>
+            <td>${h.ok ? '<span class="chip">可用</span>'
+              : `<button class="btn sm" onclick="uploadShot(${i})">上传</button>`}</td>
+          </tr>`).join('')}
+        </table>
+      </div></div>
+      <div class="uc" style="margin-top:12px"><div class="cd">
+        <p class="tiny">素材应尽量避免已烧录的字幕。系统可执行字幕擦除，但会增加处理耗时；字幕与手部重叠时无法完全清除。</p>
+      </div></div>
+    </div>
+    <div class="actions">
+      <button class="btn" ${S.hostShots.every(h => h.ok) ? '' : 'disabled'} onclick="goStep(4)">进入日常制作</button>
+      <span class="note">${S.hostShots.every(h => h.ok) ? '基准素材已齐备' : '尚有 1 项未上传'}</span>
+    </div>`,
+
+  /* 05 选参考 */
+  () => {
+    const seen = Object.keys(S.watchedFeed).length;
+    const days = ['今天', '昨天', '前天'];
+    return `
+    <div class="block">
+      <div class="block-head">
+        <div class="tabs">${days.map((d, i) =>
+          `<button class="tab" aria-pressed="${S.day === i}" onclick="S.day=${i};render()">${d}</button>`).join('')}</div>
+        <span class="mono">${seen >= 3 ? '预览已达标' : `已完整预览 ${seen} / 3`}</span>
+      </div>
+      ${S.day === 0 ? `
+        <div class="rows">
+          ${FEED.map((f, i) => {
+            const w = S.watchedFeed[i], picked = S.picked === i;
+            return `<div class="row">
+              <span class="row-n">${String(i + 1).padStart(2, '0')}</span>
+              <div class="thumb ${w ? 'seen' : ''}" id="fth-${i}" onclick="watchFeed(${i})">${f.d}</div>
+              <div class="row-main">
+                <div class="row-title">${esc(f.t)}</div>
+                <div class="row-sub">${esc(f.a)} · ${num(f.like)} 赞 · ${num(f.cm)} 评论 · ${num(f.fav)} 收藏</div>
+              </div>
+              ${w
+                ? `<button class="btn sm ${picked ? '' : 'ghost'}" onclick="pickFeed(${i})">${picked ? '已设为参考' : '设为参考'}</button>`
+                : `<span class="row-end">预览后可选</span>`}
+            </div>`;
+          }).join('')}
+        </div>`
+        : `<div class="empty">${days[S.day]}的候选样片已全部浏览，无更优选项。</div>`}
+    </div>
+    <div class="actions">
+      <button class="btn" ${S.picked !== null ? '' : 'disabled'} onclick="goStep(5)">查看结构拆解</button>
+      <span class="note">${S.picked !== null
+        ? `今日参考：${esc(FEED[S.picked].t)}`
+        : seen < 3 ? `需完整预览至少 3 条，尚差 ${3 - seen} 条` : '选定一条作为今日参考'}</span>
+    </div>`;
+  },
+
+  /* 06 拆解 */
+  () => {
+    const f = FEED[S.picked] || FEED[0];
+    return `
+    <div class="block">
+      <div class="uc lg"><div class="cd">
+        <div class="mono" style="margin-bottom:9px">拆解结论</div>
+        <p style="color:var(--t1);line-height:23px">
+          开场 3 秒以「面积反差 + 明确收益」建立注意力；中段以真实前后对比佐证方案；
+          结尾仅引导回复关键词领取资料，不做到店催促。
+        </p>
+        <p class="tiny" style="margin-top:12px">${esc(f.t)} · ${esc(f.a)} · ${num(f.like)} 赞 · ${esc(f.why)}</p>
+      </div></div>
+    </div>
+    <div class="block">
+      <div class="block-head"><h2>内容结构</h2></div>
+      <div class="uc"><div class="cd" style="padding:0 14px">
+        <table>
+          <tr><th style="width:104px">时间</th><th style="width:112px">结构段落</th><th>话术要点</th><th>画面构成</th></tr>
+          ${SHOTS.map(r => `<tr>
+            <td class="dim">${r[0]}</td><td class="k">${esc(r[1])}</td>
+            <td class="dim">${esc(r[2])}</td><td class="dim">${esc(r[3])}</td>
+          </tr>`).join('')}
+        </table>
+      </div></div>
+    </div>
+    <div class="block" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="uc"><div class="cd">
+        <div class="mono" style="margin-bottom:9px">可借鉴结构</div>
+        <p class="tiny">数据反差开场 → 客户痛点 → 方案细节 → 前后对比佐证 → 转化引导。</p>
+      </div></div>
+      <div class="uc"><div class="cd">
+        <div class="mono" style="margin-bottom:9px">不可复用内容</div>
+        <p class="tiny">不得复用对方的户型、画面与文案，须替换为本店真实案例、报价与服务区域。</p>
+      </div></div>
+    </div>
+    <div class="actions">
+      <button class="btn" onclick="S.approved=true;goStep(6)">按此结构生成</button>
+      <span class="note">确认后启动制作，约 40 分钟</span>
+    </div>`;
+  },
+
+  /* 07 制作中 */
+  () => {
+    const idx = MAKE_STEPS.findIndex(s => s[1] > S.progress);
+    const cur = idx === -1 ? MAKE_STEPS.length : idx;
+    const doneAll = S.progress >= 100;
+    return `
+    <div class="block">
+      <div class="uc lg"><div class="cd">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px">
+          <h2>${doneAll ? '制作完成' : '制作中'}</h2>
+          <span class="tiny">${doneAll ? '用时 39 分钟' : `总进度 ${S.progress}% · 预计剩余 ${Math.max(1, Math.round(40 * (1 - S.progress / 100)))} 分钟`}</span>
+        </div>
+        <div class="track"><i style="width:${S.progress}%"></i></div>
+        <div class="stage-list" style="margin-top:16px">
+          ${MAKE_STEPS.map((s, i) => `
+            <div class="stage-row ${i < cur ? 'ok' : i === cur && !doneAll ? 'on' : ''}">
+              <i class="sdot"></i><span class="stage-name">${esc(s[0])}</span>
+              <span class="stage-state">${i < cur ? '完成' : i === cur && !doneAll ? '进行中' : '等待'}</span>
+            </div>`).join('')}
+        </div>
+        <details>
+          <summary>生成日志</summary>
+          <div class="det-body">
+            <table>
+              <tr><th style="width:88px">时间</th><th style="width:110px">模块</th><th>事件</th><th style="width:72px">状态</th></tr>
+              ${MAKE_LOG.map(r => `<tr>
+                <td class="dim">${r[0]}</td><td class="dim">${esc(r[1])}</td>
+                <td class="k">${esc(r[2])}</td><td class="dim">${r[3]}</td>
+              </tr>`).join('')}
+            </table>
+          </div>
+        </details>
+      </div></div>
+    </div>
+    <div class="actions">
+      <button class="btn" ${doneAll ? '' : 'disabled'} onclick="goStep(7)">${doneAll ? '进入审核' : `制作中 ${S.progress}%`}</button>
+      ${doneAll ? '' : '<button class="btn ghost" onclick="finishMaking()">跳至完成（演示）</button>'}
+      <span class="note">制作期间可关闭页面，完成后将通知</span>
+    </div>`;
+  },
+
+  /* 08 检查下载 */
+  () => {
+    const ticks = Object.keys(S.humanTicks).length;
+    const ready = S.finalWatched && ticks === HUMAN_CHECKS.length;
+    return `
+    <div class="block">
+      <div class="player-wrap">
+        <div class="screen" id="screen" onclick="watchFinal()">
+          <div class="pglyph" id="pglyph">${S.finalWatched ? '↺' : '▶'}</div>
+          <span class="tiny" id="shint">${S.finalWatched ? '重新播放' : '播放全片 · 42 秒'}</span>
+          <i class="scrub" id="scrub" style="width:${S.finalWatched ? 100 : 0}%"></i>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div class="block-head" style="margin-bottom:6px">
+            <h2>人工复核项</h2>
+            <span class="mono">${ticks} / ${HUMAN_CHECKS.length}</span>
+          </div>
+          <div class="checks">
+            ${HUMAN_CHECKS.map((c, i) => `
+              <div class="check ${S.finalWatched ? '' : 'locked'} ${S.humanTicks[i] ? 'on' : ''}" onclick="tickHuman(${i})">
+                <span class="tick">✓</span>
+                <div><span class="check-t">${esc(c[0])}</span>
+                ${c[1] ? `<span class="check-w">${esc(c[1])}</span>` : ''}</div>
+              </div>`).join('')}
+          </div>
+          <details>
+            <summary>自动检测结果</summary>
+            <div class="det-body"><div class="stage-list">
+              ${AUTO_CHECKS.map(c => `<div class="stage-row ok">
+                <i class="sdot"></i><span class="stage-name">${esc(c[0])}</span>
+                <span class="stage-state">${esc(c[1])}</span></div>`).join('')}
+            </div></div>
+          </details>
+          <details>
+            <summary>发布建议</summary>
+            <div class="det-body">
+              <p style="color:var(--t1)">建议发布时段 19:40–20:10，依据本账号近 30 日粉丝活跃分布。</p>
+              <p class="tiny" style="margin-top:9px">
+                标题：小厨房也能有 1.8 米台面，是怎么做到的？<br>
+                首评：回复关键词领取同户型动线规划清单。
+              </p>
+            </div>
+          </details>
+        </div>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn" ${ready ? '' : 'disabled'} onclick="toast('已下载')">下载成片</button>
+      <button class="btn ghost" onclick="goStep(4)">新建任务</button>
+      <span class="note">${!S.finalWatched ? '需完整播放后方可确认'
+        : ready ? '已通过审核，可下载' : `尚有 ${HUMAN_CHECKS.length - ticks} 项未确认`}</span>
+    </div>`;
+  },
+];
+
+/* ══════════════ 交互 ══════════════ */
+function playThumb(id, done) {
+  const el = document.getElementById(id);
+  if (!el || el._busy) return;
+  el._busy = true; el.classList.add('playing');
+  let p = 0;
+  const t = setInterval(() => {
+    p += 8; el.style.setProperty('--p', p + '%');
+    if (p >= 100) { clearInterval(t); el._busy = false; done(); }
+  }, 90);
+}
+function watchIntro(i) { if (S.watchedIntro[i]) return; playThumb('ith-' + i, () => { S.watchedIntro[i] = true; render(); }); }
+function judge(i, v) { S.judged[i] = v; render(); }
+function watchFeed(i) { if (S.watchedFeed[i]) return; playThumb('fth-' + i, () => { S.watchedFeed[i] = true; render(); }); }
+function pickFeed(i) {
+  if (Object.keys(S.watchedFeed).length < 3) { toast('需完整预览至少 3 条'); return; }
+  S.picked = i; render(); toast('已设为今日参考');
+}
+function uploadShot(i) { S.hostShots[i].ok = true; render(); toast('已上传'); }
+
+function startMaking() {
+  if (S.progress >= 100) return;
+  clearInterval(S.makeTimer);
+  S.makeTimer = setInterval(() => {
+    S.progress = Math.min(100, S.progress + 4);
+    if (S.cur === 6) render();
+    if (S.progress >= 100) { clearInterval(S.makeTimer); toast('成片已生成'); }
+  }, 700);
+}
+function finishMaking() { clearInterval(S.makeTimer); S.progress = 100; render(); toast('成片已生成'); }
+
+function watchFinal() {
+  if (S.finalWatched) return;
+  const scrub = $('#scrub'), glyph = $('#pglyph'), hint = $('#shint');
+  if (!scrub || scrub._busy) return;
+  scrub._busy = true; glyph.textContent = '❚❚'; hint.textContent = '正在播放';
+  let p = 0;
+  const t = setInterval(() => {
+    p += 4; scrub.style.width = p + '%';
+    if (p >= 100) { clearInterval(t); S.finalWatched = true; render(); }
+  }, 60);
+}
+function tickHuman(i) {
+  if (!S.finalWatched) { toast('需完整播放后方可确认'); return; }
+  S.humanTicks[i] ? delete S.humanTicks[i] : S.humanTicks[i] = true;
+  render();
+}
+
+render();
 </script>
 </body>
 </html>
