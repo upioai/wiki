@@ -43,6 +43,7 @@ const CATEGORIES = [
       { slug: 'ai-harness',       title: 'AI Harness 精要',     desc: 'Agent harness 框架要点。' },
       { slug: 'fable5',           title: 'Claude Fable 5',      desc: '新模型能力介绍。' },
       { slug: 'claude-model-picker', title: 'Sonnet 5 / Opus 4.8 / Fable 5 怎么选', desc: '在 Claude Code 里写 Akke 代码时，什么活儿配哪一档模型——一页决策图，含定价、速度与 Akke 任务对照。' },
+      { slug: 'claude-code-model-effort', title: 'Opus 5 / Fable 5 / Effort 怎么拧', desc: '模型、effort、fast 是三个独立旋钮，不是同一条「更强」的滑杆：换模型治「想不明白」、调 effort 治「想得不够深或想太多」、开 fast 只治「等得烦」。判定线不按重要程度、按不确定性的位置——说得清的活留给 Opus 5，说不清、要无人值守跑很久、要一次产出可交付文档的才切 Fable 5；安全向分析是红线（Fable 会拒答且 CC 里没有自动兜底）。含两台机器的规格对照与真实账单倍数（Fable 约 3～4×，不止牌面上的 2 倍）、low→max 七档 effort 阶梯与各自的典型活儿、九个会真花钱的坑（删掉「再检查一遍」、子 agent 要反向调），以及 Akke cron 排查 / 支付鉴权审计 / 视频流水线选型 / 财务周报等九个场景可直接照抄的档位（深色技术长页，Claude Code 2.1.220 实测口径）。' },
       { slug: 'tencent-hy3', title: '腾讯 Hy3：新旗舰拆解，我们要换吗', desc: '腾讯混元刚发布的开源权重旗舰：架构、定价、优缺点，和生产在用的 Qwen3-2507 / DeepSeek V4 Flash 摆在一起算账——结论是两个槽都不换。' },
       { slug: 'scheduling-terms', title: 'Cron / Routine / Schedule 辨析', desc: '定时·事件·常驻：一堆易混的自动化机制怎么选。' },
       { slug: 'loop-goal-orchestration', title: '用 /loop × goal 编排任务', desc: '/loop 是让 prompt「反复醒来」的骨架，goal 是写进 prompt 的「何时停」判据——两者配起来让 Claude 自己盯一件事干到达标。结合 Akke 讲轮询/指标收敛/backlog 磨盘三种落法与四道护栏。' },
