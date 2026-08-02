@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>门店营销工作台 · 独立产品化的架构决策</title>
+<meta name="description" content="一个 36 屏的交互原型要变成独立产品：从「不独立、长在现有栈里」到「独立仓 + 共享数据面」的选型翻案全过程——候选否决矩阵、五条硬约束、三层架构与数据面契约、执行面三档分级，以及逐屏对账后发现的能力缺口与三处必须改的设计。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#06080c; --bg2:#0a0e15; --panel:#0d1119; --panel2:#11161f;
+    --line:rgba(255,255,255,.07); --line2:rgba(255,255,255,.12);
+    --ink:#dbe3ec; --head:#f2f6fb; --muted:#7c8798; --dim:#525c6b;
+    --teal:#3fe0c5; --teal-d:#1c9d8b;
+    --amber:#f6b352; --blue:#6fa8ff; --violet:#b48cff; --rose:#ff7d97;
+    --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+    --serif:"Noto Serif SC",serif;
+    --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{font-family:var(--sans);background:var(--bg);color:var(--ink);line-height:1.7;
+    -webkit-font-smoothing:antialiased;overflow-x:hidden}
+
+  /* ── 固定背景 ── */
+  .bg{position:fixed;inset:0;z-index:0;pointer-events:none}
+  .bg .grid{position:absolute;inset:-2px;
+    background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:64px 64px;
+    -webkit-mask-image:radial-gradient(circle at 50% 32%,#000 0%,transparent 78%);
+    mask-image:radial-gradient(circle at 50% 32%,#000 0%,transparent 78%);opacity:.5}
+  .bg .glow{position:absolute;border-radius:50%;filter:blur(120px);opacity:.5}
+  .bg .g1{width:640px;height:640px;top:-260px;left:50%;transform:translateX(-50%);
+    background:radial-gradient(circle,rgba(63,224,197,.28),transparent 68%);animation:drift 22s ease-in-out infinite}
+  .bg .g2{width:520px;height:520px;top:38%;left:-160px;
+    background:radial-gradient(circle,rgba(111,168,255,.16),transparent 70%);animation:drift 28s ease-in-out infinite reverse}
+  .bg .g3{width:480px;height:480px;bottom:-120px;right:-120px;
+    background:radial-gradient(circle,rgba(246,179,82,.12),transparent 70%);animation:drift 26s ease-in-out infinite}
+  @keyframes drift{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,40px)}}
+  .bg .noise{position:absolute;inset:0;opacity:.035;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+  .progress{position:fixed;top:0;left:0;height:2px;width:0;z-index:60;
+    background:linear-gradient(90deg,var(--teal),var(--blue));box-shadow:0 0 12px var(--teal)}
+
+  .rail{position:fixed;top:50%;left:26px;transform:translateY(-50%);z-index:50;display:flex;flex-direction:column;gap:15px}
+  .rail a{display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--dim);
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;transition:color .3s}
+  .rail a .tick{width:22px;height:2px;background:currentColor;transition:width .3s,background .3s}
+  .rail a .lbl{opacity:0;transform:translateX(-6px);transition:.3s}
+  .rail a:hover .lbl,.rail a.on .lbl{opacity:1;transform:none}
+  .rail a.on{color:var(--teal)}
+  .rail a.on .tick{width:38px;box-shadow:0 0 10px var(--teal)}
+  @media(max-width:1220px){.rail{display:none}}
+
+  main{position:relative;z-index:2;max-width:1080px;margin:0 auto;padding:0 40px}
+  section{padding:118px 0;border-top:1px solid transparent}
+
+  .rv{opacity:0;transform:translateY(26px);transition:opacity .8s cubic-bezier(.16,1,.3,1),transform .8s cubic-bezier(.16,1,.3,1)}
+  .rv.in{opacity:1;transform:none}
+  .stagger>*{opacity:0;transform:translateY(22px);transition:opacity .7s cubic-bezier(.16,1,.3,1),transform .7s cubic-bezier(.16,1,.3,1)}
+  .stagger.in>*{opacity:1;transform:none}
+  .stagger.in>*:nth-child(1){transition-delay:.05s}
+  .stagger.in>*:nth-child(2){transition-delay:.13s}
+  .stagger.in>*:nth-child(3){transition-delay:.21s}
+  .stagger.in>*:nth-child(4){transition-delay:.29s}
+  .stagger.in>*:nth-child(5){transition-delay:.37s}
+  .stagger.in>*:nth-child(6){transition-delay:.45s}
+
+  .sec-head{display:flex;align-items:baseline;gap:20px;margin-bottom:42px}
+  .sec-head .idx{font-family:var(--mono);font-size:13px;color:var(--teal);font-weight:500;padding-top:6px;position:relative}
+  .sec-head .idx::before{content:"";position:absolute;left:-14px;top:11px;width:8px;height:8px;
+    border-radius:50%;background:var(--teal);box-shadow:0 0 10px var(--teal)}
+  .eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--muted);display:block;margin-bottom:8px}
+  .sec-head h2{font-family:var(--serif);font-weight:700;font-size:clamp(27px,4vw,42px);
+    line-height:1.18;color:var(--head);letter-spacing:.01em}
+  .lede{font-size:16.5px;color:var(--muted);max-width:700px;margin:-24px 0 40px;line-height:1.75}
+  .lede b,.lede strong{color:var(--ink);font-weight:600}
+  code{font-family:var(--mono);font-size:.85em;background:rgba(63,224,197,.09);color:#8ff0e0;
+    border:1px solid rgba(63,224,197,.16);border-radius:5px;padding:1px 6px}
+
+  /* ── HERO ── */
+  .hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;
+    padding:120px 0 90px;border:0;position:relative}
+  .hero .tag{font-family:var(--mono);font-size:12px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--teal);display:inline-flex;align-items:center;gap:10px;margin-bottom:26px}
+  .hero .tag .pulse{width:9px;height:9px;border-radius:50%;background:var(--teal);
+    box-shadow:0 0 0 0 rgba(63,224,197,.6);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(63,224,197,.55)}70%{box-shadow:0 0 0 12px rgba(63,224,197,0)}100%{box-shadow:0 0 0 0 rgba(63,224,197,0)}}
+  .hero h1{font-family:var(--serif);font-weight:900;font-size:clamp(42px,8vw,92px);line-height:1.04;
+    color:var(--head);letter-spacing:.005em;margin-bottom:8px}
+  .hero h1 .accent{background:linear-gradient(115deg,var(--teal),var(--blue) 70%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero h1 .cursor{display:inline-block;width:.06em;height:.92em;background:var(--teal);
+    vertical-align:-6px;margin-left:6px;animation:blink 1.1s steps(1) infinite;box-shadow:0 0 14px var(--teal)}
+  @keyframes blink{50%{opacity:0}}
+  .hero .desc{font-size:clamp(16px,2.2vw,21px);color:var(--ink);max-width:700px;margin:24px 0 14px;line-height:1.62}
+  .hero .desc b{color:var(--teal);font-weight:600}
+  .hero .role{font-family:var(--mono);font-size:13px;color:var(--muted);margin-bottom:44px}
+  .ticker{display:flex;gap:10px;flex-wrap:wrap;max-width:860px}
+  .chip{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;color:var(--ink);
+    border:1px solid var(--line2);border-radius:100px;padding:7px 15px;background:rgba(255,255,255,.02);
+    display:inline-flex;align-items:center;gap:8px;transition:.3s}
+  .chip:hover{border-color:var(--teal);color:var(--teal);box-shadow:0 0 20px -6px var(--teal)}
+  .chip .d{width:6px;height:6px;border-radius:50%;background:var(--teal)}
+  .chip .d.a{background:var(--amber)}.chip .d.b{background:var(--blue)}
+  .chip .d.v{background:var(--violet)}.chip .d.r{background:var(--rose)}
+  .scrollcue{position:absolute;bottom:34px;left:0;font-family:var(--mono);font-size:11px;
+    letter-spacing:.2em;color:var(--dim);display:flex;align-items:center;gap:10px}
+  .scrollcue .bar{width:1px;height:34px;background:linear-gradient(var(--teal),transparent);
+    animation:cue 1.8s ease-in-out infinite}
+  @keyframes cue{0%,100%{opacity:.3;transform:scaleY(.6)}50%{opacity:1;transform:scaleY(1)}}
+
+  /* ── 卡片 ── */
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  .cell{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 22px;transition:.35s}
+  .cell:hover{border-color:var(--line2);background:var(--panel2);transform:translateY(-3px)}
+  .ico{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+    margin-bottom:14px;border:1px solid rgba(63,224,197,.28);color:var(--teal);
+    background:linear-gradient(150deg,rgba(63,224,197,.13),rgba(63,224,197,.02));
+    box-shadow:0 0 22px -10px var(--teal) inset}
+  .ico svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .ico.b{border-color:rgba(111,168,255,.28);color:var(--blue);
+    background:linear-gradient(150deg,rgba(111,168,255,.13),rgba(111,168,255,.02));box-shadow:0 0 22px -10px var(--blue) inset}
+  .ico.a{border-color:rgba(246,179,82,.28);color:var(--amber);
+    background:linear-gradient(150deg,rgba(246,179,82,.13),rgba(246,179,82,.02));box-shadow:0 0 22px -10px var(--amber) inset}
+  .ico.v{border-color:rgba(180,140,255,.28);color:var(--violet);
+    background:linear-gradient(150deg,rgba(180,140,255,.13),rgba(180,140,255,.02));box-shadow:0 0 22px -10px var(--violet) inset}
+  .ico.r{border-color:rgba(255,125,151,.28);color:var(--rose);
+    background:linear-gradient(150deg,rgba(255,125,151,.13),rgba(255,125,151,.02));box-shadow:0 0 22px -10px var(--rose) inset}
+  .ico.d{border-color:var(--line2);color:var(--muted);background:rgba(255,255,255,.03);box-shadow:none}
+  .ico.rank{font-family:var(--mono);font-size:14.5px;font-weight:600;letter-spacing:.04em}
+  .cell h3{font-size:16px;color:var(--head);margin-bottom:7px;font-weight:600}
+  .cell h3 .m{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:.08em;
+    display:block;margin-bottom:4px;font-weight:500}
+  .cell p{font-size:13.5px;color:var(--muted);line-height:1.65}
+  .cell p b{color:var(--ink)}
+  .cell .model{margin-top:12px;font-family:var(--mono);font-size:12px;color:var(--teal);
+    background:rgba(63,224,197,.07);border:1px solid rgba(63,224,197,.15);border-radius:7px;
+    padding:5px 10px;display:inline-block}
+
+  /* ── 统计带 ── */
+  .statband{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:26px}
+  .stat{background:linear-gradient(165deg,var(--panel),var(--bg2));border:1px solid var(--line);
+    border-radius:14px;padding:20px 20px 16px;text-align:left;transition:.35s}
+  .stat:hover{border-color:rgba(63,224,197,.3);transform:translateY(-3px)}
+  .stat .v{font-family:var(--mono);font-size:34px;font-weight:600;color:var(--teal);line-height:1.1;
+    text-shadow:0 0 24px rgba(63,224,197,.35)}
+  .stat .v .suf{font-size:16px;color:var(--muted);margin-left:2px}
+  .stat .l{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.5}
+
+  /* ── 横向条形图 ── */
+  .hbar{margin-top:8px}
+  .hbar .row{display:grid;grid-template-columns:186px 1fr 96px;gap:14px;align-items:center;padding:9px 0}
+  .hbar .lab{font-size:13.5px;color:var(--ink);text-align:right;line-height:1.35}
+  .hbar .track{display:block;height:18px;background:rgba(255,255,255,.04);border-radius:5px;overflow:hidden;position:relative}
+  .hbar .fill{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,var(--teal-d),var(--teal));
+    box-shadow:0 0 14px -2px var(--teal);width:0;transition:width 1.1s cubic-bezier(.16,1,.3,1)}
+  .hbar .fill.dim{background:linear-gradient(90deg,#2a3644,#46586c);box-shadow:none}
+  .hbar .fill.warn{background:linear-gradient(90deg,#b7803a,var(--amber));box-shadow:0 0 14px -2px var(--amber)}
+  .hbar .fill.bad{background:linear-gradient(90deg,#a34457,var(--rose));box-shadow:0 0 14px -2px var(--rose)}
+  .hbar .fill.blue{background:linear-gradient(90deg,#3d6bb0,var(--blue));box-shadow:0 0 14px -2px var(--blue)}
+  .hbar .val{font-family:var(--mono);font-size:13px;color:var(--head)}
+  .hbar .val .u{color:var(--muted);font-size:11px}
+  .chart-note{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:14px;line-height:1.7}
+  .chart-note b{color:var(--teal)}
+
+  /* ── 选型层级卡（四选一） ── */
+  .tiers{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .tier{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 18px;
+    position:relative;transition:.35s;opacity:.62}
+  .tier:hover{opacity:1;border-color:var(--line2);transform:translateY(-3px)}
+  .tier.pick{opacity:1;border-color:rgba(63,224,197,.42);
+    background:linear-gradient(165deg,rgba(63,224,197,.07),var(--panel));
+    box-shadow:0 22px 60px -34px var(--teal)}
+  .tier .lv{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--muted);
+    text-transform:uppercase;margin-bottom:10px;display:block}
+  .tier.pick .lv{color:var(--teal)}
+  .tier h3{font-size:15.5px;color:var(--head);margin-bottom:8px;font-weight:600;line-height:1.4}
+  .tier p{font-size:12.8px;color:var(--muted);line-height:1.62}
+  .tier .badge{position:absolute;top:-9px;right:14px;font-family:var(--mono);font-size:10px;
+    letter-spacing:.14em;text-transform:uppercase;background:var(--teal);color:#04211c;
+    border-radius:100px;padding:3px 10px;font-weight:600;box-shadow:0 0 18px -4px var(--teal)}
+
+  /* ── 架构图 ── */
+  .archwrap{background:linear-gradient(165deg,var(--panel),var(--bg2));border:1px solid var(--line);
+    border-radius:18px;padding:22px 18px 14px;overflow-x:auto}
+  .archwrap svg{display:block;width:100%;min-width:660px;height:auto}
+  .arch-t{font-family:var(--mono);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;fill:var(--muted)}
+  .arch-h{font-family:var(--serif);font-size:17px;font-weight:700;fill:var(--head)}
+  .arch-s{font-family:var(--sans);font-size:12.5px;fill:var(--muted)}
+  .arch-m{font-family:var(--mono);font-size:11.5px;fill:var(--ink)}
+  .legend{display:flex;gap:20px;flex-wrap:wrap;margin-top:16px;font-family:var(--mono);
+    font-size:11px;letter-spacing:.08em;color:var(--muted)}
+  .legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:-1px}
+
+  /* ── 约束 / 冲突 band ── */
+  .why{background:linear-gradient(160deg,rgba(255,125,151,.07),transparent);
+    border:1px solid rgba(255,125,151,.2);border-radius:16px;padding:26px 28px;margin-bottom:20px}
+  .why .k{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--rose);
+    text-transform:uppercase;margin-bottom:10px;display:block}
+  .why p{font-size:15.5px;color:var(--ink);margin:0}
+  .why p b{color:var(--rose)}
+  .band{margin-top:22px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--teal);
+    border-radius:12px;padding:20px 24px}
+  .band .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--teal);
+    text-transform:uppercase;margin-bottom:8px;display:block}
+  .band p{font-size:15px;color:var(--ink);margin:0}
+  .band p b{color:var(--head)}
+  .band.amber{border-left-color:var(--amber)}
+  .band.amber .k{color:var(--amber)}
+  .note-band{margin-top:22px;background:rgba(246,179,82,.06);border:1px solid rgba(246,179,82,.2);
+    border-radius:14px;padding:18px 22px;display:flex;gap:16px;align-items:flex-start}
+  .note-band .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--amber);
+    text-transform:uppercase;white-space:nowrap;padding-top:2px}
+  .note-band p{font-size:14.5px;color:var(--ink);margin:0}
+
+  /* ── 三列框 ── */
+  .cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .colbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 22px}
+  .colbox h4{font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--teal);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+  .colbox ul{list-style:none}
+  .colbox li{font-size:13.5px;color:var(--ink);padding:6px 0 6px 18px;position:relative;line-height:1.55}
+  .colbox li::before{content:"▸";position:absolute;left:0;color:var(--dim)}
+  .colbox li b{color:var(--head)}
+  .colbox.ship h4{color:var(--teal)}.colbox.wip h4{color:var(--amber)}.colbox.hard h4{color:var(--rose)}
+  .colbox.ship{border-color:rgba(63,224,197,.18)}
+  .colbox.wip{border-color:rgba(246,179,82,.18)}
+  .colbox.hard{border-color:rgba(255,125,151,.18)}
+
+  /* ── 决策脊线 ── */
+  .pipe{position:relative;padding-left:38px;margin-top:8px}
+  .pipe::before{content:"";position:absolute;left:11px;top:8px;bottom:8px;width:2px;
+    background:linear-gradient(var(--blue),var(--teal),var(--amber),var(--rose))}
+  .pipe .flowdot{position:absolute;left:6px;width:12px;height:12px;border-radius:50%;
+    background:var(--teal);box-shadow:0 0 16px 3px var(--teal);animation:flow 5s cubic-bezier(.5,0,.5,1) infinite}
+  @keyframes flow{0%{top:2px;opacity:0}8%{opacity:1}92%{opacity:1}100%{top:calc(100% - 14px);opacity:0}}
+  .pstep{position:relative;padding:16px 0;display:grid;grid-template-columns:124px 1fr;gap:18px;align-items:start}
+  .pstep+.pstep{border-top:1px dashed var(--line)}
+  .pstep::before{content:"";position:absolute;left:-32px;top:24px;width:10px;height:10px;border-radius:50%;
+    background:var(--bg);border:2px solid var(--who,var(--teal));box-shadow:0 0 0 4px var(--bg)}
+  .pstep .who{font-family:var(--mono);font-size:11px;letter-spacing:.05em;padding:5px 9px;border-radius:7px;
+    background:color-mix(in srgb,var(--who) 15%,transparent);color:var(--who);
+    border:1px solid color-mix(in srgb,var(--who) 30%,transparent);text-align:center;line-height:1.35}
+  .pstep .txt{font-size:14.5px;color:var(--ink)}
+  .pstep .txt b{color:var(--head);font-weight:600}
+
+  /* ── 规格表 ── */
+  .spec{width:100%;border-collapse:collapse;font-size:13.5px}
+  .spec thead th{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--muted);text-align:left;padding:12px 14px;border-bottom:1px solid var(--line2)}
+  .spec td{padding:14px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  .spec tbody tr{transition:.25s}
+  .spec tbody tr:hover{background:rgba(63,224,197,.03)}
+  .spec td:first-child{color:var(--head);font-weight:600;white-space:nowrap}
+  .spec td:nth-child(2){font-family:var(--mono);font-size:12.5px;white-space:nowrap}
+  .spec td:nth-child(3){color:var(--muted)}
+  .v-yes{color:var(--teal)}.v-no{color:var(--rose)}.v-mid{color:var(--amber)}
+  .quote{margin-top:30px;background:linear-gradient(160deg,var(--panel2),var(--bg2));
+    border:1px solid var(--line);border-radius:16px;padding:28px 30px;font-size:16px;line-height:1.78;color:var(--ink)}
+  .quote b{color:var(--teal)}
+
+  footer{position:relative;z-index:2;max-width:1080px;margin:40px auto 0;padding:60px 40px 80px;border-top:1px solid var(--line)}
+  footer .fl{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:18px}
+  footer .brand{font-family:var(--serif);font-weight:700;font-size:20px;color:var(--head)}
+  footer .meta{font-family:var(--mono);font-size:11.5px;color:var(--dim);letter-spacing:.08em;text-align:right;line-height:1.9}
+  footer .meta b{color:var(--teal)}
+
+  @media(max-width:900px){
+    .tiers{grid-template-columns:repeat(2,1fr)}
+  }
+  @media(max-width:820px){
+    main{padding:0 22px}
+    section{padding:82px 0}
+    .grid3,.grid2,.cols3,.tiers{grid-template-columns:1fr}
+    .statband{grid-template-columns:repeat(2,1fr)}
+    .sec-head{gap:14px;margin-bottom:32px}
+    .lede{margin-top:-16px}
+    .hbar .row{grid-template-columns:112px 1fr 74px;gap:9px}
+    .hbar .lab{font-size:12px}
+    .pstep{grid-template-columns:1fr;gap:8px}
+    .pstep .who{justify-self:start}
+    .spec{font-size:12.5px}
+    .spec td,.spec thead th{padding:10px 8px}
+    footer{padding:48px 22px 70px}
+  }
+  ::selection{background:rgba(63,224,197,.28);color:#fff}
+  ::-webkit-scrollbar{width:10px}
+  ::-webkit-scrollbar-track{background:var(--bg)}
+  ::-webkit-scrollbar-thumb{background:#1c2430;border-radius:8px;border:2px solid var(--bg)}
+  ::-webkit-scrollbar-thumb:hover{background:var(--teal-d)}
+</style>
+</head>
+<body>
+
+<div class="bg">
+  <div class="grid"></div>
+  <div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
+  <div class="noise"></div>
+</div>
+<div class="progress" id="progress"></div>
+
+<nav class="rail" id="rail">
+  <a href="#hero" data-s="hero"><span class="tick"></span><span class="lbl">概览</span></a>
+  <a href="#proto" data-s="proto"><span class="tick"></span><span class="lbl">原型解剖</span></a>
+  <a href="#first" data-s="first"><span class="tick"></span><span class="lbl">第一次选型</span></a>
+  <a href="#boundary" data-s="boundary"><span class="tick"></span><span class="lbl">独立边界</span></a>
+  <a href="#constraint" data-s="constraint"><span class="tick"></span><span class="lbl">约束地图</span></a>
+  <a href="#arch" data-s="arch"><span class="tick"></span><span class="lbl">架构定稿</span></a>
+  <a href="#tiers" data-s="tiers"><span class="tick"></span><span class="lbl">执行面三档</span></a>
+  <a href="#reality" data-s="reality"><span class="tick"></span><span class="lbl">现实检验</span></a>
+  <a href="#conflict" data-s="conflict"><span class="tick"></span><span class="lbl">设计冲突</span></a>
+  <a href="#slice" data-s="slice"><span class="tick"></span><span class="lbl">交付切法</span></a>
+</nav>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero" id="hero">
+    <span class="tag rv"><span class="pulse"></span>Architecture Decision Record · 门店营销工作台</span>
+    <h1 class="rv">把一个原型<br><span class="accent">拆成独立产品</span><span class="cursor"></span></h1>
+    <p class="desc rv">36 屏交互原型、3 条业务链路、1 份三个月前刚定稿的「<b>不要独立</b>」选型结论——这篇记录的是它<b>怎么被推翻</b>的：独立到哪一层、哪些约束不可谈判、逐屏对账后发现原型的哪些效果<b>做不出来</b>，以及最后怎么切第一刀。</p>
+    <p class="role rv">// 架构决策记录 · 含被否决的方案与判据 · 纯工程口径</p>
+    <div class="ticker rv">
+      <span class="chip"><span class="d"></span>36 SCREENS</span>
+      <span class="chip"><span class="d b"></span>NEXT.JS 16 · FULL SSR</span>
+      <span class="chip"><span class="d a"></span>SHARED SUPABASE · RLS</span>
+      <span class="chip"><span class="d v"></span>CROSS-REPO CONTRACT</span>
+      <span class="chip"><span class="d r"></span>GUI FLEET EXECUTION</span>
+      <span class="chip"><span class="d"></span>FLY / NRT · CN-REACHABLE</span>
+    </div>
+    <div class="scrollcue"><span class="bar"></span>SCROLL / 向下滚动</div>
+  </section>
+
+  <!-- 01 原型解剖 -->
+  <section id="proto">
+    <div class="sec-head rv">
+      <span class="idx">01</span>
+      <div><span class="eyebrow">Prototype Anatomy</span>
+      <h2>先看清要实现的是什么</h2></div>
+    </div>
+    <p class="lede rv">起点是一个 <strong>V4.1 交互原型</strong>——不是静态图，是能点的：全局状态、草稿与已应用两态、试运行门禁、跨屏联动。<strong>做架构决策前先把它拆开数清楚</strong>，否则后面所有的排期和选型都建在猜测上。</p>
+    <div class="statband stagger">
+      <div class="stat"><div class="v"><span class="cnum" data-v="36">0</span></div><div class="l">总屏数<br>22 主屏 + 14 详情屏</div></div>
+      <div class="stat"><div class="v"><span class="cnum" data-v="3">0</span></div><div class="l">业务链路<br>短视频 / 企微 / 沉默客户</div></div>
+      <div class="stat"><div class="v"><span class="cnum" data-v="13">0</span><span class="suf">屏</span></div><div class="l">引导设置（低频）<br>一次性配置，可代做</div></div>
+      <div class="stat"><div class="v"><span class="cnum" data-v="9">0</span><span class="suf">屏</span></div><div class="l">每日任务（高频）<br>店长天天要打开的</div></div>
+    </div>
+    <div class="grid3 stagger" style="margin-top:26px">
+      <div class="cell">
+        <span class="ico"><svg viewBox="0 0 24 24"><path d="M3 3h18v18H3z"/><path d="M7 3v18M17 3v18M3 9h18M3 15h18"/></svg></span>
+        <h3><span class="m">MODULE 01 · 8 屏</span>短视频获客</h3>
+        <p>选业务范围 → 打标偏好 → 传门店实拍与出镜素材 → 每日选参考视频 → 结构拆解 → 看制作进度 → <b>质检下载成片</b>。</p>
+      </div>
+      <div class="cell">
+        <span class="ico b"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        <h3><span class="m">MODULE 02 · 9 屏</span>企微自动接待</h3>
+        <p>传门店资料与销冠对话 → 给机器人回答打分 → 定说话规则 → 每日看接待漏斗、<b>抽检聊天</b>、改常问答案、配自动办理的服务。</p>
+      </div>
+      <div class="cell">
+        <span class="ico a"><svg viewBox="0 0 24 24"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z"/><path d="M12 6v6l4 2"/></svg></span>
+        <h3><span class="m">MODULE 03 · 6 屏</span>沉默客户跟进</h3>
+        <p>录入活动与名额 → 看哪种跟进方式有效 → <b>挑今天最该跟的客户</b> → 配知识海报与上门量房券的生成规则。</p>
+      </div>
+    </div>
+    <div class="band rv">
+      <span class="k">原型自己给的第一个架构信号</span>
+      <p>V4.1 把<b>「每日工作」提到导航首位、把「首次设置」收成低频入口</b>——产品定位已经从「配置工具」变成「每天要打开的工作台」。这一条后面直接决定了第一期该切哪一刀。</p>
+    </div>
+  </section>
+
+  <!-- 02 第一次选型 -->
+  <section id="first">
+    <div class="sec-head rv">
+      <span class="idx">02</span>
+      <div><span class="eyebrow">First Selection · Superseded</span>
+      <h2>三个月前的结论：不要独立</h2></div>
+    </div>
+    <p class="lede rv">第一版选型的判据很硬：<strong>原型要求的能力，现有栈里全都有</strong>——多租户 RLS 隔离、审核状态机、全链路观测、评测门禁、成本归因。于是结论是「不引入任何新框架」，把 36 屏直接长在现有代码库里。四个候选的否决理由如下。</p>
+    <div class="rv" style="overflow-x:auto">
+      <table class="spec">
+        <thead><tr><th>候选</th><th>判定</th><th>理由</th></tr></thead>
+        <tbody>
+          <tr><td>A · 复用现有栈做产品框架</td><td class="v-yes">✓ 选定</td><td>多租户 RLS、审核状态机、Langfuse 观测、评测门禁、成本归因全部已存在；模块 01 的表与接口骨架半年前就已建好。</td></tr>
+          <tr><td>B · n8n 做产品编排核心</td><td class="v-no">✗ 否决</td><td>自家踩坑记录即反对票：字段静默吞、webhook 超时全灭、导出静默失败；无多租户、无审计状态机。仅保留无状态生图 fan-out 一职。</td></tr>
+          <tr><td>C · 媒体产线长成整个产品</td><td class="v-mid">✗ 改任执行面</td><td>定位是内部小团队工具，计费模块仍是占位；在里面重建租户 / 审核 / 资料事实源＝把已有的东西再造一遍。</td></tr>
+          <tr><td>D · 原型自带脚手架或全新起仓</td><td class="v-no">✗ 否决</td><td>demo 级脚手架、数据层为空；其托管方案的国内可达性同样不行；底座全部从零建，且跨仓契约是已知的静默故障源。</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note-band rv">
+      <span class="k">Why revisit</span>
+      <p>这份结论在<b>技术上依然成立</b>——被推翻的不是技术判断，而是它的前提：当时的问题是「怎么最省力地把功能做出来」，现在的问题是「<b>它要能作为一个产品单独迭代、单独发布、单独卖</b>」。同一套事实，换一个目标函数，答案就不同。</p>
+    </div>
+  </section>
+
+  <!-- 03 独立边界 -->
+  <section id="boundary">
+    <div class="sec-head rv">
+      <span class="idx">03</span>
+      <div><span class="eyebrow">Spin-off Boundary</span>
+      <h2>「独立」是四个不同的层级</h2></div>
+    </div>
+    <p class="lede rv">「做成独立产品」听起来是一个决定，其实是<strong>四个可以分别取舍的层级</strong>：代码仓、数据面、部署与计费、法人主体。选错层级的代价不对称——独立得不够，两条产品线互相拖发布节奏；独立得过头，四套横切底座要整个重建。</p>
+    <div class="tiers stagger">
+      <div class="tier">
+        <span class="lv">Level 1</span>
+        <h3>商业独立<br>技术共栈</h3>
+        <p>同一个仓、同一个库，对外是独立品牌与定价。最快出成果，但两条产品线共用 CI 与高危路径门禁，<b>发布节奏被绑死</b>。</p>
+      </div>
+      <div class="tier pick">
+        <span class="badge">选定</span>
+        <span class="lv">Level 2</span>
+        <h3>独立仓<br>共享数据面</h3>
+        <p>新仓、自己的域名与国内入口、自己的 CI；仍连同一个数据库、复用已有 worker 与媒体产线。<b>发布解耦、底座不重建</b>，代价是跨仓契约必须有单一事实源。</p>
+      </div>
+      <div class="tier">
+        <span class="lv">Level 3</span>
+        <h3>完全独立<br>产品线</h3>
+        <p>独立仓 + 独立数据库 + 独立部署与计费，原产品降级成「能力供应商」。边界最干净，但<b>四个横切一等公民要整套重建</b>。</p>
+      </div>
+      <div class="tier">
+        <span class="lv">Level 4</span>
+        <h3>独立到<br>主体层面</h3>
+        <p>独立法人、独立备案、独立收款。主要是商务问题；但备案本来就是这个产品的最高优先级前置，可能顺带解决。</p>
+      </div>
+    </div>
+    <div class="band rv">
+      <span class="k">判据</span>
+      <p>选 Level 2 的理由只有一条：<b>要独立的是「迭代节奏」，不是「数据」</b>。两个产品服务的是同一批门店、同一批客户档案、同一套触达通道——把数据也切开，等于第一天就要建双向同步，那是比重建底座更贵的债。</p>
+    </div>
+  </section>
+
+  <!-- 04 约束地图 -->
+  <section id="constraint">
+    <div class="sec-head rv">
+      <span class="idx">04</span>
+      <div><span class="eyebrow">Constraint Map · Verified</span>
+      <h2>五条不可谈判的硬约束</h2></div>
+    </div>
+    <p class="lede rv">架构选型里最贵的错误，是把「文档里写着有」当成「实际能用」。下面五条都是<strong>本轮重新实读代码与 schema 核过的</strong>——其中两条推翻了内部备忘录里的既有说法。</p>
+    <div class="why rv">
+      <span class="k">Constraint 01 · 最硬的一条</span>
+      <p>店长入口<b>不能是海外 PaaS 直连</b>。国内节点实测：前端托管平台域名超时、数据库域名连 DNS 都解析不了，只有东京机房那条链路可达。这意味着店长面必须<b>全部服务端渲染、浏览器零直连数据库</b>——不满足这条，换任何托管都救不回来。</p>
+    </div>
+    <div class="grid2 stagger">
+      <div class="cell">
+        <span class="ico"><svg viewBox="0 0 24 24"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z"/><path d="M2 12h20"/><path d="M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20Z"/></svg></span>
+        <h3><span class="m">CONSTRAINT 02 · 已有解</span>国内可达已经跑通</h3>
+        <p>好消息：同一条约束下的<b>反向代理纯透传方案已经在生产用了</b>——甲方上传页早就从海外域名换成东京机房域名。不用重新趟，但整站走反代要透传三类路径（页面 / 静态资源 / 表单），这是选择<b>新仓直接部署到东京</b>而不是「原站 + 反代」的直接原因。</p>
+      </div>
+      <div class="cell">
+        <span class="ico r"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg></span>
+        <h3><span class="m">CONSTRAINT 03</span>企微执行层是 GUI 机队，不是 API</h3>
+        <p>官方客服接口因<b>备案主体校验冻结</b>；平台不提供「员工个人号好友单聊」的代写接口；会话存档技术可行但会给客户端弹提示，破坏产品前提。结论：执行层只能是<b>挂着真实登录态的云端 Windows + 读屏定位的 GUI 自动化</b>，一店一机、逐台标定、边际成本线性。</p>
+      </div>
+      <div class="cell">
+        <span class="ico a"><svg viewBox="0 0 24 24"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg></span>
+        <h3><span class="m">CONSTRAINT 04 · 推翻既有说法</span>接口骨架比记录的少</h3>
+        <p>内部备忘录记的是「7 个待填接口，含审核 / 发布 / 统计」。<b>实读文件只有 5 个</b>，且名字完全不同——审核、发布、统计这三个<b>根本不存在</b>。差别不是「填实现」和「填实现」，是「填实现」和「<b>从头写</b>」。数据表那五张倒是真建好了。</p>
+      </div>
+      <div class="cell">
+        <span class="ico v"><svg viewBox="0 0 24 24"><path d="M12 3c4.4 0 8 1.3 8 3s-3.6 3-8 3-8-1.3-8-3 3.6-3 8-3Z"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></span>
+        <h3><span class="m">CONSTRAINT 05 · 推翻既有说法</span>视频表里没有互动数据</h3>
+        <p>原型的「从最近三天<b>表现较好</b>的同行视频里选」要按播放 / 点赞 / 收藏 / 转发排序。实读 schema：视频表<b>一个互动字段都没有</b>，只有链接、标题、作者、发布时间与几个业务标记。这条不补，那一屏连排序都排不出来。</p>
+      </div>
+    </div>
+    <div class="note-band rv">
+      <span class="k">Method</span>
+      <p>两条「推翻既有说法」都不是靠回忆发现的，是<b>把 schema 和路由文件重新 grep 一遍</b>发现的。团队内部为此有一条硬纪律：任何「X 已经有了 / X 已经修了」的论断，必须当场给出命中行——<b>误报比漏报更伤信任</b>。</p>
+    </div>
+  </section>
+
+  <!-- 05 架构定稿 -->
+  <section id="arch">
+    <div class="sec-head rv">
+      <span class="idx">05</span>
+      <div><span class="eyebrow">Target Architecture</span>
+      <h2>三层 · 一条共享数据面</h2></div>
+    </div>
+    <p class="lede rv">控制面独立、数据面共享、执行面可插拔。<strong>三层之间不直接互相调用</strong>——指令向下经数据库与受控 API 下发，回执向上写回同一本账。任何一层挂掉，重启即从库里的状态续跑。</p>
+    <div class="archwrap rv">
+      <svg viewBox="0 0 760 468" role="img" aria-label="三层架构图：控制面、数据面、执行面">
+        <defs>
+          <filter id="sg" x="-60%" y="-60%" width="220%" height="220%">
+            <feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <linearGradient id="ctrl" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="rgba(63,224,197,.10)"/><stop offset="100%" stop-color="rgba(63,224,197,.02)"/>
+          </linearGradient>
+          <linearGradient id="data" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="rgba(246,179,82,.10)"/><stop offset="100%" stop-color="rgba(246,179,82,.02)"/>
+          </linearGradient>
+          <linearGradient id="exec" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="rgba(255,125,151,.10)"/><stop offset="100%" stop-color="rgba(255,125,151,.02)"/>
+          </linearGradient>
+        </defs>
+
+        <!-- 控制面 -->
+        <rect x="46" y="24" width="668" height="104" rx="16" fill="url(#ctrl)" stroke="rgba(63,224,197,.35)"/>
+        <text class="arch-t" x="66" y="50" fill="#3fe0c5">CONTROL PLANE · 新仓 · 独立 CI</text>
+        <text class="arch-h" x="66" y="78">store-workbench</text>
+        <text class="arch-s" x="66" y="100">Next.js 16 · 全 SSR · 东京机房 · 国内可达</text>
+        <rect x="402" y="46" width="140" height="60" rx="10" fill="rgba(255,255,255,.03)" stroke="rgba(255,255,255,.10)"/>
+        <text class="arch-m" x="472" y="72" text-anchor="middle" fill="#dbe3ec">店长面</text>
+        <text class="arch-m" x="472" y="90" text-anchor="middle" fill="#7c8798">token 免登录</text>
+        <rect x="556" y="46" width="140" height="60" rx="10" fill="rgba(255,255,255,.03)" stroke="rgba(255,255,255,.10)"/>
+        <text class="arch-m" x="626" y="72" text-anchor="middle" fill="#dbe3ec">运营托管台</text>
+        <text class="arch-m" x="626" y="90" text-anchor="middle" fill="#7c8798">回执与代做</text>
+
+        <!-- 数据面 -->
+        <rect x="46" y="182" width="668" height="104" rx="16" fill="url(#data)" stroke="rgba(246,179,82,.35)"/>
+        <text class="arch-t" x="66" y="208" fill="#f6b352">DATA PLANE · 共享 · 单一 migration owner</text>
+        <text class="arch-h" x="66" y="236">Supabase · schema workbench</text>
+        <text class="arch-s" x="66" y="258">RLS tenant_scope 复用 · 不重写租户隔离</text>
+        <rect x="402" y="204" width="140" height="60" rx="10" fill="rgba(255,255,255,.03)" stroke="rgba(255,255,255,.10)"/>
+        <text class="arch-m" x="472" y="230" text-anchor="middle" fill="#dbe3ec">统一动作账本</text>
+        <text class="arch-m" x="472" y="248" text-anchor="middle" fill="#7c8798">五态状态机</text>
+        <rect x="556" y="204" width="140" height="60" rx="10" fill="rgba(255,255,255,.03)" stroke="rgba(255,255,255,.10)"/>
+        <text class="arch-m" x="626" y="230" text-anchor="middle" fill="#dbe3ec">资料事实源</text>
+        <text class="arch-m" x="626" y="248" text-anchor="middle" fill="#7c8798">引用 + 有效期</text>
+
+        <!-- 执行面 -->
+        <rect x="46" y="340" width="668" height="104" rx="16" fill="url(#exec)" stroke="rgba(255,125,151,.35)"/>
+        <text class="arch-t" x="66" y="366" fill="#ff7d97">EXECUTION PLANE · 可插拔适配器</text>
+        <text class="arch-h" x="66" y="394">三档执行器</text>
+        <text class="arch-s" x="66" y="416">账本不感知执行工具</text>
+        <rect x="330" y="362" width="118" height="60" rx="10" fill="rgba(63,224,197,.07)" stroke="rgba(63,224,197,.28)"/>
+        <text class="arch-m" x="389" y="388" text-anchor="middle" fill="#3fe0c5">T1 Copilot</text>
+        <text class="arch-m" x="389" y="406" text-anchor="middle" fill="#7c8798">店长自发</text>
+        <rect x="462" y="362" width="118" height="60" rx="10" fill="rgba(246,179,82,.07)" stroke="rgba(246,179,82,.28)"/>
+        <text class="arch-m" x="521" y="388" text-anchor="middle" fill="#f6b352">T2 托管机队</text>
+        <text class="arch-m" x="521" y="406" text-anchor="middle" fill="#7c8798">GUI 代发</text>
+        <rect x="594" y="362" width="118" height="60" rx="10" fill="rgba(255,255,255,.03)" stroke="rgba(255,255,255,.10)"/>
+        <text class="arch-m" x="653" y="388" text-anchor="middle" fill="#7c8798">T3 官方 API</text>
+        <text class="arch-m" x="653" y="406" text-anchor="middle" fill="#525c6b">待备案</text>
+
+        <!-- 轨道 -->
+        <path id="d1" d="M 150 128 L 150 182" fill="none" stroke="rgba(63,224,197,.28)" stroke-width="2" stroke-dasharray="4 7"/>
+        <path id="d2" d="M 150 286 L 150 340" fill="none" stroke="rgba(63,224,197,.28)" stroke-width="2" stroke-dasharray="4 7"/>
+        <path id="u1" d="M 260 340 L 260 286" fill="none" stroke="rgba(246,179,82,.28)" stroke-width="2" stroke-dasharray="4 7"/>
+        <path id="u2" d="M 260 182 L 260 128" fill="none" stroke="rgba(246,179,82,.28)" stroke-width="2" stroke-dasharray="4 7"/>
+        <circle r="5.5" fill="#3fe0c5" filter="url(#sg)"><animateMotion dur="2.6s" repeatCount="indefinite"><mpath href="#d1"/></animateMotion></circle>
+        <circle r="5.5" fill="#3fe0c5" filter="url(#sg)"><animateMotion dur="2.6s" begin="-1.3s" repeatCount="indefinite"><mpath href="#d2"/></animateMotion></circle>
+        <circle r="5.5" fill="#f6b352" filter="url(#sg)"><animateMotion dur="2.6s" begin="-.6s" repeatCount="indefinite"><mpath href="#u1"/></animateMotion></circle>
+        <circle r="5.5" fill="#f6b352" filter="url(#sg)"><animateMotion dur="2.6s" begin="-1.9s" repeatCount="indefinite"><mpath href="#u2"/></animateMotion></circle>
+        <text class="arch-m" x="138" y="160" fill="#3fe0c5" text-anchor="end">指令</text>
+        <text class="arch-m" x="274" y="160" fill="#f6b352">回执</text>
+        <text class="arch-m" x="138" y="318" fill="#3fe0c5" text-anchor="end">派单</text>
+        <text class="arch-m" x="274" y="318" fill="#f6b352">送达</text>
+      </svg>
+      <div class="legend">
+        <span><i style="background:#3fe0c5"></i>指令下行 · 机器自动</span>
+        <span><i style="background:#f6b352"></i>回执上行 · 人在环</span>
+        <span><i style="background:#ff7d97"></i>执行面 · 终端</span>
+      </div>
+    </div>
+
+    <p class="lede rv" style="margin-top:46px">共享数据面是这套架构里<strong>最容易出事的地方</strong>。两个仓写同一个库，四条契约必须先钉死，否则会以静默故障的形式在几周后爆出来。</p>
+    <div class="cols3 stagger">
+      <div class="colbox ship">
+        <h4>① 迁移单一 owner</h4>
+        <ul>
+          <li>迁移版本表是<b>全库一份</b>，两个仓各自推必然打架</li>
+          <li>新仓要加表 → 提 PR 到主仓的迁移目录</li>
+          <li>上线前必须先清掉<b>远端与仓库的迁移条数漂移</b>，否则两个仓都在猜数据库真相</li>
+        </ul>
+      </div>
+      <div class="colbox ship">
+        <h4>② 独立 schema · 复用 RLS</h4>
+        <ul>
+          <li>新表进独立 schema，不混主命名空间</li>
+          <li>租户隔离<b>直接复用</b>已有的行级安全策略</li>
+          <li>不重写一行隔离逻辑——重写＝多一条越权面</li>
+        </ul>
+      </div>
+      <div class="colbox wip">
+        <h4>③ 不给新仓超级权限</h4>
+        <ul>
+          <li>读走会话绑定客户端 + RLS</li>
+          <li>写操作经<b>已有 worker 的受控 API</b></li>
+          <li>绕过 RLS 的密钥<b>不下发到第二个仓</b>——散出去等于越权面翻倍且审计断链</li>
+        </ul>
+      </div>
+    </div>
+    <div class="band amber rv">
+      <span class="k">④ 跨仓契约必须单一事实源</span>
+      <p>任务 schema、阶段枚举、回执格式的定义放<b>数据面所属的那个仓</b>，另一侧存副本并由 CI 比对差异。这条不是洁癖——团队踩过一次<b>「改一边不改另一边＝条件永远命中不了、且完全不报错」</b>的事故，静默了很久才被发现。跨仓契约是已知的静默故障源，必须用 CI 而不是纪律去防。</p>
+    </div>
+  </section>
+
+  <!-- 06 执行面三档 -->
+  <section id="tiers">
+    <div class="sec-head rv">
+      <span class="idx">06</span>
+      <div><span class="eyebrow">Execution Tiers</span>
+      <h2>「发出去」这件事分三档</h2></div>
+    </div>
+    <p class="lede rv">同一个动作账本，三种执行器。关键设计是<strong>账本不感知执行工具</strong>——无论最后是店长自己点发送、托管机器代发、还是官方接口下发，状态机都是同一条：待办 → 已批 → 执行中 → 已执行 → <strong>已验证</strong>。</p>
+    <div class="grid3 stagger">
+      <div class="cell">
+        <span class="ico rank">T1</span>
+        <h3><span class="m">COPILOT · 可立即上线</span>AI 草拟，店长自发</h3>
+        <p>系统备好话术与素材，店长在自己设备上发出去，回到工作台点一下确认。<b>零执行基建、零边际硬件成本</b>，定价可以是纯席位制。第一期就能跑。</p>
+      </div>
+      <div class="cell">
+        <span class="ico rank a">T2</span>
+        <h3><span class="m">AUTOPILOT · 需机队基建</span>托管机队代发</h3>
+        <p>店长只在工作台批准，云端机器执行并回执。<b>一店一机、逐台标定、成本线性且店长不可自助</b>——所以商业上它是托管服务档而不是软件席位档。</p>
+      </div>
+      <div class="cell">
+        <span class="ico rank d">T3</span>
+        <h3><span class="m">OFFICIAL API · 前置未解</span>官方接口接待</h3>
+        <p>唯一能做到真正无人值守的一档，但被<b>备案主体校验</b>挡着。备案同时解锁两件事：店长自定义域名 + 官方接口——因此它是整个项目<b>优先级最高的非技术前置</b>。</p>
+      </div>
+    </div>
+    <div class="band rv">
+      <span class="k">「已验证」必须是业务一等状态</span>
+      <p>这是从触达通道上用真事故换来的：接口返回 <code>200</code> 且 <code>success:true</code> <b>不等于送达</b>——平台会在限频时返回一个成功外壳、把消息静默丢弃，真校验必须解包断言内层状态码。所以账本的终态不是「调用成功」，是<b>可查证的业务 delta</b>。<b>退出码 0 不等于业务有效</b>。</p>
+    </div>
+  </section>
+
+  <!-- 07 现实检验 -->
+  <section id="reality">
+    <div class="sec-head rv">
+      <span class="idx">07</span>
+      <div><span class="eyebrow">Reality Check · Screen-by-Screen</span>
+      <h2>原型的效果，有多少真做得出来</h2></div>
+    </div>
+    <p class="lede rv">架构定了不等于效果能落地。把 22 个主屏<strong>逐屏对账</strong>——每屏究竟依赖什么能力、那个能力现在是否存在——得到的分布比预期难看，也比预期有用。</p>
+    <div class="rv" style="background:linear-gradient(165deg,var(--panel),var(--bg2));border:1px solid var(--line);border-radius:18px;padding:26px 26px 20px">
+      <div class="hbar">
+        <div class="row"><span class="lab">现有能力直接覆盖</span><span class="track"><span class="fill" data-w="59"></span></span><span class="val">13 <span class="u">屏 / 59%</span></span></div>
+        <div class="row"><span class="lab">需降级或补数据</span><span class="track"><span class="fill warn" data-w="32"></span></span><span class="val">7 <span class="u">屏 / 32%</span></span></div>
+        <div class="row"><span class="lab">需要全新能力</span><span class="track"><span class="fill bad" data-w="4.5"></span></span><span class="val">1 <span class="u">屏 / 4.5%</span></span></div>
+        <div class="row"><span class="lab">与执行现实冲突</span><span class="track"><span class="fill bad" data-w="4.5"></span></span><span class="val">1 <span class="u">屏 / 4.5%</span></span></div>
+      </div>
+      <p class="chart-note">// 口径：22 个主屏，按「这一屏跑起来需要的能力是否已存在」归档。<b>59% 能直接做</b>不是好消息——剩下的 41% 恰好集中在原型演示效果最强的那几屏。</p>
+    </div>
+
+    <div class="grid3 stagger" style="margin-top:26px">
+      <div class="cell">
+        <span class="ico r"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/></svg></span>
+        <h3><span class="m">GAP 01 · 全新能力</span>视频片段自动描述</h3>
+        <p>「上传实拍 → 自动拆成片段 → <b>写出每段拍了什么</b>」。切分用现成工具能做；<b>逐段内容描述要视觉模型抽帧理解</b>，现有 LLM 层是纯文本接口，这条能力不存在。降级方案：切分自动、描述由人写、店长核对——原型的操作说明里本来就写着「改正不准确的说明」，说明设计上就预期要人改。</p>
+      </div>
+      <div class="cell">
+        <span class="ico a"><svg viewBox="0 0 24 24"><path d="M3 4h18v6H3z"/><path d="M3 14h18v6H3z"/><path d="M7 7h.01M7 17h.01"/></svg></span>
+        <h3><span class="m">GAP 02 · 补数据</span>同行视频的互动指标</h3>
+        <p>见约束 05：视频表里没有播放 / 点赞 / 收藏 / 转发。签名接口能带回这些统计字段，加列 + 补抓即可，是<b>确定能做、只是没做</b>的活。但不补，「按表现排序」和屏上那一串数字都是空的。</p>
+      </div>
+      <div class="cell">
+        <span class="ico v"><svg viewBox="0 0 24 24"><path d="M9 3h6v3H9z"/><path d="M9 4H6a1 1 0 0 0-1 1v15a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1h-3"/><path d="m9 13 2 2 4-4"/></svg></span>
+        <h3><span class="m">GAP 03 · 新逻辑</span>资料冲突仲裁</h3>
+        <p>原型里一份文件被标「有冲突 · 2 处说法不一致」，让店长选哪份为准。现有知识库解决的是<b>检索</b>，不是<b>跨文档同一事实的比对</b>。做法清楚（抽结构化条目 → 按 key 分组 → 值不一致即冲突），但是净新增逻辑。</p>
+      </div>
+    </div>
+
+    <div class="note-band rv">
+      <span class="k">还有一件原型完全没画</span>
+      <p>原型里的数字全是为评审模拟的——「近 30 天已发 1,842 张」「送达 98.7%」「读出 126 条内容」。<b>第一家店上线第一天，这些全是 0</b>，而 36 屏里<b>一屏空状态都没画</b>。店长打开看到一片 0 会认为产品是坏的。空状态与首日引导是净增量工作，且没有任何设计稿可抄。</p>
+    </div>
+  </section>
+
+  <!-- 08 设计冲突 -->
+  <section id="conflict">
+    <div class="sec-head rv">
+      <span class="idx">08</span>
+      <div><span class="eyebrow">Design Conflicts · Must Change</span>
+      <h2>三处不是「难做」，是「照做会坏」</h2></div>
+    </div>
+    <p class="lede rv">前面的缺口都是工作量问题。这三处不同——它们<strong>按原型实现出来会破坏系统本身</strong>，或者依赖一个平台根本不提供的数据。这类问题必须在动工前改设计，不能留到联调时发现。</p>
+    <div class="pipe rv">
+      <div class="flowdot"></div>
+      <div class="pstep" style="--who:var(--rose)">
+        <span class="who">CONFLICT 01<br>功能性冲突</span>
+        <span class="txt"><b>企微「扫码登录即开始接待」卡片</b>。原型画的是店长看二维码、员工手机扫码、系统随即开始接待。但现实的执行层是<b>常驻登录的托管机队</b>，而企微是单端互斥的——店长这一扫，<b>会把机队的登录态踢掉</b>。照做不是「实现了」，是<b>打断了执行通道</b>。<br>→ 改成只读的接待状态卡（在线 / 离线 / 最近更新 / 今日已接待），登录与掉线由运营侧处理。</span>
+      </div>
+      <div class="pstep" style="--who:var(--amber)">
+        <span class="who">CONFLICT 02<br>数据源不存在</span>
+        <span class="txt"><b>「发布时间建议 · 依据本账号近 30 天粉丝在线时间」</b>。这个数据平台<b>不向第三方开放</b>，只有创作者本人后台能看到。<br>→ 改成用本店历史发布数据 + 行业经验值给建议，并且<b>删掉「依据粉丝在线时间」这句话</b>——留着它，店长第一次追问就会发现产品在说自己拿不到的东西。</span>
+      </div>
+      <div class="pstep" style="--who:var(--amber)">
+        <span class="who">CONFLICT 03<br>精度不可兑现</span>
+        <span class="txt"><b>成片自动质检里的「人物说话与字幕基本一致 99%」</b>。语音转写有现成能力，<b>唇动检测没有</b>，那个 99% 兑现不了。<br>→ 八项检查里留六项真自动（清晰度 / 字幕安全区 / 门店标识 / 价格与活动核对 / 敏感词 / 完整性），口型一致与背景音乐版权改成<b>人工勾选项</b>。宁可少两项，不要假装有。</span>
+      </div>
+    </div>
+    <div class="band rv">
+      <span class="k">这一节的通用教训</span>
+      <p>交互原型天然会画出「<b>看起来该有</b>」的能力——它的职责是把产品意图说清楚，不是核实每个数据源存不存在。所以原型评审必须有一道<b>「这一屏的数据从哪来」的逐项核实</b>：不是问「能不能做」，是问「<b>这个数字此刻在哪张表里</b>」。答不上来的，要么补数据、要么改设计，<b>不能留到实现阶段再发现</b>。</p>
+    </div>
+  </section>
+
+  <!-- 09 交付切法 -->
+  <section id="slice">
+    <div class="sec-head rv">
+      <span class="idx">09</span>
+      <div><span class="eyebrow">Delivery Slice · First Cut</span>
+      <h2>第一刀切在哪</h2></div>
+    </div>
+    <p class="lede rv">36 屏一次交付不现实。切法的判据不是「哪些屏简单」，而是<strong>「哪些屏店长非自己做不可」</strong>——一次性的配置动作由服务方代做，体验反而更好；每天要做的决策才必须产品化。</p>
+    <div class="rv" style="background:linear-gradient(165deg,var(--panel),var(--bg2));border:1px solid var(--line);border-radius:18px;padding:26px 26px 20px">
+      <div class="hbar">
+        <div class="row"><span class="lab">每日任务屏 · 第一期</span><span class="track"><span class="fill" data-w="41"></span></span><span class="val">9 <span class="u">屏</span></span></div>
+        <div class="row"><span class="lab">引导设置屏 · 代做</span><span class="track"><span class="fill dim" data-w="59"></span></span><span class="val">13 <span class="u">屏</span></span></div>
+        <div class="row"><span class="lab">必需上传页 · 极简版</span><span class="track"><span class="fill blue" data-w="18"></span></span><span class="val">4 <span class="u">页</span></span></div>
+      </div>
+      <p class="chart-note">// 上传页是唯一的例外：素材在店长手机里，<b>代做不了</b>，但第一期只做上传本身，不做完整的「自动拆解 + 逐项核对」界面。</p>
+    </div>
+
+    <div class="cols3 stagger" style="margin-top:26px">
+      <div class="colbox ship">
+        <h4>第一期 · 真交付</h4>
+        <ul>
+          <li>店长面独立入口（国内可达 · 全 SSR）</li>
+          <li>三条链路的<b>每日任务屏</b>与详情页</li>
+          <li>统一动作账本 + 审核闸</li>
+          <li>运营侧托管台与回执打通</li>
+          <li>空状态与首日引导</li>
+        </ul>
+      </div>
+      <div class="colbox wip">
+        <h4>第二期 · 自动化补位</h4>
+        <ul>
+          <li>媒体产线可自动化的环节服务化</li>
+          <li>互动数据抓取补齐</li>
+          <li>资料冲突仲裁</li>
+          <li>注册登录与付费闭环</li>
+          <li>备案落地 → 自定义域名</li>
+        </ul>
+      </div>
+      <div class="colbox hard">
+        <h4>第三期 · 前置解锁后</h4>
+        <ul>
+          <li>官方接口接待（T3）</li>
+          <li>出站队列账本收敛</li>
+          <li>机队管理面（注册表 / 自助配置 / 标定向导）</li>
+          <li>双指标监控：心跳 + 业务 delta</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="band amber rv">
+      <span class="k">最长的那根杆不是代码</span>
+      <p><b>备案是全盘工期最长的前置</b>，而且它同时挡着两件事：店长自定义域名、官方客服接口。它不启动，第三期就永远在等；它今天启动，前两期照常推进——<b>这类非技术前置必须和第一行代码同时开始，不能排在「等产品做出来再说」</b>。</p>
+    </div>
+
+    <div class="quote rv">
+      <b>一句话总括：</b>被推翻的不是三个月前的技术判断，而是它的<b>目标函数</b>——从「最省力地做出功能」变成「能作为产品单独迭代」。于是边界从「不独立」挪到「<b>独立仓 + 共享数据面</b>」：切开发布节奏，不切开数据。而逐屏对账的价值在于，它把「原型看起来能做」变成了三类可决策的东西——<b>补数据、降精度、改设计</b>；剩下那 59% 才是真正可以立刻动手的部分。
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="fl">
+    <span class="brand">门店营销工作台 <span style="color:var(--teal)">/</span> 架构决策记录</span>
+    <span class="meta">Architecture Decision Record · 纯工程口径 · 含被否决方案<br><b>upio.ai/learn/store-workbench-decision</b></span>
+  </div>
+</footer>
+
+<script>
+  // 滚动进度条
+  const prog=document.getElementById('progress');
+  const onScroll=()=>{
+    const h=document.documentElement;
+    const p=h.scrollTop/(h.scrollHeight-h.clientHeight);
+    prog.style.width=(p*100)+'%';
+  };
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+
+  // reveal + stagger（IO 主触发 + 滚动兜底）
+  const io=new IntersectionObserver((es)=>{
+    es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});
+  },{threshold:.16,rootMargin:'0px 0px -8% 0px'});
+  document.querySelectorAll('.rv,.stagger').forEach(el=>io.observe(el));
+  const revealPast=()=>{
+    document.querySelectorAll('.rv:not(.in),.stagger:not(.in)').forEach(el=>{
+      if(el.getBoundingClientRect().top < window.innerHeight*0.9){el.classList.add('in');io.unobserve(el);}
+    });
+  };
+  document.addEventListener('scroll',revealPast,{passive:true});
+  revealPast();window.addEventListener('load',revealPast); // 锚点直达/恢复滚动位置时 scroll 不触发，立即兜底
+
+  // hero 首屏
+  window.addEventListener('load',()=>{
+    document.querySelectorAll('#hero .rv').forEach((el,i)=>{
+      setTimeout(()=>el.classList.add('in'),120+i*110);
+    });
+  });
+
+  // 条形图展开
+  const barIO=new IntersectionObserver((es)=>{
+    es.forEach(e=>{
+      if(e.isIntersecting){
+        e.target.querySelectorAll('.fill').forEach(f=>{f.style.width=f.dataset.w+'%';});
+        barIO.unobserve(e.target);
+      }
+    });
+  },{threshold:.3});
+  document.querySelectorAll('.hbar').forEach(el=>barIO.observe(el));
+
+  // 数字 count-up
+  const cntIO=new IntersectionObserver((es)=>{
+    es.forEach(e=>{
+      if(!e.isIntersecting)return;
+      const el=e.target,target=parseInt(el.dataset.v,10),t0=performance.now(),dur=1300;
+      const tick=(t)=>{
+        const p=Math.min((t-t0)/dur,1),ease=1-Math.pow(1-p,3);
+        el.textContent=Math.round(target*ease).toLocaleString('en-US');
+        if(p<1)requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+      cntIO.unobserve(el);
+    });
+  },{threshold:.5});
+  document.querySelectorAll('.cnum').forEach(el=>cntIO.observe(el));
+
+  // 侧栏章节高亮
+  const rail=[...document.querySelectorAll('.rail a')];
+  const secObs=new IntersectionObserver((es)=>{
+    es.forEach(e=>{
+      if(e.isIntersecting){
+        rail.forEach(a=>a.classList.toggle('on',a.dataset.s===e.target.id));
+      }
+    });
+  },{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('main section').forEach(s=>secObs.observe(s));
+</script>
+</body>
+</html>
