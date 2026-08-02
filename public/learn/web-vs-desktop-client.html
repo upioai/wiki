@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>网页版还是 Windows 客户端 · 门店工作台形态判定</title>
+<meta name="description" content="把门店营销工作台原型的 40 个界面逐屏盘完：需要本地系统权限的是 0 个。客户端唯一的真论据不是能力而是大陆可达性——而那堵墙客户端也绕不过去。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#06080c;
+    --bg2:#0a0e15;
+    --panel:#0d1119;
+    --panel2:#11161f;
+    --line:rgba(255,255,255,.07);
+    --line2:rgba(255,255,255,.12);
+    --ink:#dbe3ec;
+    --head:#f2f6fb;
+    --muted:#7c8798;
+    --dim:#525c6b;
+    --teal:#3fe0c5;      /* 机器 / 自动 */
+    --teal-d:#1c9d8b;
+    --amber:#f6b352;     /* 人工 / 人在环 */
+    --blue:#6fa8ff;      /* 服务器 / 大脑 */
+    --violet:#b48cff;    /* worker / 后台 */
+    --rose:#ff7d97;      /* 执行 / 终端 */
+    --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+    --serif:"Noto Serif SC",serif;
+    --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:var(--sans);
+    background:var(--bg);
+    color:var(--ink);
+    line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  /* ── 固定背景：网格 + 辉光 + 颗粒 ── */
+  .bg{position:fixed;inset:0;z-index:0;pointer-events:none}
+  .bg .grid{
+    position:absolute;inset:-2px;
+    background-image:
+      linear-gradient(var(--line) 1px,transparent 1px),
+      linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:64px 64px;
+    -webkit-mask-image:radial-gradient(circle at 50% 32%,#000 0%,transparent 78%);
+    mask-image:radial-gradient(circle at 50% 32%,#000 0%,transparent 78%);
+    opacity:.5;
+  }
+  .bg .glow{position:absolute;border-radius:50%;filter:blur(120px);opacity:.5}
+  .bg .g1{width:640px;height:640px;top:-260px;left:50%;transform:translateX(-50%);
+    background:radial-gradient(circle,rgba(63,224,197,.28),transparent 68%);animation:drift 22s ease-in-out infinite}
+  .bg .g2{width:520px;height:520px;top:38%;left:-160px;
+    background:radial-gradient(circle,rgba(111,168,255,.16),transparent 70%);animation:drift 28s ease-in-out infinite reverse}
+  .bg .g3{width:480px;height:480px;bottom:-120px;right:-120px;
+    background:radial-gradient(circle,rgba(246,179,82,.12),transparent 70%);animation:drift 26s ease-in-out infinite}
+  @keyframes drift{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,40px)}}
+  .bg .noise{position:absolute;inset:0;opacity:.035;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+  /* ── 顶部滚动进度 ── */
+  .progress{position:fixed;top:0;left:0;height:2px;width:0;z-index:60;
+    background:linear-gradient(90deg,var(--teal),var(--blue));box-shadow:0 0 12px var(--teal)}
+
+  /* ── 侧栏章节导航 ── */
+  .rail{position:fixed;top:50%;left:26px;transform:translateY(-50%);z-index:50;
+    display:flex;flex-direction:column;gap:15px}
+  .rail a{display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--dim);
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+    transition:color .3s}
+  .rail a .tick{width:22px;height:2px;background:currentColor;transition:width .3s,background .3s}
+  .rail a .lbl{opacity:0;transform:translateX(-6px);transition:.3s}
+  .rail a:hover .lbl,.rail a.on .lbl{opacity:1;transform:none}
+  .rail a.on{color:var(--teal)}
+  .rail a.on .tick{width:38px;box-shadow:0 0 10px var(--teal)}
+  @media(max-width:1180px){.rail{display:none}}
+
+  main{position:relative;z-index:2;max-width:1080px;margin:0 auto;padding:0 40px}
+  section{padding:118px 0;border-top:1px solid transparent}
+
+  /* ── 通用 reveal ── */
+  .rv{opacity:0;transform:translateY(26px);transition:opacity .8s cubic-bezier(.16,1,.3,1),transform .8s cubic-bezier(.16,1,.3,1)}
+  .rv.in{opacity:1;transform:none}
+  .stagger>*{opacity:0;transform:translateY(22px);transition:opacity .7s cubic-bezier(.16,1,.3,1),transform .7s cubic-bezier(.16,1,.3,1)}
+  .stagger.in>*{opacity:1;transform:none}
+  .stagger.in>*:nth-child(1){transition-delay:.05s}
+  .stagger.in>*:nth-child(2){transition-delay:.13s}
+  .stagger.in>*:nth-child(3){transition-delay:.21s}
+  .stagger.in>*:nth-child(4){transition-delay:.29s}
+  .stagger.in>*:nth-child(5){transition-delay:.37s}
+  .stagger.in>*:nth-child(6){transition-delay:.45s}
+
+  /* ── 章节头 ── */
+  .sec-head{display:flex;align-items:baseline;gap:20px;margin-bottom:42px}
+  .sec-head .idx{font-family:var(--mono);font-size:13px;color:var(--teal);
+    font-weight:500;padding-top:6px;position:relative}
+  .sec-head .idx::before{content:"";position:absolute;left:-14px;top:11px;width:8px;height:8px;
+    border-radius:50%;background:var(--teal);box-shadow:0 0 10px var(--teal)}
+  .eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--muted);display:block;margin-bottom:8px}
+  .sec-head h2{font-family:var(--serif);font-weight:700;font-size:clamp(27px,4vw,42px);
+    line-height:1.18;color:var(--head);letter-spacing:.01em}
+  .lede{font-size:16.5px;color:var(--muted);max-width:680px;margin:-24px 0 40px;line-height:1.75}
+  .lede b,.lede strong{color:var(--ink);font-weight:600}
+  code{font-family:var(--mono);font-size:.85em;background:rgba(63,224,197,.09);color:#8ff0e0;
+    border:1px solid rgba(63,224,197,.16);border-radius:5px;padding:1px 6px}
+
+  /* ── HERO ── */
+  .hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;
+    padding:120px 0 90px;border:0;position:relative}
+  .hero .tag{font-family:var(--mono);font-size:12px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--teal);display:inline-flex;align-items:center;gap:10px;margin-bottom:26px}
+  .hero .tag .pulse{width:9px;height:9px;border-radius:50%;background:var(--teal);
+    box-shadow:0 0 0 0 rgba(63,224,197,.6);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(63,224,197,.55)}70%{box-shadow:0 0 0 12px rgba(63,224,197,0)}100%{box-shadow:0 0 0 0 rgba(63,224,197,0)}}
+  .hero h1{font-family:var(--serif);font-weight:900;font-size:clamp(42px,8vw,92px);line-height:1.05;
+    color:var(--head);letter-spacing:.005em;margin-bottom:8px}
+  .hero h1 .accent{background:linear-gradient(115deg,var(--teal),var(--blue) 70%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero h1 .cursor{display:inline-block;width:.06em;height:.92em;background:var(--teal);
+    vertical-align:-6px;margin-left:6px;animation:blink 1.1s steps(1) infinite;box-shadow:0 0 14px var(--teal)}
+  @keyframes blink{50%{opacity:0}}
+  .hero .desc{font-size:clamp(17px,2.3vw,22px);color:var(--ink);max-width:700px;margin:24px 0 14px;line-height:1.6}
+  .hero .desc b{color:var(--teal);font-weight:600}
+  .hero .role{font-family:var(--mono);font-size:13px;color:var(--muted);margin-bottom:44px}
+  .ticker{display:flex;gap:10px;flex-wrap:wrap;max-width:860px}
+  .chip{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;color:var(--ink);
+    border:1px solid var(--line2);border-radius:100px;padding:7px 15px;background:rgba(255,255,255,.02);
+    display:inline-flex;align-items:center;gap:8px;transition:.3s}
+  .chip:hover{border-color:var(--teal);color:var(--teal);box-shadow:0 0 20px -6px var(--teal)}
+  .chip .d{width:6px;height:6px;border-radius:50%;background:var(--teal)}
+  .chip .d.a{background:var(--amber)}.chip .d.b{background:var(--blue)}.chip .d.v{background:var(--violet)}
+  .chip .d.r{background:var(--rose)}
+  .scrollcue{position:absolute;bottom:34px;left:0;font-family:var(--mono);font-size:11px;
+    letter-spacing:.2em;color:var(--dim);display:flex;align-items:center;gap:10px}
+  .scrollcue .bar{width:1px;height:34px;background:linear-gradient(var(--teal),transparent);
+    animation:cue 1.8s ease-in-out infinite}
+  @keyframes cue{0%,100%{opacity:.3;transform:scaleY(.6)}50%{opacity:1;transform:scaleY(1)}}
+
+  /* ── 三件套 pillars ── */
+  .pillars{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;position:relative}
+  .pillar{background:linear-gradient(165deg,var(--panel),var(--bg2));border:1px solid var(--line);
+    border-radius:16px;padding:26px 24px 24px;position:relative;overflow:hidden;transition:.4s}
+  .pillar::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;
+    background:var(--c,var(--teal));opacity:.7;box-shadow:0 0 16px var(--c,var(--teal))}
+  .pillar:hover{transform:translateY(-6px);border-color:var(--line2);
+    box-shadow:0 24px 60px -30px var(--c,var(--teal))}
+  .pillar .mk{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--c,var(--teal));
+    text-transform:uppercase;margin-bottom:16px;display:flex;justify-content:space-between}
+  .pillar h3{font-family:var(--serif);font-weight:700;font-size:21px;color:var(--head);margin-bottom:6px}
+  .pillar .path{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:14px}
+  .pillar p{font-size:14px;color:var(--muted);line-height:1.65}
+  .pillar .ver{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);
+    font-family:var(--mono);font-size:12px;color:var(--ink)}
+
+  .note-band{margin-top:22px;background:rgba(246,179,82,.06);border:1px solid rgba(246,179,82,.2);
+    border-radius:14px;padding:18px 22px;display:flex;gap:16px;align-items:flex-start}
+  .note-band .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--amber);
+    text-transform:uppercase;white-space:nowrap;padding-top:2px}
+  .note-band p{font-size:14.5px;color:var(--ink);margin:0}
+  .note-band p b{color:var(--amber)}
+
+  .band{margin-top:22px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--teal);
+    border-radius:12px;padding:20px 24px}
+  .band .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--teal);text-transform:uppercase;margin-bottom:8px;display:block}
+  .band p{font-size:15px;color:var(--ink);margin:0}
+  .band p b{color:var(--head)}
+  .band+.band{margin-top:14px}
+  .band.rose{border-left-color:var(--rose)}
+  .band.rose .k{color:var(--rose)}
+  .band.amber{border-left-color:var(--amber)}
+  .band.amber .k{color:var(--amber)}
+
+  /* ── 管线 spine ── */
+  .pipe{position:relative;padding-left:38px;margin-top:8px}
+  .pipe::before{content:"";position:absolute;left:11px;top:8px;bottom:8px;width:2px;
+    background:linear-gradient(var(--teal),var(--violet),var(--amber),var(--rose))}
+  .pipe .flowdot{position:absolute;left:6px;width:12px;height:12px;border-radius:50%;
+    background:var(--teal);box-shadow:0 0 16px 3px var(--teal);animation:flow 4.2s cubic-bezier(.5,0,.5,1) infinite}
+  @keyframes flow{0%{top:2px;opacity:0}8%{opacity:1}92%{opacity:1}100%{top:calc(100% - 14px);opacity:0}}
+  .pstep{position:relative;padding:16px 0;display:grid;grid-template-columns:118px 1fr;gap:18px;align-items:start}
+  .pstep+.pstep{border-top:1px dashed var(--line)}
+  .pstep::before{content:"";position:absolute;left:-32px;top:24px;width:10px;height:10px;border-radius:50%;
+    background:var(--bg);border:2px solid var(--who,var(--teal));box-shadow:0 0 0 4px var(--bg)}
+  .pstep .who{font-family:var(--mono);font-size:11px;letter-spacing:.05em;padding:5px 9px;border-radius:7px;
+    background:color-mix(in srgb,var(--who) 15%,transparent);color:var(--who);
+    border:1px solid color-mix(in srgb,var(--who) 30%,transparent);text-align:center;line-height:1.35}
+  .pstep .txt{font-size:14.5px;color:var(--ink)}
+  .pstep .txt b{color:var(--head);font-weight:600}
+  .pipe-note{margin-top:20px;font-size:13.5px;color:var(--muted);font-family:var(--mono);
+    padding-left:38px;line-height:1.6}
+  .pipe-note b{color:var(--teal)}
+
+  /* ── 通用卡片网格 ── */
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  .cell{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 22px;transition:.35s}
+  .cell:hover{border-color:var(--line2);background:var(--panel2);transform:translateY(-3px)}
+  .cell .ico{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+    margin-bottom:14px;border:1px solid rgba(63,224,197,.28);color:var(--teal);
+    background:linear-gradient(150deg,rgba(63,224,197,.13),rgba(63,224,197,.02));
+    box-shadow:0 0 22px -10px var(--teal) inset}
+  .cell .ico svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .cell .ico.b{border-color:rgba(111,168,255,.28);color:var(--blue);
+    background:linear-gradient(150deg,rgba(111,168,255,.13),rgba(111,168,255,.02));box-shadow:0 0 22px -10px var(--blue) inset}
+  .cell .ico.a{border-color:rgba(246,179,82,.28);color:var(--amber);
+    background:linear-gradient(150deg,rgba(246,179,82,.13),rgba(246,179,82,.02));box-shadow:0 0 22px -10px var(--amber) inset}
+  .cell .ico.v{border-color:rgba(180,140,255,.28);color:var(--violet);
+    background:linear-gradient(150deg,rgba(180,140,255,.13),rgba(180,140,255,.02));box-shadow:0 0 22px -10px var(--violet) inset}
+  .cell .ico.r{border-color:rgba(255,125,151,.28);color:var(--rose);
+    background:linear-gradient(150deg,rgba(255,125,151,.13),rgba(255,125,151,.02));box-shadow:0 0 22px -10px var(--rose) inset}
+  .cell .ico.d{border-color:var(--line2);color:var(--muted);background:rgba(255,255,255,.03);box-shadow:none}
+  .cell .ico.rank{font-family:var(--mono);font-size:14.5px;font-weight:600;letter-spacing:.04em}
+  .cell h3{font-size:16px;color:var(--head);margin-bottom:7px;font-weight:600}
+  .cell h3 .m{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:.08em;display:block;margin-bottom:4px;font-weight:500}
+  .cell p{font-size:13.5px;color:var(--muted);line-height:1.65}
+  .cell p b{color:var(--ink)}
+  .cell .model{margin-top:12px;font-family:var(--mono);font-size:12px;color:var(--teal);
+    background:rgba(63,224,197,.07);border:1px solid rgba(63,224,197,.15);border-radius:7px;padding:5px 10px;display:inline-block}
+
+  /* ── 反方论据 ── */
+  .why{background:linear-gradient(160deg,rgba(255,125,151,.07),transparent);
+    border:1px solid rgba(255,125,151,.2);border-radius:16px;padding:26px 28px;margin-bottom:20px}
+  .why .k{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--rose);
+    text-transform:uppercase;margin-bottom:10px;display:block}
+  .why h4{font-family:var(--serif);font-weight:700;font-size:19px;color:var(--head);margin-bottom:10px}
+  .why p{font-size:15px;color:var(--ink);margin:0}
+  .why p b{color:var(--rose)}
+  .why .ans{margin-top:16px;padding-top:16px;border-top:1px solid var(--line);font-size:14.5px;color:var(--muted)}
+  .why .ans b{color:var(--teal)}
+  .why .ans .lead{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--teal);
+    text-transform:uppercase;display:block;margin-bottom:8px}
+
+  /* ── 三列 ── */
+  .cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .colbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 22px}
+  .colbox h4{font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--teal);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+  .colbox ul{list-style:none}
+  .colbox li{font-size:13.5px;color:var(--ink);padding:6px 0 6px 18px;position:relative;line-height:1.5}
+  .colbox li::before{content:"▸";position:absolute;left:0;color:var(--dim)}
+  .colbox li b{color:var(--head)}
+  .colbox.ship h4{color:var(--teal)}.colbox.wip h4{color:var(--amber)}.colbox.hard h4{color:var(--rose)}
+  .colbox.ship{border-color:rgba(63,224,197,.18)}
+  .colbox.wip{border-color:rgba(246,179,82,.18)}
+  .colbox.hard{border-color:rgba(255,125,151,.18)}
+
+  /* ── 数字统计带（count-up）── */
+  .statband{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:26px}
+  .stat{background:linear-gradient(165deg,var(--panel),var(--bg2));border:1px solid var(--line);
+    border-radius:14px;padding:20px 20px 16px;text-align:left;transition:.35s}
+  .stat:hover{border-color:rgba(63,224,197,.3);transform:translateY(-3px)}
+  .stat .v{font-family:var(--mono);font-size:34px;font-weight:600;color:var(--teal);line-height:1.1;
+    text-shadow:0 0 24px rgba(63,224,197,.35)}
+  .stat .v .suf{font-size:16px;color:var(--muted);margin-left:2px}
+  .stat .l{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.5}
+  .stat.zero .v{color:var(--rose);text-shadow:0 0 24px rgba(255,125,151,.35)}
+  .stat.zero:hover{border-color:rgba(255,125,151,.3)}
+
+  /* ── 横向条形图 ── */
+  .hbar{margin-top:8px}
+  .hbar .row{display:grid;grid-template-columns:210px 1fr 84px;gap:14px;align-items:center;padding:9px 0}
+  .hbar .lab{font-size:13.5px;color:var(--ink);text-align:right;line-height:1.35}
+  .hbar .track{display:block;height:18px;background:rgba(255,255,255,.04);border-radius:5px;overflow:hidden;position:relative}
+  .hbar .fill{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,var(--teal-d),var(--teal));
+    box-shadow:0 0 14px -2px var(--teal);width:0;transition:width 1.1s cubic-bezier(.16,1,.3,1)}
+  .hbar .fill.dim{background:linear-gradient(90deg,#2a3644,#46586c);box-shadow:none}
+  .hbar .fill.warn{background:linear-gradient(90deg,#b7803a,var(--amber));box-shadow:0 0 14px -2px var(--amber)}
+  .hbar .val{font-family:var(--mono);font-size:13px;color:var(--head)}
+  .hbar .val .u{color:var(--muted);font-size:11px}
+  .hbar .row.nil .val{color:var(--rose)}
+  .chart-note{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:12px;line-height:1.7}
+  .chart-note b{color:var(--teal)}
+
+  /* ── 规格表 ── */
+  .tablewrap{overflow-x:auto}
+  .spec{width:100%;border-collapse:collapse;font-size:13.5px;min-width:640px}
+  .spec thead th{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--muted);text-align:left;padding:12px 14px;border-bottom:1px solid var(--line2)}
+  .spec td{padding:13px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  .spec tbody tr{transition:.25s}
+  .spec tbody tr:hover{background:rgba(63,224,197,.03)}
+  .spec td:first-child{color:var(--head);font-weight:600}
+  .spec td:nth-child(2){color:var(--ink)}
+  .spec .hit{font-family:var(--mono);font-size:12.5px;color:var(--rose);white-space:nowrap;font-weight:600}
+  .spec .hit.y{color:var(--teal)}
+  .spec .ver{font-family:var(--mono);font-size:12.5px;color:var(--teal);white-space:nowrap}
+  .spec .ver.no{color:var(--rose)}
+  .spec .ver.mid{color:var(--amber)}
+  .quote{margin-top:30px;background:linear-gradient(160deg,var(--panel2),var(--bg2));
+    border:1px solid var(--line);border-radius:16px;padding:28px 30px;font-size:16px;line-height:1.75;color:var(--ink)}
+  .quote b{color:var(--teal)}
+
+  /* ── 证据脚注 ── */
+  .evid{margin-top:26px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 24px}
+  .evid h4{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--muted);margin-bottom:14px}
+  .evid ul{list-style:none}
+  .evid li{font-size:13px;color:var(--muted);padding:6px 0 6px 20px;position:relative;line-height:1.6;
+    font-family:var(--mono)}
+  .evid li::before{content:"//";position:absolute;left:0;color:var(--dim)}
+  .evid li b{color:var(--ink);font-weight:500}
+  .evid li .g{color:var(--teal)}
+
+  footer{position:relative;z-index:2;max-width:1080px;margin:0 auto;padding:60px 40px 80px;
+    border-top:1px solid var(--line);margin-top:40px}
+  footer .fl{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:18px}
+  footer .brand{font-family:var(--serif);font-weight:700;font-size:20px;color:var(--head)}
+  footer .meta{font-family:var(--mono);font-size:11.5px;color:var(--dim);letter-spacing:.08em;text-align:right;line-height:1.9}
+  footer .meta b{color:var(--teal)}
+
+  @media(max-width:820px){
+    main{padding:0 22px}
+    section{padding:82px 0}
+    .pillars,.grid3,.grid2,.cols3{grid-template-columns:1fr}
+    .statband{grid-template-columns:repeat(2,1fr)}
+    .sec-head{gap:14px;margin-bottom:32px}
+    .lede{margin-top:-16px}
+    .pstep{grid-template-columns:1fr;gap:8px}
+    .pstep .who{justify-self:start}
+    .hbar .row{grid-template-columns:110px 1fr 62px;gap:8px}
+    .hbar .lab{font-size:11.5px}
+    .spec{font-size:12.5px}
+    .spec td,.spec thead th{padding:10px 8px}
+  }
+  ::selection{background:rgba(63,224,197,.28);color:#fff}
+  ::-webkit-scrollbar{width:10px}
+  ::-webkit-scrollbar-track{background:var(--bg)}
+  ::-webkit-scrollbar-thumb{background:#1c2430;border-radius:8px;border:2px solid var(--bg)}
+  ::-webkit-scrollbar-thumb:hover{background:var(--teal-d)}
+</style>
+</head>
+<body>
+
+<div class="bg">
+  <div class="grid"></div>
+  <div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
+  <div class="noise"></div>
+</div>
+<div class="progress" id="progress"></div>
+
+<nav class="rail" id="rail">
+  <a href="#hero" data-s="hero"><span class="tick"></span><span class="lbl">结论</span></a>
+  <a href="#inv" data-s="inv"><span class="tick"></span><span class="lbl">原型盘点</span></a>
+  <a href="#matrix" data-s="matrix"><span class="tick"></span><span class="lbl">能力矩阵</span></a>
+  <a href="#only" data-s="only"><span class="tick"></span><span class="lbl">网页独占</span></a>
+  <a href="#counter" data-s="counter"><span class="tick"></span><span class="lbl">反方论据</span></a>
+  <a href="#exec" data-s="exec"><span class="tick"></span><span class="lbl">执行分级</span></a>
+  <a href="#cost" data-s="cost"><span class="tick"></span><span class="lbl">网页的账</span></a>
+  <a href="#trigger" data-s="trigger"><span class="tick"></span><span class="lbl">触发线</span></a>
+  <a href="#verdict" data-s="verdict"><span class="tick"></span><span class="lbl">判定表</span></a>
+</nav>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero" id="hero">
+    <span class="tag rv"><span class="pulse"></span>产品形态判定 · 原型逐屏实测口径</span>
+    <h1 class="rv">门店工作台<br>要不要做成<br><span class="accent">Windows 客户端</span><span class="cursor"></span></h1>
+    <p class="desc rv">结论先给：<b>不要</b>。40 个界面逐屏盘完，需要本地系统权限的是 <b>0 个</b>。客户端唯一站得住的论据不是能力，是<b>大陆可达性</b>——而那堵墙客户端同样绕不过去。</p>
+    <p class="role rv">// 评估对象 akke-ai-growth-workbench-prototype V4.1 · 2026-08-02 解包实测</p>
+    <div class="ticker rv">
+      <span class="chip"><span class="d"></span>40 个界面</span>
+      <span class="chip"><span class="d r"></span>0 命中本地权限</span>
+      <span class="chip"><span class="d b"></span>5 类客户端专属能力</span>
+      <span class="chip"><span class="d a"></span>E1 大陆可达实测</span>
+      <span class="chip"><span class="d v"></span>T1/T2/T3 执行分级</span>
+      <span class="chip"><span class="d"></span>网页 + 薄 AGENT</span>
+    </div>
+    <div class="scrollcue"><span class="bar"></span>SCROLL / 向下滚动</div>
+  </section>
+
+  <!-- 01 结论 -->
+  <section id="inv">
+    <div class="sec-head rv">
+      <span class="idx">01</span>
+      <div><span class="eyebrow">Prototype Inventory · 原型解包</span>
+      <h2>先把 40 个界面数清楚</h2></div>
+    </div>
+    <p class="lede rv">原型是单页应用，页面本身抓不到文案。<strong>直接解包它的 JS bundle</strong>（<code>index-CJqrNFwr.js</code>，390 KB，Unicode 转义还原后提取 <code>id / title / phase / duration</code>）——得到的是可枚举的结构，不是我对着截图的印象。</p>
+
+    <div class="statband stagger">
+      <div class="stat"><div class="v"><span class="cnum" data-v="40">0</span></div><div class="l">总界面数<br>36 工作流 + 4 账号开通</div></div>
+      <div class="stat zero"><div class="v"><span class="cnum" data-v="0">0</span></div><div class="l">需要本地系统权限的界面<br>5 类能力逐条核对</div></div>
+      <div class="stat"><div class="v">84<span class="suf">分钟</span></div><div class="l">店长日常在线时长上限<br>每日任务 + 每日运营合计</div></div>
+      <div class="stat"><div class="v">3</div><div class="l">回头做客户端的触发线<br>目前一条都没触发</div></div>
+    </div>
+
+    <div class="band rv" style="margin-top:26px">
+      <span class="k">Structure</span>
+      <p>三条主线 × 两档节奏：<b>短视频获客</b>（8 屏）、<b>企微自动接待</b>（8 屏）、<b>沉默客户跟进</b>（6 屏）；每条主线都先走一遍「引导流程」把门店事实喂进去，再进入「每日任务／每日运营」的日常循环，另有 14 个详情页承接逐条核对。</p>
+    </div>
+
+    <div class="hbar rv" style="margin-top:34px">
+      <div class="row"><span class="lab">详情页（逐条核对）</span><span class="track"><span class="fill" data-w="100"></span></span><span class="val">14 <span class="u">屏</span></span></div>
+      <div class="row"><span class="lab">引导流程（一次性）</span><span class="track"><span class="fill" data-w="57"></span></span><span class="val">8 <span class="u">屏</span></span></div>
+      <div class="row"><span class="lab">每日运营</span><span class="track"><span class="fill warn" data-w="36"></span></span><span class="val">5 <span class="u">屏</span></span></div>
+      <div class="row"><span class="lab">每日任务</span><span class="track"><span class="fill warn" data-w="29"></span></span><span class="val">4 <span class="u">屏</span></span></div>
+      <div class="row"><span class="lab">自动能力配置</span><span class="track"><span class="fill" data-w="29"></span></span><span class="val">4 <span class="u">屏</span></span></div>
+      <div class="row"><span class="lab">资料设置</span><span class="track"><span class="fill dim" data-w="7"></span></span><span class="val">1 <span class="u">屏</span></span></div>
+      <p class="chart-note">// 时长按原型自带 <b>duration</b> 字段累加：引导流程 <b>96–136 分钟</b>（一次性），日常 <b>76–84 分钟/天</b>（每日任务 20–28 ＋ 每日运营 56）。</p>
+    </div>
+
+    <div class="note-band rv">
+      <span class="k">Delta</span>
+      <p>与 07-31 架构 spec 里评估的那版原型（<code>renovation-ai-growth-lab</code>，23 主屏 + 15 详情屏）相比，V4.1 主屏收敛到 22、详情页收敛到 14，并<b>新增了 4 屏自助注册开通流</b>（登录 → 填门店信息 → 微信／支付宝支付 → 开通成功）。这是本轮最值得记的产品变化：产品已经把自己定义成「店长自己注册、自己付款、自己上手」的自助 SaaS。</p>
+    </div>
+  </section>
+
+  <!-- 02 能力矩阵 -->
+  <section id="matrix">
+    <div class="sec-head rv">
+      <span class="idx">02</span>
+      <div><span class="eyebrow">Native Capability Matrix</span>
+      <h2>客户端能干、网页干不了的五件事</h2></div>
+    </div>
+    <p class="lede rv">「网页还是客户端」不该靠感觉投票。桌面客户端相对浏览器的独占能力就 <strong>5 类</strong>，逐类去 40 个界面里找谁会用到它——这是个可证伪的检查，不是偏好。</p>
+
+    <div class="tablewrap rv">
+      <table class="spec">
+        <thead><tr><th>客户端独占能力</th><th>原型里最可能用到它的地方</th><th>命中</th><th>为什么不命中</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>本地文件系统任意读写<br><span style="font-weight:400;color:var(--muted);font-size:12.5px">免选择器、批量扫目录</span></td>
+            <td>上传门店实拍视频、上传价格表／活动规则、导出成片</td>
+            <td class="hit">0 / 4</td>
+            <td>全是「一次挑几个文件」的动作，浏览器原生 <code>&lt;input type=file&gt;</code> ＋ 下载即可，没有扫目录、没有监听文件夹</td>
+          </tr>
+          <tr>
+            <td>常驻后台 · 开机自启 · 系统托盘通知</td>
+            <td>「等系统制作今天的视频」进度页、待处理聊天提醒</td>
+            <td class="hit">0 / 2</td>
+            <td>制作跑在云端，页面只是<b>看进度</b>；店长不在页面时该走企微／短信推送，而不是要求他电脑一直开着</td>
+          </tr>
+          <tr>
+            <td>驱动本机第三方 App（GUI 自动化）</td>
+            <td>企微自动接待、抖音发布成片</td>
+            <td class="hit">0 / 3</td>
+            <td>执行层已定为<b>托管机队</b>——原型自己写着「企业微信已连接，<b>云电脑</b>工作中」，不在店长的机器上跑</td>
+          </tr>
+          <tr>
+            <td>离线可用</td>
+            <td>全部 40 屏</td>
+            <td class="hit">0 / 40</td>
+            <td>每一屏的内容都来自云端分析结果（视频拆片段、意向打分、接待漏斗），断网时客户端也只是个空壳</td>
+          </tr>
+          <tr>
+            <td>本地硬件（摄像头 / USB / ADB）</td>
+            <td>「准备店长出镜素材」拍 1 张正面照 + 3 段短视频、上传门店实拍</td>
+            <td class="hit">0 / 2</td>
+            <td>这两屏<b>天然在手机上完成</b>——Windows 客户端在这里不是优势，是劣势</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="hbar rv" style="margin-top:34px">
+      <div class="row"><span class="lab">纯浏览器能力即可</span><span class="track"><span class="fill" data-w="82.5"></span></span><span class="val">33 <span class="u">屏</span></span></div>
+      <div class="row"><span class="lab">文件上传 / 下载</span><span class="track"><span class="fill" data-w="10"></span></span><span class="val">4 <span class="u">屏</span></span></div>
+      <div class="row"><span class="lab">手机侧（拍摄 / 扫码）</span><span class="track"><span class="fill warn" data-w="7.5"></span></span><span class="val">3 <span class="u">屏</span></span></div>
+      <div class="row nil"><span class="lab">需要本地系统权限</span><span class="track"><span class="fill dim" data-w="0"></span></span><span class="val">0 <span class="u">屏</span></span></div>
+      <p class="chart-note">// 最后一根条是空的——这就是整篇的结论。<b>不是网页「勉强也能做」，是客户端那套能力在这个产品里根本没有落点。</b></p>
+    </div>
+  </section>
+
+  <!-- 03 网页独占 -->
+  <section id="only">
+    <div class="sec-head rv">
+      <span class="idx">03</span>
+      <div><span class="eyebrow">Web-Only Advantages</span>
+      <h2>反过来，有四件事只有网页做得了</h2></div>
+    </div>
+    <p class="lede rv">上一节是「客户端的独占能力用不上」，这一节更硬：原型里有四个动作，<strong>Windows 客户端做不到或做得更差</strong>。它们不是锦上添花，是这个产品的入口动作。</p>
+    <div class="grid2 stagger">
+      <div class="cell">
+        <span class="ico"><svg viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg></span>
+        <h3><span class="m">VIDEO-SLICES / VIDEO-SPOKESPERSON</span>手机直接拍、直接传</h3>
+        <p>「上传门店真实视频」和「拍 1 张正面照 + 3 段短视频」——店长举着手机在展厅里拍，拍完当场传。浏览器 <code>capture</code> 一步到位；Windows 客户端要先把素材导到电脑上，凭空多两步。</p>
+      </div>
+      <div class="cell">
+        <span class="ico b"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM19 19h2v2h-2z"/></svg></span>
+        <h3><span class="m">SALES-METRICS</span>手机企微扫码登录</h3>
+        <p>原型原话：「请让<b>已获授权的门店员工</b>，用手机企业微信扫码登录。」授权动作天然发生在手机上，PC 端只负责显示那张码——这正是网页最擅长的形态。</p>
+      </div>
+      <div class="cell">
+        <span class="ico a"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/></svg></span>
+        <h3><span class="m">PAYMENT</span>微信 / 支付宝扫码开通</h3>
+        <p>V4.1 新增的自助开通流：填门店名和手机号 → 扫码付款 → 进系统。<b>自助 SaaS 的转化漏斗里，「先下载安装个 exe」是致命的一步。</b>链接点开就能付，和先装客户端再注册，转化率不是一个量级。</p>
+      </div>
+      <div class="cell">
+        <span class="ico v"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></svg></span>
+        <h3><span class="m">DELIVERY</span>一条链接就是交付</h3>
+        <p>目标用户写得很清楚：<b>门店店长自助</b>。网页版的交付物是一条 URL；客户端的交付物是「装机 + 杀软放行 + 权限授予 + 后续升级」，每一步都要有人接电话。这是售前售后的固定人力成本，不是一次性投入。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 反方论据 -->
+  <section id="counter">
+    <div class="sec-head rv">
+      <span class="idx">04</span>
+      <div><span class="eyebrow">Steelman · 反方最强论据</span>
+      <h2>替客户端说两句话</h2></div>
+    </div>
+    <p class="lede rv">只列有利于自己结论的证据不叫评估。客户端这边有两条论据是真的站得住的——第二条尤其硬，<strong>它是这套网页方案目前最大的未解风险</strong>。</p>
+
+    <div class="why rv">
+      <span class="k">论据 A · 使用强度</span>
+      <h4>店长每天要在这个界面里待一个多小时</h4>
+      <p>按原型自带时长累加，日常 <b>76–84 分钟/天</b>，其中「像带新人一样给机器人打分」一屏就是 30–60 分钟、100 组。这种强度的重度工具，装个客户端不过分。</p>
+      <div class="ans">
+        <span class="lead">Response</span>
+        使用时长决定的是<b>「要不要把它做得好用」</b>，不是<b>「要不要装」</b>。拆开看这 84 分钟：播放视频、点选适合／不适合、四项打分、逐句标注、审核放行——每一样都是浏览器的主场。Figma、Notion、飞书文档的日均使用时长都远超一小时，主形态仍然是网页；它们出桌面壳是为了多窗口和系统级快捷键，而不是因为网页做不动。真要解决重度使用的体验问题，投入应该花在<b>断点续存</b>（100 组打分随时退出随时接着做）和<b>键盘流</b>上，不是花在打包 exe 上。
+      </div>
+    </div>
+
+    <div class="why rv">
+      <span class="k">论据 B · 网络可达（真问题）</span>
+      <h4>网页版现在在大陆根本打不开</h4>
+      <p>2026-07-28 从成都真国内网络实测：<code>baidu</code> 200/275ms、<code>upio.ai</code> 200、<code>feishu</code> 200，而 <code>akke.vercel.app</code> <b>超时</b>，<code>*.supabase.co</code> <b>连 DNS 都解析不了</b>。而客户端理论上可以自带线路、自选落点，把这堵墙绕开。</p>
+      <div class="ans">
+        <span class="lead">Response</span>
+        <b>客户端并不能凭空获得可达性。</b>它照样要连你的 API 和数据库——除非它自带代理，而那是合规灰区，且门店的网络策略、杀软和企业出口一样会拦。真正的解法与前端形态无关：<b>把后端的对外落点搬到国内可达的位置</b>。这条路已经在跑了——甲方的案例上传页就是因为同样的原因走了 Fly 中转（<code>worker/routers/upload_relay.py</code>），Fly 国内实测可达。也就是说，<b>解决了可达性，网页和客户端一起解决；不解决，客户端也救不回来。</b>
+      </div>
+    </div>
+
+    <div class="note-band rv">
+      <span class="k">Caveat</span>
+      <p>论据 B 的实测数据是 <b>2026-07-28</b> 记录的，本页未重新复测（需要真实国内出口）。若在做最终决策，这一条应当重跑一次——但即使结论翻转（Vercel 变得可达），它也只是<b>消掉客户端的这条论据</b>，不会新增任何支持客户端的理由。</p>
+    </div>
+  </section>
+
+  <!-- 05 执行分级 -->
+  <section id="exec">
+    <div class="sec-head rv">
+      <span class="idx">05</span>
+      <div><span class="eyebrow">Execution Tiers · 与已定架构对齐</span>
+      <h2>三档执行器，没有一档落在店长的电脑上</h2></div>
+    </div>
+    <p class="lede rv">这个判断不是从零开始的。07-31 的架构 spec 已经把「谁来真正把消息发出去」分成三档——把客户端往这三档里放，会发现<strong>它没有位置</strong>。</p>
+
+    <div class="pipe rv">
+      <div class="flowdot"></div>
+      <div class="pstep" style="--who:var(--teal)">
+        <span class="who">T1<br>COPILOT</span>
+        <span class="txt"><b>AI 草拟、店长自己发</b>。执行工具＝店长自己的设备（多半是手机）。刻意<b>不在店长机器上放 agent</b>——发消息这个动作由人完成，系统只提供草稿和记账。<span style="color:var(--muted)">→ 不需要客户端</span></span>
+      </div>
+      <div class="pstep" style="--who:var(--violet)">
+        <span class="who">T2<br>AUTOPILOT</span>
+        <span class="txt"><b>托管机队代发</b>。执行工具＝无影云电脑上的 GUI agent，机器是公司的、集中标定、可远程下发命令。店长的动作只有一个：<b>在 dashboard 里批准</b>。<span style="color:var(--muted)">→ 执行不在店长机器</span></span>
+      </div>
+      <div class="pstep" style="--who:var(--blue)">
+        <span class="who">T3<br>KF API</span>
+        <span class="txt"><b>官方客服接口</b>。纯服务端，前置条件是 ICP 备案。<span style="color:var(--muted)">→ 与终端形态无关</span></span>
+      </div>
+    </div>
+    <p class="pipe-note rv">// 四态统一账本 <b>pending → approved → executed → verified</b> 刻意<b>不感知执行工具</b>：T1 的 executed 由店长点确认，T2 由 GUI agent 回执，T3 由接口状态。前端只负责喂 approved、读 verified。</p>
+
+    <div class="note-band rv">
+      <span class="k">Precedent</span>
+      <p>spec 里已经<b>明确否决过「店长自备电脑跑 agent」</b>，理由是「标定 N 台异构 + 丧失 RunCommand」——N 台店长电脑分辨率、缩放、企微版本各不相同，逐台标坐标不可规模化，而且一旦跑在店长机器上，就失去了云电脑那套「远程下发命令、热更新、统一回收日志」的运维通道。<b>Windows 客户端一旦承担执行职责，就是把这个已否决的方案换个名字复活。</b></p>
+    </div>
+  </section>
+
+  <!-- 06 网页的账 -->
+  <section id="cost">
+    <div class="sec-head rv">
+      <span class="idx">06</span>
+      <div><span class="eyebrow">What Web Actually Costs</span>
+      <h2>选网页版之后，真正要花钱的四件事</h2></div>
+    </div>
+    <p class="lede rv">「做网页」不等于「没成本」。下面这四件是<strong>选了网页就必须解决</strong>的工程题——它们全都不是能力问题，是链路问题，而且客户端方案里对应的题目只会更难。</p>
+    <div class="grid2 stagger">
+      <div class="cell">
+        <span class="ico r"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18"/></svg></span>
+        <h3><span class="m">P0 · 必须先解</span>国内可达入口</h3>
+        <p>店长入口<b>不能是 <code>*.vercel.app</code> 直连</b>。同一份 Next.js 代码出两个入口：内部运营走 Vercel，店长面经 Fly 反代前置。配套的硬写法约束是——<b>店长面页面全 SSR、服务端取数，浏览器不直连 Supabase</b>；现有 <code>NEXT_PUBLIC_SUPABASE_*</code> 浏览器直连路径对国内用户是死的。满足这条，加前置只是运维动作；不满足，换任何托管都救不回来。</p>
+      </div>
+      <div class="cell">
+        <span class="ico a"><svg viewBox="0 0 24 24"><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/><path d="M3 21h18"/></svg></span>
+        <h3><span class="m">P0 · 商务前置</span>ICP 备案</h3>
+        <p>自有国内域名要备案，而这和企微 kf API 冻结<b>是同一堵墙</b>——一次备案同时解锁「店长能打开的域名」和「T3 官方接口」两件事。这也是为什么它在 spec 里被列为最高优先级：它不是技术选型的下游，是上游。</p>
+      </div>
+      <div class="cell">
+        <span class="ico"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M12 3v13M7 8l5-5 5 5"/></svg></span>
+        <h3><span class="m">P1</span>大文件上传要真做</h3>
+        <p>门店完工／展厅实拍动辄几百 MB，还要经反代多一跳。分片 + 断点续传 + 后台上传是必选项，不是优化项。原型文案里已经写了「状态显示分析中时先等待，<b>不用反复上传</b>」——说明这个痛点在草图阶段就被感知到了。</p>
+      </div>
+      <div class="cell">
+        <span class="ico b"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 8v4l3 2"/></svg></span>
+        <h3><span class="m">P1</span>长任务状态可恢复</h3>
+        <p>「100 组打分」明确写着<b>「可随时保存稍后继续，不需要一次做完」</b>；视频制作进度页要跨刷新、跨设备保持。这些状态必须落服务端，不能存在浏览器本地——否则店长换台电脑就得从头来。做到了，客户端在体验上的最后一点优势也没了。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 07 触发线 -->
+  <section id="trigger">
+    <div class="sec-head rv">
+      <span class="idx">07</span>
+      <div><span class="eyebrow">Reversal Triggers · 什么情况下回头</span>
+      <h2>三条触发线，与真要装时该装什么</h2></div>
+    </div>
+    <p class="lede rv">结论要可证伪才有价值。下面三条任意一条成立，「不做客户端」这个判断就该重开——目前<strong>一条都没成立</strong>。</p>
+    <div class="cols3 stagger">
+      <div class="colbox hard">
+        <h4>触发线 ①</h4>
+        <ul>
+          <li><b>托管机队被否</b>，执行必须落回门店本机</li>
+          <li>典型诱因：云电脑上的企微／抖音被风控，或客户不接受账号托管在供应商的云上</li>
+          <li>后果：需要在门店电脑上跑 GUI 自动化 —— 这是唯一真正需要「装东西」的场景</li>
+        </ul>
+      </div>
+      <div class="colbox wip">
+        <h4>触发线 ②</h4>
+        <ul>
+          <li><b>门店网络策略禁止</b>浏览器访问外部 SaaS，但允许白名单客户端</li>
+          <li>多见于大型连锁 / 商场统一 IT 管控</li>
+          <li>注意：这条与「大陆可达」是两回事，别混为一谈</li>
+        </ul>
+      </div>
+      <div class="colbox ship">
+        <h4>触发线 ③</h4>
+        <ul>
+          <li>出现<b>无法上传的本地数据源</b>——本地 NAS、门店 ERP 库存文件、需要实时读的本地库</li>
+          <li>特征是「数据量大到不能传、或更新频到不该传」</li>
+          <li>原型现有 40 屏没有任何一屏沾这个</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="band rv">
+      <span class="k">If Triggered</span>
+      <p>即便触发，正确形态也<b>不是全功能客户端</b>，而是 <b>网页版 + 一个极小的本地 Agent</b>：托盘程序、几 MB，只负责驱动本机的企微／抖音 + 上报心跳，<b>所有 UI 仍然在网页里</b>。这样需要发版维护的只有一个薄组件，而且只对触发了的门店下发，其余门店纯网页。企微 SCRM、直播中控这类产品的成熟形态都是这个样子——它不是折中，是这类场景的正解。</p>
+    </div>
+    <div class="band amber rv">
+      <span class="k">And Even Then</span>
+      <p>薄 Agent 这条路要提前算一笔账：<b>它会把「网络可达」问题换成「装机 + 升级 + 异构标定」问题</b>，而后者正是 T2 托管机队方案当初被选中的原因。所以触发线 ① 真的来了，第一反应应该是「能不能换个托管落点」，而不是「那就发给店长装吧」。</p>
+    </div>
+  </section>
+
+  <!-- 08 判定表 -->
+  <section id="verdict">
+    <div class="sec-head rv">
+      <span class="idx">08</span>
+      <div><span class="eyebrow">Verdict</span>
+      <h2>判定表</h2></div>
+    </div>
+    <p class="lede rv">按对这个产品真正重要的维度逐条比。<strong>「客户端更优」的格子只有一个，而那一个还是错觉。</strong></p>
+
+    <div class="tablewrap rv">
+      <table class="spec">
+        <thead><tr><th>维度</th><th>网页版</th><th>Windows 客户端</th><th>本项目判定</th></tr></thead>
+        <tbody>
+          <tr><td>40 屏的能力覆盖</td><td>全覆盖</td><td>全覆盖（无增量）</td><td class="ver">平手 → 取更便宜的</td></tr>
+          <tr><td>手机拍摄 / 扫码登录 / 扫码付款</td><td>原生支持</td><td>做不了，要跨设备绕</td><td class="ver">网页</td></tr>
+          <tr><td>自助注册开通转化</td><td>点链接即进</td><td>先下载安装</td><td class="ver">网页</td></tr>
+          <tr><td>交付与售后成本</td><td>一条 URL</td><td>装机 / 杀软 / 权限 / 升级</td><td class="ver">网页</td></tr>
+          <tr><td>迭代速度（V4.1 还在改）</td><td>刷新即生效</td><td>发版 + 版本碎片</td><td class="ver">网页</td></tr>
+          <tr><td>多角色多设备（店长 / 员工）</td><td>天然跨端</td><td>Windows 独占</td><td class="ver">网页</td></tr>
+          <tr><td>本地系统权限</td><td>受限</td><td>完整</td><td class="ver mid">平手 · 0 屏用得上</td></tr>
+          <tr><td>离线可用</td><td>不可用</td><td>「可用」但无数据</td><td class="ver mid">平手 · 数据全在云端</td></tr>
+          <tr><td>大陆网络可达</td><td>需 Fly 反代 + 备案</td><td>同样需要（除非自带代理）</td><td class="ver no">都要解，与形态无关</td></tr>
+          <tr><td>与 T1/T2/T3 执行分级的契合</td><td>三档都只需要「批准 + 看回执」</td><td>无落点；承担执行＝复活已否决方案</td><td class="ver">网页</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="quote rv">
+      <b>一句话总括：</b>这套工作台的 40 个界面全是<b>看板、打标、审核、上传下载</b>——重活（企微 7×24 接待）产品自己已经放到托管云电脑上了，留给店长的只是一个遥控器。<b>遥控器就该是网页。</b>真正要花钱的地方不在前端形态，在<b>国内可达入口</b>与<b>ICP 备案</b>——这两件事解决了，客户端剩下的全部理由都会自动消失。
+    </div>
+
+    <div class="evid rv">
+      <h4>证据与口径</h4>
+      <ul>
+        <li><b>原型结构</b>：<span class="g">akke-ai-growth-workbench-prototype</span> JS bundle 解包，2026-08-02 实测；36 个工作流界面的 id / phase / duration 逐条枚举，另 4 屏账号开通流</li>
+        <li><b>大陆可达（E1）</b>：<span class="g">worker/routers/upload_relay.py</span> 头注，2026-07-28 成都无影真国内网络实测 —— 本页<b>未复测</b>，作决策前应重跑</li>
+        <li><b>执行分级 T1/T2/T3 与「否决店长自备电脑跑 agent」</b>：<span class="g">2026-07-31 门店营销工作台技术选型与架构 spec</span>（状态：选型定稿，可行性评估阶段）</li>
+        <li><b>本页不含</b>：真实门店的网络策略调研、连锁客户 IT 管控访谈 —— 触发线 ② 目前是推演而非实证</li>
+      </ul>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="fl">
+    <span class="brand">形态判定 <span style="color:var(--teal)">/</span> 网页 vs 客户端</span>
+    <span class="meta">门店营销工作台 V4.1 · 2026-08-02 原型实测口径<br><b>upio.ai/learn/web-vs-desktop-client</b></span>
+  </div>
+</footer>
+
+<script>
+  // 滚动进度条
+  const prog=document.getElementById('progress');
+  const onScroll=()=>{
+    const h=document.documentElement;
+    const p=h.scrollTop/(h.scrollHeight-h.clientHeight);
+    prog.style.width=(p*100)+'%';
+  };
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+
+  // reveal + stagger（IO 主触发 + 滚动兜底，保证快速滚动/锚点跳转也不留空白）
+  const io=new IntersectionObserver((es)=>{
+    es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});
+  },{threshold:.16,rootMargin:'0px 0px -8% 0px'});
+  document.querySelectorAll('.rv,.stagger').forEach(el=>io.observe(el));
+  const revealPast=()=>{
+    document.querySelectorAll('.rv:not(.in),.stagger:not(.in)').forEach(el=>{
+      if(el.getBoundingClientRect().top < window.innerHeight*0.9){el.classList.add('in');io.unobserve(el);}
+    });
+  };
+  document.addEventListener('scroll',revealPast,{passive:true});
+  revealPast();window.addEventListener('load',revealPast); // 锚点直达/恢复滚动位置时 scroll 不触发，立即兜底一次
+
+  // hero 首屏立即显示
+  window.addEventListener('load',()=>{
+    document.querySelectorAll('#hero .rv').forEach((el,i)=>{
+      setTimeout(()=>el.classList.add('in'),120+i*110);
+    });
+  });
+
+  // 条形图：进入视口后展开到目标宽度
+  const barIO=new IntersectionObserver((es)=>{
+    es.forEach(e=>{
+      if(e.isIntersecting){
+        e.target.querySelectorAll('.fill').forEach(f=>{f.style.width=f.dataset.w+'%';});
+        barIO.unobserve(e.target);
+      }
+    });
+  },{threshold:.3});
+  document.querySelectorAll('.hbar').forEach(el=>barIO.observe(el));
+
+  // 数字 count-up
+  const cntIO=new IntersectionObserver((es)=>{
+    es.forEach(e=>{
+      if(!e.isIntersecting)return;
+      const el=e.target,target=parseInt(el.dataset.v,10),t0=performance.now(),dur=1300;
+      const tick=(t)=>{
+        const p=Math.min((t-t0)/dur,1),ease=1-Math.pow(1-p,3);
+        el.textContent=Math.round(target*ease).toLocaleString('en-US');
+        if(p<1)requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+      cntIO.unobserve(el);
+    });
+  },{threshold:.5});
+  document.querySelectorAll('.cnum').forEach(el=>cntIO.observe(el));
+
+  // 侧栏章节高亮
+  const rail=[...document.querySelectorAll('.rail a')];
+  const secObs=new IntersectionObserver((es)=>{
+    es.forEach(e=>{
+      if(e.isIntersecting){
+        rail.forEach(a=>a.classList.toggle('on',a.dataset.s===e.target.id));
+      }
+    });
+  },{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('main section').forEach(s=>secObs.observe(s));
+</script>
+</body>
+</html>
