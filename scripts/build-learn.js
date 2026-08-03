@@ -86,6 +86,7 @@ const CATEGORIES = [
       { slug: 'nextjs-nodejs-python', title: 'Next.js · Node.js · Python', desc: 'Akke 是用哪几种语言搭起来的？用「一条请求的旅程」串起 TypeScript / Next.js / Node.js / Python，全员不写代码也能看懂同事每天在改什么。' },
       { slug: 'sql-python-intro', title: 'SQL 与 Python 入门', desc: '数据分析基础速成。' },
       { slug: 'pr-git-worktree', title: 'PR 与 Git Worktree', desc: '合并前的检查点，和多会话并行开发的隔离工具——结合 Akke 最近 3 天的真实提交举例。' },
+      { slug: 'git-commit-standards', title: '团队 Git 提交规范 · 从一周 193 次真实提交讲起', desc: '每次 git commit 之前该过哪几道题：把一条提交拆成 type / scope / 标题 / 正文 / 引用五块逐块讲透（含打字机对照演示），七个 type 怎么选、scope 为什么要前后一致、正文的三段式（什么问题逼你动手 / 为什么否决了另一条路 / 留了什么坑）。后半是代码进 main 的四条通道与两个组织的纪律差异（Akke 分层 PR 规则 + 高危路径双闸 vs Workflow 钩子直推 vs 新仓零 CI），以及三个逐条跑命令核出来的真问题——其中最要紧的一条是某仓 PR 自动评审因未装 GitHub App 一直 401、而 PR 平均 17 秒就被合掉，等于白开。全部举例取自同一人 2026-07-27→08-03 的 193 次真实提交（深色技术长页，Pantone 色板）。' },
     ],
   },
   {
