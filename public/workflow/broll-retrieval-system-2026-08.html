@@ -105,12 +105,13 @@ ul{padding-left:20px;margin:8px 0}li{margin:4px 0}
   <div class="stat"><div class="n">1,406</div><div class="k">源视频（条）</div><div class="t">已切分 1,033 · 未切 373</div></div>
   <div class="stat"><div class="n">25,861</div><div class="k">切片 clips</div><div class="t">3.5 秒左右一条</div></div>
   <div class="stat"><div class="n">4,828</div><div class="k">段 segments</div><div class="t">标注与检索的单位</div></div>
-  <div class="stat"><div class="n ok">3,677</div><div class="k">放行且已建向量</div><div class="t">= 检索时真正能被搜到的池子</div></div>
-  <div class="stat"><div class="n mid">1,151</div><div class="k">卡在待人工</div><div class="t">正脸 645 · 水印 44</div></div>
-  <div class="stat"><div class="n">22</div><div class="k">缺货本条目</div><div class="t">gap-log.jsonl · 已自动记账</div></div>
+  <div class="stat"><div class="n ok">3,806</div><div class="k">放行且已建向量</div><div class="t">= 能被搜到的池子 · 08-04 人审 +129</div></div>
+  <div class="stat"><div class="n mid">1,022</div><div class="k">卡在待人工</div><div class="t">人审已放行 129 段 · 口径已收窄</div></div>
+  <div class="stat"><div class="n">22</div><div class="k">缺货本条目</div><div class="t">已销 15 · 真待补 7</div></div>
   <div class="stat"><div class="n">16</div><div class="k">回头客本条目</div><div class="t">match_experience 表</div></div>
-  <div class="stat"><div class="n mid">893</div><div class="k">效果图已标注</div><div class="t">向量 0 · 还没接进检索</div></div>
-  <div class="stat"><div class="n">75 MB</div><div class="k">broll.db</div><div class="t">⚠️ 本机唯一一份，无异地备份</div></div>
+  <div class="stat"><div class="n mid">653</div><div class="k">效果图已标注</div><div class="t">向量 0 · 空闲工人排队补</div></div>
+  <div class="stat"><div class="n">79 MB</div><div class="k">broll.db</div><div class="t">⚠️ 本机唯一一份，无异地备份</div></div>
+  <div class="stat"><div class="n mid">8</div><div class="k">已「看过画面」的段</div><div class="t">视觉重排数据 · 空闲工人在攒</div></div>
 </div>
 
 <div class="note good">
@@ -256,7 +257,7 @@ ul{padding-left:20px;margin:8px 0}li{margin:4px 0}
   <div class="step">
     <div class="h">1. 取候选池</div>
     <div class="d">SQL 取 <code>approved=1 且 embedding 非空</code>，并再次排除正脸 / 水印 / 黑名单 / 待删除——
-      放行公式可能改，这里不假设它永远正确。当前池子 <b>3,677 段</b></div>
+      放行公式可能改，这里不假设它永远正确。当前池子 <b>3,806 段</b></div>
     <div class="p">load_pool() · segments JOIN clips ON rep_clip_id</div>
   </div><div class="arrow"></div>
 
@@ -424,17 +425,74 @@ bash scripts/broll-library/mount-broll.sh umount           <span class="c"># 有
 </ul>
 </div>
 
+<h2>七之前 · 2026-08-04 下半天的四次改动</h2>
+
+<div class="lead">
+这半天做的事可以概括成一句：<b>让检索学会看画面，让机器闲着的时候自己攒数据，
+并且把「有人脸/有字幕就废弃」这条过严的口径改对。</b>
+</div>
+
+<h3>1. 人审放行 129 段：一半的「缺货」是假的</h3>
+<p>按缺货单反查被闸门拦下的对题素材，命中 130 段，全部抽帧编号做成联系表交人工过目。
+结果<b>只有 1 段不能用</b>（表格截图资料页），其余 129 段全部放行。</p>
+<p>直接后果：水电那条片子的 24 句复测，报「没有」从 <b>5 句降到 2 句</b>、可用从 6 句升到 8 句。
+隔音棉裹管从「库里没有」直接变成 0.629 可用。</p>
+<div class="note bad"><b>教训写在这里免得再犯：</b>
+先是把 130 段整批判死刑——把「字幕可以擦掉」和「内容是别人的资料页」混为一谈；
+纠正后又差点把带第三方平台水印的表格类放出来。
+<b>字幕不是红线，出处标识才是。</b></div>
+
+<h3>2. 安全审口径收窄成三条</h3>
+<p>拦死的只有：<b>①原生入画的别家抖音账号名</b>（后期叠加的字幕层可擦，不算）
+<b>②实景里别家装修公司的门店标牌</b>（擦不掉）<b>③原视频主播本人</b>。</p>
+<p>建材厂名、板材印刷这些一律放行——工地素材上到处是建材包装，一锅端会在几乎每条素材上报警，
+真正该抓的门店名反而淹没在噪声里。</p>
+<p>其余降级为<b>使用时的处理标记</b>：候选带 <code>needs_erase</code>（用前擦字幕）、
+<code>has_person</code>（路人工人可用，避不开就打码）。</p>
+
+<h3>3. 检索学会看画面（视觉重排）</h3>
+<p>之前检索只比对文字标注，所以出现过<b>最高分 0.760 那条要「浅色地砖」却召回深色地砖</b>。
+治法是让视觉模型看图，但本地 Qwen3-VL 单图 8–40 秒，放进检索链路等于把检索废掉。</p>
+<p>所以改成<b>离线预跑</b>：趁机器空闲把全库各看一眼，把「画面里实际是什么」存成向量。
+检索时 <code>0.6×文字 + 0.4×视觉</code> 混合排序，<b>只对已看过的段加权</b>，
+没看过的保持原分——跑多少准多少，不惩罚还没轮到的段。</p>
+<div class="note"><b>两个实测撞出来的坑：</b>提示词只写「主体是什么」，模型一律答
+「穿蓝色工作服的女性」，物件栏还塞进 T 恤和运动鞋——没人会拿「工人穿什么」搜素材。
+改成逐行写死答什么、并显式禁掉人物描写后，模型又<b>太听话</b>：只回四行裸值不带词头，
+而解析器在找词头，于是全部解析成空。最终改成按行位置取值，词头只作兼容分支。</div>
+
+<h3>4. 空闲工人：机器闲着就自己干活</h3>
+<p>视觉预标注和效果图标注都是几十小时的量，盯着跑不现实；但它们又都吃 GPU，
+用户一边剪片一边跑会互相拖死（实测两个 Qwen3-VL 抢同一块 MPS <b>不是变慢是活锁</b>，
+24 分钟双方各 6% CPU 谁也不动）。</p>
+<p><b>判闲三条全满足才动手</b>：15 分钟负载低于 CPU 核数的一半、没有剪片/推理类进程、
+VL 单实例锁空着。每轮只干一小批就重新判断，一有人用立刻让路。</p>
+<pre><span class="c"># 挂后台常驻</span>
+nohup bash scripts/broll-library/idle-worker.sh &gt;&gt; logs/idle-worker.log 2&gt;&amp;1 &amp;
+
+<span class="c"># 看它在干嘛</span>
+bash scripts/broll-library/idle-worker.sh --status</pre>
+
+<h3>附：人脸打码工具</h3>
+<p>口径里写了「避不开就打码」，工具却一直没有，等于新口径缺了兜底。
+<code>blur_faces.py</code> 与人脸闸门共用同一模型同一判据。</p>
+<p>三个调出来的参数：<b>人脸一律压成 6×6 格</b>再放大（按比例缩会让大脸残留可辨认细节，
+实测 1/12 缩完仍能认出是同一个人）、<b>检出帧前后各扩 3 帧</b>（逐帧检测会漏掉转头和运动模糊那几帧，
+只糊检出帧会看到脸一闪一闪）、<b>框外扩 25%</b>（YuNet 的框偏紧，只糊框内会露下巴和头发）。</p>
+<div class="note bad"><b>⛔ 打码只救路人和工人，救不了红线。</b>
+原视频主播本人即便糊了脸，观众仍认得出身形、场景和运镜习惯，性质是搬运不是引用——遇到一律换素材。</div>
+
 <h2>七、还没接上的、和明确不做的</h2>
 
 <h3>还没做</h3>
 <table>
 <thead><tr><th>事项</th><th>状况</th></tr></thead>
 <tbody>
-<tr><td>效果图接入检索</td><td>893 张已标注，<b>向量 0 条</b>，还没接进 <code>broll-retrieve.py</code> 的候选池</td></tr>
+<tr><td>效果图接入检索</td><td>653 张已标注，<b>向量 0 条</b>，还没接进候选池。已排进空闲工人队列，机器闲下来自动补</td></tr>
 <tr><td>需求提取产品化</td><td>第二轮验证的方法（三档 / 对比句拆两镜 / 译成画面话）目前只活在考卷流程与人脑里，未固化成脚本</td></tr>
 <tr><td>987 条 crop 字幕</td><td>参数早已算好，<code>clean_path</code> 仍全空。按 v4 原口径「用到哪条处理哪条」，不批处理</td></tr>
-<tr><td><b>补货</b></td><td><b>唯一能抬高上限的动作。</b>清单现成：v7 方案三类 + gap-log 22 条 + defect 类全库为零 + 373 条源片未切分</td></tr>
-<tr><td><code>broll.db</code> 异地备份</td><td><code>upload-to-r2.py --db</code> 已实现，实际上传未验证。75 MB 只有本机一份</td></tr>
+<tr><td><b>补货</b></td><td>缺货本 22 条已销 15（<b>其中 7 条是「假缺货」——货在库里被旧口径锁着</b>），真待补 7 条：压力表特写走生成，包管/贴阻尼片等施工动作走定向下载</td></tr>
+<tr><td><code>broll.db</code> 异地备份</td><td><code>upload-to-r2.py --db</code> 已实现，实际上传未验证。79 MB 只有本机一份</td></tr>
 </tbody>
 </table>
 
