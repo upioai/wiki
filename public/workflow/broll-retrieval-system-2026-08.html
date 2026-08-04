@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>B-roll 镜头获取系统 · 运转全景图（2026-08-04）</title>
+<style>
+:root{
+  --bg:#f6f7f9; --panel:#ffffff; --ink:#1b1f24; --dim:#5d6672; --line:#dfe3e8;
+  --accent:#2f6df6; --in:#0e9f6e; --out:#7c4dff; --warn:#e0730c; --bad:#d92d20;
+  --chip:#eef2f7; --code:#0f172a; --codeink:#dbe6f6;
+  --shadow:0 1px 2px rgba(16,24,40,.06),0 6px 20px rgba(16,24,40,.06);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0f1216; --panel:#161a20; --ink:#e8ecf1; --dim:#98a2b3; --line:#262c35;
+    --accent:#6a9bff; --in:#34d399; --out:#a78bfa; --warn:#fbbf24; --bad:#f87171;
+    --chip:#1d232c; --code:#0b0f14; --codeink:#cfe0f5;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.75 -apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;}
+.wrap{max-width:1180px;margin:0 auto;padding:32px 20px 80px}
+h1{font-size:30px;line-height:1.3;margin:0 0 6px;letter-spacing:-.02em}
+h2{font-size:21px;margin:52px 0 14px;padding-top:18px;border-top:1px solid var(--line);letter-spacing:-.01em}
+h3{font-size:16px;margin:26px 0 10px;color:var(--ink)}
+p{margin:10px 0}
+.sub{color:var(--dim);font-size:14px}
+.lead{font-size:17px;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent);
+  border-radius:10px;padding:16px 18px;box-shadow:var(--shadow);margin:18px 0}
+.lead b{color:var(--accent)}
+code,kbd{font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;font-size:.9em}
+code{background:var(--chip);padding:1px 5px;border-radius:4px;word-break:break-all}
+pre{background:var(--code);color:var(--codeink);padding:14px 16px;border-radius:10px;overflow-x:auto;
+  font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.65;margin:12px 0}
+pre .c{color:#7f96b0}
+/* 状态卡 */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:20px 0}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow)}
+.stat .n{font-size:26px;font-weight:700;letter-spacing:-.02em;line-height:1.2}
+.stat .k{font-size:12.5px;color:var(--dim);margin-top:2px}
+.stat .t{font-size:11.5px;color:var(--dim);margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)}
+.ok{color:var(--in)} .no{color:var(--bad)} .mid{color:var(--warn)}
+/* 流程图 */
+.flow{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;box-shadow:var(--shadow);margin:16px 0}
+.lane{display:grid;grid-template-columns:1fr;gap:0}
+.step{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--bg);position:relative}
+.step .h{font-weight:650;font-size:14.5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.step .d{font-size:13px;color:var(--dim);margin-top:4px}
+.step .p{font-size:12px;margin-top:6px;font-family:"SF Mono",ui-monospace,Menlo,monospace;color:var(--accent);word-break:break-all}
+.arrow{height:26px;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:15px}
+.arrow::before{content:"▼"}
+.badge{font-size:11px;padding:1.5px 7px;border-radius:20px;border:1px solid transparent;white-space:nowrap;font-weight:600}
+.b-in{background:rgba(14,159,110,.12);color:var(--in);border-color:rgba(14,159,110,.3)}
+.b-out{background:rgba(124,77,255,.12);color:var(--out);border-color:rgba(124,77,255,.3)}
+.b-man{background:rgba(224,115,12,.12);color:var(--warn);border-color:rgba(224,115,12,.3)}
+.b-off{background:rgba(217,45,32,.12);color:var(--bad);border-color:rgba(217,45,32,.3)}
+.b-db{background:rgba(47,109,246,.12);color:var(--accent);border-color:rgba(47,109,246,.3)}
+/* 双线并排 */
+.two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:860px){.two{grid-template-columns:1fr}}
+.col-title{font-weight:700;font-size:15px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.hub{margin:18px 0;border:2px dashed var(--accent);border-radius:12px;padding:14px 16px;background:rgba(47,109,246,.06)}
+.hub .t{font-weight:700}
+/* 表格 */
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px;
+  display:block;overflow-x:auto;white-space:nowrap}
+@media(min-width:760px){table{display:table;white-space:normal}}
+th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+th{background:var(--chip);font-weight:650;font-size:12.5px}
+td code{font-size:12px}
+.note{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--warn);
+  border-radius:8px;padding:12px 14px;margin:14px 0;font-size:13.5px}
+.note.bad{border-left-color:var(--bad)}
+.note.good{border-left-color:var(--in)}
+ul{padding-left:20px;margin:8px 0}li{margin:4px 0}
+.foot{margin-top:60px;padding-top:16px;border-top:1px solid var(--line);color:var(--dim);font-size:12.5px}
+.gate{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:14px 0}
+@media(max-width:700px){.gate{grid-template-columns:1fr}}
+.gcard{border-radius:10px;padding:12px 14px;border:1px solid var(--line);background:var(--panel)}
+.gcard .v{font-size:15px;font-weight:700}
+.gcard .r{font-size:12.5px;color:var(--dim);margin-top:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>B-roll 镜头获取系统 · 运转全景图</h1>
+<p class="sub">数据核实时间 2026-08-04 · 仓库 <code>WorkflowUP/Workflow</code> · 所有路径均为本机真实路径，可直接调取</p>
+
+<div class="lead">
+<b>一句话：</b>让人说一句口播文案，机器立刻找出能配的画面。<br>
+<b>打个比方：</b>这就是一座图书馆。<b>入库线</b>是把一车车的书（下载来的装修视频）拆开、编目、贴标签、上架；
+<b>出库线</b>是借书台——你说一句「我要讲瓷砖崩边」，管理员去架子上把对得上的那几本抽出来给你。
+中间那本<b>总目录</b>就是 <code>broll.db</code>，两条线只通过它对话。<br>
+<b>为什么要做：</b>之前的痛点原话是——<b>文案在讲瓷砖崩边，画面配的却是刷墙。</b>
+</div>
+
+<h2>一、当前部署状况（刚查的实数）</h2>
+
+<div class="stats">
+  <div class="stat"><div class="n ok">✅ 已挂载</div><div class="k">素材库映像</div><div class="t">/Volumes/akke素材 · 剩 120 GB</div></div>
+  <div class="stat"><div class="n">1,406</div><div class="k">源视频（条）</div><div class="t">已切分 1,033 · 未切 373</div></div>
+  <div class="stat"><div class="n">25,861</div><div class="k">切片 clips</div><div class="t">3.5 秒左右一条</div></div>
+  <div class="stat"><div class="n">4,828</div><div class="k">段 segments</div><div class="t">标注与检索的单位</div></div>
+  <div class="stat"><div class="n ok">3,677</div><div class="k">放行且已建向量</div><div class="t">= 检索时真正能被搜到的池子</div></div>
+  <div class="stat"><div class="n mid">1,151</div><div class="k">卡在待人工</div><div class="t">正脸 645 · 水印 44</div></div>
+  <div class="stat"><div class="n">22</div><div class="k">缺货本条目</div><div class="t">gap-log.jsonl · 已自动记账</div></div>
+  <div class="stat"><div class="n">16</div><div class="k">回头客本条目</div><div class="t">match_experience 表</div></div>
+  <div class="stat"><div class="n mid">893</div><div class="k">效果图已标注</div><div class="t">向量 0 · 还没接进检索</div></div>
+  <div class="stat"><div class="n">75 MB</div><div class="k">broll.db</div><div class="t">⚠️ 本机唯一一份，无异地备份</div></div>
+</div>
+
+<div class="note good">
+<b>2026-08-04 这次部署做完了什么：</b>零件早就造齐了，但没接线、没人记账、大门锁着。
+这次把它们接成<b>一条命令</b>（<code>broll-retrieve.py</code>），并且第一次拿到了<b>三个版本可比的成绩</b>（见第五节）。
+</div>
+
+<h2>二、全景图：一段素材的一生</h2>
+
+<p class="sub">左边是<b>入库线</b>（把素材变成能被搜到的东西），右边是<b>出库线</b>（把一句口播变成一段画面）。
+两条线互不通气，只通过中间的 <code>broll.db</code> 交接。</p>
+
+<div class="flow">
+<div class="two">
+
+  <!-- 入库线 -->
+  <div>
+    <div class="col-title"><span class="badge b-in">入库线</span> 素材 → 可被检索的段</div>
+    <div class="lane">
+      <div class="step">
+        <div class="h">① 进货</div>
+        <div class="d">已下载装修视频（主力）/ 授权视频去掉 A-roll / 按缺货单定向补采 / AI 生成</div>
+        <div class="p">scripts/broll-library/ingest-broll.py</div>
+      </div><div class="arrow"></div>
+
+      <div class="step">
+        <div class="h">② 切段</div>
+        <div class="d">按镜头边界切成 3.5 秒左右的 clip，25,861 条</div>
+        <div class="p">process-zhangshifu.py（张师傅专用）</div>
+      </div><div class="arrow"></div>
+
+      <div class="step">
+        <div class="h">③ 归并成段</div>
+        <div class="d">连续同主题的一组 clip 归为一「段」。这一步把标注工作量降到 1/5（25,861 → 4,828）</div>
+        <div class="p">segment-groups.py</div>
+      </div><div class="arrow"></div>
+
+      <div class="step">
+        <div class="h">④ 字幕处理 <span class="badge b-off">从未跑过</span></div>
+        <div class="d">判定 → 定策略（裁/擦/弃）→ 产出干净版。判定 11,802 条全做完，<b>干净版产出 0 条</b>。
+          987 条 crop 参数已算好但 <code>clean_path</code> 仍全空</div>
+        <div class="p">clips.sub_strategy / crop_params / clean_path</div>
+      </div><div class="arrow"></div>
+
+      <div class="step">
+        <div class="h">⑤ 标注 <span class="badge b-in">4,827 段已完成</span></div>
+        <div class="d">机器看画面写「内容描述单」：镜头主题（v7 第一字段）+ 物件清单 + 语义层</div>
+        <div class="p">apply-annotations.py · ingest-theme-review-v7.py</div>
+      </div><div class="arrow"></div>
+
+      <div class="step">
+        <div class="h">⑥ 安全审</div>
+        <div class="d">放行公式 = 无正脸 ∧ 无水印 ∧ 非黑名单 ∧ 复刻核查完整 ∧ 非邻居 ∧ 无需人工。
+          <b>公式里没有 has_text 项</b>——所以擦字幕不会多放行一段</div>
+        <div class="p">repair-s4c-replica-safety.py:754</div>
+      </div><div class="arrow"></div>
+
+      <div class="step">
+        <div class="h">⑦ 算语义坐标（向量）</div>
+        <div class="d">把标注文字编码成 512 维向量存进库。本地 bge-small-zh 模型，零 API 费用，全量约 7 秒。
+          增量：靠 <code>embed_hash</code> 比对，标注改了才重算</div>
+        <div class="p">build-embeddings.py → segments.embedding</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 出库线 -->
+  <div>
+    <div class="col-title"><span class="badge b-out">出库线</span> 一句口播 → 一段画面</div>
+    <div class="lane">
+      <div class="step">
+        <div class="h">① 拿到配音时间轴</div>
+        <div class="d">复刻生产跑完 TTS 与强制对齐后的产物，逐行对应稿件</div>
+        <div class="p">align.json（align_script.py 产出）+ script.txt</div>
+      </div><div class="arrow"></div>
+
+      <div class="step">
+        <div class="h">② 生成需求骨架</div>
+        <div class="d">每句一行，翻译字段留空写 <code>TODO</code></div>
+        <div class="p">broll-plan.py init --align … --out needs.json</div>
+      </div><div class="arrow"></div>
+
+      <div class="step">
+        <div class="h">③ 人填「翻译」 <span class="badge b-man">没有自动挡</span></div>
+        <div class="d">把口播从「讲述」翻成「描述」：<br>
+          「先用保护条盖住」→「墙角贴着白色塑料护角条，覆盖整条阳角」<br>
+          <b>刻意不自动写</b>——自动生成的正是套壳写法那种错（正确率 27%），人写后是 100%</div>
+        <div class="p">visual_level / shot_function / desc / search_query</div>
+      </div><div class="arrow"></div>
+
+      <div class="step">
+        <div class="h">④ 检索 <span class="badge b-out">生产入口</span></div>
+        <div class="d">纯向量召回 + 及格线 + 自动记两本账。60 句约 20 秒，CPU 推理（把 MPS 让给标注进程）</div>
+        <div class="p">broll-retrieve.py --needs … --video 片名 --output found.json</div>
+      </div><div class="arrow"></div>
+
+      <div class="step">
+        <div class="h">⑤ 出片段 + 拷贝切片</div>
+        <div class="d">产出 <code>produce_replica.py</code> 认识的 <code>{"type":"broll", …}</code>，
+          同时把选中切片复制进工作目录 <code>broll/</code>——素材库在外接盘，合成时盘可能已经拔了</div>
+        <div class="p">broll-plan.py emit --found … --out broll-segments.json</div>
+      </div><div class="arrow"></div>
+
+      <div class="step">
+        <div class="h">⑥ 人工画面复核 <span class="badge b-man">不可省</span></div>
+        <div class="d">两件事机器保证不了：分数高 ≠ 对题（最高分 0.760 那条，要浅色地砖给了深色）；
+          <code>has_face</code> 标注不可信，必须在最终处理链上逐帧扫</div>
+        <div class="p">audit_broll.py · gate_faces_yunet.py</div>
+      </div><div class="arrow"></div>
+
+      <div class="step">
+        <div class="h">⑦ 回填战绩 <span class="badge b-man">用完必做</span></div>
+        <div class="d">不回填，系统永远不长记性</div>
+        <div class="p">broll-retrieve.py --record-choice --outcome used_good|used|rejected</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="hub">
+  <div class="t"><span class="badge b-db">枢纽</span> broll.db（SQLite · 75 MB · 本机 SSD）</div>
+  <div class="sub" style="margin-top:6px">
+    主要表：<code>sources</code> 1,406 · <code>clips</code> 25,861 · <code>segments</code> 4,828（含 embedding 列）·
+    <code>match_experience</code> 16（回头客本）· <code>xiaoguotu</code> 893（效果图，向量未建）·
+    <code>zhang_ocr_segments</code> 12,721（原字幕标准答案）
+  </div>
+</div>
+</div>
+
+<h2>三、出库线细节：<code>broll-retrieve.py</code> 里到底发生了什么</h2>
+
+<div class="flow">
+<div class="lane">
+  <div class="step">
+    <div class="h">0. 先确认素材库挂着</div>
+    <div class="d">素材实体在外接盘的稀疏映像里，本机只有 db 和一堆符号链接。映像会自己掉线（盘休眠、误卸载），
+      而 db 还在——于是检索照常给候选，<code>clip_path</code> 却全打不开。
+      <b>检索给了路径就等于承诺文件能打开</b>，做不到就当场拒绝（exit 2）</div>
+    <div class="p">check_library_mounted() 探针：$LIB/_clips 存不存在</div>
+  </div><div class="arrow"></div>
+
+  <div class="step">
+    <div class="h">1. 取候选池</div>
+    <div class="d">SQL 取 <code>approved=1 且 embedding 非空</code>，并再次排除正脸 / 水印 / 黑名单 / 待删除——
+      放行公式可能改，这里不假设它永远正确。当前池子 <b>3,677 段</b></div>
+    <div class="p">load_pool() · segments JOIN clips ON rep_clip_id</div>
+  </div><div class="arrow"></div>
+
+  <div class="step">
+    <div class="h">2. 需求编码</div>
+    <div class="d">所有查询一次性编码（避免每句重载模型）。bge 系列要求<b>查询加指令前缀、文档不加</b>，
+      必须与 <code>build-embeddings.py</code> 一致，否则查询和文档落在向量空间的不同区域</div>
+    <div class="p">BAAI/bge-small-zh-v1.5 · CPU · QUERY_PREFIX</div>
+  </div><div class="arrow"></div>
+
+  <div class="step">
+    <div class="h">3. 余弦相似度 + 战绩微调</div>
+    <div class="d">矩阵点积一把出全部分数。回头客本的战绩每分只 ±0.01——刻意做小，<b>不能盖过语义相似度本身</b>
+      （used_good +2 / used +1 / rejected −2）</div>
+    <div class="p">mat @ qvec + 0.01 × experience</div>
+  </div><div class="arrow"></div>
+
+  <div class="step">
+    <div class="h">4. 按镜头功能过滤（池子太小就放弃）</div>
+    <div class="d">目标类少于 50 段时自动<b>不</b>过滤。第二轮踩过的坑：库里 <code>problem</code> 类只有 1 段，
+      硬过滤导致同一段垃圾候选被反复顶到 top-1</div>
+    <div class="p">MIN_POOL_FOR_FILTER = 50</div>
+  </div><div class="arrow"></div>
+
+  <div class="step">
+    <div class="h">5. 打散</div>
+    <div class="d">同一条源片最多出 2 段、同一 <code>sibling_group</code> 只出 1 段。
+      没有这个，top-3 经常是同一镜头的三个相邻窗口——看着有三个选择，其实只有一个</div>
+    <div class="p">diversify()</div>
+  </div><div class="arrow"></div>
+
+  <div class="step">
+    <div class="h">6. 及格线裁决</div>
+    <div class="d">向量检索天生的毛病是<b>永远能排出个第一名</b>，哪怕库里根本没有合适画面。
+      本模块<b>不承诺挑出好的，只承诺拦掉铁定不行的</b></div>
+    <div class="p">retrieval_gate.apply_gate()</div>
+  </div><div class="arrow"></div>
+
+  <div class="step">
+    <div class="h">7. 自动记两本账</div>
+    <div class="d"><b>缺货本</b>：报 no_match 或弱命中就写一条，同一需求幂等只记一次，重跑不灌水。<br>
+      <b>回头客本</b>：系统给过什么先留痕（<code>served</code>），人事后回填 <code>used/rejected</code> 时以此为对照基线。
+      主键由「片子+口播+段+outcome」决定，重跑覆盖同一行</div>
+    <div class="p">gap-log.jsonl（素材库根）· match_experience 表</div>
+  </div>
+</div>
+</div>
+
+<h3>及格线三档是怎么定的（不是拍脑袋）</h3>
+<p class="sub">用 2026-08-03 两轮真人判卷的 105 个候选标定。定义在 <code>retrieval_gate.py</code>。</p>
+<div class="gate">
+  <div class="gcard" style="border-left:4px solid var(--bad)">
+    <div class="v no">相似度 &lt; 0.52 → 报缺货</div>
+    <div class="r">该档「不能用」占比 <b>100%</b>（6/6，零误杀）。不返回候选，直接记缺货本</div>
+  </div>
+  <div class="gcard" style="border-left:4px solid var(--warn)">
+    <div class="v mid">0.52 ~ 0.62 → 标 weak</div>
+    <div class="r">该档「不能用」占比 78%。返回但打标，提示人工过目；<code>emit</code> 默认不采用，除非加 <code>--accept-weak</code></div>
+  </div>
+  <div class="gcard" style="border-left:4px solid var(--in)">
+    <div class="v ok">≥ 0.62 → 标 normal</div>
+    <div class="r">该档仍有 <b>71% 不可用</b>——这不是及格线能解决的，根因在素材覆盖与标注信息量</div>
+  </div>
+</div>
+<div class="note">
+<b>为什么三档都不够准？</b>人判断时看的是<b>画面</b>，而这些方法都在读<b>标注文本</b>。
+一段 3.5 秒画面压缩成五十字标注后，「能不能用」所依赖的信息已经丢了。
+正确的下一步是让视觉模型看图精排（召回 top-N → 看图），而不是继续在文本层面找阈值——
+<code>verdict</code> 已留 <code>pending_visual</code> 档位供接入。
+</div>
+
+<h2>四、路径地图：东西都放在哪</h2>
+
+<table>
+<thead><tr><th>内容</th><th>位置</th><th>体积</th><th>备注</th></tr></thead>
+<tbody>
+<tr><td><b>素材实体</b>（切片 / 缩略图 / 工序目录）</td>
+    <td>外接盘 <code>/Volumes/装点儿什么吧！/ziyang/akke视频生成素材/broll-素材.sparsebundle</code><br>挂载到 <code>/Volumes/akke素材</code></td>
+    <td>90 GB</td><td>APFS 稀疏映像。盘要插着、映像要挂载，库才完整</td></tr>
+<tr><td><b>库根</b>（本机门面）</td>
+    <td><code>/Users/andreas/Akke video/素材库/b-roll 素材/douyin-replica 视频生成可用b-roll素材。…</code></td>
+    <td>—</td><td>环境变量 <code>BROLL_LIB</code> 可覆盖。大目录（<code>_clips</code>、<code>_thumbs</code>…）都是指向外接盘的符号链接</td></tr>
+<tr><td><b>数据库</b>（标注 + 向量坐标）</td><td><code>$LIB/broll.db</code></td><td>75 MB</td>
+    <td class="no">⚠️ 只有本机一份，硬盘故障即全损。<code>upload-to-r2.py --db</code> 已实现但未验证</td></tr>
+<tr><td><b>缺货本</b></td><td><code>$LIB/gap-log.jsonl</code></td><td>22 条</td><td>纯文本追加，人可直接看</td></tr>
+<tr><td><b>云备份</b>（切片与缩略图副本）</td><td>Cloudflare R2</td><td>36 GB / 26,459 对象</td><td>脚本 <code>upload-to-r2.py</code></td></tr>
+<tr><td><b>脚本</b></td><td><code>scripts/broll-library/</code>（本仓库）</td><td>83 个文件</td><td>见下节速查</td></tr>
+<tr><td><b>方案与人审判例</b></td><td><code>docs/broll-library/</code>、<code>docs/broll-library/review-evidence/</code></td><td>—</td>
+    <td>判例是最该保住的资产：它是所有改动的裁判</td></tr>
+<tr><td><b>生产 skill 入口</b></td><td><code>.claude/skills/douyin-replica/SKILL.md</code>（B-roll 选取一节）</td><td>—</td>
+    <td>复刻流程从这里调起整条出库线</td></tr>
+</tbody>
+</table>
+
+<h2>五、脚本速查：跑什么、什么时候跑</h2>
+
+<h3>日常生产（复刻一条片子时按顺序跑）</h3>
+<pre><span class="c"># 0. 开工先看素材库还挂着没（每次都要）</span>
+bash scripts/broll-library/mount-broll.sh status
+
+<span class="c"># 1. 从配音时间轴生成需求骨架</span>
+python3 scripts/broll-library/broll-plan.py init \
+    --align align.json --script script.txt --out needs.json
+
+<span class="c"># 2. 人工逐句填 visual_level / shot_function / desc / search_query（没有自动挡）</span>
+<span class="c">#    章节总起句一律填 none；「不要A要B」拆成两个 shot</span>
+
+<span class="c"># 3. 检索（自动记两本账）</span>
+python3 scripts/broll-library/broll-retrieve.py \
+    --needs needs.json --video 片名 --output found.json
+
+<span class="c"># 4. 产出 storyboard 片段，切片同时复制进工作目录 broll/</span>
+python3 scripts/broll-library/broll-plan.py emit \
+    --found found.json --needs needs.json --out broll-segments.json --workdir .
+
+<span class="c"># 5. 人工画面复核（不可省）</span>
+python3 .claude/skills/douyin-replica/scripts/audit_broll.py …
+python3 .claude/skills/douyin-replica/scripts/gate_faces_yunet.py …
+
+<span class="c"># 6. 用完回填战绩</span>
+python3 scripts/broll-library/broll-retrieve.py --record-choice \
+    --video 片名 --shot s01 --chosen &lt;segment_id&gt; --outcome used_good --reason "理由"</pre>
+
+<h3>维护与评测</h3>
+<pre><span class="c"># 标注改过之后重算向量（增量，改了才算）</span>
+python3 scripts/broll-library/build-embeddings.py          <span class="c"># --all 全量 / --check 只体检</span>
+
+<span class="c"># 常设考卷：任何改动前后都跑，60 句永不更换，只换检索器</span>
+python3 scripts/broll-library/run-exam.py --retriever all --save
+python3 scripts/broll-library/run-exam.py --history
+
+<span class="c"># 挂载 / 卸载素材库</span>
+bash scripts/broll-library/mount-broll.sh mount
+bash scripts/broll-library/mount-broll.sh umount           <span class="c"># 有进程占用会拒绝，防止映像损坏</span></pre>
+
+<h3>三个检索器的关系（同题可比）</h3>
+<table>
+<thead><tr><th>脚本</th><th>口径</th><th>状态</th></tr></thead>
+<tbody>
+<tr><td><code>broll-retrieve.py</code></td><td>纯向量召回 + 及格线，不碰词表</td><td class="ok"><b>生产用这条</b>（2026-08-04 起）</td></tr>
+<tr><td><code>broll-find.py</code></td><td>v6 词表字面匹配</td><td>留作对照；真实文案 82% 匹配不上</td></tr>
+<tr><td><code>broll-find-v7.py</code></td><td>v7 镜头主题优先</td><td>影子脚本，不落生产</td></tr>
+</tbody>
+</table>
+
+<h2>六、第一次可比的成绩</h2>
+<p class="sub">同一批 60 句、同一个库、同一时刻（2026-08-04 01:30，<code>考卷成绩历史.jsonl</code> 原始记录）</p>
+<table>
+<thead><tr><th></th><th>向量方案（生产）</th><th>v6 字面匹配</th></tr></thead>
+<tbody>
+<tr><td>给出候选</td><td>171 个</td><td>33 个</td></tr>
+<tr><td><b>报「没有」</b></td><td class="ok"><b>3 句</b></td><td class="no">49 句</td></tr>
+<tr><td>需求判断正确率</td><td class="ok"><b>71.7%</b></td><td>41.7%</td></tr>
+<tr><td>自动判卷覆盖率</td><td>37.4%</td><td>12.1%</td></tr>
+<tr><td>已判候选可用率</td><td class="mid">17.2%</td><td>25%（仅 4 个样本，不可信）</td></tr>
+<tr><td>耗时</td><td>25 秒</td><td>105 秒</td></tr>
+</tbody>
+</table>
+<div class="note">
+<b>这张表怎么读：</b>
+<ul>
+<li>v6 的「可用率 25%」是假象——它只判了 4 个候选，而且 60 句里 <b>49 句空手而归</b>。这正是「82% 匹配不上」的实证。</li>
+<li>向量方案报「没有」只有 3 句，需求判断明显领先，耗时是 v6 的 1/5。</li>
+<li><b>但 17% 可用率也不是好成绩。</b>这与第二轮实测结论一致：<b>瓶颈在素材库本身，不在检索技术</b>。继续调检索器的收益已经很低。</li>
+</ul>
+</div>
+
+<h2>七、还没接上的、和明确不做的</h2>
+
+<h3>还没做</h3>
+<table>
+<thead><tr><th>事项</th><th>状况</th></tr></thead>
+<tbody>
+<tr><td>效果图接入检索</td><td>893 张已标注，<b>向量 0 条</b>，还没接进 <code>broll-retrieve.py</code> 的候选池</td></tr>
+<tr><td>需求提取产品化</td><td>第二轮验证的方法（三档 / 对比句拆两镜 / 译成画面话）目前只活在考卷流程与人脑里，未固化成脚本</td></tr>
+<tr><td>987 条 crop 字幕</td><td>参数早已算好，<code>clean_path</code> 仍全空。按 v4 原口径「用到哪条处理哪条」，不批处理</td></tr>
+<tr><td><b>补货</b></td><td><b>唯一能抬高上限的动作。</b>清单现成：v7 方案三类 + gap-log 22 条 + defect 类全库为零 + 373 条源片未切分</td></tr>
+<tr><td><code>broll.db</code> 异地备份</td><td><code>upload-to-r2.py --db</code> 已实现，实际上传未验证。75 MB 只有本机一份</td></tr>
+</tbody>
+</table>
+
+<h3>明确不做（已确认为无底洞或纯浪费）</h3>
+<p>扩词表 ❌　继续标注剩余 B-roll 段 ❌　引入向量数据库 ❌　<b>erase 批处理 ❌</b>　入库侧再开新一轮改造 ❌</p>
+<div class="note bad">
+<b>一条重要更正：「去字幕堵死第一招」是误诊。</b>
+2026-08-04 跑 SQL 核实：未放行的 1,151 段里，卡在正脸的 645、水印 44、needs_human 1,150，
+<b>仅被字幕卡住的是 0 段</b>。放行公式里根本没有 <code>has_text</code> 项。
+<b>擦掉全部 10,815 条字幕，放行数增加 0</b>——原计划的 erase 批处理工程取消。
+<code>B-roll系统说明-给团队-2026-08-03.md</code> 里的「断点一」应按此更正。
+</div>
+
+<h2>八、几个必须知道的坑</h2>
+<ul>
+<li><b>素材库映像会自己掉线。</b>db 还在、检索照跑、路径全是死的。所以每次开工先 <code>mount-broll.sh status</code>。</li>
+<li><b>翻译没填完不许往下走。</b><code>emit</code> 见到 <code>TODO</code> 直接 exit 2——套壳需求生成的候选，看着有结果其实全是错的。</li>
+<li><b>跨镜头去重是硬需求。</b>检索逐句独立跑，两句语义相近会拿到同一段（实测「水泥腻子灌进底盒」和「水泥砂浆封线槽」md5 一致）。
+    成片里就是同一画面播两遍，而每句单看都「有候选」、指标全绿。</li>
+<li><b><code>has_face</code> 标注不可信。</b>过滤后的候选里照样有人入画，且可能正是被复刻那位博主本人。B-roll 出现人物是红线，必须在<b>最终处理链之后</b>逐帧扫。</li>
+<li><b>被复刻的源片可能就躺在库里。</b>越对题的候选越可能是原片自己——出库四规矩里的「复刻谁躲开谁」就是防这个。</li>
+<li><b>分数高 ≠ 对题。</b>最高分 0.760 那条，需求是「要浅色地砖」而画面是深色地砖。画面复核这步没有替代品。</li>
+</ul>
+
+<div class="foot">
+生成于 2026-08-04 · 数据来自 <code>broll.db</code> 实时查询、<code>考卷成绩历史.jsonl</code> 与 <code>mount-broll.sh status</code><br>
+延伸阅读：<code>docs/broll-library/系统部署完成-2026-08-04.md</code>（本次部署记录）·
+<code>docs/broll-library/B-roll系统说明-给团队-2026-08-03.md</code>（完整背景与方法论四招）·
+<code>docs/broll-library/第二轮实测-瓶颈转移到素材库-2026-08-03.md</code>（瓶颈归因）
+</div>
+
+</div>
+</body>
+</html>
