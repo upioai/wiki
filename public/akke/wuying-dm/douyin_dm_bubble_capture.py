@@ -79,6 +79,10 @@ _arg = lambda k, d: next((int(a.split("=", 1)[1]) for a in sys.argv if a.startsw
 MAX_CONVS = _arg("max", 8)
 MIN_AGE_MIN = _arg("min-age-min", 30)
 MAX_AGE_H = _arg("max-age-h", 48)
+# 熔断：单轮最多写几条。2026-08-05 一个倒序 bug 一轮就灌了 4 条重复入站、真发出 2 条
+# 重复自动回复。真实场景里一轮能捞到 5 条以上新回复几乎不可能，超了必是系统性判错——
+# 宁可停下报警，也别让一个 bug 把整个收件箱重灌一遍。
+MAX_WRITES = _arg("max-writes", 5)
 BUBBLE_TAIL = 8          # 每个会话只看最后 N 条气泡（更早的与"有没有新回复"无关）
 
 BUBBLE = '[data-e2e="msg-item-content"]'
@@ -121,14 +125,14 @@ def load_awaiting_convs() -> list[dict]:
     }) or []
 
     last: dict[str, dict] = {}
-    last_cust: dict[str, str] = {}   # conv_id → 库里最新一条 customer 的原文
+    hist: dict[str, list[str]] = {}   # conv_id → 库里【全部】历史 customer 原文（去重闸用）
     for r in rows:  # 已按 created_at 降序 → 每个会话首见即最后一条
         conv = r.get("conversations") or {}
         cid = conv.get("id")
         if not cid:
             continue
-        if r.get("role") == "customer" and cid not in last_cust:
-            last_cust[cid] = r.get("content") or ""
+        if r.get("role") == "customer":
+            hist.setdefault(cid, []).append(r.get("content") or "")
         if cid in last:
             continue
         last[cid] = {
@@ -140,7 +144,7 @@ def load_awaiting_convs() -> list[dict]:
             "at": _iso_ms(r.get("sent_at") or r.get("created_at") or ""),
         }
     for cid, v in last.items():
-        v["last_customer"] = last_cust.get(cid, "")
+        v["customer_hist"] = hist.get(cid, [])
 
     now = _now_ms()
     lo, hi = MIN_AGE_MIN * 60_000, MAX_AGE_H * 3_600_000
@@ -150,13 +154,22 @@ def load_awaiting_convs() -> list[dict]:
 
 
 def read_bubbles(page) -> list[dict]:
-    """当前打开的会话里，最后 BUBBLE_TAIL 条气泡：文本 + 几何 + 方向线索。"""
+    """当前打开的会话里的气泡：文本 + 几何(含 top) + 方向线索。**不在 JS 侧截取**。
+
+    ⚠️ 2026-08-05 事故：原来是 `els.slice(-BUBBLE_TAIL)`，以为取到最新 N 条。
+    实测抖音私信面板是 **column-reverse** 布局 —— DOM 顺序是【新→旧】，视觉上才是
+    新在下。于是 slice(-N) 取到的是**最旧的 N 条**，下游 last_peer 也就成了**最旧的
+    那条客户消息**。后果：把 07-31 的老回复当成新回复重新入库，触发自动回复重复骚扰
+    客户（一筑 4 条，其中 2 条真发出去了）。
+
+    改法：**JS 侧全量返回、不截取**，顺序判定一律交给 py 侧按 `top` 排（视觉上→下
+    = 旧→新），不再对 DOM 顺序做任何假设。虚拟滚动本来就只渲染有限节点，全量不贵。
+    """
     return page.evaluate(
         """(sel) => {
         const els = Array.from(document.querySelectorAll(sel));
-        const tail = els.slice(-%d);
         const out = [];
-        for (const el of tail) {
+        for (const el of els) {
           const r = el.getBoundingClientRect();
           // 方向线索：自身 + 最多 4 层祖先的 class/data-* 拼起来，供 py 侧找方向词
           let hint = '', n = el, depth = 0;
@@ -165,16 +178,28 @@ def read_bubbles(page) -> list[dict]:
             for (const a of (n.attributes || [])) if (a.name.startsWith('data-')) hint += ' ' + a.name + '=' + a.value;
             n = n.parentElement; depth++;
           }
-          out.push({ text: (el.innerText || '').trim(), cx: r.left + r.width / 2, w: r.width, hint: hint.toLowerCase().slice(0, 400) });
+          out.push({ text: (el.innerText || '').trim(), cx: r.left + r.width / 2, w: r.width, top: r.top, hint: hint.toLowerCase().slice(0, 400) });
         }
         // 消息区中心：取所有气泡的最左最右算包络中心，比 window 宽度稳（浮层不占满屏）
         const xs = els.map(e => e.getBoundingClientRect());
         const lo = Math.min(...xs.map(r => r.left)), hi = Math.max(...xs.map(r => r.right));
         return { bubbles: out, mid: (lo + hi) / 2 };
-        }"""
-        % BUBBLE_TAIL,
+        }""",
         BUBBLE,
     )
+
+
+# 气泡 innerText 会把悬浮操作按钮一起带进来：'新房\n点赞\n回复\n删除'。
+# 这些不是客户说的话，入库会污染原文（也会让去重/匹配对不上）。只从**尾部**剥，
+# 中间出现的同名词是正文（客户真会说「回复」「删除」）。
+_ACTION_LABELS = {"点赞", "回复", "删除", "转发", "引用", "复制", "撤回", "多选", "举报", "翻译", "更多"}
+
+
+def clean_bubble_text(raw: str) -> str:
+    lines = [ln.strip() for ln in (raw or "").split("\n")]
+    while lines and (not lines[-1] or lines[-1] in _ACTION_LABELS):
+        lines.pop()
+    return "\n".join(ln for ln in lines if ln).strip()
 
 
 def judge_side(b: dict, mid: float, own_texts: list[str]) -> tuple[str, str]:
@@ -299,18 +324,21 @@ def main() -> None:
                 if not bubbles:
                     print("     ✗ 读到 0 条气泡 → 跳过")
                     continue
+                # ⚠️ 顺序只认几何，不认 DOM 顺序（面板是 column-reverse，DOM 是新→旧）。
+                # 按 top 升序 = 视觉上→下 = 旧→新，再取尾部 BUBBLE_TAIL 条 = 真·最新几条。
+                bubbles = sorted(bubbles, key=lambda b: b.get("top") or 0)[-BUBBLE_TAIL:]
 
                 last_peer = None
                 for b in bubbles:
                     side, how = judge_side(b, mid, own_texts)
-                    print(f"     [方向] {side:<7} via {how:<10} x={b.get('cx'):.0f} mid={mid:.0f}  {b.get('text','')[:40]!r}")
+                    print(f"     [方向] {side:<7} via {how:<10} x={b.get('cx'):.0f} y={b.get('top') or 0:.0f} mid={mid:.0f}  {clean_bubble_text(b.get('text',''))[:40]!r}")
                     if side == "peer":
-                        last_peer = b
+                        last_peer = b   # 排序后最后一个 peer = 视觉最靠下 = 客户最新那条
                 if last_peer is None:
                     print("     ⚠ 最后 %d 条气泡里没有一条判定为客户方 → 弃权（不写库）" % len(bubbles))
                     continue
 
-                text = _strip_ts((last_peer.get("text") or "").strip())
+                text = _strip_ts(clean_bubble_text(last_peer.get("text") or ""))
                 ok, why = is_capturable(text)
                 if not ok:
                     print(f"     ⊘ 最后一条客户气泡不可入库（{why}）: {text[:40]!r}")
@@ -322,11 +350,20 @@ def main() -> None:
                 # 那句已入库的老回复，于是每轮都重记一次。RPC record_dm_inbound 也拦不住:
                 # 它的幂等分支要求「会话最后一条是 customer 且内容相同」，而这里最后一条是
                 # ai → 直接 INSERT。运营在别处手动回复(不进库)会让这个场景更常见。
-                if _norm(text) and _norm(text) == _norm(c.get("last_customer") or ""):
-                    print(f"     ⊘ 与库里最新客户消息相同，已入库过 → 跳过: {text[:30]!r}")
+                # ⚠️ 2026-08-05 收紧：原来只比对【库里最新一条】customer，比不过更早的历史
+                # 消息。配合上面那个倒序 bug，把 07-31 的老回复当新回复重灌了 4 条、真发出
+                # 去 2 条重复自动回复。现在比对该会话【全部】历史 customer 原文——代价是
+                # 客户原样重复一句会被跳过（红点快路径仍能吃到），比重复骚扰划算得多。
+                seen_all = {_norm(x) for x in (c.get("customer_hist") or []) if x}
+                if _norm(text) and _norm(text) in seen_all:
+                    print(f"     ⊘ 该内容库里已有（历史 {len(seen_all)} 条里命中）→ 跳过: {text[:30]!r}")
                     continue
 
                 fresh += 1
+                if fresh > MAX_WRITES:
+                    print(f"     🛑 本轮已判出 {fresh} 条 > 熔断上限 {MAX_WRITES} —— 真实场景不该这么多，"
+                          f"多半是系统性判错。**停止本轮，不再写库**（--max-writes= 可调）", file=sys.stderr)
+                    break
                 print(f"     ✅ 客户最新: {text[:60]!r}  ({why})")
                 if COMMIT:
                     try:
