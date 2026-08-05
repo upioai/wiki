@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OLTP · OLAP · Lakehouse — 我们要不要上 Snowflake / Databricks</title>
+<meta name="description" content="把 OLTP、OLAP、Lakehouse 三个常被混着说的名词讲清楚，再用 Akke 生产库的真实体量做一次选型判断：为什么现在不该买，以及有哪五个思想该立刻抄。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#06080c;
+    --bg2:#0a0e15;
+    --panel:#0d1119;
+    --panel2:#11161f;
+    --line:rgba(255,255,255,.07);
+    --line2:rgba(255,255,255,.12);
+    --ink:#dbe3ec;
+    --head:#f2f6fb;
+    --muted:#7c8798;
+    --dim:#525c6b;
+    --teal:#3fe0c5;      /* 机器 / 自动 */
+    --teal-d:#1c9d8b;
+    --amber:#f6b352;     /* 人工 / 人在环 */
+    --blue:#6fa8ff;      /* 服务器 / 大脑 */
+    --violet:#b48cff;    /* worker / 后台 */
+    --rose:#ff7d97;      /* 执行 / 终端 */
+    --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+    --serif:"Noto Serif SC",serif;
+    --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:var(--sans);
+    background:var(--bg);
+    color:var(--ink);
+    line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  /* ── 固定背景：网格 + 辉光 + 颗粒 ── */
+  .bg{position:fixed;inset:0;z-index:0;pointer-events:none}
+  .bg .grid{
+    position:absolute;inset:-2px;
+    background-image:
+      linear-gradient(var(--line) 1px,transparent 1px),
+      linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:64px 64px;
+    -webkit-mask-image:radial-gradient(circle at 50% 32%,#000 0%,transparent 78%);
+    mask-image:radial-gradient(circle at 50% 32%,#000 0%,transparent 78%);
+    opacity:.5;
+  }
+  .bg .glow{position:absolute;border-radius:50%;filter:blur(120px);opacity:.5}
+  .bg .g1{width:640px;height:640px;top:-260px;left:50%;transform:translateX(-50%);
+    background:radial-gradient(circle,rgba(63,224,197,.28),transparent 68%);animation:drift 22s ease-in-out infinite}
+  .bg .g2{width:520px;height:520px;top:38%;left:-160px;
+    background:radial-gradient(circle,rgba(111,168,255,.16),transparent 70%);animation:drift 28s ease-in-out infinite reverse}
+  .bg .g3{width:480px;height:480px;bottom:-120px;right:-120px;
+    background:radial-gradient(circle,rgba(246,179,82,.12),transparent 70%);animation:drift 26s ease-in-out infinite}
+  @keyframes drift{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,40px)}}
+  .bg .noise{position:absolute;inset:0;opacity:.035;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+  /* ── 顶部滚动进度 ── */
+  .progress{position:fixed;top:0;left:0;height:2px;width:0;z-index:60;
+    background:linear-gradient(90deg,var(--teal),var(--blue));box-shadow:0 0 12px var(--teal)}
+
+  /* ── 侧栏章节导航 ── */
+  .rail{position:fixed;top:50%;left:26px;transform:translateY(-50%);z-index:50;
+    display:flex;flex-direction:column;gap:15px}
+  .rail a{display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--dim);
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+    transition:color .3s}
+  .rail a .tick{width:22px;height:2px;background:currentColor;transition:width .3s,background .3s}
+  .rail a .lbl{opacity:0;transform:translateX(-6px);transition:.3s}
+  .rail a:hover .lbl,.rail a.on .lbl{opacity:1;transform:none}
+  .rail a.on{color:var(--teal)}
+  .rail a.on .tick{width:38px;box-shadow:0 0 10px var(--teal)}
+  @media(max-width:1180px){.rail{display:none}}
+
+  main{position:relative;z-index:2;max-width:1080px;margin:0 auto;padding:0 40px}
+  section{padding:118px 0;border-top:1px solid transparent}
+
+  /* ── 通用 reveal ── */
+  .rv{opacity:0;transform:translateY(26px);transition:opacity .8s cubic-bezier(.16,1,.3,1),transform .8s cubic-bezier(.16,1,.3,1)}
+  .rv.in{opacity:1;transform:none}
+  .stagger>*{opacity:0;transform:translateY(22px);transition:opacity .7s cubic-bezier(.16,1,.3,1),transform .7s cubic-bezier(.16,1,.3,1)}
+  .stagger.in>*{opacity:1;transform:none}
+  .stagger.in>*:nth-child(1){transition-delay:.05s}
+  .stagger.in>*:nth-child(2){transition-delay:.13s}
+  .stagger.in>*:nth-child(3){transition-delay:.21s}
+  .stagger.in>*:nth-child(4){transition-delay:.29s}
+  .stagger.in>*:nth-child(5){transition-delay:.37s}
+  .stagger.in>*:nth-child(6){transition-delay:.45s}
+
+  /* ── 章节头 ── */
+  .sec-head{display:flex;align-items:baseline;gap:20px;margin-bottom:42px}
+  .sec-head .idx{font-family:var(--mono);font-size:13px;color:var(--teal);
+    font-weight:500;padding-top:6px;position:relative}
+  .sec-head .idx::before{content:"";position:absolute;left:-14px;top:11px;width:8px;height:8px;
+    border-radius:50%;background:var(--teal);box-shadow:0 0 10px var(--teal)}
+  .eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--muted);display:block;margin-bottom:8px}
+  .sec-head h2{font-family:var(--serif);font-weight:700;font-size:clamp(27px,4vw,42px);
+    line-height:1.18;color:var(--head);letter-spacing:.01em}
+  .lede{font-size:16.5px;color:var(--muted);max-width:680px;margin:-24px 0 40px;line-height:1.75}
+  .lede b,.lede strong{color:var(--ink);font-weight:600}
+  code{font-family:var(--mono);font-size:.85em;background:rgba(63,224,197,.09);color:#8ff0e0;
+    border:1px solid rgba(63,224,197,.16);border-radius:5px;padding:1px 6px}
+
+  /* ── HERO ── */
+  .hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;
+    padding:120px 0 90px;border:0;position:relative}
+  .hero .tag{font-family:var(--mono);font-size:12px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--teal);display:inline-flex;align-items:center;gap:10px;margin-bottom:26px}
+  .hero .tag .pulse{width:9px;height:9px;border-radius:50%;background:var(--teal);
+    box-shadow:0 0 0 0 rgba(63,224,197,.6);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(63,224,197,.55)}70%{box-shadow:0 0 0 12px rgba(63,224,197,0)}100%{box-shadow:0 0 0 0 rgba(63,224,197,0)}}
+  .hero h1{font-family:var(--serif);font-weight:900;font-size:clamp(42px,8vw,92px);line-height:1.04;
+    color:var(--head);letter-spacing:.005em;margin-bottom:8px}
+  .hero h1 .accent{background:linear-gradient(115deg,var(--teal),var(--blue) 70%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero h1 .cursor{display:inline-block;width:.06em;height:.92em;background:var(--teal);
+    vertical-align:-6px;margin-left:6px;animation:blink 1.1s steps(1) infinite;box-shadow:0 0 14px var(--teal)}
+  @keyframes blink{50%{opacity:0}}
+  .hero .desc{font-size:clamp(17px,2.3vw,22px);color:var(--ink);max-width:700px;margin:24px 0 14px;line-height:1.6}
+  .hero .desc b{color:var(--teal);font-weight:600}
+  .hero .role{font-family:var(--mono);font-size:13px;color:var(--muted);margin-bottom:44px}
+  .ticker{display:flex;gap:10px;flex-wrap:wrap;max-width:840px}
+  .chip{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;color:var(--ink);
+    border:1px solid var(--line2);border-radius:100px;padding:7px 15px;background:rgba(255,255,255,.02);
+    display:inline-flex;align-items:center;gap:8px;transition:.3s}
+  .chip:hover{border-color:var(--teal);color:var(--teal);box-shadow:0 0 20px -6px var(--teal)}
+  .chip .d{width:6px;height:6px;border-radius:50%;background:var(--teal)}
+  .chip .d.a{background:var(--amber)}.chip .d.b{background:var(--blue)}.chip .d.v{background:var(--violet)}
+  .scrollcue{position:absolute;bottom:34px;left:0;font-family:var(--mono);font-size:11px;
+    letter-spacing:.2em;color:var(--dim);display:flex;align-items:center;gap:10px}
+  .scrollcue .bar{width:1px;height:34px;background:linear-gradient(var(--teal),transparent);
+    animation:cue 1.8s ease-in-out infinite}
+  @keyframes cue{0%,100%{opacity:.3;transform:scaleY(.6)}50%{opacity:1;transform:scaleY(1)}}
+
+  /* ── 三件套 pillars ── */
+  .pillars{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;position:relative}
+  .pillar{background:linear-gradient(165deg,var(--panel),var(--bg2));border:1px solid var(--line);
+    border-radius:16px;padding:26px 24px 24px;position:relative;overflow:hidden;transition:.4s}
+  .pillar::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;
+    background:var(--c,var(--teal));opacity:.7;box-shadow:0 0 16px var(--c,var(--teal))}
+  .pillar:hover{transform:translateY(-6px);border-color:var(--line2);
+    box-shadow:0 24px 60px -30px var(--c,var(--teal))}
+  .pillar .mk{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--c,var(--teal));
+    text-transform:uppercase;margin-bottom:16px;display:flex;justify-content:space-between}
+  .pillar h3{font-family:var(--serif);font-weight:700;font-size:21px;color:var(--head);margin-bottom:6px}
+  .pillar .path{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:14px}
+  .pillar p{font-size:14px;color:var(--muted);line-height:1.65}
+  .pillar p b{color:var(--ink)}
+  .pillar .ver{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);
+    font-family:var(--mono);font-size:12px;color:var(--ink)}
+
+  /* ── 强调 band ── */
+  .note-band{margin-top:22px;background:rgba(246,179,82,.06);border:1px solid rgba(246,179,82,.2);
+    border-radius:14px;padding:18px 22px;display:flex;gap:16px;align-items:flex-start}
+  .note-band .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--amber);
+    text-transform:uppercase;white-space:nowrap;padding-top:2px}
+  .note-band p{font-size:14.5px;color:var(--ink);margin:0}
+  .note-band p b{color:var(--amber)}
+  .band{margin-top:22px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--teal);
+    border-radius:12px;padding:20px 24px}
+  .band .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--teal);text-transform:uppercase;margin-bottom:8px;display:block}
+  .band p{font-size:15px;color:var(--ink);margin:0}
+  .band p b{color:var(--head)}
+  .band+.band{margin-top:14px}
+
+  /* ── 约束 / 反直觉 box ── */
+  .why{background:linear-gradient(160deg,rgba(255,125,151,.07),transparent);
+    border:1px solid rgba(255,125,151,.2);border-radius:16px;padding:26px 28px;margin-bottom:20px}
+  .why .k{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--rose);
+    text-transform:uppercase;margin-bottom:10px;display:block}
+  .why p{font-size:15.5px;color:var(--ink);margin:0}
+  .why p b{color:var(--rose)}
+
+  /* ── 管线 spine ── */
+  .pipe{position:relative;padding-left:38px;margin-top:8px}
+  .pipe::before{content:"";position:absolute;left:11px;top:8px;bottom:8px;width:2px;
+    background:linear-gradient(var(--teal),var(--violet),var(--amber),var(--rose))}
+  .pipe .flowdot{position:absolute;left:6px;width:12px;height:12px;border-radius:50%;
+    background:var(--teal);box-shadow:0 0 16px 3px var(--teal);animation:flow 4.2s cubic-bezier(.5,0,.5,1) infinite}
+  @keyframes flow{0%{top:2px;opacity:0}8%{opacity:1}92%{opacity:1}100%{top:calc(100% - 14px);opacity:0}}
+  .pstep{position:relative;padding:16px 0;display:grid;grid-template-columns:126px 1fr;gap:18px;align-items:start}
+  .pstep+.pstep{border-top:1px dashed var(--line)}
+  .pstep::before{content:"";position:absolute;left:-32px;top:24px;width:10px;height:10px;border-radius:50%;
+    background:var(--bg);border:2px solid var(--who,var(--teal));box-shadow:0 0 0 4px var(--bg)}
+  .pstep .who{font-family:var(--mono);font-size:11px;letter-spacing:.05em;padding:5px 9px;border-radius:7px;
+    background:color-mix(in srgb,var(--who) 15%,transparent);color:var(--who);
+    border:1px solid color-mix(in srgb,var(--who) 30%,transparent);text-align:center;line-height:1.35}
+  .pstep .txt{font-size:14.5px;color:var(--ink)}
+  .pstep .txt b{color:var(--head);font-weight:600}
+  .pstep .txt .sub{display:block;font-size:13px;color:var(--muted);margin-top:5px;line-height:1.6}
+  .pipe-note{margin-top:20px;font-size:13.5px;color:var(--muted);font-family:var(--mono);
+    padding-left:38px;line-height:1.6}
+  .pipe-note b{color:var(--teal)}
+
+  /* ── 通用卡片网格 ── */
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  .cell{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 22px;transition:.35s}
+  .cell:hover{border-color:var(--line2);background:var(--panel2);transform:translateY(-3px)}
+  .cell .ico{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+    margin-bottom:14px;border:1px solid rgba(63,224,197,.28);color:var(--teal);
+    background:linear-gradient(150deg,rgba(63,224,197,.13),rgba(63,224,197,.02));
+    box-shadow:0 0 22px -10px var(--teal) inset}
+  .cell .ico svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .cell .ico.b{border-color:rgba(111,168,255,.28);color:var(--blue);
+    background:linear-gradient(150deg,rgba(111,168,255,.13),rgba(111,168,255,.02));box-shadow:0 0 22px -10px var(--blue) inset}
+  .cell .ico.a{border-color:rgba(246,179,82,.28);color:var(--amber);
+    background:linear-gradient(150deg,rgba(246,179,82,.13),rgba(246,179,82,.02));box-shadow:0 0 22px -10px var(--amber) inset}
+  .cell .ico.v{border-color:rgba(180,140,255,.28);color:var(--violet);
+    background:linear-gradient(150deg,rgba(180,140,255,.13),rgba(180,140,255,.02));box-shadow:0 0 22px -10px var(--violet) inset}
+  .cell .ico.r{border-color:rgba(255,125,151,.28);color:var(--rose);
+    background:linear-gradient(150deg,rgba(255,125,151,.13),rgba(255,125,151,.02));box-shadow:0 0 22px -10px var(--rose) inset}
+  .cell .ico.d{border-color:var(--line2);color:var(--muted);background:rgba(255,255,255,.03);box-shadow:none}
+  .cell .ico.rank{font-family:var(--mono);font-size:14.5px;font-weight:600;letter-spacing:.04em}
+  .cell h3{font-size:16px;color:var(--head);margin-bottom:7px;font-weight:600}
+  .cell h3 .m{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:.08em;display:block;margin-bottom:4px;font-weight:500}
+  .cell p{font-size:13.5px;color:var(--muted);line-height:1.65}
+  .cell p b{color:var(--ink)}
+  .cell p+p{margin-top:9px}
+  .cell .model{margin-top:12px;font-family:var(--mono);font-size:12px;color:var(--teal);
+    background:rgba(63,224,197,.07);border:1px solid rgba(63,224,197,.15);border-radius:7px;padding:5px 10px;display:inline-block}
+
+  /* ── 数字统计带（count-up）── */
+  .statband{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:26px}
+  .stat{background:linear-gradient(165deg,var(--panel),var(--bg2));border:1px solid var(--line);
+    border-radius:14px;padding:20px 20px 16px;text-align:left;transition:.35s}
+  .stat:hover{border-color:rgba(63,224,197,.3);transform:translateY(-3px)}
+  .stat .v{font-family:var(--mono);font-size:34px;font-weight:600;color:var(--teal);line-height:1.1;
+    text-shadow:0 0 24px rgba(63,224,197,.35)}
+  .stat .v .suf{font-size:16px;color:var(--muted);margin-left:2px}
+  .stat .l{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.5}
+
+  /* ── 横向条形图 ── */
+  .hbar{margin-top:8px}
+  .hbar .row{display:grid;grid-template-columns:190px 1fr 104px;gap:14px;align-items:center;padding:9px 0}
+  .hbar .lab{font-size:13.5px;color:var(--ink);text-align:right;line-height:1.35}
+  .hbar .lab .s{display:block;font-size:11.5px;color:var(--muted);font-family:var(--mono)}
+  .hbar .track{display:block;height:18px;background:rgba(255,255,255,.04);border-radius:5px;overflow:hidden;position:relative}
+  .hbar .fill{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,var(--teal-d),var(--teal));
+    box-shadow:0 0 14px -2px var(--teal);width:0;transition:width 1.1s cubic-bezier(.16,1,.3,1)}
+  .hbar .fill.dim{background:linear-gradient(90deg,#2a3644,#46586c);box-shadow:none}
+  .hbar .fill.warn{background:linear-gradient(90deg,#b7803a,var(--amber));box-shadow:0 0 14px -2px var(--amber)}
+  .hbar .fill.bad{background:linear-gradient(90deg,#a4485c,var(--rose));box-shadow:0 0 14px -2px var(--rose)}
+  .hbar .val{font-family:var(--mono);font-size:13px;color:var(--head)}
+  .hbar .val .u{color:var(--muted);font-size:11px}
+  .chart-note{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:12px;line-height:1.7}
+  .chart-note b{color:var(--teal)}
+
+  /* ── 三列对照框 ── */
+  .cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .colbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 22px}
+  .colbox h4{font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--teal);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+  .colbox ul{list-style:none}
+  .colbox li{font-size:13.5px;color:var(--ink);padding:6px 0 6px 18px;position:relative;line-height:1.55}
+  .colbox li::before{content:"▸";position:absolute;left:0;color:var(--dim)}
+  .colbox li b{color:var(--head)}
+  .colbox.ship h4{color:var(--teal)}.colbox.wip h4{color:var(--amber)}.colbox.hard h4{color:var(--rose)}
+  .colbox.ship{border-color:rgba(63,224,197,.18)}
+  .colbox.wip{border-color:rgba(246,179,82,.18)}
+  .colbox.hard{border-color:rgba(255,125,151,.18)}
+
+  /* ── 规格表 ── */
+  .spec{width:100%;border-collapse:collapse;font-size:13.5px}
+  .spec thead th{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--muted);text-align:left;padding:12px 14px;border-bottom:1px solid var(--line2)}
+  .spec td{padding:13px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  .spec tbody tr{transition:.25s}
+  .spec tbody tr:hover{background:rgba(63,224,197,.03)}
+  .spec td:first-child{color:var(--head);font-weight:600;white-space:nowrap;font-family:var(--mono);font-size:12.5px}
+  .spec td:nth-child(2),.spec td:nth-child(3){font-family:var(--mono);font-size:12.5px;color:var(--teal);white-space:nowrap}
+  .spec td:nth-child(4){color:var(--ink)}
+  .spec td.warn{color:var(--amber)}
+  .quote{margin-top:30px;background:linear-gradient(160deg,var(--panel2),var(--bg2));
+    border:1px solid var(--line);border-radius:16px;padding:28px 30px;font-size:16px;line-height:1.75;color:var(--ink)}
+  .quote b{color:var(--teal)}
+
+  footer{position:relative;z-index:2;max-width:1080px;margin:0 auto;padding:60px 40px 80px;
+    border-top:1px solid var(--line);margin-top:40px}
+  footer .fl{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:18px}
+  footer .brand{font-family:var(--serif);font-weight:700;font-size:20px;color:var(--head)}
+  footer .meta{font-family:var(--mono);font-size:11.5px;color:var(--dim);letter-spacing:.08em;text-align:right;line-height:1.9}
+  footer .meta b{color:var(--teal)}
+
+  @media(max-width:820px){
+    main{padding:0 22px}
+    section{padding:82px 0}
+    .pillars,.grid3,.grid2,.cols3{grid-template-columns:1fr}
+    .statband{grid-template-columns:repeat(2,1fr)}
+    .sec-head{gap:14px;margin-bottom:32px}
+    .lede{margin-top:-16px}
+    .pstep{grid-template-columns:1fr;gap:8px}
+    .pstep .who{justify-self:start}
+    .hbar .row{grid-template-columns:110px 1fr 78px;gap:8px}
+    .hbar .lab{font-size:12px}
+    .spec{font-size:12.5px}
+    .spec td,.spec thead th{padding:10px 8px}
+  }
+  ::selection{background:rgba(63,224,197,.28);color:#fff}
+  ::-webkit-scrollbar{width:10px}
+  ::-webkit-scrollbar-track{background:var(--bg)}
+  ::-webkit-scrollbar-thumb{background:#1c2430;border-radius:8px;border:2px solid var(--bg)}
+  ::-webkit-scrollbar-thumb:hover{background:var(--teal-d)}
+</style>
+</head>
+<body>
+
+<div class="bg">
+  <div class="grid"></div>
+  <div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
+  <div class="noise"></div>
+</div>
+<div class="progress" id="progress"></div>
+
+<nav class="rail" id="rail">
+  <a href="#hero" data-s="hero"><span class="tick"></span><span class="lbl">缘起</span></a>
+  <a href="#alarm" data-s="alarm"><span class="tick"></span><span class="lbl">一条告警</span></a>
+  <a href="#oltp" data-s="oltp"><span class="tick"></span><span class="lbl">OLTP</span></a>
+  <a href="#olap" data-s="olap"><span class="tick"></span><span class="lbl">OLAP</span></a>
+  <a href="#lake" data-s="lake"><span class="tick"></span><span class="lbl">湖仓演化</span></a>
+  <a href="#scale" data-s="scale"><span class="tick"></span><span class="lbl">家底核对</span></a>
+  <a href="#cost" data-s="cost"><span class="tick"></span><span class="lbl">算账</span></a>
+  <a href="#diag" data-s="diag"><span class="tick"></span><span class="lbl">真痛点</span></a>
+  <a href="#borrow" data-s="borrow"><span class="tick"></span><span class="lbl">值得抄的</span></a>
+  <a href="#ladder" data-s="ladder"><span class="tick"></span><span class="lbl">触发线</span></a>
+  <a href="#verdict" data-s="verdict"><span class="tick"></span><span class="lbl">结论</span></a>
+</nav>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero" id="hero">
+    <span class="tag rv"><span class="pulse"></span>数据架构 · 概念讲解 + 一次真实选型</span>
+    <h1 class="rv">一次改一行，<br>还是<span class="accent">一次读一亿行</span><span class="cursor"></span></h1>
+    <p class="desc rv">OLTP、OLAP、Lakehouse 到底在分什么？Snowflake 和 Databricks 跟我们的数据库、跟「企业大脑」是什么关系——以及最实际的那个问题：<b>我们现在该不该上</b>。</p>
+    <p class="role rv">// 先把三个名词讲清楚，再用生产库的真实体量做判断 · 数据实测 2026-08-06</p>
+    <div class="ticker rv">
+      <span class="chip"><span class="d"></span>POSTGRESQL · OLTP</span>
+      <span class="chip"><span class="d b"></span>列存 · OLAP</span>
+      <span class="chip"><span class="d v"></span>DELTA / ICEBERG</span>
+      <span class="chip"><span class="d a"></span>SNOWFLAKE · DATABRICKS</span>
+      <span class="chip"><span class="d"></span>PARQUET + DUCKDB</span>
+      <span class="chip"><span class="d b"></span>PGVECTOR · HNSW</span>
+      <span class="chip"><span class="d a"></span>家底 1,356 MB</span>
+    </div>
+    <div class="scrollcue"><span class="bar"></span>SCROLL / 向下滚动</div>
+  </section>
+
+  <!-- 01 缘起 -->
+  <section id="alarm">
+    <div class="sec-head rv">
+      <span class="idx">01</span>
+      <div><span class="eyebrow">The Trigger · 问题是怎么冒出来的</span>
+      <h2>一条橙色告警，引出一个架构问题</h2></div>
+    </div>
+    <p class="lede rv">这不是一篇从名词讲起的科普。它起于生产环境的一次真实告警——而告警修完之后，真正值得回答的问题才浮出来。</p>
+    <div class="why rv">
+      <span class="k">Incident · 2026-08-05</span>
+      <p>数据库控制台弹出 <b>exhausting multiple resources</b>：CPU 82%、内存 76%，当天有 <b>4 份资料写库超时失败</b>。把 compute 从 Micro 升到 Small（2GB / 独占 CPU）之后，CPU 掉回 <b>13%</b>，橙条消失，之前反复失败的写入当日首次通过。</p>
+    </div>
+    <div class="grid2 stagger">
+      <div class="cell">
+        <span class="ico a"><svg viewBox="0 0 24 24"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg></span>
+        <h3><span class="m">SYMPTOM</span>问题解了，但只是"加了一档马力"</h3>
+        <p>升配是有效的止血，不是答案。库还在长——它会在某个点再次顶到天花板，而那时再加一档的边际收益会越来越小。</p>
+      </div>
+      <div class="cell">
+        <span class="ico b"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 1 1 4.2 3.5c-.8.4-1.3 1-1.3 1.9v.3"/><path d="M12 18h.01"/></svg></span>
+        <h3><span class="m">QUESTION</span>是不是该上一套"正经"数据平台了</h3>
+        <p>市面上最常被提到的两个名字是 <b>Snowflake</b> 和 <b>Databricks</b>。要回答该不该上，得先分清三个总被混着说的名词。</p>
+      </div>
+    </div>
+    <div class="band rv">
+      <span class="k">本文的顺序</span>
+      <p>先用三节把 <b>OLTP / OLAP / Lakehouse</b> 讲清楚（这部分与具体项目无关，可当通用概念读），再用生产库的真实体量做一次<b>有数字的选型判断</b>，最后落到五个「不用买也能抄」的做法。</p>
+    </div>
+  </section>
+
+  <!-- 02 OLTP -->
+  <section id="oltp">
+    <div class="sec-head rv">
+      <span class="idx">02</span>
+      <div><span class="eyebrow">OLTP · Online Transaction Processing</span>
+      <h2>一次改一行：让线上业务跑起来</h2></div>
+    </div>
+    <p class="lede rv">联机<strong>事务</strong>处理。支撑线上业务的每一次读写——下单、改状态、锁一条记录。特点是<strong>并发高、每次只碰几行、对正确性零容忍</strong>。我们的 Postgres 就是纯粹的 OLTP。</p>
+    <div class="grid3 stagger">
+      <div class="cell">
+        <span class="ico"><svg viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/><path d="M8 3v18"/></svg></span>
+        <h3><span class="m">STORAGE</span>行存（Row-oriented）</h3>
+        <p>一行数据在磁盘上<b>连续存放</b>。取一整行只要一次 IO——这正是"给我这个用户的全部信息"这类请求最需要的布局。</p>
+      </div>
+      <div class="cell">
+        <span class="ico"><svg viewBox="0 0 24 24"><path d="M12 3v4"/><path d="M12 11v10"/><circle cx="12" cy="9" r="2"/><path d="M5 5h14"/><path d="M7 21h10"/></svg></span>
+        <h3><span class="m">ACCESS</span>B-tree 索引 + ACID 事务</h3>
+        <p>靠索引直接跳到目标行，<b>毫秒级点查</b>。事务保证「转账不会只扣钱不到账」、「两个人抢同一条线索只能有一个抢到」。</p>
+      </div>
+      <div class="cell">
+        <span class="ico"><svg viewBox="0 0 24 24"><path d="M13 2 4.1 13.4A1 1 0 0 0 4.9 15H11l-1 7 8.9-11.4a1 1 0 0 0-.8-1.6H12l1-7Z"/></svg></span>
+        <h3><span class="m">WORKLOAD</span>高并发、小事务</h3>
+        <p>几千 QPS，每条只碰几行。评价标准是<b>并发正确性与尾延迟</b>，而不是吞吐量——这一点和 OLAP 正好相反。</p>
+      </div>
+    </div>
+    <div class="band rv">
+      <span class="k">落到我们自己身上</span>
+      <p><b>抢线索的 RPC</b>——按「组织 + 抖音用户」锁一条线索 4 小时，两个运营同时拉单不会拉到同一个人；<b>消息队列状态流转</b>——从待审批到已通过到已发送，每次就改一行；<b>行级安全（RLS）</b>——每一次请求都要判断这个账号能看哪些组织的数据。这三件事都要求：快、准、能并发，而且<b>错一次就是业务事故</b>。</p>
+    </div>
+  </section>
+
+  <!-- 03 OLAP -->
+  <section id="olap">
+    <div class="sec-head rv">
+      <span class="idx">03</span>
+      <div><span class="eyebrow">OLAP · Online Analytical Processing</span>
+      <h2>一次读一亿行：让分析算得动</h2></div>
+    </div>
+    <p class="lede rv">联机<strong>分析</strong>处理。回答的是「过去 90 天每个号源带来的中高意向评论，按周分组的转化率是多少」这种问题——<strong>不改数据，只扫和聚合</strong>。并发很低（可能就几个人在用），但每条查询要扫过海量的行。</p>
+    <div class="grid3 stagger">
+      <div class="cell">
+        <span class="ico b"><svg viewBox="0 0 24 24"><path d="M4 4h4v16H4z"/><path d="M10 4h4v16h-4z"/><path d="M16 4h4v16h-4z"/></svg></span>
+        <h3><span class="m">STORAGE</span>列存（Columnar）</h3>
+        <p>同一<b>列</b>的数据连续存放。只关心两三列的聚合查询，就只读那两三列的数据——其余的一个字节都不碰。</p>
+      </div>
+      <div class="cell">
+        <span class="ico b"><svg viewBox="0 0 24 24"><path d="M21 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v3"/><path d="M3 16v3a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3"/><path d="M7 12h10"/><path d="m14 9 3 3-3 3"/></svg></span>
+        <h3><span class="m">COMPRESSION</span>同类相邻 → 极高压缩比</h3>
+        <p>一列里全是同类型、往往还高度重复的值（比如意向等级只有三四种取值），压缩率可以到几十分之一；<b>压得越狠、要读的字节越少</b>。</p>
+      </div>
+      <div class="cell">
+        <span class="ico b"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m7 15 4-5 3 3 5-7"/></svg></span>
+        <h3><span class="m">EXECUTION</span>向量化执行</h3>
+        <p>不是一行一行地过，而是一次处理一批值（SIMD 友好）。加上前两条，同一个聚合查询常常快 <b>10～100 倍</b>。</p>
+      </div>
+    </div>
+
+    <div class="rv" style="margin-top:34px">
+      <p class="eyebrow" style="margin-bottom:14px">同一个问题 · 两种存储要读多少数据（量级示意）</p>
+      <div class="hbar">
+        <div class="row">
+          <span class="lab">行存<span class="s">ROW · 当前 PG</span></span>
+          <span class="track"><span class="fill bad" data-w="100"></span></span>
+          <span class="val">~442 <span class="u">MB</span></span>
+        </div>
+        <div class="row">
+          <span class="lab">列存<span class="s">COLUMNAR</span></span>
+          <span class="track"><span class="fill" data-w="1.5"></span></span>
+          <span class="val">~几 <span class="u">MB</span></span>
+        </div>
+      </div>
+      <p class="chart-note">// 问题：441,753 条评论里，各意向等级各占多少条？<br>
+        // 行存必须把<b>每一行整行</b>读进内存——包括几百字节的评论正文；列存只读「意向等级」那一列，且这列高度重复、压缩极狠。<br>
+        // 上图为<b>量级示意</b>而非基准实测，用来说明差距来自哪里：不是引擎更聪明，是<b>要搬的字节根本不在一个数量级</b>。</p>
+    </div>
+
+    <div class="note-band rv">
+      <span class="k">HTAP</span>
+      <p>想让一套系统同时干这两件事，业内叫 <b>HTAP（混合事务/分析处理）</b>。Postgres 在小体量下天然就是个够用的 HTAP——<b>这正是我们现在还不需要拆的根本原因</b>。矛盾只在体量上来之后才变得不可调和：两类负载对存储布局的要求是相反的。</p>
+    </div>
+  </section>
+
+  <!-- 04 湖仓演化 -->
+  <section id="lake">
+    <div class="sec-head rv">
+      <span class="idx">04</span>
+      <div><span class="eyebrow">Warehouse → Lake → Lakehouse</span>
+      <h2>湖仓不是凭空冒出来的，是被两代人的坑逼出来的</h2></div>
+    </div>
+    <p class="lede rv">Lakehouse（湖仓一体）是个演化产物，按顺序讲才说得清。每一代都是在<strong>修上一代的致命伤</strong>，同时带进新的问题。</p>
+    <div class="pipe rv">
+      <div class="flowdot"></div>
+      <div class="pstep" style="--who:var(--blue)">
+        <span class="who">第一代<br>DATA WAREHOUSE</span>
+        <span class="txt"><b>数据仓库</b>：只收结构化数据，<b>schema-on-write</b>——写进去之前必须先定好表结构。
+          <span class="sub">✓ 强治理、强一致、SQL 好用　✗ 贵；存不了非结构化数据（图片、视频、日志、模型权重）<br>代表：Teradata → Redshift → <b style="color:var(--blue)">Snowflake</b></span></span>
+      </div>
+      <div class="pstep" style="--who:var(--violet)">
+        <span class="who">第二代<br>DATA LAKE</span>
+        <span class="txt"><b>数据湖</b>：直接往对象存储（S3 / R2 / OSS）上丢原始文件，什么格式都行，<b>schema-on-read</b>——读的时候再解释这堆文件是什么结构。
+          <span class="sub">✓ 便宜到几乎白送，格式开放不锁厂商　✗ 没有事务、没有 schema 约束、没有治理<br>写一半失败就留下一堆半截文件，没人知道哪个目录是最新的——业内管这个叫 <b style="color:var(--rose)">数据沼泽（data swamp）</b></span></span>
+      </div>
+      <div class="pstep" style="--who:var(--teal)">
+        <span class="who">第三代<br>LAKEHOUSE</span>
+        <span class="txt"><b>湖仓一体</b>：在数据湖的开放文件格式<b>之上</b>，加一层元数据 + 事务日志。这层东西就是 <b>Delta Lake / Apache Iceberg / Hudi</b>。
+          <span class="sub">于是凭空长出了：<b>ACID 事务</b>（写失败能回滚，不留半截数据）· <b>Schema 演进</b>（加字段不用重写全量）· <b>Time Travel</b>（能查上周三这张表长什么样）· 同一份数据同时供 SQL 分析与 ML 训练，不用再复制一份进数仓</span></span>
+      </div>
+      <div class="pstep" style="--who:var(--amber)">
+        <span class="who">今天<br>两头收敛</span>
+        <span class="txt">Snowflake 从<b>数仓</b>出发，补上了对 Iceberg 与非结构化数据的支持；Databricks 从<b>湖</b>出发，补上了 SQL 数仓能力。
+          <span class="sub">所以 2026 年再问「选哪个」，界限已经比几年前模糊很多——更该问的是「<b>我到底在哪一档体量上</b>」。</span></span>
+      </div>
+    </div>
+    <p class="pipe-note rv">// 一句话：<b>Lakehouse = 便宜开放的对象存储（湖的成本）+ 元数据事务层（仓的可靠性）</b>。</p>
+
+    <div class="band rv">
+      <span class="k">顺手澄清一个常见误解</span>
+      <p>Snowflake / Databricks <b>都不能替代</b>业务库。它们不服务线上流量、不做逐请求的行级安全。就算上了，也是「<b>再加一套</b>」而不是「换一套」——它们和 Postgres 是叠加关系，不是替换关系。</p>
+    </div>
+  </section>
+
+  <!-- 05 家底核对 -->
+  <section id="scale">
+    <div class="sec-head rv">
+      <span class="idx">05</span>
+      <div><span class="eyebrow">Reality Check · 先量一量自己</span>
+      <h2>家底核对：我们离他们的适用区有多远</h2></div>
+    </div>
+    <p class="lede rv">选型讨论最容易跑偏的地方，是<strong>不先量自己</strong>。以下全部是 2026-08-06 直连生产库跑出来的真实数字。</p>
+    <div class="statband rv">
+      <div class="stat"><div class="v"><span class="cnum" data-v="1356">0</span><span class="suf">MB</span></div><div class="l">整库体积<br>（含索引）</div></div>
+      <div class="stat"><div class="v"><span class="cnum" data-v="132">0</span><span class="suf">张</span></div><div class="l">public schema<br>表数量</div></div>
+      <div class="stat"><div class="v"><span class="cnum" data-v="441753">0</span></div><div class="l">评论表行数<br>（最大业务表）</div></div>
+      <div class="stat"><div class="v"><span class="cnum" data-v="3856">0</span><span class="suf">块</span></div><div class="l">知识库向量分块<br>（460 个条目）</div></div>
+    </div>
+
+    <div class="rv" style="overflow-x:auto;margin-top:30px">
+      <table class="spec">
+        <thead><tr><th>表</th><th>行数</th><th>体积</th><th>性质</th></tr></thead>
+        <tbody>
+          <tr><td>comments</td><td>441,753</td><td>443 MB</td><td>抓取到的评论原始数据（bronze 层）</td></tr>
+          <tr><td>llm_call_provenance</td><td>192,527</td><td class="warn">442 MB</td><td>模型调用审计日志 · <b style="color:var(--amber)">append-only，无保留策略</b></td></tr>
+          <tr><td>scrape_jobs</td><td>200,042</td><td>170 MB</td><td>抓取任务队列 · 已有 7 天滚动窗口</td></tr>
+          <tr><td>videos</td><td>55,867</td><td>62 MB</td><td>视频元数据</td></tr>
+          <tr><td>lead_profiles</td><td>23,443</td><td>35 MB</td><td>线索画像（silver 层）</td></tr>
+          <tr><td>kb_chunks</td><td>3,856</td><td>28 MB</td><td>知识库分块 + 512 维向量 · pgvector HNSW</td></tr>
+          <tr><td>messages</td><td>26,165</td><td>14 MB</td><td>会话消息</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="band rv">
+      <span class="k">这意味着什么</span>
+      <p><b>整个库 1.35 GB——塞得进一台笔记本的内存。</b>Snowflake / Databricks 的性价比拐点在 <b>TB ~ PB</b> 级；我们在 <b>GB</b> 级。差距不是「还差一点」，是<b>三个数量级</b>。在这个体量上，一台笔记本上的 DuckDB 做全表聚合都在一秒以内。</p>
+    </div>
+    <div class="note-band rv">
+      <span class="k">Note</span>
+      <p>「企业大脑」的知识层也在这张表里：<b>460 个条目 / 3,856 个向量分块</b>。这个量级用 pgvector + HNSW 是正解——要到<b>千万级分块</b>才谈得上需要专用向量基础设施。</p>
+    </div>
+  </section>
+
+  <!-- 06 算账 -->
+  <section id="cost">
+    <div class="sec-head rv">
+      <span class="idx">06</span>
+      <div><span class="eyebrow">Cost Model · 真上要花多少</span>
+      <h2>算笔账：为什么现在上是纯亏</h2></div>
+    </div>
+    <p class="lede rv">两家的计费模型不一样，但共同点是——<strong>贵在算力，不在存储</strong>。而算力的最小档位，对我们这种体量来说全是浪费。</p>
+
+    <div class="grid3 stagger">
+      <div class="cell">
+        <span class="ico b"><svg viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m12 12 8-4.5"/><path d="M12 12v9"/><path d="m12 12-8-4.5"/></svg></span>
+        <h3><span class="m">SNOWFLAKE</span>按 credit 计费</h3>
+        <p>Standard <b>$2 / credit</b>（Enterprise $3、Business Critical $4）。最小的 XS 虚拟仓 <b>1 credit/小时</b>，按秒计费但启动有 60 秒起步。</p>
+        <p>存储另计，约 <b>$23–40 / TB / 月</b>。</p>
+      </div>
+      <div class="cell">
+        <span class="ico v"><svg viewBox="0 0 24 24"><path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3Z"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/><path d="M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7"/></svg></span>
+        <h3><span class="m">DATABRICKS</span>按 DBU + 云主机双重计费</h3>
+        <p>DBU 从 jobs light 的 <b>$0.22</b> 到 serverless SQL 的 <b>$0.70</b> 不等，<b>另外还要付底层云厂商的机器钱</b>。</p>
+        <p>这套双重计费让成本估算明显更难，基础设施常在 DBU 之上再加 50–200%。</p>
+      </div>
+      <div class="cell">
+        <span class="ico d"><svg viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M5 7h14"/><path d="m5 7-3 6h6l-3-6Z"/><path d="m19 7-3 6h6l-3-6Z"/><path d="M8 21h8"/></svg></span>
+        <h3><span class="m">FOR US</span>存储费几乎为零，全在算力</h3>
+        <p>1.35 GB 按 $23/TB 算是 <b>每月三分钱</b>。也就是说我们付的钱<b>100% 是算力的最小档位费</b>，而那个档位是为 TB 级设计的。</p>
+      </div>
+    </div>
+
+    <div class="rv" style="margin-top:34px">
+      <p class="eyebrow" style="margin-bottom:14px">月度成本对照（同一份 1.35 GB 数据）</p>
+      <div class="hbar">
+        <div class="row">
+          <span class="lab">现状<span class="s">SUPABASE SMALL</span></span>
+          <span class="track"><span class="fill" data-w="12"></span></span>
+          <span class="val">$14.83</span>
+        </div>
+        <div class="row">
+          <span class="lab">Snowflake XS<span class="s">每天跑 2 小时</span></span>
+          <span class="track"><span class="fill warn" data-w="100"></span></span>
+          <span class="val">≈ $120</span>
+        </div>
+        <div class="row">
+          <span class="lab">Databricks<span class="s">DBU + 云主机</span></span>
+          <span class="track"><span class="fill bad" data-w="100"></span></span>
+          <span class="val">更难估</span>
+        </div>
+      </div>
+      <p class="chart-note">// Snowflake 一栏＝ 1 credit/小时 × $2 × 2h × 30 天，<b>且这还只是分析侧的额外开销</b>——线上业务库该付的钱一分不少。<br>
+        // 换算下来：为一个塞得进内存的数据集，<b>多付 8 倍于整个生产库的钱</b>。</p>
+    </div>
+  </section>
+
+  <!-- 07 真痛点 -->
+  <section id="diag">
+    <div class="sec-head rv">
+      <span class="idx">07</span>
+      <div><span class="eyebrow">Diagnosis · 痛点根本不在分析侧</span>
+      <h2>真凶：一张审计表吃掉了三分之一的库</h2></div>
+    </div>
+    <p class="lede rv">回到第 01 节那次告警。它是 <strong>OLTP 的内存与算力不够</strong>，不是分析能力不够——上数仓一行也不会缓解，因为线上写入还是走 Postgres。顺着这条线查下去，找到了真正该动的东西。</p>
+    <div class="why rv">
+      <span class="k">Root Cause</span>
+      <p><code>llm_call_provenance</code> 一张审计表就占了整库的 <b>三分之一（442 MB）</b>，其中 <b>101,495 行超过 30 天</b>。它最早的记录只到 2026-06-05——<b>两个月长出 442 MB</b>，年化约 2.6 GB，而且<b>没有任何保留策略</b>。</p>
+    </div>
+    <div class="grid2 stagger">
+      <div class="cell">
+        <span class="ico r"><svg viewBox="0 0 24 24"><path d="M12 8v5"/><path d="M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg></span>
+        <h3>它凭什么该被搬走</h3>
+        <p>这是<b>纯 append-only 的观测日志</b>：写完就不再改，没有任何事务需求，线上请求也从不读它。它却和最热的业务表抢同一块内存。</p>
+      </div>
+      <div class="cell">
+        <span class="ico"><svg viewBox="0 0 24 24"><path d="M3 6.5C3 5.1 7 4 12 4s9 1.1 9 2.5"/><path d="M3 6.5v11C3 18.9 7 20 12 20s9-1.1 9-2.5v-11"/><path d="M3 12c0 1.4 4 2.5 9 2.5s9-1.1 9-2.5"/></svg></span>
+        <h3>对照：邻居们都已经有窗口</h3>
+        <p><code>scrape_jobs</code> 有 7 天滚动窗口，196,568 行里<b>超过 30 天的是 0 行</b>；<code>video_stats_history</code> 超 30 天的只有 505 行。<b>唯一在裸奔的就是它。</b></p>
+      </div>
+    </div>
+    <div class="band rv">
+      <span class="k">判断</span>
+      <p>该做的第一件事不是买平台，是给这张表<b>加保留窗口 + 冷数据外迁</b>。它既是当前最大的单表负担，又是最没有事务需求的纯日志，<b>改动风险最低、见效最直接</b>。</p>
+    </div>
+  </section>
+
+  <!-- 08 值得抄的 -->
+  <section id="borrow">
+    <div class="sec-head rv">
+      <span class="idx">08</span>
+      <div><span class="eyebrow">Steal The Ideas, Not The Invoice</span>
+      <h2>不买他们的服务，但抄他们的五个思想</h2></div>
+    </div>
+    <p class="lede rv">「不该买」不等于「没关系」。这两家真正值钱的是<strong>架构思想</strong>，而这些思想在 GB 级同样成立，而且几乎不花钱。按 ROI 排序如下。</p>
+    <div class="grid2 stagger">
+      <div class="cell">
+        <span class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8"/><path d="M10 12h4"/></svg></span>
+        <h3><span class="m">① LAKEHOUSE 的核心</span>存算分离 · 冷热分层</h3>
+        <p>Databricks 的本质是：<b>热数据在库、冷数据在对象存储、按需拉起算力</b>。这件事我们可以在自有的 R2 桶上做，成本约等于零。</p>
+        <p>做法：审计表超 30 天的十万行按月导成 <b>Parquet</b> 丢进对象存储，库里只留 30 天；要回溯查成本归因时用 <b>DuckDB</b> 直接查 Parquet，比在 PG 里扫全表还快。预计立刻释放约 300 MB——在 2GB 内存上是实打实的余量。</p>
+      </div>
+      <div class="cell">
+        <span class="ico b"><svg viewBox="0 0 24 24"><path d="M4 5h16"/><path d="M7 12h10"/><path d="M10 19h4"/></svg></span>
+        <h3><span class="m">② MEDALLION</span>bronze / silver / gold 分层</h3>
+        <p>原始评论与视频是 <b>bronze</b>，线索画像与会话是 <b>silver</b>，日报与统计是 <b>gold</b>。</p>
+        <p>铁律只有一条：<b>报表只读 gold，永不扫 bronze</b>。这正是「分析查询和线上业务抢 CPU」最典型的入口——值得把所有报表脚本翻一遍，看有没有偷偷直查原始表。</p>
+      </div>
+      <div class="cell">
+        <span class="ico a"><svg viewBox="0 0 24 24"><path d="M3 3h8l10 10-8 8L3 11V3Z"/><circle cx="7.2" cy="7.2" r="1.4"/></svg></span>
+        <h3><span class="m">③ UNITY CATALOG 的精神</span>数据治理与打标</h3>
+        <p>Databricks 的 Unity Catalog 解决的是「<b>哪些数据、谁能碰、能流到哪</b>」。这条正好命中我们知识库的一个已知缺口——</p>
+        <p>在库的资料里只有一部分可以合规外发给客户，<b>但库里根本没有「能不能发给客户」这个标记字段</b>。不需要买它，加一列加一条策略就够了。这条的价值不在性能，<b>在于它防的是合规事故</b>。</p>
+      </div>
+      <div class="cell">
+        <span class="ico v"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 8v4l3 2"/></svg></span>
+        <h3><span class="m">④ TIME TRAVEL</span>版本化与快照</h3>
+        <p>Snowflake 的 Time Travel 用来回答「<b>上周三这份数据长什么样</b>」。我们已经在给部分配置做快照了，值得把知识库、决策规则、人设也纳进来。</p>
+        <p>配合审计表里已有的调用指纹，就能回答一个很实际的问题：<b>这条消息当时用的是哪一版规则、哪一版人设</b>——出问题时这是唯一能定责的线索。</p>
+      </div>
+      <div class="cell">
+        <span class="ico d"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg></span>
+        <h3><span class="m">⑤ 反向结论</span>最不用抄的，恰恰是招牌 AI 功能</h3>
+        <p>Databricks Vector Search 与 Snowflake Cortex Search 干的，就是我们 pgvector 那一层的活。<b>3,856 个分块</b>要到千万级才谈得上换专用设施。</p>
+        <p>更要紧的是：<b>「企业大脑」的瓶颈是策展不是存储</b>——知识条目、对话样本、决策规则的数量才是天花板，换成 Snowflake 一条也不会变多。</p>
+      </div>
+      <div class="cell">
+        <span class="ico d"><svg viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M3 8h18"/><path d="M6 8v9a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8"/></svg></span>
+        <h3><span class="m">SUMMARY</span>共同点：都是「布局」而非「品牌」</h3>
+        <p>五条里没有一条需要新增供应商。它们要的都是<b>把数据放对位置</b>——热的留在事务库、冷的沉到对象存储、算好的只读汇总层、该打标的打上标。</p>
+        <p>这也是为什么它们在 GB 级就能生效：<b>这些是架构纪律，不是规模红利</b>。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 09 触发线与阶梯 -->
+  <section id="ladder">
+    <div class="sec-head rv">
+      <span class="idx">09</span>
+      <div><span class="eyebrow">Trigger Lines &amp; Upgrade Ladder</span>
+      <h2>什么时候该重新讨论，以及按什么顺序升</h2></div>
+    </div>
+    <p class="lede rv">「现在不上」是有条件的结论，所以要把<strong>条件写下来</strong>——否则半年后没人记得当初为什么否决，只好从头再吵一遍。</p>
+    <div class="cols3 stagger">
+      <div class="colbox hard">
+        <h4>触发线 · 任一成立即重议</h4>
+        <ul>
+          <li>Postgres 单库 <b>&gt; 100 GB</b>，或单张热表 <b>&gt; 5,000 万行</b></li>
+          <li>需要跨 <b>≥ 4 个异构数据源</b>做每日 ETL</li>
+          <li>分析查询稳定地和线上业务抢 CPU，且加索引 / 物化视图已解决不了</li>
+          <li>客户合同要求交付 BI 或数据驻留合规</li>
+        </ul>
+      </div>
+      <div class="colbox ship">
+        <h4>当前状态 · 逐条对照</h4>
+        <ul>
+          <li>1.35 GB / 最大表 44 万行 —— <b>差三个数量级</b></li>
+          <li>数据源集中在一个库里 —— <b>不成立</b></li>
+          <li>已知瓶颈是审计表体积，<b>先做冷热分层</b></li>
+          <li>暂无 BI 交付要求 —— <b>不成立</b></li>
+        </ul>
+      </div>
+      <div class="colbox wip">
+        <h4>为什么要写下条件</h4>
+        <ul>
+          <li>否决要<b>可复核</b>，不能只留一句「太贵了」</li>
+          <li>条件写死，<b>触线时不用重新论证</b></li>
+          <li>避免半年后凭印象重开同一场讨论</li>
+          <li>也避免反过来——真触线了却没人注意到</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="eyebrow rv" style="margin:44px 0 14px">升级阶梯 · 从便宜到贵，别跳级</p>
+    <div class="pipe rv">
+      <div class="flowdot"></div>
+      <div class="pstep" style="--who:var(--teal)">
+        <span class="who">现在<br>STEP 0</span>
+        <span class="txt">Postgres 单库扛全部负载　<b>≈ $15 / 月</b><span class="sub">体量够小，事务与分析共存完全没问题</span></span>
+      </div>
+      <div class="pstep" style="--who:var(--teal)">
+        <span class="who">下一步<br>STEP 1</span>
+        <span class="txt">冷数据 → 对象存储 Parquet + DuckDB 查询　<b>≈ $0</b><span class="sub">最小可用的湖仓雏形。就是本文建议立刻做的那一步</span></span>
+      </div>
+      <div class="pstep" style="--who:var(--blue)">
+        <span class="who">再下一步<br>STEP 2</span>
+        <span class="txt">读副本 / 物化视图，把分析查询和线上负载隔开<span class="sub">当报表开始真正影响线上延迟时才需要</span></span>
+      </div>
+      <div class="pstep" style="--who:var(--violet)">
+        <span class="who">再下一步<br>STEP 3</span>
+        <span class="txt">专用 OLAP：ClickHouse / BigQuery / MotherDuck　<b>几十美元量级</b><span class="sub">数据到几十 GB、分析成为独立工种时</span></span>
+      </div>
+      <div class="pstep" style="--who:var(--amber)">
+        <span class="who">最后<br>STEP 4</span>
+        <span class="txt"><b>Snowflake / Databricks</b>　<b style="color:var(--amber)">千美元量级 + 专职人力</b><span class="sub">到 TB 级、多源、多团队、有治理与合规硬需求时</span></span>
+      </div>
+    </div>
+    <p class="pipe-note rv">// 阶梯最大的好处是 <b>Parquet 是开放格式</b>——STEP 1 落下去的数据，到 STEP 3、STEP 4 依然直接可读。<b>升级路径不是推倒重来。</b></p>
+  </section>
+
+  <!-- 10 结论 -->
+  <section id="verdict">
+    <div class="sec-head rv">
+      <span class="idx">10</span>
+      <div><span class="eyebrow">Verdict</span>
+      <h2>结论与下一步</h2></div>
+    </div>
+    <div class="grid3 stagger">
+      <div class="cell">
+        <span class="ico d"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg></span>
+        <h3><span class="m">不买</span>差三个数量级</h3>
+        <p>它们的性价比拐点在 TB~PB，我们在 GB。而且它们<b>不能替代业务库</b>，上了是加一套不是换一套。</p>
+      </div>
+      <div class="cell">
+        <span class="ico"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span>
+        <h3><span class="m">但抄</span>五个思想立刻可用</h3>
+        <p>冷热分层 · 分层建模 · 治理打标 · 版本快照，加上一条<b>反向结论</b>：招牌向量检索恰恰是最不用抄的。</p>
+      </div>
+      <div class="cell">
+        <span class="ico a"><svg viewBox="0 0 24 24"><path d="M13 2 4.1 13.4A1 1 0 0 0 4.9 15H11l-1 7 8.9-11.4a1 1 0 0 0-.8-1.6H12l1-7Z"/></svg></span>
+        <h3><span class="m">先做一件</span>审计表加窗口 + 外迁</h3>
+        <p>最大的单表负担、最没有事务需求的纯日志——<b>风险最低、见效最直接</b>，也顺手把湖仓的第一步落了地。</p>
+      </div>
+    </div>
+    <div class="quote rv">
+      <b>记忆口诀：</b>一次改一行 → <b>OLTP</b>（行存 + 事务）；一次读一亿行 → <b>OLAP</b>（列存 + 向量化）；想又便宜又可靠地把这一亿行放在对象存储上 → <b>Lakehouse</b>（Parquet + 事务元数据层）。<br><br>
+      而选型的第一步永远不是比较产品，是<b>先量自己有多大</b>——这一步做完，答案往往就不用比了。
+    </div>
+    <div class="note-band rv">
+      <span class="k">口径</span>
+      <p>库内数字为 <b>2026-08-06</b> 直连生产库实测；Snowflake / Databricks 定价为 2026 年 8 月公开资料口径，<b>真要立项前请按官方定价页重新核验</b>——上一次凭印象说某云服务价格，实际与真实数字差了近 4 倍。</p>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="fl">
+    <span class="brand">数据架构 <span style="color:var(--teal)">/</span> OLTP · OLAP · Lakehouse</span>
+    <span class="meta">概念讲解 + 一次有数字的选型判断 · 实测 2026-08-06<br><b>upio.ai/learn/oltp-olap-lakehouse</b></span>
+  </div>
+</footer>
+
+<script>
+  // 滚动进度条
+  const prog=document.getElementById('progress');
+  const onScroll=()=>{
+    const h=document.documentElement;
+    const p=h.scrollTop/(h.scrollHeight-h.clientHeight);
+    prog.style.width=(p*100)+'%';
+  };
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+
+  // reveal + stagger（IO 主触发 + 滚动兜底，保证快速滚动/锚点跳转也不留空白）
+  const io=new IntersectionObserver((es)=>{
+    es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});
+  },{threshold:.16,rootMargin:'0px 0px -8% 0px'});
+  document.querySelectorAll('.rv,.stagger').forEach(el=>io.observe(el));
+  // 条形图展开 / 数字 count-up 的执行体（函数声明，可被下方 revealPast 提前引用）
+  function fillBars(el){
+    if(el.dataset.done)return; el.dataset.done='1';
+    el.querySelectorAll('.fill').forEach(f=>{f.style.width=f.dataset.w+'%';});
+  }
+  function runCount(el){
+    if(el.dataset.done)return; el.dataset.done='1';
+    const target=parseInt(el.dataset.v,10),t0=performance.now(),dur=1300;
+    const tick=(t)=>{
+      const p=Math.min((t-t0)/dur,1),ease=1-Math.pow(1-p,3);
+      el.textContent=Math.round(target*ease).toLocaleString('en-US');
+      if(p<1)requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+  const revealPast=()=>{
+    document.querySelectorAll('.rv:not(.in),.stagger:not(.in)').forEach(el=>{
+      if(el.getBoundingClientRect().top < window.innerHeight*0.9){el.classList.add('in');io.unobserve(el);}
+    });
+    // 兜底：快速滚动时 IO 可能整段跳过，条形图与数字会永远停在 0
+    document.querySelectorAll('.hbar').forEach(el=>{
+      if(el.getBoundingClientRect().top < window.innerHeight*0.9)fillBars(el);
+    });
+    document.querySelectorAll('.cnum').forEach(el=>{
+      if(el.getBoundingClientRect().top < window.innerHeight*0.9)runCount(el);
+    });
+  };
+  document.addEventListener('scroll',revealPast,{passive:true});
+  revealPast();window.addEventListener('load',revealPast); // 锚点直达/恢复滚动位置时 scroll 不触发，立即兜底一次
+
+  // hero 首屏立即显示
+  window.addEventListener('load',()=>{
+    document.querySelectorAll('#hero .rv').forEach((el,i)=>{
+      setTimeout(()=>el.classList.add('in'),120+i*110);
+    });
+  });
+
+  // 条形图：进入视口后展开到目标宽度（IO 主触发，revealPast 兜底）
+  const barIO=new IntersectionObserver((es)=>{
+    es.forEach(e=>{if(e.isIntersecting){fillBars(e.target);barIO.unobserve(e.target);}});
+  },{threshold:.3});
+  document.querySelectorAll('.hbar').forEach(el=>barIO.observe(el));
+
+  // 数字 count-up（同上，快速滚动时靠 revealPast 补跑）
+  const cntIO=new IntersectionObserver((es)=>{
+    es.forEach(e=>{if(e.isIntersecting){runCount(e.target);cntIO.unobserve(e.target);}});
+  },{threshold:.5});
+  document.querySelectorAll('.cnum').forEach(el=>cntIO.observe(el));
+
+  // 侧栏章节高亮
+  const rail=[...document.querySelectorAll('.rail a')];
+  const secObs=new IntersectionObserver((es)=>{
+    es.forEach(e=>{
+      if(e.isIntersecting){
+        rail.forEach(a=>a.classList.toggle('on',a.dataset.s===e.target.id));
+      }
+    });
+  },{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('main section').forEach(s=>secObs.observe(s));
+</script>
+</body>
+</html>
