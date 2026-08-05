@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>资料上传链路全图</title>
+
+<style>
+  *{box-sizing:border-box;}
+  :root{
+    --ground:#070A0F;
+    --panel:#0D131B;
+    --panel-2:#111A24;
+    --line:#1E2B3A;
+    --line-2:#2A3B4E;
+    --ink:#DCE5F0;
+    --ink-2:#A8B8C9;
+    --dim:#7C8FA4;
+    --wire:#4FA3FF;
+    --relay:#B58BFF;
+    --green:#3FD48C;
+    --amber:#F0B45A;
+    --red:#FF6E7E;
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  }
+
+  /* 这张图刻意只有深色一版：它是给盯链路的人看的机房视图，不是文档。 */
+  body{
+    margin:0;
+    background:
+      radial-gradient(1100px 620px at 12% -8%, #10202F 0%, rgba(16,32,47,0) 60%),
+      radial-gradient(900px 560px at 92% 4%, #1A1430 0%, rgba(26,20,48,0) 58%),
+      var(--ground);
+    color:var(--ink);
+    font-family:var(--sans);
+    font-size:15px;
+    line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:56px 24px 96px;}
+
+  /* ---------- 头 ---------- */
+  .eyebrow{
+    font-family:var(--mono);font-size:11.5px;letter-spacing:.18em;
+    color:var(--dim);text-transform:uppercase;margin:0 0 14px;
+  }
+  h1{
+    font-size:clamp(30px,4.4vw,50px);line-height:1.14;margin:0 0 18px;
+    font-weight:650;letter-spacing:-.015em;text-wrap:balance;
+  }
+  h1 em{font-style:normal;color:var(--wire);}
+  .lede{max-width:66ch;color:var(--ink-2);font-size:16.5px;margin:0 0 34px;}
+  .lede b{color:var(--ink);font-weight:600;}
+
+  .stats{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));
+    gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;
+    overflow:hidden;margin:0 0 68px;
+  }
+  .stat{background:var(--panel);padding:18px 20px;}
+  .stat .k{
+    font-family:var(--mono);font-size:26px;font-weight:600;color:var(--ink);
+    font-variant-numeric:tabular-nums;line-height:1.2;
+  }
+  .stat .v{font-size:12.5px;color:var(--dim);margin-top:4px;}
+
+  /* ---------- 分节 ---------- */
+  section{margin:0 0 76px;}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin:0 0 6px;}
+  .sec-num{
+    font-family:var(--mono);font-size:12px;color:var(--wire);
+    border:1px solid var(--line-2);border-radius:5px;padding:2px 7px;
+  }
+  h2{font-size:23px;font-weight:620;margin:0;letter-spacing:-.01em;}
+  .sec-sub{color:var(--dim);font-size:14px;margin:0 0 26px;max-width:70ch;}
+
+  /* ---------- 图 ---------- */
+  figure{
+    margin:0;background:var(--panel);border:1px solid var(--line);
+    border-radius:14px;padding:20px 20px 14px;
+  }
+  .scroller{overflow-x:auto;}
+  figure svg{display:block;width:100%;min-width:820px;height:auto;}
+  figcaption{
+    margin-top:14px;padding-top:12px;border-top:1px solid var(--line);
+    color:var(--dim);font-size:12.5px;line-height:1.65;
+  }
+  figcaption b{color:var(--ink-2);font-weight:600;}
+
+  /* SVG 内部样式（写在这里，SVG 里保持干净） */
+  .n-box{fill:var(--panel-2);stroke:var(--line-2);stroke-width:1;}
+  .n-box.g{stroke:#245C42;}
+  .n-box.y{stroke:#5E4826;}
+  .n-box.r{stroke:#5E2B34;}
+  .n-eye{font-family:var(--mono);font-size:9px;fill:var(--dim);letter-spacing:.12em;}
+  .n-ttl{font-family:var(--sans);font-size:13px;font-weight:600;fill:var(--ink);}
+  .n-ttl.g{fill:var(--green);}
+  .n-ttl.y{fill:var(--amber);}
+  .n-ttl.r{fill:var(--red);}
+  .n-sub{font-family:var(--mono);font-size:9.5px;fill:var(--dim);}
+  .n-sub-c{font-family:var(--sans);font-size:10.5px;fill:var(--dim);}
+  .lbl{font-family:var(--sans);font-size:10.5px;fill:var(--ink-2);text-anchor:middle;}
+  .lbl-l{text-anchor:start;}
+  .lbl-m{font-family:var(--mono);font-size:9.5px;fill:var(--dim);text-anchor:middle;}
+  .lbl-m.lbl-l{text-anchor:start;}
+
+  .wire{fill:none;stroke:var(--line-2);stroke-width:1.4;}
+  .flow{fill:none;stroke:var(--wire);stroke-width:1.7;stroke-dasharray:5 14;animation:flow 1.5s linear infinite;}
+  .flow.relay{stroke:var(--relay);}
+  .flow.g{stroke:var(--green);}
+  .flow.y{stroke:var(--amber);}
+  .flow.r{stroke:var(--red);}
+  .flow.slow{animation-duration:3s;}
+  .back{fill:none;stroke:var(--relay);stroke-width:1.2;stroke-dasharray:3 7;opacity:.7;}
+  @keyframes flow{to{stroke-dashoffset:-19;}}
+
+  .pulse{animation:pulse 2.6s ease-in-out infinite;transform-origin:center;}
+  @keyframes pulse{0%,100%{opacity:.25;}50%{opacity:.9;}}
+
+  @media (prefers-reduced-motion:reduce){
+    .flow,.pulse{animation:none;}
+  }
+
+  /* ---------- 表 ---------- */
+  .tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--panel);}
+  table{border-collapse:collapse;width:100%;min-width:760px;font-size:13.5px;}
+  th,td{padding:13px 16px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top;}
+  th{
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;color:var(--dim);
+    text-transform:uppercase;font-weight:500;background:#0A1017;
+  }
+  tbody tr:last-child td{border-bottom:none;}
+  td code,p code,li code{
+    font-family:var(--mono);font-size:12px;color:var(--ink);
+    background:#0A121B;border:1px solid var(--line);border-radius:4px;padding:1px 5px;
+  }
+  td .why{color:var(--dim);display:block;margin-top:3px;font-size:12.5px;}
+
+  /* ---------- 坑卡片 ---------- */
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;}
+  .card{
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:18px 20px 20px;position:relative;
+  }
+  .card::before{
+    content:"";position:absolute;left:0;top:16px;bottom:16px;width:2px;
+    background:var(--tone,var(--wire));border-radius:2px;
+  }
+  .card.amber{--tone:var(--amber);}
+  .card.red{--tone:var(--red);}
+  .card.green{--tone:var(--green);}
+  .card h3{font-size:15px;margin:0 0 8px;font-weight:620;}
+  .card p{margin:0;color:var(--ink-2);font-size:13.5px;line-height:1.65;}
+  .card .tag{
+    font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.1em;
+    display:block;margin-bottom:7px;
+  }
+
+  .note{
+    border:1px solid var(--line);border-left:2px solid var(--relay);
+    background:var(--panel);border-radius:0 12px 12px 0;padding:18px 22px;
+    color:var(--ink-2);font-size:14px;
+  }
+  .note b{color:var(--ink);}
+  ul{padding-left:20px;color:var(--ink-2);}
+  li{margin:7px 0;}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <p class="eyebrow">Akke · 资料入库 · 2026-08-05</p>
+  <h1>资料上传，从甲方手机到 AI 嘴里<br><em>一共要过 6 个落脚点</em></h1>
+  <p class="lede">
+    甲方交上来的一张检测报告、一份配置清单、一张实拍图，中间要过 <b>国内中转 → 私有桶 → 台账 → 分档 → 公网图库/知识库 → 向量</b> 才轮得到 AI 说出口。
+    这页把三个入口、每一次中转、每一个岔路都摆在一张图上——<b>东西现在停在哪、下一步谁来推</b>，看图就知道。
+  </p>
+
+  <div class="stats">
+    <div class="stat"><div class="k">3</div><div class="v">个上传入口（门户 / 案例截图 / 运营批量）</div></div>
+    <div class="stat"><div class="k">2</div><div class="v">处国内中转（Fly worker 代页面、代传文件）</div></div>
+    <div class="stat"><div class="k">15<span style="font-size:16px">min</span></div><div class="v">分档 cron 节拍，每轮最多 12 份</div></div>
+    <div class="stat"><div class="k">1</div><div class="v">道人工闸：只有绿灯自动入库</div></div>
+  </div>
+
+  <!-- ============ 1 ============ -->
+  <section>
+    <div class="sec-head"><span class="sec-num">01</span><h2>怎么来：甲方门户的一份资料是怎么落地的</h2></div>
+    <p class="sec-sub">
+      主线是「甲方点开一条 token 链接 → 传文件 → 我们记一笔台账」。看着简单，但国内网络逼出了两处绕行：
+      页面要 Fly 代开，文件也常常要 Fly 代传。
+    </p>
+
+    <figure>
+      <div class="scroller">
+      <svg viewBox="0 0 1200 372" role="img"
+           aria-label="甲方门户上传链路：手机浏览器打开 Fly 中转的页面，Fly 透传到 Vercel，Vercel 签发直传地址并写台账，文件本体直传 Supabase Storage；国内变体里文件先 PUT 给 Fly 再由 Fly 代传 Supabase。">
+        <defs>
+          <marker id="f1-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#2A3B4E"/>
+          </marker>
+          <marker id="f1-ar-w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#4FA3FF"/>
+          </marker>
+          <marker id="f1-ar-p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#B58BFF"/>
+          </marker>
+        </defs>
+
+        <!-- 顶弧：文件本体直传 -->
+        <text class="lbl" x="600" y="30">④ 文件本体：浏览器直接 PUT 到 Storage，绕开 Vercel 的 4.5MB 请求体上限</text>
+        <path class="wire" d="M110,140 C110,64 300,52 600,52 C900,52 1088,64 1088,140" marker-end="url(#f1-ar-w)"/>
+        <path class="flow" d="M110,140 C110,64 300,52 600,52 C900,52 1088,64 1088,140"/>
+
+        <!-- 四个主节点 -->
+        <rect class="n-box" x="10" y="140" width="200" height="96" rx="10"/>
+        <text class="n-eye" x="26" y="162">客户端</text>
+        <text class="n-ttl" x="26" y="185">甲方手机 · 微信里点开</text>
+        <text class="n-sub-c" x="26" y="204">一条 token 四件事</text>
+        <text class="n-sub" x="26" y="220">reply_annotation_tokens</text>
+
+        <rect class="n-box" x="336" y="140" width="200" height="96" rx="10"/>
+        <text class="n-eye" x="352" y="162">中转 · 国内可达</text>
+        <text class="n-ttl" x="352" y="185">Fly worker · 东京</text>
+        <text class="n-sub" x="352" y="204">portal_relay.py</text>
+        <text class="n-sub-c" x="352" y="220">纯透传，不持任何密钥</text>
+
+        <rect class="n-box" x="662" y="140" width="200" height="96" rx="10"/>
+        <text class="n-eye" x="678" y="162">业务层</text>
+        <text class="n-ttl" x="678" y="185">Vercel · Next.js</text>
+        <text class="n-sub-c" x="678" y="204">校 token / 类目 / 大小 / sha</text>
+        <text class="n-sub-c" x="678" y="220">路径服务端拼，不收前端</text>
+
+        <rect class="n-box" x="988" y="140" width="200" height="96" rx="10"/>
+        <text class="n-eye" x="1004" y="162">落脚 · 原件与台账</text>
+        <text class="n-ttl" x="1004" y="185">Supabase</text>
+        <text class="n-sub" x="1004" y="204">桶 portal-materials（私有）</text>
+        <text class="n-sub" x="1004" y="220">client_material_submissions</text>
+
+        <!-- 主链箭头 -->
+        <text class="lbl" x="273" y="166">① 打开链接</text>
+        <text class="lbl-m" x="273" y="180">fly.dev/portal/…</text>
+        <path class="wire" d="M210,196 L328,196" marker-end="url(#f1-ar)"/>
+        <path class="flow" d="M210,196 L326,196"/>
+
+        <text class="lbl" x="599" y="166">② 透传 GET</text>
+        <text class="lbl-m" x="599" y="180">页面 + /_next</text>
+        <path class="wire" d="M536,196 L654,196" marker-end="url(#f1-ar)"/>
+        <path class="flow" d="M536,196 L652,196"/>
+
+        <text class="lbl" x="925" y="166">③ 签直传地址</text>
+        <text class="lbl" x="925" y="180">⑤ 回头写台账</text>
+        <path class="wire" d="M862,196 L980,196" marker-end="url(#f1-ar)"/>
+        <path class="flow" d="M862,196 L978,196"/>
+
+        <!-- 底弧：国内变体，Fly 代传 -->
+        <path class="wire" style="stroke:#3B2F55" d="M110,236 C110,292 240,290 436,290" marker-end="url(#f1-ar-p)"/>
+        <path class="flow relay slow" d="M110,236 C110,292 240,290 434,290"/>
+        <text class="lbl-m lbl-l" x="150" y="308">国内：PUT /api/portal-storage（X-Upload-Target 头）</text>
+
+        <path class="wire" style="stroke:#3B2F55" d="M436,236 C640,236 700,336 1088,336 C1160,336 1160,300 1130,246" marker-end="url(#f1-ar-p)"/>
+        <path class="flow relay slow" d="M436,236 C640,236 700,336 1088,336 C1158,336 1158,302 1131,250"/>
+        <text class="lbl-m" x="770" y="356">Fly 代 PUT 签名地址 · 只放行 https + *.supabase.co + /storage/v1/object/upload/sign/</text>
+      </svg>
+      </div>
+      <figcaption>
+        <b>两条绕行都是被网络逼出来的。</b>上面那条弧是设计本意：文件不经过我们的 API，避开 Vercel serverless 4.5MB 的请求体上限（手机照片普遍 3–8MB，超了平台直接掐线、浏览器永远转圈）。
+        下面那条紫线是国内变体：<code>*.supabase.co</code> 在国内连 DNS 都解析不了，所以文件先 PUT 给 Fly、由 Fly 代传——签名地址必须过三条校验才转发，不是开放代理。
+        文字类资料（价目口径这种甲方手上没现成文件的）不走弧线，直接走 ⑤ 写台账。
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ 2 ============ -->
+  <section>
+    <div class="sec-head"><span class="sec-num">02</span><h2>怎么去：进了台账之后，谁来推它</h2></div>
+    <p class="sec-sub">
+      台账不是终点，是<strong style="color:var(--ink)">停车场</strong>。每 15 分钟有一趟 cron 来把车分成绿黄红三档：
+      只有绿灯自动开走，黄红两档原地不动、只推一张 Lark 卡点名让人来处理。
+    </p>
+
+    <figure>
+      <div class="scroller">
+      <svg viewBox="0 0 1200 706" role="img"
+           aria-label="台账进入 15 分钟一轮的 cron，VL 读图后分绿黄红三档：绿灯自动传 R2 并写 kb_entries 与 kb_chunks 向量；黄红两档推 Lark 由运营人工搬进知识库、话术库或品牌字段；入库后回填台账。">
+        <defs>
+          <marker id="f2-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#2A3B4E"/>
+          </marker>
+          <marker id="f2-ar-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#3FD48C"/>
+          </marker>
+          <marker id="f2-ar-y" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#F0B45A"/>
+          </marker>
+          <marker id="f2-ar-r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#FF6E7E"/>
+          </marker>
+          <marker id="f2-ar-p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#B58BFF"/>
+          </marker>
+        </defs>
+
+        <!-- 回填闭环 -->
+        <text class="lbl" x="930" y="26">回填 ingested_to / ingested_ref —— 不填，甲方页面上永远显示「已收到」</text>
+        <path class="back" d="M1170,546 C1194,510 1194,90 1120,46 L790,46" marker-end="url(#f2-ar-p)"/>
+
+        <rect class="n-box" x="430" y="36" width="340" height="72" rx="10"/>
+        <text class="n-eye" x="450" y="58">台账 · 人工闸的入口</text>
+        <text class="n-ttl" x="450" y="81">client_material_submissions</text>
+        <text class="n-sub-c" x="450" y="99">status=received · 刻意不自动进库</text>
+
+        <path class="wire" d="M600,108 L600,142" marker-end="url(#f2-ar)"/>
+        <path class="flow" d="M600,108 L600,140"/>
+        <text class="lbl lbl-l" x="614" y="130">每 15 分钟来一趟</text>
+
+        <rect class="n-box" x="430" y="142" width="340" height="72" rx="10"/>
+        <text class="n-eye" x="450" y="164">节拍</text>
+        <text class="n-ttl" x="450" y="187">/api/cron/portal-material-watch</text>
+        <text class="n-sub-c" x="450" y="205">每轮 12 份 · 只取 triaged_at 还空着的</text>
+
+        <path class="wire" d="M600,214 L600,248" marker-end="url(#f2-ar)"/>
+        <path class="flow" d="M600,214 L600,246"/>
+
+        <rect class="n-box" x="380" y="248" width="440" height="84" rx="10"/>
+        <text class="n-eye" x="400" y="270">判断</text>
+        <text class="n-ttl" x="400" y="293">VL 读图 → 分档（两道硬闸：PII、价格）</text>
+        <text class="n-sub" x="400" y="311">qwen3-vl-235b · 签 10 分钟私有 URL 给模型看</text>
+        <text class="n-sub-c" x="400" y="327">判据跑在读出来的内容上，不看文件名</text>
+
+        <!-- 三岔 -->
+        <path class="wire" d="M600,332 C600,362 200,354 200,384" marker-end="url(#f2-ar-g)"/>
+        <path class="flow g" d="M600,332 C600,362 200,354 200,382"/>
+        <path class="wire" d="M600,332 L600,384" marker-end="url(#f2-ar-y)"/>
+        <path class="flow y" d="M600,332 L600,382"/>
+        <path class="wire" d="M600,332 C600,362 1000,354 1000,384" marker-end="url(#f2-ar-r)"/>
+        <path class="flow r" d="M600,332 C600,362 1000,354 1000,382"/>
+
+        <rect class="n-box g" x="30" y="384" width="340" height="86" rx="10"/>
+        <circle class="pulse" cx="352" cy="404" r="4" fill="#3FD48C"/>
+        <text class="n-eye" x="50" y="408">绿灯 · 自动开走</text>
+        <text class="n-ttl g" x="50" y="431">实拍图，读过、干净、不打架</text>
+        <text class="n-sub-c" x="50" y="449">无个人信息 · 无价格 · 与既有库不冲突</text>
+        <text class="n-sub" x="50" y="464">autoIngestGreen()</text>
+
+        <rect class="n-box y" x="430" y="384" width="340" height="86" rx="10"/>
+        <circle class="pulse" cx="752" cy="404" r="4" fill="#F0B45A"/>
+        <text class="n-eye" x="450" y="408">黄灯 · 原地不动</text>
+        <text class="n-ttl y" x="450" y="431">读到价格，或可能覆盖既有口径</text>
+        <text class="n-sub-c" x="450" y="449">钱的事机器不敢拍板</text>
+        <text class="n-sub-c" x="450" y="464">只推一张 Lark 卡点名</text>
+
+        <rect class="n-box r" x="830" y="384" width="340" height="86" rx="10"/>
+        <circle class="pulse" cx="1152" cy="404" r="4" fill="#FF6E7E"/>
+        <text class="n-eye" x="850" y="408">红灯 · 原地不动</text>
+        <text class="n-ttl r" x="850" y="431">个人信息 / 聊天截图 / 外部链接</text>
+        <text class="n-sub-c" x="850" y="449">自动传公网 = 隐私上公网</text>
+        <text class="n-sub-c" x="850" y="464">只推一张 Lark 卡点名</text>
+
+        <path class="wire" d="M200,470 L200,506" marker-end="url(#f2-ar-g)"/>
+        <path class="flow g" d="M200,470 L200,504"/>
+        <path class="wire" d="M600,470 L600,506" marker-end="url(#f2-ar-y)"/>
+        <path class="flow y slow" d="M600,470 L600,504"/>
+        <path class="wire" d="M1000,470 C1000,488 900,488 900,506" marker-end="url(#f2-ar-r)"/>
+        <path class="flow r slow" d="M1000,470 C1000,488 900,488 900,504"/>
+
+        <rect class="n-box" x="30" y="506" width="340" height="94" rx="10"/>
+        <text class="n-eye" x="50" y="528">落脚 · 公网 + 向量</text>
+        <text class="n-ttl" x="50" y="551">R2 图库 → kb_entries → kb_chunks</text>
+        <text class="n-sub-c" x="50" y="569">私有桶链接会过期，AI 发不出去，所以要上 R2</text>
+        <text class="n-sub" x="50" y="586">worker /embed → 512 维 → 写 kb_chunks</text>
+
+        <rect class="n-box" x="430" y="506" width="740" height="94" rx="10"/>
+        <text class="n-eye" x="450" y="528">落脚 · 人工核过再搬</text>
+        <text class="n-ttl" x="450" y="551">运营收件 scripts/portal-inbox.ts → 一条条搬进正式库</text>
+        <text class="n-sub-c" x="450" y="569">事实类 → knowledge_documents ｜ 话术类 → conversation_examples（三个 tag 齐了才算数）</text>
+        <text class="n-sub-c" x="450" y="586">图片类 → R2 图库 ｜ 品牌字段 → brand_profile ｜ 退回写 reject_reason，甲方看得见</text>
+
+        <path class="wire" d="M200,600 L200,632" marker-end="url(#f2-ar)"/>
+        <path class="flow" d="M200,600 L200,630"/>
+        <path class="wire" d="M800,600 L800,632" marker-end="url(#f2-ar)"/>
+        <path class="flow" d="M800,600 L800,630"/>
+
+        <rect class="n-box" x="30" y="632" width="340" height="66" rx="10"/>
+        <text class="n-eye" x="50" y="654">消费端</text>
+        <text class="n-ttl" x="50" y="677">kb_search() 余弦召回 → AI 发得出这张图</text>
+        <text class="n-sub-c" x="50" y="693">只写 entry 不写 chunk，等于没传</text>
+
+        <rect class="n-box" x="430" y="632" width="740" height="66" rx="10"/>
+        <text class="n-eye" x="450" y="654">消费端</text>
+        <text class="n-ttl" x="450" y="677">getOrgContext 拼进 system prompt ｜ approved-replies 命中就原文直发</text>
+        <text class="n-sub-c" x="450" y="693">客户再问「有检测报告吗」，AI 不再把活推给设计师</text>
+      </svg>
+      </div>
+      <figcaption>
+        <b>三档的分界不是文件类型，是风险。</b>绿灯只覆盖「读过、没隐私、没价格、跟既有口径不打架」的实拍图；
+        只要 VL 在图里读到价格，或者这份可能盖掉两周前的口径，就一律停在台账里等人。
+        每份处理完不管什么颜色都盖 <code>triaged_at</code>——<b>只读一次、只提醒一次</b>；
+        代价是黄红档不会重复催，没人处理就是没人处理，要重新提醒得手工把 <code>triaged_at</code> 清空。
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ 3 ============ -->
+  <section>
+    <div class="sec-head"><span class="sec-num">03</span><h2>第二个入口：案例截图，这条是全自动的</h2></div>
+    <p class="sec-sub">
+      <code>/upload/&lt;token&gt;</code> 是另一条独立链路——销售传聊天截图，当场 OCR、当场给反馈、当场蒸馏成知识/话术候选。
+      和门户共用一个 Fly 中转的招数，但用的是<strong style="color:var(--ink)">另一张 token 表、另一个桶、另一套闸</strong>。
+    </p>
+
+    <figure>
+      <div class="scroller">
+      <svg viewBox="0 0 1200 348" role="img"
+           aria-label="案例截图链路：浏览器经 Fly upload_relay 把图 POST 给 Vercel，过配额与去重后存 case-uploads 桶并记 pending，同步跑 VL OCR 写入案例底座，再 best-effort 蒸馏出候选并分级落库。">
+        <defs>
+          <marker id="f3-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#2A3B4E"/>
+          </marker>
+        </defs>
+
+        <rect class="n-box" x="10" y="46" width="240" height="86" rx="10"/>
+        <text class="n-eye" x="28" y="68">客户端</text>
+        <text class="n-ttl" x="28" y="91">销售 / 甲方 浏览器</text>
+        <text class="n-sub" x="28" y="110">fly.dev/upload/&lt;token&gt;</text>
+        <text class="n-sub-c" x="28" y="126">多图串行，一张一张给反馈</text>
+
+        <rect class="n-box" x="330" y="46" width="240" height="86" rx="10"/>
+        <text class="n-eye" x="348" y="68">中转 · 国内可达</text>
+        <text class="n-ttl" x="348" y="91">Fly upload_relay.py</text>
+        <text class="n-sub-c" x="348" y="110">页面 + 静态资源 + 表单三条路</text>
+        <text class="n-sub-c" x="348" y="126">超时给到 90 秒，等 OCR 跑完</text>
+
+        <rect class="n-box" x="650" y="46" width="240" height="86" rx="10"/>
+        <text class="n-eye" x="668" y="68">业务层 · 三道闸</text>
+        <text class="n-ttl" x="668" y="91">/api/upload/[token]</text>
+        <text class="n-sub-c" x="668" y="110">配额上限 · 同图去重 · 10MB/三种图</text>
+        <text class="n-sub" x="668" y="126">enterprise_upload_tokens</text>
+
+        <rect class="n-box" x="970" y="46" width="220" height="86" rx="10"/>
+        <text class="n-eye" x="988" y="68">落脚 · 原件与台账</text>
+        <text class="n-ttl" x="988" y="91">case-uploads 桶</text>
+        <text class="n-sub" x="988" y="110">enterprise_case_uploads</text>
+        <text class="n-sub-c" x="988" y="126">status=pending</text>
+
+        <text class="lbl" x="290" y="82">① 打开</text>
+        <path class="wire" d="M250,102 L322,102" marker-end="url(#f3-ar)"/>
+        <path class="flow" d="M250,102 L320,102"/>
+        <text class="lbl" x="610" y="82">② 透传</text>
+        <path class="wire" d="M570,102 L642,102" marker-end="url(#f3-ar)"/>
+        <path class="flow" d="M570,102 L640,102"/>
+        <text class="lbl" x="930" y="82">③ 收图</text>
+        <path class="wire" d="M890,102 L962,102" marker-end="url(#f3-ar)"/>
+        <path class="flow" d="M890,102 L960,102"/>
+
+        <!-- 折回 -->
+        <path class="wire" d="M1080,132 L1080,176 L130,176 L130,214" marker-end="url(#f3-ar)"/>
+        <path class="flow" d="M1080,132 L1080,176 L130,176 L130,212"/>
+        <text class="lbl" x="600" y="168">④ 同步跑，不让上传的人干等——单张 3~15 秒，跑完当场回一句「读到了什么」</text>
+
+        <rect class="n-box" x="10" y="214" width="240" height="86" rx="10"/>
+        <text class="n-eye" x="28" y="236">识别</text>
+        <text class="n-ttl" x="28" y="259">VL OCR 读整段对话</text>
+        <text class="n-sub-c" x="28" y="278">读不出东西 → rejected_empty</text>
+        <text class="n-sub-c" x="28" y="294">读崩了 → failed，原图还在可后补</text>
+
+        <rect class="n-box" x="330" y="214" width="240" height="86" rx="10"/>
+        <text class="n-eye" x="348" y="236">底座 · 不直接上线</text>
+        <text class="n-ttl" x="348" y="259">enterprise_sales_cases</text>
+        <text class="n-sub-c" x="348" y="278">case_id 由 sha 派生 → 重传幂等</text>
+        <text class="n-sub-c" x="348" y="294">只当蒸馏原料</text>
+
+        <rect class="n-box" x="650" y="214" width="240" height="86" rx="10"/>
+        <text class="n-eye" x="668" y="236">蒸馏 · 出事不影响上传</text>
+        <text class="n-ttl" x="668" y="259">runDistillPipeline + AI 判官</text>
+        <text class="n-sub-c" x="668" y="278">标反说话人、口径冲突都会被标出来</text>
+        <text class="n-sub" x="668" y="294">deepseek 分析模型</text>
+
+        <rect class="n-box" x="970" y="214" width="220" height="86" rx="10"/>
+        <text class="n-eye" x="988" y="236">分级落库</text>
+        <text class="n-ttl" x="988" y="259">case_distill_candidates</text>
+        <text class="n-sub-c" x="988" y="278">判官过 + 不涉价 → 自动进正式库</text>
+        <text class="n-sub-c" x="988" y="294">涉价 / 冲突 / 标反 → 留人工</text>
+
+        <path class="wire" d="M250,270 L322,270" marker-end="url(#f3-ar)"/>
+        <path class="flow" d="M250,270 L320,270"/>
+        <path class="wire" d="M570,270 L642,270" marker-end="url(#f3-ar)"/>
+        <path class="flow" d="M570,270 L640,270"/>
+        <path class="wire" d="M890,270 L962,270" marker-end="url(#f3-ar)"/>
+        <path class="flow" d="M890,270 L960,270"/>
+      </svg>
+      </div>
+      <figcaption>
+        <b>这条敢全自动，是因为它只收一种东西。</b>门户九类什么都可能来（价目表、检测报告、聊天截图、实拍图），
+        案例截图这条只收聊天截图、只干一件事：读成结构化案例。即便如此，钱相关的候选照样不自动上线——
+        <b>涉价、口径冲突、说话人标反</b>三种一律留人工。蒸馏是 best-effort：它挂了上传照样成功，底座已经存下，候选可以后补。
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ 4 ============ -->
+  <section>
+    <div class="sec-head"><span class="sec-num">04</span><h2>中转站清单：东西可能停在哪一格</h2></div>
+    <p class="sec-sub">「我传的资料到底在哪」——按这张表从上往下找，每一格都能查得到、也都能说清为什么在这停。</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>停靠点</th><th>存的是什么</th><th>为什么在这停</th><th>怎么查 / 怎么推走</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>Fly worker</b><br><span class="why">portal_relay · upload_relay</span></td>
+            <td>什么都不存（纯过路）</td>
+            <td>Vercel 和 Supabase 在国内打不开，页面和文件都要有人代跑一趟</td>
+            <td>只转发固定上游单一 host，不是开放代理；出问题看 Fly 日志</td>
+          </tr>
+          <tr>
+            <td><b>Supabase 私有桶</b><br><span class="why">portal-materials</span></td>
+            <td>甲方交的原件<br><code>&lt;org&gt;/&lt;类目&gt;/&lt;sha256&gt;.&lt;ext&gt;</code></td>
+            <td>原件必须留底，日后口径打架要拿它核对</td>
+            <td>私有，链接会过期；<code>portal-inbox.ts --download</code> 拉到本地</td>
+          </tr>
+          <tr>
+            <td><b>台账表</b><br><span class="why">client_material_submissions</span></td>
+            <td>谁在什么时候交了哪一类、状态走到哪</td>
+            <td>刻意不自动进库——一份写错的价目表进库，线上所有报价一起错</td>
+            <td><code>pnpm tsx scripts/portal-inbox.ts</code> 看待处理</td>
+          </tr>
+          <tr>
+            <td><b>案例台账</b><br><span class="why">enterprise_case_uploads</span></td>
+            <td>每张案例截图的处理结果<br>pending / ingested / rejected_empty / failed</td>
+            <td>OCR 可能读空、可能读崩，得有地方记一笔好重跑</td>
+            <td>按 status 查；原图还在桶里，可以后补识别</td>
+          </tr>
+          <tr>
+            <td><b>候选暂存</b><br><span class="why">case_distill_candidates</span></td>
+            <td>蒸馏出来还没上线的知识/话术</td>
+            <td>涉价、口径冲突、说话人标反的一律不敢自动上</td>
+            <td>运营审过才进正式库；判官驳回的记 rejected</td>
+          </tr>
+          <tr>
+            <td><b>R2 图库</b><br><span class="why">公网 URL</span></td>
+            <td>实拍图、效果图的长期可访问地址</td>
+            <td>私有桶链接会过期，AI 发给客户的图必须一直打得开</td>
+            <td>红灯档（含个人信息的）绝不允许进这一格</td>
+          </tr>
+          <tr>
+            <td><b>正式库</b><br><span class="why">kb_chunks · knowledge_documents · conversation_examples</span></td>
+            <td>AI 真正读得到的那一份</td>
+            <td>到这一格才算「资料变成了 AI 会说的话」</td>
+            <td>图靠向量召回；事实拼进 system prompt；话术靠三个 tag 命中</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ 5 ============ -->
+  <section>
+    <div class="sec-head"><span class="sec-num">05</span><h2>这条链路上踩过的坑（都是真金白银换的）</h2></div>
+    <p class="sec-sub">下面每一条都对应线上真实发生过一次，改动这条链路之前先扫一眼。</p>
+
+    <div class="cards">
+      <div class="card">
+        <span class="tag">4.5MB</span>
+        <h3>大文件不能过我们自家 API</h3>
+        <p>Vercel serverless 请求体上限 4.5MB，超了平台直接掐断连接、不返回任何 body——用户看到的就是「点了一直转圈」。所以文件一律走签名地址直传。</p>
+      </div>
+      <div class="card amber">
+        <span class="tag">桶设置</span>
+        <h3>真正的闸在桶上，不在代码里</h3>
+        <p>API 白名单放宽到 20 种格式，桶的 <code>allowed_mime_types</code> 只开了三种图，照样全退。代码怎么读都是对的，甲方看到的却是「存的时候出错了」。桶设置不归 migration 管，换环境要手工建。</p>
+      </div>
+      <div class="card red">
+        <span class="tag">召回</span>
+        <h3>只写 entry 不写 chunk = 白传</h3>
+        <p>检索查的是 <code>kb_chunks</code>，<code>kb_entries.embedding</code> 那一列根本没人查。库里一度有 88 条孤儿条目，拿「有没有检测报告」去问一条都召不回。</p>
+      </div>
+      <div class="card amber">
+        <span class="tag">幂等</span>
+        <h3>一份资料只读一次、只提醒一次</h3>
+        <p>甲方一口气交 60 份全判黄灯，老写法每 15 分钟把这 60 份重新送进 VL 读一遍图（烧真钱、结论一样），Lark 还每 15 分钟重推一张卡。现在处理完就盖 <code>triaged_at</code>。</p>
+      </div>
+      <div class="card">
+        <span class="tag">分档判据</span>
+        <h3>文件名是最不可信的那一层</h3>
+        <p>叫「498配置」的图，里面印的是 798；标「同户型完工案例」的九张其实是高端样板间。所以分档必须跑在 VL 读出来的内容上。</p>
+      </div>
+      <div class="card red">
+        <span class="tag">隐私</span>
+        <h3>聊天截图永远不自动上公网</h3>
+        <p>客户姓名、手机号、车牌、住址、支付单号都在截图里。自动传 R2 就等于隐私上公网，这类一律红灯留人工，价值改以脱敏文字形式进话术库。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 6 ============ -->
+  <section>
+    <div class="sec-head"><span class="sec-num">06</span><h2>第三个入口，和几件容易搞混的事</h2></div>
+    <div class="note">
+      <p style="margin:0 0 12px"><b>第三个入口是运营自己灌的</b>：<code>scripts/r2/upload-kb.ts</code> 这类批量脚本，把 22G 的家装宝典 / 效果图 / 知识图集直接推到 R2 再登记进库。它不经过门户、不进台账，属于「我们自己准备的料」，不是甲方交的。</p>
+      <ul style="margin:0">
+        <li><b>「资料上传」不包括图文发布时传的那 6 张图</b>——那是发抖音的素材，走云电脑/手机 GUI，是出稿链路不是入库链路。</li>
+        <li><b>也不包括 Cookie 导入、号源批量导入</b>——那两个上传的是凭据和名单，不进知识库。</li>
+        <li><b>门户和标注台共用一张 token</b>：同一条链接换个路径就是另一件事，吊销时两个页面一起失效。</li>
+        <li><b>话术进 conversation_examples 必须带三个 tag</b>（甲方审定 / 只给企微 / 可原文直发），少一个就是静默永不命中——读取方在 wecom-chat 那个仓，改一边不改另一边查都查不出来。</li>
+      </ul>
+    </div>
+  </section>
+
+</div>
+</body>
+</html>
