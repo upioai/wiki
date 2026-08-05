@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="复刻产线 11 道质检闸门的设计，以及一次实跑的体检结果。">
+<title>复刻产线审查系统 · 设计与实跑体检</title>
+<style>
+
+  *,*::before,*::after{box-sizing:border-box;}
+  html{-webkit-text-size-adjust:100%;}
+  body{margin:0;}
+  img{max-width:100%;height:auto;}
+  a{color:inherit;}
+  a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;}}
+
+  :root{
+    --paper:#EEF1F5; --card:#FFFFFF; --ink:#151A21; --ink-2:#3F4854; --ink-3:#6B7482;
+    --rule:#D3D9E0; --rule-2:#E4E8ED;
+    --accent:#B06A0C;            /* 信号琥珀：检验站的警示色 */
+    --pass:#2E7D5B; --real:#B3441E; --false:#78828F; --notrun:#8A5A00;
+    --hatch:rgba(176,106,12,.14);
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    --cjk:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --paper:#11151B; --card:#171C23; --ink:#E6EAEF; --ink-2:#AEB7C2; --ink-3:#7C8794;
+      --rule:#2A313A; --rule-2:#222932;
+      --accent:#E0A144; --pass:#5FBF92; --real:#EE8259; --false:#7C8794; --notrun:#E0A144;
+      --hatch:rgba(224,161,68,.16);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#11151B; --card:#171C23; --ink:#E6EAEF; --ink-2:#AEB7C2; --ink-3:#7C8794;
+    --rule:#2A313A; --rule-2:#222932;
+    --accent:#E0A144; --pass:#5FBF92; --real:#EE8259; --false:#7C8794; --notrun:#E0A144;
+    --hatch:rgba(224,161,68,.16);
+  }
+  :root[data-theme="light"]{
+    --paper:#EEF1F5; --card:#FFFFFF; --ink:#151A21; --ink-2:#3F4854; --ink-3:#6B7482;
+    --rule:#D3D9E0; --rule-2:#E4E8ED;
+    --accent:#B06A0C; --pass:#2E7D5B; --real:#B3441E; --false:#78828F; --notrun:#8A5A00;
+    --hatch:rgba(176,106,12,.14);
+  }
+
+  body{background:var(--paper);color:var(--ink);font-family:var(--cjk);
+       line-height:1.72;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:920px;margin:0 auto;padding:56px 22px 96px;}
+  @media (max-width:600px){.wrap{padding:34px 16px 64px;}}
+
+  .eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;
+           color:var(--accent);margin-bottom:14px;}
+  h1{font-size:clamp(27px,4.6vw,40px);line-height:1.24;font-weight:700;letter-spacing:-.015em;
+     text-wrap:balance;margin:0 0 18px;}
+  h2{font-size:clamp(19px,2.6vw,23px);font-weight:700;letter-spacing:-.01em;margin:0 0 4px;
+     text-wrap:balance;}
+  h3{font-size:15.5px;font-weight:700;margin:0 0 6px;}
+  p{margin:0;color:var(--ink-2);max-width:66ch;}
+  .lede{font-size:17px;color:var(--ink-2);max-width:62ch;}
+  section{margin-top:52px;}
+  .sec-head{display:flex;align-items:baseline;gap:12px;padding-bottom:11px;
+            border-bottom:1.5px solid var(--ink);margin-bottom:22px;}
+  .sec-no{font-family:var(--mono);font-size:12px;color:var(--accent);letter-spacing:.08em;
+          flex:none;padding-top:2px;}
+  .stack{display:flex;flex-direction:column;gap:18px;}
+  .grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;}
+
+  /* 结论条 */
+  .verdict{background:var(--card);border:1px solid var(--rule);border-left:4px solid var(--accent);
+           padding:20px 22px;display:flex;flex-direction:column;gap:14px;}
+  .score{display:flex;flex-wrap:wrap;gap:26px;}
+  .score div{display:flex;flex-direction:column;gap:2px;}
+  .score b{font-family:var(--mono);font-size:26px;font-weight:600;letter-spacing:-.02em;
+           font-variant-numeric:tabular-nums;line-height:1.1;}
+  .score span{font-size:12.5px;color:var(--ink-3);}
+
+  /* 产线时间轴 */
+  .line{position:relative;padding-left:26px;}
+  .line::before{content:"";position:absolute;left:6px;top:6px;bottom:6px;width:2px;
+                background:var(--rule);}
+  .phase{position:relative;margin-bottom:26px;}
+  .phase:last-child{margin-bottom:0;}
+  .phase::before{content:"";position:absolute;left:-24px;top:8px;width:10px;height:10px;
+                 border-radius:50%;background:var(--paper);border:2px solid var(--accent);}
+  .phase-h{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;
+           color:var(--accent);margin-bottom:9px;}
+  .gates{display:flex;flex-direction:column;gap:1px;background:var(--rule-2);
+         border:1px solid var(--rule-2);}
+  .gate{background:var(--card);padding:11px 14px;display:grid;
+        grid-template-columns:186px 1fr;gap:4px 16px;align-items:baseline;}
+  @media (max-width:560px){.gate{grid-template-columns:1fr;}}
+  .gate code{font-family:var(--mono);font-size:12.5px;color:var(--ink);word-break:break-all;}
+  .gate small{font-size:13px;color:var(--ink-2);line-height:1.6;}
+
+  /* 表 */
+  .tbl-wrap{overflow-x:auto;border:1px solid var(--rule);background:var(--card);}
+  table{border-collapse:collapse;width:100%;min-width:520px;font-size:14px;}
+  th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--rule-2);vertical-align:top;}
+  th{font-family:var(--mono);font-size:11px;letter-spacing:.09em;text-transform:uppercase;
+     color:var(--ink-3);font-weight:500;background:var(--paper);white-space:nowrap;}
+  tr:last-child td{border-bottom:0;}
+  td.n{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap;}
+  td b{font-weight:700;}
+
+  /* 判定标记 */
+  .tag{font-family:var(--mono);font-size:11px;letter-spacing:.06em;padding:2px 7px;
+       white-space:nowrap;border:1px solid currentColor;display:inline-block;line-height:1.5;}
+  .t-pass{color:var(--pass);}
+  .t-real{color:var(--real);border-width:1.5px;font-weight:600;}
+  .t-false{color:var(--false);opacity:.85;}
+  .t-none{color:var(--notrun);border-width:1.5px;font-weight:600;
+          background-image:repeating-linear-gradient(-45deg,var(--hatch) 0 5px,transparent 5px 10px);}
+
+  /* 谁发现的 */
+  .who{font-family:var(--mono);font-size:11px;letter-spacing:.05em;padding:2px 7px;
+       display:inline-block;line-height:1.5;border:1px solid currentColor;}
+  .w-gate{color:var(--pass);}
+  .w-eye{color:var(--accent);border-width:1.5px;font-weight:600;}
+
+  .note{background:var(--card);border:1px solid var(--rule);padding:16px 18px;}
+  .note.warn{border-left:4px solid var(--notrun);
+             background-image:repeating-linear-gradient(-45deg,var(--hatch) 0 6px,transparent 6px 12px);
+             background-size:auto;background-repeat:repeat;}
+  .note.warn > *{position:relative;}
+  .note h3{margin-bottom:5px;}
+  .note p{font-size:14px;}
+
+  ul{margin:6px 0 0;padding-left:19px;color:var(--ink-2);font-size:14px;}
+  li{margin-bottom:5px;}
+  li::marker{color:var(--accent);}
+  .k{font-family:var(--mono);font-size:.92em;background:var(--rule-2);padding:1px 5px;}
+  hr{border:0;border-top:1px solid var(--rule);margin:0;}
+  footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--rule);
+         font-size:12.5px;color:var(--ink-3);font-family:var(--mono);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow">复刻产线 · 质检系统体检 · 2026-08-04</div>
+  <h1>审查系统怎么设计的，<br>以及这一趟它到底管没管用</h1>
+  <p class="lede">对象是《开工前必买 5 样》这条复刻片。11 道闸门 + 1 个调度器，全程跑在观察模式——只记账，不拦人。</p>
+  <p style="font-size:13.5px;color:var(--ink-3);margin-top:10px;">
+    只想看审片那五道怎么设计的，读
+    <a href="/workflow/replica-review-gates-2026-08" style="color:var(--accent);">《AI 成片自动审查系统 · 说明》</a>；
+    本页覆盖全产线的 11 道，并附一次实跑的账。
+  </p>
+
+  <div class="verdict" style="margin-top:26px;">
+    <div class="score">
+      <div><b style="color:var(--pass)">2 / 6</b><span>真问题里它抓到的</span></div>
+      <div><b style="color:var(--accent)">4 / 6</b><span>真问题靠人眼抓的</span></div>
+      <div><b style="color:var(--false)">4 / 6</b><span>它报的警是虚惊</span></div>
+      <div><b>$1.45</b><span>它这一次省下的返工</span></div>
+    </div>
+    <hr>
+    <p style="font-size:15px;color:var(--ink)">仪表盘装上了、也真亮过灯，但这趟车主要还是靠司机盯着路开的。最贵的一次刹车是它踩的，最险的四个坑是人看见的。</p>
+  </div>
+
+  <!-- 1 -->
+  <section>
+    <div class="sec-head"><span class="sec-no">01</span><h2>系统怎么设计的</h2></div>
+    <p style="margin-bottom:22px;">闸门按「钱花出去之前 → 画面拼起来之前 → 交付之前」三段挂在产线上。越靠前越便宜：文稿改一次不要钱，口型重跑一段要 $0.05／秒。</p>
+
+    <div class="line">
+      <div class="phase">
+        <div class="phase-h">A · 付费之前</div>
+        <div class="gates">
+          <div class="gate"><code>script_guard</code><small>文稿长度、平均句长、清单项数量。不过不许进 TTS。</small></div>
+          <div class="gate"><code>budget_guard</code><small>单条片子硬顶 $6，超了直接拒绝，不能调高上限。</small></div>
+          <div class="gate"><code>check_speech_rate</code><small>净语速 &amp; 停顿密度两条线，判「念得快」和「断得碎」。</small></div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-h">B · 合成之前</div>
+        <div class="gates">
+          <div class="gate"><code>check_lipsync_quality</code><small>嘴部有没有被重绘崩坏。量嘴区差相对本批中位的离群度。</small></div>
+          <div class="gate"><code>check_lipsync_offset</code><small>嘴和声音差几帧，外加逐窗口找局部低谷。</small></div>
+          <div class="gate"><code>check_seg_flash</code><small>主播切片里有没有闪进别的画面（孤立高帧差）。</small></div>
+          <div class="gate"><code>gate_faces_yunet</code><small>B-roll 里有没有陌生人的脸，侧脸也算。</small></div>
+          <div class="gate"><code>check_dup_scenes</code><small>几个镜头是不是同一个地方。比 16×16 灰度构图。</small></div>
+          <div class="gate"><code>check_shot_semantics</code><small>本地 AI 真看画面：对不对题、撞不撞车、有没有别人的店名。</small></div>
+          <div class="gate"><code>check_pause_outlier</code><small>句子中间有没有莫名其妙的长停顿。</small></div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-h">C · 交付之前</div>
+        <div class="gates">
+          <div class="gate"><code>run_review</code><small>调度器。跑完把成片的 sha256 写进 <span class="k">review-log</span>。</small></div>
+          <div class="gate"><code>archive_guard</code><small>核对交付的成片哈希跟审过的是不是同一个。换过素材重新合成，旧报告作废。</small></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2" style="margin-top:22px;">
+      <div class="note">
+        <h3>三档退出码</h3>
+        <p><span class="k">0</span> 通过 · <span class="k">1</span> 有问题 · <span class="k">2</span> 闸门没能执行。第三档是重点：<b>「没查成」会伪装成「通过」</b>，所以单独占一档。</p>
+      </div>
+      <div class="note">
+        <h3>观察模式</h3>
+        <p>闸门照跑照记，但退出码恒 0、拦不住任何东西。理由是误报率还没摸清，<b>拿没校准的闸门去拦生产比不装更糟</b>。</p>
+      </div>
+      <div class="note">
+        <h3>批次相对，不用固定阈值</h3>
+        <p>同一个「像不像」的分数，全景图和特写之间会漂。所以判据一律是「相对这一批的中位数」，不是写死的数。</p>
+      </div>
+      <div class="note">
+        <h3>哈希绑定</h3>
+        <p>审过的是哪一版，靠 sha256 记账。交付时对不上就拒绝——专治「审完之后又换素材重新合成」。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section>
+    <div class="sec-head"><span class="sec-no">02</span><h2>这一趟的运转</h2></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>闸门</th><th>结果</th><th>核对结论</th></tr></thead>
+        <tbody>
+          <tr><td class="n">check_speech_rate</td><td><span class="tag t-real">真阳性</span></td>
+              <td><b>这次唯一真正省到钱的一道。</b>判「念得快 + 断得碎」，拦在付 $1.45 口型钱之前。倍速 1.24→1.08 才过。</td></tr>
+          <tr><td class="n">check_lipsync_offset</td><td><span class="tag t-real">真阳性</span> <span class="tag t-false">＋误报</span></td>
+              <td>a06 报对了：置信度只有同批 53%，重跑后 84%。a00 报错了：那个位置是纯静音，本来就没声音。</td></tr>
+          <tr><td class="n">script_guard</td><td><span class="tag t-false">误报</span></td>
+              <td>说「源片 6 项你只写 5 项」。它把「全屋用水的<b>第一</b>道防线」当成了一个清单项。</td></tr>
+          <tr><td class="n">check_dup_scenes</td><td><span class="tag t-false">误报</span></td>
+              <td>说 s03 和 s13 撞车。一个是银白隔音棉包管、一个是深色泡水地板，只是灰度构图都像「一条斜杠」。</td></tr>
+          <tr><td class="n">check_pause_outlier</td><td><span class="tag t-false">误报</span></td>
+              <td>它量到了我有意补进去的项间停顿。换成按切片扫，7 条全绿。</td></tr>
+          <tr><td class="n">check_lipsync_quality</td><td><span class="tag t-pass">通过</span></td>
+              <td>7 段中位 10.20，全在 0.87–1.13×，无离群。</td></tr>
+          <tr><td class="n">gate_faces_yunet</td><td><span class="tag t-pass">通过</span></td>
+              <td>13 条 B-roll 全无人脸，且帧数与分镜表逐条吻合——说明它真读到了画面，不是空输入假绿灯。</td></tr>
+          <tr><td class="n">check_seg_flash</td><td><span class="tag t-pass">通过</span></td>
+              <td>主播切片无闪切。</td></tr>
+          <tr><td class="n">check_shot_semantics</td><td><span class="tag t-none">迟到 1h20m</span></td>
+              <td>被另一个会话占着显卡。补跑后 14/14 通过，但<b>它看到的是我已经修好的版本</b>——前面那两个真错它连见都没见过。</td></tr>
+          <tr><td class="n">budget_guard</td><td><span class="tag t-pass">通过</span></td>
+              <td>实际 $2.07 / 上限 $6。</td></tr>
+          <tr><td class="n">archive_guard</td><td><span class="tag t-pass">通过</span></td>
+              <td>交付哈希与审查记录一致。</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section>
+    <div class="sec-head"><span class="sec-no">03</span><h2>六个真问题，谁发现的</h2></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>问题</th><th>谁发现的</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>配音语速太快</td><td><span class="who w-gate">闸门</span></td><td>付费前拦下。</td></tr>
+          <tr><td>第四项主播口型对不上</td><td><span class="who w-gate">闸门</span></td><td>重跑那一段修好。</td></tr>
+          <tr><td>项间停顿只有句内的 1.21 倍</td><td><span class="who w-eye">人眼</span></td><td>观众分不清讲到第几项。<b>没有任何闸门管这件事。</b></td></tr>
+          <tr><td>s10 素材内部跨了剪辑点</td><td><span class="who w-eye">人眼</span></td><td>取到的是铺贴不是开孔。<b>报告自己声明了这一类「没查」。</b></td></tr>
+          <tr><td>s13 生成图看不出积水</td><td><span class="who w-eye">人眼</span></td><td>口播说「泡了家具」，画面只是间发潮的空房。</td></tr>
+          <tr><td>被复刻的原片就躺在素材库里、没拉黑</td><td><span class="who w-eye">人眼</span></td><td>红线级隐患。<b>没有任何闸门管这件事。</b>本条实际引用 0 次，未违规。</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section>
+    <div class="sec-head"><span class="sec-no">04</span><h2>三个结构性毛病</h2></div>
+    <div class="stack">
+      <div class="note warn">
+        <h3>首轮总检，7 道里 5 道没跑成</h3>
+        <p>我给的目录名不符合约定。它老实报了「未执行」、退出码也给了 <span class="k">2</span>——这部分是对的。<b>问题在报告的头一行写的是「1 道闸门发现问题」，看着像只有个小毛病</b>，得往下翻才看到那 5 道。补齐目录重跑才拿到真结果。</p>
+      </div>
+      <div class="note warn">
+        <h3>唯一能看懂画面的闸门，排在决策链外面</h3>
+        <p>它靠本地 AI 真看画面，是唯一能查「对不对题」的一道，也是最慢的一道。这次被另一个会话占着显卡，<b>等成片定稿、人工审完之后 1 小时 20 分才补跑</b>。结论是确认了我的判断，没帮我发现任何东西。</p>
+      </div>
+      <div class="note warn">
+        <h3>误报率还太高，现在给它拦截权会误伤</h3>
+        <p>6 次报警里 4 次是虚惊。跑在观察模式是对的选择——按这次的数据，如果给它拦人的权力，会有一多半时间在拦好片子。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section>
+    <div class="sec-head"><span class="sec-no">05</span><h2>接下来补什么</h2></div>
+    <p style="margin-bottom:16px;">按重要性排：</p>
+    <div class="gates">
+      <div class="gate"><code>缺口 1</code><small><b>B-roll 内部跨剪辑点</b>——完全没有闸门。这次的 s10 就栽在这儿。</small></div>
+      <div class="gate"><code>缺口 2</code><small><b>源片有没有被拉黑</b>——完全没有闸门。用原片自己的镜头去复刻原片，等于没换。</small></div>
+      <div class="gate"><code>缺口 3</code><small><b>看画面那道闸门要排进生产中间</b>，不能等成片出来才跑。</small></div>
+      <div class="gate"><code>缺口 4</code><small><b>总检报告头一行先报「几道没跑成」</b>，再报「几道有问题」。</small></div>
+    </div>
+  </section>
+
+  <footer>
+    源片 7662255885925748010 · 成片 sha256 d021b126… · 63.9s / 1080×1920 · 实际花费 $2.07（上限 $6）
+  </footer>
+
+</div>
+</body>
+</html>
