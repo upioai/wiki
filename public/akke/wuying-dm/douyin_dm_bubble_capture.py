@@ -66,6 +66,10 @@ except ImportError:
 
 from douyin_inbox_uia import _http, _norm, SYS_NOTICE, is_media_preview, _is_noise_preview
 from douyin_dm_web_capture import _rpc, _strip_ts
+# send 腿的两个通用原语（模块级只有常量，import 无副作用；argv 解析都在它的 main() 里）：
+#   open_via_profile — 进 /user/<sec_uid> 点「私信」开聊天框，不依赖会话列表渲染
+#   _leave_thread    — 读完离开会话，免得会话停在打开态把后续入站的红点吃掉
+from douyin_dm_web_send_dom import open_via_profile, _leave_thread
 
 CDP = "http://127.0.0.1:9222"
 ACCOUNT_ID = os.environ.get("AKKE_ACCOUNT_ID")
@@ -209,8 +213,38 @@ def is_capturable(text: str) -> tuple[bool, str]:
     return True, "ok"
 
 
+def open_target(page, c: dict) -> bool:
+    """打开这条会话。**sec_uid 进对方主页点「私信」优先，昵称列表兜底。**
+
+    2026-08-05 一筑首跑实测：8/8 全部倒在「昵称在列表里找不到」。根因是
+    `open_conv` 只在【已渲染的会话列表项】里找，而抖音私信列表是虚拟滚动、
+    同一轮 capture_dom 只数到 `conversation-item 11 个` —— 而本脚本的候选按定义
+    都是「等了 30min~48h」的老会话，早被后来发出的几十条 opener 挤到列表几十位
+    开外，**列表里根本没渲染，怎么找都找不到**。不是偶发，是结构性 100% 落空。
+
+    改用 send 腿早就在用的通用路径 `open_via_profile(sec_uid)`：进 /user/<sec_uid>
+    点「私信」开聊天框——不管列表渲没渲染、有没有老会话都能开，且天然按 sec_uid
+    定位，顺带绕掉「同名不同人绑错会话」那类撞名坑。engage=False：捕获腿绝不
+    关注/点赞。没 sec_uid 时才回退昵称列表。
+    """
+    uid = (c.get("uid") or "").strip()
+    if uid:
+        try:
+            if open_via_profile(page, uid, engage=False):
+                return True
+        except Exception as e:
+            print(f"     [warn] open_via_profile 异常({type(e).__name__}): {e} → 回退昵称列表")
+        print("     · sec_uid 路径没开出私信面板 → 回退昵称列表")
+    if open_conv(page, c.get("name") or ""):
+        return True
+    print("     ✗ 没点开会话（sec_uid 和昵称列表都没开出来）→ 跳过")
+    return False
+
+
 def open_conv(page, nick: str) -> bool:
-    """按昵称在收件箱列表里点开会话。点开=标已读，调用前请确认这条已被快路径错过。"""
+    """按昵称在收件箱列表里点开会话（**兜底路径**，主路径见 open_target）。
+    点开=标已读，调用前请确认这条已被快路径错过。
+    ⚠️ 只能找到【列表里已渲染】的会话——虚拟滚动下通常只有最前面 ~11 条。"""
     if page.locator(CONV_ITEM).count() == 0:
         try:
             page.locator('[data-e2e="im-entry"]').first.click(timeout=3000)
@@ -254,52 +288,56 @@ def main() -> None:
             done += 1
             waited_h = (_now_ms() - c["at"]) / 3_600_000
             print(f"\n[{done}] 「{c['name']}」 已等 {waited_h:.1f}h  conv={c['conv_id'][:8]}")
-            if not open_conv(page, c["name"]):
-                print("     ✗ 没点开会话（昵称在列表里找不到 / 气泡未渲染）→ 跳过")
+            if not open_target(page, c):
                 continue
+            # 读完必离开会话（try/finally 保证每条 continue 也走到）。理由同 send 腿的
+            # _leave_thread：把会话停在【打开态】会让抖音把后续入站判成「已读」不标红点
+            # → 红点快路径漏读。我们本来就是来补快路径的，别反手把快路径弄瞎。
+            try:
+                data = read_bubbles(page)
+                bubbles, mid = data.get("bubbles") or [], data.get("mid") or 0
+                if not bubbles:
+                    print("     ✗ 读到 0 条气泡 → 跳过")
+                    continue
 
-            data = read_bubbles(page)
-            bubbles, mid = data.get("bubbles") or [], data.get("mid") or 0
-            if not bubbles:
-                print("     ✗ 读到 0 条气泡 → 跳过")
-                continue
+                last_peer = None
+                for b in bubbles:
+                    side, how = judge_side(b, mid, own_texts)
+                    print(f"     [方向] {side:<7} via {how:<10} x={b.get('cx'):.0f} mid={mid:.0f}  {b.get('text','')[:40]!r}")
+                    if side == "peer":
+                        last_peer = b
+                if last_peer is None:
+                    print("     ⚠ 最后 %d 条气泡里没有一条判定为客户方 → 弃权（不写库）" % len(bubbles))
+                    continue
 
-            last_peer = None
-            for b in bubbles:
-                side, how = judge_side(b, mid, own_texts)
-                print(f"     [方向] {side:<7} via {how:<10} x={b.get('cx'):.0f} mid={mid:.0f}  {b.get('text','')[:40]!r}")
-                if side == "peer":
-                    last_peer = b
-            if last_peer is None:
-                print("     ⚠ 最后 %d 条气泡里没有一条判定为客户方 → 弃权（不写库）" % len(bubbles))
-                continue
+                text = _strip_ts((last_peer.get("text") or "").strip())
+                ok, why = is_capturable(text)
+                if not ok:
+                    print(f"     ⊘ 最后一条客户气泡不可入库（{why}）: {text[:40]!r}")
+                    continue
+                # 去重闸(2026-08-05 补)：docstring 一直宣称有「文本≠库里最新 customer 消息」
+                # 这道守卫，实际从没实现过。缺了它会重复入库旧消息——
+                # 「客户回过(已入库) → 我方又发了一条 → 客户没再说话」的会话完全满足
+                # load_awaiting_convs 的条件(库里最后一条是 ai)，气泡尾部那条 peer 正是
+                # 那句已入库的老回复，于是每轮都重记一次。RPC record_dm_inbound 也拦不住:
+                # 它的幂等分支要求「会话最后一条是 customer 且内容相同」，而这里最后一条是
+                # ai → 直接 INSERT。运营在别处手动回复(不进库)会让这个场景更常见。
+                if _norm(text) and _norm(text) == _norm(c.get("last_customer") or ""):
+                    print(f"     ⊘ 与库里最新客户消息相同，已入库过 → 跳过: {text[:30]!r}")
+                    continue
 
-            text = _strip_ts((last_peer.get("text") or "").strip())
-            ok, why = is_capturable(text)
-            if not ok:
-                print(f"     ⊘ 最后一条客户气泡不可入库（{why}）: {text[:40]!r}")
-                continue
-            # 去重闸(2026-08-05 补)：docstring 一直宣称有「文本≠库里最新 customer 消息」
-            # 这道守卫，实际从没实现过。缺了它会重复入库旧消息——
-            # 「客户回过(已入库) → 我方又发了一条 → 客户没再说话」的会话完全满足
-            # load_awaiting_convs 的条件(库里最后一条是 ai)，气泡尾部那条 peer 正是
-            # 那句已入库的老回复，于是每轮都重记一次。RPC record_dm_inbound 也拦不住:
-            # 它的幂等分支要求「会话最后一条是 customer 且内容相同」，而这里最后一条是
-            # ai → 直接 INSERT。运营在别处手动回复(不进库)会让这个场景更常见。
-            if _norm(text) and _norm(text) == _norm(c.get("last_customer") or ""):
-                print(f"     ⊘ 与库里最新客户消息相同，已入库过 → 跳过: {text[:30]!r}")
-                continue
-
-            fresh += 1
-            print(f"     ✅ 客户最新: {text[:60]!r}  ({why})")
-            if COMMIT:
-                try:
-                    mid_ = _rpc("record_dm_inbound", {"p_conversation_id": c["conv_id"], "p_content": text})
-                    print(f"        ↳ record_dm_inbound → {mid_}")
-                except Exception as e:
-                    print(f"        ↳ ✗ 写库失败({type(e).__name__}): {e}")
-            else:
-                print("        ↳ dry-run，未写库（加 --commit 才写）")
+                fresh += 1
+                print(f"     ✅ 客户最新: {text[:60]!r}  ({why})")
+                if COMMIT:
+                    try:
+                        mid_ = _rpc("record_dm_inbound", {"p_conversation_id": c["conv_id"], "p_content": text})
+                        print(f"        ↳ record_dm_inbound → {mid_}")
+                    except Exception as e:
+                        print(f"        ↳ ✗ 写库失败({type(e).__name__}): {e}")
+                else:
+                    print("        ↳ dry-run，未写库（加 --commit 才写）")
+            finally:
+                _leave_thread(page)
 
             time.sleep(random.uniform(1.5, 3.5))
 
