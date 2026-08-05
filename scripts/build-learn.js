@@ -81,6 +81,7 @@ const CATEGORIES = [
       { slug: 'new-mac-setup', title: '新 Mac 开荒手册 · 从拆箱到 Claude Code', desc: '新同学第一天的完整动线：Shadowrocket 隧道 → curl 出口验证 → Xcode CLT / Homebrew / Node 依赖链 → Claude Code 安装登录，每步可复制执行，附终检清单与真实踩坑速查（深色技术长页 + 动画终端演示）。' },
       { slug: 'mac-for-ai', title: '为什么 Mac 更适合做 AI', desc: 'AI 时代的日常 = 终端里的 Agent + 想跑就跑的本地模型：macOS 的 Unix 底子和 Apple Silicon 统一内存各接住一半，也诚实讲清 Mac 什么时候不是答案。' },
       { slug: 'vercel-supabase', title: 'Vercel × Supabase', desc: '我们几乎每个产品都在用的两件套——前端托管 + 后端数据库：来历、能力全景，以及我们用了哪些、没用哪些、为什么。' },
+      { slug: 'database-storage-map', title: '数据库与存储全景 · 把一堆名字放回各自的货架', desc: 'MongoDB、Supabase、Neon、R2、S3、阿里云放在一起比，几乎总是错位比较——它们根本不在同一层。先用三刀分层（存的东西长什么样 / 谁替你运维 / 在谁的机房），再逐层展开：八种数据形状各自的擅长与不擅长、交易库与分析库这条被忽略的正交线、从自己装到 BaaS 的四档运维形态、四大供应商阵营与「国外托管库在国内打不开」这条排在所有技术对比之前的硬约束。重头在对象存储的账单真相——存储单价只差 4 倍，出网单价差到无穷，同一份用量（1TB 存 + 10TB/月 下载）最贵的 S3 约 $914、最便宜的 R2 约 $15，61 倍差额几乎全部来自出网流量。另含 Postgres 一族四种买法的横向对账、MongoDB 到底什么时候才是对的、一棵可照走的决策树、十条最贵的误解，以及我们自己「一个 Postgres + 一个 R2」的真实选型与代价。全文价格取自厂商官方定价页（深色技术长页，2026-08-05 核）。' },
       { slug: 'flyio', title: 'Fly.io 是什么', desc: '我们的「重活」都跑在 Fly.io 上：它到底是什么、和自己租一台 VPS 有什么本质区别、Render / Railway / Heroku / Cloud Run 这些竞品各自站哪，以及我们为什么选它、踩过哪些坑。' },
       { slug: 'falai-runpod', title: 'fal.ai × RunPod', desc: 'AI 生成的两种买法：fal.ai 按「结果」收费（一千多个模型的统一点菜口），RunPod 按「GPU 时间」收费（把带显卡的厨房租给你）。什么时候点菜、什么时候开火，以及我们两家都在用、分别用来干什么、踩过哪些坑。' },
       { slug: 'nextjs-nodejs-python', title: 'Next.js · Node.js · Python', desc: 'Akke 是用哪几种语言搭起来的？用「一条请求的旅程」串起 TypeScript / Next.js / Node.js / Python，全员不写代码也能看懂同事每天在改什么。' },
