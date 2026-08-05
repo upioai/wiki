@@ -129,6 +129,28 @@ DM_AUTOREPLY_INTERVAL = int(os.environ.get('AKKE_DM_AUTOREPLY_INTERVAL', '180'))
 # 必是挂死 → 杀子进程、跳过本轮捕获、循环继续转（心跳照常跳）。
 DM_AUTOREPLY_TIMEOUT_SEC = int(os.environ.get('AKKE_DM_AUTOREPLY_TIMEOUT_SEC', '240'))
 
+# 气泡捕获(第二条捕获腿)。默认关，设 AKKE_DM_BUBBLE_CAPTURE=1 开。
+# 为什么要第二条腿：上面那条(capture_dom)从【会话列表行预览】取文本，而列表预览是渲染给
+# 人看的摘要——里面混着「置顶」「对方已确认聊天」这类 UI 标签和 [早上好] 这类贴纸，
+# `max(lines,key=len)` 会把客户那句真话挤掉(真实入站中位仅 5 字)。更要命的是它走红点门控，
+# 而红点是【账号级服务端状态】：任何人在任何一台设备上点开会话，这台的红点就没了，该条
+# 回复永久漏抓、重启也救不回。气泡捕获两条都不吃——点进会话读消息本体
+# [data-e2e="msg-item-content"]，判据是跟库对账，不依赖任何易失 UI 信号。
+# 时间分层不打架：只接手「距最后一条我方 sent ≥ BUBBLE_MIN_AGE_MIN 分钟仍无 inbound」的
+# 会话，0-30min 内归红点快路径。⚠️ 点会话=标已读=清红点，所以下界是硬约束，别调到 0。
+DM_BUBBLE_CAPTURE_ENABLED = os.environ.get('AKKE_DM_BUBBLE_CAPTURE', '').lower() in ('1', 'true', 'yes')
+# 跑得比红点快路径稀疏：它要真点进会话、逐个读气泡，比只读列表贵得多。默认 900s=15min。
+BUBBLE_CAPTURE_INTERVAL = int(os.environ.get('AKKE_DM_BUBBLE_INTERVAL', '900'))
+BUBBLE_CAPTURE_MAX = int(os.environ.get('AKKE_DM_BUBBLE_MAX', '8'))          # 每轮最多点几个会话
+BUBBLE_MIN_AGE_MIN = int(os.environ.get('AKKE_DM_BUBBLE_MIN_AGE_MIN', '30')) # 下界，见上
+BUBBLE_MAX_AGE_H = int(os.environ.get('AKKE_DM_BUBBLE_MAX_AGE_H', '48'))     # 上界，不翻老对话
+# 默认 dry-run。要真写库必须显式 AKKE_DM_BUBBLE_COMMIT=1 —— 首次上线得先看 [方向] 日志
+# 确认三层方向判定(DOM 方向词/几何靠右/与已发文本互为子串)哪层可用，再开 commit。
+BUBBLE_CAPTURE_COMMIT = os.environ.get('AKKE_DM_BUBBLE_COMMIT', '').lower() in ('1', 'true', 'yes')
+# 同 DM_AUTOREPLY_TIMEOUT_SEC 的理由：没超时会把整个 poll 循环冻死、心跳停、DM 全停。
+# 它比快路径慢(要点开会话 + 每条之间 1.5-3.5s 随机停顿)，给足 360s。
+BUBBLE_CAPTURE_TIMEOUT_SEC = int(os.environ.get('AKKE_DM_BUBBLE_TIMEOUT_SEC', '360'))
+
 # web(Edge)通道用 sec_uid 直达主页 URL、不搜人，故不需要抖音号反查 —— 下面两项随之默认关
 # （脚本名含 'web' 即判定，与 _auto_default 同源惯例；显式 env 仍可覆盖）。
 _dm_script_is_web = 'web' in os.environ.get('AKKE_DM_SCRIPT', '').lower()
@@ -360,6 +382,17 @@ if REVERSE_COMMENT_ENABLED and not DOUYIN_RC_PY.exists():
 DOUYIN_AUTOREPLY_PY = WORK_DIR / 'douyin_dm_autoreply.py'  # DM 自动回复捕获(只读)
 if DM_AUTOREPLY_CAPTURE_ENABLED and not DOUYIN_AUTOREPLY_PY.exists():
     print(f'❌ AKKE_DM_AUTOREPLY_CAPTURE=1 但 douyin_dm_autoreply.py 不存在: {DOUYIN_AUTOREPLY_PY}', file=sys.stderr)
+    sys.exit(2)
+
+DOUYIN_BUBBLE_PY = WORK_DIR / 'douyin_dm_bubble_capture.py'  # 气泡捕获(点进会话读消息本体)
+if DM_BUBBLE_CAPTURE_ENABLED and not DOUYIN_BUBBLE_PY.exists():
+    # 2026-08-05 实测就是栽在这：脚本 07-28 写好但从没进镜像同步清单，云电脑上
+    # 压根没有这个文件。开了 flag 却静默不跑是最坏的——直接 fail loud。
+    print(f'❌ AKKE_DM_BUBBLE_CAPTURE=1 但 douyin_dm_bubble_capture.py 不存在: {DOUYIN_BUBBLE_PY}\n'
+          f'   → 双击 update.bat 更新，或单文件重拉:\n'
+          f'   curl.exe -o douyin_dm_bubble_capture.py '
+          f'https://raw.githubusercontent.com/upioai/wiki/main/public/akke/wuying-dm/douyin_dm_bubble_capture.py',
+          file=sys.stderr)
     sys.exit(2)
 
 # ── helpers ─────────────────────────────────────────────────────────────────
@@ -998,6 +1031,7 @@ def main():
     print(f'work_dir={WORK_DIR}')
 
     _last_autoreply = 0.0   # 收件箱捕获节流时戳(0=启动后第一轮先扫一次,之后每 DM_AUTOREPLY_INTERVAL 扫)
+    _last_bubble = 0.0      # 气泡捕获节流时戳(同上, 每 BUBBLE_CAPTURE_INTERVAL 一次)
     _yield_streak = 0       # 「自动回复优先」连续让位轮数(显式暴露, 防 approved 卡死静默饿死一触)
     while True:
         try:
@@ -1031,6 +1065,33 @@ def main():
                           file=sys.stderr)
                 except Exception as e:
                     print(f'!! dm-autoreply ({_ar_mode}) error: {e}', file=sys.stderr)
+
+            # 路线 D2：气泡捕获(第二条捕获腿, 2026-08-05 接入)。
+            #   快路径(上面 D)吃 0-30min 内有红点的；它读的是【列表行预览】，会被 UI 标签
+            #   /贴纸挤掉真话，且红点被任何设备点开一次就没(账号级服务端状态)。这条腿专门
+            #   捞快路径漏掉的：点进会话读消息本体、跟库对账，不依赖红点也不依赖预览。
+            #   排在 D 之后 —— 快路径便宜且不清红点，先让它吃；剩下的才值得点进去。
+            if DM_BUBBLE_CAPTURE_ENABLED and (time.time() - _last_bubble) >= BUBBLE_CAPTURE_INTERVAL:
+                _last_bubble = time.time()
+                _bi_h = (f'{BUBBLE_CAPTURE_INTERVAL//3600}h' if BUBBLE_CAPTURE_INTERVAL >= 3600
+                         else f'{BUBBLE_CAPTURE_INTERVAL//60}min')
+                print(f'[{datetime.now():%H:%M:%S}] 气泡捕获(每{_bi_h}一次) '
+                      f'{"COMMIT 写库" if BUBBLE_CAPTURE_COMMIT else "dry-run 不写库"}')
+                _bubble_cmd = [sys.executable, str(DOUYIN_BUBBLE_PY),
+                               f'--max={BUBBLE_CAPTURE_MAX}',
+                               f'--min-age-min={BUBBLE_MIN_AGE_MIN}',
+                               f'--max-age-h={BUBBLE_MAX_AGE_H}']
+                if BUBBLE_CAPTURE_COMMIT:
+                    _bubble_cmd.append('--commit')
+                try:
+                    with _wl.dm_batch():   # 同 D：占窗口锁, route-B/二触让位, 防抢抖音窗口
+                        subprocess.run(_bubble_cmd, cwd=str(WORK_DIR),
+                                       timeout=BUBBLE_CAPTURE_TIMEOUT_SEC)
+                except subprocess.TimeoutExpired:
+                    print(f'!! 气泡捕获超时 {BUBBLE_CAPTURE_TIMEOUT_SEC}s 已杀子进程，'
+                          f'跳过本轮继续转', file=sys.stderr)
+                except Exception as e:
+                    print(f'!! 气泡捕获 error: {e}', file=sys.stderr)
 
             # 让位闸(2026-07-03)：发送腿跑完仍有待发回复(刚失败/又进新单) → 本轮不派一触/二触/RC。
             if DM_AUTOREPLY_CAPTURE_ENABLED:

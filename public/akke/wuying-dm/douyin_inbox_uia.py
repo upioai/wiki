@@ -65,6 +65,9 @@ SYS_NOTICE = (
     # 抖音搜索页"相关搜索"推荐栏 UI 文字，非客户回复。
     # 2026-06-26 饭粒「喵小懒」会话把"相关搜索"误写成客户消息 → 首回假阳。
     "相关搜索",
+    # 服务评价邀请，抖音系统下发，非客户回复。2026-08-05 一筑实测被当成客户回复写库
+    # (DB 噪声闸兜住了 → check=rejected，但不该让它进到这一步)。
+    "诚邀您评价本次服务",
 )
 
 
@@ -304,6 +307,28 @@ def _ambig_muted(nick: str) -> bool:
     return _norm(nick) in names
 
 
+def _preview_kind(preview: str) -> str:
+    """把"我读到的是什么"翻译成运营看得懂的一句话。
+
+    2026-07-28 起卡片正文直接贴 preview，于是运营收到的是「最新一条『置顶』」
+    「最新一条『[早上好]』」——**看了根本不知道发生了什么**，等于没推（那次复盘
+    里标了"未做"）。preview 是渲染给人看的列表摘要，取到 UI 标签/贴纸时它压根
+    不是客户说的话，卡片必须说清这一点，否则运营会以为客户真的发了「置顶」。
+    """
+    p = (preview or "").strip()
+    if not p:
+        return "读到的是空白（客户消息渲染不出来）"
+    if is_media_preview(p):
+        return "客户发的是图片/视频/文件一类，内容读不到"
+    if p.startswith("[") and p.endswith("]"):
+        return f"读到的是表情贴纸『{p[:16]}』，不是客户说的话——真话可能被这张贴纸盖在下面"
+    if any(t in p for t in ("撤回了一条消息", "该消息类型暂不能展示")):
+        return f"读到的是系统提示『{p[:16]}』，客户的真实内容读不到"
+    if p in ("置顶",) or any(t in p for t in ("对方已确认聊天", "回复较慢", "星期")):
+        return f"读到的是界面标签『{p[:16]}』，不是消息内容——真话被这个标签挤掉了"
+    return f"读到的内容是『{p[:30]}』"
+
+
 def alert_backfill_suspect(nick: str, preview: str) -> None:
     """全量对账发现疑似漏检回复：【不自动补录】只推卡人工确认。
     原因：会话列表预览分不清方向——运营在 GUI 手动回过的那条不进 DB，两道 DB 守卫
@@ -326,8 +351,9 @@ def alert_backfill_suspect(nick: str, preview: str) -> None:
             "p_level": "p1_orange",
             "p_type": "dm_backfill_suspect",
             "p_message": (
-                f"兜底对账发现疑似漏检回复：「{nick}」最新一条『{preview[:40]}』不在系统里。"
-                "请核对会话——是客户发的→让 Claude 补录接管；是运营手动回的→忽略本卡"
+                f"疑似漏检回复：「{nick}」最新一条不在系统里。{_preview_kind(preview)}。"
+                "请点进这个会话看真实内容——是客户发的→把原文发给 Claude 补录接管；"
+                "是运营手动回的→忽略本卡"
             ),
             "p_metadata": {"nickname": nick, "preview": preview[:200], "source": "dm_fullscan"},
         })
