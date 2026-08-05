@@ -1,0 +1,593 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>B-roll 系统实况复盘 · 2026-08-04</title>
+<style>
+  :root {
+    --bg: #f7f8f9; --surface: #ffffff; --surface-2: #eef1f3;
+    --ink: #14181d; --ink-2: #454e58; --muted: #6b7682;
+    --rule: #dde2e6; --rule-strong: #c4ccd2;
+    --copper: #b4652a; --copper-soft: #f0e0d3;
+    --blue: #2a7fb8; --blue-soft: #dceaf4;
+    --alert: #b23a2e; --alert-soft: #f6e0dd;
+    --good: #2f7a52; --good-soft: #dcece2;
+    --warn: #96701c; --warn-soft: #f3ead2;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    --maxw: 64rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101316; --surface: #171b1f; --surface-2: #21262b;
+      --ink: #e9edf0; --ink-2: #b3bcc4; --muted: #7d8892;
+      --rule: #2b3136; --rule-strong: #3d454c;
+      --copper: #c97a3c; --copper-soft: #3a2a1b;
+      --blue: #3b90c8; --blue-soft: #17293a;
+      --alert: #d4695c; --alert-soft: #3a1f1c;
+      --good: #4e9c72; --good-soft: #16281e;
+      --warn: #c2a04a; --warn-soft: #322a12;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #101316; --surface: #171b1f; --surface-2: #21262b;
+    --ink: #e9edf0; --ink-2: #b3bcc4; --muted: #7d8892;
+    --rule: #2b3136; --rule-strong: #3d454c;
+    --copper: #c97a3c; --copper-soft: #3a2a1b;
+    --blue: #3b90c8; --blue-soft: #17293a;
+    --alert: #d4695c; --alert-soft: #3a1f1c;
+    --good: #4e9c72; --good-soft: #16281e;
+    --warn: #c2a04a; --warn-soft: #322a12;
+  }
+  :root[data-theme="light"] {
+    --bg: #f7f8f9; --surface: #ffffff; --surface-2: #eef1f3;
+    --ink: #14181d; --ink-2: #454e58; --muted: #6b7682;
+    --rule: #dde2e6; --rule-strong: #c4ccd2;
+    --copper: #b4652a; --copper-soft: #f0e0d3;
+    --blue: #2a7fb8; --blue-soft: #dceaf4;
+    --alert: #b23a2e; --alert-soft: #f6e0dd;
+    --good: #2f7a52; --good-soft: #dcece2;
+    --warn: #96701c; --warn-soft: #f3ead2;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--sans); line-height: 1.75; font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 3rem 1.25rem 6rem; }
+  header { border-bottom: 2px solid var(--rule-strong); padding-bottom: 1.5rem; margin-bottom: 2.5rem; }
+  h1 { font-size: 1.9rem; line-height: 1.35; margin: 0 0 .5rem; letter-spacing: -.01em; }
+  .sub { color: var(--muted); font-size: .95rem; margin: 0; }
+  h2 {
+    font-size: 1.3rem; margin: 3.5rem 0 1rem; padding-bottom: .5rem;
+    border-bottom: 1px solid var(--rule); letter-spacing: -.01em;
+  }
+  h3 { font-size: 1.02rem; margin: 2rem 0 .6rem; color: var(--ink); }
+  p { margin: .7rem 0; color: var(--ink-2); }
+  code { font-family: var(--mono); font-size: .87em; background: var(--surface-2);
+         padding: .1em .35em; border-radius: 3px; color: var(--ink); }
+  strong { color: var(--ink); font-weight: 650; }
+
+  .lede { font-size: 1.05rem; color: var(--ink-2); border-left: 3px solid var(--copper);
+          padding: .2rem 0 .2rem 1rem; margin: 1.5rem 0 2rem; }
+
+  .scoreboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+                gap: .75rem; margin: 1.5rem 0 2rem; }
+  .card { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px;
+          padding: .9rem 1rem; }
+  .card .n { font-size: 1.55rem; font-weight: 680; letter-spacing: -.02em; line-height: 1.2; }
+  .card .n small { font-size: .95rem; font-weight: 500; color: var(--muted); }
+  .card .l { font-size: .8rem; color: var(--muted); margin-top: .15rem; }
+  .card.up .n { color: var(--good); }
+  .card.hot .n { color: var(--alert); }
+
+  .stage { margin: 2.5rem 0 1rem; display: flex; align-items: baseline; gap: .6rem; }
+  .stage .tag { font-family: var(--mono); font-size: .75rem; letter-spacing: .06em;
+                background: var(--surface-2); color: var(--muted);
+                padding: .15rem .5rem; border-radius: 4px; }
+  .stage .name { font-weight: 650; font-size: 1.05rem; }
+
+  .issue { background: var(--surface); border: 1px solid var(--rule);
+           border-left: 3px solid var(--rule-strong); border-radius: 6px;
+           padding: 1rem 1.15rem; margin: .85rem 0; }
+  .issue.red { border-left-color: var(--alert); }
+  .issue.fixed { border-left-color: var(--good); }
+  .issue.open { border-left-color: var(--warn); }
+  .issue h4 { margin: 0 0 .5rem; font-size: 1rem; display: flex; flex-wrap: wrap;
+              align-items: baseline; gap: .5rem; }
+  .issue h4 .no { font-family: var(--mono); font-size: .78rem; color: var(--muted); }
+  .badge { font-size: .72rem; font-weight: 600; padding: .1rem .45rem; border-radius: 4px;
+           white-space: nowrap; }
+  .badge.fixed { background: var(--good-soft); color: var(--good); }
+  .badge.open  { background: var(--warn-soft); color: var(--warn); }
+  .badge.rule  { background: var(--alert-soft); color: var(--alert); }
+  .issue dl { margin: .5rem 0 0; display: grid; grid-template-columns: 4.2rem 1fr; gap: .3rem .7rem; }
+  .issue dt { font-size: .8rem; color: var(--muted); padding-top: .18rem; }
+  .issue dd { margin: 0; color: var(--ink-2); font-size: .94rem; }
+
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: .9rem; }
+  .scroll { overflow-x: auto; }
+  th, td { text-align: left; padding: .5rem .7rem; border-bottom: 1px solid var(--rule);
+           vertical-align: top; }
+  th { font-size: .78rem; color: var(--muted); font-weight: 600; letter-spacing: .02em;
+       border-bottom: 1px solid var(--rule-strong); white-space: nowrap; }
+  td.num { font-family: var(--mono); white-space: nowrap; }
+  tr.good td { background: var(--good-soft); }
+
+  .flow { margin: 1.5rem 0; }
+  .flow svg { width: 100%; height: auto; display: block; }
+  .note { background: var(--surface-2); border-radius: 6px; padding: .8rem 1rem;
+          font-size: .9rem; color: var(--ink-2); margin: 1rem 0; }
+  .note b { color: var(--ink); }
+
+  ul { padding-left: 1.2rem; color: var(--ink-2); }
+  li { margin: .35rem 0; }
+  footer { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--rule);
+           font-size: .85rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>B-roll 系统实况复盘</h1>
+  <p class="sub">2026-08-04 · 复刻《开工前必买 5 样》（源片 <code>7662255885925748010</code>，博主「张师傅讲装修」）过程中暴露的问题、修法，以及系统流程总览</p>
+</header>
+
+<p class="lede">
+一条 64 秒的片子要 13 个 B-roll 镜头。素材库只供上 5 个，8 个靠生成兜底。
+这个比例逼出了三个结构性问题——都不是「素材不够」，而是<strong>系统在空转而指标不报错</strong>。
+本文按「生产过程碰到什么」和「系统层面是什么毛病」两条线记录，最后附整套流程设计。
+</p>
+
+<div class="scoreboard">
+  <div class="card"><div class="n">13</div><div class="l">B-roll 需求</div></div>
+  <div class="card"><div class="n">5<small> / 8</small></div><div class="l">库内命中 / 生成兜底</div></div>
+  <div class="card up"><div class="n">23%<small> → 77%</small></div><div class="l">top-1 对题率</div></div>
+  <div class="card up"><div class="n">3820<small> → 4550</small></div><div class="l">检索放行池（段）</div></div>
+  <div class="card hot"><div class="n">63.5%</div><div class="l">has_face 标注错误率</div></div>
+  <div class="card"><div class="n">$2.07</div><div class="l">本条总花费（上限 6）</div></div>
+</div>
+
+<h2>一、生产过程中碰到的问题</h2>
+
+<p>按产线顺序排。<span class="badge rule">红线</span> 是会造成合规事故的，
+<span class="badge fixed">已修</span> 是本次改掉的，<span class="badge open">待办</span> 是还挂着的。</p>
+
+<div class="stage"><span class="tag">A</span><span class="name">取材：素材库能不能给出货</span></div>
+
+<div class="issue open">
+  <h4><span class="no">A1</span>素材库映像中途掉盘，检索静默返回空<span class="badge open">待办</span></h4>
+  <dl>
+    <dt>现象</dt><dd>会话过半时外接映像变成「未挂载」，是用户提醒才发现。</dd>
+    <dt>为什么危险</dt><dd>检索不报错，只是<strong>返回空结果</strong>——看起来像「库里没有这个镜头」，
+      于是直接走生成兜底，白花钱。这是「空输入被当成干净输出」的典型形状。</dd>
+    <dt>修法</dt><dd><code>broll-retrieve.py</code> 起手应自检挂载状态并硬失败。
+      目前只能人工先跑 <code>mount-broll.sh status</code>。</dd>
+  </dl>
+</div>
+
+<div class="issue red">
+  <h4><span class="no">A2</span>被复刻的源片就躺在素材库里，而且没拉黑<span class="badge rule">红线</span><span class="badge open">已开单独任务</span></h4>
+  <dl>
+    <dt>现象</dt><dd>按物件词查库时翻出一条「钥匙密码盒＋阻尼片＋隔音棉」的产品摆拍组图，
+      解说词跟本条源片同一选题同一话术。顺藤摸瓜查到库里存着
+      <code>张师傅讲装修 视频/004_7662255885925748010.mp4</code>——<strong>文件名就是源片 ID</strong>，
+      时长同为 112.965s，第 9 秒帧逐像素一致。</dd>
+    <dt>为什么难发现</dt><dd>库内 md5 是 <code>aee77ff7…</code>，重新下载得到的是 <code>3c954549…</code>——
+      <strong>同一条片子两个 md5</strong>，按 md5 查撞车会漏掉。</dd>
+    <dt>风险面</dt><dd>该源在库里有 55 个切片，2 条已标注，其中 <strong>1 条 <code>approved=1</code> 会被正常检索到</strong>，
+      黑名单里没有它。全库只有 61% 的切片算过 pHash，「pHash 邻域」这层对其余 39% 根本不生效。</dd>
+    <dt>本条影响</dt><dd>逐条核过 37 个候选来源，<strong>实际引用 0 次</strong>，未违规。</dd>
+    <dt>为什么是红线</dt><dd>越对题的镜头越可能就是原片自己的镜头——用了等于没换。</dd>
+  </dl>
+</div>
+
+<div class="issue fixed">
+  <h4><span class="no">A3</span>系统从不说「我没有」<span class="badge fixed">已改善</span></h4>
+  <dl>
+    <dt>现象</dt><dd>13 个需求，检索给出 7 个 <code>ok</code>、6 个 <code>weak</code>、
+      <strong><code>no_match</code> 恒为 0</strong>。而实际上 8 个需求库里真没有对题素材。</dd>
+    <dt>根因</dt><dd>向量检索天生「永远能排出个第一名」。及格线模块自己的文档就承认：
+      ≥0.62 那一档<strong>仍有 71% 不可用</strong>。</dd>
+    <dt>修法</dt><dd>加了「主体线」判据（见 E4）。但根治要靠看图精排，
+      所以 skill 那条<strong>「命中 ≥1 也必须逐条打开看」是硬规矩</strong>，不能省。</dd>
+  </dl>
+</div>
+
+<div class="issue open">
+  <h4><span class="no">A4</span>两类货全库为零：翻车缺陷 & 产品单品摆拍<span class="badge open">待补采</span></h4>
+  <dl>
+    <dt>实测</dt><dd>把 8 个缺口在全库（不限放行池）搜了一遍：生锈 4 条、纯铜地漏 4 条、
+      水封芯 1 条、前置过滤器 5 条（<strong>且都只是解说词提到，画面里没有</strong>）、
+      烟道止逆阀 15 条（同上）。</dd>
+    <dt>根因</dt><dd>库是按装修<strong>工序</strong>（水电／瓦工／木工／美缝…）攒的<strong>施工实拍</strong>；
+      而这条源片给的是<strong>手持产品单品特写</strong>。拍施工的人不会专门去拍一个生锈的地漏。
+      这也是 skill「第 0 步：先把源片 B-roll 看一遍」要解决的——
+      <strong>需求侧错的不是关键词，是景别</strong>。</dd>
+    <dt>好消息</dt><dd>产线在自愈：这条片子生成的 8 张兜底图交付后已自动入库并放行。
+      实测搜「生锈地漏」「水封芯」，排第一的就是它们（相似度 0.74 / 0.73）——
+      <strong>下条片子遇到同样需求不用再花钱生成</strong>。</dd>
+  </dl>
+</div>
+
+<div class="stage"><span class="tag">B</span><span class="name">选材：候选到底能不能用</span></div>
+
+<div class="issue open">
+  <h4><span class="no">B1</span>切片内部跨了剪辑点，没有任何闸门覆盖<span class="badge open">只能靠眼睛</span></h4>
+  <dl>
+    <dt>现象</dt><dd>s10 选中的切片中点帧是「开孔机切瓷砖」，但我要的前 102 帧是「铺贴」——
+      3.5 秒的切片里有一个镜头切换点。合成后才在联系表里发现。</dd>
+    <dt>为什么闸门查不出</dt><dd>闪切闸门只扫 A-roll 切片；撞车闸门做跨片段比较；
+      人脸闸门只看有没有脸。<strong>没有一道在看「一条 B-roll 内部有没有换镜头」</strong>。</dd>
+    <dt>修法</dt><dd>选材时必须抽<strong>首／中／尾三帧</strong>看，只看中点帧会漏。
+      本条另一条 s03 也跨剪辑点，只用了前 1.6 秒避开。</dd>
+  </dl>
+</div>
+
+<div class="issue">
+  <h4><span class="no">B2</span>两个镜头选到同一面墙 → 会撞车</h4>
+  <dl>
+    <dt>现象</dt><dd>s11 的最佳候选与 s02 出自同一条源片的同一面墙，成片里就是同一画面播两遍。</dd>
+    <dt>修法</dt><dd>换成另一条源片的阀件特写。<strong>去重前移到选材期比事后比图有效得多</strong>——
+      同一源片 ≤2 条、同一切片全片只用一次。</dd>
+  </dl>
+</div>
+
+<div class="issue">
+  <h4><span class="no">B3</span>库内源片帧率不统一，按帧切会切错</h4>
+  <dl>
+    <dt>事实</dt><dd>同一批候选里有 <strong>25 / 29.97 / 30 / 60 fps 四种</strong>。
+      <code>trim=start_frame=N</code> 作用在源片帧号上，60fps 源取 56 帧、输出 30fps 后只剩 28 帧。</dd>
+    <dt>修法</dt><dd>滤镜链<strong>最前面</strong>加 <code>fps=30</code> 再 trim，切完
+      <code>ffprobe -count_frames</code> 逐条核对。本条 13 条全部帧数精确匹配。</dd>
+  </dl>
+</div>
+
+<div class="issue">
+  <h4><span class="no">B4</span>烧录字幕：能裁不擦，而且要量描边不量白字</h4>
+  <dl>
+    <dt>处置顺序</dt><dd>B-roll 一律<strong>裁</strong>（从顶部保留、放大填满），不擦。
+      擦是算法在猜，裁是 100% 干净。</dd>
+    <dt>易错点</dt><dd>抖音字幕是「白字 + 黑描边」，<strong>画面上最上面一行像素是描边不是字</strong>。
+      按白字上沿裁完底部会留一排黑尖角。本条 s03 裁到 1240、s10 裁到 1682，都留了描边余量。</dd>
+  </dl>
+</div>
+
+<div class="stage"><span class="tag">C</span><span class="name">生成兜底：库里没有时怎么造</span></div>
+
+<div class="issue">
+  <h4><span class="no">C1</span><code>/edit</code> 改不动整个空间主体</h4>
+  <dl>
+    <dt>现象</dt><dd>s13「真漏了泡了家具更亏」，第一版生成图只是一间地面发潮的空房，<strong>看不出积水</strong>，
+      翻车后果立不住。</dd>
+    <dt>根因</dt><dd><code>/edit</code> 是<strong>编辑不是重画，会保留参考底约 90% 的内容</strong>。
+      我给的底是一张广角空间照，它只能做局部微调，换不掉整个空间主体。</dd>
+    <dt>修法</dt><dd>换<strong>木地板特写底</strong>，prompt 写死「积水铺满画面、板缝起拱、踢脚线水痕」，一次就对。
+      规律：<em>加/换一个物件</em>→同一张空间底改得动；<em>换空间主体</em>→必须换底；
+      <em>特写</em>→配特写底并写死 <code>fills the entire frame</code>。</dd>
+  </dl>
+</div>
+
+<div class="issue">
+  <h4><span class="no">C2</span>一个需求一张参考底，不能复用</h4>
+  <dl>
+    <dt>为什么</dt><dd>同一张底喂多次，出来的几个镜头会看着是同一个地方（历史上被打回过：26 个 B-roll 里 8 个同一个客厅）。</dd>
+    <dt>本条做法</dt><dd>8 张参考底来自 <strong>8 个不同源文件</strong>；prompt 统一写死拍摄条件
+      （手机竖拍／自然光／无文字无品牌无人脸）；静止图一律挂 <code>zoompan</code> 缓慢推近到 1.10×
+      （必须显式给 x/y，否则往左上角推）。</dd>
+  </dl>
+</div>
+
+<div class="stage"><span class="tag">D</span><span class="name">审片：闸门自己也会出错</span></div>
+
+<div class="issue">
+  <h4><span class="no">D1</span>撞车闸门误报</h4>
+  <dl>
+    <dt>报警</dt><dd>s03 与 s13 疑似撞车。</dd>
+    <dt>实况</dt><dd>s03 是银白隔音棉包下水管（工地），s13 是深色泡水木地板，<strong>画面毫不相干</strong>。</dd>
+    <dt>根因</dt><dd>闸门比的是 16×16 灰度构图，两者恰好都是「一条斜向长条占画面大半」。
+      与既有记录的「同工序素材整批误报」是同一形状。</dd>
+    <dt>处置</dt><dd>人眼核对后放行，结论填进 <code>review-log.jsonl</code> 的 <code>verdict</code>。</dd>
+  </dl>
+</div>
+
+<div class="issue open">
+  <h4><span class="no">D2</span>看图理解闸门是单点阻塞<span class="badge open">结构问题</span></h4>
+  <dl>
+    <dt>现象</dt><dd>另一个会话的 VL 标注任务占着单实例锁跑了 <strong>1 小时 20 分</strong>，审片只能干等。</dd>
+    <dt>为什么不能抢</dt><dd>两个 Qwen3-VL 抢同一块 MPS <strong>不是慢一点，是双方都停摆</strong>（活锁）。
+      锁本身是对的。</dd>
+    <dt>真正的问题</dt><dd>产线上只有一块 MPS，而标注任务和审片任务都要用它。
+      本条改为轮询等待、对方释放后自动补跑，最终 14/14 全覆盖通过。</dd>
+  </dl>
+</div>
+
+<h2>二、系统层面的三个结构性问题（已修，PR #94）</h2>
+
+<p>上面那些是「这一条片子的具体麻烦」。下面三个是<strong>系统一直在空转、而所有指标都不报错</strong>的问题。</p>
+
+<div class="issue fixed">
+  <h4><span class="no">E1</span>政策改了，存量没跟着改<span class="badge fixed">放行池 3820 → 4550</span></h4>
+  <dl>
+    <dt>现象</dt><dd>1021 个段挂着 <code>needs_human=1</code> 从不参与检索。</dd>
+    <dt>不是审核积压</dt><dd>2026-08-04 人审校准 130 段之后口径改了：
+      <strong>「有脸／有字」不再是池子级一票否决</strong>（路人工人可用、字幕用前裁掉，
+      真红线只有第三方水印和被复刻博主本人）。检索器已按新口径走，
+      <strong>但按旧口径拦下的那批从来没人放它们回来</strong>。</dd>
+    <dt>怎么认出来的</dt><dd>放行池 91% 是「无脸无字」，被拦那批 622 条有脸、537 条有字，
+      而且<strong>画质分反而更高</strong>（锐度 2.27 vs 1.59）。画质更好却被扣着 = 不是画质问题。</dd>
+    <dt>修法</dt><dd>新增 <code>readmit-held-segments.py</code>。关键决定：<strong>不信标签，逐条抽帧实测</strong>。</dd>
+  </dl>
+</div>
+
+<div class="issue fixed">
+  <h4><span class="no">E2</span>「有没有脸」这个标注 63.5% 是错的<span class="badge fixed">已用实测取代</span></h4>
+  <dl>
+    <dt>实测</dt><dd>用 YuNet 逐条抽帧复核：标注为「有脸」的 614 条里，
+      <strong>390 条实测没有可辨认的脸（错误率 63.5%）</strong>；
+      标注为「无脸」的 364 条里也有 23 条实测有大脸（6.3%）。<strong>标签两个方向都会错。</strong></dd>
+    <dt>处置</dt><dd>放行 731 段，仍扣 291 段（实测确有 ≥900px² 的清晰大脸）。
+      扣着的理由：「被复刻博主本人」这条红线目前只靠一份残缺的黑名单挡着，宁可漏放不可错放。
+      留了 jsonl 回滚记录。</dd>
+  </dl>
+</div>
+
+<div class="issue fixed">
+  <h4><span class="no">E3</span>交付后回填的新素材是隐形的<span class="badge fixed">已修 + 存量已补</span></h4>
+  <dl>
+    <dt>现象</dt><dd>这条片子交付后回填，14 个素材入库并置 <code>approved=1</code>，
+      但<strong>一个字的描述都没有</strong>。</dd>
+    <dt>根因</dt><dd>入库时描述取自分镜的 <code>_need</code> 字段，而那个字段<strong>只有走标准
+      <code>emit</code> 流程才有</strong>。手写分镜的片子（画中画、对照清单这类版面特殊的）绕过它 →
+      描述为空 → 建出来是一份<strong>空文档的向量</strong> → 素材永远搜不到。</dd>
+    <dt>为什么最阴</dt><dd>它以 <code>approved=1</code> 的样子躺在池子里，<strong>看起来像已经做完了</strong>——
+      比不入库更糟。花钱生成的素材下条片子还得再买一次。</dd>
+    <dt>修法</dt><dd>没描述就不放行并显式报警；从 <code>expect.json</code>／<code>needs.json</code>
+      捞回描述；入库后<strong>自动建向量</strong>（以前只打印一句「记得跑」，没人跑）。</dd>
+  </dl>
+</div>
+
+<div class="issue fixed">
+  <h4><span class="no">E4</span>标注记「画面里有什么」，检索要的是「主体是什么」<span class="badge fixed">已加主体线</span></h4>
+  <dl>
+    <dt>现象</dt><dd>要一个「马桶冲水」的镜头，库里 3 条候选的标注里都写着马桶——
+      但一律排在 6 个元素里的<strong>第 5 位</strong>，<code>vl_subject</code> 其实是
+      刮腻子／刷涂料／包烟道管。<strong>马桶只是角落里恰好入镜。</strong></dd>
+    <dt>根因</dt><dd>现有两路向量（文本 <code>embedding</code>、视觉 <code>vl_embedding</code>）
+      都把「主体」和「画面里还有啥」混在一份文档里，分不开。</dd>
+    <dt>修法</dt><dd>新增第三路 <code>subj_embedding</code>，<strong>只由主体+动作构成</strong>；
+      及格线加「主体线 0.54」，主体不命中降级为存疑——<strong>只降不拦</strong>
+      （主体标注本身也可能标错，最终由人眼定夺）。</dd>
+    <dt>阈值怎么定的</dt><dd>6 个人工判定样本（可用最低 0.575 / 不可用最高 0.508，取中点）。
+      <strong>样本量小这件事写进了代码</strong>——CALIB 表 + 自检 + 「经验下限不是统计推断」的警告，
+      每条片子交付后往里加样本重画线。</dd>
+  </dl>
+</div>
+
+<div class="note">
+  <b>一条方法教训。</b>我第一版诊断报的是「目录只编了 15%，最大杠杆是补目录」——<strong>这个数是错的</strong>。
+  我拿「有多少切片是某个放行段的<em>代表帧</em>」当了覆盖率。真实结构是 25,875 个切片只来自
+  <strong>1,035 个场景</strong>（每场景约 25 个重叠窗口），段已覆盖 98.5% 的场景，按切片算是 87.6%。
+  切片／场景／段／代表帧是四个粒度，挑错一个能把 88% 说成 15%，把人往完全错误的方向带。
+  <b>报覆盖率之前先问「分母是什么」。</b>
+</div>
+
+<h2>三、修复效果</h2>
+
+<div class="scroll">
+<table>
+  <thead><tr><th>指标</th><th class="num">修复前</th><th class="num">修复后</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr class="good"><td>检索 top-1 对题率</td><td class="num">23%</td><td class="num">77%</td>
+      <td>拿本条 13 个需求端到端重跑</td></tr>
+    <tr><td>放行池（可检索的段）</td><td class="num">3,820</td><td class="num">4,550</td>
+      <td>+730，重新入池 731 段</td></tr>
+    <tr><td>被扣着的段</td><td class="num">1,021</td><td class="num">291</td>
+      <td>剩下的实测确有清晰大脸</td></tr>
+    <tr><td>放行但没有向量（搜不到）</td><td class="num">14</td><td class="num">0</td>
+      <td>回填素材已补描述并建向量</td></tr>
+    <tr><td>有「主体」向量的段</td><td class="num">0</td><td class="num">3,262</td>
+      <td>9.7 秒建完，空闲工人每批自动增量</td></tr>
+    <tr><td>回头客本（学习回路）</td><td class="num">2</td><td class="num">90</td>
+      <td>此前几乎无人做交付后写回</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>四、B-roll 系统流程设计总览</h2>
+
+<p>整套系统分<strong>入库</strong>、<strong>检索</strong>、<strong>使用</strong>、<strong>回流</strong>四段，
+外加一个「机器闲了自动干活」的旁路。</p>
+
+<div class="flow">
+<svg viewBox="0 0 860 560" xmlns="http://www.w3.org/2000/svg" role="img"
+     aria-label="B-roll 系统流程：入库、检索、使用、回流四段闭环">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+    </marker>
+    <style>
+      .bx { fill: var(--surface); stroke: var(--rule-strong); stroke-width: 1.2; rx: 6; }
+      .bx.acc { stroke: var(--blue); }
+      .bx.warn { stroke: var(--copper); }
+      .t  { font: 12px var(--sans); fill: var(--ink); }
+      .t.s{ font-size: 10.5px; fill: var(--muted); }
+      .lbl{ font: 600 11px var(--sans); fill: var(--muted); letter-spacing:.06em; }
+      .ln { stroke: var(--rule-strong); stroke-width: 1.2; fill: none; color: var(--rule-strong); }
+      .ln.acc { stroke: var(--blue); color: var(--blue); }
+      .band { fill: var(--surface-2); rx: 8; }
+    </style>
+  </defs>
+
+  <!-- 入库 -->
+  <rect class="band" x="8" y="8" width="844" height="120"/>
+  <text class="lbl" x="20" y="28">① 入库</text>
+  <rect class="bx" x="20" y="40" width="126" height="52"/>
+  <text class="t" x="83" y="62" text-anchor="middle">源视频</text>
+  <text class="t s" x="83" y="79" text-anchor="middle">1,208 条</text>
+
+  <rect class="bx" x="176" y="40" width="140" height="52"/>
+  <text class="t" x="246" y="62" text-anchor="middle">切镜头 → 切片</text>
+  <text class="t s" x="246" y="79" text-anchor="middle">25,875 个重叠窗口</text>
+
+  <rect class="bx" x="346" y="40" width="140" height="52"/>
+  <text class="t" x="416" y="62" text-anchor="middle">归组 sibling_group</text>
+  <text class="t s" x="416" y="79" text-anchor="middle">1,035 个场景</text>
+
+  <rect class="bx acc" x="516" y="40" width="150" height="52"/>
+  <text class="t" x="591" y="62" text-anchor="middle">标注（文字 + 看图）</text>
+  <text class="t s" x="591" y="79" text-anchor="middle">4,842 段</text>
+
+  <rect class="bx warn" x="696" y="40" width="140" height="52"/>
+  <text class="t" x="766" y="62" text-anchor="middle">放行判定</text>
+  <text class="t s" x="766" y="79" text-anchor="middle">4,550 进池 / 291 扣</text>
+
+  <path class="ln" d="M146,66 H172" marker-end="url(#ar)"/>
+  <path class="ln" d="M316,66 H342" marker-end="url(#ar)"/>
+  <path class="ln" d="M486,66 H512" marker-end="url(#ar)"/>
+  <path class="ln" d="M666,66 H692" marker-end="url(#ar)"/>
+
+  <!-- 建向量 -->
+  <rect class="band" x="8" y="144" width="844" height="96"/>
+  <text class="lbl" x="20" y="164">② 建向量（三路）</text>
+  <rect class="bx" x="20" y="176" width="252" height="48"/>
+  <text class="t" x="146" y="196" text-anchor="middle">文本向量 embedding</text>
+  <text class="t s" x="146" y="212" text-anchor="middle">动作·事实·物件清单·搜索短语</text>
+
+  <rect class="bx" x="296" y="176" width="252" height="48"/>
+  <text class="t" x="422" y="196" text-anchor="middle">视觉向量 vl_embedding</text>
+  <text class="t s" x="422" y="212" text-anchor="middle">主体·动作·物件·场景（模型看过帧）</text>
+
+  <rect class="bx acc" x="572" y="176" width="264" height="48"/>
+  <text class="t" x="704" y="196" text-anchor="middle">主体向量 subj_embedding ★新</text>
+  <text class="t s" x="704" y="212" text-anchor="middle">只有主体+动作 → 分开「主体」与「陪衬」</text>
+
+  <path class="ln" d="M766,92 V172" marker-end="url(#ar)"/>
+
+  <!-- 检索 -->
+  <rect class="band" x="8" y="256" width="844" height="120"/>
+  <text class="lbl" x="20" y="276">③ 检索</text>
+  <rect class="bx" x="20" y="288" width="150" height="60"/>
+  <text class="t" x="95" y="308" text-anchor="middle">口播 → 画面需求</text>
+  <text class="t s" x="95" y="324" text-anchor="middle">写「看得见的东西」</text>
+  <text class="t s" x="95" y="338" text-anchor="middle">带景别、带证据层</text>
+
+  <rect class="bx" x="200" y="288" width="140" height="60"/>
+  <text class="t" x="270" y="312" text-anchor="middle">编码 + 三路混合</text>
+  <text class="t s" x="270" y="330" text-anchor="middle">打分 → 打散去重</text>
+
+  <rect class="bx warn" x="370" y="288" width="190" height="60"/>
+  <text class="t" x="465" y="308" text-anchor="middle">及格线 retrieval_gate</text>
+  <text class="t s" x="465" y="324" text-anchor="middle">&lt;0.52 报缺货｜&lt;0.62 存疑</text>
+  <text class="t s" x="465" y="338" text-anchor="middle">主体分 &lt;0.54 降级 ★新</text>
+
+  <rect class="bx" x="590" y="288" width="120" height="60"/>
+  <text class="t" x="650" y="312" text-anchor="middle">ok / weak</text>
+  <text class="t s" x="650" y="330" text-anchor="middle">→ 逐条打开看</text>
+
+  <rect class="bx warn" x="740" y="288" width="96" height="60"/>
+  <text class="t" x="788" y="312" text-anchor="middle">no_match</text>
+  <text class="t s" x="788" y="330" text-anchor="middle">→ 生成兜底</text>
+
+  <path class="ln" d="M170,318 H196" marker-end="url(#ar)"/>
+  <path class="ln" d="M340,318 H366" marker-end="url(#ar)"/>
+  <path class="ln" d="M560,318 H586" marker-end="url(#ar)"/>
+  <path class="ln" d="M710,318 H736" marker-end="url(#ar)"/>
+  <path class="ln" d="M146,224 V284" marker-end="url(#ar)"/>
+
+  <!-- 使用 -->
+  <rect class="band" x="8" y="392" width="560" height="96"/>
+  <text class="lbl" x="20" y="412">④ 使用（每一步都有闸门）</text>
+  <rect class="bx" x="20" y="424" width="128" height="48"/>
+  <text class="t" x="84" y="444" text-anchor="middle">裁字幕 / 归一 30fps</text>
+  <text class="t s" x="84" y="460" text-anchor="middle">按帧切，逐条核帧数</text>
+
+  <rect class="bx" x="164" y="424" width="120" height="48"/>
+  <text class="t" x="224" y="444" text-anchor="middle">人脸闸门</text>
+  <text class="t s" x="224" y="460" text-anchor="middle">YuNet 逐帧</text>
+
+  <rect class="bx" x="300" y="424" width="120" height="48"/>
+  <text class="t" x="360" y="444" text-anchor="middle">撞车闸门</text>
+  <text class="t s" x="360" y="460" text-anchor="middle">跨窗口比构图</text>
+
+  <rect class="bx acc" x="436" y="424" width="116" height="48"/>
+  <text class="t" x="494" y="444" text-anchor="middle">看图理解闸门</text>
+  <text class="t s" x="494" y="460" text-anchor="middle">对题/撞车/店招</text>
+
+  <path class="ln" d="M148,448 H160" marker-end="url(#ar)"/>
+  <path class="ln" d="M284,448 H296" marker-end="url(#ar)"/>
+  <path class="ln" d="M420,448 H432" marker-end="url(#ar)"/>
+  <path class="ln acc" d="M650,348 V400 H556" marker-end="url(#ar)"/>
+
+  <!-- 回流 -->
+  <rect class="band" x="584" y="392" width="268" height="96"/>
+  <text class="lbl" x="596" y="412">⑤ 回流（交付后必跑）</text>
+  <rect class="bx acc" x="596" y="424" width="244" height="48"/>
+  <text class="t" x="718" y="444" text-anchor="middle">战绩回填 + 库外素材入库</text>
+  <text class="t s" x="718" y="460" text-anchor="middle">带描述才放行 → 自动建向量 ★新</text>
+
+  <path class="ln acc" d="M552,448 H592" marker-end="url(#ar)"/>
+  <path class="ln acc" d="M840,424 V404 Q840,396 832,396 H700" marker-end="url(#ar)"/>
+  <text class="t s" x="766" y="392" text-anchor="middle">回喂放行池</text>
+
+  <!-- 空闲工人 -->
+  <rect class="bx" x="20" y="504" width="816" height="44"/>
+  <text class="t" x="428" y="524" text-anchor="middle">旁路 · 空闲工人 idle-worker.sh</text>
+  <text class="t s" x="428" y="540" text-anchor="middle">负载低 + 没人剪片 + VL 锁空闲 → 自动补标注并建主体向量；有人一用就让路（两个 VL 抢同一块 MPS 会活锁）</text>
+</svg>
+</div>
+
+<h3>各环节的关键约束</h3>
+
+<div class="scroll">
+<table>
+  <thead><tr><th>环节</th><th>要点</th><th>踩过的坑</th></tr></thead>
+  <tbody>
+    <tr><td><b>入库</b></td>
+      <td>源视频切成 3.5 秒重叠窗口，同场景归一个 <code>sibling_group</code>，
+        质量分（锐度/稳定/光照）+ pHash 去重</td>
+      <td>只有 61% 的切片算过 pHash，黑名单的「pHash 邻域」对其余无效</td></tr>
+    <tr><td><b>标注</b></td>
+      <td>文字标注（主体/景别/动作/物件清单/搜索短语）+ 本地 VL 模型看图标注
+        （主体/工序/物件/场景）</td>
+      <td>物件清单是并列的，「在画面里」和「就是主体」分不开 → 已加主体向量</td></tr>
+    <tr><td><b>放行</b></td>
+      <td>红线只有三条：第三方水印、被复刻源片黑名单、待删。
+        有脸/有字<strong>不再</strong>一票否决，往下传成 <code>needs_erase</code>/<code>has_person</code> 标记</td>
+      <td>口径 2026-08-04 才改，1021 段存量此前一直没跟着放 → 已补</td></tr>
+    <tr><td><b>检索</b></td>
+      <td>需求要写<strong>画面话</strong>不是口播原话；搜<strong>物件</strong>不搜工序；
+        证据层三要素＝物件+动作+<strong>位置</strong></td>
+      <td><code>no_match</code> 恒为 0——它永远排得出第一名，所以命中也必须逐条打开看</td></tr>
+    <tr><td><b>使用</b></td>
+      <td>先 <code>fps=30</code> 归一再按帧切；能裁不擦；人脸闸门必须扫<strong>最终处理链之后</strong>的画面</td>
+      <td>锐化会把原本检不到的脸检出来；一条 B-roll 内部跨剪辑点无闸门覆盖</td></tr>
+    <tr><td><b>回流</b></td>
+      <td>成片交付 = 里面每个镜头都过了人眼那关，是质量最高的标注数据。
+        库内段记「回头客」，库外素材入库并放行</td>
+      <td>没描述就入库 = 隐形素材，比不入库更糟 → 已改成硬拦</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>还挂着的三件事</h3>
+<ul>
+  <li><b>被复刻源片入黑名单</b>——补 pHash、写黑名单、降级那条可检索的段，并回查历史交付条（已开任务）</li>
+  <li><b>291 段实测有大脸的</b>——等黑名单补全后再评估要不要放</li>
+  <li><b>异地备份一直在失败</b>——<code>backup-db.sh</code> 的 R2 那步参数对不上，
+    错误被日志淹了；本地与外置两层正常，但整机丢失目前没兜底（已开任务）</li>
+</ul>
+
+<footer>
+  数据取自 2026-08-04 实测。相关提交：
+  <code>WorkflowUP/Workflow#94</code>（三个结构性修复）。
+  产线细节见 <code>.claude/skills/douyin-replica</code>，本条生产归档见演化档案
+  <code>2026-08-04-开工前必买5样-黄衣主播.md</code>。
+</footer>
+
+</div>
+</body>
+</html>
