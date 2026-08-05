@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="description" content="复刻产线 12 道质检卡点挂在产线哪里、一份报告怎么下判定，以及一次实跑的体检账。">
-<title>复刻产线审查系统 · 卡点全图与实跑体检</title>
+<meta name="description" content="复刻产线 12 道质检卡点、一次实跑体检，以及生产线与独立审核线分开后的目标系统。">
+<title>复刻产线审查系统 · 实跑体检与分线改造</title>
 <style>
 
   *,*::before,*::after{box-sizing:border-box;}
@@ -149,6 +149,47 @@
   .note h3{margin-bottom:5px;}
   .note p{font-size:14px;}
 
+  /* 生产线 / 审核线分离后的目标架构 */
+  .architecture{background:var(--card);border:1px solid var(--rule);}
+  .architecture-scroll{overflow-x:auto;}
+  .flow-board{min-width:850px;}
+  .flow-lane{display:grid;grid-template-columns:142px 1fr;border-bottom:1px solid var(--rule);}
+  .flow-lane:last-child{border-bottom:0;}
+  .lane-label{padding:18px 16px;background:var(--paper);border-right:1px solid var(--rule);
+              display:flex;flex-direction:column;justify-content:center;gap:4px;}
+  .lane-label b{font-size:15px;}
+  .lane-label span{font-size:11.5px;color:var(--ink-3);font-family:var(--mono);}
+  .lane-body{padding:18px 16px;}
+  .flow-row{display:flex;align-items:stretch;gap:8px;}
+  .flow-node{flex:1;min-width:112px;border:1px solid var(--rule);background:var(--card);
+             padding:11px 10px;display:flex;flex-direction:column;justify-content:center;
+             gap:3px;text-align:center;font-size:13px;line-height:1.45;}
+  .flow-node b{font-size:13px;color:var(--ink);}
+  .flow-node small{font-size:11px;color:var(--ink-3);line-height:1.42;}
+  .flow-node.review{border-color:var(--accent);}
+  .flow-node.block{border-color:var(--real);color:var(--real);}
+  .flow-node.pass{border-color:var(--pass);color:var(--pass);}
+  .flow-arrow{flex:0 0 18px;display:flex;align-items:center;justify-content:center;
+              color:var(--accent);font-family:var(--mono);font-weight:700;}
+  .flow-branch{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;margin-left:auto;
+               width:55%;}
+  .branch{padding:9px 11px;border:1px solid var(--rule);font-size:12px;line-height:1.5;}
+  .branch b{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;margin-right:5px;}
+  .branch.block{border-color:var(--real);color:var(--real);}
+  .branch.pass{border-color:var(--pass);color:var(--pass);}
+  .handoff{display:grid;grid-template-columns:142px 1fr;border-bottom:1px solid var(--rule);
+           color:var(--accent);}
+  .handoff::before{content:"";background:var(--paper);border-right:1px solid var(--rule);}
+  .handoff p{padding:11px 16px;font-size:12px;color:var(--accent);max-width:none;
+             font-family:var(--mono);text-align:center;}
+  .architecture-caption{padding:12px 16px;border-top:1px solid var(--rule-2);
+                        font-size:12.5px;color:var(--ink-3);}
+  .state-line{font-family:var(--mono);font-size:12.5px;line-height:1.8;color:var(--ink-2);
+              padding:15px 17px;background:var(--card);border:1px solid var(--rule);}
+  .state-line .current{color:var(--accent);}
+  .state-line .blocked{color:var(--real);}
+  .state-line .passed{color:var(--pass);}
+
   ul{margin:6px 0 0;padding-left:19px;color:var(--ink-2);font-size:14px;}
   li{margin-bottom:5px;}
   li::marker{color:var(--accent);}
@@ -161,24 +202,24 @@
 <body>
 <div class="wrap">
 
-  <div class="eyebrow">复刻产线 · 质检系统 · 2026-08-05 更新</div>
-  <h1>卡点挂在哪、什么时候响、<br>谁说了算</h1>
-  <p class="lede">12 道卡点 + 1 个调度器，管一条复刻片从写稿到交付。本页三张图讲清机制，后半页是《开工前必买 5 样》那一趟的实跑账。</p>
+  <div class="eyebrow">复刻产线 · 质检系统 · 2026-08-05 架构更新</div>
+  <h1>生产线只做片，<br>审核线独立判片</h1>
+  <p class="lede">前五节保留 12 道卡点和《开工前必买 5 样》的真实体检账；第 06 节新增分线后的目标系统，说明候选片怎么交接、谁能判定、什么情况必须退回。</p>
   <p style="font-size:13.5px;color:var(--ink-3);margin-top:10px;">
     只想看审片那五道各自的判据怎么定的，读
     <a href="/workflow/replica-review-gates-2026-08" style="color:var(--accent);">《AI 成片自动审查系统 · 说明》</a>；
-    本页覆盖全产线 12 道，并附一次实跑的账。
+    本页覆盖当前全产线 12 道，并附一次实跑的账。<a href="#target-architecture" style="color:var(--accent);">直接看分线后的系统 →</a>
   </p>
 
   <div class="verdict" style="margin-top:26px;">
     <div class="score">
-      <div><b>12</b><span>卡点总数（新增 2 道）</span></div>
-      <div><b>9</b><span>总检一条命令跑的</span></div>
-      <div><b style="color:var(--pass)">~50 秒</b><span>跑完一次（原 15–25 分钟）</span></div>
-      <div><b style="color:var(--accent)">0</b><span>拦截权（仍在观察模式）</span></div>
+      <div><b>12</b><span>当前卡点总数</span></div>
+      <div><b style="color:var(--accent)">2 条线</b><span>目标：生产 / 独立审核</span></div>
+      <div><b style="color:var(--pass)">~50 秒</b><span>当前总检跑完一次</span></div>
+      <div><b style="color:var(--real)">0</b><span>当前机器实际拦截权</span></div>
     </div>
     <hr>
-    <p style="font-size:15px;color:var(--ink)">仪表盘全装齐了、也跑得动了，但方向盘还在人手上——闸门照亮灯，拦不拦由人定。这是有意的：误报率没摸清之前，给它拦截权会误伤好片子。</p>
+    <p style="font-size:15px;color:var(--ink)"><b>12 道卡点只是检查工具，不等于完整审核系统。</b>当前严重缺口是：做片的人同时运行检查、解释报警，并且观察模式会把退出码压成 0。目标改造不是简单给旧流程加一把锁，而是把生产权和判定权交给两套独立进程；灰区可以进人工复核，明确失败或没跑成绝不能放行。</p>
   </div>
 
   <!-- 1 -->
@@ -434,7 +475,7 @@
       </div>
       <div class="note">
         <h3>观察模式</h3>
-        <p>照跑照记，退出码恒 0、拦不住任何东西。理由是误报率还没摸清，<b>拿没校准的闸门去拦生产比不装更糟</b>。攒够真实报警对完账，再摘掉它。</p>
+        <p><b>这是现状，不是目标方案。</b>照跑照记，退出码恒 0、拦不住任何东西。分线后不再把失败压成通过：只有审核策略预先列出的视觉灰区能记 <span class="k">WARN</span> 并交给独立人审；<span class="k">FAIL</span>、<span class="k">NOT_RUN</span> 和必检项跳过仍然硬阻断。</p>
       </div>
       <div class="note">
         <h3>批次相对，不用固定阈值</h3>
@@ -537,12 +578,101 @@
       <div class="gate"><code>项间停顿</code><small>清单体里「讲到第几项」的节奏感，没有任何闸门管。目前靠人量「项间÷句内 ≥2」。</small></div>
       <div class="gate"><code>logo 一项</code><small>标定用的靶子里没有带 logo 的样本，<b>这一项的准确率从未验证过</b>。</small></div>
       <div class="gate"><code>兜底模型</code><small>qwen3-vl-30b 在 14 张合格样本上误报 9 张。它只是主模型挂掉时的可用性兜底，<b>不能当准确性备份</b>。</small></div>
-      <div class="gate"><code>拦截权</code><small>全系统仍在观察模式，退出码恒 0。摘掉它需要先攒够真实报警并逐条对账。</small></div>
+      <div class="gate"><code>拦截权</code><small>全系统现状仍在观察模式，退出码恒 0。第 06 节给出分线改造；在对应代码和服务真正上线前，这个风险仍然存在。</small></div>
+    </div>
+  </section>
+
+  <!-- 6 -->
+  <section id="target-architecture">
+    <div class="sec-head"><span class="sec-no">06</span><h2>修改后的目标系统：生产线与审核线分开</h2></div>
+    <div class="note warn" style="margin-bottom:20px;">
+      <h3>状态：方案已确定，系统改造尚未完成</h3>
+      <p>下面画的是要实现的目标架构，不代表云服务器已经按此运行。旧实跑数据仍是现状证据，不能用这张图覆盖。</p>
+    </div>
+
+    <div class="architecture" role="img" aria-label="修改后的复刻系统流程图：生产线只生成带哈希的候选包，独立审核线检查输入并运行全部必检项，任何失败、未执行或必检项跳过都退回生产；机器通过或灰区附证据后进入人工终审，服务端最后复核哈希、机器报告和人工清单，全部满足才交付归档。">
+      <div class="architecture-scroll">
+        <div class="flow-board">
+          <div class="flow-lane">
+            <div class="lane-label"><b>生产线</b><span>只负责做片</span></div>
+            <div class="lane-body">
+              <div class="flow-row">
+                <div class="flow-node"><b>接收任务</b><small>源链接、品牌素材、硬约束</small></div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-node"><b>下载与解构</b><small>文稿、节奏、A/B-roll 结构</small></div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-node"><b>完成生产</b><small>配音、对齐、口型、合成</small></div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-node review"><b>冻结候选包</b><small>成片 + 分镜 + 素材清单 + sha256</small></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="handoff"><p>↓ 只读移交：生产者不能写审核结论、不能把自己的候选片标成“已交付”</p></div>
+
+          <div class="flow-lane">
+            <div class="lane-label"><b>独立审核线</b><span>只负责判片</span></div>
+            <div class="lane-body">
+              <div class="flow-row">
+                <div class="flow-node"><b>接收候选包</b><small>按任务 ID 与哈希锁定版本</small></div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-node"><b>输入预检</b><small>源片、分镜、切片、报告输入齐全</small></div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-node"><b>跑当前全部必检项</b><small>文稿 · B-roll · 语速/停顿 · 口型/闪切 · 画面对题 · 残留主播 · 哈希</small></div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-node review"><b>审核判定</b><small>机器只产出 PASS / WARN / FAIL / NOT_RUN</small></div>
+              </div>
+              <div class="flow-branch">
+                <div class="branch block"><b>阻断</b>任一 FAIL、NOT_RUN 或必检项跳过 → 建返工任务，退回生产线</div>
+                <div class="branch pass"><b>放行到人审</b>全部 PASS；或策略预先列出的视觉灰区记 WARN，并附报警帧、指标和理由</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="handoff"><p>↓ 审核报告由独立审核线签名；生产线只能读，不能改结果或删除失败记录</p></div>
+
+          <div class="flow-lane">
+            <div class="lane-label"><b>人工终审</b><span>最后交付决定</span></div>
+            <div class="lane-body">
+              <div class="flow-row">
+                <div class="flow-node"><b>完整看完视频</b><small>不能只看缩略图或机器摘要</small></div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-node"><b>填写并保存清单</b><small>B-roll 对题、程度、节奏、品牌与整体观感</small></div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-node review"><b>人工判定</b><small>通过或驳回都要留下人员、时间与理由</small></div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-node review"><b>服务端二次核验</b><small>候选哈希未变 + 必检项齐全 + 人审已确认</small></div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-node pass"><b>交付并归档</b><small>任何一项不满足都拒绝</small></div>
+              </div>
+              <div class="flow-branch">
+                <div class="branch block"><b>人工驳回</b>生成带理由的返工任务，退回生产线；旧审核结果只留档、不复用</div>
+                <div class="branch pass"><b>人工通过</b>清单写入服务端，再由服务端做最后一次不可绕过的交付校验</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="architecture-caption">关键点不是“多跑几道检查”，而是把做片、判片、交付三种权限拆开。卡点数量以后可以增加，但这条权限边界不能绕过。</div>
+    </div>
+
+    <h3 style="margin:26px 0 12px;">任务状态只允许这样流转</h3>
+    <div class="state-line">
+      queued → producing → candidate_ready → <span class="current">machine_review</span> →
+      <span class="blocked">needs_fix ↩ producing</span> / human_review →
+      <span class="passed">delivered</span>
+    </div>
+
+    <div class="grid-2" style="margin-top:18px;">
+      <div class="note"><h3>生产线能做什么</h3><p>能生成和修改候选片；不能写机器结论、不能勾人工清单、不能调用最终交付。</p></div>
+      <div class="note"><h3>审核线能做什么</h3><p>只能读取冻结候选包并写审核报告；不能偷偷改片，也不能把没跑成解释成通过。</p></div>
+      <div class="note"><h3>灰区怎么处理</h3><p>只有审核策略预先列出的视觉灰区可以是 <span class="k">WARN</span>，且必须带证据进入人工终审；生产线不能临时降级，明确失败也不能降级。</p></div>
+      <div class="note"><h3>服务器何时允许交付</h3><p>哈希匹配、当前全部必检项有结果、无硬失败、人工清单已保存，四个条件同时满足才放行。</p></div>
     </div>
   </section>
 
   <footer>
-    源片 7662255885925748010 · 成片 sha256 d021b126… · 63.9s / 1080×1920 · 实际花费 $2.07（上限 $6）· 修复合并于 PR #96
+    实跑证据：源片 7662255885925748010 · 成片 sha256 d021b126… · 63.9s / 1080×1920 · 实际花费 $2.07（上限 $6）· 旧问题修复合并于 PR #96 · 分线架构待实现
   </footer>
 
 </div>
