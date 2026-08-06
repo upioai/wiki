@@ -3,30 +3,34 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="复刻视频工作流总览：端到端主流程、B-roll 子系统、四阶段独立审核、系统真相层，以及距离正式使用仍缺的验收门槛。">
-<meta name="theme-color" content="#f2efe7">
-<title>复刻视频工作流 · 现状总览</title>
+<meta name="description" content="把复刻视频生产黑箱拆成 8 个可检查、可排障、可优化的工作环节，并说明当前真实运行路径、B-roll、审核系统和正式使用差距。">
+<meta name="theme-color" content="#f7f3ea">
+<title>一条视频，里面到底发生了什么？</title>
 <style>
   :root {
-    --paper: #f2efe7;
-    --paper-deep: #e8e3d8;
-    --ink: #1b211e;
-    --ink-soft: #525a55;
-    --ink-faint: #7b827d;
-    --line: rgba(27, 33, 30, 0.18);
-    --line-strong: rgba(27, 33, 30, 0.38);
-    --green: #2f6b52;
-    --green-soft: #dce9df;
-    --amber: #b97825;
-    --amber-soft: #f1e1c5;
-    --red: #b44938;
-    --red-soft: #eed6cf;
-    --dark: #171c19;
-    --dark-soft: #222925;
-    --white: #f8f6ef;
-    --sans: "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+    --paper: #f7f3ea;
+    --paper-2: #eee7da;
+    --ink: #18201d;
+    --muted: #64706b;
+    --faint: #87908b;
+    --line: #d6cec0;
+    --line-strong: #9d998f;
+    --white: #fffdf8;
+    --navy: #183c49;
+    --navy-soft: #dce9ec;
+    --blue: #246c82;
+    --green: #287055;
+    --green-soft: #dcebe1;
+    --orange: #c96a2c;
+    --orange-soft: #f5dfd0;
+    --yellow: #d79a28;
+    --yellow-soft: #f6e9c8;
+    --red: #b64d3d;
+    --red-soft: #f1d9d3;
+    --dark: #17201d;
+    --sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
     --serif: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
-    --mono: "SFMono-Regular", "Roboto Mono", "Noto Sans Mono CJK SC", monospace;
+    --mono: "SFMono-Regular", "Roboto Mono", monospace;
   }
 
   * { box-sizing: border-box; }
@@ -37,389 +41,275 @@
     font-family: var(--sans);
     line-height: 1.65;
     background:
-      linear-gradient(rgba(27,33,30,.028) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(27,33,30,.028) 1px, transparent 1px),
-      radial-gradient(circle at 18% 4%, rgba(255,255,255,.72), transparent 34%),
+      radial-gradient(circle at 82% 5%, rgba(215,154,40,.12), transparent 25%),
+      linear-gradient(90deg, rgba(24,32,29,.025) 1px, transparent 1px),
       var(--paper);
-    background-size: 32px 32px, 32px 32px, auto, auto;
+    background-size: auto, 40px 40px, auto;
     -webkit-font-smoothing: antialiased;
   }
-  a { color: inherit; }
-  a:focus-visible { outline: 3px solid var(--amber); outline-offset: 4px; }
-  .shell { max-width: 1480px; margin: 0 auto; padding-inline: clamp(20px, 4vw, 72px); }
-  .measure { max-width: 1180px; }
-  .section {
-    padding-block: clamp(80px, 10vw, 150px);
-    border-top: 1px solid var(--line);
-    scroll-margin-top: 78px;
-  }
-  .section--dark {
-    color: var(--white);
-    background:
-      linear-gradient(rgba(248,246,239,.035) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(248,246,239,.035) 1px, transparent 1px),
-      radial-gradient(circle at 76% 12%, rgba(47,107,82,.18), transparent 35%),
-      var(--dark);
-    background-size: 36px 36px, 36px 36px, auto, auto;
-    border-color: rgba(248,246,239,.14);
-  }
+  a { color: inherit; text-underline-offset: 3px; }
+  a:focus-visible { outline: 3px solid var(--yellow); outline-offset: 4px; }
+  code { font-family: var(--mono); }
+  .shell { width: min(1380px, calc(100% - 48px)); margin: 0 auto; }
+  .section { padding-block: clamp(76px, 9vw, 132px); border-top: 1px solid var(--line); scroll-margin-top: 70px; }
+  .section--dark { color: var(--white); background: var(--dark); border-color: rgba(255,255,255,.14); }
+  .section--blue { background: #e9f0f1; }
+  .section--orange { background: #f4e9df; }
 
   .topbar {
     position: sticky;
-    top: 0;
-    z-index: 10;
-    backdrop-filter: blur(16px);
-    background: color-mix(in srgb, var(--paper) 90%, transparent);
+    inset: 0 0 auto;
+    z-index: 20;
+    background: rgba(247,243,234,.94);
     border-bottom: 1px solid var(--line);
+    backdrop-filter: blur(15px);
   }
-  .topbar__inner {
-    min-height: 58px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 24px;
-  }
-  .brand {
-    text-decoration: none;
-    font: 700 12px/1 var(--mono);
-    letter-spacing: .12em;
-    white-space: nowrap;
-  }
-  .toc { display: flex; align-items: center; gap: 22px; overflow-x: auto; scrollbar-width: none; }
+  .topbar__inner { min-height: 60px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+  .brand { flex: 0 0 auto; text-decoration: none; font: 800 12px/1 var(--mono); letter-spacing: .1em; }
+  .toc { display: flex; gap: 22px; overflow-x: auto; scrollbar-width: none; }
   .toc::-webkit-scrollbar { display: none; }
-  .toc a {
-    flex: 0 0 auto;
-    display: inline-flex;
-    align-items: center;
-    min-height: 44px;
-    text-decoration: none;
-    color: var(--ink-soft);
-    font-size: 12px;
-    letter-spacing: .04em;
-  }
-  .toc a:hover { color: var(--green); }
+  .toc a { flex: 0 0 auto; display: inline-flex; align-items: center; min-height: 44px; color: var(--muted); text-decoration: none; font-size: 12px; }
+  .toc a:hover { color: var(--orange); }
 
-  .eyebrow {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 26px;
-    color: var(--green);
-    font: 700 12px/1.2 var(--mono);
-    letter-spacing: .1em;
-    text-transform: uppercase;
-  }
-  .eyebrow::before { content: ""; width: 32px; height: 2px; background: currentColor; }
-  .section--dark .eyebrow { color: #74aa8d; }
-  .section-head {
-    display: grid;
-    grid-template-columns: minmax(0, 1.3fr) minmax(280px, .7fr);
-    gap: clamp(30px, 7vw, 110px);
-    align-items: end;
-    margin-bottom: clamp(48px, 7vw, 86px);
-  }
-  .section-head h2 {
-    margin: 0;
-    max-width: 850px;
-    font-family: var(--serif);
-    font-size: clamp(42px, 6vw, 82px);
-    font-weight: 700;
-    letter-spacing: -.055em;
-    line-height: 1.03;
-  }
-  .section-head p { margin: 0; color: var(--ink-soft); font-size: 16px; }
-  .section--dark .section-head p { color: rgba(248,246,239,.66); }
+  .hero { padding-block: clamp(70px, 9vw, 128px) 74px; }
+  .hero__tag { display: inline-flex; align-items: center; gap: 10px; padding: 8px 12px; color: var(--navy); background: var(--navy-soft); border-radius: 999px; font-size: 12px; font-weight: 700; }
+  .hero__tag::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--blue); }
+  .hero__grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(300px, .65fr); gap: clamp(48px, 8vw, 130px); align-items: end; margin-top: 30px; }
+  .hero h1 { margin: 0; max-width: 950px; font-family: var(--serif); font-size: clamp(58px, 8.2vw, 118px); line-height: .98; letter-spacing: -.065em; }
+  .hero h1 em { color: var(--orange); font-style: normal; }
+  .hero__lead { max-width: 760px; margin: 30px 0 0; color: var(--muted); font-size: clamp(17px, 1.5vw, 21px); }
+  .hero__promise { display: grid; gap: 12px; padding: 26px; background: var(--white); border: 1px solid var(--line); box-shadow: 9px 9px 0 var(--paper-2); }
+  .hero__promise small { color: var(--orange); font: 800 11px/1.2 var(--mono); letter-spacing: .08em; }
+  .hero__promise b { font-family: var(--serif); font-size: 27px; line-height: 1.2; }
+  .hero__promise p { margin: 0; color: var(--muted); font-size: 13px; }
 
-  .hero {
-    min-height: calc(100svh - 58px);
-    display: grid;
-    align-content: center;
-    padding-block: clamp(70px, 10vw, 150px);
-  }
-  .hero__grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(220px, 290px);
-    gap: clamp(44px, 8vw, 130px);
-    align-items: end;
-  }
-  .hero h1 {
-    margin: 0;
-    max-width: 980px;
-    font-family: var(--serif);
-    font-size: clamp(64px, 9vw, 128px);
-    font-weight: 700;
-    letter-spacing: -.07em;
-    line-height: .94;
-  }
-  .hero__sub {
-    max-width: 760px;
-    margin: 32px 0 0;
-    color: var(--ink-soft);
-    font-size: clamp(17px, 1.6vw, 22px);
-  }
-  .verdict {
-    padding-inline-start: 30px;
-    border-inline-start: 1px solid var(--line-strong);
-  }
-  .verdict__label { font: 700 12px/1.2 var(--mono); letter-spacing: .08em; color: var(--ink-faint); }
-  .verdict strong { display: block; margin-top: 16px; color: var(--red); font-family: var(--serif); font-size: 36px; line-height: 1.15; }
-  .verdict p { margin: 18px 0 0; color: var(--ink-soft); font-size: 13px; }
+  .question-strip { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: clamp(56px, 8vw, 100px); border-block: 1px solid var(--line-strong); }
+  .question { position: relative; min-height: 150px; padding: 28px 30px 28px 74px; border-inline-start: 1px solid var(--line); }
+  .question:first-child { border-inline-start: 0; }
+  .question span { position: absolute; inset: 28px auto auto 28px; display: grid; place-items: center; width: 30px; height: 30px; color: var(--white); background: var(--navy); border-radius: 50%; font: 800 12px/1 var(--mono); }
+  .question b { display: block; font-size: 17px; }
+  .question p { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
 
-  .status-strip {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    margin-top: clamp(58px, 9vw, 120px);
-    border-block: 1px solid var(--line);
-  }
-  .status-item { position: relative; min-height: 104px; padding: 20px 18px 18px 28px; border-inline-start: 1px solid var(--line); }
-  .status-item:first-child { border-inline-start: 0; }
-  .status-item::before { content: ""; position: absolute; inset: 24px auto auto 0; width: 9px; height: 9px; border-radius: 50%; background: var(--ink-faint); }
-  .status-item.ok::before { background: var(--green); }
-  .status-item.wait::before { background: var(--amber); }
-  .status-item.block::before { background: var(--red); }
-  .status-item b { display: block; font-size: 14px; }
-  .status-item span { display: block; margin-top: 6px; color: var(--ink-faint); font-size: 12px; }
+  .section-label { margin-bottom: 20px; color: var(--orange); font: 800 11px/1.2 var(--mono); letter-spacing: .11em; text-transform: uppercase; }
+  .section-label::before { content: ""; display: inline-block; width: 28px; height: 2px; margin: 0 10px 3px 0; background: currentColor; }
+  .section--dark .section-label { color: #74b595; }
+  .section-head { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(290px, .8fr); gap: clamp(36px, 7vw, 100px); align-items: end; margin-bottom: 54px; }
+  .section-head h2 { margin: 0; font-family: var(--serif); font-size: clamp(42px, 6vw, 76px); line-height: 1.04; letter-spacing: -.05em; }
+  .section-head p { margin: 0; color: var(--muted); font-size: 15px; }
+  .section--dark .section-head p { color: rgba(255,253,248,.66); }
 
-  .overview-flow {
-    display: grid;
-    grid-template-columns: repeat(7, minmax(110px, 1fr));
-    margin-top: 46px;
-    overflow-x: auto;
-    padding: 16px 0 24px;
-    scrollbar-color: var(--line-strong) transparent;
-  }
-  .overview-step { position: relative; min-width: 128px; padding: 50px 18px 0 0; }
-  .overview-step::before {
-    content: "";
-    position: absolute;
-    inset: 15px 0 auto 0;
-    height: 1px;
-    background: var(--line-strong);
-  }
-  .overview-step::after {
-    content: "";
-    position: absolute;
-    inset: 8px auto auto 0;
-    width: 13px;
-    height: 13px;
-    border: 1px solid var(--ink);
-    border-radius: 50%;
-    background: var(--paper);
-    box-shadow: inset 0 0 0 4px var(--paper);
-  }
-  .overview-step.ok::after { background: var(--green); }
-  .overview-step.wait::after { background: var(--amber); }
-  .overview-step.block::after { background: var(--red); border-radius: 2px; }
-  .overview-step b { display: block; font-size: 14px; }
-  .overview-step small { display: block; margin-top: 7px; color: var(--ink-faint); font-size: 11px; }
+  .truth-banner { display: grid; grid-template-columns: 180px 1fr; border: 2px solid var(--ink); background: var(--white); }
+  .truth-banner__title { display: grid; place-items: center; padding: 28px; color: var(--white); background: var(--ink); font-family: var(--serif); font-size: 24px; text-align: center; }
+  .truth-banner__body { padding: 26px 30px; }
+  .truth-banner__body b { color: var(--red); font-size: 18px; }
+  .truth-banner__body p { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
 
-  .legend { display: flex; flex-wrap: wrap; gap: 20px; margin-top: 28px; color: var(--ink-faint); font-size: 12px; }
-  .legend span { display: inline-flex; align-items: center; gap: 8px; }
-  .legend i { width: 9px; height: 9px; border-radius: 50%; background: var(--ink-faint); }
-  .legend .ok { background: var(--green); }
-  .legend .wait { background: var(--amber); }
-  .legend .block { background: var(--red); border-radius: 1px; }
-  .scroll-cue { display: none; }
+  .route-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-top: 34px; }
+  .route { min-width: 0; max-width: 100%; overflow: hidden; padding: clamp(26px, 4vw, 42px); border: 1px solid var(--line); background: rgba(255,255,255,.45); }
+  .route--now { border-top: 6px solid var(--orange); }
+  .route--target { border-top: 6px solid var(--navy); }
+  .route__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+  .route__top small { display: block; color: var(--muted); font: 800 10px/1.2 var(--mono); letter-spacing: .08em; }
+  .route__top h3 { margin: 8px 0 0; font-family: var(--serif); font-size: 31px; line-height: 1.15; }
+  .pill { display: inline-flex; align-items: center; min-height: 28px; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; white-space: nowrap; }
+  .pill--run { color: #7d3b19; background: var(--orange-soft); }
+  .pill--lock { color: #713126; background: var(--red-soft); }
+  .route-flow { display: flex; align-items: stretch; gap: 0; margin-top: 32px; overflow-x: auto; padding-bottom: 12px; }
+  .route-step { position: relative; flex: 1 0 112px; min-width: 112px; padding: 42px 14px 16px 0; border-top: 1px solid var(--line-strong); }
+  .route-step::before { content: attr(data-no); position: absolute; inset: -15px auto auto 0; display: grid; place-items: center; width: 30px; height: 30px; color: var(--white); background: var(--orange); border-radius: 50%; font: 800 10px/1 var(--mono); }
+  .route--target .route-step::before { background: var(--navy); }
+  .route-step:not(:last-child)::after { content: "→"; position: absolute; inset: 44px 8px auto auto; color: var(--line-strong); }
+  .route-step b { display: block; font-size: 13px; }
+  .route-step span { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; }
+  .route__note { margin: 18px 0 0; padding-top: 18px; color: var(--muted); border-top: 1px solid var(--line); font-size: 12px; }
 
-  .handoff {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(170px, 1fr));
-    gap: 0;
-    overflow-x: auto;
-    padding-bottom: 22px;
-  }
-  .handoff__step { position: relative; min-width: 210px; padding: 28px 44px 30px 26px; border-block: 1px solid var(--line); }
-  .handoff__step + .handoff__step { border-inline-start: 1px solid var(--line); }
-  .handoff__step:not(:last-child)::after {
-    content: "→";
-    position: absolute;
-    inset: 50% -17px auto auto;
-    transform: translateY(-50%);
-    z-index: 2;
-    display: grid;
-    place-items: center;
-    width: 34px;
-    height: 34px;
-    color: var(--green);
-    background: var(--paper);
-    border: 1px solid var(--green);
-    border-radius: 50%;
-  }
-  .handoff__owner { font: 700 11px/1.2 var(--mono); letter-spacing: .08em; color: var(--green); }
-  .handoff__step h3 { margin: 20px 0 10px; font-family: var(--serif); font-size: 25px; line-height: 1.18; }
-  .handoff__step p { margin: 0; color: var(--ink-soft); font-size: 13px; }
-  .handoff__step small { display: block; margin-top: 18px; color: var(--ink-faint); font: 11px/1.5 var(--mono); }
-  .handoff__loop {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1.2fr;
-    gap: 16px;
-    margin-top: 30px;
-  }
-  .logic-band { padding: 20px 22px; border-inline-start: 3px solid var(--green); background: rgba(47,107,82,.07); }
-  .logic-band.warn { border-color: var(--amber); background: rgba(185,120,37,.08); }
-  .logic-band.fail { border-color: var(--red); background: rgba(180,73,56,.08); }
-  .logic-band b { display: block; font-size: 13px; }
-  .logic-band span { display: block; margin-top: 6px; color: var(--ink-soft); font-size: 12px; }
+  .factory-flow { display: grid; grid-template-columns: repeat(8, minmax(145px, 1fr)); overflow-x: auto; padding: 12px 0 24px; }
+  .factory-step { position: relative; min-width: 150px; padding: 58px 26px 26px 0; border-top: 2px solid var(--ink); }
+  .factory-step::before { content: attr(data-no); position: absolute; inset: -18px auto auto 0; display: grid; place-items: center; width: 36px; height: 36px; color: var(--white); background: var(--ink); border-radius: 8px; font: 800 11px/1 var(--mono); }
+  .factory-step:not(:last-child)::after { content: "→"; position: absolute; inset: 63px 9px auto auto; color: var(--orange); font-size: 18px; }
+  .factory-step strong { display: block; font-family: var(--serif); font-size: 22px; line-height: 1.15; }
+  .factory-step b { display: block; margin-top: 8px; color: var(--orange); font-size: 12px; }
+  .factory-step p { margin: 10px 0 0; color: var(--muted); font-size: 11px; }
+  .scroll-cue { display: none; color: var(--muted); font: 11px/1.4 var(--mono); text-align: right; }
 
-  .broll-stats {
+  .station-list { display: grid; gap: 28px; }
+  .station {
+    --tone: var(--navy);
+    --tone-soft: var(--navy-soft);
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    border-block: 1px solid var(--line);
-    margin-bottom: 48px;
+    grid-template-columns: minmax(230px, .56fr) minmax(0, 1.44fr);
+    border: 1px solid var(--line-strong);
+    background: var(--white);
   }
-  .broll-stat { padding: 24px 28px; border-inline-start: 1px solid var(--line); }
-  .broll-stat:first-child { border-inline-start: 0; }
-  .broll-stat strong { font-family: var(--serif); font-size: clamp(34px, 4vw, 58px); line-height: 1; color: var(--green); }
-  .broll-stat span { display: block; margin-top: 9px; color: var(--ink-soft); font-size: 12px; }
-  .broll-flow {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(220px, 1fr));
-    gap: 22px;
-    overflow-x: auto;
-    padding-bottom: 24px;
-  }
-  .broll-stage { position: relative; min-width: 250px; padding: 0 20px 28px 0; border-bottom: 2px solid var(--green); }
-  .broll-stage:not(:last-child)::after { content: "→"; position: absolute; inset: 50% -19px auto auto; color: var(--green); font-size: 24px; }
-  .broll-stage__no { font: 700 32px/1 var(--mono); color: var(--green); }
-  .broll-stage h3 { margin: 12px 0 22px; font-family: var(--serif); font-size: 30px; }
-  .broll-stage ol { margin: 0; padding: 0; list-style: none; counter-reset: flow; }
-  .broll-stage li { counter-increment: flow; display: flex; gap: 12px; padding-block: 9px; border-top: 1px solid var(--line); font-size: 13px; }
-  .broll-stage li::before { content: counter(flow, decimal-leading-zero); color: var(--ink-faint); font: 10px/1.8 var(--mono); }
-  .broll-notes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 42px; }
-  .broll-note { padding: 22px; border-top: 3px solid var(--amber); background: rgba(185,120,37,.08); }
-  .broll-note.block { border-color: var(--red); background: rgba(180,73,56,.08); }
-  .broll-note b { display: block; font-size: 13px; }
-  .broll-note p { margin: 8px 0 0; color: var(--ink-soft); font-size: 12px; }
+  .station[data-tone="orange"] { --tone: var(--orange); --tone-soft: var(--orange-soft); }
+  .station[data-tone="green"] { --tone: var(--green); --tone-soft: var(--green-soft); }
+  .station[data-tone="yellow"] { --tone: #9a690c; --tone-soft: var(--yellow-soft); }
+  .station__identity { position: relative; padding: 30px; color: var(--white); background: var(--tone); overflow: hidden; }
+  .station__identity::after { content: attr(data-no); position: absolute; inset: auto -12px -28px auto; color: rgba(255,255,255,.12); font: 900 126px/1 var(--mono); }
+  .station__identity small { font: 800 10px/1.2 var(--mono); letter-spacing: .1em; }
+  .station__identity h3 { margin: 18px 0 0; font-family: var(--serif); font-size: clamp(30px, 3vw, 43px); line-height: 1.08; }
+  .station__identity p { position: relative; z-index: 1; margin: 18px 0 0; color: rgba(255,255,255,.78); font-size: 13px; }
+  .station__body { min-width: 0; padding: clamp(24px, 4vw, 38px); }
+  .io-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 16px; align-items: stretch; }
+  .io-box { padding: 18px; background: var(--tone-soft); }
+  .io-box small { display: block; color: var(--tone); font: 800 10px/1.2 var(--mono); letter-spacing: .08em; }
+  .io-box b { display: block; margin-top: 8px; font-size: 14px; }
+  .io-arrow { display: grid; place-items: center; color: var(--tone); font-size: 22px; }
+  .inside { margin-top: 20px; padding: 20px; border: 1px dashed var(--line-strong); }
+  .inside__label { color: var(--tone); font-size: 12px; font-weight: 800; }
+  .inside ol { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 14px 0 0; padding: 0; list-style: none; counter-reset: inside; }
+  .inside li { counter-increment: inside; position: relative; min-height: 90px; padding: 15px 14px 14px 42px; background: #f8f5ee; font-size: 12px; }
+  .inside li::before { content: counter(inside); position: absolute; inset: 15px auto auto 14px; display: grid; place-items: center; width: 20px; height: 20px; color: var(--white); background: var(--tone); border-radius: 50%; font: 800 10px/1 var(--mono); }
+  .control-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+  .control { padding: 18px; border-left: 4px solid var(--red); background: var(--red-soft); }
+  .control--better { border-color: var(--green); background: var(--green-soft); }
+  .control b { display: block; font-size: 13px; }
+  .control p { margin: 7px 0 0; color: var(--muted); font-size: 12px; }
+  .tech-line { display: grid; grid-template-columns: auto 1fr; gap: 12px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+  .tech-line b { color: var(--tone); font-family: var(--mono); }
 
-  .cycle-rule {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(140px, 1fr));
-    border: 1px solid rgba(248,246,239,.18);
-    margin-bottom: 42px;
-  }
-  .cycle-rule span { position: relative; padding: 18px 24px; border-inline-start: 1px solid rgba(248,246,239,.18); color: rgba(248,246,239,.7); font-size: 12px; }
-  .cycle-rule span:first-child { border-inline-start: 0; }
-  .cycle-rule span:not(:last-child)::after { content: "→"; position: absolute; inset: 16px -9px auto auto; color: #74aa8d; z-index: 1; }
-  .review-stages { display: grid; grid-template-columns: repeat(4, minmax(240px, 1fr)); gap: 18px; overflow-x: auto; padding-bottom: 22px; }
-  .review-stage {
-    min-width: 260px;
-    padding: 28px;
-    color: var(--white);
-    border: 1px solid rgba(248,246,239,.2);
-    background: rgba(248,246,239,.035);
-    clip-path: polygon(0 12px, 12px 0, calc(100% - 12px) 0, 100% 12px, 100% calc(100% - 12px), calc(100% - 12px) 100%, 12px 100%, 0 calc(100% - 12px));
-  }
-  .review-stage__top { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding-bottom: 20px; border-bottom: 1px solid rgba(248,246,239,.16); }
-  .review-stage__top span { color: #74aa8d; font: 700 32px/1 var(--mono); }
-  .review-stage__top b { font-family: var(--serif); font-size: 23px; }
-  .review-stage__count { margin: 22px 0 12px; color: rgba(248,246,239,.55); font: 11px/1.2 var(--mono); letter-spacing: .08em; }
-  .review-stage ul { margin: 0; padding: 0; list-style: none; }
-  .review-stage li { padding: 9px 0; border-top: 1px solid rgba(248,246,239,.1); color: rgba(248,246,239,.82); font-size: 12px; }
-  .review-stage__foot { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; margin-top: 24px; color: rgba(248,246,239,.55); font: 10px/1.3 var(--mono); }
-  .review-stage__foot i { width: 10px; height: 10px; border: 2px solid #74aa8d; transform: rotate(45deg); }
-  .review-note {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 22px;
-    margin-top: 40px;
-  }
-  .review-note > div { padding: 24px 26px; border-inline-start: 3px solid #74aa8d; background: rgba(47,107,82,.18); }
-  .review-note > div:last-child { border-color: var(--red); background: rgba(180,73,56,.13); }
-  .review-note b { display: block; font-size: 13px; }
-  .review-note p { margin: 8px 0 0; color: rgba(248,246,239,.66); font-size: 12px; }
+  .broll-number-row { display: grid; grid-template-columns: repeat(4, 1fr); margin-bottom: 46px; border-block: 1px solid var(--line-strong); }
+  .broll-number { padding: 22px 24px; border-inline-start: 1px solid var(--line); }
+  .broll-number:first-child { border-inline-start: 0; }
+  .broll-number strong { display: block; color: var(--green); font-family: var(--serif); font-size: clamp(34px, 4vw, 54px); line-height: 1; }
+  .broll-number span { display: block; margin-top: 8px; color: var(--muted); font-size: 11px; }
+  .broll-machine { display: grid; grid-template-columns: repeat(7, minmax(170px, 1fr)); overflow-x: auto; padding: 18px 0 30px; }
+  .broll-part { position: relative; min-width: 180px; padding: 50px 28px 22px 0; border-top: 2px solid var(--green); }
+  .broll-part::before { content: attr(data-no); position: absolute; inset: -16px auto auto 0; display: grid; place-items: center; width: 32px; height: 32px; color: var(--white); background: var(--green); border-radius: 50%; font: 800 10px/1 var(--mono); }
+  .broll-part:not(:last-child)::after { content: "→"; position: absolute; inset: 52px 10px auto auto; color: var(--green); }
+  .broll-part b { display: block; font-size: 14px; }
+  .broll-part p { margin: 7px 0 0; color: var(--muted); font-size: 11px; }
+  .broll-outcomes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 26px; }
+  .outcome { padding: 22px; border-top: 5px solid var(--green); background: var(--green-soft); }
+  .outcome--weak { border-color: var(--yellow); background: var(--yellow-soft); }
+  .outcome--none { border-color: var(--red); background: var(--red-soft); }
+  .outcome b { display: block; }
+  .outcome p { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+  .broll-lesson { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 34px; }
+  .lesson { padding: 24px; background: var(--white); border: 1px solid var(--line); }
+  .lesson b { color: var(--red); }
+  .lesson p { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
 
-  .system-layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(360px, .9fr); gap: clamp(44px, 7vw, 100px); }
-  .system-map { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-areas: "store exec workflow" "store exec assets" ". reviewer reviewer"; gap: 14px; align-items: stretch; }
-  .system-node { position: relative; min-height: 150px; padding: 24px; border: 1px solid var(--line-strong); background: rgba(255,255,255,.28); }
-  .system-node::before { content: attr(data-no); display: block; margin-bottom: 25px; color: var(--green); font: 700 12px/1 var(--mono); }
-  .system-node h3 { margin: 0; font-family: var(--serif); font-size: 24px; line-height: 1.18; }
-  .system-node p { margin: 10px 0 0; color: var(--ink-soft); font-size: 12px; }
-  .system-node small { display: block; margin-top: 17px; color: var(--ink-faint); font: 10px/1.5 var(--mono); }
-  .system-node--store { grid-area: store; }
-  .system-node--exec { grid-area: exec; }
-  .system-node--workflow { grid-area: workflow; }
-  .system-node--assets { grid-area: assets; }
-  .system-node--reviewer { grid-area: reviewer; min-height: 120px; border-color: var(--amber); }
-  .truth-list { border-top: 1px solid var(--line-strong); }
-  .truth-item { display: grid; grid-template-columns: 1fr auto; gap: 20px; padding: 17px 0; border-bottom: 1px solid var(--line); }
-  .truth-item b { font-size: 13px; }
-  .truth-item span { color: var(--green); font: 11px/1.5 var(--mono); text-align: end; }
-  .not-equal { display: grid; gap: 10px; margin-top: 34px; }
-  .not-equal p { margin: 0; padding: 13px 16px; color: var(--red); border: 1px solid rgba(180,73,56,.45); font-size: 12px; }
+  .review-loop { display: grid; grid-template-columns: repeat(5, 1fr); margin-bottom: 34px; border: 1px solid rgba(255,255,255,.22); }
+  .review-loop span { position: relative; padding: 18px 22px; color: rgba(255,255,255,.75); border-inline-start: 1px solid rgba(255,255,255,.16); font-size: 12px; }
+  .review-loop span:first-child { border-inline-start: 0; }
+  .review-loop span:not(:last-child)::after { content: "→"; position: absolute; inset: 17px -8px auto auto; color: #74b595; z-index: 1; }
+  .review-stages { display: grid; grid-template-columns: repeat(4, minmax(260px, 1fr)); gap: 16px; overflow-x: auto; padding-bottom: 18px; }
+  .review-card { min-width: 270px; padding: 26px; border: 1px solid rgba(255,255,255,.22); background: rgba(255,255,255,.045); }
+  .review-card__top { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid rgba(255,255,255,.15); }
+  .review-card__top span { color: #74b595; font: 800 28px/1 var(--mono); }
+  .review-card__top h3 { margin: 0; font-family: var(--serif); font-size: 24px; }
+  .review-card small { display: block; margin: 18px 0 9px; color: rgba(255,255,255,.48); font: 800 10px/1.2 var(--mono); }
+  .review-card ul { margin: 0; padding: 0; list-style: none; }
+  .review-card li { padding: 9px 0 9px 20px; border-top: 1px solid rgba(255,255,255,.09); color: rgba(255,255,255,.8); font-size: 12px; }
+  .review-card li::before { content: "？"; display: inline-block; width: 20px; margin-left: -20px; color: #74b595; font-weight: 800; }
+  .review-language { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 28px; }
+  .review-language div { padding: 18px; border-top: 4px solid #74b595; background: rgba(255,255,255,.05); }
+  .review-language div:nth-child(2) { border-color: var(--yellow); }
+  .review-language div:nth-child(3), .review-language div:nth-child(4) { border-color: var(--red); }
+  .review-language b { display: block; font: 800 12px/1.2 var(--mono); }
+  .review-language p { margin: 7px 0 0; color: rgba(255,255,255,.62); font-size: 11px; }
+  .review-reality { margin-top: 34px; padding: 24px 26px; color: #44251d; background: var(--orange-soft); border-left: 6px solid var(--orange); }
+  .review-reality b { display: block; font-size: 15px; }
+  .review-reality p { margin: 7px 0 0; font-size: 12px; }
 
-  .readiness-layout { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(300px, .65fr); gap: clamp(46px, 7vw, 110px); align-items: stretch; }
-  .readiness-path { position: relative; display: grid; gap: 0; }
-  .readiness-path::before { content: ""; position: absolute; inset: 28px auto 28px 19px; width: 2px; background: linear-gradient(var(--green) 0 18%, var(--amber) 18% 36%, var(--red) 36% 100%); }
-  .readiness-item { position: relative; display: grid; grid-template-columns: 40px minmax(0, 1fr) minmax(190px, .6fr); gap: 20px; padding: 0 0 32px; }
-  .readiness-item:last-child { padding-bottom: 0; }
-  .readiness-no { z-index: 1; display: grid; place-items: center; width: 40px; height: 40px; color: var(--white); border-radius: 50%; background: var(--red); font: 700 12px/1 var(--mono); }
-  .readiness-item.ok .readiness-no { background: var(--green); }
-  .readiness-item.wait .readiness-no { background: var(--amber); }
-  .readiness-body { padding-top: 6px; }
-  .readiness-body b { display: block; font-size: 14px; }
-  .readiness-body p { margin: 6px 0 0; color: var(--ink-soft); font-size: 12px; }
-  .readiness-proof { padding: 8px 0 0 18px; border-inline-start: 1px solid var(--line); color: var(--ink-faint); font: 10px/1.55 var(--mono); }
-  .readiness-verdict { display: grid; align-content: center; padding: clamp(32px, 5vw, 64px); color: var(--white); background: var(--dark); }
-  .readiness-verdict small { color: #74aa8d; font: 700 11px/1.2 var(--mono); letter-spacing: .08em; }
-  .readiness-verdict strong { margin-top: 20px; font-family: var(--serif); font-size: clamp(42px, 5vw, 68px); line-height: 1.05; }
-  .readiness-verdict p { margin: 28px 0 0; padding-top: 24px; color: rgba(248,246,239,.6); border-top: 1px solid rgba(248,246,239,.18); font-size: 12px; }
+  .diagnosis-wrap { overflow-x: auto; border: 1px solid var(--line-strong); background: var(--white); }
+  .diagnosis { width: 100%; min-width: 980px; border-collapse: collapse; }
+  .diagnosis th { padding: 16px 18px; color: var(--white); background: var(--navy); text-align: left; font-size: 12px; }
+  .diagnosis td { padding: 17px 18px; border-top: 1px solid var(--line); vertical-align: top; font-size: 12px; }
+  .diagnosis tr:nth-child(even) td { background: #f6f2ea; }
+  .diagnosis td:first-child { width: 22%; font-weight: 800; }
+  .diagnosis td:nth-child(2) { width: 16%; color: var(--orange); font-weight: 800; }
+  .diagnosis td:nth-child(3) { width: 27%; color: var(--muted); }
+  .diagnosis td:nth-child(4) { color: var(--muted); }
+  .first-response { margin-top: 24px; padding: 22px 24px; border-left: 5px solid var(--navy); background: var(--navy-soft); font-size: 13px; }
 
-  .sources {
-    padding-block: 48px 70px;
-    color: var(--ink-faint);
-    border-top: 1px solid var(--line);
-    font-size: 11px;
-  }
-  .sources__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .optimize-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+  .optimize-card { padding: 28px; background: var(--white); border: 1px solid var(--line); }
+  .optimize-card__top { display: grid; grid-template-columns: 44px 1fr; gap: 14px; align-items: center; }
+  .optimize-card__top span { display: grid; place-items: center; width: 44px; height: 44px; color: var(--white); background: var(--orange); border-radius: 10px; font: 800 12px/1 var(--mono); }
+  .optimize-card h3 { margin: 0; font-family: var(--serif); font-size: 25px; }
+  .optimize-card dl { display: grid; grid-template-columns: 88px 1fr; gap: 10px 14px; margin: 22px 0 0; font-size: 12px; }
+  .optimize-card dt { color: var(--orange); font-weight: 800; }
+  .optimize-card dd { margin: 0; color: var(--muted); }
+  .optimization-rule { margin-top: 24px; padding: 22px 24px; color: var(--white); background: var(--navy); font-size: 13px; }
+
+  .glossary { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line-strong); }
+  .term { padding: 22px 22px 24px 0; border-bottom: 1px solid var(--line); }
+  .term:nth-child(3n+2), .term:nth-child(3n+3) { padding-left: 22px; border-left: 1px solid var(--line); }
+  .term code { color: var(--orange); font-size: 11px; font-weight: 800; }
+  .term b { display: block; margin-top: 7px; font-size: 15px; }
+  .term p { margin: 6px 0 0; color: var(--muted); font-size: 11px; }
+
+  .readiness-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(310px, .75fr); gap: 36px; }
+  .readiness-list { border-top: 1px solid var(--line-strong); }
+  .readiness-item { display: grid; grid-template-columns: 118px 1fr minmax(180px, .6fr); gap: 18px; padding: 22px 0; border-bottom: 1px solid var(--line); }
+  .state { display: inline-flex; align-items: center; align-self: start; gap: 8px; font-size: 11px; font-weight: 800; }
+  .state::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--red); }
+  .state--ok::before { background: var(--green); }
+  .state--wait::before { background: var(--yellow); }
+  .readiness-item b { display: block; font-size: 14px; }
+  .readiness-item p { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
+  .readiness-proof { color: var(--faint); font: 10px/1.55 var(--mono); }
+  .decision { display: grid; align-content: center; padding: clamp(30px, 4vw, 52px); color: var(--white); background: var(--dark); }
+  .decision small { color: #74b595; font: 800 10px/1.2 var(--mono); letter-spacing: .1em; }
+  .decision strong { display: block; margin-top: 18px; font-family: var(--serif); font-size: clamp(39px, 4vw, 56px); line-height: 1.08; }
+  .decision p { margin: 22px 0 0; padding-top: 20px; color: rgba(255,255,255,.63); border-top: 1px solid rgba(255,255,255,.16); font-size: 12px; }
+  .decision p b { color: var(--white); }
+
+  .sources { padding-block: 42px 62px; color: var(--muted); border-top: 1px solid var(--line); font-size: 11px; }
+  .sources__grid { display: grid; grid-template-columns: 1.2fr .8fr; gap: 30px; }
   .sources p { margin: 0; }
-  .sources a { text-underline-offset: 3px; }
 
-  @media (max-width: 980px) {
-    .hero__grid, .section-head, .system-layout, .readiness-layout { grid-template-columns: 1fr; }
-    .verdict { max-width: 460px; }
-    .status-strip { grid-template-columns: repeat(2, 1fr); }
-    .status-item:nth-child(odd) { border-inline-start: 0; }
-    .status-item:last-child { grid-column: 1 / -1; border-top: 1px solid var(--line); }
-    .handoff__loop, .broll-notes { grid-template-columns: 1fr; }
-    .system-map { min-height: 480px; }
-    .readiness-verdict { min-height: 340px; }
+  @media (max-width: 1000px) {
+    .hero__grid, .section-head, .readiness-grid { grid-template-columns: 1fr; }
+    .route-compare { grid-template-columns: 1fr; }
+    .station { grid-template-columns: 1fr; }
+    .station__identity { min-height: 230px; }
+    .inside ol { grid-template-columns: repeat(2, 1fr); }
+    .broll-number-row { grid-template-columns: repeat(2, 1fr); }
+    .broll-number:nth-child(3) { border-inline-start: 0; border-top: 1px solid var(--line); }
+    .broll-number:nth-child(4) { border-top: 1px solid var(--line); }
+    .glossary { grid-template-columns: repeat(2, 1fr); }
+    .term:nth-child(3n+2), .term:nth-child(3n+3) { padding-left: 0; border-left: 0; }
+    .term:nth-child(even) { padding-left: 22px; border-left: 1px solid var(--line); }
   }
+
   @media (max-width: 720px) {
-    .shell { padding-inline: 18px; }
+    .shell { width: min(100% - 34px, 1380px); }
     .topbar__inner { min-height: 54px; }
     .brand { display: none; }
     .toc { gap: 18px; }
-    .hero { min-height: auto; padding-block: 78px 90px; }
-    .hero h1 { font-size: clamp(54px, 18vw, 82px); }
-    .hero__sub { font-size: 16px; }
-    .scroll-cue {
-      display: block;
-      margin: -12px 0 16px;
-      color: var(--ink-faint);
-      font: 10px/1.4 var(--mono);
-      letter-spacing: .04em;
-      text-align: end;
-    }
-    .section--dark .scroll-cue { color: rgba(248,246,239,.58); }
-    .verdict { padding-inline-start: 20px; }
-    .verdict strong { font-size: 30px; }
-    .status-strip { grid-template-columns: 1fr; }
-    .status-item, .status-item:nth-child(odd), .status-item:last-child { grid-column: auto; border-inline-start: 0; border-top: 1px solid var(--line); }
-    .status-item:first-child { border-top: 0; }
-    .section-head h2 { font-size: clamp(38px, 12vw, 56px); }
-    .broll-stats { grid-template-columns: 1fr; }
-    .broll-stat, .broll-stat:first-child { border-inline-start: 0; border-top: 1px solid var(--line); }
-    .broll-stat:first-child { border-top: 0; }
-    .cycle-rule { grid-template-columns: 1fr; }
-    .cycle-rule span { border-inline-start: 0; border-top: 1px solid rgba(248,246,239,.18); }
-    .cycle-rule span:first-child { border-top: 0; }
-    .cycle-rule span:not(:last-child)::after { inset: auto auto -12px 22px; transform: rotate(90deg); }
-    .review-note { grid-template-columns: 1fr; }
-    .system-map { grid-template-columns: 1fr; grid-template-areas: "store" "workflow" "assets" "exec" "reviewer"; min-height: 0; }
-    .readiness-item { grid-template-columns: 40px 1fr; }
-    .readiness-proof { grid-column: 2; padding-inline-start: 0; border: 0; }
+    .hero { padding-top: 62px; }
+    .hero h1 { font-size: clamp(52px, 16vw, 78px); }
+    .hero__promise { box-shadow: 6px 6px 0 var(--paper-2); }
+    .question-strip { grid-template-columns: 1fr; }
+    .question, .question:first-child { border-inline-start: 0; border-top: 1px solid var(--line); }
+    .question:first-child { border-top: 0; }
+    .section-head h2 { font-size: clamp(38px, 12vw, 55px); }
+    .truth-banner { grid-template-columns: 1fr; }
+    .truth-banner__title { min-height: 100px; }
+    .route__top { display: grid; }
+    .route__top .pill { justify-self: start; }
+    .scroll-cue { display: block; margin: -12px 0 18px; }
+    .io-row { grid-template-columns: 1fr; }
+    .io-arrow { transform: rotate(90deg); min-height: 22px; }
+    .inside ol { grid-template-columns: 1fr; }
+    .control-row, .broll-outcomes, .broll-lesson, .optimize-grid { grid-template-columns: 1fr; }
+    .broll-number-row { grid-template-columns: 1fr; }
+    .broll-number, .broll-number:nth-child(3), .broll-number:nth-child(4) { border-inline-start: 0; border-top: 1px solid var(--line); }
+    .broll-number:first-child { border-top: 0; }
+    .review-loop { grid-template-columns: 1fr; }
+    .review-loop span { border-inline-start: 0; border-top: 1px solid rgba(255,255,255,.16); }
+    .review-loop span:first-child { border-top: 0; }
+    .review-loop span:not(:last-child)::after { inset: auto auto -12px 22px; transform: rotate(90deg); }
+    .review-language { grid-template-columns: 1fr; }
+    .glossary { grid-template-columns: 1fr; }
+    .term, .term:nth-child(even) { padding: 20px 0; border-left: 0; }
+    .readiness-item { grid-template-columns: 1fr; gap: 9px; }
     .sources__grid { grid-template-columns: 1fr; }
   }
+
   @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 </style>
 </head>
@@ -428,347 +318,367 @@
     <div class="shell topbar__inner">
       <a class="brand" href="/workflow/">UPIO / WORKFLOW</a>
       <div class="toc">
-        <a href="#overview">总览</a>
-        <a href="#main-flow">主流程</a>
+        <a href="#reality">现在怎么跑</a>
+        <a href="#stations">拆开 8 个环节</a>
         <a href="#broll">B-roll</a>
         <a href="#review">审核</a>
-        <a href="#systems">系统边界</a>
-        <a href="#readiness">正式使用差距</a>
+        <a href="#diagnosis">出错怎么查</a>
+        <a href="#optimize">怎么优化</a>
+        <a href="#readiness">离正式使用多远</a>
       </div>
     </div>
   </nav>
 
-  <main>
-    <header class="hero shell" id="overview">
-      <div class="eyebrow">Workflow status / 2026-08-06 09:30 SGT</div>
+  <header class="hero">
+    <div class="shell">
+      <span class="hero__tag">给不写代码的人看的生产控制图</span>
       <div class="hero__grid">
         <div>
-          <h1>复刻视频<br>工作流</h1>
-          <p class="hero__sub">把任务提交、B-roll、四阶段生产、独立审核与最终交付放回同一张图。先看系统现在能走到哪里，再看每个子系统怎样运转。</p>
+          <h1>一条视频，<br>里面到底<em>发生了什么？</em></h1>
+          <p class="hero__lead">把“粘一条参考视频”到“拿到可下载成片”之间的黑箱，拆成 8 个能看懂、能定位问题、也知道从哪里优化的工作环节。</p>
         </div>
-        <aside class="verdict" aria-label="当前结论">
-          <span class="verdict__label">当前结论 / STATUS</span>
-          <strong>控制面已就绪<br>执行面仍锁门</strong>
-          <p>Store 已部署；当前 Producer 与 Reviewer 的部署工作流仍被硬锁，尚无一条真实云端任务完成四阶段闭环。</p>
+        <aside class="hero__promise">
+          <small>这页的读法</small>
+          <b>先找出坏在哪一站，<br>再决定拧哪个旋钮。</b>
+          <p>不需要先懂 n8n、fal、R2 或 SHA。技术原名会放在人话后面，方便需要排障时再交给技术人员。</p>
         </aside>
       </div>
 
-      <div class="status-strip" aria-label="当前关键状态">
-        <div class="status-item ok"><b>Store 控制面</b><span>主干已部署 · 357abab</span></div>
-        <div class="status-item ok"><b>Workflow 合同代码</b><span>CI 已通过 · af2e644</span></div>
-        <div class="status-item wait"><b>B-roll 素材系统</b><span>本地可用 · R2 最近全量核对通过</span></div>
-        <div class="status-item block"><b>Cloud Producer</b><span>部署任务 hard-lock / skipped</span></div>
-        <div class="status-item block"><b>Independent Reviewer</b><span>部署任务 hard-lock / skipped</span></div>
+      <div class="question-strip" aria-label="每个环节回答的三个问题">
+        <article class="question"><span>1</span><b>这一站在干什么？</b><p>看它吃进什么、里面做什么、最后交出什么。</p></article>
+        <article class="question"><span>2</span><b>坏了会看到什么？</b><p>从你能看见的症状，反推最可能出错的环节和证据。</p></article>
+        <article class="question"><span>3</span><b>想变好该改哪里？</b><p>把画面、自然度、速度、成本和稳定性分别对应到真正的优化旋钮。</p></article>
       </div>
+    </div>
+  </header>
 
-      <p class="scroll-cue">横向滑动查看完整流程 →</p>
-      <div class="overview-flow" role="img" aria-label="复刻视频主流程：提交任务后依次完成文稿、素材与分镜、配音与口型、成片、人工终审，最后交付。当前 Store 控制面与合同代码已就绪，生产与审核执行仍未解锁。">
-        <div class="overview-step ok"><b>提交任务</b><small>Store 控制面已部署</small></div>
-        <div class="overview-step block"><b>文稿</b><small>执行未启用</small></div>
-        <div class="overview-step block"><b>素材与分镜</b><small>执行未启用</small></div>
-        <div class="overview-step block"><b>配音与口型</b><small>云执行未解锁</small></div>
-        <div class="overview-step block"><b>成片</b><small>云装配未解锁</small></div>
-        <div class="overview-step block"><b>人工终审</b><small>尚无真实闭环</small></div>
-        <div class="overview-step block"><b>交付</b><small>服务器仍拒绝放行</small></div>
-      </div>
-      <div class="legend" aria-label="状态图例">
-        <span><i class="ok"></i> 已验证</span>
-        <span><i class="wait"></i> 可用但仍有待验收项</span>
-        <span><i class="block"></i> 硬阻断 / 未执行</span>
-      </div>
-    </header>
-
-    <section class="section" id="main-flow">
+  <main>
+    <section class="section section--orange" id="reality">
       <div class="shell">
-        <div class="eyebrow">01 / End-to-end</div>
+        <div class="section-label">01 / 先分清现实与目标</div>
         <div class="section-head">
-          <h2>生产一步，<br>独立审核一步</h2>
-          <p>目标不是“片子做完后多跑几道检查”，而是每个阶段一完成就冻结版本，由另一套进程判定。生产者可以自检，但没有正式放行权。</p>
+          <h2>现在有两条流程，<br>不能混在一起看</h2>
+          <p>一条是目前准备上线的“云端制作 + 人工终审”简版；另一条是目标中的“四段机器审核 + 人工终审”完整版。旧页面把两者画得太像，所以很容易误以为 24 项机器检查已经在生产运行。</p>
         </div>
 
-        <p class="scroll-cue">横向滑动查看完整流程 →</p>
-        <div class="handoff" aria-label="端到端责任交接流程">
-          <article class="handoff__step">
-            <span class="handoff__owner">STORE / 控制面</span>
-            <h3>提交任务<br>冻结要求</h3>
-            <p>记录源片、标题、备注、主播与执行位置，签发不可变任务合同。</p>
-            <small>source + requirements + runner target</small>
-          </article>
-          <article class="handoff__step">
-            <span class="handoff__owner">PRODUCER / 只制作</span>
-            <h3>生产当前<br>阶段产物</h3>
-            <p>一次只做文稿、素材、口型或成片中的一个阶段；完成后提交私有产物包。</p>
-            <small>artifact + payload SHA + lineage facts</small>
-          </article>
-          <article class="handoff__step">
-            <span class="handoff__owner">STORE / 只读交接</span>
-            <h3>冻结版本<br>绑定哈希</h3>
-            <p>Store 固定当前产物的强 ETag、SHA 与上游审核链，随后才允许 Reviewer 读取。</p>
-            <small>claim-bound immutable package</small>
-          </article>
-          <article class="handoff__step">
-            <span class="handoff__owner">REVIEWER / 只判定</span>
-            <h3>独立运行<br>阶段审核</h3>
-            <p>Reviewer 没有生产、素材写入或交付凭据，只能提交绑定当前版本的报告。</p>
-            <small>PASS / WARN / FAIL / NOT_RUN</small>
-          </article>
-          <article class="handoff__step">
-            <span class="handoff__owner">HUMAN + SERVER</span>
-            <h3>人工终审<br>服务器放行</h3>
-            <p>四阶段全部通过后，人完整观看成片；服务器再核对当前版本与整条证据链。</p>
-            <small>human checklist + release receipt</small>
-          </article>
+        <div class="truth-banner">
+          <div class="truth-banner__title">当前事实</div>
+          <div class="truth-banner__body">
+            <b>最新制作工人部署没有通过验真；独立机器审核员也仍未上线。</b>
+            <p>制作工人的代码已经接入部署流程，但新机器 5 分钟内没有发出“已准备好”的信号，因此系统拒绝承认这次部署。简版路线的设计是一个云端制作工人做完整条、再由人终审；现在还要先修好制作工人并跑通真实任务。</p>
+          </div>
         </div>
 
-        <div class="handoff__loop">
-          <div class="logic-band"><b>PASS</b><span>当前阶段通过，Store 才打开下一阶段。</span></div>
-          <div class="logic-band warn"><b>只允许预先列出的 WARN</b><span>在发现灰区的阶段交给人工判断，不等到成片。</span></div>
-          <div class="logic-band fail"><b>FAIL / NOT_RUN / 必检项跳过</b><span>退回当前阶段返工；生产线不能解释报警后自行放行。</span></div>
+        <div class="route-compare">
+          <article class="route route--now">
+            <div class="route__top">
+              <div><small>CURRENT DESIGN / 当前准备启用的简版</small><h3>先做完整条，再由人把关</h3></div>
+              <span class="pill pill--lock">工人未就绪</span>
+            </div>
+            <div class="route-flow" aria-label="当前实际流程">
+              <div class="route-step" data-no="01"><b>工作台提单</b><span>冻结链接、主播和要求</span></div>
+              <div class="route-step" data-no="02"><b>云端制作</b><span>从拆解一直做到成片</span></div>
+              <div class="route-step" data-no="03"><b>私有存放</b><span>成片进 R2 并绑定版本</span></div>
+              <div class="route-step" data-no="04"><b>人工终审</b><span>完整播放 + 5 项确认</span></div>
+              <div class="route-step" data-no="05"><b>受控下载</b><span>服务器复验后放行</span></div>
+            </div>
+            <p class="route__note">设计已经接通，但最新部署未通过运行验真。下一步先让云端工人稳定启动，再用一条新任务验证这五站真的能走完。</p>
+          </article>
+
+          <article class="route route--target">
+            <div class="route__top">
+              <div><small>TARGET / 目标完整路径</small><h3>每做完一段，就先独立验一段</h3></div>
+              <span class="pill pill--lock">审核员锁门</span>
+            </div>
+            <div class="route-flow" aria-label="目标完整流程">
+              <div class="route-step" data-no="01"><b>文稿</b><span>做完 → 冻结 → 审核</span></div>
+              <div class="route-step" data-no="02"><b>素材</b><span>做完 → 冻结 → 审核</span></div>
+              <div class="route-step" data-no="03"><b>口型</b><span>做完 → 冻结 → 审核</span></div>
+              <div class="route-step" data-no="04"><b>成片</b><span>做完 → 冻结 → 审核</span></div>
+              <div class="route-step" data-no="05"><b>人工放行</b><span>看完并确认业务内容</span></div>
+            </div>
+            <p class="route__note">目标价值：问题在哪一段发生，就在哪一段退回；不必等成片做好才发现前面早已出错。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="map">
+      <div class="shell">
+        <div class="section-label">02 / 60 秒看懂整条产线</div>
+        <div class="section-head">
+          <h2>它不是一个 AI，<br>而是 8 个岗位接力</h2>
+          <p>把系统想成一间视频工厂：前台接单，分析员看原片，配音师做声音，素材员找画面，数字演员对口型，剪辑师拼成片，质检员找问题，店长最后放行。</p>
+        </div>
+        <p class="scroll-cue">横向滑动看完整流程 →</p>
+        <div class="factory-flow" aria-label="视频生产八个环节">
+          <article class="factory-step" data-no="01"><strong>接单台</strong><b>把要求钉死</b><p>参考链接、标题、主播、补充要求和预算。</p></article>
+          <article class="factory-step" data-no="02"><strong>分析与写稿</strong><b>弄懂原片</b><p>拆结构、辨真假信息、改成品牌主播能说的话。</p></article>
+          <article class="factory-step" data-no="03"><strong>配音与时钟</strong><b>先有声音</b><p>复用已绑定音色配音，并给每个字标出准确时间。</p></article>
+          <article class="factory-step" data-no="04"><strong>画面导演</strong><b>找 B-roll</b><p>把口播翻成画面需求，再查安全素材库。</p></article>
+          <article class="factory-step" data-no="05"><strong>数字演员</strong><b>嘴跟声音走</b><p>只处理主播出镜段，生成新的口型画面。</p></article>
+          <article class="factory-step" data-no="06"><strong>剪辑台</strong><b>拼成一条片</b><p>把主播、素材、字幕、标题和声音放回时间线。</p></article>
+          <article class="factory-step" data-no="07"><strong>质检室</strong><b>机器找错</b><p>目标是分四段检查 24 项；当前尚未生产启用。</p></article>
+          <article class="factory-step" data-no="08"><strong>店长与门卫</strong><b>人看完再放行</b><p>人确认业务内容，服务器核对文件版本后开放下载。</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--blue" id="stations">
+      <div class="shell">
+        <div class="section-label">03 / 把 8 个工作盒子逐个打开</div>
+        <div class="section-head">
+          <h2>每一站都能看见<br>输入、动作和出口</h2>
+          <p>下面不是技术架构介绍，而是一套排障格式。左边是岗位，右边从上到下依次回答：它拿到什么、里面做什么、交出什么、坏了怎么看、想变好改哪里。</p>
+        </div>
+
+        <div class="station-list">
+          <article class="station" data-tone="orange">
+            <div class="station__identity" data-no="01"><small>STATION 01</small><h3>接单台<br>先把任务钉死</h3><p>后面所有人都只认这里冻结的要求。它像一张不能偷偷改字的工单。</p></div>
+            <div class="station__body">
+              <div class="io-row"><div class="io-box"><small>吃进去</small><b>参考视频链接、标题、主播、补充要求</b></div><div class="io-arrow">→</div><div class="io-box"><small>吐出来</small><b>一条有编号、有预算、有当前状态的任务</b></div></div>
+              <div class="inside"><span class="inside__label">盒子里面做 3 件事</span><ol><li>验证链接不是危险地址，避免服务器被引到内网。</li><li>把主播形象和对应音色绑定，防止人脸和声音串人。</li><li>写入任务账本，并规定由云端还是本机领取。</li></ol></div>
+              <div class="control-row"><div class="control"><b>坏了会看到</b><p>任务提交失败、一直排队、被错误机器领取，或同一条被重复生产。</p></div><div class="control control--better"><b>怎么查 / 怎么优化</b><p>先看任务卡的“状态、当前步骤、错误、费用、日志”。优化重点是表单默认值、任务去重和需求写清楚。</p></div></div>
+              <div class="tech-line"><b>技术原名</b><span>Store Workbench（Next.js）+ Supabase 任务表 + runner target + 稳定 claim ID</span></div>
+            </div>
+          </article>
+
+          <article class="station">
+            <div class="station__identity" data-no="02"><small>STATION 02</small><h3>分析员与编剧<br>先听懂，再改写</h3><p>不是把原片逐字照抄，而是保留有效结构，换成品牌主播真实、顺口、可负责的话。</p></div>
+            <div class="station__body">
+              <div class="io-row"><div class="io-box"><small>吃进去</small><b>参考视频 + 已冻结的标题和要求</b></div><div class="io-arrow">→</div><div class="io-box"><small>吐出来</small><b>原片转写、结构拆解、最终口播稿</b></div></div>
+              <div class="inside"><span class="inside__label">盒子里面做 3 件事</span><ol><li>下载并转写原片，分清主播画面和说明画面。</li><li>提取清单、数字、因果关系和镜头节奏。</li><li>按“替业主把关的顾问”人设重写，并检查长短与句子负担。</li></ol></div>
+              <div class="control-row"><div class="control"><b>坏了会看到</b><p>意思跑偏、漏掉关键点、主播身份一会儿像业主一会儿像反派，或文稿太长导致后面都变快。</p></div><div class="control control--better"><b>怎么查 / 怎么优化</b><p>并排看“原片转写 → 结构拆解 → 最终稿”。优化先改信息取舍和句子长度，不要等配音后靠加速补救。</p></div></div>
+              <div class="tech-line"><b>技术原名</b><span>Whisper 只负责听写参考片；云端 AI 制作代理按 douyin-replica 规则改稿；script_guard 做长度和结构检查</span></div>
+            </div>
+          </article>
+
+          <article class="station" data-tone="yellow">
+            <div class="station__identity" data-no="03"><small>STATION 03</small><h3>配音师与时钟<br>让每个字有位置</h3><p>先把文字变成声音，再测出每一句、每个字真正说到哪里。后面切画面和放字幕都靠这只“时钟”。</p></div>
+            <div class="station__body">
+              <div class="io-row"><div class="io-box"><small>吃进去</small><b>通过长度检查的口播稿 + 已绑定音色</b></div><div class="io-arrow">→</div><div class="io-box"><small>吐出来</small><b>配音文件 + 逐字时间表</b></div></div>
+              <div class="inside"><span class="inside__label">盒子里面做 3 件事</span><ol><li>预算先算一遍，超过单条 6 美元就停止重规划。</li><li>n8n 代替制作工人向 fal 提交 MiniMax 配音，并记录唯一付费单号。</li><li>用已知文稿强制对齐声音，得到逐字时间，而不是重新猜一遍说了什么。</li></ol></div>
+              <div class="control-row"><div class="control"><b>坏了会看到</b><p>声音生硬、停顿奇怪、语速过快、错音，或者字幕和换镜节奏从这里开始整体漂移。</p></div><div class="control control--better"><b>怎么查 / 怎么优化</b><p>先听纯配音，再看逐字时间表。优化顺序是改文稿标点与句长 → 调语速 → 必要时重做配音；不要先动剪辑。</p></div></div>
+              <div class="tech-line"><b>技术原名</b><span>fal · MiniMax Speech-02-HD + n8n 付费防重账本 + FunASR 强制对齐</span></div>
+            </div>
+          </article>
+
+          <article class="station" data-tone="green">
+            <div class="station__identity" data-no="04"><small>STATION 04</small><h3>画面导演<br>把“说的话”翻成“看得见的东西”</h3><p>B-roll 最容易形成黑箱。真正决定质量的不是搜素材，而是搜索前有没有把抽象口播翻成具体画面。</p></div>
+            <div class="station__body">
+              <div class="io-row"><div class="io-box"><small>吃进去</small><b>逐句口播 + 每句的开始和结束时间</b></div><div class="io-arrow">→</div><div class="io-box"><small>吐出来</small><b>每句话对应的安全镜头 + 完整分镜表</b></div></div>
+              <div class="inside"><span class="inside__label">盒子里面做 3 件事</span><ol><li>判断这句话需不需要画面，并写成具体可见的搜索描述。</li><li>用“意思相近”检索安全素材，打散同源和重复镜头。</li><li>返回前三名、存疑或明确“没有”；选定后复制进任务目录并竖屏裁切。</li></ol></div>
+              <div class="control-row"><div class="control"><b>坏了会看到</b><p>画面不对题、同一客厅反复出现、陌生人脸、竞品标志、素材短到看不清，或源片画面被偷偷复用。</p></div><div class="control control--better"><b>怎么查 / 怎么优化</b><p>按“口播原句 → 画面翻译 → Top-3 → 实际选中”四栏检查。优化先改画面翻译与素材库存，再调相似度门槛。</p></div></div>
+              <div class="tech-line"><b>技术原名</b><span>broll-plan + SQLite broll.db + BGE 中文向量检索 + 安全过滤 + gap-log / match_experience</span></div>
+            </div>
+          </article>
+
+          <article class="station" data-tone="orange">
+            <div class="station__identity" data-no="05"><small>STATION 05</small><h3>数字演员<br>只让主播的嘴跟上声音</h3><p>它不重新生成人，也不碰 B-roll。它只拿真人主播底片和新配音，重做需要出镜的嘴部运动。</p></div>
+            <div class="station__body">
+              <div class="io-row"><div class="io-box"><small>吃进去</small><b>主播真人底片 + 新配音 + 真实时长</b></div><div class="io-arrow">→</div><div class="io-box"><small>吐出来</small><b>已经说出新文稿的主播片段</b></div></div>
+              <div class="inside"><span class="inside__label">盒子里面做 3 件事</span><ol><li>把底片和音频放到只有短时权限的私有地址。</li><li>n8n 用唯一单号把任务交给 fal 的口型模型，断线后继续原任务而不是重复付费。</li><li>下载结果并立即删除临时地址文件，只保留任务产物和费用证据。</li></ol></div>
+              <div class="control-row"><div class="control"><b>坏了会看到</b><p>嘴慢半拍、某个字嘴型错、下半张脸扭曲、牙齿糊掉，或任务重复扣费。</p></div><div class="control control--better"><b>怎么查 / 怎么优化</b><p>先定位具体坏段和具体秒数，只重跑那一小段。优化底片正脸清晰度、嘴部尺寸和片段长度，不要盲目整条重做。</p></div></div>
+              <div class="tech-line"><b>技术原名</b><span>私有 R2 短时 URL → n8n → fal sync-lipsync v2（lipsync-2）→ Store operation ledger</span></div>
+            </div>
+          </article>
+
+          <article class="station">
+            <div class="station__identity" data-no="06"><small>STATION 06</small><h3>剪辑台<br>把所有零件装回时间线</h3><p>这一步不决定“说什么”，而是决定画面、声音、字幕和标题是否在同一时刻出现。</p></div>
+            <div class="station__body">
+              <div class="io-row"><div class="io-box"><small>吃进去</small><b>主播片段、B-roll、配音、逐字时间、样式</b></div><div class="io-arrow">→</div><div class="io-box"><small>吐出来</small><b>1080 × 1920 的 30 帧竖屏成片</b></div></div>
+              <div class="inside"><span class="inside__label">盒子里面做 3 件事</span><ol><li>按累计帧数切片，避免每段取整把误差越积越大。</li><li>把主播和 B-roll 放进分镜，再叠加字幕、标题卡、文档卡和音效。</li><li>统一编码、帧率和音轨，写出最终组成清单。</li></ol></div>
+              <div class="control-row"><div class="control"><b>坏了会看到</b><p>字幕提前或落后、切镜露出上一帧、黑屏、闪一下、声音和画面总时长不一致。</p></div><div class="control control--better"><b>怎么查 / 怎么优化</b><p>对照逐字时间表和最终组成清单，在出错秒数看是哪一个组件。优化帧边界、字幕排版和镜头时长，不要回头重做配音。</p></div></div>
+              <div class="tech-line"><b>技术原名</b><span>FFmpeg 负责切片、拼接和编码；Pillow 负责把文字画成透明图；OpenCV 负责部分画面分析</span></div>
+            </div>
+          </article>
+
+          <article class="station" data-tone="green">
+            <div class="station__identity" data-no="07"><small>STATION 07</small><h3>独立质检室<br>不做片，只找错</h3><p>它应该和制作工人分开：看得到冻结产物，但拿不到制作和发布权限，避免自己给自己打满分。</p></div>
+            <div class="station__body">
+              <div class="io-row"><div class="io-box"><small>吃进去</small><b>当前阶段被冻结的文件 + 上游已通过证据</b></div><div class="io-arrow">→</div><div class="io-box"><small>吐出来</small><b>绑定当前版本的 PASS / WARN / FAIL / 未执行报告</b></div></div>
+              <div class="inside"><span class="inside__label">盒子里面做 3 件事</span><ol><li>先重新计算文件指纹，确认收到的就是提交审核的那一版。</li><li>按文稿、素材、口型、成片四段运行固定清单，共 24 项。</li><li>任何失败、未执行或必检跳过都退回当前阶段；通过才打开下一站。</li></ol></div>
+              <div class="control-row"><div class="control"><b>坏了会看到</b><p>报告写通过但文件后来变了、检查没跑却像通过、制作工人能改审核代码，或换素材后旧报告仍有效。</p></div><div class="control control--better"><b>怎么查 / 怎么优化</b><p>看“报告对应的文件指纹、检查清单、未执行项、审核员身份”。优化检查覆盖率和误报，不允许绕过未执行项。</p></div></div>
+              <div class="tech-line"><b>技术原名</b><span>独立 Fly Reviewer + Whisper / Qwen 语义检查 + YuNet / SyncNet / WeSpeaker + SHA-256 证据链；当前未部署</span></div>
+            </div>
+          </article>
+
+          <article class="station" data-tone="yellow">
+            <div class="station__identity" data-no="08"><small>STATION 08</small><h3>店长与门卫<br>最后一关仍然是人</h3><p>机器能抓结构和技术问题，但不知道这家店的价格、服务范围和真实业务承诺是否还能对外说。</p></div>
+            <div class="station__body">
+              <div class="io-row"><div class="io-box"><small>吃进去</small><b>可预览成片 + 检查结果 + 当前业务事实</b></div><div class="io-arrow">→</div><div class="io-box"><small>吐出来</small><b>可下载成片，或一条明确返工意见</b></div></div>
+              <div class="inside"><span class="inside__label">盒子里面做 3 件事</span><ol><li>播放器必须真的从头播到结束，不用“我大概看了”代替。</li><li>人工确认：人物声音自然、材料正确、价格正确、地区联系方式正确、没有客户隐私。</li><li>服务器再算一遍成片指纹和仓库版本，完全一致才发短时下载票。</li></ol></div>
+              <div class="control-row"><div class="control"><b>坏了会看到</b><p>无法勾选、无法批准、下载按钮被挡住，或明明刚审过但换版后又要求重审。</p></div><div class="control control--better"><b>怎么查 / 怎么优化</b><p>看完整播放记录、5 项人工清单、当前文件指纹和放行回执。优化人工表述和返工定位，不应取消这道关。</p></div></div>
+              <div class="tech-line"><b>技术原名</b><span>浏览器 ended 回执 + 人工五项检查 + Store 服务端 ETag / SHA-256 复验 + 短时下载票据</span></div>
+            </div>
+          </article>
         </div>
       </div>
     </section>
 
     <section class="section" id="broll">
       <div class="shell">
-        <div class="eyebrow">02 / B-roll subsystem</div>
+        <div class="section-label">04 / B-roll 系统单独拆开</div>
         <div class="section-head">
-          <h2>B-roll 不是一个库，<br>而是一条闭环</h2>
-          <p>它既包含进货、切段、标注与安全审，也包含真实生产里的检索、裁切、选择和回流。库里没有合格镜头时，正确结果就是“没有”。</p>
+          <h2>素材库不是“搜一下”，<br>而是一条会学习的闭环</h2>
+          <p>B-roll 是主播说话时插入的说明画面。最关键的纪律有两条：只从安全放行的段里找；没有合格镜头时必须说“没有”，不能拿最像的一条硬填。</p>
         </div>
 
-        <div class="broll-stats" aria-label="B-roll 当前数据">
-          <div class="broll-stat"><strong>4,842</strong><span>正式 broll.db 中的段总数 · 2026-08-06 实查</span></div>
-          <div class="broll-stat"><strong>4,550</strong><span>安全放行且已建立向量的段 · 2026-08-06 实查</span></div>
-          <div class="broll-stat"><strong>16,148</strong><span>最近一次 R2 全量核对全部在线 · 2026-08-05</span></div>
+        <div class="broll-number-row" aria-label="B-roll 当前数据">
+          <div class="broll-number"><strong>4,842</strong><span>正式素材目录里的段总数</span></div>
+          <div class="broll-number"><strong>4,550</strong><span>安全放行且已有“意思坐标”的段</span></div>
+          <div class="broll-number"><strong>110</strong><span>真实选用或淘汰经验，会影响下次排序</span></div>
+          <div class="broll-number"><strong>14</strong><span>8 月 5 日核对后新增、尚未进入当时 R2 清单的片段</span></div>
         </div>
 
-        <p class="scroll-cue">横向滑动查看完整闭环 →</p>
-        <div class="broll-flow" role="img" aria-label="B-roll 四段闭环：入库、检索、使用、回流。">
-          <article class="broll-stage">
-            <span class="broll-stage__no">01</span>
-            <h3>入库</h3>
-            <ol>
-              <li>装修素材进货</li>
-              <li>按镜头边界切片、归并成段</li>
-              <li>写镜头主题与可证明内容</li>
-              <li>人脸、水印、授权与源片邻居安全审</li>
-              <li>生成语义向量并导出正式库</li>
-            </ol>
-          </article>
-          <article class="broll-stage">
-            <span class="broll-stage__no">02</span>
-            <h3>检索</h3>
-            <ol>
-              <li>从口播提取画面需求</li>
-              <li>向量召回 + 真实判例加权</li>
-              <li>同源打散与同片去重</li>
-              <li>安全过滤与相似度及格线</li>
-              <li>返回 Top-3 或明确报没有</li>
-            </ol>
-          </article>
-          <article class="broll-stage">
-            <span class="broll-stage__no">03</span>
-            <h3>使用</h3>
-            <ol>
-              <li>人工或规则选择实际使用镜头</li>
-              <li>按竖屏构图裁切，不擅自擦画面</li>
-              <li>检查原片复用、陌生脸与段内切镜</li>
-              <li>生成分镜与完整素材清单</li>
-              <li>冻结 B-roll pack 与哈希</li>
-            </ol>
-          </article>
-          <article class="broll-stage">
-            <span class="broll-stage__no">04</span>
-            <h3>回流</h3>
-            <ol>
-              <li>记录 used_good / rejected</li>
-              <li>缺货自动进入 gap log</li>
-              <li>错配进入常设回归考卷</li>
-              <li>人工判例校准阈值与排序</li>
-              <li>补货、重标或生成，再回到入库</li>
-            </ol>
-          </article>
+        <p class="scroll-cue">横向滑动看完整 B-roll 闭环 →</p>
+        <div class="broll-machine" aria-label="B-roll 七步闭环">
+          <article class="broll-part" data-no="01"><b>口播分句</b><p>先知道这句话从第几秒说到第几秒。</p></article>
+          <article class="broll-part" data-no="02"><b>判断要不要画面</b><p>章节总起句可以不配，不能每句话都硬塞素材。</p></article>
+          <article class="broll-part" data-no="03"><b>翻成画面话</b><p>把“要注意防水”写成镜头里真正能看见的动作和物件。</p></article>
+          <article class="broll-part" data-no="04"><b>按意思检索</b><p>不是只搜相同词，而是比较句子和素材描述的意思距离。</p></article>
+          <article class="broll-part" data-no="05"><b>安全与重复过滤</b><p>挡住陌生正脸、水印、黑名单、同源扎堆和已删除窗口。</p></article>
+          <article class="broll-part" data-no="06"><b>人选 + 裁切</b><p>打开前三名看画面，选中后复制进任务并做竖屏构图。</p></article>
+          <article class="broll-part" data-no="07"><b>结果回流</b><p>用得好、淘汰、缺货都记账，让下次排序和补货更准。</p></article>
         </div>
 
-        <div class="broll-notes">
-          <div class="broll-note"><b>R2 清单仍有 14 条增量漂移</b><p>8 月 5 日的 16,148 条快照全部在线，但之后入库的 14 条外部回填片段不在当时上传清单里。</p></div>
-          <div class="broll-note"><b>技术入库不等于真实可用</b><p>安全放行、语义对题、竖屏可裁、没有源片复用，必须同时成立；真实匹配质量仍要由生产 E2E 证明。</p></div>
-          <div class="broll-note block"><b>没有合格镜头必须报没有</b><p>向量检索永远能排出第一名，但第一名不一定能给口播当证据；不能用弱相关画面填空。</p></div>
+        <div class="broll-outcomes">
+          <article class="outcome"><b>有合格镜头 · OK</b><p>仍要打开画面确认；“机器说像”不等于“人看着能用”。</p></article>
+          <article class="outcome outcome--weak"><b>勉强相关 · 存疑</b><p>优先改画面描述；仍然弱就补货或回到主播画面。</p></article>
+          <article class="outcome outcome--none"><b>没有镜头 · NO MATCH</b><p>进入缺货本。正确答案是“没有”，不是把第一名强行塞进去。</p></article>
+        </div>
+
+        <div class="broll-lesson">
+          <article class="lesson"><b>为什么常常“搜到了却不对题”？</b><p>多数不是搜索模型太笨，而是输入仍是抽象口播。例如“装修别被坑”没有可见画面；必须翻成“工人用水平尺检查墙砖平整度”这种具体镜头。</p></article>
+          <article class="lesson"><b>为什么“库里有”不等于“成片能用”？</b><p>还要同时满足安全、相关、可竖屏裁切、没有源片复用、时长够看清。当前 4,550 只代表通过安全与向量门，不代表每个题目都有好答案。</p></article>
         </div>
       </div>
     </section>
 
     <section class="section section--dark" id="review">
       <div class="shell">
-        <div class="eyebrow">03 / Independent review</div>
+        <div class="section-label">05 / 审核系统单独拆开</div>
         <div class="section-head">
-          <h2>四阶段，<br>24 项当前策略</h2>
-          <p>旧页面里的“12 道卡点”是一套成片审查工具。当前 V1 目标合同把检查拆到文稿、素材、口型和成片四个阶段，共 24 项；每个阶段都先冻结，再审核。</p>
+          <h2>机器审核不是一句“看起来没问题”，<br>而是 24 个明确问题</h2>
+          <p>完整版的核心是“做一段、冻一段、审一段”。如果文稿已经错了，就不该继续花钱配音；如果口型坏了，就只退回口型阶段，不要整条重来。</p>
         </div>
 
-        <div class="cycle-rule" aria-label="每个阶段的统一状态循环">
-          <span>Producer 制作</span>
-          <span>Store 冻结 + SHA</span>
-          <span>Reviewer 判定</span>
-          <span>PASS → 下一阶段</span>
-          <span>FAIL / NOT_RUN → 当前阶段返工</span>
+        <div class="review-loop" aria-label="每阶段的统一处理循环">
+          <span>制作工人完成本阶段</span><span>Store 冻结文件并记指纹</span><span>独立审核员逐项检查</span><span>通过才打开下一阶段</span><span>失败或未执行就原地返工</span>
         </div>
 
-        <p class="scroll-cue">横向滑动查看四个阶段 →</p>
+        <p class="scroll-cue">横向滑动看四阶段 24 项 →</p>
         <div class="review-stages">
-          <article class="review-stage">
-            <div class="review-stage__top"><span>01</span><b>文稿</b></div>
-            <div class="review-stage__count">4 REQUIRED CHECKS</div>
-            <ul>
-              <li>源片与候选根一致</li>
-              <li>文稿结构完整</li>
-              <li>可信来源到文稿的语义覆盖</li>
-              <li>标题、备注与主播硬约束</li>
-            </ul>
-            <div class="review-stage__foot"><span>Producer</span><i></i><span>Reviewer</span></div>
-          </article>
-          <article class="review-stage">
-            <div class="review-stage__top"><span>02</span><b>素材与分镜</b></div>
-            <div class="review-stage__count">5 REQUIRED CHECKS</div>
-            <ul>
-              <li>镜头撞车</li>
-              <li>画面对题与第三方标识</li>
-              <li>源片复用</li>
-              <li>B-roll 陌生人脸</li>
-              <li>段内切镜</li>
-            </ul>
-            <div class="review-stage__foot"><span>Producer</span><i></i><span>Reviewer</span></div>
-          </article>
-          <article class="review-stage">
-            <div class="review-stage__top"><span>03</span><b>配音与口型</b></div>
-            <div class="review-stage__count">7 REQUIRED CHECKS</div>
-            <ul>
-              <li>口型画质与偏移</li>
-              <li>停顿离群与语速</li>
-              <li>闪切</li>
-              <li>实际声音与已通过脚本</li>
-              <li>主播与声音身份</li>
-            </ul>
-            <div class="review-stage__foot"><span>Producer</span><i></i><span>Reviewer</span></div>
-          </article>
-          <article class="review-stage">
-            <div class="review-stage__top"><span>04</span><b>成片</b></div>
-            <div class="review-stage__count">8 REQUIRED CHECKS</div>
-            <ul>
-              <li>成片哈希与固定帧网格</li>
-              <li>声音、脚本、字幕与标题时序</li>
-              <li>前三阶段链与组件时间线</li>
-              <li>原片与原主播残留</li>
-              <li>主播与声音身份复核</li>
-            </ul>
-            <div class="review-stage__foot"><span>Producer</span><i></i><span>Reviewer</span></div>
-          </article>
+          <article class="review-card"><div class="review-card__top"><span>01</span><h3>文稿 · 4 项</h3></div><small>问清楚“说得对不对”</small><ul><li>拿到的参考片真的是提交的那一条吗？</li><li>文稿结构完整，没有缺项或空稿吗？</li><li>参考片和任务要求里的关键事实都被覆盖了吗？</li><li>标题、备注、主播身份等硬要求都满足了吗？</li></ul></article>
+          <article class="review-card"><div class="review-card__top"><span>02</span><h3>素材 · 5 项</h3></div><small>问清楚“画面用得对不对”</small><ul><li>是不是反复用了同一个房间或同一构图？</li><li>画面对题吗？有没有竞品标志或不该出现的文字？</li><li>有没有偷用被复刻原片的画面？</li><li>B-roll 里有没有陌生人正脸？</li><li>一个素材段内部有没有藏着突然切换的另一镜？</li></ul></article>
+          <article class="review-card"><div class="review-card__top"><span>03</span><h3>口型 · 7 项</h3></div><small>问清楚“人和声音对不对”</small><ul><li>嘴部和下半张脸有没有被画坏？</li><li>嘴和声音有没有前后错开？</li><li>停顿有没有异常长或异常短？</li><li>语速是不是超出正常范围？</li><li>片段首尾有没有一闪而过的坏帧？</li><li>实际音轨说的是已经通过的那版文稿吗？</li><li>出镜的人和说话的声音都是指定主播吗？</li></ul></article>
+          <article class="review-card"><div class="review-card__top"><span>04</span><h3>成片 · 8 项</h3></div><small>问清楚“交付的是不是那一版”</small><ul><li>成片文件指纹和提交记录一致吗？</li><li>最终音轨语速正常吗？</li><li>文件可完整解码，且真的是固定 30 帧吗？</li><li>成片声音仍与已通过文稿一致吗？</li><li>最终时间线真的由前三段已通过的零件组成吗？</li><li>有没有原片或原主播残留？</li><li>字幕、标题和说话时间对得上吗？</li><li>最终人物和声音身份仍然正确吗？</li></ul></article>
         </div>
 
-        <div class="review-note">
-          <div><b>审核结果只对当前版本有效</b><p>改文稿会作废全部下游；换 B-roll 只作废素材阶段及其下游；重跑口型只作废口型与成片。</p></div>
-          <div><b>代码已经合并，但 Reviewer 尚未部署</b><p>最近两条 Workflow 部署任务都被 hard-lock 跳过，因此这套 24 项策略不能被描述为“正在生产运行”。</p></div>
+        <div class="review-language" aria-label="审核状态翻译">
+          <div><b>PASS / 通过</b><p>这一项有证据支持，可以继续。</p></div>
+          <div><b>WARN / 需人判断</b><p>只有预先允许的灰区能出现，不能随意降级问题。</p></div>
+          <div><b>FAIL / 失败</b><p>已经发现明确问题，当前阶段退回返工。</p></div>
+          <div><b>NOT RUN / 未执行</b><p>检查没有真正跑起来，比失败更危险；必须阻断。</p></div>
+        </div>
+
+        <div class="review-reality"><b>当前生产实况：这 24 项还没有独立审核员执行。</b><p>代码和检查清单已经存在，但 Reviewer 部署仍被 <code>false &amp;&amp;</code> 锁住；目前简版任务的自动检查必须如实显示“未执行”，不能拿本地测试、CI 通过或页面能打开来代替生产审核。</p></div>
+      </div>
+    </section>
+
+    <section class="section" id="diagnosis">
+      <div class="shell">
+        <div class="section-label">06 / 出问题时，从症状倒查</div>
+        <div class="section-head">
+          <h2>先别猜技术原因，<br>先看你眼前的症状</h2>
+          <p>下面把常见的“我看到什么”直接映射到“最可能坏在哪一站、先看什么证据、通常怎么修”。这样不会一有问题就整条重跑。</p>
+        </div>
+
+        <p class="scroll-cue">表格可横向滑动 →</p>
+        <div class="diagnosis-wrap">
+          <table class="diagnosis">
+            <thead><tr><th>你看到的症状</th><th>最可能的环节</th><th>第一眼看哪里</th><th>常见修法</th></tr></thead>
+            <tbody>
+              <tr><td>任务提交后一直不动</td><td>01 接单 / 云端工人</td><td>任务卡的状态、当前步骤、错误；云 worker 是否在线且领取 cloud 队列。</td><td>先修部署或队列归属，不要重新提一条制造重复任务。</td></tr>
+              <tr><td>说漏了重点，或意思跑偏</td><td>02 分析与写稿</td><td>原片转写、结构拆解、最终稿三者并排比较。</td><td>修事实提取和改稿规则；不用重做素材库。</td></tr>
+              <tr><td>整条太快、太挤、不像人说话</td><td>02 写稿 / 03 配音</td><td>稿件字数、最长句、纯配音、实际时长与目标时长。</td><td>先删稿和拆句，再调配音速度；不要用剪辑硬加速。</td></tr>
+              <tr><td>画面和口播不搭</td><td>04 B-roll</td><td>口播原句、画面翻译、前三候选、实际选中镜头。</td><td>先把抽象口播重写成具体画面话，再重新检索。</td></tr>
+              <tr><td>同一个房间反复出现</td><td>04 B-roll</td><td>候选是否来自同一源片、分镜里是否重复使用同一段。</td><td>提高同源打散和跨镜重复检查；补不同场景库存。</td></tr>
+              <tr><td>出现陌生人脸、竞品标志或原片</td><td>04 素材 / 07 审核</td><td>素材安全字段、全帧画面检查、源片复用结果。</td><td>直接换素材；同时把漏网镜头写入回归用例。</td></tr>
+              <tr><td>嘴很吓人，或某个字对不上</td><td>05 数字演员</td><td>原底片与口型结果同秒对比；查看坏段和报警秒数。</td><td>只重跑坏段；改善底片角度、嘴部清晰度和片段长度。</td></tr>
+              <tr><td>字幕慢半拍，越到后面越偏</td><td>03 时钟 / 06 剪辑</td><td>逐字时间表、累计帧边界、字幕出现帧和画面切换帧。</td><td>若从头就错，重做对齐；若越积越错，修帧取整算法。</td></tr>
+              <tr><td>预览正常但不能下载</td><td>08 放行门卫</td><td>是否完整播放、5 项是否全勾、当前文件指纹和仓库版本是否一致。</td><td>补齐人工终审；若文件变化，必须针对新版本重新看。</td></tr>
+              <tr><td>改了一个镜头，旧审核突然失效</td><td>07 版本证据链</td><td>新旧文件指纹与受影响阶段。</td><td>这是正常保护：从素材阶段向后重审，不必重审未变化的文稿。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="first-response"><b>统一排障顺序：</b>先保留现场 → 记下任务编号和出错秒数 → 找到这一站的输入、输出与文件指纹 → 只重做最小坏段 → 重新审核受影响的当前阶段和下游。</div>
+      </div>
+    </section>
+
+    <section class="section section--orange" id="optimize">
+      <div class="shell">
+        <div class="section-label">07 / 想优化时，改真正有用的旋钮</div>
+        <div class="section-head">
+          <h2>“视频更好”太笼统，<br>要先说想让什么变好</h2>
+          <p>画面更准、人物更自然、生产更快、成本更低、系统更稳，分别对应不同环节。先选目标，再动对应旋钮，才不会修了 A 却把 B 弄坏。</p>
+        </div>
+
+        <div class="optimize-grid">
+          <article class="optimize-card"><div class="optimize-card__top"><span>01</span><h3>画面更对题</h3></div><dl><dt>先看</dt><dd>04 B-roll：画面翻译、候选排序、缺货本。</dd><dt>先改</dt><dd>把口播改写成具体物件、动作、空间和镜头远近；补高频缺货。</dd><dt>别先改</dt><dd>不要一上来换搜索模型。输入含糊时，换模型通常只是更自信地搜错。</dd></dl></article>
+          <article class="optimize-card"><div class="optimize-card__top"><span>02</span><h3>主播更自然</h3></div><dl><dt>先看</dt><dd>02 文稿、03 配音、05 口型的分段结果。</dd><dt>先改</dt><dd>缩短长句，调整停顿和语速，选择正脸清晰、嘴部足够大的底片。</dd><dt>别先改</dt><dd>不要整条重做。先确定是“说话不自然”还是“嘴型不自然”。</dd></dl></article>
+          <article class="optimize-card"><div class="optimize-card__top"><span>03</span><h3>生产更快、更便宜</h3></div><dl><dt>先看</dt><dd>各阶段耗时、fal 付费记录、重跑原因、真人出镜总秒数。</dd><dt>先改</dt><dd>付费前把稿和分镜定稳；复用已有音色；只重跑坏段；复用已完成的 operation。</dd><dt>别先改</dt><dd>不要用跳过审核、降低画质或重复提单换速度。</dd></dl></article>
+          <article class="optimize-card"><div class="optimize-card__top"><span>04</span><h3>系统更稳定</h3></div><dl><dt>先看</dt><dd>01 队列、07 版本证据、08 下载放行和云端部署记录。</dd><dt>先改</dt><dd>失败可恢复、同一单号防重、每次交接绑定文件指纹、错误说清具体阶段。</dd><dt>别先改</dt><dd>不要把“页面 200”或“进程还在”当作一条任务真的跑通。</dd></dl></article>
+        </div>
+        <div class="optimization-rule"><b>最重要的优化原则：</b>问题在哪一站产生，就尽量在哪一站发现并修掉。越晚才发现，重做范围越大，成本也越高。</div>
+      </div>
+    </section>
+
+    <section class="section" id="terms">
+      <div class="shell">
+        <div class="section-label">08 / 技术词翻译表</div>
+        <div class="section-head">
+          <h2>你不需要背这些词，<br>只要知道它们各自负责什么</h2>
+          <p>排障时可以直接说人话，再把右边的技术原名交给技术人员。例如：“B-roll 找到的画面不对题，请查画面翻译和 broll-retrieve。”</p>
+        </div>
+        <div class="glossary">
+          <article class="term"><code>Store Workbench</code><b>总控制台</b><p>收任务、记状态、看进度、做人工终审和最后放行。</p></article>
+          <article class="term"><code>Workflow</code><b>生产说明书</b><p>放着复刻规则、制作脚本、审核清单和每次修改记录。</p></article>
+          <article class="term"><code>Cloud Producer</code><b>云端制作工人</b><p>在 Fly 服务器接单，按说明书从拆解一直做到成片。</p></article>
+          <article class="term"><code>n8n</code><b>自动接力器兼付费账本</b><p>替制作工人调用付费模型，并确保断线重试不会重复花钱。</p></article>
+          <article class="term"><code>fal</code><b>云端模型商场</b><p>实际提供 MiniMax 配音和 sync-lipsync 口型服务。</p></article>
+          <article class="term"><code>R2</code><b>私有文件仓库</b><p>保存素材和成片；外部只拿短时访问票，不暴露永久公开地址。</p></article>
+          <article class="term"><code>broll.db</code><b>素材目录</b><p>记录每个素材段是什么、是否安全、在哪里、它的“意思坐标”是什么。</p></article>
+          <article class="term"><code>BGE embedding</code><b>意思坐标</b><p>把画面描述变成一串数字，用来找“意思相近”而不只是“字面相同”。</p></article>
+          <article class="term"><code>FFmpeg</code><b>自动剪辑工具箱</b><p>切片、拼接、换尺寸、对齐帧率、处理音轨并输出成片。</p></article>
+          <article class="term"><code>Reviewer</code><b>独立机器质检员</b><p>只读冻结文件并出报告，不能制作，也不能发布。</p></article>
+          <article class="term"><code>SHA-256</code><b>文件指纹</b><p>文件只要改一个字节，指纹就会变；用来证明审的是哪一版。</p></article>
+          <article class="term"><code>ETag</code><b>仓库版本号</b><p>证明文件仓库里的对象没有在审核后被替换。</p></article>
         </div>
       </div>
     </section>
 
-    <section class="section" id="systems">
+    <section class="section section--blue" id="readiness">
       <div class="shell">
-        <div class="eyebrow">04 / Ownership & truth</div>
+        <div class="section-label">09 / 距离正式使用还有多远</div>
         <div class="section-head">
-          <h2>每类事实，<br>只有一个地方说了算</h2>
-          <p>这条产线横跨 Store、Workflow、B-roll DB、R2、n8n、fal 与独立 Reviewer。清晰的边界比多一道检查更重要。</p>
+          <h2>先达到“可监督试生产”，<br>再达到“可稳定规模化”</h2>
+          <p>两种“能用”必须分开。简版路线跑通后，可以由人全程盯着试生产；只有独立审核员和四阶段证据链也真实跑通，才接近稳定规模化。</p>
         </div>
 
-        <div class="system-layout">
-          <div class="system-map" role="img" aria-label="系统地图：Store 管任务状态与合同；Workflow 管生产逻辑与 Reviewer 规则；B-roll DB 与 R2 管语义索引和私有素材；n8n、fal 与云合成执行付费生产；Reviewer 只读冻结产物并把审核报告写回 Store。">
-            <article class="system-node system-node--store" data-no="01 / CONTROL">
-              <h3>Store<br>Workbench</h3>
-              <p>任务状态、合同、人工选择与最后放行</p>
-              <small>authoritative job state</small>
-            </article>
-            <article class="system-node system-node--exec" data-no="04 / EXECUTION">
-              <h3>Producer<br>n8n + fal</h3>
-              <p>读取批准代码与私有素材，执行付费生产</p>
-              <small>no review / release authority</small>
-            </article>
-            <article class="system-node system-node--workflow" data-no="02 / CODE">
-              <h3>Workflow</h3>
-              <p>生产逻辑、审核策略与固定检查器</p>
-              <small>git + exact SHA</small>
-            </article>
-            <article class="system-node system-node--assets" data-no="03 / ASSETS">
-              <h3>B-roll DB<br>+ private R2</h3>
-              <p>可检索语义索引与只对执行链开放的素材</p>
-              <small>state DB → export DB / R2 objects</small>
-            </article>
-            <article class="system-node system-node--reviewer" data-no="05 / JUDGEMENT">
-              <h3>Independent Reviewer</h3>
-              <p>只读 claim 固定的那一版产物；只向 Store 写报告，没有生产与发布凭据。</p>
-              <small>read artifact → write bound report</small>
-            </article>
+        <div class="readiness-grid">
+          <div class="readiness-list">
+            <article class="readiness-item"><span class="state state--ok">已完成</span><div><b>总控制台与私有任务账本</b><p>线上 Store 已部署当前主干；任务、预算、人工终审和受控下载逻辑已经存在。</p></div><div class="readiness-proof">Store main a1256ec · deploy success</div></article>
+            <article class="readiness-item"><span class="state">验真失败</span><div><b>云端制作工人部署当前版本</b><p>代码已经部署到新机器，但机器 5 分钟内始终没有发布就绪信号，当前版本没有获得“可接单”认证。</p></div><div class="readiness-proof">Workflow 853da6a · run 31070288870 failed<br>位置：runtime SHA / readiness verification<br>症状：缺 /run/video-worker-ready</div></article>
+            <article class="readiness-item"><span class="state">未验收</span><div><b>跑一条新的真实云任务</b><p>必须实际经过下载原片、改稿、MiniMax 配音、口型、B-roll、合成、私有上传、人工五项和下载。</p></div><div class="readiness-proof">不能用 CI、dry-run 或旧任务代替</div></article>
+            <article class="readiness-item"><span class="state">仍锁门</span><div><b>部署独立机器审核员</b><p>Reviewer 仍被 false &amp;&amp; 关闭；角色隔离、模型、密钥和线上预检还没有生产验收。</p></div><div class="readiness-proof">deploy-video-reviewer.yml skipped</div></article>
+            <article class="readiness-item"><span class="state">未执行</span><div><b>四阶段 24 项完整闭环</b><p>需要真实证明文稿 → 素材 → 口型 → 成片每段都能冻结、审核、失败返工、通过推进，最后再由人放行。</p></div><div class="readiness-proof">目标是生产 E2E，不是测试报告</div></article>
           </div>
 
-          <div>
-            <div class="truth-list" aria-label="真相层归属">
-              <div class="truth-item"><b>任务状态与审核合同</b><span>Store</span></div>
-              <div class="truth-item"><b>生产 / Reviewer 代码</b><span>Workflow Git SHA</span></div>
-              <div class="truth-item"><b>B-roll 处理状态</b><span>_pipeline state DB</span></div>
-              <div class="truth-item"><b>B-roll 正式检索索引</b><span>broll.db</span></div>
-              <div class="truth-item"><b>私有素材实体</b><span>R2 + local library</span></div>
-              <div class="truth-item"><b>放行与下载权限</b><span>Store server</span></div>
-            </div>
-            <div class="not-equal" aria-label="三个常见误判">
-              <p>代码已合并　≠　当前代码已部署</p>
-              <p>页面 HTTP 200　≠　四阶段合同正在运行</p>
-              <p>broll.db 文件存在　≠　新素材已完成标注并可检索</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="section" id="readiness">
-      <div class="shell">
-        <div class="eyebrow">05 / Production readiness</div>
-        <div class="section-head">
-          <h2>距离正式使用，<br>还差五道验收门</h2>
-          <p>不是继续加功能，而是把已有合同放到真实云环境里跑通。只有五项全部留下可复核证据，才可以解除付费生产锁。</p>
-        </div>
-
-        <div class="readiness-layout">
-          <div class="readiness-path">
-            <article class="readiness-item ok">
-              <span class="readiness-no">01</span>
-              <div class="readiness-body"><b>Store 控制面代码与合同</b><p>任务合同、四阶段状态、私有产物代理与云 / 本地 runner 归属代码已在主干。</p></div>
-              <div class="readiness-proof">已见证：Store main 357abab 部署成功</div>
-            </article>
-            <article class="readiness-item wait">
-              <span class="readiness-no">02</span>
-              <div class="readiness-body"><b>生产配置完整并通过预检</b><p>私有 R2、合同签名、独立双密钥、Reviewer build + policy allowlist 必须同时就绪。</p></div>
-              <div class="readiness-proof">当前：代码会 fail closed；线上配置未独立验收</div>
-            </article>
-            <article class="readiness-item">
-              <span class="readiness-no">03</span>
-              <div class="readiness-body"><b>部署当前 SHA 的 Cloud Producer</b><p>必须验证只读代码、云端任务归属、私有素材读取与付费执行前的 exact-SHA。</p></div>
-              <div class="readiness-proof">阻断：deploy-video-worker.yml 仍是 false &amp;&amp;</div>
-            </article>
-            <article class="readiness-item">
-              <span class="readiness-no">04</span>
-              <div class="readiness-body"><b>部署真正独立的 Reviewer</b><p>Reviewer 容器只能持有审核凭据，固定代码与模型不可写，角色隔离探针必须通过。</p></div>
-              <div class="readiness-proof">阻断：deploy-video-reviewer.yml 仍是 false &amp;&amp;</div>
-            </article>
-            <article class="readiness-item">
-              <span class="readiness-no">05</span>
-              <div class="readiness-body"><b>一条真实云任务完成全闭环</b><p>四阶段逐一生产与审核、真实 B-roll、真实 fal / 合成、人工终审、服务器放行和下载回执缺一不可。</p></div>
-              <div class="readiness-proof">未执行：不能用 dry-run、CI 或本地模拟替代</div>
-            </article>
-          </div>
-
-          <aside class="readiness-verdict">
-            <small>CURRENT DECISION</small>
-            <strong>不能正式使用</strong>
-            <p>本地脚本通过、CI 通过、首页 200，都不是生产验收。五项全部变绿之后，才有资格解除付费生产。</p>
+          <aside class="decision">
+            <small>CURRENT DECISION · 2026-08-06 12:16 SGT</small>
+            <strong>还不能称为<br>稳定正式生产</strong>
+            <p><b>最近的一步：</b>先修复云端制作工人没有发出就绪信号的问题，再跑一条新任务做真实闭环验收。通过后只能称“可监督试生产”；独立 Reviewer 与四阶段 E2E 通过后，才进入“可稳定规模化”的判断。</p>
           </aside>
         </div>
       </div>
@@ -777,8 +687,8 @@
 
   <footer class="sources">
     <div class="shell sources__grid">
-      <p>本页合并并更新两份原始复盘：<a href="/workflow/broll-system-review-2026-08">B-roll 系统实况复盘</a> · <a href="/workflow/replica-review-runcheck-2026-08-04">复刻产线审查系统</a>。</p>
-      <p>现状核验：Workflow <code>af2e644</code>、Store <code>357abab</code>、正式 broll.db 与外接素材挂载；生产与 Reviewer 部署任务最近结论均为 skipped。页面快照：2026-08-06 09:30 SGT。</p>
+      <p>关联深挖页面：<a href="/workflow/broll-system-review-2026-08">B-roll 系统实况复盘</a> · <a href="/workflow/replica-review-runcheck-2026-08-04">复刻产线审核系统</a>。本页把两者和当前 Store / 云端生产状态合并成一张小白排障地图。</p>
+      <p>本页核验：Workflow <code>853da6a</code>、Store <code>a1256ec</code>、正式 <code>broll.db</code> 与 2026-08-05 R2 核对报告。页面快照：2026-08-06 12:16 SGT。</p>
     </div>
   </footer>
 </body>
