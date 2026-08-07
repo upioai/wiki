@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>千问在我们的生产链路里 · 团队项目与模型全景</title>
+<meta name="description" content="upio.ai 团队六条产品线在用的九个 Qwen 模型槽位：角色分工、挂牌单价、两次去偏横评的实测结论、围着它建的四道护栏，以及九个想当面请教的技术问题。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* ── 基底 Substrate ── */
+    --bg:#06080C; --bg2:#0A0E15; --panel:#0D1119; --panel2:#11161F;
+    --line:rgba(255,255,255,.07); --line2:rgba(255,255,255,.12);
+    --head:#F2F6FB; --ink:#DBE3EC; --muted:#7C8798;
+    --dim:#525C6B;            /* 2.96:1 —— 仅装饰，禁用于正文 */
+
+    /* ── 信号 Signal（语义绑定，别改） ── */
+    --teal:#3FE0C5;    /* SIG-01 机器/自动 */
+    --amber:#F6B352;   /* SIG-02 人工/在环 */
+    --blue:#6FA8FF;    /* SIG-03 服务端 */
+    --violet:#B48CFF;  /* SIG-04 worker */
+    --rose:#FF7D97;    /* SIG-05 执行端 */
+    --teal-d:#1C9D8B;
+
+    /* ── 序列·分类（取用序 1,2,3,5,4,6,7；8=其他/对照） ── */
+    --ser-1:#3FE0C5; --ser-2:#F6B352; --ser-3:#6FA8FF; --ser-4:#B48CFF;
+    --ser-5:#FF7D97; --ser-6:#86DE6E; --ser-7:#E86FD0; --ser-8:#8C9BB0;
+
+    /* ── 序列·顺序（heatmap / 有序数据） ── */
+    --seq-1:#0A392F; --seq-2:#116353; --seq-3:#198F78; --seq-4:#21BA9C; --seq-5:#4CDFC2;
+
+    /* ── 语义（--risk 与角色色玫红是两个色，别混用） ── */
+    --ok:#3FE0C5; --warn:#F6B352; --risk:#F2555A; --neutral:#8C9BB0;
+
+    --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+    --serif:"Noto Serif SC",serif;
+    --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:var(--sans);
+    background:var(--bg);
+    color:var(--ink);
+    line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  /* ── 无障碍 + 截图开关：两条都必须带上 ── */
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
+      transition-duration:.01ms!important;scroll-behavior:auto!important}
+  }
+  html[data-anim="off"] *,html[data-anim="off"] *::before,html[data-anim="off"] *::after{
+    animation:none!important;transition:none!important}
+
+  /* ── 固定背景：网格 + 辉光 + 颗粒 ── */
+  .bg{position:fixed;inset:0;z-index:0;pointer-events:none}
+  .bg .grid{
+    position:absolute;inset:-2px;
+    background-image:
+      linear-gradient(var(--line) 1px,transparent 1px),
+      linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:64px 64px;
+    -webkit-mask-image:radial-gradient(circle at 50% 32%,#000 0%,transparent 78%);
+    mask-image:radial-gradient(circle at 50% 32%,#000 0%,transparent 78%);
+    opacity:.5;
+  }
+  .bg .glow{position:absolute;border-radius:50%;filter:blur(120px);opacity:.5}
+  .bg .g1{width:640px;height:640px;top:-260px;left:50%;transform:translateX(-50%);
+    background:radial-gradient(circle,rgba(63,224,197,.28),transparent 68%);animation:drift 22s ease-in-out infinite}
+  .bg .g2{width:520px;height:520px;top:38%;left:-160px;
+    background:radial-gradient(circle,rgba(111,168,255,.16),transparent 70%);animation:drift 28s ease-in-out infinite reverse}
+  .bg .g3{width:480px;height:480px;bottom:-120px;right:-120px;
+    background:radial-gradient(circle,rgba(246,179,82,.12),transparent 70%);animation:drift 26s ease-in-out infinite}
+  @keyframes drift{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,40px)}}
+  .bg .noise{position:absolute;inset:0;opacity:.035;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+  /* ── 顶部滚动进度 ── */
+  .progress{position:fixed;top:0;left:0;height:2px;width:0;z-index:60;
+    background:linear-gradient(90deg,var(--teal),var(--blue));box-shadow:0 0 12px var(--teal)}
+
+  /* ── 侧栏章节导航 ── */
+  .rail{position:fixed;top:50%;left:26px;transform:translateY(-50%);z-index:50;
+    display:flex;flex-direction:column;gap:15px}
+  .rail a{display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--dim);
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+    transition:color .3s}
+  .rail a .tick{width:22px;height:2px;background:currentColor;transition:width .3s,background .3s}
+  .rail a .lbl{opacity:0;transform:translateX(-6px);transition:.3s}
+  .rail a:hover .lbl,.rail a.on .lbl{opacity:1;transform:none}
+  .rail a.on{color:var(--teal)}
+  .rail a.on .tick{width:38px;box-shadow:0 0 10px var(--teal)}
+  @media(max-width:1180px){.rail{display:none}}
+
+  main{position:relative;z-index:2;max-width:1080px;margin:0 auto;padding:0 40px}
+  section{padding:118px 0;border-top:1px solid transparent}
+
+  /* ── 通用 reveal ── */
+  .rv{opacity:0;transform:translateY(26px);transition:opacity .8s cubic-bezier(.16,1,.3,1),transform .8s cubic-bezier(.16,1,.3,1)}
+  .rv.in{opacity:1;transform:none}
+  .stagger>*{opacity:0;transform:translateY(22px);transition:opacity .7s cubic-bezier(.16,1,.3,1),transform .7s cubic-bezier(.16,1,.3,1)}
+  .stagger.in>*{opacity:1;transform:none}
+  .stagger.in>*:nth-child(1){transition-delay:.05s}
+  .stagger.in>*:nth-child(2){transition-delay:.13s}
+  .stagger.in>*:nth-child(3){transition-delay:.21s}
+  .stagger.in>*:nth-child(4){transition-delay:.29s}
+  .stagger.in>*:nth-child(5){transition-delay:.37s}
+  .stagger.in>*:nth-child(6){transition-delay:.45s}
+
+  /* ── 章节头 ── */
+  .sec-head{display:flex;align-items:baseline;gap:20px;margin-bottom:42px}
+  .sec-head .idx{font-family:var(--mono);font-size:13px;color:var(--teal);
+    font-weight:500;padding-top:6px;position:relative}
+  .sec-head .idx::before{content:"";position:absolute;left:-14px;top:11px;width:8px;height:8px;
+    border-radius:50%;background:var(--teal);box-shadow:0 0 10px var(--teal)}
+  .eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--muted);display:block;margin-bottom:8px}
+  .sec-head h2{font-family:var(--serif);font-weight:700;font-size:clamp(27px,4vw,42px);
+    line-height:1.18;color:var(--head);letter-spacing:.01em}
+  .lede{font-size:16.5px;color:var(--muted);max-width:660px;margin:-24px 0 40px;line-height:1.75}
+  .lede b,.lede strong{color:var(--ink);font-weight:600}
+  code{font-family:var(--mono);font-size:.85em;background:rgba(63,224,197,.09);color:#8ff0e0;
+    border:1px solid rgba(63,224,197,.16);border-radius:5px;padding:1px 6px}
+
+  /* ── HERO ── */
+  /* position:relative 不可省 —— 否则 scroll cue 之类 absolute 子元素会逃到 footer 旁（坑②） */
+  .hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;
+    padding:100px 0 72px;border:0;position:relative}
+  .hero .tag{font-family:var(--mono);font-size:12px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--teal);display:inline-flex;align-items:center;gap:10px;margin-bottom:26px}
+  .hero .tag .pulse{width:9px;height:9px;border-radius:50%;background:var(--teal);
+    box-shadow:0 0 0 0 rgba(63,224,197,.6);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(63,224,197,.55)}70%{box-shadow:0 0 0 12px rgba(63,224,197,0)}100%{box-shadow:0 0 0 0 rgba(63,224,197,0)}}
+  .hero h1{font-family:var(--serif);font-weight:900;font-size:clamp(46px,9vw,104px);line-height:1.02;
+    color:var(--head);letter-spacing:.005em;margin-bottom:8px}
+  .hero h1 .accent{background:linear-gradient(115deg,var(--teal),var(--blue) 70%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero h1 .cursor{display:inline-block;width:.06em;height:.92em;background:var(--teal);
+    vertical-align:-6px;margin-left:6px;animation:blink 1.1s steps(1) infinite;box-shadow:0 0 14px var(--teal)}
+  @keyframes blink{50%{opacity:0}}
+  .hero .desc{font-size:clamp(17px,2.3vw,22px);color:var(--ink);max-width:680px;margin:24px 0 14px;line-height:1.6}
+  .hero .desc b{color:var(--teal);font-weight:600}
+  .hero .role{font-family:var(--mono);font-size:13px;color:var(--muted);margin-bottom:34px}
+  .ticker{display:flex;gap:10px;flex-wrap:wrap;max-width:820px}
+  .chip{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;color:var(--ink);
+    border:1px solid var(--line2);border-radius:100px;padding:7px 15px;background:rgba(255,255,255,.02);
+    display:inline-flex;align-items:center;gap:8px;transition:.3s}
+  .chip:hover{border-color:var(--teal);color:var(--teal);box-shadow:0 0 20px -6px var(--teal)}
+  .chip .d{width:6px;height:6px;border-radius:50%;background:var(--teal)}
+  .chip .d.a{background:var(--amber)}.chip .d.b{background:var(--blue)}.chip .d.v{background:var(--violet)}
+  .scrollcue{position:absolute;bottom:34px;left:0;font-family:var(--mono);font-size:11px;
+    letter-spacing:.2em;color:var(--dim);display:flex;align-items:center;gap:10px}
+  .scrollcue .bar{width:1px;height:34px;background:linear-gradient(var(--teal),transparent);
+    animation:cue 1.8s ease-in-out infinite}
+  @keyframes cue{0%,100%{opacity:.3;transform:scaleY(.6)}50%{opacity:1;transform:scaleY(1)}}
+
+  /* ── 三件套 pillars ── */
+  .pillars{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;position:relative}
+  .pillar{background:linear-gradient(165deg,var(--panel),var(--bg2));border:1px solid var(--line);
+    border-radius:16px;padding:26px 24px 24px;position:relative;overflow:hidden;transition:.4s}
+  .pillar::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;
+    background:var(--c,var(--teal));opacity:.7;box-shadow:0 0 16px var(--c,var(--teal))}
+  .pillar:hover{transform:translateY(-6px);border-color:var(--line2);
+    box-shadow:0 24px 60px -30px var(--c,var(--teal))}
+  .pillar .mk{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--c,var(--teal));
+    text-transform:uppercase;margin-bottom:16px;display:flex;justify-content:space-between}
+  .pillar h3{font-family:var(--serif);font-weight:700;font-size:21px;color:var(--head);margin-bottom:6px}
+  .pillar .path{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:14px}
+  .pillar p{font-size:14px;color:var(--muted);line-height:1.65}
+  .pillar .ver{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);
+    font-family:var(--mono);font-size:12px;color:var(--ink)}
+  .note-band{margin-top:22px;background:rgba(246,179,82,.06);border:1px solid rgba(246,179,82,.2);
+    border-radius:14px;padding:18px 22px;display:flex;gap:16px;align-items:flex-start}
+  .note-band .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--amber);
+    text-transform:uppercase;white-space:nowrap;padding-top:2px}
+  .note-band p{font-size:14.5px;color:var(--ink);margin:0}
+
+  /* ── 管线 spine ── */
+  .pipe{position:relative;padding-left:38px;margin-top:8px}
+  .pipe::before{content:"";position:absolute;left:11px;top:8px;bottom:8px;width:2px;
+    background:linear-gradient(var(--teal),var(--violet),var(--amber),var(--rose))}
+  .pipe .flowdot{position:absolute;left:6px;width:12px;height:12px;border-radius:50%;
+    background:var(--teal);box-shadow:0 0 16px 3px var(--teal);animation:flow 4.2s cubic-bezier(.5,0,.5,1) infinite}
+  @keyframes flow{0%{top:2px;opacity:0}8%{opacity:1}92%{opacity:1}100%{top:calc(100% - 14px);opacity:0}}
+  .pstep{position:relative;padding:16px 0;display:grid;grid-template-columns:112px 1fr;gap:18px;align-items:start}
+  .pstep+.pstep{border-top:1px dashed var(--line)}
+  .pstep::before{content:"";position:absolute;left:-32px;top:24px;width:10px;height:10px;border-radius:50%;
+    background:var(--bg);border:2px solid var(--who,var(--teal));box-shadow:0 0 0 4px var(--bg)}
+  .pstep .who{font-family:var(--mono);font-size:11px;letter-spacing:.05em;padding:5px 9px;border-radius:7px;
+    background:color-mix(in srgb,var(--who) 15%,transparent);color:var(--who);
+    border:1px solid color-mix(in srgb,var(--who) 30%,transparent);text-align:center;line-height:1.35}
+  .pstep .txt{font-size:14.5px;color:var(--ink)}
+  .pstep .txt b{color:var(--head);font-weight:600}
+  .pipe-note{margin-top:20px;font-size:13.5px;color:var(--muted);font-family:var(--mono);
+    padding-left:38px;line-height:1.6}
+  .pipe-note b{color:var(--teal)}
+
+  /* ── hbar 横条。⚠️ track 与 fill 必须 display:block（span 是 inline，宽高全失效） ── */
+  .hbar .row{display:grid;grid-template-columns:210px 1fr 96px;gap:14px;align-items:center;padding:9px 0}
+  .hbar .lab{font-size:13.5px;color:var(--ink);text-align:right;line-height:1.35}
+  .hbar .lab .sub{display:block;font-family:var(--mono);font-size:10.5px;color:var(--dim);letter-spacing:.04em}
+  .hbar .track{display:block;height:18px;background:rgba(255,255,255,.04);border-radius:5px;overflow:hidden}
+  .hbar .fill{display:block;height:100%;border-radius:4px;
+    background:linear-gradient(90deg,var(--teal-d),var(--teal));box-shadow:0 0 14px -2px var(--teal);
+    width:0;transition:width 1.1s cubic-bezier(.16,1,.3,1)}
+  .hbar .fill.dim{background:linear-gradient(90deg,#2A3644,#46586C);box-shadow:none}
+  .hbar .fill.warn{background:linear-gradient(90deg,#B7803A,var(--amber));box-shadow:0 0 14px -2px var(--amber)}
+  .hbar .fill.blue{background:linear-gradient(90deg,#3A6099,var(--blue));box-shadow:0 0 14px -2px var(--blue)}
+  .hbar .val{font-family:var(--mono);font-size:13px;color:var(--head)}
+  .chart-title{font-size:15px;color:var(--head);font-weight:600;margin-bottom:2px}
+  .chart-unit{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.1em;
+    text-transform:uppercase;margin-bottom:16px}
+  .chart-note{margin-top:16px;font-family:var(--mono);font-size:11.5px;color:var(--dim);letter-spacing:.04em;line-height:1.6}
+  .chart-note b{color:var(--teal)}
+
+  /* ══ FLOW:lane ══ —— 泳道（角色行 × 阶段列）。步骤序号即阅读顺序 ══ */
+  .lane{display:grid;grid-template-columns:110px repeat(4,1fr);gap:8px;min-width:660px}
+  .lane .lh{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--dim);text-align:center;padding-bottom:4px}
+  .lane .lr{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;color:var(--c,var(--teal));
+    border-left:3px solid var(--c,var(--teal));padding:12px 0 12px 10px;display:flex;align-items:center;
+    text-transform:uppercase;line-height:1.4}
+  .lane .cellbox{background:rgba(255,255,255,.02);border:1px solid var(--line);border-radius:10px;
+    padding:12px 13px;min-height:64px}
+  .lane .cellbox.on{background:color-mix(in srgb,var(--c) 8%,transparent);
+    border-color:color-mix(in srgb,var(--c) 34%,transparent)}
+  .lane .cellbox .n{font-family:var(--mono);font-size:10px;color:var(--c,var(--teal));letter-spacing:.1em;display:block;margin-bottom:4px}
+  .lane .cellbox .s{display:block;font-size:12.5px;color:var(--head);line-height:1.45}
+  .lane .cellbox.void{background:transparent;border-style:dashed;border-color:rgba(255,255,255,.045)}
+  .laneScroll{overflow-x:auto}
+
+  /* ── 通用卡片网格 ── */
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  .cell{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 22px;transition:.35s}
+  .cell:hover{border-color:var(--line2);background:var(--panel2);transform:translateY(-3px)}
+  /* ── 图标：禁用 emoji，一律 42px 框 + 24×24 线条 SVG ── */
+  .cell .ico{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+    margin-bottom:14px;border:1px solid rgba(63,224,197,.28);color:var(--teal);
+    background:linear-gradient(150deg,rgba(63,224,197,.13),rgba(63,224,197,.02));
+    box-shadow:0 0 22px -10px var(--teal) inset}
+  .cell .ico svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .cell .ico.b{border-color:rgba(111,168,255,.28);color:var(--blue);
+    background:linear-gradient(150deg,rgba(111,168,255,.13),rgba(111,168,255,.02));box-shadow:0 0 22px -10px var(--blue) inset}
+  .cell .ico.a{border-color:rgba(246,179,82,.28);color:var(--amber);
+    background:linear-gradient(150deg,rgba(246,179,82,.13),rgba(246,179,82,.02));box-shadow:0 0 22px -10px var(--amber) inset}
+  .cell .ico.v{border-color:rgba(180,140,255,.28);color:var(--violet);
+    background:linear-gradient(150deg,rgba(180,140,255,.13),rgba(180,140,255,.02));box-shadow:0 0 22px -10px var(--violet) inset}
+  .cell .ico.r{border-color:rgba(255,125,151,.28);color:var(--rose);
+    background:linear-gradient(150deg,rgba(255,125,151,.13),rgba(255,125,151,.02));box-shadow:0 0 22px -10px var(--rose) inset}
+  .cell .ico.d{border-color:var(--line2);color:var(--muted);background:rgba(255,255,255,.03);box-shadow:none}
+
+  /* ── statband：数据先行。count-up 必带 setTimeout 兜底 ── */
+  .statband{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:28px}
+  .stat{background:linear-gradient(165deg,var(--panel2),var(--bg2));border:1px solid var(--line);
+    border-radius:14px;padding:17px 18px 15px;transition:.35s}
+  .stat:hover{border-color:rgba(63,224,197,.3);transform:translateY(-3px)}
+  .stat .v{font-family:var(--mono);font-size:30px;font-weight:600;color:var(--teal);line-height:1.1;
+    text-shadow:0 0 24px rgba(63,224,197,.35)}
+  .stat .v .suf{font-size:15px;color:var(--muted);margin-left:2px}
+  .stat .l{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.5}
+  .stat.a .v{color:var(--amber);text-shadow:0 0 24px rgba(246,179,82,.3)}
+  .stat.b .v{color:var(--blue);text-shadow:0 0 24px rgba(111,168,255,.3)}
+  .stat.v2 .v{color:var(--violet);text-shadow:0 0 24px rgba(180,140,255,.3)}
+  .spark{width:88px;height:26px;display:block;margin-top:10px}
+  .spark path{fill:none;stroke:var(--teal);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;opacity:.85}
+  .spark.a path{stroke:var(--amber)}
+  .colbox h4 .st{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;opacity:.75;margin-right:7px}
+  .cell h3{font-size:16px;color:var(--head);margin-bottom:7px;font-weight:600}
+  .cell h3 .m{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:.08em;display:block;margin-bottom:4px;font-weight:500}
+  .cell p{font-size:13.5px;color:var(--muted);line-height:1.65}
+  .cell .model{margin-top:12px;font-family:var(--mono);font-size:12px;color:var(--teal);
+    background:rgba(63,224,197,.07);border:1px solid rgba(63,224,197,.15);border-radius:7px;padding:5px 10px;display:inline-block}
+  .cell .model.d{color:var(--muted);background:rgba(255,255,255,.03);border-color:var(--line2)}
+
+  /* ── 执行通道 ── */
+  .why{background:linear-gradient(160deg,rgba(255,125,151,.07),transparent);
+    border:1px solid rgba(255,125,151,.2);border-radius:16px;padding:26px 28px;margin-bottom:20px}
+  .why .k{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--rose);
+    text-transform:uppercase;margin-bottom:10px;display:block}
+  .why p{font-size:15.5px;color:var(--ink);margin:0}
+  .why p b{color:var(--rose)}
+
+  /* ── 数据模型三列 ── */
+  .cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .colbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 22px}
+  .colbox h4{font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--teal);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+  .colbox ul{list-style:none}
+  .colbox li{font-size:13.5px;color:var(--ink);padding:6px 0 6px 18px;position:relative;line-height:1.55}
+  .colbox li::before{content:"▸";position:absolute;left:0;color:var(--dim)}
+  .colbox li b{color:var(--head)}
+  .colbox.ship h4{color:var(--teal)}.colbox.wip h4{color:var(--amber)}.colbox.hard h4{color:var(--rose)}
+  .colbox.ship{border-color:rgba(63,224,197,.18)}
+  .colbox.wip{border-color:rgba(246,179,82,.18)}
+  .colbox.hard{border-color:rgba(255,125,151,.18)}
+
+  /* ── 取向 band ── */
+  .band{margin-top:22px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--teal);
+    border-radius:12px;padding:20px 24px}
+  .band .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--teal);text-transform:uppercase;margin-bottom:8px;display:block}
+  .band p{font-size:15px;color:var(--ink);margin:0}
+  .band p b{color:var(--head)}
+
+  /* ── 技术栈表 ── */
+  .spec{width:100%;border-collapse:collapse;font-size:13.5px}
+  .spec thead th{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--muted);text-align:left;padding:12px 14px;border-bottom:1px solid var(--line2)}
+  .spec td{padding:13px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  .spec tbody tr{transition:.25s}
+  .spec tbody tr:hover{background:rgba(63,224,197,.03)}
+  .spec td:first-child{color:var(--head);font-weight:600;white-space:nowrap;
+    font-family:var(--mono);font-size:12.5px}
+  .spec td:nth-child(2){color:var(--ink);white-space:nowrap}
+  .spec td:nth-child(3){color:var(--muted);font-size:13px}
+  .spec td:nth-child(4){font-family:var(--mono);font-size:12.5px;color:var(--teal);white-space:nowrap}
+  .spec tr.live td:first-child{color:var(--teal)}
+  .spec tr.retired td{opacity:.62}
+  .quote{margin-top:30px;background:linear-gradient(160deg,var(--panel2),var(--bg2));
+    border:1px solid var(--line);border-radius:16px;padding:28px 30px;font-size:16px;line-height:1.75;color:var(--ink)}
+  .quote b{color:var(--teal)}
+
+  footer{position:relative;z-index:2;max-width:1080px;margin:0 auto;padding:60px 40px 80px;
+    border-top:1px solid var(--line);margin-top:40px}
+  footer .fl{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:18px}
+  footer .brand{font-family:var(--serif);font-weight:700;font-size:20px;color:var(--head)}
+  footer .meta{font-family:var(--mono);font-size:11.5px;color:var(--dim);letter-spacing:.08em;text-align:right;line-height:1.9}
+  footer .meta b{color:var(--teal)}
+
+  @media(max-width:520px){.statband{grid-template-columns:1fr}}
+  @media(max-width:820px){
+    main{padding:0 22px}
+    section{padding:82px 0}
+    .pillars,.grid3,.grid2,.cols3{grid-template-columns:1fr}
+    .statband{grid-template-columns:repeat(2,1fr)}
+    .sec-head{gap:14px;margin-bottom:32px}
+    .lede{margin-top:-16px}
+    .pstep{grid-template-columns:1fr;gap:8px}
+    .pstep .who{justify-self:start}
+    .hbar .row{grid-template-columns:132px 1fr 76px;gap:10px}
+    .hbar .lab{font-size:12px}
+    .spec{font-size:12.5px}
+    .spec td,.spec thead th{padding:10px 8px}
+  }
+  .wipe{clip-path:inset(0 100% 0 0);transition:clip-path 1.5s cubic-bezier(.16,1,.3,1)}
+  .wipe.on{clip-path:inset(0 0 0 0)}
+  @media(max-width:820px){ .svgwrap svg.wide{min-width:600px} }
+  ::selection{background:rgba(63,224,197,.28);color:#fff}
+  ::-webkit-scrollbar{width:10px}
+  ::-webkit-scrollbar-track{background:var(--bg)}
+  ::-webkit-scrollbar-thumb{background:#1c2430;border-radius:8px;border:2px solid var(--bg)}
+  ::-webkit-scrollbar-thumb:hover{background:var(--teal-d)}
+</style>
+</head>
+<body>
+
+<div class="bg">
+  <div class="grid"></div>
+  <div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
+  <div class="noise"></div>
+</div>
+<div class="progress" id="progress"></div>
+
+<nav class="rail" id="rail">
+  <a href="#hero" data-s="hero"><span class="tick"></span><span class="lbl">概览</span></a>
+  <a href="#lines" data-s="lines"><span class="tick"></span><span class="lbl">产品线</span></a>
+  <a href="#where" data-s="where"><span class="tick"></span><span class="lbl">链路位置</span></a>
+  <a href="#models" data-s="models"><span class="tick"></span><span class="lbl">模型清单</span></a>
+  <a href="#cost" data-s="cost"><span class="tick"></span><span class="lbl">单价</span></a>
+  <a href="#bakeoff" data-s="bakeoff"><span class="tick"></span><span class="lbl">选型评测</span></a>
+  <a href="#guards" data-s="guards"><span class="tick"></span><span class="lbl">护栏</span></a>
+  <a href="#pits" data-s="pits"><span class="tick"></span><span class="lbl">踩过的坑</span></a>
+  <a href="#ask" data-s="ask"><span class="tick"></span><span class="lbl">想请教</span></a>
+</nav>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero" id="hero">
+    <span class="tag rv"><span class="pulse"></span>团队项目全景 · 千问模型使用现状</span>
+    <h1 class="rv">千问在我们的<br><span class="accent">生产链路</span>里<span class="cursor"></span></h1>
+    <p class="desc rv">六条产品线、九个模型槽位——从<b>写开场白</b>到<b>读屏定位控件</b>。</p>
+    <p class="role rv">// 为阿里千问团队来访准备 · 纯技术口径 · 单价与评测数据截至 2026-08-07</p>
+    <div class="ticker rv">
+      <span class="chip"><span class="d"></span>QWEN3-235B-A22B-2507</span>
+      <span class="chip"><span class="d b"></span>QWEN3-VL ×3</span>
+      <span class="chip"><span class="d a"></span>QWEN2.5-VL-72B</span>
+      <span class="chip"><span class="d v"></span>QWEN3-VL-4B 本地权重</span>
+      <span class="chip"><span class="d"></span>OPENROUTER 统一接入</span>
+      <span class="chip"><span class="d a"></span>LANGFUSE 全链路计费</span>
+    </div>
+    <div class="statband rv">
+      <div class="stat"><div class="v"><span class="cnum" data-v="6">0</span></div>
+        <div class="l">条产品线在用千问
+          <span style="display:block;font-family:var(--mono);font-size:10.5px;color:var(--dim);margin-top:10px">Akke / 工作台 / Softie / Vivi / CozyUp / Workflow</span></div></div>
+      <div class="stat a"><div class="v"><span class="cnum" data-v="9">0</span></div>
+        <div class="l">个千问模型槽位<span style="display:block;font-family:var(--mono);font-size:10.5px;color:var(--dim);margin-top:10px">含 1 个本地权重兜底</span></div></div>
+      <div class="stat b"><div class="v"><span class="cnum" data-v="4">0</span></div>
+        <div class="l">类角色<span style="display:block;font-family:var(--mono);font-size:10.5px;color:var(--dim);margin-top:10px">对话 / 分析 / 视觉 / GUI 定位</span></div></div>
+      <div class="stat v2"><div class="v"><span class="cnum" data-v="5.1" data-dec="1">0</span><span class="suf">×</span></div>
+        <div class="l">主力槽换代降本<span style="display:block;font-family:var(--mono);font-size:10.5px;color:var(--dim);margin-top:10px">输入价 · 同族新快照</span></div></div>
+    </div>
+    <div class="scrollcue"><span class="bar"></span>SCROLL / 向下滚动</div>
+  </section>
+
+  <!-- 01 产品线 -->
+  <section id="lines">
+    <div class="sec-head rv">
+      <span class="idx">01</span>
+      <div><span class="eyebrow">Product Lines · Who We Are</span>
+      <h2>六条产品线，各自在用哪一款</h2></div>
+    </div>
+    <p class="lede rv">一支小团队同时在跑的六个产品，<strong>每条线都落了千问</strong>——角色各不相同。</p>
+    <div class="grid3 stagger">
+      <div class="cell">
+        <span class="ico"><svg viewBox="0 0 24 24"><path d="M20.5 12.6c0 3.9-3.8 7-8.5 7-1 0-2-.15-2.9-.42L4.5 20.5l1.3-3.4A6.7 6.7 0 0 1 3.5 12.6c0-3.9 3.8-7 8.5-7s8.5 3.1 8.5 7z"/></svg></span>
+        <h3><span class="m">主力 · 体量最大</span>Akke 智能获客</h3>
+        <p>抖音全屋定制获客 SaaS。抓评论、判意向、拟话术，再真机把私信发出去。</p>
+        <span class="model">chat ×2 通道 · 视觉打标 · GUI 定位</span>
+      </div>
+      <div class="cell">
+        <span class="ico b"><svg viewBox="0 0 24 24"><rect x="3" y="7.5" width="18" height="13" rx="2"/><path d="M7.5 7.5V5.2a2 2 0 0 1 2-2h5a2 2 0 0 1 2 2v2.3M3 12h18"/></svg></span>
+        <h3><span class="m">Fly.io 东京</span>门店营销工作台</h3>
+        <p>给门店店长的每日任务台，全 SSR，浏览器零直连数据库。</p>
+        <span class="model">面客文案 · 活动海报解析</span>
+      </div>
+      <div class="cell">
+        <span class="ico v"><svg viewBox="0 0 24 24"><path d="M4 17.5l5-6 3.2 3.8 2.6-3.2L20 17.5z"/><circle cx="8.4" cy="7.6" r="1.8"/><rect x="2.8" y="3.5" width="18.4" height="17" rx="2.4"/></svg></span>
+        <h3><span class="m">Fly.io + Neon</span>Softie 生成工作流</h3>
+        <p>AI 图片 / 视频生成工作流与计费。多厂商路由，主模型之外配轻量槽。</p>
+        <span class="model">轻量任务槽 · 可用性探针</span>
+      </div>
+      <div class="cell">
+        <span class="ico a"><svg viewBox="0 0 24 24"><path d="M12 3.4c4.4 0 8 2.9 8 6.5 0 3.6-3.6 6.5-8 6.5-.9 0-1.8-.12-2.6-.35L5 18.6l1-3.1C4.1 14.3 4 12 4 9.9c0-3.6 3.6-6.5 8-6.5z"/><path d="M9 9.9h6M9 12.6h3.6"/></svg></span>
+        <h3><span class="m">Telegram Mini-App</span>Vivi 梦境社交</h3>
+        <p>Telegram 上的 AI 梦境社交应用，跨会话记忆抽取走独立便宜槽。</p>
+        <span class="model">对话记忆抽取</span>
+      </div>
+      <div class="cell">
+        <span class="ico r"><svg viewBox="0 0 24 24"><path d="M12 20.2s-7.4-4.4-7.4-9.4A4.1 4.1 0 0 1 12 8.1a4.1 4.1 0 0 1 7.4 2.7c0 5-7.4 9.4-7.4 9.4z"/></svg></span>
+        <h3><span class="m">Vercel + Supabase</span>CozyUp 陪伴</h3>
+        <p>AI 角色陪伴应用。千问在这条线上做多模型可用性巡检探针。</p>
+        <span class="model d">状态监控探针</span>
+      </div>
+      <div class="cell">
+        <span class="ico"><svg viewBox="0 0 24 24"><path d="M3.5 6.5h9M3.5 12h13M3.5 17.5h7"/><circle cx="18.5" cy="17.5" r="2.4"/><circle cx="19.6" cy="6.5" r="2.4"/></svg></span>
+        <h3><span class="m">内容产线</span>Workflow 视频复刻</h3>
+        <p>爆款视频解构复刻产线。分镜语义审查靠 VL 批量读图，16 张约 20 秒。</p>
+        <span class="model">VL 分镜审查 · 需求语义检查</span>
+      </div>
+    </div>
+    <div class="note-band rv">
+      <span class="k">口径</span>
+      <p>六条线共用一套接入方式：<b>OpenRouter 的 OpenAI 兼容端点</b>，模型槽位全部走环境变量覆盖，代码里只留默认值——换模型不改代码、不发版。</p>
+    </div>
+  </section>
+
+  <!-- 02 链路位置 -->
+  <section id="where">
+    <div class="sec-head rv">
+      <span class="idx">02</span>
+      <div><span class="eyebrow">Where Qwen Sits · Akke Main Pipeline</span>
+      <h2>千问在主链路的哪两步</h2></div>
+    </div>
+    <p class="lede rv">以体量最大的 Akke 为例：一条抖音评论变成一条已送达的私信，<strong>千问负责其中两棒</strong>。</p>
+    <div class="laneScroll rv">
+      <div class="lane">
+        <div></div>
+        <div class="lh">采集</div><div class="lh">判定</div><div class="lh">起草</div><div class="lh">触达</div>
+
+        <div class="lr" style="--c:var(--teal)">Qwen<br>千问</div>
+        <div class="cellbox void" style="--c:var(--teal)"></div>
+        <div class="cellbox void" style="--c:var(--teal)"></div>
+        <div class="cellbox on" style="--c:var(--teal)"><span class="n">03</span><span class="s">写开场白与逐轮回复，人设与跨会话记忆全注入</span></div>
+        <div class="cellbox on" style="--c:var(--teal)"><span class="n">05</span><span class="s">VL 读屏定位控件，判断字进没进输入框</span></div>
+
+        <div class="lr" style="--c:var(--blue)">其他<br>模型</div>
+        <div class="cellbox void" style="--c:var(--blue)"></div>
+        <div class="cellbox on" style="--c:var(--blue)"><span class="n">02</span><span class="s">DeepSeek V4 Flash 打购买意向分</span></div>
+        <div class="cellbox void" style="--c:var(--blue)"></div>
+        <div class="cellbox void" style="--c:var(--blue)"></div>
+
+        <div class="lr" style="--c:var(--amber)">代码<br>与人工</div>
+        <div class="cellbox on" style="--c:var(--amber)"><span class="n">01</span><span class="s">Cron 入队，worker 签名调评论 API 抓取</span></div>
+        <div class="cellbox void" style="--c:var(--amber)"></div>
+        <div class="cellbox on" style="--c:var(--amber)"><span class="n">04</span><span class="s">后置清洗、长度钳位、运营审批</span></div>
+        <div class="cellbox on" style="--c:var(--amber)"><span class="n">06</span><span class="s">真机/云电脑发送，解包回执验真</span></div>
+      </div>
+    </div>
+    <p class="chart-note">// 行色＝承担者 · 序号跨行跳＝一次交接 · 口径 2026-08-07</p>
+    <div class="band rv">
+      <span class="k">为什么判定不给千问</span>
+      <p>不是质量问题，是<b>形状问题</b>。判定是高频、短、只要一个 JSON 的活，走推理型的便宜槽更划算；而<b>「说人话」这件事我们一直放在千问上</b>——换过三次，每次都换回来。</p>
+    </div>
+  </section>
+
+  <!-- 03 模型清单 -->
+  <section id="models">
+    <div class="sec-head rv">
+      <span class="idx">03</span>
+      <div><span class="eyebrow">Model Inventory · Nine Slots</span>
+      <h2>在用的九个千问槽位</h2></div>
+    </div>
+    <p class="lede rv">每一行都是<strong>线上真的在跑</strong>的槽位，含一个留作一键回滚的上代锚点。</p>
+    <div class="rv" style="overflow-x:auto">
+      <table class="spec">
+        <thead><tr><th>模型 slug</th><th>角色</th><th>用在哪</th><th>挂牌价 in / out · ctx</th></tr></thead>
+        <tbody>
+          <tr class="live"><td>qwen3-235b-a22b-2507</td><td>对话生成</td>
+            <td>Akke 抖音私信 + 企微代聊双通道 · 门店工作台面客文案 · Softie 轻量槽 · Workflow 需求语义检查</td>
+            <td>0.09 / 0.55 · 262K</td></tr>
+          <tr class="live"><td>qwen3-vl-235b-a22b-instruct</td><td>视觉理解</td>
+            <td>视频复刻产线分镜语义审查（主用）</td><td>0.20 / 0.88 · 262K</td></tr>
+          <tr class="live"><td>qwen3-vl-30b-a3b-instruct</td><td>GUI 定位</td>
+            <td>云电脑抖音 / 企微读屏定位 · VL 调用兜底档</td><td>0.13 / 0.52 · 262K</td></tr>
+          <tr class="live"><td>qwen3-vl-32b-instruct</td><td>视觉理解</td>
+            <td>门店活动海报解析（图转结构化字段）</td><td>0.104 / 0.416 · 131K</td></tr>
+          <tr class="live"><td>qwen2.5-vl-72b-instruct</td><td>视觉理解</td>
+            <td>微信截图 OCR · 装修效果图空间打标</td><td>0.25 / 0.75 · 128K</td></tr>
+          <tr class="live"><td>qwen3-30b-a3b-instruct-2507</td><td>分析抽取</td>
+            <td>便宜档质检 detector · 影子评分（不碰生产额度）</td><td>0.048 / 0.193 · 262K</td></tr>
+          <tr class="live"><td>qwen-2.5-7b-instruct</td><td>分析抽取</td>
+            <td>Vivi 对话记忆抽取</td><td>0.10 / 0.20 · 33K</td></tr>
+          <tr class="live"><td>Qwen3-VL-4B（本地权重）</td><td>视觉理解</td>
+            <td>断网 / 无 key 兜底，8.3GB 本机跑，单图 8–40 秒</td><td>零 API 费 · 本地</td></tr>
+          <tr class="retired"><td>qwen3-235b-a22b</td><td>回滚锚点</td>
+            <td>上一代主力，定价表常驻以便一行 env 回退</td><td>0.455 / 1.82 · 131K</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="chart-note">// 单价单位 USD / 百万 token，取自 OpenRouter 挂牌页，<b>2026-08-07 逐个核验</b>；qwen3-30b-2507 当时处于折扣价</p>
+  </section>
+
+  <!-- 04 单价 -->
+  <section id="cost">
+    <div class="sec-head rv">
+      <span class="idx">04</span>
+      <div><span class="eyebrow">Unit Economics</span>
+      <h2>那次把主力槽成本砍掉八成</h2></div>
+    </div>
+    <p class="lede rv">2026-06-08 把 chat 槽从原版切到 <strong>2507 快照</strong>：同族、同厂、只换快照。</p>
+    <div class="rv" style="margin-bottom:38px">
+      <div class="chart-title">在用千问槽位的输出单价</div>
+      <div class="chart-unit">USD / 百万 token · 输出侧 · OpenRouter 挂牌 2026-08-07</div>
+      <div class="hbar" data-hbar>
+        <div class="row"><span class="lab">qwen3-235b-a22b<span class="sub">上一代 · 已退役</span></span>
+          <span class="track"><span class="fill warn" data-w="100"></span></span><span class="val">1.820</span></div>
+        <div class="row"><span class="lab">qwen3-vl-235b-a22b<span class="sub">分镜语义审查</span></span>
+          <span class="track"><span class="fill blue" data-w="48"></span></span><span class="val">0.880</span></div>
+        <div class="row"><span class="lab">qwen2.5-vl-72b<span class="sub">截图 OCR / 打标</span></span>
+          <span class="track"><span class="fill blue" data-w="41"></span></span><span class="val">0.750</span></div>
+        <div class="row"><span class="lab">qwen3-235b-a22b-2507<span class="sub">现役主力 chat</span></span>
+          <span class="track"><span class="fill" data-w="30"></span></span><span class="val">0.550</span></div>
+        <div class="row"><span class="lab">qwen3-vl-30b-a3b<span class="sub">GUI 定位</span></span>
+          <span class="track"><span class="fill blue" data-w="29"></span></span><span class="val">0.520</span></div>
+        <div class="row"><span class="lab">qwen3-vl-32b<span class="sub">海报解析</span></span>
+          <span class="track"><span class="fill blue" data-w="23"></span></span><span class="val">0.416</span></div>
+        <div class="row"><span class="lab">qwen3-30b-a3b-2507<span class="sub">便宜档 detector</span></span>
+          <span class="track"><span class="fill dim" data-w="11"></span></span><span class="val">0.193</span></div>
+      </div>
+      <p class="chart-note">// 青＝现役主力 · 蓝＝视觉族 · 琥珀＝已退役对照 · 灰＝便宜档</p>
+    </div>
+    <div class="grid3 stagger">
+      <div class="cell">
+        <span class="ico"><svg viewBox="0 0 24 24"><path d="M12 4.2v15.6M8.2 7.4h6.2a2.6 2.6 0 0 1 0 5.2H9.6a2.6 2.6 0 0 0 0 5.2h6.2"/></svg></span>
+        <h3>输入侧 5.1×</h3>
+        <p>$0.455 → $0.09。评论与人设 prompt 长，输入侧占大头，这一刀最疼。</p>
+      </div>
+      <div class="cell">
+        <span class="ico b"><svg viewBox="0 0 24 24"><path d="M4 19.5V8.8M9.3 19.5V4.5M14.7 19.5v-7.2M20 19.5v-11"/></svg></span>
+        <h3>输出侧 3.3×</h3>
+        <p>$1.82 → $0.55。私信本身短，输出侧省得少，但仍是三分之一。</p>
+      </div>
+      <div class="cell">
+        <span class="ico a"><svg viewBox="0 0 24 24"><path d="M12 3.2l7 2.6v5.6c0 4.1-2.9 7.6-7 9.4-4.1-1.8-7-5.3-7-9.4V5.8l7-2.6z"/><path d="M9.2 12.2l2 2 3.6-3.9"/></svg></span>
+        <h3>迁移风险最低</h3>
+        <p>同族快照，人设 prompt 一字未改，无跨厂商的口吻漂移。</p>
+      </div>
+    </div>
+    <div class="band rv">
+      <span class="k">一个诚实的补充</span>
+      <p>这次换代拿到的红利是<b>成本砍掉八成</b>，<b>不是效果飞跃</b>。去偏评测里所有候选的自然度都卡在 3.4~3.5 一线——真正的杠杆在 prompt，不在换模型。</p>
+    </div>
+  </section>
+
+  <!-- 05 选型评测 -->
+  <section id="bakeoff">
+    <div class="sec-head rv">
+      <span class="idx">05</span>
+      <div><span class="eyebrow">Bake-offs · Two Rounds, De-biased</span>
+      <h2>选型是怎么定下来的</h2></div>
+    </div>
+    <p class="lede rv">两轮横评，都走<strong>生产代码路径</strong>、都换过中立裁判去偏——结论有一个反直觉。</p>
+
+    <div class="rv" style="margin-bottom:40px">
+      <div class="chart-title">第一轮 · 开场白横评（36 条真实评论 · 高/中/低意向各档）</div>
+      <div class="chart-unit">估算每千条开场白成本 USD · 裁判 glm-4-32b（中立且非推理）· 2026-06-08</div>
+      <div class="hbar" data-hbar>
+        <div class="row"><span class="lab">qwen3-235b-a22b<span class="sub">原默认 · 无杜撰 2.69</span></span>
+          <span class="track"><span class="fill warn" data-w="100"></span></span><span class="val">≈ 5.6</span></div>
+        <div class="row"><span class="lab">deepseek-v4-flash<span class="sub">合格备选 · 无杜撰 3.11</span></span>
+          <span class="track"><span class="fill dim" data-w="29"></span></span><span class="val">≈ 1.6</span></div>
+        <div class="row"><span class="lab">qwen3-235b-a22b-2507<span class="sub">胜出 · 无杜撰 3.03</span></span>
+          <span class="track"><span class="fill" data-w="18"></span></span><span class="val">≈ 1.0</span></div>
+      </div>
+      <p class="chart-note">// 原默认其实是三者里<b>最贵且杜撰最多</b>的那个 · 分值为 1–5 分制</p>
+    </div>
+
+    <div class="rv" style="margin-bottom:32px">
+      <div class="chart-title">第二轮 · 企微短对话横评（28 探针 × 3 采样 · 双裁判）</div>
+      <div class="chart-unit">综合均分 0–10 · 裁判 grok-4.5 + minimax-m3（两裁判一致度 6.94 / 6.95）· 2026-07-15</div>
+      <div class="hbar" data-hbar>
+        <div class="row"><span class="lab">kimi-k2.6<span class="sub">当轮第 1</span></span>
+          <span class="track"><span class="fill dim" data-w="69"></span></span><span class="val">6.94</span></div>
+        <div class="row"><span class="lab">qwen3-235b-a22b-2507<span class="sub">当轮第 4</span></span>
+          <span class="track"><span class="fill" data-w="58"></span></span><span class="val">5.82</span></div>
+        <div class="row"><span class="lab">qwen3-max<span class="sub">当轮末位</span></span>
+          <span class="track"><span class="fill warn" data-w="48"></span></span><span class="val">4.77</span></div>
+      </div>
+      <p class="chart-note">// 五模型参评，中间两名（glm-4.7 / deepseek-v4-pro）分值未留档，此处不列</p>
+    </div>
+
+    <div class="why rv">
+      <span class="k">转折 · 六天后全量回滚</span>
+      <p>照第二轮结论切了 kimi，<b>07-21 又全量回滚到 2507</b>。原因不在质量分：kimi 是推理模型，我们只传了 <code>effort:low</code> 压不住，每条烧 100~868 reasoning token，单条回复 <b>131~171 秒</b>，击穿中转层 110 秒与客户端 120 秒两道天花板，在用户侧表现为「机器人不回话」。</p>
+    </div>
+    <div class="band rv">
+      <span class="k">这件事教会我们的</span>
+      <p>评测<b>只测了质量、没测 wall-clock 延迟</b>，就会选出一个线上跑不动的冠军。2507 的赢面从来不是分数最高，而是<b>非推理、秒回、话术稳</b>——面客链路上，可预测的延迟本身就是一项能力。</p>
+    </div>
+  </section>
+
+  <!-- 06 护栏 -->
+  <section id="guards">
+    <div class="sec-head rv">
+      <span class="idx">06</span>
+      <div><span class="eyebrow">Guardrails Around The Model</span>
+      <h2>围着模型建的四道护栏</h2></div>
+    </div>
+    <p class="lede rv">模型可以换，护栏不能省——这四件事让我们敢在面客链路上灰度。</p>
+    <div class="grid2 stagger">
+      <div class="cell">
+        <span class="ico"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 8.7"/><path d="M20 4.2v4.5h-4.5"/><path d="M20 12a8 8 0 0 1-13.7 5.6L4 15.3"/><path d="M4 19.8v-4.5h4.5"/></svg></span>
+        <h3>一行环境变量回滚</h3>
+        <p>抖音与企微两条 chat 通道各有独立 env 键，可分别灰度。上代 slug 常驻定价表，回退不用改代码、不用发版。</p>
+      </div>
+      <div class="cell">
+        <span class="ico a"><svg viewBox="0 0 24 24"><path d="M2.8 12.4h3.6l1.9-4.6 3 9.4 2.4-6.2 1.4 3.2h4.1"/></svg></span>
+        <h3>推理 token 哨兵</h3>
+        <p>每 15 分钟巡检面客通道的平均 reasoning token，超阈值推红牌告警——专防「有人把非推理槽误切成推理模型」这类静默升级。</p>
+      </div>
+      <div class="cell">
+        <span class="ico r"><svg viewBox="0 0 24 24"><rect x="4.2" y="10.4" width="15.6" height="9.6" rx="2.2"/><path d="M8.2 10.4V7.6a3.8 3.8 0 0 1 7.6 0v2.8"/></svg></span>
+        <h3>评测额度隔离</h3>
+        <p>所有 bake-off 走独立 key，后台设了额度上限，烧超直接 402 停住，碰不到生产额度。这条是被真实事故换来的。</p>
+      </div>
+      <div class="cell">
+        <span class="ico v"><svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.3"/><path d="M15.4 15.4l5 5"/></svg></span>
+        <h3>逐条成本回填</h3>
+        <p>网关返回 <code>cost=0</code>，我们用本地定价表把每次调用的成本手动写回 trace，做到按人、按任务、按通道追账。</p>
+      </div>
+    </div>
+    <div class="band rv">
+      <span class="k">设计取向</span>
+      <p><b>确定性判断交给代码，模糊判断才交给模型</b>——路由、重试、状态码、去重全走代码；分类、起草、摘要、抽取才走模型。能用状态码回答的，不让模型在 prompt 里抖 if-else。</p>
+    </div>
+  </section>
+
+  <!-- 07 踩过的坑 -->
+  <section id="pits">
+    <div class="sec-head rv">
+      <span class="idx">07</span>
+      <div><span class="eyebrow">What Bit Us · Field Notes</span>
+      <h2>踩过的坑（含反直觉的那个）</h2></div>
+    </div>
+    <p class="lede rv">这一节写给千问团队看——都是<strong>生产实测</strong>，不是理论风险。</p>
+    <div class="cols3 stagger">
+      <div class="colbox hard">
+        <h4><span class="st">VISION</span>视觉 · 假阴性重灾区</h4>
+        <ul>
+          <li>全屏截图问「回复框里有没有字」，<b>7 条里 5 条</b>字已进框却被判「没进」</li>
+          <li>问「顶部账号名是不是 X」，人眼确认进对了主页，仍判 false，<b>误杀 6 条</b></li>
+          <li>现在的做法：VL <b>不再当前置门</b>，改用动作的后置结果把关</li>
+          <li>小目标先按比例裁剪再喂图，成功率从 2/14 拉到 6/6</li>
+        </ul>
+      </div>
+      <div class="colbox wip">
+        <h4><span class="st">FORMAT</span>结构化输出</h4>
+        <ul>
+          <li>在网关上开 <code>response_format: json_object</code> 会让 Qwen3 输出<b>退化</b>，我们已全线弃用</li>
+          <li>改成 prompt 内约束 + 后置解析，代价是要自己兜格式</li>
+          <li>few-shot 的标签会漏进正文，得靠正则清洗</li>
+          <li>2507 长度合规 <b>0.69</b>，低于上一代 0.78——上线后补了长度钳位</li>
+        </ul>
+      </div>
+      <div class="colbox">
+        <h4><span class="st">COUNTER</span>反直觉的一条</h4>
+        <ul>
+          <li>同一轮横评里 <b>qwen3-max（4.77）反而低于 qwen3-235b-a22b（5.82）</b></li>
+          <li>场景是中文短对话面客，大号在这类任务上没有兑现规模优势</li>
+          <li>我们没有继续深挖，凭价格与延迟选了 235b——<b>这正是最想请教的一条</b></li>
+          <li>另一类踩最狠的：推理与非推理模型混用，评测口径不同步</li>
+        </ul>
+      </div>
+    </div>
+    <div class="note-band rv">
+      <span class="k">Context</span>
+      <p>以上现象<b>全部基于 OpenRouter 通道</b>的实测。同款模型在 DashScope 官方通道上是否一致，我们没有对照数据——这也是本次交流想确认的第一件事。</p>
+    </div>
+  </section>
+
+  <!-- 08 想请教 -->
+  <section id="ask">
+    <div class="sec-head rv">
+      <span class="idx">08</span>
+      <div><span class="eyebrow">Open Questions · What We'd Like To Ask</span>
+      <h2>想当面请教的九个问题</h2></div>
+    </div>
+    <p class="lede rv">按我们卡住的位置排的，<strong>越靠前越影响下一步决策</strong>。</p>
+    <div class="pipe rv">
+      <div class="flowdot"></div>
+      <div class="pstep" style="--who:var(--rose)">
+        <span class="who">视觉<br>Q1</span>
+        <span class="txt">做 <b>GUI 元素定位</b>时，判断「小控件当前是什么状态」的官方推荐姿势是什么？我们的裁剪放大是土办法，有没有专门的 grounding prompt 模板或专用版本？</span>
+      </div>
+      <div class="pstep" style="--who:var(--rose)">
+        <span class="who">视觉<br>Q2</span>
+        <span class="txt">同做 GUI 定位，<b>qwen3-vl-30b-a3b 与 32b</b> 在小目标上的实际差距有多大？我们纯凭价格选了 30B，没做过对照实验。</span>
+      </div>
+      <div class="pstep" style="--who:var(--rose)">
+        <span class="who">视觉<br>Q3</span>
+        <span class="txt">端侧的 <b>Qwen3-VL-4B</b> 我们已在用作断网兜底。它与云端 30B 在 grounding 上的能力断层在哪？有没有更适合端侧读屏的小模型？</span>
+      </div>
+      <div class="pstep" style="--who:var(--amber)">
+        <span class="who">格式<br>Q4</span>
+        <span class="txt">Qwen3 在第三方网关上开 <b>json_object 会退化</b>，DashScope 官方通道是否一致？官方推荐的结构化输出姿势是什么？</span>
+      </div>
+      <div class="pstep" style="--who:var(--blue)">
+        <span class="who">选型<br>Q5</span>
+        <span class="txt">为什么 <b>qwen3-max 在中文短对话面客场景反而低于 235b-a22b</b>？max 的定位场景是什么，什么样的活该给它？</span>
+      </div>
+      <div class="pstep" style="--who:var(--blue)">
+        <span class="who">选型<br>Q6</span>
+        <span class="txt">2507 快照相比原版<b>更少杜撰、但长度控制更松</b>，这是训练取向上的有意取舍吗？后续快照会往哪个方向走？</span>
+      </div>
+      <div class="pstep" style="--who:var(--teal)">
+        <span class="who">成本<br>Q7</span>
+        <span class="txt">主力槽目前走第三方网关。<b>直连 DashScope</b> 在价格、限流、稳定性上有什么差异？对我们东京 / 香港部署的延迟影响有多大？</span>
+      </div>
+      <div class="pstep" style="--who:var(--teal)">
+        <span class="who">成本<br>Q8</span>
+        <span class="txt">我们的人设 prompt 很长且高度重复，<b>目前拿不到 prompt cache</b>，这是成本的大头。官方通道有没有可用的缓存机制与命中条件？</span>
+      </div>
+      <div class="pstep" style="--who:var(--violet)">
+        <span class="who">能力<br>Q9</span>
+        <span class="txt">我们的对话是<b>长期养客</b>——跨会话记忆、几十轮上下文、人设不能崩。Qwen 在超长多轮的人设一致性上，有什么推荐做法或微调路径？</span>
+      </div>
+    </div>
+    <p class="pipe-note rv">// 玫红＝视觉 · 琥珀＝格式 · 蓝＝选型 · 青＝成本 · 紫＝能力</p>
+    <div class="quote rv">
+      <b>一句话总括：</b>我们不是在评估要不要用千问——<b>六条产品线已经全在用了</b>。真正想聊的是怎么用得更对：视觉侧的假阴性怎么治、结构化输出的正确姿势、大号小号的分工边界，以及那条最贵的 <b>prompt cache</b>。
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="fl">
+    <span class="brand">upio.ai <span style="color:var(--teal)">/</span> 千问使用现状</span>
+    <span class="meta">团队项目全景 · 为千问团队来访准备<br><b>upio.ai/learn/qwen-in-production</b></span>
+  </div>
+</footer>
+
+<script>
+  /* ══ 关动画开关：?anim=off 等价于 <html data-anim="off">。验证/截图一次导航拿终态 ══ */
+  if(new URLSearchParams(location.search).get('anim') === 'off')
+    document.documentElement.dataset.anim = 'off';
+  const ANIM_OFF = document.documentElement.dataset.anim === 'off'
+    || matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // SMIL（animateMotion/animateTransform）不受 CSS `animation:none` 管，必须单独暂停
+  if(ANIM_OFF) addEventListener('load', () =>
+    document.querySelectorAll('svg').forEach(s => s.pauseAnimations?.()));
+
+  /* ══ 滚动进度条 ══ */
+  const prog = document.getElementById('progress');
+  const onScroll = () => {
+    const h = document.documentElement;
+    prog.style.width = (h.scrollTop / (h.scrollHeight - h.clientHeight) * 100) + '%';
+  };
+  document.addEventListener('scroll', onScroll, {passive:true}); onScroll();
+
+  /* ══ 逐段 reveal（IO 主触发 + 滚动兜底）══ */
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); }
+  }), {threshold:.16, rootMargin:'0px 0px -8% 0px'});
+  // 关动画：全段直接显形，不等 IO（否则 reduced-motion 用户看到永久空白页）
+  if(ANIM_OFF) document.querySelectorAll('.rv,.stagger').forEach(el => el.classList.add('in'));
+  else document.querySelectorAll('.rv,.stagger').forEach(el => io.observe(el));
+
+  const revealPast = () => {
+    document.querySelectorAll('.rv:not(.in),.stagger:not(.in)').forEach(el => {
+      if(el.getBoundingClientRect().top < innerHeight * .9){ el.classList.add('in'); io.unobserve(el); }
+    });
+  };
+  document.addEventListener('scroll', revealPast, {passive:true});
+  // 锚点直达 / 刷新恢复滚动位置时 scroll 根本不触发 —— 立即跑一次 + load 再兜一次
+  revealPast(); addEventListener('load', revealPast);
+
+  addEventListener('load', () => document.querySelectorAll('#hero .rv')
+    .forEach((el,i) => setTimeout(() => el.classList.add('in'), 120 + i*110)));
+
+  /* ══════════════════════════════════════════════════════════════
+     统一「进视口触发」范式 —— 所有动画组件都走这里
+     三段式：IO → rAF → setTimeout 兜底直落终值（第三段不可省：
+     隐藏标签页 rAF 不派发，没兜底会永久卡在初值）
+     ══════════════════════════════════════════════════════════════ */
+  const PENDING = [];
+  function onEnter(sel, fn, threshold = .25){
+    const o = new IntersectionObserver(es => es.forEach(e => {
+      if(e.isIntersecting) fire(e.target);
+    }), {threshold});
+    document.querySelectorAll(sel).forEach(el => {
+      if(ANIM_OFF){ fn(el, true); return; }
+      PENDING.push([el, fn, o]); o.observe(el);
+    });
+  }
+  function fire(el){
+    const i = PENDING.findIndex(x => x[0] === el);
+    if(i < 0) return;                                  // 已触发过，幂等
+    const [, fn, o] = PENDING.splice(i, 1)[0];
+    o.unobserve(el); fn(el, false);
+  }
+  // ⚠️ 判据只写 top < innerHeight*0.9，别加 && bottom > 0 ——
+  // 加了，「已滚过头、整块在视口上方」的组件就永远不补触发（条空、数字停 0）
+  const settle = () => {
+    for(const [el] of [...PENDING])
+      if(el.getBoundingClientRect().top < innerHeight * .9) fire(el);
+  };
+  addEventListener('scroll', settle, {passive:true});
+  addEventListener('load', settle);
+
+  /* ══ count-up 大数字 ══ */
+  onEnter('.cnum', (el, instant) => {
+    const target = +el.dataset.v, dec = +(el.dataset.dec || 0), dur = 1300;
+    const put = v => el.textContent = v.toLocaleString('en-US',
+      {minimumFractionDigits:dec, maximumFractionDigits:dec});
+    if(instant){ put(target); return; }
+    const t0 = performance.now();
+    const tick = t => {
+      const p = Math.min((t - t0) / dur, 1);
+      put(target * (1 - Math.pow(1 - p, 3)));
+      if(p < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    setTimeout(() => put(target), dur + 500);          // ← 兜底，别删
+  }, .5);
+
+  /* ══ hbar 条形展开 ══ */
+  onEnter('[data-hbar]', (el, instant) => {
+    const run = () => el.querySelectorAll('.fill').forEach(f => f.style.width = f.dataset.w + '%');
+    if(instant){ run(); return; }
+    requestAnimationFrame(run); setTimeout(run, 1700); // ← 兜底
+  }, .25);
+
+  /* ══ 左→右擦出（折线 / 桑基）══ */
+  onEnter('[data-wipe]', (el, instant) => {
+    if(instant){ el.style.clipPath = 'inset(0)'; return; }
+    requestAnimationFrame(() => el.classList.add('on'));
+    setTimeout(() => el.classList.add('on'), 2000);    // ← 兜底
+  }, .2);
+
+  /* ══ 侧栏章节高亮 ══ */
+  const rail = [...document.querySelectorAll('.rail a')];
+  const secObs = new IntersectionObserver(es => es.forEach(e => {
+    if(e.isIntersecting) rail.forEach(a => a.classList.toggle('on', a.dataset.s === e.target.id));
+  }), {rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('main section').forEach(s => secObs.observe(s));
+</script>
+</body>
+</html>
