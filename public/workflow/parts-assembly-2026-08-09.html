@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>把三条流水线拆成一个零件柜</title>
+<style>
+  :root{
+    --ink:#16181d; --ink-2:#41464f; --ink-3:#6b7280;
+    --line:#e3e5ea; --line-2:#eef0f3;
+    --bg:#fbfbfc; --card:#fff;
+    --accent:#2563eb; --accent-soft:#eff4ff;
+    --good:#0f7b52; --good-soft:#e9f6f0;
+    --warn:#b45309; --warn-soft:#fdf5e7;
+    --bad:#b91c1c; --bad-soft:#fdeeee;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    font-size:17px; line-height:1.8; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:880px; margin:0 auto; padding:0 24px 100px}
+
+  header{padding:64px 0 36px; border-bottom:1px solid var(--line)}
+  .kicker{font-size:12.5px; letter-spacing:.14em; color:var(--accent); font-weight:600; margin:0 0 16px}
+  h1{font-size:42px; line-height:1.25; margin:0 0 18px; letter-spacing:-.025em; font-weight:700}
+  .lede{font-size:20px; color:var(--ink-2); margin:0}
+  .lede b{color:var(--ink); font-weight:600}
+  .meta{
+    margin-top:26px; display:flex; gap:0; flex-wrap:wrap;
+    border:1px solid var(--line); border-radius:10px; overflow:hidden; background:var(--card);
+  }
+  .meta div{flex:1; min-width:130px; padding:14px 18px; border-right:1px solid var(--line-2)}
+  .meta div:last-child{border-right:none}
+  .meta .n{font-size:20px; font-weight:700; letter-spacing:-.02em; line-height:1.3}
+  .meta .l{font-size:12.5px; color:var(--ink-3); line-height:1.4}
+
+  section{padding:52px 0; border-bottom:1px solid var(--line)}
+  section:last-of-type{border-bottom:none}
+  h2{font-size:26px; margin:0 0 26px; letter-spacing:-.015em; font-weight:700; display:flex; align-items:baseline; gap:13px}
+  h2 .num{font-family:var(--mono); font-size:13px; color:var(--accent); font-weight:600; letter-spacing:0}
+  h3{font-size:18px; margin:34px 0 14px; font-weight:650}
+  h3:first-of-type{margin-top:0}
+  p{margin:0 0 14px; max-width:44em}
+  p:last-child{margin-bottom:0}
+  .muted{color:var(--ink-2)}
+  .big{font-size:19px; color:var(--ink); font-weight:600}
+
+  .figbox{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:26px 22px; overflow-x:auto; margin:20px 0}
+  .figbox svg{width:100%; height:auto; display:block; min-width:480px}
+
+  /* 结论条 */
+  .verdict{
+    display:flex; align-items:center; gap:12px; margin:18px 0 0;
+    font-size:18px; font-weight:600; color:var(--ink);
+  }
+  .verdict::before{content:""; width:3px; height:22px; background:var(--accent); border-radius:2px; flex:none}
+  .verdict.bad::before{background:var(--bad)}
+  .verdict.good::before{background:var(--good)}
+
+  /* 卡点网格 */
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:0}
+  .cell{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px 20px}
+  .cell .n{font-size:21px; font-weight:700; color:var(--bad); letter-spacing:-.01em; line-height:1.3; font-variant-numeric:tabular-nums}
+  .cell .t{font-weight:650; font-size:16px; margin:6px 0 3px}
+  .cell .d{font-size:14.5px; color:var(--ink-3); line-height:1.6}
+
+  /* 三目标 */
+  .goals{display:grid; grid-template-columns:repeat(3,1fr); gap:12px}
+  .goal{background:var(--card); border:1px solid var(--line); border-top:3px solid var(--accent); border-radius:0 0 10px 10px; padding:18px 20px}
+  .goal .t{font-weight:650; font-size:16.5px; margin-bottom:5px}
+  .goal .d{font-size:14.5px; color:var(--ink-3); line-height:1.6}
+
+  /* 步骤 */
+  .step{display:grid; grid-template-columns:34px 1fr; gap:16px; margin:26px 0 0}
+  .step .sn{
+    width:30px; height:30px; border-radius:50%; background:var(--accent); color:#fff;
+    font-family:var(--mono); font-size:13px; font-weight:600; display:grid; place-items:center; margin-top:2px;
+  }
+  .step .sb{min-width:0}
+  .step .st{font-size:19px; font-weight:650; margin:0 0 8px}
+  .step .sd{font-size:15.5px; color:var(--ink-2); margin:0 0 12px; max-width:42em}
+
+  /* 五要素 */
+  .five{display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; margin:0}
+  .fv{background:var(--accent-soft); border-radius:8px; padding:12px 13px}
+  .fv .t{font-weight:650; font-size:14px; margin-bottom:3px; color:var(--accent)}
+  .fv .d{font-size:12.5px; color:var(--ink-2); line-height:1.5}
+
+  /* 表 */
+  .tablewrap{overflow-x:auto}
+  table{border-collapse:collapse; width:100%; font-size:15px; min-width:460px}
+  th,td{padding:9px 13px; text-align:left; border-bottom:1px solid var(--line-2)}
+  th{font-size:12.5px; letter-spacing:.04em; color:var(--ink-3); font-weight:600; border-bottom:1px solid var(--line)}
+  td.name{font-weight:600}
+  td.price{font-family:var(--mono); font-size:13px; white-space:nowrap; color:var(--ink-2)}
+  .free{color:var(--good); font-weight:600}
+  tr.paid td:first-child::before{content:"●"; color:var(--accent); margin-right:7px; font-size:9px; vertical-align:2px}
+  tr.local td:first-child::before{content:"○"; color:var(--good); margin-right:7px; font-size:9px; vertical-align:2px}
+
+  /* 规则 */
+  .rules{margin:0; padding:0; list-style:none; counter-reset:r; border:1px solid var(--line); border-radius:10px; background:var(--card); overflow:hidden}
+  .rules li{
+    counter-increment:r; position:relative; padding:11px 18px 11px 46px;
+    border-bottom:1px solid var(--line-2); font-size:15px; color:var(--ink-2);
+  }
+  .rules li:last-child{border-bottom:none}
+  .rules li::before{
+    content:counter(r); position:absolute; left:16px; top:13px;
+    width:20px; height:20px; border-radius:50%; background:var(--accent-soft); color:var(--accent);
+    font-family:var(--mono); font-size:11px; font-weight:600; display:grid; place-items:center;
+  }
+  .rules b{color:var(--ink); font-weight:600}
+
+  /* 数字 */
+  .stats{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:0}
+  .stat{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px}
+  .stat .v{font-size:28px; font-weight:700; letter-spacing:-.03em; line-height:1.15; color:var(--good)}
+  .stat .v small{font-size:14px; font-weight:600; color:var(--ink-3); letter-spacing:0}
+  .stat .k{font-size:13px; color:var(--ink-3); margin-top:6px; line-height:1.5}
+
+  /* 状态 */
+  .status{display:grid; gap:0; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:var(--card)}
+  .st2{display:grid; grid-template-columns:74px 1fr; gap:14px; padding:14px 18px; border-bottom:1px solid var(--line-2); align-items:baseline}
+  .st2:last-child{border-bottom:none}
+  .badge{font-size:12px; font-weight:650; padding:3px 0; border-radius:20px; text-align:center}
+  .badge.done{background:var(--good-soft); color:var(--good)}
+  .badge.trial{background:var(--warn-soft); color:var(--warn)}
+  .badge.todo{background:var(--line-2); color:var(--ink-3)}
+  .st2 .tx{font-size:15px; color:var(--ink-2)}
+  .st2 .tx b{color:var(--ink); font-weight:600}
+
+  .accept{background:var(--accent-soft); border-radius:10px; padding:20px 24px; margin:22px 0 0}
+  .accept .h{font-weight:650; font-size:16px; margin-bottom:10px}
+  .accept ol{margin:0; padding-left:20px; font-size:15px; color:var(--ink-2)}
+  .accept li{margin-bottom:6px}
+  .accept li:last-child{margin-bottom:0}
+  .accept b{color:var(--ink); font-weight:600}
+
+  .foot{padding:36px 0 0; font-size:13.5px; color:var(--ink-3); text-align:center}
+
+  @media (max-width:720px){
+    body{font-size:16px}
+    h1{font-size:30px}
+    h2{font-size:22px}
+    .wrap{padding:0 18px 70px}
+    .grid2,.goals,.stats,.five{grid-template-columns:1fr}
+    .five{gap:6px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <p class="kicker">视频产线 · 8 月 9 日改动</p>
+  <h1>把三条流水线，拆成一个零件柜</h1>
+  <p class="lede">以前：<b>先判断片子属于哪一类，整条按那一类走到底。</b><br>
+  现在：<b>一镜一镜看，这镜需要哪几件工具就取哪几件。</b></p>
+  <div class="meta">
+    <div><div class="n">10</div><div class="l">张零件卡已落地</div></div>
+    <div><div class="n">$1.74</div><div class="l">单镜实测成本</div></div>
+    <div><div class="n">$0</div><div class="l">五个坏例子全被本地拦下</div></div>
+    <div><div class="n">试用</div><div class="l">组合卡状态，未挂正式</div></div>
+  </div>
+</header>
+
+<!-- 01 -->
+<section>
+  <h2><span class="num">01</span>做不出来的那条片子</h2>
+
+  <p class="big">让主播坐在车里讲话——这个场景我们没拍过。</p>
+
+  <div class="figbox">
+    <svg viewBox="0 0 780 250" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,PingFang SC,sans-serif">
+      <rect x="250" y="10" width="280" height="40" rx="8" fill="#16181d"/>
+      <text x="390" y="35" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">主播坐在车里讲话</text>
+
+      <path d="M330 50 L215 84" stroke="#9aa3af" stroke-width="1.5" marker-end="url(#ar)"/>
+      <path d="M450 50 L565 84" stroke="#9aa3af" stroke-width="1.5" marker-end="url(#ar)"/>
+
+      <rect x="80" y="90" width="270" height="44" rx="8" fill="#eff4ff" stroke="#c9dbff"/>
+      <text x="215" y="118" font-size="14.5" font-weight="650" fill="#2563eb" text-anchor="middle">要一个没拍过的场景</text>
+
+      <rect x="430" y="90" width="270" height="44" rx="8" fill="#eff4ff" stroke="#c9dbff"/>
+      <text x="565" y="118" font-size="14.5" font-weight="650" fill="#2563eb" text-anchor="middle">要她开口说话</text>
+
+      <path d="M215 134 v26" stroke="#9aa3af" stroke-width="1.5" marker-end="url(#ar)"/>
+      <path d="M565 134 v26" stroke="#9aa3af" stroke-width="1.5" marker-end="url(#ar)"/>
+
+      <rect x="80" y="166" width="270" height="52" rx="8" fill="#fff" stroke="#e3e5ea"/>
+      <text x="215" y="188" font-size="13.5" font-weight="650" fill="#41464f" text-anchor="middle">路线二 · 纯生成</text>
+      <text x="215" y="207" font-size="12.5" fill="#0f7b52" text-anchor="middle">✓ 场景随便造，但画面里没人说话</text>
+
+      <rect x="430" y="166" width="270" height="52" rx="8" fill="#fff" stroke="#e3e5ea"/>
+      <text x="565" y="188" font-size="13.5" font-weight="650" fill="#41464f" text-anchor="middle">路线一 · 真人底片</text>
+      <text x="565" y="207" font-size="12.5" fill="#0f7b52" text-anchor="middle">✓ 人是真的，但只能待在拍过的场景</text>
+
+      <line x1="390" y1="150" x2="390" y2="232" stroke="#b91c1c" stroke-width="1.6" stroke-dasharray="5 4"/>
+      <circle cx="390" cy="192" r="15" fill="#fdeeee" stroke="#b91c1c" stroke-width="1.3"/>
+      <text x="390" y="198" font-size="15" font-weight="700" fill="#b91c1c" text-anchor="middle">✕</text>
+      <text x="390" y="246" font-size="12.5" font-weight="600" fill="#b91c1c" text-anchor="middle">两条线焊死在各自管道里，混不了</text>
+
+      <defs><marker id="ar" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#9aa3af"/></marker></defs>
+    </svg>
+  </div>
+
+  <p class="verdict bad">两样能力都有，就是拼不到一起。不是效果差，是排不出流程。</p>
+</section>
+
+<!-- 02 -->
+<section>
+  <h2><span class="num">02</span>为什么会这样：两个根因</h2>
+
+  <h3>根因一 · 「整条路线」是最小单位</h3>
+  <p class="muted">想做新形态，就得从头再开一条产线。三条变四条、五条，每条单独维护。</p>
+
+  <div class="figbox">
+    <svg viewBox="0 0 800 318" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,PingFang SC,sans-serif">
+      <text x="14" y="22" font-size="14" font-weight="700" fill="#16181d">以前：三条焊死的管道</text>
+      <text x="14" y="42" font-size="11.5" fill="#6b7280">整条路线是最小单位</text>
+
+      <rect x="14" y="60" width="340" height="58" rx="8" fill="#fff" stroke="#e3e5ea"/>
+      <text x="28" y="84" font-size="11.5" font-weight="650" fill="#41464f">路线一</text>
+      <text x="28" y="102" font-size="10.5" fill="#6b7280">真人底片</text>
+      <rect x="108" y="74" width="66" height="30" rx="5" fill="#eff4ff" stroke="#c9dbff"/><text x="141" y="93" font-size="10.5" fill="#2563eb" text-anchor="middle">裁窗</text>
+      <path d="M178 89 h14" stroke="#9aa3af" stroke-width="1.4" marker-end="url(#a1)"/>
+      <rect x="196" y="74" width="66" height="30" rx="5" fill="#eff4ff" stroke="#c9dbff"/><text x="229" y="93" font-size="10.5" fill="#2563eb" text-anchor="middle">配音</text>
+      <path d="M266 89 h14" stroke="#9aa3af" stroke-width="1.4" marker-end="url(#a1)"/>
+      <rect x="284" y="74" width="56" height="30" rx="5" fill="#eff4ff" stroke="#c9dbff"/><text x="312" y="93" font-size="10.5" fill="#2563eb" text-anchor="middle">对口型</text>
+
+      <rect x="14" y="130" width="340" height="58" rx="8" fill="#fff" stroke="#e3e5ea"/>
+      <text x="28" y="154" font-size="11.5" font-weight="650" fill="#41464f">路线二</text>
+      <text x="28" y="172" font-size="10.5" fill="#6b7280">纯生成</text>
+      <rect x="108" y="144" width="66" height="30" rx="5" fill="#eff4ff" stroke="#c9dbff"/><text x="141" y="163" font-size="10.5" fill="#2563eb" text-anchor="middle">生图</text>
+      <path d="M178 159 h14" stroke="#9aa3af" stroke-width="1.4" marker-end="url(#a1)"/>
+      <rect x="196" y="144" width="66" height="30" rx="5" fill="#eff4ff" stroke="#c9dbff"/><text x="229" y="163" font-size="10.5" fill="#2563eb" text-anchor="middle">生视频</text>
+      <path d="M266 159 h14" stroke="#9aa3af" stroke-width="1.4" marker-end="url(#a1)"/>
+      <rect x="284" y="144" width="56" height="30" rx="5" fill="#eff4ff" stroke="#c9dbff"/><text x="312" y="163" font-size="10.5" fill="#2563eb" text-anchor="middle">旁白</text>
+
+      <rect x="14" y="200" width="340" height="58" rx="8" fill="#fff" stroke="#e3e5ea"/>
+      <text x="28" y="224" font-size="11.5" font-weight="650" fill="#41464f">路线三</text>
+      <text x="28" y="242" font-size="10.5" fill="#6b7280">参考驱动</text>
+      <rect x="108" y="214" width="66" height="30" rx="5" fill="#eff4ff" stroke="#c9dbff"/><text x="141" y="233" font-size="10.5" fill="#2563eb" text-anchor="middle">找参考</text>
+      <path d="M178 229 h14" stroke="#9aa3af" stroke-width="1.4" marker-end="url(#a1)"/>
+      <rect x="196" y="214" width="66" height="30" rx="5" fill="#eff4ff" stroke="#c9dbff"/><text x="229" y="233" font-size="10.5" fill="#2563eb" text-anchor="middle">生视频</text>
+      <path d="M266 229 h14" stroke="#9aa3af" stroke-width="1.4" marker-end="url(#a1)"/>
+      <rect x="284" y="214" width="56" height="30" rx="5" fill="#eff4ff" stroke="#c9dbff"/><text x="312" y="233" font-size="10.5" fill="#2563eb" text-anchor="middle">走位</text>
+
+      <line x1="14" y1="124" x2="354" y2="124" stroke="#b91c1c" stroke-width="1.2" stroke-dasharray="4 4" opacity=".55"/>
+      <line x1="14" y1="194" x2="354" y2="194" stroke="#b91c1c" stroke-width="1.2" stroke-dasharray="4 4" opacity=".55"/>
+      <text x="184" y="285" font-size="11" fill="#b91c1c" text-anchor="middle">新形态 = 再开一条产线</text>
+
+      <line x1="392" y1="55" x2="392" y2="300" stroke="#e3e5ea" stroke-width="1"/>
+
+      <text x="420" y="22" font-size="14" font-weight="700" fill="#16181d">现在：零件柜 + 每镜一张施工单</text>
+      <text x="420" y="42" font-size="11.5" fill="#6b7280">零件是最小单位</text>
+
+      <rect x="420" y="58" width="366" height="88" rx="8" fill="#fbfbfc" stroke="#e3e5ea"/>
+      <text x="432" y="76" font-size="10.5" font-weight="650" fill="#6b7280">零件柜（10 件）</text>
+      <g font-size="9.5" text-anchor="middle">
+        <rect x="432" y="84" width="60" height="24" rx="4" fill="#eff4ff" stroke="#c9dbff"/><text x="462" y="100" fill="#2563eb">配音</text>
+        <rect x="498" y="84" width="60" height="24" rx="4" fill="#eff4ff" stroke="#c9dbff"/><text x="528" y="100" fill="#2563eb">对口型</text>
+        <rect x="564" y="84" width="60" height="24" rx="4" fill="#eff4ff" stroke="#c9dbff"/><text x="594" y="100" fill="#2563eb">生图</text>
+        <rect x="630" y="84" width="60" height="24" rx="4" fill="#eff4ff" stroke="#c9dbff"/><text x="660" y="100" fill="#2563eb">图生图</text>
+        <rect x="696" y="84" width="78" height="24" rx="4" fill="#eff4ff" stroke="#c9dbff"/><text x="735" y="100" fill="#2563eb">图生视频</text>
+        <rect x="432" y="112" width="78" height="24" rx="4" fill="#eff4ff" stroke="#c9dbff"/><text x="471" y="128" fill="#2563eb">动作参考</text>
+        <rect x="516" y="112" width="60" height="24" rx="4" fill="#e9f6f0" stroke="#bfe3d3"/><text x="546" y="128" fill="#0f7b52">裁窗</text>
+        <rect x="582" y="112" width="60" height="24" rx="4" fill="#e9f6f0" stroke="#bfe3d3"/><text x="612" y="128" fill="#0f7b52">擦字幕</text>
+        <rect x="648" y="112" width="60" height="24" rx="4" fill="#e9f6f0" stroke="#bfe3d3"/><text x="678" y="128" fill="#0f7b52">找素材</text>
+        <rect x="714" y="112" width="60" height="24" rx="4" fill="#e9f6f0" stroke="#bfe3d3"/><text x="744" y="128" fill="#0f7b52">封面</text>
+      </g>
+
+      <rect x="420" y="162" width="366" height="118" rx="8" fill="#fff" stroke="#e3e5ea"/>
+      <text x="432" y="181" font-size="10.5" font-weight="650" fill="#6b7280">这条片子的施工单</text>
+      <text x="432" y="204" font-size="10.5" fill="#41464f">第 1 镜</text>
+      <rect x="486" y="192" width="58" height="20" rx="4" fill="#e9f6f0" stroke="#bfe3d3"/><text x="515" y="206" font-size="9.5" fill="#0f7b52" text-anchor="middle">裁窗</text>
+      <path d="M548 202 h10" stroke="#9aa3af" stroke-width="1.2" marker-end="url(#a1)"/>
+      <rect x="562" y="192" width="58" height="20" rx="4" fill="#eff4ff" stroke="#c9dbff"/><text x="591" y="206" font-size="9.5" fill="#2563eb" text-anchor="middle">配音</text>
+      <path d="M624 202 h10" stroke="#9aa3af" stroke-width="1.2" marker-end="url(#a1)"/>
+      <rect x="638" y="192" width="62" height="20" rx="4" fill="#eff4ff" stroke="#c9dbff"/><text x="669" y="206" font-size="9.5" fill="#2563eb" text-anchor="middle">对口型</text>
+
+      <text x="432" y="232" font-size="10.5" fill="#41464f">第 2 镜</text>
+      <rect x="486" y="220" width="58" height="20" rx="4" fill="#e9f6f0" stroke="#bfe3d3"/><text x="515" y="234" font-size="9.5" fill="#0f7b52" text-anchor="middle">擦字幕</text>
+      <path d="M548 230 h10" stroke="#9aa3af" stroke-width="1.2" marker-end="url(#a1)"/>
+      <rect x="562" y="220" width="70" height="20" rx="4" fill="#eff4ff" stroke="#c9dbff"/><text x="597" y="234" font-size="9.5" fill="#2563eb" text-anchor="middle">动作参考</text>
+      <path d="M636 230 h10" stroke="#9aa3af" stroke-width="1.2" marker-end="url(#a1)"/>
+      <rect x="650" y="220" width="50" height="20" rx="4" fill="#eff4ff" stroke="#c9dbff"/><text x="675" y="234" font-size="9.5" fill="#2563eb" text-anchor="middle">配音</text>
+      <path d="M704 230 h10" stroke="#9aa3af" stroke-width="1.2" marker-end="url(#a1)"/>
+      <rect x="718" y="220" width="58" height="20" rx="4" fill="#eff4ff" stroke="#c9dbff"/><text x="747" y="234" font-size="9.5" fill="#2563eb" text-anchor="middle">对口型</text>
+
+      <text x="432" y="260" font-size="10.5" fill="#41464f">第 3 镜</text>
+      <rect x="486" y="248" width="58" height="20" rx="4" fill="#e9f6f0" stroke="#bfe3d3"/><text x="515" y="262" font-size="9.5" fill="#0f7b52" text-anchor="middle">找素材</text>
+      <text x="556" y="262" font-size="9.5" fill="#9aa3af">（这镜没人出镜，不用对口型）</text>
+
+      <text x="603" y="302" font-size="11" fill="#0f7b52" text-anchor="middle">新形态 = 换一种取法</text>
+
+      <defs><marker id="a1" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#9aa3af"/></marker></defs>
+    </svg>
+  </div>
+
+  <h3>根因二 · 检查站站在了钱的后面</h3>
+  <p class="muted">参数填错这类问题，本地拦不住，要等云端付款窗口报错才现形——而那时候钱已经扣了。</p>
+
+  <div class="figbox">
+    <svg viewBox="0 0 780 176" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,PingFang SC,sans-serif">
+      <text x="14" y="20" font-size="12" font-weight="650" fill="#b91c1c">以前</text>
+      <rect x="60" y="6" width="86" height="30" rx="6" fill="#fff" stroke="#e3e5ea"/><text x="103" y="26" font-size="11.5" fill="#41464f" text-anchor="middle">交施工单</text>
+      <path d="M150 21 h20" stroke="#9aa3af" stroke-width="1.4" marker-end="url(#a2)"/>
+      <rect x="174" y="6" width="96" height="30" rx="6" fill="#fdeeee" stroke="#f0bcbc"/><text x="222" y="26" font-size="11.5" font-weight="650" fill="#b91c1c" text-anchor="middle">扣款</text>
+      <path d="M274 21 h20" stroke="#9aa3af" stroke-width="1.4" marker-end="url(#a2)"/>
+      <rect x="298" y="6" width="86" height="30" rx="6" fill="#fff" stroke="#e3e5ea"/><text x="341" y="26" font-size="11.5" fill="#41464f" text-anchor="middle">开始生成</text>
+      <path d="M388 21 h20" stroke="#9aa3af" stroke-width="1.4" marker-end="url(#a2)"/>
+      <rect x="412" y="6" width="120" height="30" rx="6" fill="#fdeeee" stroke="#f0bcbc"/><text x="472" y="26" font-size="11.5" font-weight="650" fill="#b91c1c" text-anchor="middle">✕ 参数不对，报错</text>
+      <text x="552" y="26" font-size="12" font-weight="600" fill="#b91c1c">钱已经花掉了</text>
+
+      <line x1="14" y1="60" x2="766" y2="60" stroke="#eef0f3" stroke-width="1"/>
+
+      <text x="14" y="90" font-size="12" font-weight="650" fill="#0f7b52">现在</text>
+      <rect x="60" y="76" width="86" height="30" rx="6" fill="#fff" stroke="#e3e5ea"/><text x="103" y="96" font-size="11.5" fill="#41464f" text-anchor="middle">交施工单</text>
+      <path d="M150 91 h20" stroke="#9aa3af" stroke-width="1.4" marker-end="url(#a2)"/>
+      <rect x="174" y="76" width="140" height="30" rx="6" fill="#e9f6f0" stroke="#bfe3d3"/><text x="244" y="96" font-size="11.5" font-weight="650" fill="#0f7b52" text-anchor="middle">本地校验 · 六条规则</text>
+      <path d="M318 91 h20" stroke="#9aa3af" stroke-width="1.4" marker-end="url(#a2)"/>
+      <rect x="342" y="76" width="86" height="30" rx="6" fill="#eff4ff" stroke="#c9dbff"/><text x="385" y="96" font-size="11.5" fill="#2563eb" text-anchor="middle">扣款</text>
+      <path d="M432 91 h20" stroke="#9aa3af" stroke-width="1.4" marker-end="url(#a2)"/>
+      <rect x="456" y="76" width="86" height="30" rx="6" fill="#fff" stroke="#e3e5ea"/><text x="499" y="96" font-size="11.5" fill="#41464f" text-anchor="middle">开始生成</text>
+      <path d="M546 91 h20" stroke="#9aa3af" stroke-width="1.4" marker-end="url(#a2)"/>
+      <rect x="570" y="76" width="60" height="30" rx="6" fill="#e9f6f0" stroke="#bfe3d3"/><text x="600" y="96" font-size="11.5" font-weight="650" fill="#0f7b52" text-anchor="middle">✓ 成片</text>
+
+      <path d="M244 112 v20" stroke="#0f7b52" stroke-width="1.4" stroke-dasharray="3 3"/>
+      <rect x="160" y="134" width="168" height="28" rx="6" fill="#e9f6f0" stroke="#bfe3d3"/>
+      <text x="244" y="152" font-size="11.5" font-weight="650" fill="#0f7b52" text-anchor="middle">错的在这里就被拦下，$0</text>
+
+      <defs><marker id="a2" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#9aa3af"/></marker></defs>
+    </svg>
+  </div>
+</section>
+
+<!-- 03 -->
+<section>
+  <h2><span class="num">03</span>实际卡住的四个地方</h2>
+  <div class="grid2">
+    <div class="cell">
+      <div class="n">7 镜 / 7 个卫生间</div>
+      <div class="t">一眼就是 AI 做的</div>
+      <div class="d">纯生成没给参考图，每镜各画各的。自流平被画成冰淇淋。</div>
+    </div>
+    <div class="cell">
+      <div class="n">全绿 → 人工拦下</div>
+      <div class="t">废片拿到合格的质检报告</div>
+      <div class="d">检查全挤在成片阶段，查出来也只能整条重做。</div>
+    </div>
+    <div class="cell">
+      <div class="n">$9.92 → $18–20</div>
+      <div class="t">成本对不上账</div>
+      <div class="d">调度用的 AI 大脑自己的费用没进账本。</div>
+    </div>
+    <div class="cell">
+      <div class="n">排不出流程</div>
+      <div class="t">新形态加不进来</div>
+      <div class="d">就是第 1 节那条车内口播。</div>
+    </div>
+  </div>
+</section>
+
+<!-- 04 -->
+<section>
+  <h2><span class="num">04</span>这次要解决的三件事</h2>
+  <div class="goals">
+    <div class="goal">
+      <div class="t">新形态能增量加</div>
+      <div class="d">不用每次新开一条产线</div>
+    </div>
+    <div class="goal">
+      <div class="t">错误拦在花钱之前</div>
+      <div class="d">不是付完款才看见报错</div>
+    </div>
+    <div class="goal">
+      <div class="t">「贴原片」可验收</div>
+      <div class="d">不靠感觉说像不像</div>
+    </div>
+  </div>
+</section>
+
+<!-- 05 -->
+<section>
+  <h2><span class="num">05</span>怎么做的：四步</h2>
+
+  <div class="step">
+    <div class="sn">1</div>
+    <div class="sb">
+      <p class="st">每件工具做成一张卡</p>
+      <p class="sd">过去这些工具的用法、价钱、忌讳散在文档、代码和各人脑子里。现在每张卡写死五件事：</p>
+      <div class="five">
+        <div class="fv"><div class="t">多少钱</div><div class="d">单价写死</div></div>
+        <div class="fv"><div class="t">能填什么</div><div class="d">参数允许范围</div></div>
+        <div class="fv"><div class="t">用前提</div><div class="d">如必须先擦字幕</div></div>
+        <div class="fv"><div class="t">红线</div><div class="d">如不能写走动词</div></div>
+        <div class="fv"><div class="t">查哪几道</div><div class="d">认人分、嘴部覆盖</div></div>
+      </div>
+      <div class="tablewrap" style="margin-top:16px">
+        <table>
+          <thead><tr><th>零件</th><th>做什么</th><th>价钱</th></tr></thead>
+          <tbody>
+            <tr class="paid"><td class="name">配音</td><td>文字转语音，克隆音色</td><td class="price">按字</td></tr>
+            <tr class="paid"><td class="name">对口型</td><td>把嘴型对上配音</td><td class="price">$3.00 / 分钟</td></tr>
+            <tr class="paid"><td class="name">生图</td><td>文字生图，只用来出母图</td><td class="price">$0.03 / 张</td></tr>
+            <tr class="paid"><td class="name">图生图</td><td>母图派生，换场景首帧</td><td class="price">$0.03 / 张</td></tr>
+            <tr class="paid"><td class="name">图生视频</td><td>静态图变动态镜头</td><td class="price">$0.225 / 秒</td></tr>
+            <tr class="paid"><td class="name">动作参考生视频</td><td>拿原片片段驱动姿态</td><td class="price">$0.225 / 秒</td></tr>
+            <tr class="local"><td class="name">真人底片裁窗</td><td>从实拍里裁可用画面</td><td class="price free">免费</td></tr>
+            <tr class="local"><td class="name">擦字幕</td><td>去掉源片烧死的字幕</td><td class="price free">免费</td></tr>
+            <tr class="local"><td class="name">找素材</td><td>检索自有素材库</td><td class="price free">免费</td></tr>
+            <tr class="local"><td class="name">封面</td><td>生成并拼接封面帧</td><td class="price">$0.10 / 次</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="sn">2</div>
+    <div class="sb">
+      <p class="st">每一镜写一张施工单</p>
+      <p class="sd">不再判断「整条片子属于哪一类」，改成每镜声明五项：有人说话吗 / 场景是真拍、生成还是素材库 / 点哪几件零件 / 认人参考图 / 从原片抠的场景细节。</p>
+      <p class="verdict">三条老路线没被推翻——它们变成这张点菜表上的三个预设。老片子照旧走老路。</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="sn">3</div>
+    <div class="sb">
+      <p class="st">付钱之前先跑校验</p>
+      <p class="sd">纯本地、不联网、不花钱，六条规则：</p>
+      <ol class="rules">
+        <li>有人说话的镜，<b>链尾必须是能对口型的</b></li>
+        <li>生成类零件<b>必须带参考图</b>，裸生成直接拒（七个卫生间就是这么来的）</li>
+        <li>动作参考<b>必须已擦字幕</b>，并过嘴部遮挡扫描</li>
+        <li>提示词扫四张词表：走动词、器材词、皮肤颗粒词、露脸红线</li>
+        <li>参数逐项对零件卡，<b>超范围本地就拒</b></li>
+        <li>预算超单档上限，列出每镜明细</li>
+      </ol>
+      <p class="verdict good">五个故意做坏的例子去撞它，五个全部本地拦下，花费 $0。</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="sn">4</div>
+    <div class="sb">
+      <p class="st">场景细节从原片自动抠出来</p>
+      <p class="sd">拆解时把每镜场景拆成格子：景别、环境物件清单、光线方向。生成照着填，审片照着核。「贴原片」从此不靠感觉。</p>
+    </div>
+  </div>
+</section>
+
+<!-- 06 -->
+<section>
+  <h2><span class="num">06</span>现在到哪一步了</h2>
+
+  <h3>已经用真金白银验过的（8 月 9 日两轮，合计 $5.16）</h3>
+  <div class="stats">
+    <div class="stat"><div class="v">100<small>%</small></div><div class="k">AI 生成的脸也能对上口型<br>98 帧全过</div></div>
+    <div class="stat"><div class="v">0.80<small>–0.84</small></div><div class="k">换场景还认得出同一个人<br>及格线 0.375</div></div>
+    <div class="stat"><div class="v">$1.74</div><div class="k">一个 6 秒换场景口播镜</div></div>
+    <div class="stat"><div class="v">4<small>/4</small></div><div class="k">车内细节逐项复现<br>天窗、头枕、锈墙、座垫</div></div>
+  </div>
+
+  <h3>顺带定下来的</h3>
+  <p class="muted">同一句话、同一批参考图做 A/B：文字描述指挥动作 vs 直接拿原片片段当动作参考。
+  <b style="color:var(--ink)">后者明显更好</b>——构图自动贴向原片的紧凑胸上景，双手连续手势也被搬了过来。已定为默认做法。</p>
+
+  <h3>还没做完的</h3>
+  <div class="status">
+    <div class="st2"><span class="badge done">已完成</span><span class="tx"><b>十张零件卡 + 校验器</b>已进代码，跟代码检查一起跑</span></div>
+    <div class="st2"><span class="badge trial">试用中</span><span class="tx"><b>组合卡挂「试用」不是「正式」</b>——两轮都只验单镜，没跑完整片。没走完一单不给挂正式</span></div>
+    <div class="st2"><span class="badge todo">待做</span><span class="tx"><b>云上没验过</b>动作参考和图生图至今只在本地花过钱</span></div>
+    <div class="st2"><span class="badge todo">待做</span><span class="tx"><b>行驶中车内没测</b>按未验证零件处理，施工单里写了就拒</span></div>
+  </div>
+
+  <div class="accept">
+    <div class="h">下一步验收标准</div>
+    <ol>
+      <li>同源片同施工单<b>重跑 3 次</b>，认人分全部 ≥ 0.75，无闸门报红</li>
+      <li>五个坏例子<b>全部本地拦下</b>，支出 $0</li>
+      <li>云端<b>完整跑通 1 条</b>含记账，成本落在每镜 $1.5–2.0</li>
+      <li>拆解程序<b>自动产出场景格子</b>，与手工拆的表逐项对得上</li>
+    </ol>
+  </div>
+</section>
+
+<p class="foot">视频产线 · 零件化装配层 · 2026-08-09</p>
+
+</div>
+</body>
+</html>
