@@ -3,484 +3,238 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>让产线学会喊疼 · 视频产线双日工程复盘（2026-08-08 / 09）</title>
+<title>视频产线周末复盘 · 问题与解法（2026-08-08 / 09）</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#12110F;
-  --panel:#1A1815;
-  --panel-2:#211E1A;
-  --line:rgba(232,227,218,.10);
-  --line-strong:rgba(232,227,218,.20);
-  --ink:#E8E3DA;
-  --ink-2:#A79E90;
-  --ink-3:#6F675C;
-  --amber:#E8A33D;
-  --amber-dim:rgba(232,163,61,.13);
-  --mint:#5FBF9F;
-  --mint-dim:rgba(95,191,159,.12);
-  --rust:#D9583B;
-  --rust-dim:rgba(217,88,59,.13);
-  --mono:"Azeret Mono", ui-monospace, "SF Mono", Menlo, monospace;
-  --cn:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Source Han Sans SC",sans-serif;
+  --bg:#12110F; --panel:#1A1815; --panel-2:#211E1A;
+  --line:rgba(232,227,218,.10); --line-2:rgba(232,227,218,.20);
+  --ink:#E8E3DA; --ink-2:#A79E90; --ink-3:#6F675C;
+  --amber:#E8A33D; --mint:#5FBF9F; --rust:#D9583B;
+  --mono:"Azeret Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  --cn:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
-body{
-  background:var(--bg);
-  color:var(--ink);
-  font-family:var(--cn);
-  font-size:16.5px;
-  line-height:1.85;
-  letter-spacing:.01em;
-  -webkit-font-smoothing:antialiased;
-  overflow-x:hidden;
-}
-/* 纸纹噪点，压住纯色的塑料感 */
-body::before{
-  content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.035'/%3E%3C/svg%3E");
-}
-#bar{position:fixed;top:0;left:0;height:2px;width:0;background:var(--amber);z-index:99;transition:width .1s linear}
+body{background:var(--bg);color:var(--ink);font-family:var(--cn);font-size:16px;
+  line-height:1.75;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.035'/%3E%3C/svg%3E")}
+.d{font-family:var(--cn)}
+.wrap{position:relative;z-index:1;max-width:880px;margin:0 auto;padding:0 26px}
 
-.wrap{position:relative;z-index:1;max-width:860px;margin:0 auto;padding:0 26px}
-
-/* ── HEADER ────────────────────────────── */
-header{padding:96px 0 68px;border-bottom:1px solid var(--line)}
-.eyebrow{
-  font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;
-  color:var(--ink-3);display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:34px;
-}
+header{padding:80px 0 44px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.2em;color:var(--ink-3);
+  text-transform:uppercase;margin-bottom:26px}
 .eyebrow b{color:var(--amber);font-weight:500}
-h1{
-  font-size:clamp(38px,7.2vw,64px);line-height:1.12;font-weight:700;letter-spacing:-.02em;
-  margin-bottom:24px;
-}
-h1 .fade{color:var(--ink-3);font-weight:300}
-.dek{font-size:18px;color:var(--ink-2);max-width:60ch;line-height:1.8}
-.dek em{color:var(--amber);font-style:normal}
-.meta{
-  margin-top:40px;display:flex;gap:26px;flex-wrap:wrap;
-  font-family:var(--mono);font-size:12px;color:var(--ink-3);letter-spacing:.04em;
-}
-.meta span b{color:var(--ink-2);font-weight:400}
+h1{font-size:clamp(32px,6vw,52px);line-height:1.15;font-weight:700;letter-spacing:-.02em;margin-bottom:18px}
+h1 span{color:var(--ink-3);font-weight:300}
+.dek{font-size:17px;color:var(--ink-2);max-width:56ch}
+.dek b{color:var(--amber);font-weight:600}
 
-/* ── SECTION SHELL ─────────────────────── */
-section{padding:78px 0;border-bottom:1px solid var(--line)}
-.sec-head{display:flex;gap:20px;align-items:baseline;margin-bottom:36px}
-.sec-num{
-  font-family:var(--mono);font-size:12px;font-weight:500;color:var(--amber);
-  letter-spacing:.16em;padding-top:9px;flex:none;
-}
-h2{font-size:clamp(25px,4vw,34px);font-weight:700;letter-spacing:-.015em;line-height:1.3}
-h2 small{display:block;font-family:var(--mono);font-size:11.5px;font-weight:400;color:var(--ink-3);
-  letter-spacing:.14em;text-transform:uppercase;margin-top:11px}
-.lede{font-size:17.5px;color:var(--ink-2);max-width:64ch;margin-bottom:34px}
-p{margin-bottom:18px;max-width:66ch}
-p:last-child{margin-bottom:0}
-strong{color:var(--ink);font-weight:600}
-.hl{color:var(--amber);font-weight:600}
-.hl-g{color:var(--mint);font-weight:600}
-code{
-  font-family:var(--mono);font-size:.86em;background:var(--panel-2);
-  padding:2px 6px;border-radius:3px;color:var(--ink-2);border:1px solid var(--line);
-}
-/* 等宽拉丁字体自带 em dash，在等宽格里会把中文破折号渲染成断开的两截；
-   破折号一律走中文字体，两个 U+2014 才连得上。 */
-.d{font-family:var(--cn);letter-spacing:0}
+h2{font-size:22px;font-weight:700;letter-spacing:-.01em;margin-bottom:6px}
+h2 small{display:block;font-family:var(--mono);font-size:10.5px;font-weight:400;
+  color:var(--ink-3);letter-spacing:.16em;text-transform:uppercase;margin-top:8px}
+.sec{padding:52px 0;border-top:1px solid var(--line)}
 
-/* ── 数字条 ─────────────────────────────── */
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;
-  background:var(--line);border:1px solid var(--line);margin:38px 0 0}
-.stat{background:var(--panel);padding:26px 22px}
-.stat .n{font-family:var(--mono);font-size:30px;font-weight:600;color:var(--amber);
-  letter-spacing:-.03em;line-height:1;margin-bottom:11px}
-.stat .n.g{color:var(--mint)}
-.stat .l{font-size:13px;color:var(--ink-3);line-height:1.6}
+/* ── 图例 ── */
+.legend{display:flex;gap:22px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;
+  color:var(--ink-3);margin:26px 0 4px;letter-spacing:.04em}
+.legend i{font-style:normal;display:inline-block;width:7px;height:7px;border-radius:50%;
+  margin-right:7px;vertical-align:1px}
 
-/* ── 症状卡 ─────────────────────────────── */
-.symptoms{display:flex;flex-direction:column;gap:1px;background:var(--line);
-  border:1px solid var(--line);margin:8px 0 40px}
-.sym{background:var(--panel);padding:26px 26px 26px 30px;position:relative;transition:background .25s}
-.sym:hover{background:var(--panel-2)}
-.sym::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--rust)}
-.sym-t{display:flex;gap:13px;align-items:baseline;margin-bottom:11px;flex-wrap:wrap}
-.sym-t .id{font-family:var(--mono);font-size:11px;color:var(--rust);letter-spacing:.14em;flex:none}
-.sym-t h3{font-size:18px;font-weight:600;letter-spacing:-.01em}
-.sym p{font-size:15.5px;color:var(--ink-2);margin:0;max-width:none}
-.sym .obs{
-  margin-top:15px;padding-top:14px;border-top:1px dashed var(--line-strong);
-  font-family:var(--mono);font-size:12.5px;color:var(--ink-3);line-height:1.75;
-}
-.sym .obs b{color:var(--rust);font-weight:500}
+/* ── 问题→解法 卡 ── */
+.card{border:1px solid var(--line);background:var(--panel);margin-top:14px}
+.card-h{display:flex;gap:15px;align-items:baseline;padding:18px 24px 14px;flex-wrap:wrap}
+.card-h .no{font-family:var(--mono);font-size:11.5px;color:var(--amber);flex:none;letter-spacing:.1em}
+.card-h h3{font-size:18.5px;font-weight:600;letter-spacing:-.01em;line-height:1.35}
+.rows{border-top:1px solid var(--line)}
+.row{display:grid;grid-template-columns:78px 1fr;gap:16px;padding:13px 24px;
+  border-bottom:1px solid rgba(232,227,218,.05);align-items:start}
+.row:last-child{border-bottom:none}
+.row .tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;padding-top:4px;
+  display:flex;align-items:center;gap:7px}
+.row .tag i{width:7px;height:7px;border-radius:50%;flex:none}
+.row p{font-size:15px;line-height:1.7;color:var(--ink-2)}
+.row p b{color:var(--ink);font-weight:600}
+.r1 .tag{color:var(--ink-3)} .r1 .tag i{background:var(--ink-3)}
+.r2 .tag{color:var(--amber)} .r2 .tag i{background:var(--amber)}
+.r2{background:rgba(232,163,61,.05)}
+.r2 p b{color:var(--amber)}
+.r3 .tag{color:var(--mint)} .r3 .tag i{background:var(--mint)}
+.r3 p b{color:var(--mint)}
+.row .ref{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);
+  display:block;margin-top:5px;letter-spacing:.03em}
 
-/* ── 病根横幅 ───────────────────────────── */
-.root{
-  border:1px solid rgba(232,163,61,.32);background:
-    linear-gradient(135deg,var(--amber-dim),rgba(232,163,61,.03));
-  padding:38px 34px;margin:44px 0 0;position:relative;
-}
-.root .tag{font-family:var(--mono);font-size:11px;letter-spacing:.2em;color:var(--amber);
-  text-transform:uppercase;margin-bottom:18px}
-.root .big{font-size:clamp(21px,3.4vw,27px);font-weight:700;line-height:1.55;letter-spacing:-.015em;
-  margin-bottom:18px}
-.root p{color:var(--ink-2);font-size:16px;margin:0;max-width:64ch}
+/* ── 评估 ── */
+.scale{border:1px solid var(--line);background:var(--panel);margin-top:22px}
+.step{display:grid;grid-template-columns:34px 1fr auto;gap:16px;padding:17px 24px;
+  border-bottom:1px solid var(--line);align-items:center}
+.step:last-child{border-bottom:none}
+.step .m{font-family:var(--mono);font-size:15px;text-align:center}
+.step .t{font-size:16px;font-weight:600}
+.step .t small{display:block;font-weight:400;font-size:13.5px;color:var(--ink-3);margin-top:3px;line-height:1.6}
+.step .s{font-family:var(--mono);font-size:11px;letter-spacing:.06em;white-space:nowrap}
+.ok .m,.ok .s{color:var(--mint)} .no .m,.no .s{color:var(--rust)} .half .m,.half .s{color:var(--amber)}
 
-/* ── 主线（处方）───────────────────────── */
-.tracks{display:flex;flex-direction:column;gap:1px;background:var(--line);
-  border:1px solid var(--line);margin-top:8px}
-.track{background:var(--panel);padding:30px;display:flex;gap:24px;align-items:flex-start;
-  text-decoration:none;color:inherit;transition:background .25s}
-.track:hover{background:var(--panel-2)}
-.track:hover .t-go{color:var(--amber);transform:translateX(3px)}
-.track .k{font-family:var(--mono);font-size:34px;font-weight:600;color:var(--mint);
-  line-height:.9;flex:none;width:44px;letter-spacing:-.04em}
-.track .body h3{font-size:19.5px;font-weight:600;margin-bottom:9px;letter-spacing:-.01em}
-.track .body p{font-size:15.5px;color:var(--ink-2);margin:0}
-.t-go{font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-left:auto;flex:none;
-  align-self:center;transition:all .25s}
+.walk{counter-reset:w;margin-top:20px;border-left:1px solid var(--line-2);padding-left:0}
+.walk li{list-style:none;position:relative;padding:0 0 20px 34px;
+  display:grid;grid-template-columns:1fr 92px;gap:14px;align-items:start}
+.walk li::before{counter-increment:w;content:counter(w);position:absolute;left:-11px;top:1px;
+  width:21px;height:21px;border-radius:50%;background:var(--panel-2);border:1px solid var(--line-2);
+  font-family:var(--mono);font-size:10.5px;color:var(--ink-3);display:flex;align-items:center;justify-content:center}
+.walk li:last-child{padding-bottom:0}
+.walk b{font-weight:600;color:var(--ink)}
+.walk span{color:var(--ink-2);font-size:15px}
+.walk .v{font-family:var(--mono);font-size:11px;letter-spacing:.04em;text-align:right;
+  padding-top:5px;white-space:nowrap}
+.v.g{color:var(--mint)} .v.a{color:var(--amber)} .v.r{color:var(--rust)}
 
-/* ── 明细条目 ───────────────────────────── */
-.items{margin-top:6px}
-.item{padding:26px 0;border-bottom:1px solid var(--line)}
-.item:last-child{border-bottom:none;padding-bottom:0}
-.item-h{display:flex;gap:14px;align-items:baseline;margin-bottom:12px;flex-wrap:wrap}
-.item-h h3{font-size:18px;font-weight:600;letter-spacing:-.01em}
-.pr{font-family:var(--mono);font-size:11px;color:var(--ink-3);border:1px solid var(--line);
-  padding:2.5px 8px;border-radius:2px;letter-spacing:.05em;white-space:nowrap}
-.item p{font-size:15.5px;color:var(--ink-2)}
-.proof{
-  margin-top:14px;background:var(--panel);border-left:2px solid var(--mint);
-  padding:13px 18px;font-family:var(--mono);font-size:12.5px;color:var(--ink-2);line-height:1.8;
-}
-.proof b{color:var(--mint);font-weight:500}
-.proof.warn{border-left-color:var(--amber)}
-.proof.warn b{color:var(--amber)}
+.verdict{border:1px solid rgba(232,163,61,.32);
+  background:linear-gradient(135deg,rgba(232,163,61,.13),rgba(232,163,61,.03));
+  padding:30px 28px;margin-top:26px}
+.verdict .tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.2em;color:var(--amber);
+  text-transform:uppercase;margin-bottom:14px}
+.verdict p{font-size:clamp(18px,3vw,22px);font-weight:700;line-height:1.6;letter-spacing:-.01em}
+.verdict p.sub{font-size:15.5px;font-weight:400;color:var(--ink-2);margin-top:14px;letter-spacing:0}
 
-/* ── 事故盒 ─────────────────────────────── */
-.incident{border:1px solid var(--line-strong);background:var(--panel);margin-top:22px}
-.incident-h{padding:18px 24px;border-bottom:1px solid var(--line);display:flex;gap:12px;
-  align-items:center;background:var(--rust-dim);flex-wrap:wrap}
-.incident-h .dot{width:7px;height:7px;border-radius:50%;background:var(--rust);flex:none;
-  box-shadow:0 0 0 4px rgba(217,88,59,.15)}
-.incident-h h4{font-size:16px;font-weight:600}
-.incident-h .stamp{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--ink-3)}
-.incident-b{padding:24px}
-.incident-b p{font-size:15.5px;color:var(--ink-2);margin-bottom:15px}
-.chain{display:flex;flex-direction:column;gap:0;margin:20px 0 6px;font-family:var(--mono);font-size:12.5px}
-.chain div{padding:10px 0 10px 24px;position:relative;color:var(--ink-2);line-height:1.7}
-.chain div::before{content:"";position:absolute;left:5px;top:18px;width:6px;height:6px;
-  border-radius:50%;background:var(--ink-3)}
-.chain div::after{content:"";position:absolute;left:7.5px;top:24px;bottom:-6px;width:1px;background:var(--line-strong)}
-.chain div:last-child::after{display:none}
-.chain div:last-child::before{background:var(--mint)}
-.chain div b{color:var(--ink)}
+.gaps{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:1px;
+  background:var(--line);border:1px solid var(--line);margin-top:22px}
+.gap{background:var(--panel);padding:20px 22px}
+.gap .n{font-family:var(--mono);font-size:10.5px;color:var(--rust);letter-spacing:.14em;margin-bottom:9px}
+.gap h4{font-size:15.5px;font-weight:600;margin-bottom:6px}
+.gap p{font-size:13.5px;color:var(--ink-3);line-height:1.65}
 
-/* ── 缺口 ───────────────────────────────── */
-.gaps{display:flex;flex-direction:column;gap:1px;background:var(--line);border:1px solid var(--line)}
-.gap{background:var(--panel);padding:26px 30px;display:flex;gap:22px;align-items:flex-start}
-.gap .g-n{font-family:var(--mono);font-size:12px;color:var(--amber);flex:none;padding-top:5px;
-  letter-spacing:.1em}
-.gap h3{font-size:17px;font-weight:600;margin-bottom:8px}
-.gap p{font-size:15px;color:var(--ink-2);margin:0}
+footer{padding:44px 0 70px;border-top:1px solid var(--line);margin-top:52px;
+  font-family:var(--mono);font-size:11px;color:var(--ink-3);display:flex;
+  justify-content:space-between;gap:14px;flex-wrap:wrap;letter-spacing:.04em}
 
-.kicker{
-  margin-top:48px;padding:34px 30px;border:1px dashed var(--line-strong);text-align:center;
-}
-.kicker p{font-size:clamp(17px,2.7vw,21px);font-weight:600;line-height:1.7;color:var(--ink);
-  margin:0 auto;max-width:52ch;letter-spacing:-.01em}
-
-footer{padding:56px 0 80px;font-family:var(--mono);font-size:11.5px;color:var(--ink-3);
-  display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;letter-spacing:.04em}
-
-/* ── 入场动效 ───────────────────────────── */
-.rv{opacity:0;transform:translateY(14px);transition:opacity .7s cubic-bezier(.2,.7,.3,1),transform .7s cubic-bezier(.2,.7,.3,1)}
-.rv.in{opacity:1;transform:none}
-@media (prefers-reduced-motion:reduce){
-  .rv{opacity:1;transform:none;transition:none}
-  html{scroll-behavior:auto}
-}
-@media (max-width:600px){
-  header{padding:60px 0 48px}
-  section{padding:56px 0}
-  .sec-head{gap:14px}
-  .track{padding:24px;gap:16px}
-  .track .k{font-size:26px;width:32px}
-  .t-go{display:none}
-  .gap{padding:22px}
-  .root{padding:28px 22px}
+@media(max-width:620px){
+  header{padding:52px 0 34px}
+  .sec{padding:40px 0}
+  .card-h,.row,.step{padding-left:18px;padding-right:18px}
+  .row{grid-template-columns:1fr;gap:5px}
+  .row .tag{padding-top:0}
+  .step{grid-template-columns:26px 1fr;gap:12px}
+  .step .s{grid-column:2;margin-top:2px}
+  .walk li{grid-template-columns:1fr;gap:4px}
+  .walk .v{text-align:left;padding-top:0}
+  .verdict{padding:24px 20px}
 }
 </style>
 </head>
 <body>
-<div id="bar"></div>
 <div class="wrap">
 
 <header>
-  <div class="eyebrow"><span>Workflow · 视频产线</span><span>/</span><span>工程复盘</span><span>/</span><b>2026-08-08 → 08-09</b></div>
-  <h1>让产线<br>学会<span class="fade">喊疼</span></h1>
-  <p class="dek">周末两天，两个仓库合并了 40 多个改动。但真正的主题只有一个<span class="d">——</span><em>我们的产线出错时，不会喊疼</em>。画面画错了它报全绿，钱烧掉了它不记账，大脑断了它照常接单。这两天做的所有事，都是在给它装痛觉。</p>
-  <div class="meta">
-    <span><b>范围</b> Workflow · store-workbench</span>
-    <span><b>合并</b> 40+ PR</span>
-    <span><b>状态</b> 投放测试前夜</span>
-  </div>
+  <div class="eyebrow">Workflow · 视频产线 &nbsp;/&nbsp; <b>2026-08-08 → 08-09</b></div>
+  <h1>问题<span>与</span>解法</h1>
+  <p class="dek">周末两天，两个仓库 40+ 改动。下面是六个问题，每个分<b>表面症状</b>和<b>深层的产品问题</b>两层，各配一个解法。末尾是产品成熟度评估。</p>
 </header>
 
-<!-- ═══ 00 总述 ═══ -->
-<section class="rv">
-  <div class="sec-head">
-    <div class="sec-num">00</div>
-    <h2>先说结论<small>Summary</small></h2>
+<div class="sec">
+  <h2>六组问题 → 解法<small>Problems &amp; Fixes</small></h2>
+  <div class="legend">
+    <span><i style="background:var(--ink-3)"></i>表面：直接看到的故障</span>
+    <span><i style="background:var(--amber)"></i>深层：产品层面的病根</span>
+    <span><i style="background:var(--mint)"></i>解法：这两天做了什么</span>
   </div>
-  <p class="lede">如果只有一分钟，记住这三句：</p>
-  <p><strong>一、周六是查病。</strong>质量和成本在同一天爆雷：有一条真实产单被判「一眼 AI」，同一天另外两单因为大脑断粮直接失败。我们没有急着调参数，而是把那条废片逐帧解剖，把病根定位到了产线机制，不是模型能力。</p>
-  <p><strong>二、周日是动手术。</strong>给产线换了个便宜 <span class="hl">33 倍</span>的大脑，把质检从「事后审片」搬到「花钱之前」，并把整条生产线拆成了可以单独更换、单独验证的标准零件。</p>
-  <p><strong>三、开了一扇新门。</strong>「AI 生成的脸能不能对上口型而不崩坏」<span class="d">——</span>这个悬了很久的未知数，这个周末实测跑通了，全链成本 <span class="hl-g">$1.74</span>。这意味着同一位主播可以被放进任何场景，不再受限于真人素材里恰好拍过什么。</p>
-  <div class="stats">
-    <div class="stat"><div class="n">33×</div><div class="l">生产大脑单价降幅<br>入价 $3.00 → $0.09 / M</div></div>
-    <div class="stat"><div class="n g">$1.74</div><div class="l">生成脸 + 对口型<br>全链桥测实花</div></div>
-    <div class="stat"><div class="n">4/4</div><div class="l">付费前闸门实跑<br>废图拦截命中</div></div>
-    <div class="stat"><div class="n g">$0</div><div class="l">大脑故障当天<br>生成费止损结果</div></div>
-  </div>
-</section>
 
-<!-- ═══ 01 问题 ═══ -->
-<section class="rv">
-  <div class="sec-head">
-    <div class="sec-num">01</div>
-    <h2>问题在哪<small>Diagnosis · 本节是重点</small></h2>
-  </div>
-  <p class="lede">周六一天之内，四个看似无关的故障浮出水面。逐个看，它们是四个 bug；放在一起看，它们是同一个病。</p>
-
-  <div class="symptoms">
-    <div class="sym">
-      <div class="sym-t"><span class="id">症状 01</span><h3>画面「一眼 AI」，而质检报告全绿</h3></div>
-      <p>一条防水施工主题的真实产单交付后被判不能用。八个取证任务逐帧复核，问题不在画得糊<span class="d">——</span>是<strong>七个镜头画出了七个不同的卫生间</strong>（原片全程只有两个空间），自流平被画成了冰淇淋盘圈，讲「水百分百流进地漏」的镜头里水洼在地漏旁边趴了 5.8 秒不排走，画面自己在反驳文案。</p>
-      <div class="obs">最刺眼的不是画错，是 <b>这条片子的自检从头到尾全绿</b>，一路放行到人工审片才被拦下。</div>
-    </div>
-    <div class="sym">
-      <div class="sym-t"><span class="id">症状 02</span><h3>钱花掉了，账本上没有</h3></div>
-      <p>任务卡上显示这条片子花了 $9.92。但那只是生成费。真正的大头是<strong>指挥生产的那个 AI 大脑</strong><span class="d">——</span>它跑流程、写文稿、做分析，烧钱极快，一个上午就能把额度耗光。而这笔开销<strong>从来没有进过账本</strong>。</p>
-      <div class="obs">按当天消耗回推，真实单条成本约 <b>$18–20</b>，是账面数字的两倍。同日另外两单直接因为额度耗尽而失败。</div>
-    </div>
-    <div class="sym">
-      <div class="sym-t"><span class="id">症状 03</span><h3>大脑已经断了，产线还在接单</h3></div>
-      <p>这是换大脑之后暴露的：因为一处地址配置多写了一小段，大脑请求全部返回 404。产线的反应是<span class="d">——</span><strong>照常接单，跑，死掉，自动重排，再死，再重排，二十分钟后才转失败。</strong></p>
-      <div class="obs">而故障原因一直躺在日志的一行里没人读。更糟的是报错文案在撒谎：它说「模型不存在或你没有权限」，<b>实际上模型、余额、端点全是好的</b>，排查因此一头扎进了错误方向。</div>
-    </div>
-    <div class="sym">
-      <div class="sym-t"><span class="id">症状 04</span><h3>代码评审上线以来一次都没真跑过</h3></div>
-      <p>顺手挖出来的：自动代码评审从上线那天起 <strong>100% 静默空跑</strong><span class="d">——</span>它不报错，只是什么都不做，然后给出一个绿色对勾。而这个绿勾一直在给自动合并放行。</p>
-      <div class="obs">同期发现的同类问题还有两个：源片片名查错了数据库的列，<b>这个功能自上线起一次都没成功过</b>；主分支的持续集成会被后一次提交取消，而<b>被取消就意味着那次提交永远不会被部署</b>。</div>
+  <div class="card">
+    <div class="card-h"><span class="no">01</span><h3>成片「一眼 AI」</h3></div>
+    <div class="rows">
+      <div class="row r1"><span class="tag"><i></i>表面</span><p>7 个镜头画出 7 个不同的卫生间，自流平画成冰淇淋盘圈。</p></div>
+      <div class="row r2"><span class="tag"><i></i>深层</span><p><b>形式让源片单方面说了算</b>，没问「客户有没有素材撑得住」。施工实拍类源片靠真实证据说服人，而 AI 的证据性恒为零——这类片子不是画得更好就能救。</p></div>
+      <div class="row r3"><span class="tag"><i></i>解法</span><p>改结构不改提示词：<b>一套母图派生所有镜头</b>锁死空间，补上参考图机制。判型加准入闸门，纯生成遇零实拍直接 $0 拒单。<span class="ref">Workflow #165 · store #192 — 付费前闸门实跑拦下 4/4 张废图</span></p></div>
     </div>
   </div>
 
-  <div class="root">
-    <div class="tag">共同病根</div>
-    <div class="big">问题不是「某个环节做得不够好」，<br>而是「产线没有能力知道自己错了」。</div>
-    <p>上面四件事的共同点是：<strong>所有的失败，都以「成功」的形态呈现出来</strong>。画错的片子带着全绿的报告，花掉的钱带着干净的账本，断掉的大脑带着正常的心跳，空跑的评审带着绿色的对勾。在这种产线上，你调再多参数都是在盲人摸象<span class="d">——</span>因为你根本不知道哪一步错了。</p>
+  <div class="card">
+    <div class="card-h"><span class="no">02</span><h3>废片带着全绿的质检报告出厂</h3></div>
+    <div class="rows">
+      <div class="row r1"><span class="tag"><i></i>表面</span><p>那条废片的自检从头到尾全绿，一路走到人工审片才被拦下。</p></div>
+      <div class="row r2"><span class="tag"><i></i>深层</span><p><b>检查站在错误的位置</b>——集中在成片阶段，那时钱已经花完，发现问题只能整条重做。而且有五种「假通过」：传错目录一条都没扫到，照样输出全部通过。</p></div>
+      <div class="row r3"><span class="tag"><i></i>解法</span><p><b>检查粒度 = 重跑粒度</b>，每步生成完立刻查、查不过就地重跑那一步；跳过的检查必须写明理由。<span class="ref">Workflow #166 · #167 — 缺陷注入 3/3 报对位置</span></p></div>
+    </div>
   </div>
-</section>
 
-<!-- ═══ 02 解法总述 ═══ -->
-<section class="rv">
-  <div class="sec-head">
-    <div class="sec-num">02</div>
-    <h2>怎么解的<small>Prescription</small></h2>
+  <div class="card">
+    <div class="card-h"><span class="no">03</span><h3>成本是个黑洞</h3></div>
+    <div class="rows">
+      <div class="row r1"><span class="tag"><i></i>表面</span><p>任务卡显示一条片 $9.92，真实约 $18–20。差的那部分从来没进过账本。</p></div>
+      <div class="row r2"><span class="tag"><i></i>深层</span><p>大头不是生成费，是<b>指挥生产的那个 AI 大脑</b>——说明产线太依赖它现场临时思考。而我们正拿一个自己都算不清成本的产品去谈定价。</p></div>
+      <div class="row r3"><span class="tag"><i></i>解法</span><p>换成便宜 <b>33 倍</b>的模型；大脑费单列入账；风格库把「现场想流程」变成「照单执行」。<span class="ref">store #202 · #195 — 入价 $3.00 → $0.09 / M token</span></p></div>
+    </div>
   </div>
-  <p class="lede">诊断清楚之后，所有动作收敛成三条主线。它们对应同一个逻辑：<strong>让错误在最便宜的时刻暴露出来</strong>。</p>
-  <div class="tracks">
-    <a class="track" href="#a">
-      <div class="k">A</div>
-      <div class="body">
-        <h3>把检查搬到花钱之前</h3>
-        <p>过去是「生成完再审」，废了就整条重来。现在改成生成时写死约束、每一步生成完立刻查，查不过就地重跑那一步<span class="d">——</span>而不是让废图一路走到付费环节。</p>
-      </div>
-      <span class="t-go">→ 03</span>
-    </a>
-    <a class="track" href="#b">
-      <div class="k">B</div>
-      <div class="body">
-        <h3>把成本从黑洞变成账本</h3>
-        <p>换掉最贵的那部分（大脑单价降 33 倍），把每一笔 AI 开销记进账，并且在开工之前先确认大脑是通的<span class="d">——</span>不通就不接单，别烧完钱才发现。</p>
-      </div>
-      <span class="t-go">→ 04</span>
-    </a>
-    <a class="track" href="#c">
-      <div class="k">C</div>
-      <div class="body">
-        <h3>把产线拆成可验证的零件</h3>
-        <p>不再是三条互不相通的整条路线，而是一组标准零件按镜头点菜。新能力只需要验证接口通不通，不需要从头造一条线。</p>
-      </div>
-      <span class="t-go">→ 05</span>
-    </a>
+
+  <div class="card">
+    <div class="card-h"><span class="no">04</span><h3>大脑已经断了，产线还在接单</h3></div>
+    <div class="rows">
+      <div class="row r1"><span class="tag"><i></i>表面</span><p>一处地址配置写错 → 接单、跑、死、自动重排两次，二十分钟后才转失败。</p></div>
+      <div class="row r2"><span class="tag"><i></i>深层</span><p><b>故障不会说人话。</b>真实原因躺在日志的一行里，而使用者只看到「失败」两个字。产品对用户是个黑箱，出事只能问工程师。</p></div>
+      <div class="row r3"><span class="tag"><i></i>解法</span><p>认领任务<b>之前</b>先问大脑一句话，不通就不接单，并把人话原因直接写进任务卡。<span class="ref">store #211 · Workflow #178 — 事故当天生成费 $0，止损有效</span></p></div>
+    </div>
   </div>
-</section>
 
-<!-- ═══ 03 主线 A 明细 ═══ -->
-<section class="rv" id="a">
-  <div class="sec-head">
-    <div class="sec-num">03</div>
-    <h2>细节 · A 把检查搬到花钱之前<small>Detail Track A</small></h2>
+  <div class="card">
+    <div class="card-h"><span class="no">05</span><h3>承诺了产线吃不下的输入</h3></div>
+    <div class="rows">
+      <div class="row r1"><span class="tag"><i></i>表面</span><p>榜单前排都是 5–10 分钟长片，全片照做要 $103、46 个镜头。</p></div>
+      <div class="row r2"><span class="tag"><i></i>深层</span><p>「粘一条链接直接做」这个入口在<b>暗示什么片子都行</b>，实际不行。让人先用上再翻车，比不给这个功能更伤。</p></div>
+      <div class="row r3"><span class="tag"><i></i>解法</span><p>长片按结构切三型，每支<b>独立成篇</b>（不做上下集）；同时主动下线那个入口。<span class="ref">Workflow #176 · store #203 · #208</span></p></div>
+    </div>
   </div>
-  <div class="items">
 
-    <div class="item">
-      <div class="item-h"><h3>纯场景线路重建：从「每镜各画各的」到「一套母图派生」</h3><span class="pr">Workflow #165</span></div>
-      <p>七镜七个房间的根因是每个镜头独立采样，谁也不认识谁。改法不是继续调提示词<span class="d">——</span>那条路早有定论走不通<span class="d">——</span>而是改结构：<strong>先出一套母图，再从母图派生每一个镜头的底图</strong>，空间被锁死。同时补上了此前完全缺席的参考图机制、材质描述规范、镜头之间的接力，以及付费之前的拦截闸门。</p>
-      <div class="proof"><b>验收</b> 226 项测试全绿；付费前闸门 <b>实跑拦下 4/4 张废图</b><span class="d">——</span>连底图里混进的手、手机屏幕这类红线，以及马桶时有时无的空间断裂都抓到了。这一轮检查本身只花了 $0.017。</div>
+  <div class="card">
+    <div class="card-h"><span class="no">06</span><h3>加一个新形态就得从头造一条线</h3></div>
+    <div class="rows">
+      <div class="row r1"><span class="tag"><i></i>表面</span><p>换场景口播做不了——只能用真人素材里恰好拍到过的场景。</p></div>
+      <div class="row r2"><span class="tag"><i></i>深层</span><p>产线是<b>三条互不相通的整条路线</b>，不是可拼装的零件。每加一种视频形态都要重做一遍，跨行业扩展无从谈起。</p></div>
+      <div class="row r3"><span class="tag"><i></i>解法</span><p>拆成十张标准零件卡按镜头点菜。<b>「生成的脸能过对口型且不崩」这个焊点实测通了</b>，全链 $1.74，人脸相似度全程 ≥0.81。<span class="ref">Workflow #173 · #174 — 解锁「同一主播 × 任意场景」</span></p></div>
     </div>
-
-    <div class="item">
-      <div class="item-h"><h3>检查粒度 = 重跑粒度</h3><span class="pr">Workflow #166 · #167</span></div>
-      <p>过去的检查集中在成片阶段，一旦发现问题只能整条重做。现在按「哪一步能单独重跑，就在哪一步检查」重排，并且规定<strong>跳过的检查必须写明理由</strong><span class="d">——</span>此前有五种「假通过」的情形，比如传错目录导致一条都没扫到，却依然输出全部通过。成片阶段只保留免费的技术自检，专查合成环节新引入的问题。</p>
-      <div class="proof"><b>验收</b> 302 项测试全绿；人为注入缺陷 3/3 都在正确的位置报警，并带对照组排除误报。</div>
-    </div>
-
-    <div class="item">
-      <div class="item-h"><h3>判型从「现场拍脑袋」改成三路信号 + 缓存</h3><span class="pr">store #192 · Workflow #168</span></div>
-      <p>「这条源片该走哪条生产路线」以前是每次现场判断，同一条片子两次可能判出两个结果。现在改为三路信号交叉：<strong>文稿决定内容形态，画面决定出镜形态</strong>，再加人脸检测兜底；判定结果落库缓存，后续提单直接复用。同时加了准入止损：纯生成路线遇上零实拍素材，直接停在 $0 而不是先花钱再翻车。</p>
-      <div class="proof warn"><b>待验</b> 需要连续真实生产才能确认「第二、三单日志出现缓存命中跳过重判」<span class="d">——</span>不是恰好判得一样。</div>
-    </div>
-
-    <div class="item">
-      <div class="item-h"><h3>审片与定向返修闭环</h3><span class="pr">store #193</span></div>
-      <p>老板端只有两个按钮：<strong>选定</strong>（即交付）或<strong>有问题</strong>（提返修单）。反馈支持自由评论、选项指标、在视频上标注三种形态，返修预算不超过原单的 30%、轮次上限两轮。</p>
-      <div class="proof"><b>验收</b> 2106 项测试全绿，并用 17 条断言从源码层面确认「口味零通路」<span class="d">——</span>客户的主观口味<strong>不会</strong>回流去污染选题评分，只有画面不自然、口型对不上这类基础质量判断才回流。</div>
-    </div>
-
-    <div class="item">
-      <div class="item-h"><h3>补上三个「一直在骗人」的绿灯</h3><span class="pr">store #186 · #198 · #138</span></div>
-      <p>空跑的代码评审、查错列的源片片名、被取消就永不部署的主分支集成，这三个都修了。这类问题的共同特征是<strong>不报错、只是悄悄不对</strong>，也是这个周末反复出现的模式。</p>
-    </div>
-
   </div>
-</section>
+</div>
 
-<!-- ═══ 04 主线 B 明细 ═══ -->
-<section class="rv" id="b">
-  <div class="sec-head">
-    <div class="sec-num">04</div>
-    <h2>细节 · B 把成本从黑洞变成账本<small>Detail Track B</small></h2>
+<div class="sec">
+  <h2>产品现在到哪一步<small>Maturity</small></h2>
+  <div class="scale">
+    <div class="step ok"><span class="m">✓</span><span class="t">能跑通<small>三条路线都出过成片</small></span><span class="s">已达成</span></div>
+    <div class="step half"><span class="m">◐</span><span class="t">能稳定跑通<small>连续产出不翻车、质量不忽高忽低</small></span><span class="s">本周才开始验</span></div>
+    <div class="step no"><span class="m">✗</span><span class="t">客户能自己用<small>不需要工程师在旁边守着</small></span><span class="s">未开始</span></div>
   </div>
-  <div class="items">
-
-    <div class="item">
-      <div class="item-h"><h3>换大脑：单价便宜 33 倍</h3><span class="pr">store #202 · Workflow #172</span></div>
-      <p>生产大脑从原先的模型换成 DeepSeek V4 Flash。入价从 $3.00 降到 $0.09、出价从 $15.00 降到 $0.18（每百万 token），<strong>便宜 33 倍</strong>，而上下文窗口同样是 1M、同样支持工具调用。这是整条产线目前最直接的降本项。</p>
-      <div class="proof"><b>顺手捡回一笔一直在浪费的钱</b>：命令行工具不认识第三方模型的名字，就默认按 20 万上下文处理，导致长任务提前压缩、白丢上下文。这个浪费在换模型之前就一直存在。修法要用环境变量指定真实窗口<span class="d">——</span>不能用图省事的模型名后缀，那个后缀会污染记账的键名，导致大脑费记成空值。</div>
-    </div>
-
-    <div class="item">
-      <div class="item-h"><h3>大脑费入账，并与账面对齐</h3><span class="pr">store #195 · Workflow #170</span></div>
-      <p>过去每条片子的账只记生成费。现在大脑开销单独成列记进任务卡，<strong>并且绝不并入原有的成本字段</strong><span class="d">——</span>并进去会撑爆预算档、引发连锁拒单。同时给云端生产会话装上了美元硬闸和压缩窗口。</p>
-      <div class="proof warn"><b>硬发现</b> 命令行工具自报的成本比真实账面<b>高 67%</b><span class="d">——</span>它按自家价目表估算，不认第三方渠道的价格。所以账本必须用 token 数乘我们自己维护的价格表算，工具报的那个数字不可信。</div>
-    </div>
-
-    <div class="item">
-      <div class="item-h"><h3>开工前先问大脑一句话，不通就不接单</h3><span class="pr">store #211 · Workflow #178</span></div>
-      <p>这条是被事故逼出来的，也是这两天最有价值的一条改动。</p>
-
-      <div class="incident">
-        <div class="incident-h"><span class="dot"></span><h4>事故：换完大脑，首条真实产单三连失败</h4><span class="stamp">08-09</span></div>
-        <div class="incident-b">
-          <p>根因非常小：地址配置末尾多带了一小段路径，而命令行工具会自己再拼一次，结果请求打到了一个不存在的地址上，返回 404。<strong>但暴露出来的产线缺陷比这个配置错值钱得多。</strong></p>
-          <div class="chain">
-            <div><b>大脑已经不通</b><span class="d">——</span>但没有任何人问过它一句</div>
-            <div><b>产线照常接单</b><span class="d">——</span>认领任务、建立会话、开始跑</div>
-            <div><b>失败 → 自动重排 → 再失败 → 再重排</b><span class="d">——</span>完整重试了两轮</div>
-            <div><b>二十分钟后转失败</b><span class="d">——</span>大脑费烧掉 $0.31，而真正的原因只在日志的一行里</div>
-            <div><b>修法：认领任务之前先发一个最小请求</b><span class="d">——</span>不通就不接单，把人话原因直接写进任务卡</div>
-          </div>
-          <p style="margin-top:18px;margin-bottom:0">值得记一笔的是：<strong>这个修复的第一版是死代码</strong><span class="d">——</span>它被写在了一个不会被调用的位置。当晚复查时才发现并挪进真正的调度器。「改了」和「生效了」之间，这个周末踩了不止一次。</p>
-        </div>
-      </div>
-
-      <div class="proof" style="margin-top:22px"><b>止损有效</b> 这次事故的生成费是 <b>$0</b><span class="d">——</span>闸门确实拦在了付费之前，只损失了 $0.31 大脑费。</div>
-    </div>
-
+  <div class="verdict">
+    <div class="tag">一句话定位</div>
+    <p>它现在是一条<u>内部试产线</u>，不是一个产品。</p>
+    <p class="sub">这两天做的全部是「让它出错时能被发现、被拦住、被记账」——这是产品化的地基，不是产品化本身。</p>
   </div>
-</section>
+</div>
 
-<!-- ═══ 05 主线 C 明细 ═══ -->
-<section class="rv" id="c">
-  <div class="sec-head">
-    <div class="sec-num">05</div>
-    <h2>细节 · C 把产线拆成可验证的零件<small>Detail Track C</small></h2>
+<div class="sec">
+  <h2>随便来一个客户，会经历什么<small>Walkthrough</small></h2>
+  <ol class="walk">
+    <li><span><b>登录后台，看到系统抓来的对标视频，选一条提单。</b>这段是通的，交互也简单。</span><span class="v g">可用</span></li>
+    <li><span><b>如果他是家装、门店这类生意，源片又是真人口播讲解</b>——命中我们唯一正式挂牌的那张风格牌，大概率能出片。</span><span class="v a">看运气</span></li>
+    <li><span><b>如果源片是实景施工跟拍这种「靠真实证据说服人」的</b>——会被准入闸门挡下，告诉他做不了。这是好事：以前是花完钱才翻车。</span><span class="v a">会被拒单</span></li>
+    <li><span><b>等 25 分钟到 2 小时。</b>期间只有一个进度状态，看不到在做什么。</span><span class="v a">体验粗糙</span></li>
+    <li><span><b>片子出来，他只有两个按钮：选定、有问题。</b>不能自己调，不能换镜头，不能改文案。</span><span class="v r">不可自助</span></li>
+    <li><span><b>质量预期要说清楚：目标是稳定 60 分，不是 90 分。</b>AI 感会有，我们只保证它不出硬伤。</span><span class="v a">需预期管理</span></li>
+  </ol>
+  <div class="verdict" style="border-color:var(--line-2);background:var(--panel)">
+    <div class="tag" style="color:var(--ink-3)">体验小结</div>
+    <p>像雇了一个便宜、听话、但还在实习的外包。</p>
+    <p class="sub">交上来的东西能看，但你得盯着；它不理解你的品牌，也不接受你改稿——只能回答「行」或「不行」。所以现在只适合我们自己带着客户跑，不适合放开自助。</p>
   </div>
-  <div class="items">
+</div>
 
-    <div class="item">
-      <div class="item-h"><h3>关键突破：生成的脸能过对口型，且不崩</h3><span class="pr">桥测 · 本机实跑</span></div>
-      <p>零件化最大的未知数一直是这个焊点<span class="d">——</span><strong>AI 生成出来的人脸，能不能过对口型环节而不崩坏</strong>。此前只有一条「未验证、有整段崩坏前科」的警告挂在那里，没人敢拿它排产。这个周末实测跑通了。</p>
-      <p>测试用例是「主播坐在车内对镜头口播」，走完整链路：真实参考照 → 换场景生成首帧 → 生成视频 → 音色克隆配音 → 对口型。</p>
-      <div class="proof"><b>结果</b> 全链 <b>$1.74</b>；人物识别相似度全程 ≥0.81；<b>嘴型区域无崩坏</b>，张口、圆唇、闭合都自然；人脸覆盖 98/98 帧 100%。<br><b>第二轮 A/B</b> 还首次验证了动作参考路线：拿原片片段当动作参考时，<b>紧凑的构图和连续的双手手势被真实搬运了过来</b><span class="d">——</span>动作迁移确实发生，不是玄学。</div>
-      <p style="margin-top:18px">这解锁的是：<strong>同一位主播 × 任意场景 × 口播</strong>。「贴着原片场景复刻」不再依赖真人素材里恰好拍到过什么。</p>
-    </div>
-
-    <div class="item">
-      <div class="item-h"><h3>零件化装配层落地</h3><span class="pr">Workflow #173 · #174</span></div>
-      <p>把三条整条路线拆成十张标准零件卡，每张卡的价格白名单与付款环节的实际代码逐字对齐；配一个施工单校验器（六条规则，判据读卡而不是抄常量），以及一张「换场景口播」组合卡。组合卡目前是<strong>试产</strong>状态<span class="d">——</span>制度上不允许空口挂牌。</p>
-    </div>
-
-    <div class="item">
-      <div class="item-h"><h3>长片切分：不做上下集，每支独立成篇</h3><span class="pr">Workflow #175 · #176 · store #208</span></div>
-      <p>抓取榜按转化排序，排在前面的常常是五到十分钟的长片。全片照做要 $103、46 个镜头，既不划算也不是投放素材的形态。定下三条规则：<strong>长片的价值在「选题被验证过」，不在时长</strong>；按源片结构分三型切分（清单型拆 3–5 支、单主题只取最硬的一段、流水账直接不复刻）；</p>
-      <p><strong>最重要的一条是<span class="d">——</span>绝不允许有「上下集」感。</strong>此前试过拆上下集，文稿里写「这是上集、下集讲……」，被判「太勉强、太硬凑」。现在每一支都是完整独立的视频：各自的钩子、各自的行动号召，谁先刷到谁就是第一支，没有先后依赖。</p>
-    </div>
-
-    <div class="item">
-      <div class="item-h"><h3>风格库骨架 + 第一张牌挂牌</h3><span class="pr">Workflow #164</span></div>
-      <p>产品方向上已经定了：不收敛成单一形态，而是<strong>内置多套视频风格，按客户业务类型推荐</strong>。软件企业要录屏、电商要产品实拍，硬塞真人出镜是干扰不是加分。风格配置本质是一包「生成时写死的约束」，它同时也是降本件<span class="d">——</span>大脑从「现场想流程」变成「照单执行」。</p>
-      <div class="proof"><b>已落地</b> 风格库骨架 + 第一张牌挂牌；配套的规范检查器能按 8 类反例拒收不合格的卡；36 项测试进持续集成。</div>
-    </div>
-
-    <div class="item">
-      <div class="item-h"><h3>诚实地下线一个功能</h3><span class="pr">store #203</span></div>
-      <p>「粘一条视频链接，直接做」这个入口被主动下线了。理由很简单：<strong>复刻线目前还吃不下任意源片</strong>。与其让人先用上再翻车，不如先不给这个承诺。</p>
-    </div>
-
-  </div>
-</section>
-
-<!-- ═══ 06 缺口 ═══ -->
-<section class="rv">
-  <div class="sec-head">
-    <div class="sec-num">06</div>
-    <h2>还没堵上的<small>Open Gaps</small></h2>
-  </div>
-  <p class="lede">按同样的诚实标准，这三条必须写在这里。</p>
+<div class="sec">
+  <h2>放开给客户前必须补的三件事<small>Blockers</small></h2>
   <div class="gaps">
-    <div class="gap">
-      <div class="g-n">01</div>
-      <div>
-        <h3>新大脑只验了「管道通」，没验「活干得好」</h3>
-        <p>工具循环通、预检过、窗口对<span class="d">——</span>这些都验了。但<strong>便宜 33 倍不等于文稿写得一样好</strong>。接下来头几条片子必须盯着文稿输出看，这是当前最大的质量不确定性。</p>
-      </div>
-    </div>
-    <div class="gap">
-      <div class="g-n">02</div>
-      <div>
-        <h3>零件化差最后一步：云端复跑</h3>
-        <p>桥测是在本机跑通的，两个新科目<strong>还没在云端实花过一次</strong>。需要在线上复跑一条（约 $2）才能把组合卡从试产转成正式挂牌。跑之前还得先确认工厂机真的部署到了含最新改动的版本<span class="d">——</span>这个周末的教训之一就是「合了 PR ≠ 已经生效」。</p>
-      </div>
-    </div>
-    <div class="gap">
-      <div class="g-n">03</div>
-      <div>
-        <h3>投放测试就在眼前</h3>
-        <p>发布测试投放定在 <strong>08-10 / 11</strong>，也就是现在。这是本周最硬的时间点，也是对上面所有改动的第一次实弹检验。</p>
-      </div>
-    </div>
+    <div class="gap"><div class="n">01</div><h4>稳定性证明</h4><p>连续产出不翻车的记录，一条都还没有。投放测试就是拿这个换数据。</p></div>
+    <div class="gap"><div class="n">02</div><h4>文稿质量验证</h4><p>便宜 33 倍的新大脑只验了管道通，没验它写得好不好。</p></div>
+    <div class="gap"><div class="n">03</div><h4>覆盖面</h4><p>正式挂牌的风格只有一张。客户业务一换，就没有对应的牌可打。</p></div>
   </div>
-
-  <div class="kicker">
-    <p>周六把「做什么、做到什么程度、谁负责」定死了；<br>周日把「用便宜 33 倍的大脑、按标准零件生产」的新产线搭起来了。<br>从现在开始，是拿这套产线去实弹试投放。</p>
-  </div>
-</section>
+</div>
 
 <footer>
   <span>Workflow · 视频产线工程复盘</span>
@@ -488,25 +242,5 @@ footer{padding:56px 0 80px;font-family:var(--mono);font-size:11.5px;color:var(--
 </footer>
 
 </div>
-
-<script>
-(function(){
-  var bar=document.getElementById('bar');
-  function onScroll(){
-    var h=document.documentElement.scrollHeight-window.innerHeight;
-    bar.style.width=(h>0?(window.scrollY/h*100):0)+'%';
-  }
-  window.addEventListener('scroll',onScroll,{passive:true});onScroll();
-
-  var els=document.querySelectorAll('.rv');
-  if(!('IntersectionObserver' in window)){els.forEach(function(e){e.classList.add('in')});return;}
-  var io=new IntersectionObserver(function(entries){
-    entries.forEach(function(en){
-      if(en.isIntersecting){en.target.classList.add('in');io.unobserve(en.target);}
-    });
-  },{rootMargin:'0px 0px -8% 0px',threshold:.04});
-  els.forEach(function(e){io.observe(e)});
-})();
-</script>
 </body>
 </html>
