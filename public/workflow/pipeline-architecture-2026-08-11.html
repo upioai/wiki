@@ -20,6 +20,8 @@
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
+/* 图要挣脱 .wrap 的 1240px 拉到整个视口宽，100vw 含滚动条宽度，不挡掉会横向溢出 */
+html{overflow-x:hidden}
 body{
   background:var(--bg);color:var(--fg);
   font:15px/1.7 -apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",system-ui,sans-serif;
@@ -41,21 +43,45 @@ h1{font-size:clamp(22px,3.4vw,32px);line-height:1.25;margin:0 0 10px;letter-spac
 .howto li{margin:3px 0}
 .howto b{color:var(--fg)} .howto em{color:var(--fg3);font-style:normal}
 h2.sec{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--fg3);
-  margin:34px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line2);font-weight:600}
-.frame{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--panel);box-shadow:var(--shadow)}
+  margin:34px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line2);font-weight:600;
+  display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+h2.sec .grow{flex:1 1 auto}
+
+/* 图区拉到整个视口宽。50% 是 .wrap 内容宽的一半，所以这一行在有 padding 的
+   容器里也能正好对齐视口左右边缘，不用把节点搬出 .wrap。 */
+.bleed{width:100vw;margin-left:calc(50% - 50vw)}
+.frame{position:relative;border:1px solid var(--line);border-radius:12px;overflow:hidden;
+  background:var(--panel);box-shadow:var(--shadow)}
+.frame.bleed{border-radius:0;border-left:0;border-right:0}
 .frame iframe{display:block;width:100%;border:0;background:transparent}
-.l1 iframe{height:min(78vh,760px)}
+/* 总览 2980×600（约 5:1）。全宽之后高度给到 72vh 就能一眼看全 13 个环节 */
+.l1 iframe{height:min(72vh,680px)}
+
+/* 全屏：对 .frame 本身请求全屏，iframe 撑满 —— archify 的 FULL 模式会自己 fit */
+.fsbtn{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--fg2);
+  border-radius:7px;padding:4px 11px;font-size:12px;cursor:pointer;font-family:inherit;
+  letter-spacing:0;text-transform:none;font-weight:400;white-space:nowrap}
+.fsbtn:hover{border-color:var(--accent);color:var(--accent)}
+.fsbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.frame:fullscreen,.fsable:fullscreen{border:0;border-radius:0;width:100vw;height:100vh;
+  margin:0;background:var(--bg);display:flex;flex-direction:column}
+.frame:fullscreen iframe,.fsable:fullscreen iframe{flex:1 1 auto;height:auto;min-height:0}
+.frame:-webkit-full-screen,.fsable:-webkit-full-screen{border:0;border-radius:0;background:var(--bg)}
+.frame:-webkit-full-screen iframe,.fsable:-webkit-full-screen iframe{height:calc(100vh - 40px)}
 .phase{margin:26px 0 0}
 .phase-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 10px}
 .phase-num{font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--fg3);
   border:1px solid var(--line);border-radius:5px;padding:2px 7px}
 .phase-name{font-size:15px;font-weight:650;margin:0}
 .phase-note{color:var(--fg3);font-size:13px;margin:0}
-details.node{border:1px solid var(--line);border-radius:12px;background:var(--panel);
-  margin:0 0 10px;overflow:hidden;box-shadow:var(--shadow)}
+/* 环节行也拉满视口宽 —— 子图最宽的一张 3020px，夹在 1240 里同样看不全 */
+details.node{width:100vw;margin:0 0 10px calc(50% - 50vw);
+  border:1px solid var(--line);border-left:0;border-right:0;background:var(--panel);
+  overflow:hidden;box-shadow:var(--shadow)}
 details.node[open]{border-color:var(--accent)}
+/* 中间那栏封顶 900px：行拉到 1900 宽之后，说明文字一行跑那么长反而难读 */
 summary.head{list-style:none;cursor:pointer;padding:14px 16px;display:grid;
-  grid-template-columns:auto 1fr auto;gap:12px;align-items:start}
+  grid-template-columns:auto minmax(0,900px) 1fr;gap:12px;align-items:start}
 summary.head::-webkit-details-marker{display:none}
 summary.head:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 .badge{flex:none;width:30px;height:30px;border-radius:8px;display:grid;place-items:center;
@@ -67,13 +93,15 @@ summary.head:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 .chip{font-size:11.5px;color:var(--fg2);background:var(--panel2);border:1px solid var(--line2);
   border-radius:999px;padding:2px 9px;white-space:nowrap}
 .chip.hot{color:var(--a5)} .chip.money{color:var(--a4)}
-.caret{flex:none;align-self:center;color:var(--fg3);font-size:12px;
+.caret{flex:none;align-self:center;justify-self:end;color:var(--fg3);font-size:12px;
   border:1px solid var(--line);border-radius:6px;padding:3px 8px;white-space:nowrap}
 details.node[open] .caret{color:var(--accent);border-color:var(--accent)}
 .body{border-top:1px solid var(--line2);background:var(--panel2)}
-.body .hint{margin:0;padding:9px 16px;font-size:12.5px;color:var(--fg3);border-bottom:1px solid var(--line2)}
+.body .hint{margin:0;padding:9px 16px;font-size:12.5px;color:var(--fg3);
+  border-bottom:1px solid var(--line2);display:flex;align-items:center;gap:12px}
+.body .hint span{flex:1 1 auto}
 .body .hint b{color:var(--fg2)}
-.body iframe{height:min(74vh,700px)}
+.body iframe{height:min(72vh,680px)}
 footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--line2);color:var(--fg3);font-size:12.5px}
 footer p{margin:4px 0}
 @media (max-width:640px){
@@ -104,14 +132,17 @@ footer p{margin:4px 0}
 
 <div class="howto">
   <ol>
-    <li><b>第一层</b> —— 下面这张总览大图，13 个环节和它们的先后关系。图可以拖动、缩放、搜索节点，还有 5 个「导览章节」按钮。</li>
+    <li><b>第一层</b> —— 下面这张总览大图，13 个环节和它们的先后关系。图可以拖动、缩放、搜索节点，还有 5 个「导览章节」按钮。<em>图有 2980px 宽，嫌挤就点右边的「⛶ 全屏看这张」。</em></li>
     <li><b>第二层</b> —— 点开任意一个环节，看它内部的细小架构（每张也都能拖动缩放）。</li>
     <li><b>第三层</b> —— 每张细小架构<b>旁边</b>那一列彩色卡片，就是这个环节的强调与补充：踩过的坑、为什么这么定、哪些数字不能改。<em>窗口窄的时候卡片会落到图的下方，把浏览器拉宽就回到右侧。</em></li>
   </ol>
 </div>
 
-<h2 class="sec">第一层 · 总览</h2>
-<div class="frame l1"><iframe id="l1frame" title="云上视频产线总览"></iframe></div>
+<h2 class="sec">
+  <span>第一层 · 总览</span><span class="grow"></span>
+  <button class="fsbtn" id="l1fs">⛶ 全屏看这张</button>
+</h2>
+<div class="frame l1 bleed" id="l1wrap"><iframe id="l1frame" title="云上视频产线总览"></iframe></div>
 
 <h2 class="sec">第二层 / 第三层 · 点开任一环节</h2>
 <div id="phases"></div>
@@ -214,6 +245,13 @@ function render(frame, id){
   frame.dataset.rendered = id;
 }
 
+/* 全屏。Safari 只有带前缀那套，所以两个都试；都没有就退化成「什么都不做」，
+   不弹提示 —— 页面本来已经是整个视口宽了，全屏只是锦上添花。 */
+function goFullscreen(el){
+  var req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+  if (req) { try { req.call(el); } catch (e) {} }
+}
+
 /* ══ 组装页面 ══ */
 function chipEl(c){
   var s = document.createElement("span");
@@ -241,13 +279,18 @@ function nodeEl(node, tint){
   caret.className = "caret"; caret.textContent = "点开看内部";
   sum.appendChild(badge); sum.appendChild(t); sum.appendChild(caret);
 
-  var body = document.createElement("div"); body.className = "body";
+  var body = document.createElement("div"); body.className = "body fsable";
   var hint = document.createElement("p"); hint.className = "hint";
-  hint.innerHTML = "<b>第三层就是那一列彩色卡片</b> —— 这个环节的强调与补充说明，红色是踩过的坑。"
+  var hintText = document.createElement("span");
+  hintText.innerHTML = "<b>第三层就是那一列彩色卡片</b> —— 这个环节的强调与补充说明，红色是踩过的坑。"
     + "窗口够宽时它在图的右侧，窄屏会落到图的下方。图可拖动缩放，也可搜索节点。";
+  var fs = document.createElement("button");
+  fs.className = "fsbtn"; fs.type = "button"; fs.textContent = "⛶ 全屏看这张";
+  hint.appendChild(hintText); hint.appendChild(fs);
   var f = document.createElement("iframe");
   f.title = node.title + " · 内部架构";
   body.appendChild(hint); body.appendChild(f);
+  fs.addEventListener("click", function(){ goFullscreen(body); });
 
   el.appendChild(sum); el.appendChild(body);
 
@@ -279,6 +322,9 @@ PHASES.forEach(function(ph){
 /* 第一层立即渲染 */
 var l1 = document.getElementById("l1frame");
 render(l1, "L0-overview");
+document.getElementById("l1fs").addEventListener("click", function(){
+  goFullscreen(document.getElementById("l1wrap"));
+});
 
 document.getElementById("expandAll").addEventListener("click", function(){
   document.querySelectorAll("details.node").forEach(function(d){ d.open = true; });
