@@ -18,6 +18,8 @@
     #wechat-competitor-map { color: var(--foreground); }
     #wechat-competitor-map .intro { margin-bottom: 16px; }
     #wechat-competitor-map .filters { display: flex; flex-wrap: wrap; gap: 7px; margin: 12px 0 16px; }
+    #wechat-competitor-map .scope-line { display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin:12px 0 8px; }
+    #wechat-competitor-map .scope-label { color:var(--muted-foreground);margin-right:3px; }
     #wechat-competitor-map .summary { margin-bottom: 18px; }
     #wechat-competitor-map .summary-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
     #wechat-competitor-map .device-mark { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
@@ -48,9 +50,15 @@
 
   <section class="intro">
     <h1>个人微信竞品：到底用什么设备操作</h1>
-    <p>点击平台查看它用电脑、云端还是手机，以及怎样操作个人微信。标记“待核实”代表公开材料不足，不把宣传口径当成技术事实。</p>
+    <p>默认只展示当前直接操作个人微信的平台。点击平台查看它用电脑、云端还是手机，以及怎样操作个微；宣传提过但缺少技术证据的单独标记。</p>
+    <div class="scope-line" role="group" aria-label="按个人微信相关性筛选">
+      <span class="scope-label">个微范围</span>
+      <button type="button" class="btn btn-primary" data-scope="personal" aria-pressed="true">当前直接操作个微</button>
+      <button type="button" class="btn" data-scope="claimed" aria-pressed="false">含声称支持/待核实</button>
+      <button type="button" class="btn" data-scope="all" aria-pressed="false">查看全部竞品</button>
+    </div>
     <div class="filters" role="group" aria-label="按设备类型筛选">
-      <button type="button" class="btn btn-primary" data-filter="all" aria-pressed="true">全部</button>
+      <button type="button" class="btn btn-primary" data-filter="all" aria-pressed="true">全部设备</button>
       <button type="button" class="btn" data-filter="pc" aria-pressed="false">🖥️ 电脑</button>
       <button type="button" class="btn" data-filter="cloud" aria-pressed="false">☁️ 云端</button>
       <button type="button" class="btn" data-filter="phone" aria-pressed="false">📱 手机</button>
@@ -148,10 +156,49 @@
       };
       data.forEach((item) => { item.use = useByName[item.name] || '用途待进一步核实'; });
 
+      const confirmedPersonal = new Set([
+        '水流 AI 员工','心动 AI 数字员工','黑谷科技','亿销云 CRM','IMAI.WORK','威小蜜','云客 AI',
+        '剪流 AI 员工手机','奇蚁 AI 营销手机','巨响 Pooon_X','摩盖工作手机','优客 AI','畅易工作手机',
+        '销售快工作手机','方块 K'
+      ]);
+      const claimedPersonal = new Set([
+        '客多多 RPA','订客多 DingkeBot','W.Cat-RPA','微信 AI 数字员工','私域宝 AI','聚合智能 Juhebot','玄晶引擎'
+      ]);
+      const historicalPersonal = new Set(['亿量·销售保 AI']);
+      data.forEach((item) => {
+        item.scope = confirmedPersonal.has(item.name) ? 'personal' : claimedPersonal.has(item.name) ? 'claimed' : historicalPersonal.has(item.name) ? 'historical' : 'indirect';
+      });
+
       const typeLabel = {pc:'电脑',cloud:'云端',phone:'手机',human:'人工辅助',unknown:'待核实'};
       const typeIcon = {pc:'🖥️',cloud:'☁️',phone:'📱',human:'👤',unknown:'❓'};
       const grid = root.querySelector('#platform-grid');
       const flow = root.querySelector('#selected-flow');
+      let activeScope = 'personal';
+      let activeDevice = 'all';
+
+      function matchesScope(item) {
+        if (activeScope === 'all') return true;
+        if (activeScope === 'claimed') return item.scope === 'personal' || item.scope === 'claimed' || item.scope === 'historical';
+        return item.scope === 'personal';
+      }
+
+      function applyFilters() {
+        grid.querySelectorAll('button').forEach((button) => {
+          const item = data[Number(button.dataset.index)];
+          button.hidden = !matchesScope(item) || (activeDevice !== 'all' && item.type !== activeDevice);
+        });
+        root.querySelectorAll('.overview-row').forEach((row) => {
+          const type = row.dataset.type;
+          const boxes = row.querySelectorAll('.overview-item');
+          let visible = 0;
+          boxes.forEach((box) => {
+            const item = data[Number(box.dataset.index)];
+            box.hidden = !matchesScope(item) || (activeDevice !== 'all' && type !== activeDevice);
+            if (!box.hidden) visible += 1;
+          });
+          row.hidden = visible === 0;
+        });
+      }
 
       function select(item, button) {
         root.querySelector('#selected-name').textContent = item.name;
@@ -182,6 +229,7 @@
         button.type = 'button';
         button.className = 'btn viz-tile';
         button.dataset.type = item.type;
+        button.dataset.index = String(index);
         button.setAttribute('aria-pressed', String(index === 0));
         button.setAttribute('aria-label', `${item.name}，${typeLabel[item.type]}，${item.device}`);
         button.textContent = `${typeIcon[item.type]} ${item.name}`;
@@ -193,12 +241,25 @@
       root.querySelectorAll('[data-filter]').forEach((filterButton) => {
         filterButton.addEventListener('click', () => {
           const filter = filterButton.dataset.filter;
+          activeDevice = filter;
           root.querySelectorAll('[data-filter]').forEach((b) => {
             const active = b === filterButton;
             b.classList.toggle('btn-primary', active);
             b.setAttribute('aria-pressed', String(active));
           });
-          grid.querySelectorAll('button').forEach((b) => { b.hidden = filter !== 'all' && b.dataset.type !== filter; });
+          applyFilters();
+        });
+      });
+
+      root.querySelectorAll('[data-scope]').forEach((scopeButton) => {
+        scopeButton.addEventListener('click', () => {
+          activeScope = scopeButton.dataset.scope;
+          root.querySelectorAll('[data-scope]').forEach((b) => {
+            const active = b === scopeButton;
+            b.classList.toggle('btn-primary', active);
+            b.setAttribute('aria-pressed', String(active));
+          });
+          applyFilters();
         });
       });
 
@@ -207,13 +268,16 @@
       groups.forEach((type) => {
         const row = document.createElement('div');
         row.className = 'overview-row';
+        row.dataset.type = type;
         const heading = document.createElement('strong');
         heading.textContent = `${typeIcon[type]} ${typeLabel[type]}`;
         const names = document.createElement('div');
         names.className = 'overview-names';
         data.filter((item) => item.type === type).forEach((item) => {
+          const itemIndex = data.indexOf(item);
           const box = document.createElement('div');
           box.className = 'overview-item';
+          box.dataset.index = String(itemIndex);
           const name = document.createElement('strong');
           name.textContent = item.name;
           const detail = document.createElement('div');
@@ -231,6 +295,7 @@
         row.append(heading, names);
         overview.appendChild(row);
       });
+      applyFilters();
     })();
   </script>
 </div>
