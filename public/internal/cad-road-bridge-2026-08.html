@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>路桥设计 × CAD × AI · 产品机会调研</title>
+<meta name="description" content="路桥设计领域的专用 AI 模型、GitHub 开源地基、中国市场竞品格局与商业可行性调研。内部决策参考。">
+<meta name="robots" content="noindex,nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* ── 基底 Substrate ── */
+    --bg:#06080C; --bg2:#0A0E15; --panel:#0D1119; --panel2:#11161F;
+    --line:rgba(255,255,255,.07); --line2:rgba(255,255,255,.12);
+    --head:#F2F6FB; --ink:#DBE3EC; --muted:#7C8798;
+    --dim:#525C6B;            /* 2.96:1 —— 仅装饰，禁用于正文 */
+
+    /* ── 信号 Signal（语义绑定，别改） ── */
+    --teal:#3FE0C5;    /* SIG-01 机器/自动 */
+    --amber:#F6B352;   /* SIG-02 人工/在环 */
+    --blue:#6FA8FF;    /* SIG-03 服务端 */
+    --violet:#B48CFF;  /* SIG-04 worker */
+    --rose:#FF7D97;    /* SIG-05 执行端 */
+    --teal-d:#1C9D8B;
+
+    /* ── 序列·分类（取用序 1,2,3,5,4,6,7；8=其他/对照） ── */
+    --ser-1:#3FE0C5; --ser-2:#F6B352; --ser-3:#6FA8FF; --ser-4:#B48CFF;
+    --ser-5:#FF7D97; --ser-6:#86DE6E; --ser-7:#E86FD0; --ser-8:#8C9BB0;
+
+    /* ── 序列·顺序（heatmap / 有序数据） ── */
+    --seq-1:#0A392F; --seq-2:#116353; --seq-3:#198F78; --seq-4:#21BA9C; --seq-5:#4CDFC2;
+
+    /* ── 序列·分歧（delta / 正负，中心暗两极亮） ── */
+    --div-1:#EBB85E; --div-2:#C08827; --div-3:#59616D; --div-4:#22A48A; --div-5:#1BD8B3;
+
+    /* ── 语义（--risk 与角色色玫红是两个色，别混用） ── */
+    --ok:#3FE0C5; --warn:#F6B352; --risk:#F2555A; --neutral:#8C9BB0;
+
+    --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+    --serif:"Noto Serif SC",serif;
+    --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:var(--sans);
+    background:var(--bg);
+    color:var(--ink);
+    line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  /* ── 无障碍 + 截图开关：两条都必须带上 ── */
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
+      transition-duration:.01ms!important;scroll-behavior:auto!important}
+  }
+  html[data-anim="off"] *,html[data-anim="off"] *::before,html[data-anim="off"] *::after{
+    animation:none!important;transition:none!important}
+  /* 截图辅助：?shot=1 时 hero 不再撑满视口，便于单帧全页截图 */
+  html[data-shot="1"] .hero{min-height:auto;padding:80px 0 72px}
+
+  /* ── 固定背景：网格 + 辉光 + 颗粒 ── */
+  .bg{position:fixed;inset:0;z-index:0;pointer-events:none}
+  .bg .grid{
+    position:absolute;inset:-2px;
+    background-image:
+      linear-gradient(var(--line) 1px,transparent 1px),
+      linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:64px 64px;
+    -webkit-mask-image:radial-gradient(circle at 50% 32%,#000 0%,transparent 78%);
+    mask-image:radial-gradient(circle at 50% 32%,#000 0%,transparent 78%);
+    opacity:.5;
+  }
+  .bg .glow{position:absolute;border-radius:50%;filter:blur(120px);opacity:.5}
+  .bg .g1{width:640px;height:640px;top:-260px;left:50%;transform:translateX(-50%);
+    background:radial-gradient(circle,rgba(63,224,197,.28),transparent 68%);animation:drift 22s ease-in-out infinite}
+  .bg .g2{width:520px;height:520px;top:38%;left:-160px;
+    background:radial-gradient(circle,rgba(111,168,255,.16),transparent 70%);animation:drift 28s ease-in-out infinite reverse}
+  .bg .g3{width:480px;height:480px;bottom:-120px;right:-120px;
+    background:radial-gradient(circle,rgba(246,179,82,.12),transparent 70%);animation:drift 26s ease-in-out infinite}
+  @keyframes drift{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,40px)}}
+  .bg .noise{position:absolute;inset:0;opacity:.035;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+  /* ── 顶部滚动进度 ── */
+  .progress{position:fixed;top:0;left:0;height:2px;width:0;z-index:60;
+    background:linear-gradient(90deg,var(--teal),var(--blue));box-shadow:0 0 12px var(--teal)}
+
+  /* ── 侧栏章节导航 ── */
+  .rail{position:fixed;top:50%;left:26px;transform:translateY(-50%);z-index:50;
+    display:flex;flex-direction:column;gap:15px}
+  .rail a{display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--dim);
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+    transition:color .3s}
+  .rail a .tick{width:22px;height:2px;background:currentColor;transition:width .3s,background .3s}
+  .rail a .lbl{opacity:0;transform:translateX(-6px);transition:.3s}
+  .rail a:hover .lbl,.rail a.on .lbl{opacity:1;transform:none}
+  .rail a.on{color:var(--teal)}
+  .rail a.on .tick{width:38px;box-shadow:0 0 10px var(--teal)}
+  @media(max-width:1300px){.rail{display:none}}
+
+  main{position:relative;z-index:2;max-width:1080px;margin:0 auto;padding:0 40px}
+  section{padding:118px 0;border-top:1px solid transparent}
+
+  /* ── 通用 reveal ── */
+  .rv{opacity:0;transform:translateY(26px);transition:opacity .8s cubic-bezier(.16,1,.3,1),transform .8s cubic-bezier(.16,1,.3,1)}
+  .rv.in{opacity:1;transform:none}
+  .stagger>*{opacity:0;transform:translateY(22px);transition:opacity .7s cubic-bezier(.16,1,.3,1),transform .7s cubic-bezier(.16,1,.3,1)}
+  .stagger.in>*{opacity:1;transform:none}
+  .stagger.in>*:nth-child(1){transition-delay:.05s}
+  .stagger.in>*:nth-child(2){transition-delay:.13s}
+  .stagger.in>*:nth-child(3){transition-delay:.21s}
+  .stagger.in>*:nth-child(4){transition-delay:.29s}
+  .stagger.in>*:nth-child(5){transition-delay:.37s}
+
+  /* ── 章节头 ── */
+  .sec-head{display:flex;align-items:baseline;gap:20px;margin-bottom:42px}
+  .sec-head .idx{font-family:var(--mono);font-size:13px;color:var(--teal);
+    font-weight:500;padding-top:6px;position:relative}
+  .sec-head .idx::before{content:"";position:absolute;left:-14px;top:11px;width:8px;height:8px;
+    border-radius:50%;background:var(--teal);box-shadow:0 0 10px var(--teal)}
+  .eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--muted);display:block;margin-bottom:8px}
+  .sec-head h2{font-family:var(--serif);font-weight:700;font-size:clamp(27px,4vw,42px);
+    line-height:1.18;color:var(--head);letter-spacing:.01em}
+  .lede{font-size:16.5px;color:var(--muted);max-width:660px;margin:-24px 0 40px;line-height:1.75}
+  .lede b,.lede strong{color:var(--ink);font-weight:600}
+  code{font-family:var(--mono);font-size:.85em;background:rgba(63,224,197,.09);color:#8ff0e0;
+    border:1px solid rgba(63,224,197,.16);border-radius:5px;padding:1px 6px}
+
+  /* ── HERO ── */
+  .hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;
+    padding:100px 0 72px;border:0;position:relative}
+  .hero .tag{font-family:var(--mono);font-size:12px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--teal);display:inline-flex;align-items:center;gap:10px;margin-bottom:26px}
+  .hero .tag .pulse{width:9px;height:9px;border-radius:50%;background:var(--teal);
+    box-shadow:0 0 0 0 rgba(63,224,197,.6);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(63,224,197,.55)}70%{box-shadow:0 0 0 12px rgba(63,224,197,0)}100%{box-shadow:0 0 0 0 rgba(63,224,197,0)}}
+  .hero h1{font-family:var(--serif);font-weight:900;font-size:clamp(42px,8vw,92px);line-height:1.06;
+    color:var(--head);letter-spacing:.005em;margin-bottom:8px}
+  .hero h1 .accent{background:linear-gradient(115deg,var(--teal),var(--blue) 70%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero h1 .cursor{display:inline-block;width:.06em;height:.92em;background:var(--teal);
+    vertical-align:-6px;margin-left:6px;animation:blink 1.1s steps(1) infinite;box-shadow:0 0 14px var(--teal)}
+  @keyframes blink{50%{opacity:0}}
+  .hero .desc{font-size:clamp(17px,2.3vw,22px);color:var(--ink);max-width:680px;margin:24px 0 14px;line-height:1.6}
+  .hero .desc b{color:var(--teal);font-weight:600}
+  .hero .role{font-family:var(--mono);font-size:13px;color:var(--muted);margin-bottom:34px}
+  .ticker{display:flex;gap:10px;flex-wrap:wrap;max-width:820px}
+  .chip{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;color:var(--ink);
+    border:1px solid var(--line2);border-radius:100px;padding:7px 15px;background:rgba(255,255,255,.02);
+    display:inline-flex;align-items:center;gap:8px;transition:.3s}
+  .chip:hover{border-color:var(--teal);color:var(--teal);box-shadow:0 0 20px -6px var(--teal)}
+  .chip .d{width:6px;height:6px;border-radius:50%;background:var(--teal)}
+  .chip .d.a{background:var(--amber)}.chip .d.b{background:var(--blue)}.chip .d.v{background:var(--violet)}
+  .scrollcue{position:absolute;bottom:34px;left:0;font-family:var(--mono);font-size:11px;
+    letter-spacing:.2em;color:var(--dim);display:flex;align-items:center;gap:10px}
+  .scrollcue .bar{width:1px;height:34px;background:linear-gradient(var(--teal),transparent);
+    animation:cue 1.8s ease-in-out infinite}
+  @keyframes cue{0%,100%{opacity:.3;transform:scaleY(.6)}50%{opacity:1;transform:scaleY(1)}}
+
+  /* ── note band ── */
+  .note-band{margin-top:22px;background:rgba(246,179,82,.06);border:1px solid rgba(246,179,82,.2);
+    border-radius:14px;padding:18px 22px;display:flex;gap:16px;align-items:flex-start}
+  .note-band .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--amber);
+    text-transform:uppercase;white-space:nowrap;padding-top:2px}
+  .note-band p{font-size:14.5px;color:var(--ink);margin:0}
+  .note-band p b{color:var(--amber)}
+
+  /* ── 管线 spine ── */
+  .pipe{position:relative;padding-left:38px;margin-top:8px}
+  .pipe::before{content:"";position:absolute;left:11px;top:8px;bottom:8px;width:2px;
+    background:linear-gradient(var(--blue),var(--violet),var(--teal),var(--amber),var(--rose))}
+  .pipe .flowdot{position:absolute;left:6px;width:12px;height:12px;border-radius:50%;
+    background:var(--teal);box-shadow:0 0 16px 3px var(--teal);animation:flow 4.2s cubic-bezier(.5,0,.5,1) infinite}
+  @keyframes flow{0%{top:2px;opacity:0}8%{opacity:1}92%{opacity:1}100%{top:calc(100% - 14px);opacity:0}}
+  .pstep{position:relative;padding:16px 0;display:grid;grid-template-columns:112px 1fr;gap:18px;align-items:start}
+  .pstep+.pstep{border-top:1px dashed var(--line)}
+  .pstep::before{content:"";position:absolute;left:-32px;top:24px;width:10px;height:10px;border-radius:50%;
+    background:var(--bg);border:2px solid var(--who,var(--teal));box-shadow:0 0 0 4px var(--bg)}
+  .pstep .who{font-family:var(--mono);font-size:11px;letter-spacing:.05em;padding:5px 9px;border-radius:7px;
+    background:color-mix(in srgb,var(--who) 15%,transparent);color:var(--who);
+    border:1px solid color-mix(in srgb,var(--who) 30%,transparent);text-align:center;line-height:1.35}
+  .pstep .txt{font-size:14.5px;color:var(--ink)}
+  .pstep .txt b{color:var(--head);font-weight:600}
+  .pipe-note{margin-top:20px;font-size:13.5px;color:var(--muted);font-family:var(--mono);
+    padding-left:38px;line-height:1.6}
+  .pipe-note b{color:var(--teal)}
+
+  /* ── hbar 横条。⚠️ track 与 fill 必须 display:block ── */
+  .hbar .row{display:grid;grid-template-columns:170px 1fr 130px;gap:14px;align-items:center;padding:9px 0}
+  .hbar .lab{font-size:13.5px;color:var(--ink);text-align:right;line-height:1.35}
+  .hbar .track{display:block;height:18px;background:rgba(255,255,255,.04);border-radius:5px;overflow:hidden;position:relative}
+  .hbar .fill{display:block;height:100%;border-radius:4px;
+    background:linear-gradient(90deg,var(--teal-d),var(--teal));box-shadow:0 0 14px -2px var(--teal);
+    width:0;transition:width 1.1s cubic-bezier(.16,1,.3,1)}
+  .hbar .fill.dim{background:linear-gradient(90deg,#2A3644,#46586C);box-shadow:none}
+  .hbar .fill.warn{background:linear-gradient(90deg,#B7803A,var(--amber));box-shadow:0 0 14px -2px var(--amber)}
+  .hbar .val{font-family:var(--mono);font-size:12.5px;color:var(--head)}
+  .hbar .val .u{color:var(--muted);font-size:11px}
+
+  /* ── 图表配套 ── */
+  .ctitle{font-size:15px;color:var(--head);font-weight:600;margin-bottom:2px}
+  .cunit{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.1em;
+    text-transform:uppercase;margin-bottom:18px}
+  .chart-note{margin-top:16px;font-family:var(--mono);font-size:11.5px;color:var(--dim);letter-spacing:.04em;line-height:1.7}
+  .chart-note b{color:var(--teal)}
+  .legend{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:16px;font-size:12.5px;color:var(--muted)}
+  .legend i{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:7px;vertical-align:-1px}
+
+  /* ── 通用卡片网格 ── */
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  .cell{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 22px;transition:.35s}
+  .cell:hover{border-color:var(--line2);background:var(--panel2);transform:translateY(-3px)}
+  .cell .ico{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+    margin-bottom:14px;border:1px solid rgba(63,224,197,.28);color:var(--teal);
+    background:linear-gradient(150deg,rgba(63,224,197,.13),rgba(63,224,197,.02));
+    box-shadow:0 0 22px -10px var(--teal) inset}
+  .cell .ico svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .cell .ico.b{border-color:rgba(111,168,255,.28);color:var(--blue);
+    background:linear-gradient(150deg,rgba(111,168,255,.13),rgba(111,168,255,.02));box-shadow:0 0 22px -10px var(--blue) inset}
+  .cell .ico.a{border-color:rgba(246,179,82,.28);color:var(--amber);
+    background:linear-gradient(150deg,rgba(246,179,82,.13),rgba(246,179,82,.02));box-shadow:0 0 22px -10px var(--amber) inset}
+  .cell .ico.v{border-color:rgba(180,140,255,.28);color:var(--violet);
+    background:linear-gradient(150deg,rgba(180,140,255,.13),rgba(180,140,255,.02));box-shadow:0 0 22px -10px var(--violet) inset}
+  .cell .ico.r{border-color:rgba(255,125,151,.28);color:var(--rose);
+    background:linear-gradient(150deg,rgba(255,125,151,.13),rgba(255,125,151,.02));box-shadow:0 0 22px -10px var(--rose) inset}
+  .cell h3{font-size:16px;color:var(--head);margin-bottom:7px;font-weight:600}
+  .cell h3 .m{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:.08em;display:block;margin-bottom:4px;font-weight:500}
+  .cell p{font-size:13.5px;color:var(--muted);line-height:1.65}
+  .cell p b{color:var(--ink)}
+  .cell .model{margin-top:12px;font-family:var(--mono);font-size:12px;color:var(--teal);
+    background:rgba(63,224,197,.07);border:1px solid rgba(63,224,197,.15);border-radius:7px;padding:5px 10px;display:inline-block}
+
+  /* ── statband ── */
+  .statband{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:28px}
+  .stat{background:linear-gradient(165deg,var(--panel2),var(--bg2));border:1px solid var(--line);
+    border-radius:14px;padding:17px 18px 15px;transition:.35s}
+  .stat:hover{border-color:rgba(63,224,197,.3);transform:translateY(-3px)}
+  .stat .v{font-family:var(--mono);font-size:30px;font-weight:600;color:var(--teal);line-height:1.1;
+    text-shadow:0 0 24px rgba(63,224,197,.35)}
+  .stat .v .suf{font-size:15px;color:var(--muted);margin-left:2px}
+  .stat .l{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.5}
+  .stat.a .v{color:var(--amber);text-shadow:0 0 24px rgba(246,179,82,.3)}
+  .stat.b .v{color:var(--blue);text-shadow:0 0 24px rgba(111,168,255,.3)}
+  .stat.v2 .v{color:var(--violet);text-shadow:0 0 24px rgba(180,140,255,.3)}
+  .stat .sub{display:block;font-family:var(--mono);font-size:10.5px;color:var(--dim);margin-top:10px}
+
+  /* ── 三列 colbox ── */
+  .cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .colbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 22px}
+  .colbox h4{font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--teal);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+  .colbox h4 .st{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;opacity:.75;margin-right:7px}
+  .colbox ul{list-style:none}
+  .colbox li{font-size:13.5px;color:var(--ink);padding:6px 0 6px 18px;position:relative;line-height:1.5}
+  .colbox li::before{content:"▸";position:absolute;left:0;color:var(--dim)}
+  .colbox li b{color:var(--head)}
+  .colbox.ship h4{color:var(--teal)}.colbox.wip h4{color:var(--amber)}.colbox.hard h4{color:#F2555A}
+  .colbox.ship{border-color:rgba(63,224,197,.18)}
+  .colbox.wip{border-color:rgba(246,179,82,.18)}
+  .colbox.hard{border-color:rgba(242,85,90,.22)}
+
+  /* ── 取向 band ── */
+  .band{margin-top:22px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--teal);
+    border-radius:12px;padding:20px 24px}
+  .band .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--teal);text-transform:uppercase;margin-bottom:8px;display:block}
+  .band p{font-size:15px;color:var(--ink);margin:0}
+  .band p b{color:var(--head)}
+
+  /* ── 技术栈表 ── */
+  .spec{width:100%;border-collapse:collapse;font-size:13.5px}
+  .spec thead th{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--muted);text-align:left;padding:12px 14px;border-bottom:1px solid var(--line2)}
+  .spec td{padding:13px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  .spec tbody tr{transition:.25s}
+  .spec tbody tr:hover{background:rgba(63,224,197,.03)}
+  .spec td:first-child{color:var(--head);font-weight:600;white-space:nowrap}
+  .spec td:nth-child(2){color:var(--ink)}
+  .spec td.mono{font-family:var(--mono);font-size:12.5px;color:var(--teal);white-space:nowrap}
+  .quote{margin-top:30px;background:linear-gradient(160deg,var(--panel2),var(--bg2));
+    border:1px solid var(--line);border-radius:16px;padding:28px 30px;font-size:16px;line-height:1.75;color:var(--ink)}
+  .quote b{color:var(--teal)}
+
+  /* ── 证据分档徽章 ── */
+  .ev{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;padding:2px 7px;border-radius:5px;
+    border:1px solid;display:inline-block;line-height:1.5;vertical-align:1px;white-space:nowrap}
+  .ev.a{color:var(--teal);border-color:rgba(63,224,197,.4);background:rgba(63,224,197,.08)}
+  .ev.b{color:var(--blue);border-color:rgba(111,168,255,.4);background:rgba(111,168,255,.08)}
+  .ev.c{color:var(--neutral);border-color:rgba(140,155,176,.4);background:rgba(140,155,176,.08)}
+  .ev.x{color:var(--amber);border-color:rgba(246,179,82,.4);background:rgba(246,179,82,.08)}
+
+  /* ── flow-h 横向流程带 ── */
+  .flowh{position:relative;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:0;padding:14px 0 6px}
+  .flowh .fs{position:relative;padding:0 16px;text-align:center}
+  .flowh .fs .dot{display:block;width:15px;height:15px;border-radius:50%;background:var(--bg);margin:0 auto 16px;
+    border:2px solid var(--c,var(--teal));box-shadow:0 0 14px -2px var(--c,var(--teal));position:relative;z-index:2}
+  .flowh .fs .k{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--c,var(--teal));display:block;margin-bottom:5px}
+  .flowh .fs .t{display:block;font-size:13.5px;color:var(--head);font-weight:600;line-height:1.4}
+  .flowh .fs .d{display:block;font-size:12px;color:var(--muted);margin-top:5px;line-height:1.55}
+  .flowh .fs::before{content:"";position:absolute;top:7px;left:0;right:50%;height:2px;
+    background:linear-gradient(90deg,transparent,var(--line2))}
+  .flowh .fs::after{content:"";position:absolute;top:7px;left:50%;right:0;height:2px;
+    background:linear-gradient(90deg,var(--line2),transparent)}
+  .flowh .fs:first-child::before,.flowh .fs:last-child::after{display:none}
+  .flowh .runner{position:absolute;top:3px;left:0;width:9px;height:9px;border-radius:50%;
+    background:var(--teal);box-shadow:0 0 14px 3px var(--teal);animation:runh 5s cubic-bezier(.45,0,.55,1) infinite;z-index:1}
+  @keyframes runh{0%{left:6%;opacity:0}8%{opacity:1}92%{opacity:1}100%{left:94%;opacity:0}}
+
+  /* ── quad 四象限 ── */
+  .qd-tint{opacity:.05}
+  .qd-axis{stroke:var(--line2);stroke-width:1.4}
+  .qd-pt{stroke:var(--bg);stroke-width:1.5;opacity:0;transition:opacity .5s,transform .5s cubic-bezier(.16,1,.3,1)}
+  .qd-pt.on{opacity:1}
+  .qd-qn{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase}
+  .ax-txt{font-family:var(--mono);font-size:10.5px;fill:var(--dim);letter-spacing:.08em}
+  .ax-txt.lit{fill:var(--muted)}
+  .pt-lbl{font-family:var(--sans);font-size:11.5px;fill:var(--ink)}
+
+  /* ── iso-stack CSS 3D 分层 ── */
+  .isostack{display:grid;grid-template-columns:1fr 320px;gap:24px;align-items:center}
+  .iso-scene{perspective:1500px;height:460px;display:flex;align-items:center;justify-content:center}
+  .iso-inner{transform-style:preserve-3d;transform:rotateX(58deg) rotateZ(-42deg);
+    width:300px;height:300px;position:relative}
+  .iso-layer{position:absolute;inset:0;border-radius:16px;border:1px solid;
+    transition:transform .55s cubic-bezier(.16,1,.3,1),box-shadow .45s,border-color .45s;
+    transform:translateZ(var(--z));
+    background-image:linear-gradient(color-mix(in srgb,var(--c) 8%,transparent),color-mix(in srgb,var(--c) 2%,transparent)),
+      linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);
+    background-size:100% 100%,30px 30px,30px 30px;
+    border-color:color-mix(in srgb,var(--c) 42%,transparent);
+    box-shadow:0 0 34px -14px var(--c)}
+  .iso-layer .tag{position:absolute;top:12px;left:16px;font-family:var(--mono);font-size:11px;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--c)}
+  .iso-layer.lit{border-color:var(--c);box-shadow:0 0 54px -10px var(--c);transform:translateZ(calc(var(--z) + 46px))}
+  .iso-legend{display:flex;flex-direction:column;gap:2px}
+  .iso-legend .r{display:grid;grid-template-columns:12px 1fr;gap:12px;align-items:start;padding:12px 0;
+    border-bottom:1px solid var(--line);cursor:default;transition:.25s}
+  .iso-legend .r:last-child{border-bottom:0}
+  .iso-legend .r:hover{background:rgba(255,255,255,.02)}
+  .iso-legend i{width:12px;height:12px;border-radius:4px;margin-top:5px;
+    background:var(--c);box-shadow:0 0 12px -2px var(--c)}
+  .iso-legend .n{display:block;font-size:13.5px;color:var(--head);font-weight:600}
+  .iso-legend .m{font-family:var(--mono);font-size:11px;color:var(--muted);display:block;margin-top:3px;letter-spacing:.04em}
+
+  footer{position:relative;z-index:2;max-width:1080px;margin:0 auto;padding:60px 40px 80px;
+    border-top:1px solid var(--line);margin-top:40px}
+  footer .fl{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:18px}
+  footer .brand{font-family:var(--serif);font-weight:700;font-size:20px;color:var(--head)}
+  footer .meta{font-family:var(--mono);font-size:11.5px;color:var(--dim);letter-spacing:.08em;text-align:right;line-height:1.9}
+  footer .meta b{color:var(--teal)}
+
+  @media(max-width:520px){.statband{grid-template-columns:1fr}}
+  @media(max-width:820px){
+    main{padding:0 22px}
+    section{padding:82px 0}
+    .grid3,.grid2,.cols3{grid-template-columns:1fr}
+    .statband{grid-template-columns:repeat(2,1fr)}
+    .sec-head{gap:14px;margin-bottom:32px}
+    .lede{margin-top:-16px}
+    .pstep{grid-template-columns:1fr;gap:8px}
+    .pstep .who{justify-self:start}
+    .hbar .row{grid-template-columns:104px 1fr 96px;gap:10px}
+    .hbar .lab{font-size:12px}
+    .spec{font-size:12.5px}
+    .spec td,.spec thead th{padding:10px 8px}
+    .flowh{grid-auto-flow:row;grid-auto-columns:unset;gap:22px}
+    .flowh .fs{text-align:left;padding:0 0 0 30px}
+    .flowh .fs .dot{position:absolute;left:0;top:2px;margin:0}
+    .flowh .fs::before,.flowh .fs::after,.flowh .runner{display:none}
+    .isostack{grid-template-columns:1fr}
+    .iso-scene{height:380px}
+  }
+  /* 窄屏：等轴测方块旋转后投影 ~424px，超出 390px 视口，整体 scale3d 收进来 */
+  @media(max-width:520px){
+    .iso-inner{transform:rotateX(58deg) rotateZ(-42deg) scale3d(.6,.6,.6)}
+    .iso-scene{height:320px}
+  }
+  /* 左→右擦出 */
+  .wipe{clip-path:inset(0 100% 0 0);transition:clip-path 1.5s cubic-bezier(.16,1,.3,1)}
+  .wipe.on{clip-path:inset(0 0 0 0)}
+  /* ══ CHART:svg-common ══ */
+  .svgwrap{width:100%;overflow-x:auto}
+  .svgwrap svg{display:block;width:100%;height:auto}
+  @media(max-width:820px){ .svgwrap svg.wide{min-width:600px} }
+  ::selection{background:rgba(63,224,197,.28);color:#fff}
+  ::-webkit-scrollbar{width:10px}
+  ::-webkit-scrollbar-track{background:var(--bg)}
+  ::-webkit-scrollbar-thumb{background:#1c2430;border-radius:8px;border:2px solid var(--bg)}
+  ::-webkit-scrollbar-thumb:hover{background:var(--teal-d)}
+</style>
+</head>
+<body>
+
+<div class="bg">
+  <div class="grid"></div>
+  <div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
+  <div class="noise"></div>
+</div>
+<div class="progress" id="progress"></div>
+
+<nav class="rail" id="rail">
+  <a href="#hero" data-s="hero"><span class="tick"></span><span class="lbl">概览</span></a>
+  <a href="#chain" data-s="chain"><span class="tick"></span><span class="lbl">业务链</span></a>
+  <a href="#models" data-s="models"><span class="tick"></span><span class="lbl">专用模型</span></a>
+  <a href="#oss" data-s="oss"><span class="tick"></span><span class="lbl">开源地基</span></a>
+  <a href="#market" data-s="market"><span class="tick"></span><span class="lbl">市场竞品</span></a>
+  <a href="#entry" data-s="entry"><span class="tick"></span><span class="lbl">切入点</span></a>
+  <a href="#risk" data-s="risk"><span class="tick"></span><span class="lbl">可行性判断</span></a>
+  <a href="#route" data-s="route"><span class="tick"></span><span class="lbl">建议路线</span></a>
+  <a href="#sources" data-s="sources"><span class="tick"></span><span class="lbl">口径来源</span></a>
+</nav>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero" id="hero">
+    <span class="tag rv"><span class="pulse"></span>内部调研 · Internal Research · 2026-08</span>
+    <h1 class="rv">路桥设计的<br><span class="accent">AI 空位</span>在哪里<span class="cursor"></span></h1>
+    <p class="desc rv">CAD × 经纬坐标 × 路桥设计：<b>专用模型、开源地基、竞品与商业可行性</b>的一次全景摸底。</p>
+    <p class="role rv">// 面向产品决策 · 数据口径 2026-08-12 · 本页 noindex 不入站内索引</p>
+    <div class="ticker rv">
+      <span class="chip"><span class="d"></span>CGCS2000 · 高斯投影</span>
+      <span class="chip"><span class="d b"></span>纬地 · EICAD · 桥博</span>
+      <span class="chip"><span class="d v"></span>DXF / LandXML / IFC 4.3</span>
+      <span class="chip"><span class="d a"></span>RTK · 全站仪放样</span>
+      <span class="chip"><span class="d"></span>LLM AGENT · AI 审图</span>
+    </div>
+    <div class="statband rv">
+      <div class="stat"><div class="v"><span class="cnum" data-v="0">0</span><span class="suf">家</span></div>
+        <div class="l">拿到融资的路桥设计 AI 独立初创<span class="sub">2026-08 检索口径 · 赛道缺位</span></div></div>
+      <div class="stat b"><div class="v"><span class="cnum" data-v="68">0</span><span class="suf">万</span></div>
+        <div class="l">施工端头部 App「测量员」下载量<span class="sub">应用宝 · 免费+模块收费</span></div></div>
+      <div class="stat a"><div class="v"><span class="cnum" data-v="24298">0</span><span class="suf">亿</span></div>
+        <div class="l">2025 公路固定资产投资<span class="sub">同比 −5.7% · 连续两年下行</span></div></div>
+      <div class="stat v2"><div class="v"><span class="cnum" data-v="101.9" data-dec="1">0</span><span class="suf">万人</span></div>
+        <div class="l">全国专职设计人员<span class="sub">2024 · 同比 −5.3%</span></div></div>
+    </div>
+    <div class="scrollcue"><span class="bar"></span>SCROLL / 向下滚动</div>
+  </section>
+
+  <!-- 01 业务链 -->
+  <section id="chain">
+    <div class="sec-head rv">
+      <span class="idx">01</span>
+      <div><span class="eyebrow">Domain Walkthrough</span>
+      <h2>一条路是怎么被设计出来的</h2></div>
+    </div>
+    <p class="lede rv">五段业务链。<strong>经纬坐标在首尾两端都是刚需</strong>，中间全程泡在 CAD 里。</p>
+    <div class="flowh rv">
+      <span class="runner"></span>
+      <div class="fs" style="--c:var(--blue)"><span class="dot"></span><span class="k">01 · 可研</span><span class="t">选线</span><span class="d">在 CGCS2000 地形上比选走廊带，经纬度→工程坐标</span></div>
+      <div class="fs" style="--c:var(--violet)"><span class="dot"></span><span class="k">02 · 设计</span><span class="t">平纵横</span><span class="d">CAD 宿主 + 专业插件（纬地 / EICAD）完成线形与断面</span></div>
+      <div class="fs" style="--c:var(--teal)"><span class="dot"></span><span class="k">03 · 交付</span><span class="t">出图</span><span class="d">DWG 图纸 + 逐桩坐标表 + 工程量清单</span></div>
+      <div class="fs" style="--c:var(--amber)"><span class="dot"></span><span class="k">04 · 施工</span><span class="t">放样</span><span class="d">坐标反算 → 全站仪 / RTK 把设计钉到大地上</span></div>
+      <div class="fs" style="--c:var(--rose)"><span class="dot"></span><span class="k">05 · 收尾</span><span class="t">竣工</span><span class="d">竣工测量、变更归档、资料移交</span></div>
+    </div>
+    <div class="note-band rv">
+      <span class="k">断点</span>
+      <p><b>03 与 04 之间没有数据通道</b>——设计成果锁在桌面软件的私有格式里，施工员靠<b>手工抄录曲线要素</b>进手机和全站仪。坐标系转换（经纬度 ↔ 高斯平面 ↔ 独立坐标系）贯穿两端，是全链条共用的确定性内核。</p>
+    </div>
+  </section>
+
+  <!-- 02 专用模型 -->
+  <section id="models">
+    <div class="sec-head rv">
+      <span class="idx">02</span>
+      <div><span class="eyebrow">Specialized AI Models</span>
+      <h2>专用模型：都停在哪一格</h2></div>
+    </div>
+    <p class="lede rv">把查到的系统放到「交付深度 × 可获得性」两轴上，<strong>右上角是空的</strong>——施工图级且买得到的产品，全球没有。</p>
+    <div class="rv">
+      <div class="ctitle">路桥 AI 系统全景定位</div>
+      <div class="cunit">横轴 = 交付深度 · 纵轴 = 可获得性 · 2026-08 调研口径</div>
+      <div class="svgwrap">
+        <svg class="wide" viewBox="0 0 556 392" data-quad role="img" aria-label="四象限散点图：可购买的商业产品停在方案级；施工图级系统全部锁在央企设计院内部；施工图级且可购买的右上象限为空">
+          <rect class="qd-tint" x="295" y="30" width="235" height="160" fill="var(--ok)"/>
+          <rect class="qd-tint" x="60" y="30" width="235" height="160" fill="var(--blue)"/>
+          <rect class="qd-tint" x="295" y="190" width="235" height="160" fill="var(--warn)"/>
+          <rect class="qd-tint" x="60" y="190" width="235" height="160" fill="var(--ser-8)"/>
+          <rect x="299" y="34" width="227" height="152" rx="8" fill="none" stroke="var(--ok)" stroke-width="1.2" stroke-dasharray="7 5" opacity=".55"/>
+          <line class="qd-axis" x1="60" y1="190" x2="530" y2="190"/>
+          <line class="qd-axis" x1="295" y1="30" x2="295" y2="350"/>
+          <text class="qd-qn" x="522" y="50" text-anchor="end" fill="var(--ok)">空位 · 想买买不到</text>
+          <text class="qd-qn" x="68" y="50" fill="var(--blue)">可买 · 停在方案级</text>
+          <text class="qd-qn" x="522" y="342" text-anchor="end" fill="var(--warn)">存在 · 锁在央企内部</text>
+          <text class="qd-qn" x="68" y="342" fill="var(--ser-8)">原型 / 文档级</text>
+          <text class="ax-txt lit" x="530" y="374" text-anchor="end">交付深度：方案级 → 施工图级</text>
+          <text class="ax-txt lit" x="60" y="22">↑ 可获得性：内部封闭 → 可购买 / 可接入</text>
+          <g class="qd-pts">
+            <circle class="qd-pt" cx="215" cy="94" r="7" fill="var(--ser-1)"/><text class="pt-lbl" x="229" y="98">Trimble Quantm</text>
+            <circle class="qd-pt" cx="268" cy="72" r="7" fill="var(--ser-1)"/><text class="pt-lbl" x="252" y="60" text-anchor="end">Civil 3D AI 功能族</text>
+            <circle class="qd-pt" cx="245" cy="137" r="7" fill="var(--ser-1)"/><text class="pt-lbl" x="231" y="141" text-anchor="end">Bentley Copilot</text>
+            <circle class="qd-pt" cx="248" cy="158" r="7" fill="var(--ser-1)"/><text class="pt-lbl" x="234" y="162" text-anchor="end">华设 AIRoad</text>
+            <circle class="qd-pt" cx="270" cy="214" r="7" fill="var(--ser-1)"/><text class="pt-lbl" x="284" y="218">广联达数维道路</text>
+            <polygon class="qd-pt" points="445,272 453,286 437,286" fill="var(--ser-5)"/><text class="pt-lbl" x="431" y="284" text-anchor="end">中交 RD-Agent</text>
+            <polygon class="qd-pt" points="408,246 416,260 400,260" fill="var(--ser-5)"/><text class="pt-lbl" x="394" y="243" text-anchor="end">交科「交融」智能体</text>
+            <polygon class="qd-pt" points="351,297 359,311 343,311" fill="var(--ser-5)"/><text class="pt-lbl" x="365" y="309">云南交投 AI 审图</text>
+            <polygon class="qd-pt" points="163,265 171,279 155,279" fill="var(--ser-5)"/><text class="pt-lbl" x="177" y="277">隧道股份「通达」</text>
+            <rect class="qd-pt" x="186" y="222" width="12" height="12" fill="var(--ser-3)"/><text class="pt-lbl" x="206" y="232">BridgeGPT</text>
+            <rect class="qd-pt" x="214" y="299" width="12" height="12" fill="var(--ser-3)"/><text class="pt-lbl" x="234" y="309">RL 选线（论文）</text>
+          </g>
+        </svg>
+      </div>
+      <div class="legend">
+        <span style="color:var(--ser-1)">● 商业产品</span>
+        <span style="color:var(--ser-5)">▲ 央企 / 设计院自研</span>
+        <span style="color:var(--ser-3)">■ 学术原型</span>
+      </div>
+      <p class="chart-note">// 纬地「智能布线」为规则自动化而非 AI，未入图 · 定位为调研判断，深度轴按公开宣称的交付物评估</p>
+    </div>
+    <div class="rv" style="margin-top:44px;overflow-x:auto">
+      <table class="spec">
+        <thead><tr><th>系统</th><th>主体 · 能力</th><th>状态</th><th>证据</th></tr></thead>
+        <tbody>
+          <tr><td>Bentley Copilot</td><td>OpenRoads 内嵌 AI：工作流引导、场地平整优化、图纸自动标注；另押注 MCP 开放 agent 接口</td><td class="mono">GA / 2026 初</td><td><span class="ev a">A</span></td></tr>
+          <tr><td>Civil 3D AI 族</td><td>Autodesk：平整优化、ADA/AASHTO 规范检查助手、点云线形回归识别（本地 ML）</td><td class="mono">GA</td><td><span class="ev a">A</span></td></tr>
+          <tr><td>Trimble Quantm</td><td>选线寻优标杆：生成数百万备选线位返回 10–50 条最优。启发式优化而非 ML，商用 20+ 年</td><td class="mono">GA</td><td><span class="ev a">A</span></td></tr>
+          <tr><td>华设 AIRoad</td><td>狄诺尼（EICAD 系）：AI 三维快速方案设计，宣称方案效率 ×7–8。停在工可 / 投标深度</td><td class="mono">商用 · 方案级</td><td><span class="ev b">B</span></td></tr>
+          <tr><td>中交 RD-Agent</td><td>中交一公院：「大模型 + 最优化」路线设计自主决策，宣称可产出与修改图纸。不对外销售</td><td class="mono">内部试点</td><td><span class="ev b">B</span></td></tr>
+          <tr><td>「交融」大模型</td><td>中国交科集团：BIM 多模态数据集 + 自研大模型，设计理解→模型生成→合规审查，2327 类构件</td><td class="mono">多项目落地</td><td><span class="ev a">A</span></td></tr>
+          <tr><td>云南「绿美通道」</td><td>云南交投：唯一公开宣称覆盖<b>公路施工图智能审查</b>的系统，业主自用不外卖</td><td class="mono">内部 30+ 应用</td><td><span class="ev a">A</span></td></tr>
+          <tr><td>AI 审图厂商</td><td>万翼 / 品览：全在房建五大专业，<b>市政路桥模块缺位</b>——明确的产品空位</td><td class="mono">未覆盖路桥</td><td><span class="ev b">B</span></td></tr>
+          <tr><td>学术界</td><td>RL 选线（铁路为主）、BridgeGPT、桥梁截面生成——论文原型，无设计院工作流验证</td><td class="mono">论文阶段</td><td><span class="ev a">A</span></td></tr>
+          <tr><td>LLM+CAD 通用研究</td><td>DeepCAD → Text2CAD → CAD-MLLM：停在机械零件级几何，无规范约束与线形语义</td><td class="mono">离工程可用 ≥2–3 年</td><td><span class="ev a">A</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="band rv">
+      <span class="k">为什么右上角是空的</span>
+      <p>没有公开的路桥图纸 / BIM 训练集，<b>数据全在握有几十年图纸库的央企设计院手里</b>——所以落地形态是「设计院自研 agent」而不是「通用大模型下沉」。可行架构已被两边验证：<b>LLM 调专业 CAD 内核</b>（中交 RD-Agent、Bentley MCP agent），而不是让模型直接吐图。</p>
+    </div>
+  </section>
+
+  <!-- 03 开源地基 -->
+  <section id="oss">
+    <div class="sec-head rv">
+      <span class="idx">03</span>
+      <div><span class="eyebrow">Open-Source Foundation</span>
+      <h2>开源地基：能站上去的有多厚</h2></div>
+    </div>
+    <p class="lede rv">好消息：<strong>几何、坐标、文件格式三层已经成熟可商用</strong>。坏消息：规范层是荒地——而那正是商业软件的护城河。</p>
+    <div class="isostack rv">
+      <div class="iso-scene">
+        <div class="iso-inner">
+          <div class="iso-layer" data-layer="0" style="--c:var(--teal);--z:0px"><span class="tag">L0 坐标</span></div>
+          <div class="iso-layer" data-layer="1" style="--c:var(--blue);--z:52px"><span class="tag">L1 线形</span></div>
+          <div class="iso-layer" data-layer="2" style="--c:var(--violet);--z:104px"><span class="tag">L2 格式</span></div>
+          <div class="iso-layer" data-layer="3" style="--c:var(--amber);--z:156px"><span class="tag">L3 结构</span></div>
+          <div class="iso-layer" data-layer="4" style="--c:var(--rose);--z:208px"><span class="tag">L4 规范</span></div>
+        </div>
+      </div>
+      <div class="iso-legend">
+        <div class="r" data-lit="4" style="--c:var(--rose)"><i></i><div><span class="n">L4 · 规范与工作流 —— 空白</span><span class="m">JTG 校核 · 放样测设 · 横断面 → 全部要自己长</span></div></div>
+        <div class="r" data-lit="3" style="--c:var(--amber)"><i></i><div><span class="n">L3 · 结构验算</span><span class="m">PYNITE(MIT) · OPENSEES(禁商用) · WSDOT BRIDGELINK</span></div></div>
+        <div class="r" data-lit="2" style="--c:var(--violet)"><i></i><div><span class="n">L2 · 文件格式</span><span class="m">EZDXF · DXF-VIEWER · IFCOPENSHELL 4.3 ALIGNMENT</span></div></div>
+        <div class="r" data-lit="1" style="--c:var(--blue)"><i></i><div><span class="n">L1 · 线形几何</span><span class="m">CLOTHOIDS · LIBOPENDRIVE · ESMINI ROADMANAGER</span></div></div>
+        <div class="r" data-lit="0" style="--c:var(--teal)"><i></i><div><span class="n">L0 · 坐标系统</span><span class="m">PROJ · GEOGRAPHICLIB · CGCS2000 / 高斯 / 七参数</span></div></div>
+      </div>
+    </div>
+    <p class="chart-note rv">// hover 图例可分层 · L0–L2 全部 MIT / Apache / MPL 可商用 · star/license/活跃度 2026-08-12 经 GitHub API 实查</p>
+    <div class="rv" style="margin-top:44px;overflow-x:auto">
+      <table class="spec">
+        <thead><tr><th>Repo</th><th>定位</th><th>Stars · License</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr><td>OSGeo/PROJ · pyproj</td><td>坐标转换权威库，内置 CGCS2000 / 高斯-克吕格各 EPSG 带、七参数</td><td class="mono">2,005 · MIT 式</td><td class="mono">活跃</td></tr>
+          <tr><td>geographiclib</td><td>大地主题正反算最高精度实现（Karney 算法）</td><td class="mono">469 · MIT</td><td class="mono">活跃</td></tr>
+          <tr><td>ebertolazzi/Clothoids</td><td>C++ 回旋曲线库，G1/G2 拟合，学术级精度，事实标准（配 pyclothoids）</td><td class="mono">152 · BSD 式</td><td class="mono">活跃</td></tr>
+          <tr><td>pageldev/libOpenDRIVE</td><td>轻量 OpenDRIVE 内核：参考线 + 车道 + s/t 坐标系求值，可编译 WASM 进浏览器</td><td class="mono">505 · Apache-2.0</td><td class="mono">活跃</td></tr>
+          <tr><td>esmini（RoadManager）</td><td>可独立复用的道路线形模块，独立 CMake target + Python 绑定</td><td class="mono">937 · MPL-2.0</td><td class="mono">活跃</td></tr>
+          <tr><td>pyoscx/scenariogeneration</td><td>Python 程序化生成 OpenDRIVE 平 / 纵 / 车道，能写 xodr——证明代码生成合规线形可行</td><td class="mono">379 · MPL-2.0</td><td class="mono">活跃</td></tr>
+          <tr><td>mozman/ezdxf</td><td>Python DXF 读写事实标准</td><td class="mono">1,401 · MIT</td><td class="mono">活跃</td></tr>
+          <tr><td>vagran/dxf-viewer</td><td>最能打的 Web DXF 查看器（WebGL 自带解析），拿来即可做图纸预览</td><td class="mono">572 · MPL-2.0</td><td class="mono">活跃</td></tr>
+          <tr><td>LibreDWG</td><td>唯一活跃的自由 DWG 库——<b>GPL-3.0 传染是硬约束</b>，闭源产品只能 DWG→DXF 预转换或买 ODA</td><td class="mono">1,528 · GPL-3.0</td><td class="mono">活跃</td></tr>
+          <tr><td>IfcOpenShell</td><td>内置 <code>api.alignment</code> 模块（15+ 平/纵/超高 segment API），可编程产出 IFC 4.3 公路 alignment</td><td class="mono">2,703 · LGPL-3.0</td><td class="mono">活跃</td></tr>
+          <tr><td>ThatOpen/engine_web-ifc</td><td>WASM IFC 内核，已含 IFC4X3 schema，浏览器可消费</td><td class="mono">1,008 · MPL-2.0</td><td class="mono">活跃</td></tr>
+          <tr><td>JWock82/Pynite</td><td>3D 梁系有限元（Python），适合嵌入产品做常规验算</td><td class="mono">724 · MIT</td><td class="mono">活跃</td></tr>
+          <tr><td>OpenSees / OpenSeesPy</td><td>桥梁抗震分析主力——<b>伯克利自定义条款禁直接商用</b>，产品化需授权</td><td class="mono">796 · 非商用</td><td class="mono">活跃</td></tr>
+          <tr><td>WSDOT/BridgeLink</td><td>华盛顿州交通厅官方桥梁设计套件：规范化梁桥设计+验算业务逻辑开源，惜绑 AASHTO 美标</td><td class="mono">14 · 自定义开源</td><td class="mono">生产在用</td></tr>
+          <tr><td>HakanSeven12/Road</td><td>FreeCAD Road workbench（Trails 停更后的活跃后继）——一人维护，离平纵横联动交互差一个量级</td><td class="mono">46 · LGPL-2.1</td><td class="mono">活跃 · 单人</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="grid2 stagger" style="margin-top:16px">
+      <div class="colbox ship">
+        <h4><span class="st">READY</span>能直接站上去的</h4>
+        <ul>
+          <li><b>线形几何内核</b>：Clothoids + libOpenDRIVE / RoadManager，还能 WASM 进浏览器</li>
+          <li><b>坐标系统</b>：PROJ + GeographicLib，中国坐标系全覆盖</li>
+          <li><b>DXF 全链路</b>：读写 + Web 渲染，MIT / MPL</li>
+          <li><b>IFC 4.3 交付</b>：alignment API 已能程序化出成果</li>
+          <li><b>验算引擎</b>：Pynite；业务逻辑参考 BridgeLink</li>
+        </ul>
+      </div>
+      <div class="colbox hard">
+        <h4><span class="st">VOID</span>完全空白 · 要自己长的</h4>
+        <ul>
+          <li><b>JTG 规范校核</b>：超高过渡、视距、平纵组合——开源实现为零</li>
+          <li><b>横断面工程化</b>：边坡 / 路基 / 排水 / 土方参数化装配，无任何项目</li>
+          <li><b>桥梁参数化建模</b>：沿线形按里程布墩布跨，全是课程作业</li>
+          <li><b>施工放样 / 逐桩坐标</b>：测设工具链没有开源沉淀</li>
+          <li><b>中文生态整体缺席</b>：中文小仓几乎全部无 license、停更，法律上不可复用</li>
+        </ul>
+      </div>
+    </div>
+    <div class="band rv">
+      <span class="k">结论</span>
+      <p>开源地基把「几何 + 坐标 + 格式」这三层<b>白送了</b>——自研成本从一支团队降到一个内核工程师。真正要投入的是 L4：<b>JTG 规范逻辑与中文工作流</b>，而这层恰好也是竞品的护城河与用户的付费点。</p>
+    </div>
+  </section>
+
+  <!-- 04 市场竞品 -->
+  <section id="market">
+    <div class="sec-head rv">
+      <span class="idx">04</span>
+      <div><span class="eyebrow">China Market Landscape</span>
+      <h2>中国市场：三个数量级的价格断崖</h2></div>
+    </div>
+    <p class="lede rv">设计端是<strong>双寡头 + 加密狗</strong>的老市场，施工端是<strong>几十元客单价</strong>的长尾市场——中间隔着三个数量级的空档。</p>
+    <div class="rv">
+      <div class="ctitle">各价位带现役产品客单价</div>
+      <div class="cunit">条宽按数量级示意（近似对数） · 定价年份见右列</div>
+      <div class="hbar" data-hbar>
+        <div class="row"><span class="lab">桥梁有限元（Midas 商用）</span><span class="track"><span class="fill dim" data-w="100"></span></span><span class="val">数十万级<span class="u"> C·待核</span></span></div>
+        <div class="row"><span class="lab">路线插件（纬地数模版）</span><span class="track"><span class="fill" data-w="76"></span></span><span class="val">¥69,800<span class="u"> A·26-08</span></span></div>
+        <div class="row"><span class="lab">路线插件（纬地标准版）</span><span class="track"><span class="fill" data-w="66"></span></span><span class="val">¥29,800<span class="u"> A·26-08</span></span></div>
+        <div class="row"><span class="lab">国产 CAD（中望永久授权）</span><span class="track"><span class="fill" data-w="54"></span></span><span class="val">¥10,998<span class="u"> C+·25-05</span></span></div>
+        <div class="row"><span class="lab">设计订阅（纬地 HintWY）</span><span class="track"><span class="fill warn" data-w="30"></span></span><span class="val">¥1,380–1,880/年<span class="u"> A</span></span></div>
+        <div class="row"><span class="lab">施工 App（工程测量大师）</span><span class="track"><span class="fill warn" data-w="8"></span></span><span class="val">¥30–45 买断<span class="u"> A</span></span></div>
+      </div>
+      <p class="chart-note">// <b>百元–千元/年的订阅带几乎无人占位</b>——纬地 HintWY 是设计端仅有的试水 · 施工端已验证有真实付费</p>
+    </div>
+    <div class="rv" style="margin-top:44px;overflow-x:auto">
+      <table class="spec">
+        <thead><tr><th>产品</th><th>定位 · 格局</th><th>定价</th><th>证据</th></tr></thead>
+        <tbody>
+          <tr><td>纬地 HintCAD v9</td><td>公路路线 / 互通设计双寡头之一，AutoCAD + 中望双宿主</td><td class="mono">¥2.98–6.98 万/节点</td><td><span class="ev a">A</span></td></tr>
+          <tr><td>EICAD 5.0</td><td>双寡头另一极（狄诺尼 / 华设系），宣称 SaaS 化服务 1000+ 设计院</td><td class="mono">未公开</td><td><span class="ev b">B</span><span class="ev x" style="margin-left:5px">待验证</span></td></tr>
+          <tr><td>鸿业 → 数维道路</td><td>市政道路老牌，广联达 2020 年 4.08 亿收购；数维走国产 BIM 正向设计</td><td class="mono">未公开</td><td><span class="ev a">A</span></td></tr>
+          <tr><td>海地 HARD</td><td>老牌公路优化设计，声量下滑</td><td class="mono">未公开</td><td><span class="ev c">C</span></td></tr>
+          <tr><td>Civil 3D / OpenRoads</td><td>在华路桥施工图非主流；CNCCBIM OpenRoads 中国版免费试用，BIM 示范项目主力</td><td class="mono">中国区未公开</td><td><span class="ev b">B</span></td></tr>
+          <tr><td>桥梁博士 V5 / Midas</td><td>桥梁计算双雄，设计院两套并用（桥博算、Midas 验）——没有一家端到端</td><td class="mono">数万–数十万 · 锁</td><td><span class="ev c">C</span></td></tr>
+          <tr><td>测量员 App</td><td>施工放样头部：68 万下载，免费圈量 + 隧道/地铁模块收费</td><td class="mono">免费 + 模块</td><td><span class="ev a">A</span></td></tr>
+          <tr><td>工程测量大师</td><td>测量计算器；差评集中在「计算不准、无法导出」——质量即机会</td><td class="mono">¥30–45 买断</td><td><span class="ev a">A</span></td></tr>
+          <tr><td>中望 CAD</td><td>国产平台换血入口：纬地 / EICAD 均已适配；信创 + 正版化双驱动</td><td class="mono">¥10,998 永久</td><td><span class="ev c">C+</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="grid2 stagger" style="margin-top:16px">
+      <div class="cell">
+        <span class="ico b"><svg viewBox="0 0 24 24"><path d="M4 20V9.5M9.3 20V4.5M14.7 20v-8M20 20v-13"/></svg></span>
+        <h3>设计端：关系型采购，窗口关闭</h3>
+        <p>路线「纬地 vs EICAD」、桥梁「桥博 + Midas」，加密狗模式二十年未变。新玩家直接卖桌面软件给设计院<b>基本没有入场资格</b>。</p>
+      </div>
+      <div class="cell">
+        <span class="ico a"><svg viewBox="0 0 24 24"><rect x="6" y="2.5" width="12" height="19" rx="2.6"/><path d="M10.6 5.4h2.8"/><circle cx="12" cy="18" r="1"/></svg></span>
+        <h3>施工端：长尾但真付费</h3>
+        <p>「几十万下载 × 几十元客单」的市场。测量员验证了<b>免费圈量 + 按工程类型模块收费</b>；头部之外产品普遍算不准。</p>
+      </div>
+      <div class="cell">
+        <span class="ico"><svg viewBox="0 0 24 24"><path d="M6.5 12h11M6.5 12a5.5 5.5 0 0 1 5.5-5.5h5.5M6.5 12a5.5 5.5 0 0 0 5.5 5.5h5.5"/><circle cx="4.3" cy="12" r="2"/><circle cx="19.4" cy="6.5" r="2"/><circle cx="19.4" cy="17.5" r="2"/></svg></span>
+        <h3>平台层：国产替代正在换血</h3>
+        <p>AutoCAD 律师函维权常态化 + 信创，让「中望 / 浩辰 + 国产插件」成为可采购现实；但插件生态适配<b>滞后宿主 1–2 代</b>。</p>
+      </div>
+      <div class="cell">
+        <span class="ico v"><svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.3"/><path d="M15.4 15.4l5 5"/></svg></span>
+        <h3>AI 新势力：独立创业公司缺位</h3>
+        <p>建筑领域有小库、品览，路桥领域<b>零家独立初创拿到融资</b>——AI 化被华设、中交等设计院系内部孵化垄断。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 切入点 -->
+  <section id="entry">
+    <div class="sec-head rv">
+      <span class="idx">05</span>
+      <div><span class="eyebrow">Product Entry Points</span>
+      <h2>五个切入点，面向施工员和个人设计师</h2></div>
+    </div>
+    <p class="lede rv">共同原则：<strong>避开设计端正面战场</strong>，从巨头不屑做、设计院系做不好的位置进。</p>
+    <div class="grid3 stagger">
+      <div class="cell">
+        <span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><path d="M12 3.4v4M12 16.6v4M3.4 12h4M16.6 12h4"/><circle cx="12" cy="12" r="1.6"/></svg></span>
+        <h3><span class="m">E1 · 放样工具</span>专业级测量放样 App</h3>
+        <p>头部之外差评集中在「算不准、导不出」；桥梁高墩、钢构安装等高价值模块空白。以<b>计算正确性 + 规范条文溯源</b>立品牌。</p>
+        <span class="model">免费圈量 + 模块收费（已验证）</span>
+      </div>
+      <div class="cell">
+        <span class="ico b"><svg viewBox="0 0 24 24"><rect x="2.8" y="4" width="8.4" height="10" rx="1.6"/><rect x="14.4" y="12" width="6.8" height="8.5" rx="1.8"/><path d="M11.2 9h3.2a3 3 0 0 1 3 3v0"/><path d="M15.6 10.2 17.4 12l-1.8 1.8"/></svg></span>
+        <h3><span class="m">E2 · 数据直通</span>设计文件一键上手机</h3>
+        <p>解析 DXF / LandXML / 纬地 EICAD 导出成果 → 云端 → 手机放样。<b>两端厂商都没跨这条沟</b>，施工员还在手抄曲线要素。</p>
+        <span class="model">按项目收费 · 中间层</span>
+      </div>
+      <div class="cell">
+        <span class="ico v"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg></span>
+        <h3><span class="m">E3 · 生态填缝</span>国产 CAD 细分插件</h3>
+        <p>中望生态里路线双雄已入驻，但排水、交安、征拆图表、工程量清单等<b>长尾细分稀疏</b>。跟着信创换血潮进场，渠道成本低。</p>
+        <span class="model">生态分发 · 插件订阅</span>
+      </div>
+    </div>
+    <div class="grid2 stagger" style="margin-top:16px">
+      <div class="cell">
+        <span class="ico a"><svg viewBox="0 0 24 24"><path d="M3.5 18.5h17M5.5 18.5v-5a6.5 6.5 0 0 1 13 0v5"/><path d="M8.2 13.5v5M12 12v6.5M15.8 13.5v5"/></svg></span>
+        <h3><span class="m">E4 · 计算云</span>轻量桥涵计算云服务</h3>
+        <p>桥博 / Midas 是数万级加密锁，裁员潮下接私活的设计师只能用破解版。<b>常规梁桥 / 涵洞验算是 AI + 规范库最可行的自动化对象</b>，千元级年订无人做。</p>
+        <span class="model">云端订阅 · 天然防盗版</span>
+      </div>
+      <div class="cell">
+        <span class="ico r"><svg viewBox="0 0 24 24"><path d="M20.5 12.6c0 3.9-3.8 7-8.5 7-1 0-2-.15-2.9-.42L4.5 20.5l1.3-3.4A6.7 6.7 0 0 1 3.5 12.6c0-3.9 3.8-7 8.5-7s8.5 3.1 8.5 7z"/><path d="M8.5 11.2h7M8.5 14h4.5"/></svg></span>
+        <h3><span class="m">E5 · AI 助手</span>施工技术交底 / 规范问答</h3>
+        <p>施工端 App 全部止步于「计算器」；规范查询、交底生成、变更台账是 <b>LLM 现成场景</b>，且可挂靠 E1 已有的下载量渠道卖第二件产品。</p>
+        <span class="model">LLM 增值层 · 订阅</span>
+      </div>
+    </div>
+    <div class="band rv">
+      <span class="k">与 02 章空位的关系</span>
+      <p>E1–E3 是<b>确定性工具</b>（坐标转换、线形反算、图表生成——代码能答的不用模型）；E4–E5 才是 AI 层。先用工具挣现金流和渠道，再把 AI 空位（市政审图、桥涵计算 agent）压上去。</p>
+    </div>
+  </section>
+
+  <!-- 06 可行性判断 -->
+  <section id="risk">
+    <div class="sec-head rv">
+      <span class="idx">06</span>
+      <div><span class="eyebrow">Commercial Feasibility</span>
+      <h2>商业上有没有可能：有，但不在卖设计软件</h2></div>
+    </div>
+    <p class="lede rv">行业分母在缩，但<strong>施工端相对抗周期</strong>，个人付费已被验证，正版化在制造换血预算。</p>
+    <div class="cols3 stagger">
+      <div class="colbox ship">
+        <h4><span class="st">TAILWIND</span>结构性利好</h4>
+        <ul>
+          <li>施工 / 运维端<b>相对抗周期</b>（存量路网仍要养护放样）</li>
+          <li>正版化律师函 + 信创 → 设计院有真实换血预算</li>
+          <li>个人付费已验证：¥30–45 买断有真实付费记录</li>
+          <li>政策强推：2024 起新开工国家高速原则上交 BIM 成果</li>
+          <li>AI 审图在市政路桥是<b>公认空位</b>（房建厂商未覆盖）</li>
+        </ul>
+      </div>
+      <div class="colbox wip">
+        <h4><span class="st">CONSTRAINT</span>关键约束</h4>
+        <ul>
+          <li>只有<b>云端计算 / 账号订阅</b>形态能在盗版环境自保</li>
+          <li>个人端客单价被盗版锚死在几十元，走量不走价</li>
+          <li>设计端入场资格 = 院所渊源，外来者只能做生态位</li>
+          <li>测量场景对<b>计算正确性零容忍</b>——错一次口碑归零</li>
+          <li>关键竞品定价多未公开，测算需实地询价补全</li>
+        </ul>
+      </div>
+      <div class="colbox hard">
+        <h4><span class="st">RISK</span>三大风险</h4>
+        <ul>
+          <li><b>盗版天花板</b>：从 3 万的纬地到 45 元的 App 全链条有公开破解版，桌面交付 3–6 个月必破</li>
+          <li><b>行业下行</b>：公路固投连续两年负增长（−5.7%），设计企业 −3.1%、从业者 −5.2%</li>
+          <li><b>巨头下探</b>：广联达（收鸿业）、华设（狄诺尼）、中交设计（OSIS）三组「巨头 + 设计院系」向平台化下探</li>
+        </ul>
+      </div>
+    </div>
+    <div class="quote rv">
+      <b>判断：</b>中国市场有商业可能，但可防御位置不在「卖设计软件」——在<b>施工端长尾 + 个人云端订阅</b>。以设计院为付费方是在跟一个萎缩的分母抢钱；以施工员和个人工程师为付费方，是在一个盗版打不到的形态里做已被验证的生意。
+    </div>
+  </section>
+
+  <!-- 07 建议路线 -->
+  <section id="route">
+    <div class="sec-head rv">
+      <span class="idx">07</span>
+      <div><span class="eyebrow">Suggested Route · If We Build</span>
+      <h2>如果要做：先工具，后 AI</h2></div>
+    </div>
+    <p class="lede rv">六步递进，每一步自带现金流验证，<strong>不赌终局</strong>。</p>
+    <div class="pipe rv">
+      <div class="flowdot"></div>
+      <div class="pstep" style="--who:var(--blue)">
+        <span class="who">P1<br>滩头</span>
+        <span class="txt">做<b>施工放样工具</b>（E1）切入：复用测量员验证过的「免费圈量 + 模块收费」，以算得准立品牌</span>
+      </div>
+      <div class="pstep" style="--who:var(--violet)">
+        <span class="who">P2<br>内核</span>
+        <span class="txt">沉淀<b>坐标 + 线形引擎</b>：CGCS2000 / 高斯投影 / 七参数转换 + 平纵横线形反算，站在开源地基上（见 03 章）</span>
+      </div>
+      <div class="pstep" style="--who:var(--teal)">
+        <span class="who">P3<br>直通</span>
+        <span class="txt">打通<b>设计→施工数据通道</b>（E2）：解析 DXF / LandXML / 纬地 EICAD 导出 → 云端项目空间 → 手机与全站仪</span>
+      </div>
+      <div class="pstep" style="--who:var(--amber)">
+        <span class="who">P4<br>商业化</span>
+        <span class="txt">全线走<b>云端订阅 + 账号体系</b>：计算在服务端，防盗版是形态问题不是法务问题</span>
+      </div>
+      <div class="pstep" style="--who:var(--blue)">
+        <span class="who">P5<br>上探</span>
+        <span class="txt">用同一内核反向做<b>中望 / 浩辰生态插件</b>（E3）：排水、交安、清单等长尾细分，吃信创换血红利</span>
+      </div>
+      <div class="pstep" style="--who:var(--rose)">
+        <span class="who">P6<br>AI 长线</span>
+        <span class="txt">数据与渠道就位后压上 <b>AI 层</b>（E4 / E5）：桥涵计算 agent、市政审图空位、施工规范问答</span>
+      </div>
+    </div>
+    <p class="pipe-note rv">// 取向：<b>确定性判断交给代码，模糊判断才交给模型</b>——坐标转换和线形反算永远不该让 LLM 算。</p>
+  </section>
+
+  <!-- 08 口径来源 -->
+  <section id="sources">
+    <div class="sec-head rv">
+      <span class="idx">08</span>
+      <div><span class="eyebrow">Sources &amp; Caveats</span>
+      <h2>口径与主要来源</h2></div>
+    </div>
+    <p class="lede rv">证据分档：<span class="ev a">A</span> 官网 / 官方文档 · <span class="ev b">B</span> 多个独立来源 · <span class="ev c">C</span> 单一二手来源 · <span class="ev x">待验证</span> 未能核实。</p>
+    <div class="rv" style="overflow-x:auto">
+      <table class="spec">
+        <thead><tr><th>事实</th><th>来源</th><th>档</th></tr></thead>
+        <tbody>
+          <tr><td>「交融」大模型能力口径</td><td>交通运输部《综合交通运输大模型智能体创新应用典型案例（第一批）》2025-12，官方 PDF 原文核验</td><td class="mono">A</td></tr>
+          <tr><td>纬地全系报价</td><td>纬地官网报价页（hintcad.com/index.php/price.html），2026-08 抓取</td><td class="mono">A</td></tr>
+          <tr><td>公路固投 24,298 亿（−5.7%）</td><td>交通运输部《2025 年交通运输行业发展统计公报》</td><td class="mono">A</td></tr>
+          <tr><td>设计企业 / 从业者双降</td><td>住建部《2024 年全国工程勘察设计统计公报》（多方转载）</td><td class="mono">B</td></tr>
+          <tr><td>Bentley / Autodesk AI 功能</td><td>bentley.com 官方新闻与博客、Autodesk 官方 What's New 与 AEC 博客</td><td class="mono">A</td></tr>
+          <tr><td>施工 App 付费与口碑</td><td>App Store / 应用宝官方页（测量员、工程测量大师），2026-08 抓取</td><td class="mono">A</td></tr>
+          <tr><td>中交 RD-Agent、华设 AIRoad</td><td>上证报 / 财联社 / 省交通厅转载等多源交叉（官网正文未能直接抓取）</td><td class="mono">B</td></tr>
+          <tr><td>Midas 等桥梁软件价格</td><td>知乎从业者讨论（2019–2023），非官方——测算前需实地询价</td><td class="mono">C</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note-band rv">
+      <span class="k">时效</span>
+      <p>定价、版本号、投资数据引用超过 <b>30 天</b>须重新核验；标 <b>C / 待验证</b> 的条目（Midas、EICAD、海地、Civil 3D 中国区定价）不可直接进商业测算。</p>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="fl">
+    <span class="brand">路桥 × CAD × AI <span style="color:var(--teal)">/</span> 产品机会调研</span>
+    <span class="meta">内部决策参考 · noindex 半私密页<br><b>upio.ai/internal/cad-road-bridge-2026-08</b></span>
+  </div>
+</footer>
+
+<script>
+  /* ══ 关动画开关：?anim=off 等价于 <html data-anim="off"> ══ */
+  if(new URLSearchParams(location.search).get('anim') === 'off')
+    document.documentElement.dataset.anim = 'off';
+  if(new URLSearchParams(location.search).get('shot') === '1')
+    document.documentElement.dataset.shot = '1';
+  const ANIM_OFF = document.documentElement.dataset.anim === 'off'
+    || matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(ANIM_OFF) addEventListener('load', () =>
+    document.querySelectorAll('svg').forEach(s => s.pauseAnimations?.()));
+
+  /* ══ 滚动进度条 ══ */
+  const prog = document.getElementById('progress');
+  const onScroll = () => {
+    const h = document.documentElement;
+    prog.style.width = (h.scrollTop / (h.scrollHeight - h.clientHeight) * 100) + '%';
+  };
+  document.addEventListener('scroll', onScroll, {passive:true}); onScroll();
+
+  /* ══ 逐段 reveal（IO 主触发 + 滚动兜底）══ */
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); }
+  }), {threshold:.16, rootMargin:'0px 0px -8% 0px'});
+  if(ANIM_OFF) document.querySelectorAll('.rv,.stagger').forEach(el => el.classList.add('in'));
+  else document.querySelectorAll('.rv,.stagger').forEach(el => io.observe(el));
+
+  const revealPast = () => {
+    document.querySelectorAll('.rv:not(.in),.stagger:not(.in)').forEach(el => {
+      if(el.getBoundingClientRect().top < innerHeight * .9){ el.classList.add('in'); io.unobserve(el); }
+    });
+  };
+  document.addEventListener('scroll', revealPast, {passive:true});
+  revealPast(); addEventListener('load', revealPast);
+
+  addEventListener('load', () => document.querySelectorAll('#hero .rv')
+    .forEach((el,i) => setTimeout(() => el.classList.add('in'), 120 + i*110)));
+
+  /* ══ 统一「进视口触发」范式：IO → rAF → setTimeout 兜底 ══ */
+  const PENDING = [];
+  function onEnter(sel, fn, threshold = .25){
+    const o = new IntersectionObserver(es => es.forEach(e => {
+      if(e.isIntersecting) fire(e.target);
+    }), {threshold});
+    document.querySelectorAll(sel).forEach(el => {
+      if(ANIM_OFF){ fn(el, true); return; }
+      PENDING.push([el, fn, o]); o.observe(el);
+    });
+  }
+  function fire(el){
+    const i = PENDING.findIndex(x => x[0] === el);
+    if(i < 0) return;
+    const [, fn, o] = PENDING.splice(i, 1)[0];
+    o.unobserve(el); fn(el, false);
+  }
+  const settle = () => {
+    for(const [el] of [...PENDING])
+      if(el.getBoundingClientRect().top < innerHeight * .9) fire(el);
+  };
+  addEventListener('scroll', settle, {passive:true});
+  addEventListener('load', settle);
+
+  /* ══ count-up 大数字 ══ */
+  onEnter('.cnum', (el, instant) => {
+    const target = +el.dataset.v, dec = +(el.dataset.dec || 0), dur = 1300;
+    const put = v => el.textContent = v.toLocaleString('en-US',
+      {minimumFractionDigits:dec, maximumFractionDigits:dec});
+    if(instant){ put(target); return; }
+    const t0 = performance.now();
+    const tick = t => {
+      const p = Math.min((t - t0) / dur, 1);
+      put(target * (1 - Math.pow(1 - p, 3)));
+      if(p < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    setTimeout(() => put(target), dur + 500);
+  }, .5);
+
+  /* ══ hbar 条形展开 ══ */
+  onEnter('[data-hbar]', (el, instant) => {
+    const run = () => el.querySelectorAll('.fill').forEach(f => f.style.width = f.dataset.w + '%');
+    if(instant){ run(); return; }
+    requestAnimationFrame(run); setTimeout(run, 1700);
+  }, .25);
+
+  /* ══ quad 散点错位入场 ══ */
+  onEnter('[data-quad]', (el, instant) => {
+    el.querySelectorAll('.qd-pt').forEach((p, i) => {
+      const set = () => p.classList.add('on');
+      if(instant){ set(); return; }
+      setTimeout(set, 90 + i * 80);
+    });
+    if(!instant) setTimeout(() => el.querySelectorAll('.qd-pt').forEach(p => p.classList.add('on')), 1600);
+  }, .2);
+
+  /* ══ iso-stack：hover 图例行 → 对应层浮起 ══ */
+  document.querySelectorAll('.iso-legend .r').forEach(row => {
+    const layer = document.querySelector(`.iso-layer[data-layer="${row.dataset.lit}"]`);
+    if(!layer) return;
+    row.addEventListener('mouseenter', () => layer.classList.add('lit'));
+    row.addEventListener('mouseleave', () => layer.classList.remove('lit'));
+  });
+
+  /* ══ 侧栏章节高亮 ══ */
+  const rail = [...document.querySelectorAll('.rail a')];
+  const secObs = new IntersectionObserver(es => es.forEach(e => {
+    if(e.isIntersecting) rail.forEach(a => a.classList.toggle('on', a.dataset.s === e.target.id));
+  }), {rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('main section').forEach(s => secObs.observe(s));
+</script>
+</body>
+</html>
