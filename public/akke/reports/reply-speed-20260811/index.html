@@ -462,25 +462,48 @@ td .conf{margin-right:0}
   </div>
 
   <div class="note">
-    <span class="lbl">五个候选原因，四个已排除，一个查不了</span>
+    <span class="lbl">七个候选原因，六个已排除 —— 2026-08-11 登云电脑实测后更新</span>
     <div class="tablewrap" style="margin:12px 0 0">
-      <table style="min-width:520px">
+      <table style="min-width:560px">
         <thead><tr><th>候选原因</th><th>结果</th><th>依据</th></tr></thead>
         <tbody>
           <tr><td class="rowhead">客户变多、排队变长</td><td><span class="conf lo">已排除</span></td>
-            <td>逐条比对相关系数 <code>-0.131</code>，方向相反；近两天同时说话中位 2 个、最多 4 个，"上一条没干完下一条就来"只占 <code>0.2%</code></td></tr>
+            <td>逐条比对相关系数 <code>-0.131</code>，方向相反；近两天同时说话中位 2 个、"上一条没干完下一条就来"只占 <code>0.2%</code></td></tr>
           <tr><td class="rowhead">08-11 凌晨窗口坏掉拉高均值</td><td><span class="conf lo">已排除</span></td>
-            <td>那两小时<b>一条样本都没有</b>——消息没真发出去就不产生"发完回报"，坏掉的时段自动被排除。剔与不剔都是 99 组、35.3 秒</td></tr>
+            <td>那两小时<b>一条样本都没有</b>——消息没真发出去就不产生"发完回报"，坏掉的时段自动被排除</td></tr>
           <tr><td class="rowhead">备用识别模型被频繁触发</td><td><span class="conf lo">已排除</span></td>
-            <td>实际 24 小时才触发 2 次，主力识别模型质量没问题。<b>我早先"08-08 那批重试改动是元凶"的推测据此撤回</b></td></tr>
+            <td>实际 24 小时才触发 2 次，主力模型质量没问题</td></tr>
           <tr><td class="rowhead">AI 回复变长了</td><td><span class="conf lo">已排除</span></td>
-            <td>回复字数中位 08-05 是 103 字、08-11 是 116 字，<b>几乎没动</b>，而干活涨了 3.4 倍。按天相关系数 <code>-0.295</code>，方向还是反的</td></tr>
-          <tr><td class="rowhead">流量挪到了更慢的那台机器</td><td><span class="conf mid">查不了</span></td>
-            <td><b>企微会话没有绑机器</b>（<code>messaging_account_id</code> 全为空），库里无法按机器拆开看。<b>这本身是个该补的洞</b></td></tr>
+            <td>字数中位 103 → 116，几乎没动；干活却涨 3.4 倍。相关系数 <code>-0.295</code></td></tr>
+          <tr><td class="rowhead">召回通道抢占循环</td><td><span class="conf lo">已排除</span></td>
+            <td>日级相关系数 0.88 看着很像，<b>但小时级只有 0.241</b>——那是两个变量都随时间上涨造成的假相关。08-11 十点召回=0 却最慢，十五点召回=10 反而最快</td></tr>
+          <tr><td class="rowhead">流量挪到更慢的机器</td><td><span class="conf lo">已排除</span></td>
+            <td>数据里<b>全是好友单聊、一条服务群会话都没有</b>；而服务群/召回是夏伟那台的活。另：小顾那台日志显示<b>正在压测隔离</b>（只回白名单），不接真客户</td></tr>
+          <tr><td class="rowhead">循环整体变慢</td><td><span class="conf lo">已排除</span></td>
+            <td>同一台机器新旧日志对比：2.5MB 之前空转一轮 <b>16~27 秒</b>，今天只要 <b>8~11 秒</b>——<b>循环反而变快了</b></td></tr>
+          <tr><td class="rowhead">读屏 + 想话术那一段</td><td><span class="conf mid">锁定，未拆开</span></td>
+            <td>见下</td></tr>
         </tbody>
       </table>
     </div>
-    <p style="margin-top:14px">剩下的候选都得看云电脑日志，库里查不到：云电脑本身变慢、读屏中转变慢、大模型接口变慢、或 08-08 那批改动里<b>别的</b>重试路径。</p>
+  </div>
+
+  <div class="note warn">
+    <span class="lbl">这轮最有价值的一条：定位到 21~25 秒在哪一段</span>
+    <p>登上云电脑抓到完整的发送周期，逐步计时：</p>
+    <div class="tablewrap" style="margin:12px 0">
+      <table style="min-width:460px">
+        <thead><tr><th>步骤</th><th>实测</th><th>判断</th></tr></thead>
+        <tbody>
+          <tr><td class="rowhead">读屏 ＋ 想话术</td><td class="mono"><b>21~25 秒</b></td><td><b>⬅️ 大头在这，还没拆开</b></td></tr>
+          <tr><td class="rowhead">点输入框 → 草稿确认</td><td class="mono">3~4 秒</td><td>正常</td></tr>
+          <tr><td class="rowhead">发送 → 确认真发出</td><td class="mono">6 秒</td><td>正常</td></tr>
+          <tr><td class="rowhead">写进数据库</td><td class="mono">1~2 秒</td><td>正常</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>实测原文（小顾，08-11 15:18）：<code>click[输入框] 15:18:56 → 草稿确认 15:18:59 → 点发送 15:18:59 → 读回确认 15:19:05 → 已发送并落库 15:19:06</code>，<b>发送尾段只要 10 秒</b>（夏伟那台 14 秒）。</p>
+    <p>而全天"干活"是 35 秒。<span class="hi">也就是说 21~25 秒花在点输入框<b>之前</b>——在读屏和想话术那一段，不在发送这一段。</span>这是这轮排查最实质的收窄。</p>
   </div>
 
   <div class="note warn">
@@ -493,8 +516,8 @@ td .conf{margin-right:0}
             <td><b>✅ 有</b>：负载上来＋一块屏幕一次只能伺候一个人</td>
             <td>流水线化（05 节第一条）</td></tr>
           <tr><td class="rowhead">干活变慢 2.3 倍<br><span class="dim" style="font-size:12.5px">15.4s → 35.3s</span></td>
-            <td><b>❌ 没有</b>：四个候选已排除、一个查不了</td>
-            <td>拉云电脑日志接着查</td></tr>
+            <td><b>❌ 没有</b>：七个候选排除六个，锁定在「读屏＋想话术」那 21~25 秒</td>
+            <td>抓一条真实客户回复的完整周期，把那 21~25 秒拆开</td></tr>
         </tbody>
       </table>
     </div>
@@ -579,9 +602,9 @@ td .conf{margin-right:0}
         <tr><td class="rowhead">发完别再白读一次<br><span class="dim" style="font-size:12.5px">那个红点是我们自己造成的</span></td>
           <td class="mono">上一条的子集</td><td><span class="conf hi">低</span></td>
           <td><b>✅ 做。</b>两次尝试都因为改错位置没生效，约束已查清：那个位置拿不到会话名，下一版要换锚点</td></tr>
-        <tr><td class="rowhead">查清「干活」为什么五天涨 2.3 倍</td>
+        <tr><td class="rowhead">拆开「读屏＋想话术」那 21~25 秒<br><span class="dim" style="font-size:12.5px">干活涨 2.3 倍的钱都在这</span></td>
           <td class="mono">潜在 20 秒</td><td><span class="conf hi">低</span></td>
-          <td><b>✅ 做。</b>15.4 → 35.3 秒，负载、坏样本、备用模型三个候选解释<b>都已排除</b>，目前无解释。这是纯回归，修回去就是白赚</td></tr>
+          <td><b>✅ 做。</b>08-11 登云电脑实测已把范围从"整个干活"收窄到这一段（发送尾段实测只要 10~14 秒，正常）。<b>七个候选原因排除了六个</b>。做法：挂个探针等下一条真实客户消息，抓完整周期日志</td></tr>
         <tr><td class="rowhead">少做"搜索切回"和"点开不该点的会话"</td>
           <td class="mono">循环 9.4%</td><td><span class="conf hi">低</span></td>
           <td>✅ 做。红点检测修好后这两项本该减少，实测还在，值得单独看一眼</td></tr>
