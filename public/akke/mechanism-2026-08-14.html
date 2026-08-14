@@ -167,6 +167,56 @@ footer{border-top:1px solid var(--border);padding-top:26px;color:var(--faint);fo
   .barrow{grid-template-columns:1fr 60px}
   .barrow .bt{grid-column:1/-1}
 }
+
+/* ---------- 左侧目录（宽屏才出现，窄屏退回顶部横向导航） ---------- */
+#sidetoc{display:none}
+#sidetoc .st-head{
+  padding:0 20px 14px;margin:0 0 10px;border-bottom:1px solid var(--border);
+}
+#sidetoc .st-title{
+  font-size:13px;font-weight:700;color:var(--text);line-height:1.45;letter-spacing:.01em;
+}
+#sidetoc .st-sub{font-size:11px;color:var(--faint);margin-top:4px;font-family:var(--mono)}
+#sidetoc ol{list-style:none;margin:0;padding:0}
+#sidetoc a{
+  display:block;text-decoration:none;color:var(--muted);
+  padding:6px 20px 6px 19px;border-left:2px solid transparent;
+  font-size:13px;line-height:1.5;transition:color .12s,border-color .12s;
+}
+#sidetoc a:hover{color:var(--accent)}
+#sidetoc a.on{color:var(--accent);border-left-color:var(--accent);font-weight:600;background:var(--accent-soft)}
+#sidetoc .st-sub-list a{
+  padding-left:32px;font-size:12.2px;color:var(--faint);
+}
+#sidetoc .st-sub-list a:hover{color:var(--accent)}
+#sidetoc .st-sub-list a.on{color:var(--accent);font-weight:600}
+#sidetoc .st-foot{
+  margin-top:16px;padding:12px 20px 0;border-top:1px solid var(--border);
+  font-size:11.5px;line-height:1.6;color:var(--faint);
+}
+#sidetoc .st-foot a{display:inline;padding:0;border:0;font-size:11.5px;color:var(--muted);text-decoration:underline}
+#sidetoc .st-foot a:hover{color:var(--accent)}
+
+@media (min-width:1280px){
+  body{padding-left:266px}
+  nav.toc{display:none}
+  #sidetoc{
+    display:block;position:fixed;left:0;top:0;bottom:0;width:265px;z-index:60;
+    overflow-y:auto;overscroll-behavior:contain;
+    background:var(--surface);border-right:1px solid var(--border);
+    padding:24px 0 36px;
+    scrollbar-width:thin;
+  }
+  #sidetoc::-webkit-scrollbar{width:7px}
+  #sidetoc::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+}
+@media (min-width:1700px){
+  body{padding-left:0}
+  #sidetoc{left:calc((100vw - 1080px) / 2 - 300px);border-right:0;background:transparent}
+}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+@media print{#sidetoc{display:none!important} body{padding-left:0!important}}
 </style>
 </head>
 <body>
@@ -1307,6 +1357,125 @@ document.querySelectorAll('figure img').forEach(function(img){
 });
 lb.addEventListener('click', function(){ lb.classList.remove('on'); lbimg.src=''; });
 document.addEventListener('keydown', function(e){ if(e.key==='Escape') { lb.classList.remove('on'); lbimg.src=''; } });
+</script>
+<!-- sidetoc -->
+<aside id="sidetoc" aria-label="页面目录"></aside>
+<script>
+/* 左侧目录：从页面已有的 nav.toc 与 section/h3 结构自动生成，
+   不需要手写一份——以后加章节会自动跟上。 */
+(function () {
+  "use strict";
+  var side = document.getElementById("sidetoc");
+  var nav = document.querySelector("nav.toc");
+  if (!side) return;
+
+  // ① 先用 nav.toc 里人工写好的短标签（比 h2 原文精炼），
+  //    再把 nav 里漏掉、但确实存在的 section 补到末尾
+  var items = [], seen = {};
+  if (nav) {
+    nav.querySelectorAll("a[href^='#']").forEach(function (a) {
+      var id = a.getAttribute("href").slice(1);
+      if (!id || seen[id] || !document.getElementById(id)) return;
+      seen[id] = 1; items.push({ id: id, text: a.textContent.trim() });
+    });
+  }
+  document.querySelectorAll("section[id]").forEach(function (s) {
+    if (seen[s.id]) return;
+    var h2 = s.querySelector("h2");
+    if (!h2) return;
+    seen[s.id] = 1;
+    items.push({ id: s.id, text: h2.textContent.replace(/^\s*\d+\s*·\s*/, "").trim() });
+  });
+  if (!items.length) return;
+
+  // ② 每章下面挂它自己的 h3[id]（长标题只取「·」前那截）
+  items.forEach(function (it) {
+    var sec = document.getElementById(it.id);
+    it.subs = [];
+    if (!sec) return;
+    sec.querySelectorAll("h3[id]").forEach(function (h) {
+      var t = h.textContent.split("·")[0].replace(/\s+/g, " ").trim();
+      if (t) it.subs.push({ id: h.id, text: t });
+    });
+  });
+
+  var title = (document.querySelector("header h1") || {}).textContent || document.title;
+  var date = (document.querySelector("header .chip b") || {}).textContent || "";
+
+  var html = '<div class="st-head"><div class="st-title">' + esc(title.trim()) + "</div>" +
+             (date ? '<div class="st-sub">' + esc(date.trim()) + "</div>" : "") + "</div><ol>";
+  items.forEach(function (it) {
+    html += '<li><a href="#' + it.id + '">' + esc(it.text) + "</a>";
+    if (it.subs.length) {
+      html += '<ol class="st-sub-list">';
+      it.subs.forEach(function (s) {
+        html += '<li><a href="#' + s.id + '">' + esc(s.text) + "</a></li>";
+      });
+      html += "</ol>";
+    }
+    html += "</li>";
+  });
+  html += "</ol>";
+
+  // 页脚里的「配套阅读」顺手搬进目录底部，省得翻到最后
+  var foot = document.querySelector("footer p:last-of-type");
+  if (foot && foot.querySelector("a")) {
+    var links = [].slice.call(foot.querySelectorAll("a")).map(function (a) {
+      return '<a href="' + a.getAttribute("href") + '">' + esc(a.textContent.trim()) + "</a>";
+    });
+    if (links.length) html += '<div class="st-foot">配套阅读<br>' + links.join("<br>") + "</div>";
+  }
+  side.innerHTML = html;
+
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  // ③ 滚动高亮：观察每个可跳转的锚点元素，取当前最靠近顶部的那个
+  var anchors = {}, order = [];
+  side.querySelectorAll("a[href^='#']").forEach(function (a) {
+    var id = a.getAttribute("href").slice(1);
+    var el = document.getElementById(id);
+    if (!el) return;
+    anchors[id] = a; order.push({ id: id, el: el });
+  });
+
+  var current = null;
+  function mark(id) {
+    if (id === current) return;
+    current = id;
+    side.querySelectorAll("a.on").forEach(function (a) { a.classList.remove("on"); });
+    var a = anchors[id];
+    if (!a) return;
+    a.classList.add("on");
+    // 目录很长时把当前项带进视野，但不要拖动整个页面
+    var r = a.getBoundingClientRect(), sr = side.getBoundingClientRect();
+    if (r.top < sr.top + 40 || r.bottom > sr.bottom - 40) {
+      side.scrollTop += r.top - sr.top - side.clientHeight / 3;
+    }
+  }
+
+  function onScroll() {
+    var best = null, bestTop = -Infinity;
+    for (var i = 0; i < order.length; i++) {
+      var t = order[i].el.getBoundingClientRect().top;
+      if (t <= 120 && t > bestTop) { bestTop = t; best = order[i].id; }
+    }
+    if (!best && order.length) best = order[0].id;
+    if (best) mark(best);
+  }
+
+  var tick = false;
+  addEventListener("scroll", function () {
+    if (tick) return;
+    tick = true;
+    requestAnimationFrame(function () { onScroll(); tick = false; });
+  }, { passive: true });
+  addEventListener("hashchange", onScroll);
+  onScroll();
+})();
 </script>
 </body>
 </html>
