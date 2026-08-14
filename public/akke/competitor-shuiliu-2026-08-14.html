@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>水流 AI员工系统拆解 · 六段收口 + 9 张实机截图 · 08-14</title>
+<style>
+:root{
+  --ground:#EDEFF1;
+  --surface:#FFFFFF;
+  --surface-2:#F6F7F9;
+  --ink:#16191D;
+  --ink-2:#59636D;
+  --ink-3:#8A939B;
+  --line:#D3D8DD;
+  --line-2:#E4E8EB;
+  --accent:#A4342A;
+  --accent-soft:#F3E3E0;
+  --ev-hard:#0E6B60;
+  --ev-hard-bg:#E1F0ED;
+  --ev-claim:#8A6216;
+  --ev-claim-bg:#F6EEDC;
+  --ev-infer:#55499B;
+  --ev-infer-bg:#EAE7F5;
+  --warn:#9A3412;
+  --warn-bg:#FBEAE2;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#101317;
+    --surface:#171B20;
+    --surface-2:#1D2228;
+    --ink:#E7EAED;
+    --ink-2:#A2ACB5;
+    --ink-3:#6F7A84;
+    --line:#2B3138;
+    --line-2:#232930;
+    --accent:#E0705C;
+    --accent-soft:#38221E;
+    --ev-hard:#5FC6B6;
+    --ev-hard-bg:#12312D;
+    --ev-claim:#D8AC55;
+    --ev-claim-bg:#33290F;
+    --ev-infer:#A99BE8;
+    --ev-infer-bg:#251F3D;
+    --warn:#F0906B;
+    --warn-bg:#38201A;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#101317;
+  --surface:#171B20;
+  --surface-2:#1D2228;
+  --ink:#E7EAED;
+  --ink-2:#A2ACB5;
+  --ink-3:#6F7A84;
+  --line:#2B3138;
+  --line-2:#232930;
+  --accent:#E0705C;
+  --accent-soft:#38221E;
+  --ev-hard:#5FC6B6;
+  --ev-hard-bg:#12312D;
+  --ev-claim:#D8AC55;
+  --ev-claim-bg:#33290F;
+  --ev-infer:#A99BE8;
+  --ev-infer-bg:#251F3D;
+  --warn:#F0906B;
+  --warn-bg:#38201A;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--ground);
+  color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  font-size:16px;
+  line-height:1.78;
+  -webkit-font-smoothing:antialiased;
+}
+.serif{font-family:"Songti SC","Noto Serif CJK SC","Source Han Serif SC","SimSun",serif}
+.mono{font-family:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px 96px}
+
+/* ---------- 铭牌头 ---------- */
+.plate{
+  margin:40px 0 8px;
+  border:1px solid var(--line);
+  background:var(--surface);
+  border-radius:2px;
+}
+.plate-top{padding:28px 28px 22px;border-bottom:1px solid var(--line-2)}
+.kicker{
+  font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--accent);font-weight:700;margin-bottom:14px;
+}
+h1{
+  font-family:"Songti SC","Noto Serif CJK SC","Source Han Serif SC",serif;
+  font-size:clamp(30px,4.6vw,46px);
+  line-height:1.24;margin:0 0 14px;font-weight:700;
+  text-wrap:balance;letter-spacing:.01em;
+}
+.dek{font-size:17px;color:var(--ink-2);margin:0;max-width:62ch;line-height:1.7}
+.dek b{color:var(--ink);font-weight:600}
+
+.specs{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:1px;background:var(--line-2);
+}
+.spec{background:var(--surface);padding:14px 18px}
+.spec dt{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin:0 0 5px}
+.spec dd{margin:0;font-size:14px;font-weight:600}
+
+/* ---------- 导航 ---------- */
+nav.toc{
+  position:sticky;top:0;z-index:20;
+  background:color-mix(in srgb,var(--ground) 88%,transparent);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);
+  margin:0 -24px 0;padding:0 24px;
+}
+nav.toc ul{display:flex;gap:0;list-style:none;margin:0;padding:0;overflow-x:auto;scrollbar-width:thin}
+nav.toc a{
+  display:block;white-space:nowrap;padding:12px 14px;
+  font-size:13px;color:var(--ink-2);text-decoration:none;
+  border-bottom:2px solid transparent;
+}
+nav.toc a:hover{color:var(--accent);border-bottom-color:var(--accent)}
+nav.toc a:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+
+/* ---------- 章节 ---------- */
+section{margin-top:56px;scroll-margin-top:60px}
+.sec-head{display:flex;align-items:baseline;gap:14px;border-bottom:2px solid var(--ink);padding-bottom:10px;margin-bottom:26px}
+.sec-num{
+  font-family:ui-monospace,Menlo,monospace;font-size:13px;font-weight:700;
+  color:var(--accent);letter-spacing:.06em;
+}
+h2{font-family:"Songti SC","Noto Serif CJK SC",serif;font-size:clamp(22px,2.8vw,29px);margin:0;font-weight:700;line-height:1.3;text-wrap:balance}
+.sec-sub{color:var(--ink-2);font-size:15px;margin:-14px 0 26px;max-width:66ch}
+
+h3{font-size:18px;margin:34px 0 12px;font-weight:650;line-height:1.45;text-wrap:balance}
+h4{font-size:15px;margin:24px 0 8px;font-weight:650;color:var(--ink)}
+p{margin:0 0 14px;max-width:68ch}
+ul,ol{margin:0 0 16px;padding-left:22px;max-width:68ch}
+li{margin-bottom:7px}
+a{color:var(--accent)}
+
+/* ---------- 证据徽章 ---------- */
+.ev{
+  display:inline-block;font-size:11px;font-weight:700;letter-spacing:.06em;
+  padding:2px 7px;border-radius:2px;margin-right:6px;vertical-align:2px;
+  font-family:ui-monospace,Menlo,monospace;
+}
+.ev-hard{background:var(--ev-hard-bg);color:var(--ev-hard)}
+.ev-claim{background:var(--ev-claim-bg);color:var(--ev-claim)}
+.ev-infer{background:var(--ev-infer-bg);color:var(--ev-infer)}
+.conf{
+  display:inline-block;font-family:ui-monospace,Menlo,monospace;font-size:11px;
+  border:1px solid var(--line);border-radius:2px;padding:1px 6px;color:var(--ink-2);
+  margin-left:6px;vertical-align:2px;
+}
+
+/* ---------- 卡片 ---------- */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:2px;padding:22px 24px;margin:18px 0}
+.card > :last-child{margin-bottom:0}
+.card-t{font-size:15px;font-weight:700;margin:0 0 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+.finding{border-left:3px solid var(--accent);background:var(--surface);padding:20px 24px;margin:20px 0}
+.finding > :last-child{margin-bottom:0}
+.finding .card-t{color:var(--accent)}
+
+.null-h{background:var(--surface-2);border:1px dashed var(--line);padding:16px 20px;margin:16px 0;font-size:14.5px;border-radius:2px}
+.null-h > :last-child{margin-bottom:0}
+.null-h strong{color:var(--ink)}
+
+.callout{background:var(--warn-bg);border:1px solid color-mix(in srgb,var(--warn) 30%,transparent);padding:18px 22px;margin:18px 0;border-radius:2px}
+.callout > :last-child{margin-bottom:0}
+.callout .card-t{color:var(--warn)}
+
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin:18px 0}
+.grid2 .card{margin:0}
+
+/* ---------- 表 ---------- */
+.tw{overflow-x:auto;margin:20px 0;border:1px solid var(--line);border-radius:2px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:560px}
+th,td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--line-2);vertical-align:top}
+thead th{
+  background:var(--surface-2);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-2);font-weight:700;white-space:nowrap;border-bottom:1px solid var(--line);
+}
+tbody tr:last-child td{border-bottom:none}
+td.num{font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
+.hl{background:var(--accent-soft)}
+td strong{font-weight:650}
+
+/* ---------- 六段链 ---------- */
+.chain{display:grid;gap:1px;background:var(--line-2);border:1px solid var(--line);margin:22px 0;border-radius:2px;overflow:hidden}
+.link{background:var(--surface);padding:18px 22px;display:grid;grid-template-columns:52px 1fr;gap:18px;align-items:start}
+.link-n{
+  font-family:ui-monospace,Menlo,monospace;font-size:20px;font-weight:700;
+  color:var(--accent);line-height:1.4;
+}
+.link-b h4{margin:0 0 6px;font-size:15.5px}
+.link-b p{margin:0 0 8px;font-size:14.5px;color:var(--ink-2);max-width:none}
+.link-b p:last-child{margin-bottom:0}
+.link-b strong{color:var(--ink)}
+
+/* ---------- 清单 ---------- */
+ol.ask{counter-reset:q;list-style:none;padding-left:0;max-width:none}
+ol.ask li{
+  counter-increment:q;position:relative;padding:12px 0 12px 46px;
+  border-bottom:1px solid var(--line-2);margin:0;
+}
+ol.ask li:last-child{border-bottom:none}
+ol.ask li::before{
+  content:"Q" counter(q);position:absolute;left:0;top:12px;
+  font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:700;
+  color:var(--accent);border:1px solid var(--line);padding:1px 5px;border-radius:2px;
+}
+ol.ask b{display:block;margin-bottom:2px}
+ol.ask span{color:var(--ink-2);font-size:14px}
+
+.lede{font-size:18.5px;line-height:1.75;color:var(--ink);max-width:64ch}
+.lede b{color:var(--accent)}
+
+footer{margin-top:72px;padding-top:24px;border-top:1px solid var(--line);color:var(--ink-3);font-size:13px}
+footer p{max-width:none}
+
+
+/* ---------- 实拍图 ---------- */
+figure.shot{margin:26px 0;border:1px solid var(--line);background:var(--surface);border-radius:2px;overflow:hidden}
+.shot-frame{position:relative;line-height:0;background:var(--surface-2);border-bottom:1px solid var(--line-2)}
+.shot-frame img{width:100%;height:auto;display:block}
+.mark{position:absolute;border:2px solid var(--accent);border-radius:2px;pointer-events:none}
+.mark::after{
+  content:attr(data-l);position:absolute;top:-2px;left:100%;margin-left:6px;
+  background:var(--accent);color:#fff;padding:2px 6px;border-radius:2px;white-space:nowrap;
+  font:700 10.5px/1.45 ui-monospace,"SF Mono",Menlo,monospace;letter-spacing:.02em;
+}
+.mark.lft::after{left:auto;right:100%;margin:0 6px 0 0}
+.mark.dn::after{top:100%;left:0;margin:5px 0 0}
+figure.shot figcaption{padding:13px 17px;font-size:13.5px;line-height:1.68;color:var(--ink-2)}
+figure.shot figcaption b{color:var(--ink);font-weight:650}
+figure.shot figcaption .ev{vertical-align:1px}
+.shot-src{
+  display:block;margin-top:7px;padding-top:7px;border-top:1px dotted var(--line);
+  font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:11px;color:var(--ink-3);
+}
+/* 截图基本是白底，深色模式下压一点亮度，免得整页发光 */
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]) .shot-frame img{filter:brightness(.86) contrast(1.02)}
+}
+:root[data-theme="dark"] .shot-frame img{filter:brightness(.86) contrast(1.02)}
+@media (max-width:640px){
+  .mark::after{font-size:9px;padding:1px 4px}
+  figure.shot figcaption{padding:11px 13px;font-size:13px}
+}
+
+@media (max-width:640px){
+  .wrap{padding:0 16px 64px}
+  nav.toc{margin:0 -16px;padding:0 16px}
+  .plate-top{padding:22px 18px 18px}
+  .link{grid-template-columns:38px 1fr;gap:12px;padding:16px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="plate">
+  <div class="plate-top">
+    <div class="kicker">竞品拆解 · 内部材料 · 2026-08-14 · 配图版</div>
+    <h1>水流 AI员工系统：一个必须常开的本地程序，替你操作浏览器和微信</h1>
+    <p class="dek">基于 <b>08-14 腾讯会议演示的 9 张实机截图</b>与销售问答，对水流做一次六段收口的完整拆解。本页拿到了三样以前没有的东西：<b>双模 RPA 的存在证据</b>、<b>微信托管的真实形态（自研聚合壳，不是原生微信）</b>、以及<b>竞品自己后台的 GEO 效果实况（收录完成率 3%）</b>；顺带把 08-06 挂了两次的两个悬案结掉了。</p>
+  </div>
+  <dl class="specs">
+    <div class="spec"><dt>形态</dt><dd class="mono">Windows 本地客户端</dd></div>
+    <div class="spec"><dt>设备标识</dt><dd class="mono">子淮PC</dd></div>
+    <div class="spec"><dt>手机侧</dt><dd class="mono">摩托罗拉 S50（仅小红书）</dd></div>
+    <div class="spec"><dt>上下文轮数</dt><dd class="mono">0–50 可调</dd></div>
+    <div class="spec"><dt>基础版</dt><dd class="mono">¥2,980 / 年</dd></div>
+    <div class="spec"><dt>试用</dt><dd class="mono">¥500 / 月，续费 88 折</dd></div>
+  </dl>
+</header>
+
+<nav class="toc" aria-label="章节导航">
+  <ul>
+    <li><a href="#s0">一分钟看懂</a></li>
+    <li><a href="#s1">六段收口</a></li>
+    <li><a href="#s2">技术真身</a></li>
+    <li><a href="#s3">AI员工配置</a></li>
+    <li><a href="#s4">时间机制</a></li>
+    <li><a href="#s5">GEO 实况</a></li>
+    <li><a href="#s6">真实成本</a></li>
+    <li><a href="#s7">对我们</a></li>
+    <li><a href="#s8">待问清单</a></li>
+    <li><a href="#s9">证据说明</a></li>
+  </ul>
+</nav>
+
+<!-- ===== 00 ===== -->
+<section id="s0">
+  <div class="sec-head"><span class="sec-num">00</span><h2>一分钟看懂这是个什么东西</h2></div>
+  <p class="lede">水流卖的是<b>一个装在你自己电脑上的「AI 员工」</b>。装完之后它替你干两件事：一是弹出浏览器去抖音评论区捞人、批量私信；二是接管你的微信，自动加好友、发朋友圈、按 SOP 跟进客户。<b>它不是云服务，是一个必须常开的本地程序。</b></p>
+
+  <div class="finding">
+    <p class="card-t">本次拆解最重要的三条</p>
+    <ol style="margin-bottom:0">
+      <li><strong>它有软、硬两套 RPA。</strong>RPA 助手面板底部一行小字写着「<code class="mono">硬件RPA支持：未开启</code>」——说明除了默认的软件模拟，还有一套「硬件」模式。这几乎可以解释 08-06 那次看到的红字「模拟操作中，请暂停操作键盘鼠标」和这次口径「电脑仍可以做别的事情」之间的矛盾。<b>这是全页最该问清的一件事。</b></li>
+      <li><strong>「微信托管」不是在操作你原生的微信。</strong>界面底部有「<b>拆分微信 ｜ 聚合微信</b>」开关，左侧可以挂多个微信头像——它是<b>自研的微信聚合客户端</b>。这与 08-10 报告里「驱动一台真实微信 PC 客户端」的判断不同，已就地订正。</li>
+      <li><strong>两个挂了很久的悬案，这次结掉了。</strong>「AI 记忆到底几轮」——配置页滑杆是 <b>0–50</b>，演示时停在约 10，所以「工作人员说十多轮」和「页面显示 50 轮」<b>两个都对</b>；「500 试用和年费什么关系」——500 是试用一个月全功能，之后按年费续、<b>88 折</b>。</li>
+    </ol>
+  </div>
+</section>
+
+<!-- ===== 01 ===== -->
+<section id="s1">
+  <div class="sec-head"><span class="sec-num">01</span><h2>六段收口</h2></div>
+  <p class="sec-sub">按 08-14 机制页的固定六段填。水流是六家里<b>发送时间机制最完整</b>的一家。</p>
+
+  <div class="chain">
+    <div class="link">
+      <div class="link-n">①</div>
+      <div class="link-b">
+        <h4>用什么设备</h4>
+        <p><span class="ev ev-hard">实证</span>Windows 客户端，窗口标题 <code class="mono">AI员工测试</code>，左下角常驻设备标识「<b>子淮PC</b>」。（08-06 那次只看到这几个字做过推断，这次是直接读到的，写法是<b>子淮</b>不是子准。）</p>
+        <p><span class="ev ev-claim">口径</span>大部分事情在电脑端做；<b>小红书自动获客只能手机做，且指定机型摩托罗拉 S50</b>；电脑和手机装同一个水流软件，<b>电脑给手机发指令</b>。</p>
+        <p><span class="ev ev-hard">实证</span>养号任务弹窗里，采集平台「小红书」是<b>灰的</b>，提示「产品功能迭代升级中，【小红书】相关功能暂时关闭」——<b>和「小红书只能用手机」正好对得上</b>：PC 侧关掉了，所以被迫走手机端。</p>
+      </div>
+    </div>
+    <div class="link">
+      <div class="link-n">②</div>
+      <div class="link-b">
+        <h4>怎么控制 / 运行</h4>
+        <p>必须在电脑上装它自己的 Windows 客户端；左侧菜单里有「<b>工具安装</b>」和「<b>设备管理</b>」，说明它还管着一组本地工具与外接设备。</p>
+        <p><span class="ev ev-claim">口径</span>公域抓取：设好关键词后<b>弹出浏览器</b>，在浏览器里的抖音自动采集评论——属于「本地客户端驱动本机浏览器」这一路，不是云端下发。</p>
+        <p><span class="ev ev-hard">实证</span>私域承接：<b>不是驱动原生微信</b>，而是它自己的微信聚合客户端（底部「拆分微信 ｜ 聚合微信」开关）。</p>
+        <p><span class="ev ev-claim">口径</span>自动化引擎：「之前是爬虫技术，有封号风险，<b>现在用的是 RPA 技术，即模拟人工执行命令</b>」。</p>
+      </div>
+    </div>
+    <div class="link">
+      <div class="link-n">③</div>
+      <div class="link-b">
+        <h4>是否依赖电脑 / 插件 / 脚本</h4>
+        <p><b>依赖客户端：是</b>，必装。<b>依赖电脑常开：是</b>——口径明确「要一直开机」。</p>
+        <p><b>不需要用户写脚本或装浏览器插件</b>，全部材料里没有出现这类环节。</p>
+        <p><b>手机侧：装同一个水流软件、由电脑下发指令</b>，属于「电脑控制手机」，不是手机自跑。连接方式（USB / 局域网 / 远程）<b>本轮未确认</b>，已进待问。</p>
+      </div>
+    </div>
+    <div class="link">
+      <div class="link-n">④</div>
+      <div class="link-b">
+        <h4>实际操作流程</h4>
+        <p>设关键词 → 弹浏览器采集抖音评论 → 采集数据表（字段：昵称 / 头像 / 发布者 / 评论内容 / 评论时间 / IP / 点赞数）→ 勾选后<b>批量动作：关注 · 私信 · 回复 · 留痕 · 删除 · 清空</b>；行级另有查看主页 · 视频链接 · 二维码 · 拉黑。</p>
+        <p>→ 公转私链路 → <b>微信聚合客户端接管</b>（右侧常驻侧栏四 tab：快捷回复 / RPA助手 / AI销冠 / 客户信息）→ <b>SOP 跟踪客户</b>逐条挂计划、可看执行记录。</p>
+      </div>
+    </div>
+    <div class="link">
+      <div class="link-n">⑤</div>
+      <div class="link-b">
+        <h4>发送时间机制</h4>
+        <p><b>三层叠加，而且三层都在界面上有对应控件</b>——这是六家里最完整的一套，详见 <a href="#s4">第 04 节</a>。</p>
+      </div>
+    </div>
+    <div class="link">
+      <div class="link-n">⑥</div>
+      <div class="link-b">
+        <h4>实测数据</h4>
+        <p>单次采集 56 条评论；SOP 跟踪客户 <b>520 条</b>好友；上下文轮数滑杆 0–50（演示置于约 10）；<b>GEO 收录完成率 3%</b>；流程表当前只配了 3 个节点。详见 <a href="#s6">第 06 节</a>。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 02 ===== -->
+<section id="s2">
+  <div class="sec-head"><span class="sec-num">02</span><h2>技术真身：双模 RPA 与一个自研的微信壳</h2></div>
+  <p class="sec-sub">两处界面细节决定了这套东西的性质，也决定了它对甲方的真实成本。</p>
+
+  <figure class="shot">
+    <div class="shot-frame"><img src="/akke/mechanism-2026-08-14/assets/sl-04-rpa.jpg" alt="水流 RPA 助手面板" loading="lazy"></div>
+    <figcaption><b>图 1</b> · <b>RPA 助手面板，也是全页最重要的一屏。</b>基础服务 15 项：微信加好友 · 群内加好友 · 通过申请 · 客户备份 · 好友群发 · 群群发 · 刷朋友圈 · 发朋友圈 · 邀请进群 · <b>定时执行</b> · 刷公众号 · 刷视频号 · SOP跟踪客户 · 新客触达 · 参数设置；AI替身 3 项：闲时计划 · 激活老客户 · 自动追单。<b>底部那行小字是「硬件RPA支持：未开启」。</b><span class="shot-src">来源：08-14 腾讯会议演示录屏抽帧</span></figcaption>
+  </figure>
+
+  <div class="callout">
+    <p class="card-t">「硬件RPA」这四个字，是本次最值得追的一条线索</p>
+    <ul style="margin-bottom:0">
+      <li><b>软件 RPA</b>（默认开启）＝ 在系统层面模拟点击，理论上可以后台跑、不占鼠标键盘。</li>
+      <li><b>硬件 RPA</b>（演示时未开启）＝ 通常指真正去驱动物理输入设备。<b>如果是这样，跑起来时人就不能用这台电脑了</b>——正好对应 08-06 看到的「模拟操作中，请暂停操作键盘鼠标 / Ctrl+Alt+Del 解除锁定」。</li>
+      <li>另一条并行线索：养号任务里有一个「<b>隐藏模式</b>」开关（演示时关闭），很可能就是「占不占屏幕」的总闸。</li>
+    </ul>
+  </div>
+
+  <div class="null-h">
+    <p><strong>零假设：</strong>如果「硬件RPA / 隐藏模式」与占用无关，那么「模拟操作中请暂停键鼠」这句警告应该在任何任务下都会出现，而且界面上不该同时存在这两个开关。</p>
+    <p style="margin-bottom:0"><strong>可证伪方式（一句话）：</strong>「跑微信托管的时候，这台电脑还能同时做别的事吗？把硬件 RPA 打开会有什么不一样？」——答案直接决定 20 家门店是<b>每店占一台常用电脑</b>，还是<b>每店要单独配一台专机</b>，成本差一个量级。</p>
+  </div>
+
+  <figure class="shot">
+    <div class="shot-frame"><img src="/akke/mechanism-2026-08-14/assets/sl-03-wechat.jpg" alt="水流微信聚合客户端" loading="lazy"></div>
+    <figcaption><b>图 2</b> · <b>微信托管的真身。</b>左侧竖排可挂多个微信头像、中间是仿微信的会话与聊天窗、右侧一条常驻侧栏（快捷回复 / RPA助手 / <b>AI销冠</b> / 客户信息）。<b>底部一行是「拆分微信 ｜ 聚合微信」</b>——它自己实现了微信多开与聚合，不是在操作你原生的微信。右侧话术分类里甚至有「发完资料一天没回复」这种场景化标签。<span class="shot-src">来源：08-14 演示录屏抽帧</span></figcaption>
+  </figure>
+
+  <figure class="shot">
+    <div class="shot-frame"><img src="/akke/mechanism-2026-08-14/assets/sl-01-collect.jpg" alt="水流采集数据" loading="lazy"></div>
+    <figcaption><b>图 3</b> · <b>智能获客 → 采集数据。</b>批量动作条 <b>关注 / 私信 / 回复 / 留痕 / 删除 / 清空</b> 就是它的全部公域动作集。左侧一级菜单：Agent · 首页 · AI员工 · 账号管理 · 智能获客 · AI矩阵获客 · 公转私链路 · AI搜索优化 · 权限管理 · 设备管理。<span class="shot-src">来源：08-14 演示录屏抽帧</span></figcaption>
+  </figure>
+</section>
+
+<!-- ===== 03 ===== -->
+<section id="s3">
+  <div class="sec-head"><span class="sec-num">03</span><h2>AI 员工怎么配：三个参数比功能清单更说明问题</h2></div>
+
+  <figure class="shot">
+    <div class="shot-frame"><img src="/akke/mechanism-2026-08-14/assets/sl-02-aiemployee.jpg" alt="AI员工配置参数" loading="lazy"></div>
+    <figcaption><b>图 4</b> · <b>AI员工 → 新增员工 → 配置参数。</b>字段依次是：AI员工名称 · AI员工守则 · 卡点知识库（指定账号）· <b>携带上下文轮数（滑杆 0–50，演示置于约 10）</b> · <b>严苛指数（0–1，演示置于 0）</b> · <b>工作时段（开始–结束）</b>。<span class="shot-src">来源：08-14 演示录屏抽帧</span></figcaption>
+  </figure>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>参数</th><th>读数</th><th>含义与判断</th></tr></thead>
+      <tbody>
+        <tr><td><b>携带上下文轮数</b></td><td class="mono">0–50，当前 ≈10</td><td><b>结掉了一个旧悬案</b>：销售说十多轮、页面显示 50，两个都对——50 是上限、10 是当前值。<b>六家里可调范围最大的一家</b>（知了「翻上面五六条」、尘锋实测七八轮、极域被追问后给不出数字）。</td></tr>
+        <tr><td><b>严苛指数</b></td><td class="mono">0–1，当前 0</td><td>字面看是控制回复的严格程度或匹配阈值。<b>材料里没有任何解释</b>，已进待问。</td></tr>
+        <tr><td><b>工作时段</b></td><td class="mono">开始–结束</td><td>每个 AI 员工一个营业时间，是它时间机制的第一层。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <figure class="shot">
+    <div class="shot-frame"><img src="/akke/mechanism-2026-08-14/assets/sl-07-flow.jpg" alt="水流流程表" loading="lazy"></div>
+    <figcaption><b>图 5</b> · <b>AI员工 → 流程表。</b>tab 为 客户标签 / 流程表 / 痛点库。当前分类「新人客户」下只有 <b>3 个节点</b>：新客开场白（权重1）→ 痛点（权重2）→ 产品意向（权重3）。<b>08-06 记的「6 节点客群链路」在这台演示机上实际只配了 3 个</b>——说明节点数是甲方自己配的，不是产品固定能力。<span class="shot-src">来源：08-14 演示录屏抽帧</span></figcaption>
+  </figure>
+
+  <div class="callout">
+    <p class="card-t">这一节读出来的产品定位</p>
+    <ul style="margin-bottom:0">
+      <li>水流的 AI 回复<b>既不是纯 LLM 自由对话，也不是纯关键词表</b>，而是「<b>节点流程 + AI 生成话术</b>」的混合体：节点与权重是人配的，话术由 AI 生成。</li>
+      <li>放在六家坐标系里：<b>比今立的 Excel 关键词表高一档，比我们的语义打分 + 金牌案例训练低一档。</b></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ===== 04 ===== -->
+<section id="s4">
+  <div class="sec-head"><span class="sec-num">04</span><h2>时间机制：六家里最完整的一套</h2></div>
+  <p class="sec-sub">水流强在<b>跟进节奏</b>，知了强在<b>私信频控</b>，极域强在<b>每个动作独立节流</b>，今立那一格是空的。三家补的是不同的洞。</p>
+
+  <figure class="shot">
+    <div class="shot-frame"><img src="/akke/mechanism-2026-08-14/assets/sl-05-sop.jpg" alt="SOP 跟踪客户与模板" loading="lazy"></div>
+    <figcaption><b>图 6</b> · <b>SOP 跟踪客户 + SOP 模板。</b>好友列表共 <b>520 条</b>，字段含微信号 wxid、微信标签、AI标签、SOP计划名称、执行记录。模板内容一目了然：<b>当天 0 小时 30 分后发 1 条 → 1 天后 08:30 发 1 条 → 7 天后 08:30 → 15 天后 08:30</b>。<span class="shot-src">来源：08-14 演示录屏抽帧</span></figcaption>
+  </figure>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>层</th><th>控件</th><th>粒度</th></tr></thead>
+      <tbody>
+        <tr><td><b>① 时间窗</b></td><td>AI员工配置里的「<b>工作时段</b>」（开始–结束）</td><td>每个 AI 员工一个营业时间</td></tr>
+        <tr><td><b>② 节奏模板</b></td><td><b>SOP 模板</b>：相对偏移 + 绝对时刻混合<br><code class="mono">当天 0h30m → 1天后 08:30 → 7天后 08:30 → 15天后 08:30</code></td><td>按好友挂计划，可查执行记录</td></tr>
+        <tr><td><b>③ 任务调度</b></td><td>RPA 助手的「<b>定时执行</b>」+ AI替身里的「<b>闲时计划</b>」</td><td>把重活挪到机器空闲时段</td></tr>
+        <tr><td>附</td><td>养号任务独立的「<b>养号时长</b>」（演示值 15 分钟）</td><td>单次任务时长</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <p class="card-t">对我们的直接含义</p>
+    <ul style="margin-bottom:0">
+      <li>「<b>当天+30分钟 / 1天 / 7天 / 15天</b>」这套默认节奏，本身就是一份可以直接拿来对标的行业基线。</li>
+      <li>我们的沉默客户跟进目前是<b>单次生成</b>，没有等价的「节奏模板」概念——发一次就结束，没有第 7 天、第 15 天。<b>这是可以低成本补齐的一块。</b></li>
+    </ul>
+  </div>
+
+  <figure class="shot">
+    <div class="shot-frame"><img src="/akke/mechanism-2026-08-14/assets/sl-06-yanghao.jpg" alt="创建养号任务" loading="lazy"></div>
+    <figcaption><b>图 7</b> · <b>创建养号任务。</b>采集平台抖音 / <b>小红书（灰掉，提示暂时关闭）</b>、指定账号、所在行业、<b>养号时长 15 分钟</b>、<b>隐藏模式 开/关</b>。它把「养号」当成一个可排期的任务类型，而不是附赠动作。<span class="shot-src">来源：08-14 演示录屏抽帧</span></figcaption>
+  </figure>
+</section>
+
+<!-- ===== 05 ===== -->
+<section id="s5">
+  <div class="sec-head"><span class="sec-num">05</span><h2>GEO：疑似第三方贴牌，而且效果数字很难看</h2></div>
+  <p class="sec-sub">这是本次唯一一个来自竞品自己后台的 GEO 效果实况，对我们「GEO 做不做」这个待定事项有直接价值。</p>
+
+  <figure class="shot">
+    <div class="shot-frame"><img src="/akke/mechanism-2026-08-14/assets/sl-08-geo.jpg" alt="水流 GEO 管理系统" loading="lazy"></div>
+    <figcaption><b>图 8</b> · <b>GEO 管理系统。</b>左侧：工作台 / GEO目标与关键词（创建优化任务 · GEO优化结果 · AI全景诊断报告）/ AI企业知识库 / 文章创作（AI写文章 · 爆文仿写）/ 文章发布。核心指标：<b>需要优化 100 / 已完成 3 / 收录完成率 3%</b>；八个 AI 平台里只有 deepseek、豆包、元宝各收录 1 条，千问 / 文心 / 智谱 / kimi / 纳米 <b>全为 0</b>。<span class="shot-src">来源：08-14 演示录屏抽帧</span></figcaption>
+  </figure>
+
+  <div class="callout">
+    <p class="card-t">两条判断</p>
+    <ul style="margin-bottom:0">
+      <li><b>疑似第三方贴牌</b><span class="conf">0.6</span>：这套 GEO 有<b>自己独立的 VIP 到期时间（2027-05-24）和账号头像</b>，是嵌在水流客户端里的另一套系统。年费包不包它、续费怎么算，需要单独问。</li>
+      <li><b>效果实况：收录完成率 3%。</b>这不代表 GEO 没价值，但它说明目前的实际产出非常低——<b>而竞品已经把验收界面做出来了、数字却不好看</b>。对我们的含义是：GEO 可以晚做，但如果要做，<b>验收界面必须一起做</b>，因为甲方将来一定会拿这个 3% 来对比。</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ===== 06 ===== -->
+<section id="s6">
+  <div class="sec-head"><span class="sec-num">06</span><h2>真实成本与两个结掉的悬案</h2></div>
+
+  <figure class="shot">
+    <div class="shot-frame"><img src="/akke/mechanism-2026-08-14/assets/sl-09-price.jpg" alt="水流官方价格图" loading="lazy"></div>
+    <figcaption><b>图 9</b> · <b>官方价格图。</b>基础版 <b>2,980/年</b>（1 个账号，<b>20 个平台账号绑定</b>，系统全功能交付，<b>多对一服务</b>）· 专业版 <b>9,980/年</b>（5 个账号，一对一智能体搭建，<b>不限账号绑定数量</b>，<b>全程跟进+售后指导</b>）· 设备租赁 <b>300/月</b>（短租手机，押金 1,000，可付尾款买断、押金抵现）。<span class="shot-src">来源：调研文档内嵌官方宣传图</span></figcaption>
+  </figure>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>费用项</th><th>金额</th><th>来源</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>试用</td><td class="mono"><b>500 元 / 一个月</b></td><td>口径</td><td>全功能，之后按年费续、<b>88 折</b>（≈2,622）</td></tr>
+        <tr><td>基础版</td><td class="mono">2,980 / 年</td><td>官方图</td><td>1 个系统账号，可绑 <b>20 个平台账号</b>（销售举例：10 个抖音号 + 10 个快手号）</td></tr>
+        <tr><td>专业版</td><td class="mono">9,980 / 年</td><td>官方图</td><td>5 个账号、<b>不限绑定数量</b>、一对一智能体搭建</td></tr>
+        <tr><td>设备租赁</td><td class="mono">300 / 月 + 押金 1,000</td><td>官方图</td><td>短租手机；长期可付尾款买断、押金抵现</td></tr>
+        <tr><td>GEO</td><td class="mono"><b>未知</b></td><td>—</td><td>有独立 VIP 到期时间，是否含在年费内<b>需单独确认</b></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="sec-sub" style="margin-top:10px">按 20 家门店粗算：若每店一个系统账号，基础版 20 × 2,980 ≈ <b>6 万/年</b>；若走专业版按 5 账号一组则 4 组 ≈ <b>4 万/年</b>。与黑谷 2.75 万、今立进阶版 3.6 万属同一量级。</p>
+
+  <div class="finding">
+    <p class="card-t">两个挂了很久的悬案，本次结掉</p>
+    <ol style="margin-bottom:0">
+      <li><b>「AI 记忆到底几轮」不必再存疑。</b>工作人员说十多轮、页面显示 50 轮——<b>两个都对</b>：50 是滑杆上限，10 是演示时的当前值。这是个可调参数，不是固定能力。</li>
+      <li><b>「500 试用和年费什么关系」有答案了。</b>500 = 试用一个月（全功能），之后按年费续、打 88 折；「一个账号绑 20 个平台账号」= 1 个水流系统席位下可挂 20 个平台号，与价格图完全一致。<b>08-06 挂了两次的这个问题可以结案。</b></li>
+    </ol>
+  </div>
+
+  <div class="callout">
+    <p class="card-t">但价格这一页上，还留了半个没被回答的问题</p>
+    <ul style="margin-bottom:0">
+      <li>调研时问的是「一个账号绑定 20 个平台是什么意思？<b>有没有售后服务？</b>」——销售只答了前半句。</li>
+      <li>而价格图上写着：基础版是「<b>多对一服务</b>」，专业版才是「一对一智能体搭建 + 全程跟进与售后指导」。<b>2,980 那一档到底有没有人管，是个悬空问题。</b></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ===== 07 ===== -->
+<section id="s7">
+  <div class="sec-head"><span class="sec-num">07</span><h2>对我们意味着什么</h2></div>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>维度</th><th>水流</th><th>我们</th><th>判断</th></tr></thead>
+      <tbody>
+        <tr><td>执行面</td><td>本地客户端驱动浏览器 + 自研微信聚合壳</td><td>云电脑 GUI 串发 + iPhone WDA + 抖音 web 接口签名</td><td>同属「伪装派」，但它<b>要占一台常开的电脑</b>，我们在云电脑上、本机可关</td></tr>
+        <tr><td>公域打分</td><td>关键词过滤（08-06 原话：评论里有「怎么」才采集）</td><td><b>LLM 语义打分 + 装修阶段分类</b></td><td><b>我们领先</b>，是质量差异不是功能差异</td></tr>
+        <tr><td>跟进节奏</td><td><b>SOP 模板：当天 / 1天 / 7天 / 15天</b></td><td>单次生成，无节奏模板</td><td><b>它领先</b>，而且是低成本可补的</td></tr>
+        <tr><td>私域通道</td><td>个人微信（自研聚合壳）</td><td>企业微信</td><td>各有取舍：个微覆盖店员真实场景，企微解决离职带走客户</td></tr>
+        <tr><td>GEO</td><td>有，但<b>收录完成率 3%</b></td><td>零</td><td>不急，但要做就得连验收界面一起做</td></tr>
+        <tr><td>知识资产</td><td>知识库 + 卡点知识库</td><td><b>企业大脑 12 屏，含说法冲突 / 版本与发布</b></td><td>我们唯一无人竞争的差异点，六家复核后仍成立</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <p class="card-t">三条可以直接用的动作</p>
+    <ol style="margin-bottom:0">
+      <li><b>把「节奏模板」补进沉默客户跟进。</b>抄它 1天 / 7天 / 15天 的骨架即可，不需要新能力。</li>
+      <li><b>下次沟通把「硬件RPA」问死。</b>这一条直接决定甲方要不要为每家店多配一台电脑——是本页对采购决策影响最大的一个未知数。</li>
+      <li><b>GEO 那个 3% 可以当说服材料。</b>甲方问「别家都在做 GEO，你们怎么不做」时，可以给出竞品自己后台的实况数字。</li>
+    </ol>
+  </div>
+</section>
+
+<!-- ===== 08 ===== -->
+<section id="s8">
+  <div class="sec-head"><span class="sec-num">08</span><h2>还没问清的（下次沟通照着念）</h2></div>
+
+  <div class="ask">
+    <p class="card-t">对水流的 8 问，按优先级排</p>
+    <ol style="margin-bottom:0">
+      <li><b>「硬件RPA」是什么？开启后和现在（软件RPA）有什么不一样？</b>——最关键的一问，直接决定是不是要占一台专机。</li>
+      <li>跑微信托管的时候，这台电脑还能同时做别的事吗？「<b>隐藏模式</b>」开启后是不是就不占屏幕了？</li>
+      <li><b>基础版 2,980 那一档到底有没有售后？</b>（价格图上基础版只写「多对一服务」，专业版才写「全程跟进与售后指导」）</li>
+      <li>手机端和电脑端是怎么连的——USB、局域网还是远程？<b>一台电脑能带几台手机？</b></li>
+      <li>小红书为什么 PC 端关掉了、只能用<b>摩托罗拉 S50</b>？换别的机型行不行？（对比：知了与极域都是安卓不限型号）</li>
+      <li>GEO 那套是自研还是接的第三方？它有独立的 VIP 到期时间，<b>年费包含它吗</b>？</li>
+      <li>「一个账号绑 20 个平台账号」——同时跑 20 个号会不会触发风控？<b>有没有单号日限</b>？</li>
+      <li>「<b>严苛指数</b>」这个参数是干什么的？调高调低分别影响什么？</li>
+    </ol>
+  </div>
+</section>
+
+<!-- ===== 09 ===== -->
+<section id="s9">
+  <div class="sec-head"><span class="sec-num">09</span><h2>证据强度与本页方法</h2></div>
+  <p class="lede">本页把<b>销售说的</b>和<b>界面上写着的</b>严格分开：<span class="ev ev-hard">实证</span>＝截图上直接读到的字；<span class="ev ev-claim">口径</span>＝销售在会议里说的；<span class="ev ev-infer">推断</span>＝由材料组合出来的判断，一律带置信度。凡两者冲突、或只有口径没有实证的，都进了<a href="#s8">待问清单</a>，不写进结论。</p>
+
+  <div class="callout">
+    <p class="card-t">两处必须说明的局限</p>
+    <ul style="margin-bottom:0">
+      <li><b>全部截图都是腾讯会议里对方共享屏幕的录屏画面</b>（标题栏「水流AI–子淮正在共享屏幕」）——看到的是<b>销售自己那台演示机</b>的状态，不是甲方装机后的状态。</li>
+      <li>演示机桌面上同时装着 <b>ToDesk、向日葵远程控制</b>等工具，<b>无法判断这些是产品依赖还是销售自用</b>，已列入待问。</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  <p><strong>有大有小获客项目 · 水流 AI员工系统 拆解 · 2026-08-14</strong></p>
+  <p>材料来源：08-14 腾讯会议演示录屏截图 9 张（RPA 助手面板 · 微信聚合客户端 · AI员工配置页 · SOP 模板 · 养号任务 · GEO 后台 · 采集数据表 · 流程表）· 调研文档内嵌官方价格图 · 销售问答记录。</p>
+  <p>本页配图与 <a href="https://upio.ai/akke/mechanism-2026-08-14">机制页</a>共用同一批原图，未做美化。</p>
+  <p>配套阅读：<a href="https://upio.ai/akke/mechanism-2026-08-14">竞品执行机制拆解（08-14）</a> · <a href="https://upio.ai/akke/competitor-acquisition-2026-08-10">九家全景（08-10）</a> · <a href="https://upio.ai/akke/competitor-xindong-2026-08-14">心动拆机报告</a> · <a href="https://upio.ai/akke/competitor-yixiaoyun-2026-08-14">亿销云拆解</a>。</p>
+  <p>内部同步材料，含第三方产品截图与未公开商务信息，<strong>请勿外发</strong>。</p>
+</footer>
+
+</div>
+</body>
+</html>
