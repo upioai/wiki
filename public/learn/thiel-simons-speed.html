@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>六个月解决，不要等十年 · 团队执行方法论</title>
+<meta name="description" content="彼得·蒂尔的速度感 + 西蒙斯「一定有方法建模」的确定性——团队三条执行方法论：清晰 Spec 与验收、只强调结果不纠结过程、设计执行验收交给不同 session 接力。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700;800&display=swap">
+<style>
+  :root{
+    --bg:#0a0d14; --bg-elevated:#131720; --bg-deep:#1a1f2b;
+    --border:#232936; --border-strong:#2f3646;
+    --text:#e8eaef; --text-dim:#9ba3b4; --text-muted:#6b7384;
+    --accent:#8b5cf6; --accent-soft:rgba(139,92,246,.15);
+    --accent-2:#60a5fa; --accent-2-soft:rgba(96,165,250,.13);
+    --accent-3:#34d399; --accent-3-soft:rgba(52,211,153,.14);
+    --warning:#fbbf24; --warning-soft:rgba(251,191,36,.14);
+    --danger:#f87171; --danger-soft:rgba(248,113,113,.14);
+    --font-display:'Instrument Serif','Source Han Serif SC',Georgia,serif;
+    --font-ui:'Inter Tight','Noto Sans SC',-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;
+    --font-mono:'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    font-family:var(--font-ui);
+    background:var(--bg);color:var(--text);
+    font-size:15.5px;line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+    font-feature-settings:'cv11','ss01','tnum';
+    min-height:100vh;display:flex;align-items:center;justify-content:center;
+    overflow:hidden;position:relative;
+  }
+  body::before{
+    content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+    background:
+      radial-gradient(620px 460px at 12% 0%, rgba(139,92,246,.16), transparent 60%),
+      radial-gradient(680px 520px at 100% 100%, rgba(96,165,250,.12), transparent 60%),
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size:auto,auto,46px 46px,46px 46px;
+    opacity:.5;
+    -webkit-mask-image:radial-gradient(120% 120% at 50% 40%, #000 55%, transparent 100%);
+            mask-image:radial-gradient(120% 120% at 50% 40%, #000 55%, transparent 100%);
+  }
+
+  .deck{width:min(980px,94vw);height:min(686px,92vh);position:relative;z-index:1}
+
+  .slide{
+    position:absolute;inset:0;
+    background:linear-gradient(180deg,#10141d 0%,#0d111a 100%);
+    border:1px solid var(--border);
+    border-radius:20px;
+    box-shadow:0 40px 90px -30px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.03);
+    padding:46px 54px 50px;
+    display:flex;flex-direction:column;
+    opacity:0;transform:translateY(20px) scale(.985);
+    pointer-events:none;
+    transition:opacity .45s ease,transform .45s ease;
+    overflow:hidden;
+  }
+  .slide.active{opacity:1;transform:none;pointer-events:auto}
+  .slide::before{
+    content:"";position:absolute;top:0;left:0;height:3px;
+    width:var(--prog,20%);
+    background:linear-gradient(90deg,var(--accent),var(--accent-2),var(--accent-3));
+    border-radius:20px 0 0 0;opacity:.9;
+  }
+
+  .slide.active .rise{animation:rise .55s cubic-bezier(.2,.7,.2,1) both}
+  .slide.active .rise:nth-child(1){animation-delay:.04s}
+  .slide.active .rise:nth-child(2){animation-delay:.10s}
+  .slide.active .rise:nth-child(3){animation-delay:.16s}
+  .slide.active .rise:nth-child(4){animation-delay:.22s}
+  .slide.active .rise:nth-child(5){animation-delay:.28s}
+  .slide.active .rise:nth-child(6){animation-delay:.34s}
+  .slide.active .rise:nth-child(7){animation-delay:.40s}
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+  .pageno{
+    position:absolute;top:22px;right:26px;
+    font-family:var(--font-mono);font-size:12px;font-weight:600;
+    color:var(--text-muted);letter-spacing:.06em;
+  }
+  .kicker{
+    display:inline-flex;align-items:center;gap:9px;
+    font-family:var(--font-mono);font-size:11px;font-weight:700;
+    letter-spacing:.16em;text-transform:uppercase;color:var(--accent);
+    margin-bottom:16px;
+  }
+  .kicker .dot{
+    width:7px;height:7px;border-radius:50%;background:var(--accent);
+    box-shadow:0 0 10px var(--accent);animation:pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+  h1{
+    font-family:var(--font-display);font-style:italic;font-weight:400;
+    font-size:44px;line-height:1.1;letter-spacing:-.01em;margin-bottom:10px;
+    background:linear-gradient(135deg,#f4f5f8 25%,var(--accent) 78%,var(--accent-2) 100%);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  }
+  .sub{font-size:16px;color:var(--text-dim);margin-bottom:18px;line-height:1.62;max-width:780px}
+  p{font-size:15px;line-height:1.72;color:var(--text-dim);margin-bottom:12px}
+  strong{color:var(--text);font-weight:600}
+  .hl{color:#c4b5fd;font-weight:600}
+  .hl2{color:#6ee7b7;font-weight:600}
+
+  .quote{
+    position:relative;
+    background:rgba(139,92,246,.06);
+    border:1px solid var(--border);border-left:3px solid var(--accent);
+    border-radius:0 14px 14px 0;padding:16px 20px 16px 22px;
+  }
+  .quote b{
+    font-family:var(--font-display);font-style:italic;font-weight:400;
+    font-size:18px;line-height:1.5;color:#ece9ff;display:block;
+  }
+  .quote .by{
+    display:block;margin-top:8px;font-family:var(--font-mono);
+    font-size:11.5px;letter-spacing:.04em;color:var(--text-muted);
+  }
+  .quote.amber{background:var(--warning-soft);border-left-color:var(--warning)}
+  .quote.amber b{color:#fde9b8}
+  .quote.mint{background:var(--accent-3-soft);border-left-color:var(--accent-3)}
+  .quote.mint b{color:#c9f5e0}
+
+  .duo{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:auto}
+
+  .vs{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:4px}
+  .col{border-radius:14px;padding:18px 20px;border:1px solid var(--border);background:var(--bg-elevated)}
+  .col.a{border-color:var(--border-strong)}
+  .col.b{border-color:rgba(96,165,250,.3);background:linear-gradient(160deg,rgba(96,165,250,.07),rgba(52,211,153,.05))}
+  .col h3{font-size:16px;color:var(--text);margin-bottom:9px;display:flex;align-items:center;gap:9px;font-weight:600}
+  .col h3 .big{font-size:22px}
+  .col p{font-size:13.6px;color:var(--text-dim);margin:0 0 7px;line-height:1.6}
+  .col p:last-child{margin-bottom:0}
+  .col .label{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;font-weight:700}
+  .col.a .label{color:var(--text-muted)}
+  .col.b .label{color:var(--accent-2)}
+
+  .steps{display:flex;flex-direction:column;gap:9px;margin-top:4px}
+  .step{
+    display:flex;align-items:center;gap:15px;
+    background:var(--bg-elevated);border:1px solid var(--border);
+    border-radius:12px;padding:13px 17px;position:relative;overflow:hidden;
+  }
+  .step::after{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--c)}
+  .step .n{
+    flex:0 0 auto;width:34px;height:34px;border-radius:9px;
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--font-mono);font-weight:800;font-size:15px;color:#0a0d14;
+    background:var(--c);box-shadow:0 0 16px -2px var(--c);
+  }
+  .step .body{flex:1}
+  .step .body b{font-size:16px;color:var(--text);font-weight:600}
+  .step .body span{display:block;font-size:13.4px;color:var(--text-muted);line-height:1.55;margin-top:2px}
+  .step .em{font-size:20px;opacity:.9}
+
+  .warn{
+    margin-top:12px;background:var(--warning-soft);
+    border:1px solid rgba(251,191,36,.28);border-radius:12px;
+    padding:13px 17px;font-size:13.8px;line-height:1.6;color:#f3d9a0;
+  }
+  .warn b{color:var(--warning)}
+
+  .akke{
+    margin-top:12px;
+    background:var(--accent-2-soft);border:1px solid rgba(96,165,250,.24);
+    border-radius:12px;padding:14px 18px;font-size:13.8px;line-height:1.62;color:var(--text-dim);
+  }
+  .akke .tag{
+    display:inline-flex;align-items:center;gap:7px;
+    font-family:var(--font-mono);font-size:10.5px;font-weight:700;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--accent-2);margin-bottom:6px;
+  }
+  .akke .tag::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent-2);box-shadow:0 0 8px var(--accent-2)}
+  .akke strong{color:var(--text)}
+
+  .chain{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;margin-top:4px}
+  .chain .c{background:var(--bg-elevated);border:1px solid var(--border);border-radius:12px;padding:15px 16px}
+  .chain .c .em{font-family:var(--font-mono);font-size:12.5px;font-weight:700;color:var(--accent-2);letter-spacing:.02em}
+  .chain .c b{display:block;font-size:14.5px;margin:8px 0 5px;color:var(--text)}
+  .chain .c span{font-size:12.6px;color:var(--text-muted);line-height:1.55}
+
+  footer{
+    position:absolute;left:54px;right:54px;bottom:18px;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .dots{display:flex;gap:7px;flex-wrap:wrap}
+  .dots i{width:8px;height:8px;border-radius:50%;background:var(--border-strong);cursor:pointer;transition:.3s}
+  .dots i:hover{background:var(--text-muted)}
+  .dots i.on{background:var(--accent);width:22px;border-radius:5px;box-shadow:0 0 10px -1px var(--accent)}
+  .nav{display:flex;gap:9px}
+  .nav button{
+    border:1px solid var(--border-strong);cursor:pointer;
+    font-family:var(--font-mono);font-size:12.5px;font-weight:600;letter-spacing:.02em;
+    padding:9px 17px;border-radius:10px;background:var(--bg-deep);color:var(--text-dim);
+    transition:.18s;
+  }
+  .nav button:hover{transform:translateY(-2px);color:var(--text);border-color:var(--accent)}
+  .nav button.primary{
+    background:linear-gradient(120deg,var(--accent),var(--accent-2));
+    color:#fff;border-color:transparent;
+  }
+  .nav button:disabled{opacity:.3;cursor:default;transform:none}
+
+  @media (max-height:640px){.slide{padding:34px 42px 44px}h1{font-size:36px}footer{bottom:14px}}
+  @media (max-width:760px){.vs,.chain,.duo{grid-template-columns:1fr}h1{font-size:32px}.slide{padding:32px 26px 60px}footer{left:26px;right:26px}}
+  @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="deck">
+
+  <!-- 01 封面 -->
+  <section class="slide active" style="--prog:20%">
+    <span class="pageno">01 / 05</span>
+    <span class="kicker rise"><span class="dot"></span>执行方法论 · Speed &amp; Certainty</span>
+    <h1 class="rise">六个月解决，不要等十年</h1>
+    <p class="sub rise">蒂尔说，能用六个月解决的问题，不要留给十年。西蒙斯说，价格这种事，一定有办法能被建模。两句话指向同一件事：<strong>把模糊的问题，变成可以拆解、可以验收、可以交付的东西。</strong></p>
+    <p class="rise">下面三条方法，是把「六个月做完」落到日常协作里的具体做法——不是口号，是流程。</p>
+    <div class="duo rise">
+      <div class="quote">
+        <b>「6 个月能解决的，不要等 10 年。」</b>
+        <span class="by">—— Peter Thiel</span>
+      </div>
+      <div class="quote amber">
+        <b>「价格这种东西，一定有办法能建模出来。」</b>
+        <span class="by">—— Jim Simons</span>
+      </div>
+    </div>
+    <footer>
+      <div class="dots"><i class="on"></i><i></i><i></i><i></i><i></i></div>
+      <div class="nav"><button disabled>← PREV</button><button class="primary" data-go="1">NEXT →</button></div>
+    </footer>
+  </section>
+
+  <!-- 02 方法一 -->
+  <section class="slide" style="--prog:40%;--c:#8b5cf6">
+    <span class="pageno">02 / 05</span>
+    <span class="kicker rise"><span class="dot"></span>方法一 · Spec Before Code</span>
+    <h1 class="rise">需求写清楚，验收说明白</h1>
+    <p class="sub rise">Spec 不需要写得复杂，但必须<strong>清晰</strong>到没有第二种理解方式。</p>
+    <div class="vs rise">
+      <div class="col a">
+        <h3><span class="big">🌫️</span>含糊的需求</h3>
+        <p><span class="label">反面</span></p>
+        <p>「做一个更好的 XX」——好到什么程度、谁说了算，没人说得清。</p>
+        <p>验收标准留到交付那天才第一次被定义，那时返工代价最高。</p>
+      </div>
+      <div class="col b">
+        <h3><span class="big">🎯</span>清晰的 Spec + 验收</h3>
+        <p><span class="label">正面</span></p>
+        <p>一段话、几行 bullet 都够——但必须回答两件事：<strong>做完是什么样、怎么算通过。</strong></p>
+        <p>验收描述写在动手之前，而不是交付之后才对齐。</p>
+      </div>
+    </div>
+    <div class="warn rise"><b>常见陷阱：</b>需求写得越长，往往越说明还没想清楚「怎么算通过」——页数不是清晰度的替代品。</div>
+    <footer>
+      <div class="dots"><i></i><i class="on"></i><i></i><i></i><i></i></div>
+      <div class="nav"><button data-go="0">← PREV</button><button class="primary" data-go="2">NEXT →</button></div>
+    </footer>
+  </section>
+
+  <!-- 03 方法二 -->
+  <section class="slide" style="--prog:60%;--c:#60a5fa">
+    <span class="pageno">03 / 05</span>
+    <span class="kicker rise"><span class="dot"></span>方法二 · Repeat The Outcome</span>
+    <h1 class="rise">不停强调结果，而不是过程设计</h1>
+    <p class="sub rise">过程可以自由发挥，但「要什么结果」必须被反复讲，讲到没人会记错。</p>
+    <div class="vs rise">
+      <div class="col a">
+        <h3><span class="big">🧩</span>过度的过程设计</h3>
+        <p><span class="label">反面</span></p>
+        <p>提前把每一步怎么做都写死，本质是在为不确定的现实预先「锁死」一个方案。</p>
+        <p>现实一变，整份设计就要重写；没人再回头看「到底要什么结果」。</p>
+      </div>
+      <div class="col b">
+        <h3><span class="big">🔁</span>反复强调结果</h3>
+        <p><span class="label">正面</span></p>
+        <p>把「验收时长什么样」讲一遍、两遍、十遍，讲到执行的人（不管是人还是 agent）想都不用想。</p>
+        <p>路径留给执行者自己找——过程越自由，越可能找到设计者没想到的更好做法。</p>
+      </div>
+    </div>
+    <p class="rise" style="margin-top:14px">纠结过程细节，往往是「怕执行者做错」的心理补偿；重复结果，才是把控制权真正交回给目标本身。</p>
+    <footer>
+      <div class="dots"><i></i><i></i><i class="on"></i><i></i><i></i></div>
+      <div class="nav"><button data-go="1">← PREV</button><button class="primary" data-go="3">NEXT →</button></div>
+    </footer>
+  </section>
+
+  <!-- 04 方法三 -->
+  <section class="slide" style="--prog:80%;--c:#34d399">
+    <span class="pageno">04 / 05</span>
+    <span class="kicker rise"><span class="dot"></span>方法三 · Design → Execute → Audit</span>
+    <h1 class="rise">设计、执行、验收，交给不同 session 接力</h1>
+    <div class="steps rise">
+      <div class="step" style="--c:#8b5cf6"><span class="n">1</span><div class="body"><b>设计</b><span>把问题拆成可执行的 Spec 和验收描述——对应方法一。</span></div><span class="em">📐</span></div>
+      <div class="step" style="--c:#60a5fa"><span class="n">2</span><div class="body"><b>执行</b><span>按 Spec 动手，过程自由，结果优先——对应方法二。</span></div><span class="em">⚙️</span></div>
+      <div class="step" style="--c:#34d399"><span class="n">3</span><div class="body"><b>审计与验收</b><span>换一双独立的眼睛复核，不由设计者、执行者自己给自己打分。</span></div><span class="em">🔍</span></div>
+    </div>
+    <p class="rise" style="margin-top:12px">三个阶段可以分给不同 session（甚至不同人）并行或接力完成——设计者不必是执行者，执行者不必是验收者。互相独立，才不会自己骗自己。</p>
+    <div class="akke rise">
+      <span class="tag">这份页面本身</span>
+      就是一次示范：内容先整理成三条方法（设计）→ 写成页面并发布到 upio.ai/learn（执行）→ 你现在看到的，就是过一遍验收之后的产物。
+    </div>
+    <footer>
+      <div class="dots"><i></i><i></i><i></i><i class="on"></i><i></i></div>
+      <div class="nav"><button data-go="2">← PREV</button><button class="primary" data-go="4">NEXT →</button></div>
+    </footer>
+  </section>
+
+  <!-- 05 收尾 -->
+  <section class="slide" style="--prog:100%">
+    <span class="pageno">05 / 05</span>
+    <span class="kicker rise"><span class="dot"></span>总结 · 三句话带走</span>
+    <h1 class="rise">速度，不是抢时间</h1>
+    <p class="sub rise">速度，是把模糊变清晰的次数够多、够快。三条方法各管一段，缺一段都会拖回「十年」的节奏。</p>
+    <div class="chain rise">
+      <div class="c"><span class="em">①</span><b>需求 → 验收</b><span>Spec 不用复杂，但要清晰到没有第二种理解。</span></div>
+      <div class="c"><span class="em">②</span><b>过程 → 结果</b><span>少纠结怎么做，多重复要什么。</span></div>
+      <div class="c"><span class="em">③</span><b>设计 → 执行 → 验收</b><span>换一双眼睛，别自己验收自己。</span></div>
+    </div>
+    <div class="quote amber rise" style="margin-top:14px">
+      <b>「6 个月能解决的，不要等 10 年；价格这种东西，一定有办法能建模出来。」</b>
+      <span class="by">—— Peter Thiel / Jim Simons</span>
+    </div>
+    <footer>
+      <div class="dots"><i></i><i></i><i></i><i></i><i class="on"></i></div>
+      <div class="nav"><button data-go="3">← PREV</button><button class="primary" data-go="0">↺ RESTART</button></div>
+    </footer>
+  </section>
+
+</div>
+
+<script>
+  const slides=[...document.querySelectorAll('.slide')];
+  let cur=0;
+  function show(i){
+    cur=(i+slides.length)%slides.length;
+    slides.forEach((s,k)=>s.classList.toggle('active',k===cur));
+  }
+  document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>show(+b.dataset.go));
+  document.querySelectorAll('.dots').forEach(group=>{
+    group.querySelectorAll('i').forEach((d,k)=>d.onclick=()=>show(k));
+  });
+  document.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight') show(cur+1);
+    if(e.key==='ArrowLeft') show(cur-1);
+  });
+</script>
+</body>
+</html>
