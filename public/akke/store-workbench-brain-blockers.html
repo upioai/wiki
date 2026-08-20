@@ -254,30 +254,46 @@ ol.steps>li span{color:var(--ink-2);font-size:13.5px}
     </p>
   </div>
 
-  <div class="note warn">
-    <span class="t">7% 的根因 · 不是 bug，是链路形状</span>
+  <div class="note bad">
+    <span class="t">7% 的根因 · 一次自我纠错（2026-08-21）</span>
+    <p>
+      <b>先说结论：我上一版在这里写的归因是错的，已撤回。</b>当时写的是
+      「首触那一刻会话还不存在，所以账挂不上 <code>conversation_id</code>」——
+      听起来合理，但一查就塌了。
+    </p>
     <div class="tw" style="margin-top:0">
       <table>
-        <thead><tr><th>最近 1000 条 chatReply 账</th><th class="num">条数</th><th>阶段分布</th></tr></thead>
+        <thead><tr><th>最近 1000 条 chatReply 账</th><th class="num">条数</th><th>真身</th></tr></thead>
         <tbody>
-          <tr><td><b>没有 <code>conversation_id</code></b></td><td class="num">788</td><td><b>首触 ice_break 743</b> · 培育 45</td></tr>
-          <tr><td>有 <code>conversation_id</code></td><td class="num">212</td><td>培育 200 · 决策 12 · <b>首触 0</b></td></tr>
+          <tr><td>空 <code>conversation_id</code> · 首触</td><td class="num">743</td><td><b>全部带 <code>comment_id</code>、prompt 是 <code>dm.ice_break.system</code> —— 这是<u>抖音</u>私信首触</b>，归 Akke 仓。抖音首触本来就没有会话，它挂 comment_id，<b>完全正确，不该改</b></td></tr>
+          <tr><td>空 <code>conversation_id</code> · 非首触</td><td class="num">45</td><td><code>wecom.nurture.rules</code> —— 这才是企微真漏的，占企微 nurture 的 20%</td></tr>
+          <tr><td>有 <code>conversation_id</code></td><td class="num">212</td><td>企微 nurture 181 · decision 12 · 身份直答 6 · 抖音 nurture 9</td></tr>
         </tbody>
       </table>
     </div>
     <p style="margin-top:12px">
-      <b>首触那一刻会话行还不存在</b>，账写完了会话才建——所以挂不上 <code>conversation_id</code>。
-      这和同一张表里 <code>message_id</code> 恒空是<b>同一个原因</b>（模型出话时消息还没落库）。
-      代码没写错：四个 <code>chatReply</code> 调用点全都传了 <code>conversationId</code>，
-      只是首触那次传进去的本来就是空。
+      <b>企微首触早就传了 <code>conversationId</code></b>（<code>route.ts:1983</code>），四个
+      <code>chatReply</code> 调用点里只有抖音 opener 那个不传——而它<b>本来就不该传</b>。
+      所以「首触回填」这条改动<b>取消，不做</b>。
+    </p>
+  </div>
+
+  <div class="note warn">
+    <span class="t">那 7% 到底是什么 · 已知与未知</span>
+    <p>
+      <b>已知（实测）：</b>25 段最近的企微会话（全部 <code>channel=wecom_chat</code>，
+      创建于 07-26 → 08-10），名下共 <b>440 条账</b>——但只覆盖 <b>3 段</b>会话，
+      <b>另外 22 段一条账都没有</b>，而它们各自有 7–8 句我方回复。
     </p>
     <p>
-      <b>后果：只有进入培育 / 决策阶段的会话才有出处</b>，而门店大量客户停在首触。
-      于是勾选框看不见 → 没人产生负反馈 → 差评这个数永远是 0。
+      <b>未知：那 22 段为什么没有账。</b>可能是那些回复本来就是<b>销售人工打的字</b>
+      （<code>messages.role='ai'</code> 表示「我方发的」，不区分人发还是机器人发），
+      也可能是别的路径没写账。<b>这一步没查完，不写结论。</b>
     </p>
     <p>
-      <b>可修，且是一处具体改动</b>：首触发完话、会话建好之后，拿 <code>traceId</code>
-      回填那条账的 <code>conversation_id</code>。归 wecom-chat。
+      但不管是哪一种，<b>对「差评」这个数的影响是同一个</b>：出处贴不上 →
+      「这是事实错误」的勾选不显示 → 没人产生负反馈信号。
+      <b>下一步该查的是那 22 段的回复到底谁发的</b>，而不是去改首触。
     </p>
   </div>
 
@@ -452,10 +468,10 @@ ol.steps>li span{color:var(--ink-2);font-size:13.5px}
           <td>「被调取」与「差评」两个数同时开始有</td>
         </tr>
         <tr>
-          <td><b>首触账回填 <code>conversation_id</code></b><br><small>788/1000 条账没有它，全是首触；出处贴上率因此只有 7%</small></td>
-          <td><b>技术（wecom-chat）</b></td>
-          <td><span class="pill ok">不用你做</span><br><small>首触发完话、会话建好后拿 <code>traceId</code> 回填一次。<b>这是「让勾选框出现」的前置</b>——不修，下面那条永远无从谈起。</small></td>
-          <td>出处面板在首触会话上也能用；勾选框才看得见</td>
+          <td><b>查清 22/25 段企微会话为什么一条账都没有</b><br><small>原写「首触回填 conversation_id」——<b>已撤回</b>，那 743 条是抖音首触，不该改</small></td>
+          <td><b>技术</b></td>
+          <td><span class="pill ok">不用你做</span><br><small>先分清那些回复是<b>销售人工打的</b>还是机器人发的。是人工发的话，7% 就不是缺陷；是机器人发的，那才是漏写账。<b>没查清之前不动代码。</b></small></td>
+          <td>知道「差评这个数拿不到」到底是不是个可修的问题</td>
         </tr>
         <tr>
           <td><b>让「这是事实错误」那个勾选真的被用起来</b><br><small>上线至今零使用</small></td>
