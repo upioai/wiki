@@ -107,12 +107,12 @@ ol.steps>li span{color:var(--ink-2);font-size:13.5px}
   <p class="eyebrow">门店工作台 · 模块四 · wb.hzcytech.cn/wb#brain-overview</p>
   <h1>企业大脑 · 卡点与需要的支持</h1>
   <p class="lede">
-    按 V6 设计稿（稿次 #6.1）改造企业大脑的进度盘点。<b>三处已上线，三件做不了。</b>
-    做不了的那三件，两件的根因是同一条断链——机器人回话时用了哪几块积木，系统压根没记。
-    这一页说清每件缺什么、需要谁配合。
+    按 V6 设计稿（稿次 #6.1）改造企业大脑的进度盘点。<b>四处已上线，三件卡住。</b>
+    2026-08-21 去 wecom-chat 仓复查后结论反了：<b>桥早就建好了，卡的不是工程，是没人采纳那 594 条候选。</b>
+    这一页说清每件缺什么、<b>谁来做、你能不能替</b>。
   </p>
   <div class="stamps">
-    <span class="stamp ok">已上线 3 处</span>
+    <span class="stamp ok">已上线 4 处</span>
     <span class="stamp bad">卡住 3 件</span>
     <span class="stamp">数字口径 2026-08-20 实测</span>
     <span class="stamp">未经真实登录态肉眼验证</span>
@@ -185,16 +185,49 @@ ol.steps>li span{color:var(--ink-2);font-size:13.5px}
     <div class="card"><h4>本月机器人回话</h4><p class="big">10,874</p><small><code>operation = chatReply</code></small></div>
     <div class="card" style="border-color:var(--bad-line)"><h4>记了用哪块积木的</h4><p class="big" style="color:var(--bad)">0</p><small><code>element_ids</code> 本月抽样 1,000 行，非空 <b>0 行</b></small></div>
   </div>
-  <div class="note bad">
-    <span class="t">卡点</span>
+  <div class="note ok">
+    <span class="t">2026-08-21 复查 · 结论反了：桥已经建好了</span>
     <p>
-      账本表<b>有 <code>element_ids</code> 这一列</b>，但企微那侧回话时<b>从来没往里写过</b>。
-      同一张表里 <code>knowledge_doc_ids</code> 和 <code>example_ids</code> 是有数据的（本月 53 条 chatReply 全部非空），
-      所以<b>按「知识文档」统计被调取次数今天就能做，按「积木」统计做不了。</b>
+      去 <code>Akke-AI/wecom-chat</code> 仓翻过了。<b><code>src/lib/kb-elements.ts</code> 完整存在</b>——
+      读 <code>status='enabled'</code> 的元素、外科式替换进喂料、
+      <code>attachElementProvenance()</code> 把 element id 记进 <code>element_ids</code>，
+      已接进 <code>llm.ts</code> 的 chatReply 路径，还配了总闸、按号灰度白名单、
+      <code>/api/status</code> 自报状态和两个评测脚本。
     </p>
     <p>
-      代码注释里早就写着原因：<b>wecom-chat 还没接 kb_elements</b>。启用一条积木现在做到的是
-      「记为本店口径、等桥接通」，机器人那头还没按它说话。
+      <b><code>element_ids</code> 全空不是 bug，是开关没开。</b><code>llm.ts</code> 那句注释写得很清楚：
+      「开关关时它是恒等变换 + <code>elementIds=[]</code>，零行为变化」——和实测完全对上。
+    </p>
+    <p>
+      <b>所以这一条不需要任何人写代码。</b>它变成了一个「拨不拨开关」的决定，
+      而开关卡在下面那道闸上。
+    </p>
+  </div>
+
+  <div class="note warn">
+    <span class="t">拨开关的闸 · 两条，一条已达标</span>
+    <div class="tw" style="margin-top:0">
+      <table>
+        <thead><tr><th>闸</th><th class="num">现状</th><th>结论</th></tr></thead>
+        <tbody>
+          <tr><td>价格类文档 100% 被元素覆盖</td><td class="num">32 / 32</td><td><span class="pill ok">已达标</span></td></tr>
+          <tr><td>元素覆盖文档数 ≥ 90 / 93</td><td class="num">按 enabled 算：1 / 93</td><td><span class="pill bad">差 89 份</span></td></tr>
+          <tr><td>（若 594 条 draft 全被采纳）</td><td class="num">89 / 93</td><td><span class="pill warn">仍差 1 份</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:12px">
+      差的那几份是 <b>4 份工艺文档</b>——PUR 封边工艺 / 多层板背板 / 9mm 卡槽工艺 / 标配悍高五金，
+      它们<b>一条元素都没拆出来</b>。给这 4 份补跑一次拆分，采纳后覆盖率就是 93/93。
+      <code>ingestDocument()</code> 支持传 <code>sourceDocumentId</code>，这一步是可跑的。
+    </p>
+    <p>
+      <b>但要留意：闸的原始理由已经过期。</b>spec 4.1 当初担心「元素覆盖不到的文档，换源之后
+      机器人就读不到了」——而 <b>2026-08-17 已经改成外科式替换</b>：没元素的文档整篇照喂，
+      有元素的只把 <code>source_excerpt</code> 定位到的那一段换掉，定位不到的（实测 19%）
+      前置追加、原文不删。<b>最坏情况是新旧两版并存，不是「资料塌掉」。</b>
+      所以更贴切的闸也许是「摘录定位率」而不是「文档覆盖率」——
+      <span style="color:var(--ink-3)">这一条是判断，不是实测结论，写在这里等人拍。</span>
     </p>
   </div>
 
@@ -218,7 +251,7 @@ ol.steps>li span{color:var(--ink-2);font-size:13.5px}
   </div>
 
   <h3>③ 月度实战手册</h3>
-  <p>六节里三节现在没有足够的料。详见 <a href="#playbook" style="color:var(--indigo-2)">第 04 节</a>。</p>
+  <p>六节里三节现在没有足够的料。详见 <a href="#playbook" style="color:var(--indigo-2)">第 04 节</a>；谁来做见 <a href="#support" style="color:var(--indigo-2)">第 05 节</a>。</p>
 </section>
 
 <!-- 03 -->
@@ -231,8 +264,8 @@ ol.steps>li span{color:var(--ink-2);font-size:13.5px}
                                             │
                                             ✗ 断在这里
                                             │
-                                   wecom-chat 回话时不读 kb_elements
-                                   provenance 的 element_ids 恒为空
+                                   桥已建好，但 WECOM_KB_ELEMENTS 开关没开
+                                   （开关关 = 恒等变换，element_ids 恒为空）
                                             │
                               ┌─────────────┴─────────────┐
                         「被调取 N 次」算不出        「差评 N 次」归不到积木</pre>
@@ -241,12 +274,13 @@ ol.steps>li span{color:var(--ink-2);font-size:13.5px}
   <div class="note">
     <span class="t">结论</span>
     <p>
-      设计稿要在每块积木上摆的那两个数，<b>不是我们没写代码，是那条链路的第 3 步没通</b>。
-      桥一旦接上，两个数同时就有了——因为「机器人这轮用了哪几块积木」正是它们共同的分母。
+      设计稿要在每块积木上摆的那两个数，<b>不是我们没写代码</b>——代码两边都写好了。
+      断的是第 3 步：<b>594 条候选没人采纳，于是开关没有理由拨开</b>。
+      桥一旦通电，两个数同时就有了——「机器人这轮用了哪几块积木」正是它们共同的分母。
     </p>
     <p>
-      <b>但桥接通了也还不够：</b>全库 601 条候选只有 <b>1 条</b>处于启用状态。
-      即使明天就接通，可被调取的也只有那 1 条。<b>这是两个独立的卡点，要一起解。</b>
+      <b>所以这不是工程问题。</b>全库 601 条候选只有 <b>1 条</b>处于启用状态；
+      即使今天就把开关拨开，可被调取的也只有那 1 条。<b>要先有人去采纳。</b>
     </p>
   </div>
 </section>
@@ -343,61 +377,100 @@ ol.steps>li span{color:var(--ink-2);font-size:13.5px}
 
   <h3>分期做法</h3>
   <ol class="steps">
-    <li><b>Phase 1 · 让「话术禁区」有米下锅</b><span>问题不是没有记录的地方，是<b>没有人在产生这个信号</b>。先查那条路径是不是根本走不通（写失败被静默吞掉？按钮出不来？），再谈补账。走得通只是没人用的话，那是推广/流程问题。</span></li>
-    <li><b>Phase 2 · 接上金牌案例</b><span>不建自动回写。手册的标杆片段直接读 <code>enterprise_sales_cases</code>；成交信号从同一批里提取；在屏上明写累计口径；本月新增案例 &lt; 3 时反向在金牌案例屏挂待办。</span></li>
-    <li><b>Phase 3 · 蒸馏管线</b><span>月度跑一次。输入 = 当月对话 + 累计成交案例 + 已确认口径。评测与试跑走 eval key，别烧生产额度。</span></li>
-    <li><b>Phase 4 · 审核闸 + 分发 + 回流</b><span>店长审完再发，<b>话术禁区逐条过</b>；接进入职清单与月度会；手册里的禁区能一键回写系统。</span></li>
+    <li><b>Phase 1 · 让「话术禁区」有米下锅</b><span><b>责任人：技术查通路 → 企微自动接待的使用者真的去用。</b>问题不是没有记录的地方，是<b>没有人在产生这个信号</b>。先查那条路径是不是根本走不通（写失败被静默吞掉？按钮出不来？），再谈补账。走得通只是没人用的话，那是推广/流程问题——PM 能定规矩，替不了人点。</span></li>
+    <li><b>Phase 2 · 接上金牌案例</b><span><b>责任人：店长供案例 · 技术接管道。</b>不建自动回写。手册的标杆片段直接读 <code>enterprise_sales_cases</code>；成交信号从同一批里提取；在屏上明写累计口径；本月新增案例 &lt; 3 时反向在金牌案例屏挂待办。</span></li>
+    <li><b>Phase 3 · 蒸馏管线</b><span><b>责任人：技术（企业大脑）。</b>月度跑一次。输入 = 当月对话 + 累计成交案例 + 已确认口径。评测与试跑走 eval key，别烧生产额度。</span></li>
+    <li><b>Phase 4 · 审核闸 + 分发 + 回流</b><span><b>责任人：技术做闸 · PM 定分发时点 · 店长审。</b>店长审完再发，<b>话术禁区逐条过</b>；接进入职清单与月度会；手册里的禁区能一键回写系统。</span></li>
   </ol>
 </section>
 
 <!-- 05 -->
 <section id="support">
-  <div class="head"><em>05</em><h2>需要什么支持</h2></div>
-  <p class="sub">按「谁能解开」分。前两条不解开，设计稿上那两个数永远出不来。</p>
+  <div class="head"><em>05</em><h2>谁来做什么</h2></div>
+  <p class="sub">
+    按「<b>这件事非谁不可</b>」分，不按「谁比较闲」分。
+    一件事如果技术上谁都能点、但业务上只有一个人判得了，那它的责任人是后者。
+  </p>
 
   <div class="tw">
     <table>
-      <thead><tr><th>需要的支持</th><th>找谁</th><th>解开之后</th><th>紧要度</th></tr></thead>
+      <thead><tr><th>要做的事</th><th>责任人</th><th>PM 能不能替</th><th>解开之后</th></tr></thead>
       <tbody>
         <tr>
-          <td><b>回话时把命中的积木 id 写进 <code>element_ids</code></b><br><small>机器人这轮读了哪几块 kb_elements，落进 <code>llm_call_provenance</code></small></td>
-          <td class="mono">wecom-chat 仓</td>
-          <td>「被调取 N 次」和「差评 N 次」<b>同时</b>有了分母</td>
-          <td><span class="pill bad">最高</span></td>
+          <td><b>把 594 条候选采纳掉</b><br><small>摊在 42 个积木格里，E03-03 一格 166 条</small></td>
+          <td><b>门店店长 / 甲方</b></td>
+          <td><span class="pill bad">不该替</span><br><small>技术上有 manager 权限就点得动，但采纳＝<b>替门店确认对外口径</b>，错了机器人照错的说。除非你本人清楚一筑的价格与工艺口径。</small></td>
+          <td>机器人可引用的知识从 1 条变成几十条；开关才有理由拨</td>
         </tr>
         <tr>
-          <td><b>有人去采纳那 594 条候选</b><br><small>摊在 42 个积木格里，E03-03 一格就 166 条</small></td>
-          <td class="mono">门店管理者 / 运营</td>
-          <td>机器人可引用的知识从 1 条变成几十条</td>
-          <td><span class="pill bad">最高</span></td>
+          <td><b>给 4 份工艺文档补跑拆分</b><br><small>PUR 封边 / 多层板背板 / 9mm 卡槽 / 悍高五金</small></td>
+          <td><b>技术</b></td>
+          <td><span class="pill ok">不用你做</span><br><small>脚本可跑，<code>ingestDocument()</code> 支持传 <code>sourceDocumentId</code>。产出是 draft，不影响机器人。</small></td>
+          <td>采纳后覆盖率从 89/93 变 93/93，闸的第一条才可能过</td>
         </tr>
         <tr>
-          <td><b>让「这是事实错误」那个勾选真的被用起来</b><br><small>或先查清它是不是根本走不通</small></td>
-          <td class="mono">抽检聊天的使用者</td>
-          <td>话术禁区有料；差评能归因到积木</td>
-          <td><span class="pill warn">高</span></td>
+          <td><b>决定 166 条怎么变得可处理</b><br><small>去重？按来源聚类？先推荐 3 条？还是允许整格批量采纳？</small></td>
+          <td><b>产品（你）</b></td>
+          <td><span class="pill ok">这就是你的</span><br><small>一格 166 条、要读完才能选一个——这是产品形态问题，不是工程问题。不定这个，采纳率提不上来。</small></td>
+          <td>采纳这件事从「不可能完成」变成「一天能干完」</td>
         </tr>
         <tr>
-          <td><b>金牌案例持续投喂</b><br><small>本月只进了 2 条</small></td>
-          <td class="mono">店长</td>
+          <td><b>拨 <code>WECOM_KB_ELEMENTS</code> 开关</b></td>
+          <td><b>你拍板 · 技术执行</b></td>
+          <td><span class="pill warn">要你点头</span><br><small>它<b>改变真实客户收到的话</b>，且已发出去的收不回来。建议先用 persona 白名单拿一个号灰度几天。</small></td>
+          <td>「被调取」与「差评」两个数同时开始有</td>
+        </tr>
+        <tr>
+          <td><b>让「这是事实错误」那个勾选真的被用起来</b><br><small>上线至今零使用</small></td>
+          <td><b>用抽检聊天的人（销售 / 运营）</b></td>
+          <td><span class="pill warn">只能定规矩</span><br><small>你能定「每周抽检 N 段、答错的必须勾」，但替不了他们点。<b>技术侧先查它是不是根本走不通</b>——这一步归我。</small></td>
+          <td>话术禁区有料；差评能归因到具体积木</td>
+        </tr>
+        <tr>
+          <td><b>金牌案例持续投喂</b><br><small>累计 29 条，本月只进 2 条</small></td>
+          <td><b>店长</b></td>
+          <td><span class="pill warn">只能定规矩</span><br><small>你能定「每月至少 N 条到店成交聊天记录」。案例本身只有店里有。</small></td>
           <td>手册的成交信号 / 标杆片段站得住</td>
-          <td><span class="pill warn">中</span></td>
-        </tr>
-        <tr>
-          <td><b>决定 166 条候选怎么变得可处理</b><br><small>一格选一个版本，要读 166 条</small></td>
-          <td class="mono">产品</td>
-          <td>采纳率能真正提上来（去重？聚类？先推荐 3 条？）</td>
-          <td><span class="pill warn">中</span></td>
         </tr>
       </tbody>
     </table>
   </div>
 
-  <div class="note warn">
-    <span class="t">一句提醒</span>
+  <div class="note bad">
+    <span class="t">一句提醒 · 前两条互为前提</span>
     <p>
-      前两条是<b>互为前提</b>的：桥不接通，采纳再多也统计不到；只接桥不采纳，可调取的仍然只有 1 条。
-      任何一条单独做完，设计稿上那两个数字都还是出不来。
+      <b>采纳</b>和<b>拨开关</b>缺一不可：桥不通，采纳再多也统计不到；只拨开关不采纳，
+      可调取的仍然只有 1 条。任何一条单独做完，设计稿上那两个数字都还是出不来。
+    </p>
+    <p>
+      而这两条的<b>共同前置是第三条</b>——166 条候选摆在一格里没法处理，采纳就不会发生。
+      <b>所以真正该先动的是产品决策，不是工程。</b>
+    </p>
+  </div>
+
+  <h3>月度实战手册的待办，按板块分</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>手册这一节</th><th>归哪个板块</th><th>那个板块要做什么</th></tr></thead>
+      <tbody>
+        <tr><td>业务速览 / 高频问答 / 异议处理</td><td><b>企业大脑</b></td><td>技术自己能完成，不需要别人配合</td></tr>
+        <tr><td><b>话术禁区</b></td><td><b>企微自动接待</b></td><td>让抽检聊天的人真的用那个「这是事实错误」的勾选</td></tr>
+        <tr><td><b>成交信号 / 标杆片段</b></td><td><b>店长（不是任何技术板块）</b></td><td>把到店成交的聊天记录贴进金牌案例屏</td></tr>
+        <tr><td>反向管道：高频问答 → 视频选题</td><td><b>短视频获客</b></td><td>选题候选池接收手册产出的「本月最常问 Top N」。做了手册就多一个「被用上」的证据</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note warn">
+    <span class="t">更正一条我之前说错的</span>
+    <p>
+      早前我把<b>沉默客户跟进</b>列成「结果标注的上游」。<b>那是错的。</b>
+      线上代码注释写死了：「实际到店没有任何后台记录点——到店发生在线下，
+      除非门店回填，否则谁也不知道」。
+    </p>
+    <p>
+      所以沉默客户跟进那边<b>没有东西可给</b>，它不是这件事的上游。
+      成交结果的唯一来源是<b>店长手工贴的金牌案例</b>。
     </p>
   </div>
 </section>
