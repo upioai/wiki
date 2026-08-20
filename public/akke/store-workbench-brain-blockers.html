@@ -238,15 +238,46 @@ ol.steps>li span{color:var(--ink-2);font-size:13.5px}
     <div class="card"><h4>人工复核过的会话</h4><p class="big">2</p><small>其余 134 段 <code>review_state = unreviewed</code></small></div>
   </div>
   <div class="note bad">
-    <span class="t">卡点 · 两层</span>
+    <span class="t">卡点 · 三层，第三层是 2026-08-21 挖出来的</span>
     <p>
       <b>第一层：会话级的「可能答错」信号是有的</b>（7 段），但它<b>回答不了「哪块积木在坑我」</b>——
       标的是整段会话，不是某一条知识。
     </p>
     <p>
-      <b>第二层：把它归因到积木的那条路径零使用。</b>聊天页那个「这是事实错误，同时更正知识积木」的勾选，
-      从上线到今天<b>一次都没被用过</b>。所以现在补一本「被当场更正」的账，账本会是空的——
-      这不是工程问题，是没人在产生这个信号。
+      <b>第二层：归因到积木的那条路径零使用。</b>聊天页那个「这是事实错误，同时更正知识积木」的勾选，
+      从上线到今天<b>一次都没被用过</b>。
+    </p>
+    <p>
+      <b>第三层（新）：那个勾选在绝大多数会话上<u>根本不会出现</u>——不是没人用，是看不见。</b>
+      它的前置是「这句机器人回复查得到出处」，而出处面板按 <code>conversation_id</code> 查账。
+      实测 25 段最近会话、218 句 AI 回复，<b>只有 16 句贴得上出处 = 7%</b>。
+    </p>
+  </div>
+
+  <div class="note warn">
+    <span class="t">7% 的根因 · 不是 bug，是链路形状</span>
+    <div class="tw" style="margin-top:0">
+      <table>
+        <thead><tr><th>最近 1000 条 chatReply 账</th><th class="num">条数</th><th>阶段分布</th></tr></thead>
+        <tbody>
+          <tr><td><b>没有 <code>conversation_id</code></b></td><td class="num">788</td><td><b>首触 ice_break 743</b> · 培育 45</td></tr>
+          <tr><td>有 <code>conversation_id</code></td><td class="num">212</td><td>培育 200 · 决策 12 · <b>首触 0</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:12px">
+      <b>首触那一刻会话行还不存在</b>，账写完了会话才建——所以挂不上 <code>conversation_id</code>。
+      这和同一张表里 <code>message_id</code> 恒空是<b>同一个原因</b>（模型出话时消息还没落库）。
+      代码没写错：四个 <code>chatReply</code> 调用点全都传了 <code>conversationId</code>，
+      只是首触那次传进去的本来就是空。
+    </p>
+    <p>
+      <b>后果：只有进入培育 / 决策阶段的会话才有出处</b>，而门店大量客户停在首触。
+      于是勾选框看不见 → 没人产生负反馈 → 差评这个数永远是 0。
+    </p>
+    <p>
+      <b>可修，且是一处具体改动</b>：首触发完话、会话建好之后，拿 <code>traceId</code>
+      回填那条账的 <code>conversation_id</code>。归 wecom-chat。
     </p>
   </div>
 
@@ -421,9 +452,15 @@ ol.steps>li span{color:var(--ink-2);font-size:13.5px}
           <td>「被调取」与「差评」两个数同时开始有</td>
         </tr>
         <tr>
+          <td><b>首触账回填 <code>conversation_id</code></b><br><small>788/1000 条账没有它，全是首触；出处贴上率因此只有 7%</small></td>
+          <td><b>技术（wecom-chat）</b></td>
+          <td><span class="pill ok">不用你做</span><br><small>首触发完话、会话建好后拿 <code>traceId</code> 回填一次。<b>这是「让勾选框出现」的前置</b>——不修，下面那条永远无从谈起。</small></td>
+          <td>出处面板在首触会话上也能用；勾选框才看得见</td>
+        </tr>
+        <tr>
           <td><b>让「这是事实错误」那个勾选真的被用起来</b><br><small>上线至今零使用</small></td>
           <td><b>用抽检聊天的人（销售 / 运营）</b></td>
-          <td><span class="pill warn">只能定规矩</span><br><small>你能定「每周抽检 N 段、答错的必须勾」，但替不了他们点。<b>技术侧先查它是不是根本走不通</b>——这一步归我。</small></td>
+          <td><span class="pill warn">只能定规矩</span><br><small>你能定「每周抽检 N 段、答错的必须勾」，但替不了他们点。<b>前提是上一行先修好</b>——现在 93% 的会话上那个勾选压根不显示，怪不到人头上。</small></td>
           <td>话术禁区有料；差评能归因到具体积木</td>
         </tr>
         <tr>
@@ -493,6 +530,8 @@ ol.steps>li span{color:var(--ink-2);font-size:13.5px}
         <tr><td>成交案例 累计 / 本月</td><td class="num">29 / 2</td><td class="mono">enterprise_sales_cases</td></tr>
         <tr><td>本店口径事实</td><td class="num">93</td><td class="mono">knowledge_documents</td></tr>
         <tr><td>待裁决冲突</td><td class="num">1</td><td class="mono">sw_fact_conflicts</td></tr>
+        <tr><td>出处贴上率（25 段最近会话）</td><td class="num">16 / 218 = 7%</td><td class="mono">messages × llm_call_provenance · 5 分钟窗</td></tr>
+        <tr><td>chatReply 账缺 conversation_id</td><td class="num">788 / 1000</td><td class="mono">其中首触 743</td></tr>
       </tbody>
     </table>
   </div>
