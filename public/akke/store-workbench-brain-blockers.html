@@ -183,51 +183,42 @@ ol.steps>li span{color:var(--ink-2);font-size:13.5px}
   <div class="grid g3">
     <div class="card"><h4>回话账本总量</h4><p class="big">182,730</p><small><code>llm_call_provenance</code> 全量行数</small></div>
     <div class="card"><h4>本月机器人回话</h4><p class="big">10,874</p><small><code>operation = chatReply</code></small></div>
-    <div class="card" style="border-color:var(--bad-line)"><h4>记了用哪块积木的</h4><p class="big" style="color:var(--bad)">0</p><small><code>element_ids</code> 本月抽样 1,000 行，非空 <b>0 行</b></small></div>
+    <div class="card" style="border-color:var(--ok-line)"><h4>记了用哪块积木的</h4><p class="big" style="color:var(--ok)">已开始</p><small>08-21 上午起 <code>element_ids</code> 开始有值（最近 300 条回话里 4 条）。08-20 那次抽样 0 行，是<b>当时只有 1 条 enabled、命中不了</b></small></div>
   </div>
   <div class="note ok">
-    <span class="t">2026-08-21 复查 · 结论反了：桥已经建好了</span>
+    <span class="t">2026-08-22 三次复查后的最终结论：链路是通的，而且已经在产数据</span>
     <p>
-      去 <code>Akke-AI/wecom-chat</code> 仓翻过了。<b><code>src/lib/kb-elements.ts</code> 完整存在</b>——
-      读 <code>status='enabled'</code> 的元素、外科式替换进喂料、
-      <code>attachElementProvenance()</code> 把 element id 记进 <code>element_ids</code>，
-      已接进 <code>llm.ts</code> 的 chatReply 路径，还配了总闸、按号灰度白名单、
-      <code>/api/status</code> 自报状态和两个评测脚本。
+      这一条我连续三轮给了三个不同的错误归因，逐条撤回：
     </p>
-    <p>
-      <b><code>element_ids</code> 全空不是 bug，是开关没开。</b><code>llm.ts</code> 那句注释写得很清楚：
-      「开关关时它是恒等变换 + <code>elementIds=[]</code>，零行为变化」——和实测完全对上。
-    </p>
-    <p>
-      <b>所以这一条不需要任何人写代码。</b>它变成了一个「拨不拨开关」的决定，
-      而开关卡在下面那道闸上。
-    </p>
-  </div>
-
-  <div class="note warn">
-    <span class="t">拨开关的闸 · 两条，一条已达标</span>
     <div class="tw" style="margin-top:0">
       <table>
-        <thead><tr><th>闸</th><th class="num">现状</th><th>结论</th></tr></thead>
+        <thead><tr><th>我说过</th><th>实际</th></tr></thead>
         <tbody>
-          <tr><td>价格类文档 100% 被元素覆盖</td><td class="num">32 / 32</td><td><span class="pill ok">已达标</span></td></tr>
-          <tr><td>元素覆盖文档数 ≥ 90 / 93</td><td class="num">按 enabled 算：1 / 93</td><td><span class="pill bad">差 89 份</span></td></tr>
-          <tr><td>（若 594 条 draft 全被采纳）</td><td class="num">89 / 93</td><td><span class="pill warn">仍差 1 份</span></td></tr>
+          <tr><td>wecom-chat 没接 kb_elements</td><td>❌ <b>接了</b>，<code>src/lib/kb-elements.ts</code> 完整存在</td></tr>
+          <tr><td>桥建好了但开关没开，卡在覆盖率闸</td><td>❌ 线上 <code>/api/status</code> 实测 <code>kb_elements: true</code>，<b>开着的</b></td></tr>
+          <tr><td><code>element_ids</code> 全空是开关关着</td><td>❌ 是<b>当时只有 1 条 enabled，命中不了</b></td></tr>
         </tbody>
       </table>
     </div>
     <p style="margin-top:12px">
-      差的那几份是 <b>4 份工艺文档</b>——PUR 封边工艺 / 多层板背板 / 9mm 卡槽工艺 / 标配悍高五金，
-      它们<b>一条元素都没拆出来</b>。给这 4 份补跑一次拆分，采纳后覆盖率就是 93/93。
-      <code>ingestDocument()</code> 支持传 <code>sourceDocumentId</code>，这一步是可跑的。
+      真实因果是<b>两个时间点的对照</b>，不是单点推断：
+    </p>
+    <div class="tw" style="margin-top:0">
+      <table>
+        <thead><tr><th>时点</th><th class="num">enabled</th><th><code>element_ids</code></th></tr></thead>
+        <tbody>
+          <tr><td>2026-08-20</td><td class="num">1 条</td><td>抽样 1,000 行，非空 0</td></tr>
+          <tr><td>2026-08-21</td><td class="num"><b>41 条</b></td><td><b>开始有值</b>（08-21 上午产生 4 条）</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:12px">
+      <b>所以这不是「卡住了」，是「刚开始转」。</b>采纳 → 命中 → 攒出「被调取 / 差评」两个数，
+      这是个自我强化的循环，<b>起点就是有人去采纳</b>。1 条 enabled 时它转不起来；41 条时账就开始有了。
     </p>
     <p>
-      <b>但要留意：闸的原始理由已经过期。</b>spec 4.1 当初担心「元素覆盖不到的文档，换源之后
-      机器人就读不到了」——而 <b>2026-08-17 已经改成外科式替换</b>：没元素的文档整篇照喂，
-      有元素的只把 <code>source_excerpt</code> 定位到的那一段换掉，定位不到的（实测 19%）
-      前置追加、原文不删。<b>最坏情况是新旧两版并存，不是「资料塌掉」。</b>
-      所以更贴切的闸也许是「摘录定位率」而不是「文档覆盖率」——
-      <span style="color:var(--ink-3)">这一条是判断，不是实测结论，写在这里等人拍。</span>
+      设计稿要的那两个数字，现在的状态是<b>「数据太少，还算不出有意义的结果」</b>，
+      不是「算不出来」。
     </p>
   </div>
 
@@ -311,8 +302,8 @@ ol.steps>li span{color:var(--ink-2);font-size:13.5px}
                                             │
                                             ✗ 断在这里
                                             │
-                                   桥已建好，但 WECOM_KB_ELEMENTS 开关没开
-                                   （开关关 = 恒等变换，element_ids 恒为空）
+                                   桥通着、开关也开着（kb_elements: true）
+                                   缺的是 enabled 数量 —— 采纳越多，命中越多
                                             │
                               ┌─────────────┴─────────────┐
                         「被调取 N 次」算不出        「差评 N 次」归不到积木</pre>
@@ -462,10 +453,10 @@ ol.steps>li span{color:var(--ink-2);font-size:13.5px}
           <td>采纳这件事从「不可能完成」变成「一天能干完」</td>
         </tr>
         <tr>
-          <td><b>拨 <code>WECOM_KB_ELEMENTS</code> 开关</b></td>
-          <td><b>你拍板 · 技术执行</b></td>
-          <td><span class="pill warn">要你点头</span><br><small>它<b>改变真实客户收到的话</b>，且已发出去的收不回来。建议先用 persona 白名单拿一个号灰度几天。</small></td>
-          <td>「被调取」与「差评」两个数同时开始有</td>
+          <td><b>把候选采纳掉</b><br><small>08-20 只有 1 条 enabled，08-21 已到 41 条，还剩 557 条 draft</small></td>
+          <td><b>门店店长 / 甲方</b></td>
+          <td><span class="pill bad">不该替</span><br><small>采纳＝<b>替门店确认对外口径</b>，错了机器人照错的说。<b>这是唯一还卡着的一条</b>——开关早就开着，桥也通着，缺的只是数量。</small></td>
+          <td>「被调取 / 差评」两个数开始有意义</td>
         </tr>
         <tr>
           <td><b>查清 22/25 段企微会话为什么一条账都没有</b><br><small>原写「首触回填 conversation_id」——<b>已撤回</b>，那 743 条是抖音首触，不该改</small></td>
