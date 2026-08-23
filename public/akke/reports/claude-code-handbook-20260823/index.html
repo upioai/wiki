@@ -85,7 +85,8 @@ footer{margin-top:70px;padding-top:22px;border-top:1px solid var(--line);color:v
 <li><a href="#s3">怎么判断它是真在跑，还是已经死了</a></li>
 <li><a href="#s4">网络卡顿 / 中断了怎么恢复（四种姿势对比）</a></li>
 <li><a href="#s5">暂停与继续：把活挂起来，回头接着干</a></li>
-<li><a href="#s6">172 个转圈词全表（按语义家族）</a></li>
+<li><a href="#s6">终端状态词典：<b>真正有含义</b>的那些英文词</a></li>
+<li><a href="#s7">172 个转圈词全表（装饰词 · 附语义梯度）</a></li>
 </ol>
 </div>
 
@@ -368,23 +369,114 @@ claude --resume &lt;session-id&gt;  # 知道 id 就直接点名</code></pre></di
 ③ 下次 <code>claude --continue</code>。<br>
 这样即使会话真的丢了，盘上的东西还在，不用靠聊天记录接活。</div>
 
-<h2 id="s6"><span class="n">06</span>172 个转圈词全表</h2>
+<h2 id="s6"><span class="n">06</span>终端状态词典：真正有含义的那些英文词</h2>
+
+<p>屏幕上的英文词分两类，<b>先分清哪类才不会白猜</b>：</p>
+
+<table>
+<tr><th></th><th>装饰词</th><th>状态词</th></tr>
+<tr><td><b>例子</b></td><td><code>Julienning…</code> <code>Sketching…</code> <code>Transmuting…</code></td><td><code>thinking</code> <code>tool-use</code> <code>Waiting for API response</code></td></tr>
+<tr><td><b>含义</b></td><td>172 个词<b>全都一样</b>：「我还活着」</td><td><b>每个词对应一个真实状态</b></td></tr>
+<tr><td><b>能否自定义</b></td><td><b>能</b>（<code>spinnerVerbs</code> 设置项，可整个替换）</td><td>不能，它是状态机输出</td></tr>
+<tr><td><b>要不要认</b></td><td>认出「它是装饰」就够了</td><td><b>本章全表</b></td></tr>
+</table>
+
+<div class="note"><b>顺带：这两个转圈相关的设置你都能改</b>（写在 <code>~/.claude/settings.json</code>）：
+<pre style="margin:8px 0 0"><code>{
+  "spinnerVerbs": { "mode": "replace", "verbs": ["搬砖中", "摸鱼中"] },
+  "spinnerTipsEnabled": false          // 关掉 "Tip: Use /clear..." 那行
+}</code></pre>
+<span style="font-size:14px"><code>mode</code> 可选 <code>"append"</code>（在默认词表上追加）或 <code>"replace"</code>（只用你的词）。
+还有 <code>spinnerTipsOverride</code> 可以换成你自己的提示语。</span></div>
+
+<h3>A · 运行阶段词 —— 它现在到底在干什么</h3>
+<table>
+<tr><th>词</th><th>什么情况出现</th><th>含义</th><th>你该做什么</th></tr>
+<tr><td class="w">requesting</td><td>刚发出请求</td><td>在等模型开始回话</td><td>等</td></tr>
+<tr><td class="w">thinking</td><td>模型推理中</td><td>在想，正在烧 thinking token</td><td>等</td></tr>
+<tr><td class="w">tool-use</td><td>调工具时</td><td>正在执行某个工具</td><td>等</td></tr>
+<tr><td class="w">running tool for 3m 20s</td><td><kbd>ctrl+o</kbd> 展开后</td><td>某个工具<b>已经跑了多久</b></td><td>这是判断「卡没卡」的关键。超长就 <kbd>esc</kbd> 问它在等什么</td></tr>
+<tr><td class="w">ran tool for …<br>thought for …</td><td>动作结束后</td><td>事后统计：这一步花了多久</td><td>复盘用</td></tr>
+</table>
+
+<h3>B · 异常与中断词 —— 出事了</h3>
+<table>
+<tr><th>词</th><th>什么情况出现</th><th>含义</th><th>你该做什么</th></tr>
+<tr><td class="w" style="color:var(--accent)">Waiting for API response</td><td><b>红字</b>，转圈超时后</td><td>请求发出去了没回音</td><td>等 1–2 分钟。<b>别打断</b></td></tr>
+<tr><td class="w">API error · Retrying in 3s · attempt 2/10</td><td>请求报错后</td><td>在<b>自动退避重试</b>，格式是 <code>第几次/总共几次</code></td><td><span class="hl">让它重试完。打断再重发只会重新排队，不会更快</span></td></tr>
+<tr><td class="w">next try in … · attempt N · esc to interrupt</td><td>低优先级排队时</td><td>在排队等额度</td><td>等，或 <kbd>esc</kbd> 放弃</td></tr>
+<tr><td class="w">Maximum retries reached</td><td>重试到上限</td><td><b>真失败了</b></td><td>这时才需要重来</td></tr>
+<tr><td class="w">Interrupted · What should Claude do instead?</td><td>你按了 <kbd>esc</kbd></td><td>当前轮已被你打断</td><td>直接接着打字说下一步</td></tr>
+<tr><td class="w">Press Ctrl-C again to exit<br>· N agent(s) will keep running</td><td>按 <kbd>ctrl+c</kbd> 时</td><td>再按一次就退出；<b>后台任务不会被杀</b></td><td>确认要退就再按一次</td></tr>
+</table>
+
+<h3>C · 上下文管理词 —— 记忆要满了</h3>
+<table>
+<tr><th>词</th><th>什么情况出现</th><th>含义</th><th>你该做什么</th></tr>
+<tr><td class="w">Context low</td><td>接近窗口上限</td><td>余量告急预警</td><td>敲 <code>/context</code> 看彩色网格确认余量</td></tr>
+<tr><td class="w">Compacting conversation</td><td>手动 <code>/compact</code> 或自动触发</td><td>正在把前文摘要成一段，<b>原文丢弃</b></td><td><span class="hl">重要产物先落盘再让它压</span></td></tr>
+<tr><td class="w">Auto-compact</td><td>自动触发时</td><td>同上，只是它自己决定的</td><td>同上</td></tr>
+<tr><td class="w">Conversation too long.<br>Press esc twice to go up a few messages</td><td>上下文撑爆</td><td>连按两下 <kbd>esc</kbd> 回退几条消息</td><td>照做</td></tr>
+<tr><td class="w">Tip: Use /clear to start fresh…</td><td>转圈时随机出现</td><td><b>通用提示语，不是针对你当前情况的</b></td><td>可以 <code>spinnerTipsEnabled: false</code> 关掉</td></tr>
+</table>
+
+<h3>D · 权限模式词 —— 它会不会先问你</h3>
+<table>
+<tr><th>词</th><th>符号</th><th>含义</th></tr>
+<tr><td class="w">Manual</td><td class="sym">⏸</td><td>每个动作都停下来问你</td></tr>
+<tr><td class="w">Plan</td><td class="sym">⏸</td><td>只规划不动手</td></tr>
+<tr><td class="w">Accept edits</td><td class="sym">⏵⏵</td><td>改文件不再逐个问</td></tr>
+<tr><td class="w" style="color:var(--accent)">Bypass Permissions</td><td class="sym">⏵⏵</td><td><b>全部放行，删文件也不问</b>（红色）</td></tr>
+<tr><td class="w">Auto</td><td class="sym">⏵⏵</td><td>自动判断该不该问</td></tr>
+</table>
+<p>切换：<kbd>shift+tab</kbd> 循环。</p>
+
+<h3>E · 后台与任务词</h3>
+<table>
+<tr><th>词</th><th>什么情况出现</th><th>含义</th></tr>
+<tr><td class="w">Moving to background…</td><td>按了 <kbd>ctrl+b</kbd></td><td>当前任务转入后台，终端腾出来</td></tr>
+<tr><td class="w">(backgrounded)</td><td>任务列表里</td><td>这条在后台跑着</td></tr>
+<tr><td class="w">foreground</td><td>任务列表按 <kbd>f</kbd></td><td>把它调回前台</td></tr>
+<tr><td class="w">Memory is paused.<br>Run /pause-memory to resume automemory.</td><td>敲过 <code>/pause-memory</code></td><td>长期记忆写入已暂停</td></tr>
+</table>
+
+<h3>F · 工具名 —— 它正在用哪个工具</h3>
+<table>
+<tr><th>工具名</th><th>英语原义</th><th>它在干什么</th></tr>
+<tr><td class="w">Bash</td><td>Bourne-Again SHell（1989 年 GNU 写的 shell，名字双关 born again）</td><td><b>在你机器上敲命令</b>。实测占全部工具调用的 68%</td></tr>
+<tr><td class="w">Read</td><td>读</td><td>读文件内容</td></tr>
+<tr><td class="w">Edit</td><td>编辑</td><td><b>精确字符串替换</b>，改前必须先 Read</td></tr>
+<tr><td class="w">Write</td><td>写</td><td><b>整文件覆写</b>，会把原内容全冲掉</td></tr>
+<tr><td class="w">Grep / Glob</td><td>搜内容 / 搜文件名</td><td>找东西</td></tr>
+<tr><td class="w">Task / Agent</td><td>任务 / 代理</td><td>派一个独立子会话去干活，只把结论交回来</td></tr>
+<tr><td class="w">Skill</td><td>技能</td><td>加载一份打包好的工作流，按它写的步骤走</td></tr>
+<tr><td class="w">WebSearch / WebFetch</td><td>搜 / 抓</td><td>前者给关键词返回结果摘要，后者抓指定 URL 正文</td></tr>
+<tr><td class="w">ToolSearch</td><td>工具检索</td><td>很多工具默认只给名字不给参数定义，用之前要先「取说明书」</td></tr>
+<tr><td class="w">AskUserQuestion</td><td>—</td><td>停下来给你选项让你拍板</td></tr>
+<tr><td class="w">Artifact</td><td>artifact = 人工制品（考古术语）；软件业指「构建产物」</td><td>发布成 claude.ai 上的私有网页</td></tr>
+<tr><td class="w">mcp__*</td><td>MCP = Model Context Protocol</td><td>外接工具。<code>__computer</code> = 像人一样看屏幕、动鼠标键盘</td></tr>
+</table>
+
+<h2 id="s7"><span class="n">07</span>172 个转圈词全表（装饰词）</h2>
 
 <p>先说结论，这条最重要：</p>
 
-<div class="note warn"><b>转圈词是纯装饰，跟当前在做什么毫无关系。</b>
+<div class="note warn"><b>终局证据：这些词是「设置项」，你能整个换掉。</b><br>
+<code>~/.claude/settings.json</code> 里的 <code>spinnerVerbs</code> 支持
+<code>mode:"replace"</code>——把 172 个词换成任意字符串。
+<span class="hl">如果它们承载含义，绝不可能开放给用户随便替换</span>。加上：两份词表 <code>diff</code> 完全相同、
+表里有 <code>Clauding</code> / <code>Gitifying</code> / <code>Whatchamacalliting</code> 这类无法对应任何动作的自造词。<b>置信度 0.99。</b></div>
+
+<div class="note"><b>所以这一章不是「词义速查」，是两件别的事：</b><br>
+① <b>认出它是装饰</b>——看到 <code>Transmuting…</code> 别以为它在做什么高深转换。判断死活看 <b>↓token 涨不涨</b>（§03），判断在做什么看<b>状态词</b>（§06）。<br>
+② <b>学点英语</b>——这些词本身的英语差别是真的。每家族下面的「语义梯度」讲的是<b>英语里</b>的轻重、先后、褒贬，那部分不随机。</div>
+
+<div class="note warn" style="display:none"><b>转圈词是纯装饰，跟当前在做什么毫无关系。</b>
 二进制的数据段里是一张<b>按字母序平铺的 172 词表</b>，从 <code>Accomplishing</code> 到 <code>Zigzagging</code>，
 每轮随机抽一个。表里混着 <code>Clauding</code>、<code>Gitifying</code>、<code>Whatchamacalliting</code>
 这种<b>根本无法对应任何真实动作</b>的自造词，而真正表达状态的是另一套字段：
 <code>requesting</code> / <code>thinking</code> / <code>tool-use</code> / <code>running tool for</code>。<br>
 <span style="color:var(--muted);font-size:14px">判据：如果词跟动作有关，二进制里应能找到 word→动作 的映射表；实际只有一串扁平常量，且同一个词收了两遍（<code>Channeling</code> / <code>Channelling</code> 美式英式各一份）。置信度 0.9。</span></div>
-
-<h3>那「在终端里的含义」是什么？</h3>
-<div class="note"><b>答案是：172 个词的终端含义<span class="hl">完全一样</span>——「我还活着，在忙」。</b><br>
-这不是偷懒的回答，是设计如此。既然是随机抽词，就<b>不可能</b>有「Sketching 表示在起草、Julienning 表示在切分任务」这种对应关系。<br><br>
-<b>那这份表还有什么用？</b>两件事：<br>
-① <b>认出它是装饰</b>——看到 <code>Transmuting…</code> 别以为它在做什么高深转换，那只是随机词；真正判断死活看 <b>↓token 数涨不涨</b>（见 §03）。<br>
-② <b>这些词本身的英语差别是真的</b>。下面每一家我都补了「语义梯度」——同一家族里的词在英语里其实有轻重、先后、褒贬之分，那部分不是随机的。</div>
 
 <div class="fam">
 <h4>① 思考类<span class="cnt">22 个 · 唯一名副其实的一家</span></h4>
