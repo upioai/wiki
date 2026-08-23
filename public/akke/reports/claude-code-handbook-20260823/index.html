@@ -257,8 +257,57 @@ Claude Code 内部有专门的「卡顿探测」（<code>tengu_spinner_stalled_u
 <tr><td><code>/resume</code></td><td>会话内切换到另一个历史会话</td><td>已经在 Claude Code 里了</td></tr>
 <tr><td><code>claude --fork-session</code></td><td>从某个会话<b>分叉</b>出新的一条</td><td>想在不污染原会话的前提下试个方向</td></tr>
 </table>
-<div class="note ok"><b>换句话说：「新开会话 + 手动重述上一轮」这个动作，绝大多数情况可以被 <code>claude --continue</code> 替代。</b>
-你少打一大段字，它也不用重新读一遍项目。</div>
+<div class="note warn"><b>最容易搞错的一点：<code>claude --continue</code> 是在「终端」里敲的命令，不是在 Claude 的输入框里说的话。</b>
+屏幕上其实有两层，混在一起就懵了：</div>
+
+<div class="term">
+┌─ 终端（zsh / bash）──────────────────────┐<br>
+│ ~/Akke $ <span class="b">claude</span>          <span class="g">← 这一层敲的是「命令」</span>   │<br>
+│  ┌─ Claude Code 会话 ────────────────┐  │<br>
+│  │ <span class="b">› 帮我改这个页面</span>   <span class="g">← 这一层说的是「人话」</span> │  │<br>
+│  │ <span class="r">⏺</span> 好的，我先看一下…                │  │<br>
+│  └──────────────────────────────────┘  │<br>
+└─────────────────────────────────────────┘
+</div>
+
+<h3>完整操作：A 会话卡住了，一步步该怎么做</h3>
+
+<p><b>第 1 步 · 在 A 会话里：什么都不用说。</b><br>
+直接按两下 <kbd>ctrl+c</kbd> 退出，或者干脆关掉终端窗口。
+<span class="hl">不需要留言、不需要告别、不用等它跑完</span>——
+所有对话记录都实时写在磁盘上（<code>~/.claude/projects/</code>），关掉不会丢。</p>
+
+<p><b>第 2 步 · 回到终端，<code>cd</code> 到同一个目录，敲命令：</b></p>
+<pre><code>cd ~/Akke          # ← 必须是 A 会话当时所在的目录
+claude --continue</code></pre>
+<div class="note warn"><b>目录错了就接不到。</b><code>--continue</code> 找的是「<b>这个目录下最近的那个会话</b>」，
+不是全局最近的那个。</div>
+
+<p><b>第 3 步 · 接回来之后，第一句话说什么。</b><br>
+它接回来的是<b>完整的 A 会话</b>——不是新会话，是同一条。前面所有内容它都还记得，
+<span class="hl">你不用重述任何东西</span>。推荐第一句直接说：</p>
+
+<div class="note ok"><b>「你刚才做到哪了？先把状态复述一遍：做完了什么、验证了什么、还剩什么，然后再继续。」</b><br>
+<span style="font-size:14px">为什么不直接说「继续」——因为你不知道它卡住前<b>是不是已经做完了</b>。
+直接说「继续」有可能让它把同一件事再干一遍（重复提交、重复发消息）。
+多花两百个 token 让它先报状态，省掉一次返工。</span></div>
+
+<h3>对照表：你以为 vs 实际</h3>
+<table>
+<tr><th></th><th>你以为要做的</th><th>实际要做的</th></tr>
+<tr><td>在 A 会话里</td><td>说点什么保存进度</td><td><b>什么都不用说，直接退出</b></td></tr>
+<tr><td>新会话怎么开</td><td><code>claude</code> 然后手动重述上一轮</td><td><code>claude --continue</code>（在同一目录）</td></tr>
+<tr><td>开完第一句</td><td>把上一轮需求整段重贴</td><td><b>「你刚才做到哪了？先复述状态」</b></td></tr>
+<tr><td>它记得多少</td><td>什么都不记得，要重新讲</td><td><b>全都记得</b>，A 会话的完整上下文都在</td></tr>
+</table>
+
+<div class="note ok"><b><code>--continue</code> 不是「新开一个会话」，是「把原来那个会话重新打开」。</b>
+这就是它比手动重开省的地方——省的不是打字，是<span class="hl">它不用重新读一遍你的项目</span>
+（这部分实测要烧几万到几十万 token）。</div>
+
+<p><b>什么时候才真的需要新开会话重述？</b>只有当 A 会话的上下文已经逼近 1M 上限
+（实测有会话到过 88.0 万 / 82.0 万），接回来也活不了多久，那才值得开新的。
+判断方法：接回来后跑 <code>/context</code> 看余量。</p>
 
 <h3>还有两个救场命令</h3>
 <table>
