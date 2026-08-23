@@ -86,7 +86,7 @@ footer{margin-top:70px;padding-top:22px;border-top:1px solid var(--line);color:v
 <li><a href="#s4">网络卡顿 / 中断了怎么恢复（四种姿势对比）</a></li>
 <li><a href="#s5">暂停与继续：把活挂起来，回头接着干</a></li>
 <li><a href="#s6">终端状态词典：<b>真正有含义</b>的那些英文词</a></li>
-<li><a href="#s7">172 个转圈词全表（装饰词 · 附语义梯度）</a></li>
+<li><a href="#s7">186 个转圈词全表（装饰词 · 附语义梯度）</a></li>
 </ol>
 </div>
 
@@ -100,10 +100,10 @@ footer{margin-top:70px;padding-top:22px;border-top:1px solid var(--line);color:v
 <table>
 <tr><th>元素</th><th>英语原义</th><th>在这里的含义</th><th>可信度</th></tr>
 <tr><td class="sym">✳</td><td>星号 / 六芒星</td><td>转圈动画的当前帧。它在<b>动</b>就说明渲染循环活着</td><td>1.0</td></tr>
-<tr><td class="w">Julienning…</td><td>切细丝（法餐刀工）</td><td><b>纯装饰</b>。从 172 个词里随机抽一个，<span class="hl">跟当前在做什么毫无关系</span></td><td>0.9</td></tr>
+<tr><td class="w">Julienning…</td><td>切细丝（法餐刀工）</td><td><b>纯装饰</b>。从 186 个词里随机抽一个，<span class="hl">跟当前在做什么毫无关系</span></td><td>0.9</td></tr>
 <tr><td class="w">2h 6m 7s</td><td>时长</td><td><b>本轮</b>耗时——你按回车到现在，跨越多次 API 调用和多个工具，不是单次请求</td><td>0.95</td></tr>
 <tr><td class="sym">↓</td><td>向下箭头 = 下行 / 接收</td><td>数据<b>从模型流回你的终端</b>的方向</td><td>0.9</td></tr>
-<tr><td class="w">27.0k tokens</td><td>记号数</td><td><b>本轮累计生成的 output token</b>（含思考 token），<span class="hl">不含输入和缓存</span></td><td>0.9</td></tr>
+<tr><td class="w">27.0k tokens</td><td>记号数</td><td><b>本轮生成量的估算值</b>：渲染代码是 <code>Math.round(responseLength/4)</code>——按<b>字符数 ÷ 4</b> 估，再做动画平滑；API 回报真实 <code>outputTokens</code> 时才 snap 校准。<span class="hl">不含输入和缓存</span></td><td>1.0</td></tr>
 <tr><td class="sym">⎿</td><td>制表符 / 树枝末端</td><td>附属行：这条信息隶属于上面那行</td><td>1.0</td></tr>
 </table>
 
@@ -114,18 +114,23 @@ footer{margin-top:70px;padding-top:22px;border-top:1px solid var(--line);color:v
 <pre><code>Jre = "↑"   // ↑
 AZ  = "↓"   // ↓</code></pre>
 
-<p>它们在整个 Claude Code 里只有两类用途：</p>
+<p>它们在 Claude Code 里的用途（<b>不止状态行一处</b>）：</p>
 
 <table>
 <tr><th>出现位置</th><th>↓ 的意思</th><th>↑ 的意思</th></tr>
 <tr><td><b>状态行</b>（你最常看到的）</td><td><b>本轮生成的 token 数</b>——数据下行到终端</td><td class="sym">—（状态行只有 ↓，不会出现 ↑）</td></tr>
 <tr><td>Memory 多仓同步日志</td><td><code>pull ↓12/−3</code> 拉下来 12 条</td><td><code>push ↑5/−1</code> 推上去 5 条</td></tr>
+<tr><td>滚动 / 分页</td><td><code>↓ N more below</code>、<code>fn+↓ to scroll</code></td><td><code>more above</code>、分页 <code>↑ 1–10 of 50 ↓</code></td></tr>
 <tr><td>键盘输入</td><td>方向键「下」</td><td>方向键「上」（翻历史输入）</td></tr>
 </table>
 
-<div class="note ok"><b>为什么确定 ↓ 是 output 而不是输入总量：</b>
-实测同一轮里 <code>1h47m → ↓16.2k</code>、<code>2h06m → ↓27.0k</code>，19 分钟涨了 10.8k ≈ 570 tok/分钟——这是生成速率的量级。
-而同期实测<b>单次请求的输入上下文是 50 万~99 万 token</b>，差了 40 倍。所以状态行显示的绝不可能是输入。</div>
+<div class="note ok"><b>渲染代码原文（这条有直接证据，不用靠推断）：</b>
+<pre style="margin:8px 0"><code>let de=te.current, oe=Math.round(de/4), fe=oe, Te=Lf(fe),
+    Ie=`${rt.arrowDown} ${Te} tokens`</code></pre>
+<code>te.current</code> 是向 <code>responseLengthRef</code> 缓动逼近的<b>动画值</b>；
+<code>_responseLength</code> 累加的是<b>字符数</b>，<code>tokenCount = Math.round(this._responseLength/4)</code>。
+只有当 API 回报 <code>outputTokens</code> 时才 snap 回校准值。<br>
+<b>所以它是「估算 + 平滑」，不是直读计数器</b>——短时间内的跳动别当精确值看。</div>
 
 <div class="note warn"><b>最重要的一条：别拿状态行估你的额度消耗。</b>
 实测某一天状态行分轮加起来是 <b>89.9 万</b> output token，但那天真实流过的总量是 <b>3.85 亿</b>——
@@ -154,7 +159,7 @@ Kx = { topLeft:"╭", topRight:"╮", bottomLeft:"╰", bottomRight:"╯" }</cod
 
 <table>
 <tr><th>符号</th><th>叫法</th><th>在这里的含义</th></tr>
-<tr><td class="sym">›</td><td>prompt caret</td><td><b>你输入的那一行</b>。终端里所有 <code>›</code> 开头的都是你说的话</td></tr>
+<tr><td class="sym">›</td><td>prompt caret<br><span style="color:var(--muted);font-size:12px">⚠️ 本页示意图的美化字符，<b>不在二进制符号表里</b>（那里的 <code>pointer</code> 是 <code>&gt;</code>，且用于菜单选中项）。你的终端实际显示可能不同</span></td><td><b>你输入的那一行</b></td></tr>
 <tr><td class="sym">⏺ / ●</td><td>实心圆点</td><td><b>Claude 的一次动作</b>（说话或调工具）。macOS 上是 <code>⏺</code>，其他系统是 <code>●</code></td></tr>
 <tr><td class="sym">⎿ / └</td><td>last branch<br>（树枝末端）</td><td><b>下一层</b>：这条隶属于上面那个动作。工具的<b>执行结果</b>基本都挂在这里</td></tr>
 <tr><td class="sym">├</td><td>branch</td><td>同一层还有后续兄弟节点</td></tr>
@@ -179,11 +184,12 @@ Kx = { topLeft:"╭", topRight:"╮", bottomLeft:"╰", bottomRight:"╯" }</cod
 <tr><td class="sym">⏸</td><td><b>Manual</b> / <b>Plan</b></td><td>暂停符。每个动作都停下来问你，或只做规划不动手</td></tr>
 <tr><td class="sym">⏵⏵</td><td><b>Accept edits</b></td><td>快进符。改文件不再逐个问</td></tr>
 <tr><td class="sym">⏵⏵</td><td><b>Bypass Permissions</b>（红色）</td><td>快进符 + 红色。<span class="hl">全部放行，删文件也不问</span></td></tr>
-<tr><td class="sym">⏵⏵</td><td><b>Auto</b></td><td>自动判断该不该问</td></tr>
+<tr><td class="sym">⏵⏵</td><td><b>Auto</b></td><td>自动判断该不该问（黄色）</td></tr>
+<tr><td class="sym">⏵⏵</td><td><b>Don't Ask</b></td><td>不再询问（红色）</td></tr>
 </table>
 
 <div class="note warn"><b>⏵⏵ 是红色的时候要格外注意。</b>
-实测某台机器 14 天里 <b>95.8%</b> 的时间处在 Bypass 模式（2,534 次 vs auto 110 次）——
+实测某台机器 14 天里 <b>95.8% 的模式切换记录</b>是 Bypass（2,534 次 vs auto 110 次；<b>这是次数占比，不是时长占比</b>）——
 意味着几乎所有命令都是直接执行的，<b>没有弹窗兜底</b>。这也是为什么删文件建议走 <code>~/.Trash</code> 而不是 <code>rm</code>。</div>
 
 <p>切模式：按 <kbd>shift+tab</kbd> 循环。</p>
@@ -200,15 +206,19 @@ Kx = { topLeft:"╭", topRight:"╮", bottomLeft:"╰", bottomRight:"╯" }</cod
 计时器和转圈动画是本地渲染的，<b>断网了它们照样会动</b>，别拿它们当活着的证据。</p>
 
 <h3>② 卡在等 API（红字）</h3>
-<div class="term"><span class="r">Waiting for API response</span> <span class="g">· next try in 3s · attempt 2 · esc to interrupt</span></div>
+<p>注意这里其实是<b>两个互斥的分支</b>，屏幕上只会出现其中一个：</p>
+<div class="term"><span class="g">// 分支一：stalled —— 请求发出去没回音</span><br>
+<span class="r">Waiting for API response</span> <span class="g">· will retry in 3s · check your network</span><br><br>
+<span class="g">// 分支二：low_priority_waiting —— 在排队等额度</span><br>
+<span class="g">· next try in 3s · attempt 2 · esc to interrupt</span></div>
 <p>屏幕上会直接出现红色的 <code>Waiting for API response</code>。
-这说明请求发出去了但没回音——<b>网络或服务端的问题，不是你的问题</b>。
+这说明请求发出去了但没回音。<b>产品自己的文案是 <code>check your network</code>——先别急着断定是服务端的锅，本机代理/网络也会触发。</b>
 Claude Code 内部有专门的「卡顿探测」（<code>tengu_spinner_stalled_ui</code>），
 超过阈值就会把状态行从转圈词切成这行红字。</p>
 
 <h3>③ 报错在重试</h3>
 <div class="term"><span class="r">✳ API error</span> <span class="g">· Retrying in 0s · attempt 1/10</span></div>
-<p>格式是 <code>Retrying in {等待} · attempt {第几次}/{总共几次}</code>。
+<p>格式是 <code>Retrying in {等待} · attempt {第几次}/{总共几次}</code>。上限默认 <b>10</b>，但可被 <code>CLAUDE_CODE_MAX_RETRIES</code> 改（clamp 上限 15），某些分支默认是 300，<b>别把 10 当死数</b>。
 <b>它会自己退避重试到上限</b>，这期间你什么都不用做。
 只有当它打出 <code>Maximum retries reached</code> 才算真的失败了。</p>
 
@@ -235,6 +245,7 @@ Claude Code 内部有专门的「卡顿探测」（<code>tengu_spinner_stalled_u
 <p><b>适用</b>：上一轮明显做到一半被打断，上下文还在。<br>
 <b>代价</b>：最低。整个会话上下文不动，缓存命中率保持。<br>
 <b>风险</b>：如果它其实<b>已经做完了只是没显示</b>，「继续」会让它重做一遍，可能产生重复动作（重复提交、重复发消息）。</p>
+<div class="note warn"><b>⚠️ 状态行正在 <code>Retrying in … attempt N/M</code> 时，输「继续」和按 esc 重发是同一回事</b>——同样是重新排队，不会更快。这种时候唯一正确的动作是<b>停手，等它退避重试完</b>。</div>
 <div class="note ok"><b>更稳的说法：别说「继续」，说「你刚才做到哪了？先复述状态再继续」。</b>
 这一句能把「重做」的风险按掉——它会先报状态，你确认后再往下走。多花 200 个 token，省掉一次重复操作。</div>
 
@@ -260,7 +271,7 @@ Claude Code 内部有专门的「卡顿探测」（<code>tengu_spinner_stalled_u
 <tr><td><code>claude --continue</code><br><code>claude -c</code></td><td>接上<b>这个目录里最近活动的那个</b>（不一定是你刚关的）</td><td>终端崩了 / 关掉了 / 断网重连后</td></tr>
 <tr><td><code>claude --resume</code><br><code>claude -r</code></td><td>列出历史会话让你<b>挑一个</b>接上；可带搜索词或 session-id</td><td><b>同目录有多个会话时必须用这个</b></td></tr>
 <tr><td><code>/resume</code></td><td>会话内切换到另一个历史会话</td><td>已经在 Claude Code 里了</td></tr>
-<tr><td><code>claude --fork-session</code></td><td>从某个会话<b>分叉</b>出新的一条</td><td>想在不污染原会话的前提下试个方向</td></tr>
+<tr><td><code>--fork-session</code><br><span style="color:var(--muted);font-size:12px">修饰 flag，不能单独用</span></td><td>官方原文：<code>When resuming, create a new session ID instead of reusing the original (use with --resume or --continue)</code>。即 <code>claude --continue --fork-session</code></td><td>想在不污染原会话的前提下试个方向</td></tr>
 </table>
 <div class="note warn"><b>最容易搞错的一点：<code>claude --continue</code> 是在「终端」里敲的命令，不是在 Claude 的输入框里说的话。</b>
 屏幕上其实有两层，混在一起就懵了：</div>
@@ -318,9 +329,20 @@ claude --resume &lt;session-id&gt;  # 知道 id 就直接点名</code></pre></di
 <p>下面这些<b>全都等价</b>，随便用哪个（二进制里的退出别名原文）：</p>
 <pre><code>exit    quit    :q    :q!    :wq    :wq!</code></pre>
 <p>加上按两下 <kbd>ctrl+c</kbd>、直接关终端窗口——也都行。</p>
-<div class="note ok"><b>为什么怎么关都不会丢：</b>对话转写是<b>实时逐行落盘</b>的，
-每条消息即时写进 <code>~/.claude/projects/&lt;项目&gt;/&lt;session-id&gt;.jsonl</code>。
-<span class="hl">不存在「没保存」这回事</span>，进程被 kill 也一样。</div>
+<div class="note ok"><b>为什么一般来说怎么关都不会丢：</b>对话转写会<b>持续批量写盘</b>到
+<code>~/.claude/projects/&lt;项目&gt;/&lt;session-id&gt;.jsonl</code>（内部走 coalescer 合并刷盘，不是严格逐行同步）。
+正常情况下进程被 kill 也保得住。</div>
+
+<div class="note warn"><b>⚠️ 但「保证不丢」是假的，关之前扫一眼有没有这条横幅：</b>
+<pre style="margin:8px 0"><code>Transcript writes are failing (ENOSPC) · recent messages may not be saved for resume</code></pre>
+触发原因（产品自带的映射表）：<code>ENOSPC</code> 磁盘满 · <code>EROFS</code> 只读文件系统 ·
+<code>EDQUOT</code> 配额超 · <code>EACCES</code>/<code>EPERM</code> 权限不足 · <code>ENAMETOOLONG</code> 路径过长。<br>
+<span class="hl">看到它就别指望 <code>--continue</code> 能接回来</span>——先把重要产物手工落盘。</div>
+
+<div class="note warn"><b>⚠️ 转写默认只留 30 天。</b>设置项 <code>cleanupPeriodDays</code>
+（<i>Days to keep transcripts before automatic cleanup, default: 30, minimum 1</i>）会自动删旧会话。<br>
+<b>别把 <code>~/.claude/projects/</code> 当长期归档</b>——超过 30 天的会话 <code>--continue</code> / <code>--resume</code> 都接不回来。
+要长期保留就调大这个值，或者把产物落到 repo / 文档里。</div>
 
 <div class="note"><b>还有个不用退出终端的办法：</b>在会话里直接敲 <code>/resume</code>（别名 <code>/continue</code>），
 参数同样是 <code>[conversation id or search term]</code>，可以原地切到另一条会话。</div>
@@ -336,7 +358,7 @@ claude --resume &lt;session-id&gt;  # 知道 id 就直接点名</code></pre></di
 <h3>还有两个救场命令</h3>
 <table>
 <tr><th>命令</th><th>作用</th></tr>
-<tr><td><code>/rewind</code></td><td><b>回滚这一轮改过的文件</b>。Claude Code 在每次编辑前都存了快照。<br><span style="color:var(--muted)">注意：<b>只管它自己 Edit/Write 改的</b>，Bash 命令造成的改动不在快照里。</span></td></tr>
+<tr><td><code>/rewind</code></td><td>官方原文：<code>Restore the code and/or conversation to a previous point</code>（别名 <code>checkpoint</code>/<code>undo</code>）——<b>代码和对话都能回滚</b>，不只是文件。<br><span style="color:var(--muted)">「Bash 命令造成的改动是否在快照里」：<b>未验证</b>，二进制里查不到直接证据。</span></td></tr>
 <tr><td>连按两次 <kbd>esc</kbd></td><td><b>回退几条消息</b>。上下文撑爆时屏幕会直接提示：<br><code>Conversation too long. Press esc twice to go up a few messages and try again.</code></td></tr>
 </table>
 
@@ -347,21 +369,28 @@ claude --resume &lt;session-id&gt;  # 知道 id 就直接点名</code></pre></di
 <table>
 <tr><th>你想要的</th><th>怎么做</th><th>怎么恢复</th></tr>
 <tr><td><b>停下这一轮</b><br><span style="color:var(--muted)">它跑偏了 / 不想等了</span></td><td><kbd>esc</kbd></td><td>直接接着打字。屏幕会显示 <code>Interrupted · What should Claude do instead?</code></td></tr>
-<tr><td><b>让它在后台继续跑</b><br><span style="color:var(--muted)">我要腾出终端做别的</span></td><td><kbd>ctrl+b</kbd><br><span style="color:var(--muted)">（tmux 里要按两下 <kbd>ctrl+b</kbd> <kbd>ctrl+b</kbd>，因为 tmux 自己吃掉第一下）</span></td><td>在任务列表里按 <kbd>f</kbd> 调回前台（foreground）</td></tr>
+<tr><td><b>让它在后台继续跑</b><br><span style="color:var(--muted)">我要腾出终端做别的</span></td><td><kbd>ctrl+b</kbd><br><span style="color:var(--muted)">（tmux 里要按两下 <kbd>ctrl+b</kbd> <kbd>ctrl+b</kbd>，因为 tmux 自己吃掉第一下）</span></td><td>在 <code>/tasks</code> 里调回前台<br><span style="color:var(--muted);font-size:12px">（<kbd>f</kbd> 这个键位我在二进制里<b>查不到</b>绑定，以实际界面提示为准）</span></td></tr>
 <tr><td><b>把整个进程挂起</b><br><span style="color:var(--muted)">经典 Unix 挂起</span></td><td><kbd>ctrl+z</kbd><br><span style="color:var(--muted)">发 SIGTSTP 信号</span></td><td>在 shell 里敲 <code>fg</code> 拉回来</td></tr>
 <tr><td><b>关掉终端，改天再说</b></td><td>直接关，或 <kbd>ctrl+c</kbd> 按两下退出</td><td><code>claude --continue</code> 接上最近那个会话<br>或 <code>claude --resume</code> 挑一个</td></tr>
 </table>
 
 <div class="note"><b>退出时的一个细节：</b>按 <kbd>ctrl+c</kbd> 时屏幕会提示
 <code>Press Ctrl-C again to exit</code>，如果当时有子任务在跑，它还会补一句
-<code>· N agent(s) will keep running</code>——<span class="hl">意思是那些后台任务不会被你的退出杀掉</span>。</div>
+<code>· N agent(s) will keep running</code>——意思是那些后台任务<b>不会被你的退出杀掉</b>。</div>
+
+<div class="note warn"><b>⚠️ 这不全是好消息。</b>如果你处在 <b>Bypass Permissions</b> 模式（红色 ⏵⏵），
+退出后仍在跑的 agent 是<span class="hl">无人看管的全权限执行</span>——继续改文件、跑命令、烧额度，
+而你已经关掉终端看不见了。<br>
+<b>对冲动作</b>：退出前先看一眼 <code>/tasks</code>，确认在跑的是什么，该收的收掉再走。</div>
 
 <h3>「暂停」还有一个完全不同的含义：暂停记忆</h3>
 <p>如果你说的「暂停」是指<b>不想让它往长期记忆里写东西</b>（比如在处理敏感内容），那是另一个开关：</p>
-<pre><code>/pause-memory        # 暂停自动记忆
-/pause-memory        # 再运行一次 = 恢复
-</code></pre>
-<p>暂停期间屏幕会显示 <code>Memory is paused. Run /pause-memory to resume automemory.</code></p>
+<pre><code>/pause-memory        # 暂停自动记忆（再跑一次 = 恢复）</code></pre>
+<div class="note warn"><b>⚠️ 在 2.1.241 上这个命令是关着的。</b>命令定义里写着 <code>isEnabled: ()=&gt;!1</code>，
+实测 <code>claude -p "/pause-memory"</code> 返回
+<code>"/pause-memory isn't available in this environment."</code>。<br>
+对照：同样方式跑 <code>/context</code> 能正常出结果，所以<b>不是无头模式的锅</b>，是这个命令本身被禁用了。
+提示语 <code>Memory is paused. Run /pause-memory to resume automemory.</code> 确实存在于二进制，但当前版本走不到。</div>
 
 <h3>推荐的收工姿势</h3>
 <div class="note ok"><b>不要靠「关掉终端 + 下次凭记忆重述」。</b>
@@ -376,7 +405,7 @@ claude --resume &lt;session-id&gt;  # 知道 id 就直接点名</code></pre></di
 <table>
 <tr><th></th><th>装饰词</th><th>状态词</th></tr>
 <tr><td><b>例子</b></td><td><code>Julienning…</code> <code>Sketching…</code> <code>Transmuting…</code></td><td><code>thinking</code> <code>tool-use</code> <code>Waiting for API response</code></td></tr>
-<tr><td><b>含义</b></td><td>172 个词<b>全都一样</b>：「我还活着」</td><td><b>每个词对应一个真实状态</b></td></tr>
+<tr><td><b>含义</b></td><td>186 个词<b>全都一样</b>：「我还活着」</td><td><b>每个词对应一个真实状态</b></td></tr>
 <tr><td><b>能否自定义</b></td><td><b>能</b>（<code>spinnerVerbs</code> 设置项，可整个替换）</td><td>不能，它是状态机输出</td></tr>
 <tr><td><b>要不要认</b></td><td>认出「它是装饰」就够了</td><td><b>本章全表</b></td></tr>
 </table>
@@ -386,8 +415,11 @@ claude --resume &lt;session-id&gt;  # 知道 id 就直接点名</code></pre></di
   "spinnerVerbs": { "mode": "replace", "verbs": ["搬砖中", "摸鱼中"] },
   "spinnerTipsEnabled": false          // 关掉 "Tip: Use /clear..." 那行
 }</code></pre>
-<span style="font-size:14px"><code>mode</code> 可选 <code>"append"</code>（在默认词表上追加）或 <code>"replace"</code>（只用你的词）。
-还有 <code>spinnerTipsOverride</code> 可以换成你自己的提示语。</span></div>
+<span style="font-size:14px"><code>mode</code> 可选 <code>"append"</code>（在默认 186 词上追加）或 <code>"replace"</code>（<b>整表顶掉，只用你的词</b>）。
+还有 <code>spinnerTipsOverride</code> 可以换成你自己的提示语。</span>
+<div class="note warn" style="margin:10px 0 0"><b>⚠️ 用 replace 只填两三个词，会打坏 §03 的判活判据。</b>
+§03 教你「转圈词会变」是活着的迹象之一；换成 2 个词后它只在两词间跳，这条判据就废了。
+<span class="hl">要么多填一些词，要么记住：判活最硬的判据始终是 ↓token 数涨不涨。</span></div></div>
 
 <h3>A · 运行阶段词 —— 它现在到底在干什么</h3>
 <table>
@@ -436,14 +468,14 @@ claude --resume &lt;session-id&gt;  # 知道 id 就直接点名</code></pre></di
 <tr><th>词</th><th>什么情况出现</th><th>含义</th></tr>
 <tr><td class="w">Moving to background…</td><td>按了 <kbd>ctrl+b</kbd></td><td>当前任务转入后台，终端腾出来</td></tr>
 <tr><td class="w">(backgrounded)</td><td>任务列表里</td><td>这条在后台跑着</td></tr>
-<tr><td class="w">foreground</td><td>任务列表按 <kbd>f</kbd></td><td>把它调回前台</td></tr>
+<tr><td class="w">foreground</td><td>任务列表里</td><td>把它调回前台（具体键位以界面提示为准）</td></tr>
 <tr><td class="w">Memory is paused.<br>Run /pause-memory to resume automemory.</td><td>敲过 <code>/pause-memory</code></td><td>长期记忆写入已暂停</td></tr>
 </table>
 
 <h3>F · 工具名 —— 它正在用哪个工具</h3>
 <table>
 <tr><th>工具名</th><th>英语原义</th><th>它在干什么</th></tr>
-<tr><td class="w">Bash</td><td>Bourne-Again SHell（1989 年 GNU 写的 shell，名字双关 born again）</td><td><b>在你机器上敲命令</b>。实测占全部工具调用的 68%</td></tr>
+<tr><td class="w">Bash</td><td>Bourne-Again SHell（1989 年 GNU 写的 shell，名字双关 born again）</td><td><b>在你机器上敲命令</b>。实测占比 <b>63.5%</b>（全量 205 个转写 / 10,933 次工具调用）；近 14 天窗口是 68%</td></tr>
 <tr><td class="w">Read</td><td>读</td><td>读文件内容</td></tr>
 <tr><td class="w">Edit</td><td>编辑</td><td><b>精确字符串替换</b>，改前必须先 Read</td></tr>
 <tr><td class="w">Write</td><td>写</td><td><b>整文件覆写</b>，会把原内容全冲掉</td></tr>
@@ -457,22 +489,25 @@ claude --resume &lt;session-id&gt;  # 知道 id 就直接点名</code></pre></di
 <tr><td class="w">mcp__*</td><td>MCP = Model Context Protocol</td><td>外接工具。<code>__computer</code> = 像人一样看屏幕、动鼠标键盘</td></tr>
 </table>
 
-<h2 id="s7"><span class="n">07</span>172 个转圈词全表（装饰词）</h2>
+<h2 id="s7"><span class="n">07</span>186 个转圈词全表（装饰词）</h2>
 
 <p>先说结论，这条最重要：</p>
 
 <div class="note warn"><b>终局证据：这些词是「设置项」，你能整个换掉。</b><br>
 <code>~/.claude/settings.json</code> 里的 <code>spinnerVerbs</code> 支持
-<code>mode:"replace"</code>——把 172 个词换成任意字符串。
-<span class="hl">如果它们承载含义，绝不可能开放给用户随便替换</span>。加上：两份词表 <code>diff</code> 完全相同、
-表里有 <code>Clauding</code> / <code>Gitifying</code> / <code>Whatchamacalliting</code> 这类无法对应任何动作的自造词。<b>置信度 0.99。</b></div>
+<code>mode:"replace"</code>——把 186 个词换成任意字符串。
+<span class="hl">如果它们承载含义，绝不可能开放给用户随便替换</span>。<br>
+源码原文：<code>function gwr(){ let t=Qo().spinnerVerbs; if(!t) return xql; ... }</code>——
+<code>xql</code> 就是那个 186 词的默认数组，<code>mode:"replace"</code> 时直接被你的词整个顶掉。<br>
+旁证：表里有 <code>Clauding</code> / <code>Gitifying</code> / <code>Whatchamacalliting</code> 这类无法对应任何动作的自造词，
+以及 <code>Channeling</code>/<code>Channelling</code> 美英两拼<b>同表并存</b>。<b>置信度 0.99。</b></div>
 
 <div class="note"><b>所以这一章不是「词义速查」，是两件别的事：</b><br>
 ① <b>认出它是装饰</b>——看到 <code>Transmuting…</code> 别以为它在做什么高深转换。判断死活看 <b>↓token 涨不涨</b>（§03），判断在做什么看<b>状态词</b>（§06）。<br>
 ② <b>学点英语</b>——这些词本身的英语差别是真的。每家族下面的「语义梯度」讲的是<b>英语里</b>的轻重、先后、褒贬，那部分不随机。</div>
 
 <div class="note warn" style="display:none"><b>转圈词是纯装饰，跟当前在做什么毫无关系。</b>
-二进制的数据段里是一张<b>按字母序平铺的 172 词表</b>，从 <code>Accomplishing</code> 到 <code>Zigzagging</code>，
+二进制的数据段里是一张<b>按字母序平铺的 186 词表</b>，从 <code>Accomplishing</code> 到 <code>Zigzagging</code>，
 每轮随机抽一个。表里混着 <code>Clauding</code>、<code>Gitifying</code>、<code>Whatchamacalliting</code>
 这种<b>根本无法对应任何真实动作</b>的自造词，而真正表达状态的是另一套字段：
 <code>requesting</code> / <code>thinking</code> / <code>tool-use</code> / <code>running tool for</code>。<br>
@@ -679,12 +714,24 @@ claude --resume &lt;session-id&gt;  # 知道 id 就直接点名</code></pre></di
 <p class="rest">其余：<span class="pill">Effecting</span><span class="pill">Doing</span><span class="pill">Working</span></p>
 </div>
 
+
+<div class="fam">
+<h4>附 · 完整 186 词字母序全表<span class="cnt">从二进制数组 <code>xql</code> 原样导出</span></h4>
+<p class="rest" style="color:var(--fg)"><span class="pill">Accomplishing</span><span class="pill">Actioning</span><span class="pill">Actualizing</span><span class="pill">Architecting</span><span class="pill">Baking</span><span class="pill">Beaming</span><span class="pill">Beboppin&#x27;</span><span class="pill">Befuddling</span><span class="pill">Billowing</span><span class="pill">Blanching</span><span class="pill">Bloviating</span><span class="pill">Boogieing</span><span class="pill">Boondoggling</span><span class="pill">Booping</span><span class="pill">Bootstrapping</span><span class="pill">Brewing</span><span class="pill">Bunning</span><span class="pill">Burrowing</span><span class="pill">Calculating</span><span class="pill">Canoodling</span><span class="pill">Caramelizing</span><span class="pill">Cascading</span><span class="pill">Catapulting</span><span class="pill">Cerebrating</span><span class="pill">Channeling</span><span class="pill">Channelling</span><span class="pill">Choreographing</span><span class="pill">Churning</span><span class="pill">Clauding</span><span class="pill">Coalescing</span><span class="pill">Cogitating</span><span class="pill">Combobulating</span><span class="pill">Composing</span><span class="pill">Computing</span><span class="pill">Concocting</span><span class="pill">Considering</span><span class="pill">Contemplating</span><span class="pill">Cooking</span><span class="pill">Crafting</span><span class="pill">Creating</span><span class="pill">Crunching</span><span class="pill">Crystallizing</span><span class="pill">Cultivating</span><span class="pill">Deciphering</span><span class="pill">Deliberating</span><span class="pill">Determining</span><span class="pill">Dilly-dallying</span><span class="pill">Discombobulating</span><span class="pill">Doing</span><span class="pill">Doodling</span><span class="pill">Drizzling</span><span class="pill">Ebbing</span><span class="pill">Effecting</span><span class="pill">Elucidating</span><span class="pill">Embellishing</span><span class="pill">Enchanting</span><span class="pill">Envisioning</span><span class="pill">Fermenting</span><span class="pill">Fiddle-faddling</span><span class="pill">Finagling</span><span class="pill">Flamb\xE9ing</span><span class="pill">Flibbertigibbeting</span><span class="pill">Flowing</span><span class="pill">Flummoxing</span><span class="pill">Fluttering</span><span class="pill">Forging</span><span class="pill">Forming</span><span class="pill">Frolicking</span><span class="pill">Frosting</span><span class="pill">Gallivanting</span><span class="pill">Galloping</span><span class="pill">Garnishing</span><span class="pill">Generating</span><span class="pill">Gesticulating</span><span class="pill">Germinating</span><span class="pill">Gitifying</span><span class="pill">Grooving</span><span class="pill">Gusting</span><span class="pill">Harmonizing</span><span class="pill">Hashing</span><span class="pill">Hatching</span><span class="pill">Herding</span><span class="pill">Honking</span><span class="pill">Hullaballooing</span><span class="pill">Hyperspacing</span><span class="pill">Ideating</span><span class="pill">Imagining</span><span class="pill">Improvising</span><span class="pill">Incubating</span><span class="pill">Inferring</span><span class="pill">Infusing</span><span class="pill">Ionizing</span><span class="pill">Jitterbugging</span><span class="pill">Julienning</span><span class="pill">Kneading</span><span class="pill">Leavening</span><span class="pill">Levitating</span><span class="pill">Lollygagging</span><span class="pill">Manifesting</span><span class="pill">Marinating</span><span class="pill">Meandering</span><span class="pill">Metamorphosing</span><span class="pill">Misting</span><span class="pill">Moonwalking</span><span class="pill">Moseying</span><span class="pill">Mulling</span><span class="pill">Mustering</span><span class="pill">Musing</span><span class="pill">Nebulizing</span><span class="pill">Nesting</span><span class="pill">Newspapering</span><span class="pill">Noodling</span><span class="pill">Nucleating</span><span class="pill">Orbiting</span><span class="pill">Orchestrating</span><span class="pill">Osmosing</span><span class="pill">Perambulating</span><span class="pill">Percolating</span><span class="pill">Perusing</span><span class="pill">Philosophising</span><span class="pill">Photosynthesizing</span><span class="pill">Pollinating</span><span class="pill">Pondering</span><span class="pill">Pontificating</span><span class="pill">Pouncing</span><span class="pill">Precipitating</span><span class="pill">Prestidigitating</span><span class="pill">Processing</span><span class="pill">Proofing</span><span class="pill">Propagating</span><span class="pill">Puttering</span><span class="pill">Puzzling</span><span class="pill">Quantumizing</span><span class="pill">Razzle-dazzling</span><span class="pill">Razzmatazzing</span><span class="pill">Recombobulating</span><span class="pill">Reticulating</span><span class="pill">Roosting</span><span class="pill">Ruminating</span><span class="pill">Saut\xE9ing</span><span class="pill">Scampering</span><span class="pill">Schlepping</span><span class="pill">Scurrying</span><span class="pill">Seasoning</span><span class="pill">Shenaniganing</span><span class="pill">Shimmying</span><span class="pill">Simmering</span><span class="pill">Skedaddling</span><span class="pill">Sketching</span><span class="pill">Slithering</span><span class="pill">Smooshing</span><span class="pill">Sock-hopping</span><span class="pill">Spelunking</span><span class="pill">Spinning</span><span class="pill">Sprouting</span><span class="pill">Stewing</span><span class="pill">Sublimating</span><span class="pill">Swirling</span><span class="pill">Swooping</span><span class="pill">Symbioting</span><span class="pill">Synthesizing</span><span class="pill">Tempering</span><span class="pill">Thinking</span><span class="pill">Thundering</span><span class="pill">Tinkering</span><span class="pill">Tomfoolering</span><span class="pill">Topsy-turvying</span><span class="pill">Transfiguring</span><span class="pill">Transmuting</span><span class="pill">Twisting</span><span class="pill">Undulating</span><span class="pill">Unfurling</span><span class="pill">Unravelling</span><span class="pill">Vibing</span><span class="pill">Waddling</span><span class="pill">Wandering</span><span class="pill">Warping</span><span class="pill">Whatchamacalliting</span><span class="pill">Whirlpooling</span><span class="pill">Whirring</span><span class="pill">Whisking</span><span class="pill">Wibbling</span><span class="pill">Working</span><span class="pill">Wrangling</span><span class="pill">Zesting</span><span class="pill">Zigzagging</span></p>
+<div class="note" style="margin-top:12px"><b>关于数量：</b>数组真实长度是 <b>186</b>。
+上面八个家族是按语义人工归类的，<b>合计 165</b>——差额是几个难以归入任何家族的词
+（<code>Accomplishing</code>、<code>Noodling</code>、<code>Perusing</code>、<code>Smooshing</code> 等）。
+本表是<b>唯一完整的那一份</b>，以它为准。</div>
+</div>
+
 <footer>
-数据来源：<code>claude 2.1.241</code> 二进制符号表 / 词表实挖（<code>strings</code> 第 882477–882660 行）；
+数据来源：<code>claude 2.1.241</code> 二进制符号表实挖；词表来自源码数组 <code>xql</code>（<code>strings</code> 落盘后正则提取，长度 186）；
 行为判据来自同一二进制的键位映射与状态机字段；
 用量数字来自本地 <code>~/.claude/projects/**/*.jsonl</code> 实扫，按 <code>message.id + requestId</code> 去重。<br>
 所有「置信度」标注为作者对该结论的把握程度，&lt;1.0 者均已在正文写明反证方式。<br>
-生成于 2026-08-23。
+生成于 2026-08-23，<b>2026-08-24 经独立盲审核查后修订</b>：更正词表数量（172→186）、
+↓token 的估算机制、<code>/pause-memory</code> 当前不可用、转写落盘不是绝对保证 + 30 天自动清理、
+<code>--fork-session</code> 是修饰 flag、拆分两个互斥的等待分支等 19 处。
 </footer>
 
 </div></body></html>
