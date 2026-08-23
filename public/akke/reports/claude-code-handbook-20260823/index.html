@@ -63,6 +63,10 @@ td.w{font-weight:600;white-space:nowrap}
 .pill{display:inline-block;background:var(--code-bg);border-radius:4px;padding:1px 7px;margin:2px 3px 2px 0;font-size:13px;
   font-family:ui-monospace,Menlo,monospace}
 footer{margin-top:70px;padding-top:22px;border-top:1px solid var(--line);color:var(--muted);font-size:13.5px}
+.grad{background:var(--code-bg);border-radius:8px;padding:12px 16px;margin:12px 0 4px;font-size:14.5px;line-height:1.9}
+.grad b.t{display:block;color:var(--accent);font-size:13px;letter-spacing:.03em;margin-bottom:4px}
+.chain{font-family:ui-monospace,Menlo,monospace;font-size:13.5px;line-height:2.1}
+.chain .a{color:var(--accent);font-weight:600}
 .hl{background:linear-gradient(transparent 62%,var(--accent-soft) 62%);padding:0 2px}
 </style>
 </head>
@@ -252,8 +256,8 @@ Claude Code 内部有专门的「卡顿探测」（<code>tengu_spinner_stalled_u
 <p>这两个是<b>专门为「断了接着干」设计的</b>，比手工新开会话省得多，因为它<b>把原会话的上下文整个接回来</b>：</p>
 <table>
 <tr><th>命令</th><th>作用</th><th>什么时候用</th></tr>
-<tr><td><code>claude --continue</code></td><td>直接接上<b>这个目录里最近那个会话</b></td><td>终端崩了 / 关掉了 / 断网重连后</td></tr>
-<tr><td><code>claude --resume</code></td><td>列出历史会话让你<b>挑一个</b>接上</td><td>要接的不是最近那个</td></tr>
+<tr><td><code>claude --continue</code><br><code>claude -c</code></td><td>接上<b>这个目录里最近活动的那个</b>（不一定是你刚关的）</td><td>终端崩了 / 关掉了 / 断网重连后</td></tr>
+<tr><td><code>claude --resume</code><br><code>claude -r</code></td><td>列出历史会话让你<b>挑一个</b>接上；可带搜索词或 session-id</td><td><b>同目录有多个会话时必须用这个</b></td></tr>
 <tr><td><code>/resume</code></td><td>会话内切换到另一个历史会话</td><td>已经在 Claude Code 里了</td></tr>
 <tr><td><code>claude --fork-session</code></td><td>从某个会话<b>分叉</b>出新的一条</td><td>想在不污染原会话的前提下试个方向</td></tr>
 </table>
@@ -300,6 +304,25 @@ claude --continue</code></pre>
 <tr><td>开完第一句</td><td>把上一轮需求整段重贴</td><td><b>「你刚才做到哪了？先复述状态」</b></td></tr>
 <tr><td>它记得多少</td><td>什么都不记得，要重新讲</td><td><b>全都记得</b>，A 会话的完整上下文都在</td></tr>
 </table>
+
+<div class="note warn"><b>⚠️ 多会话陷阱：<code>--continue</code> 接的是「最近活动的那个」，不是「你刚关的那个」。</b><br>
+二进制里的原文定义是 <code>Continue the most recent conversation in the current directory</code>——
+判据是<b>最后活动时间</b>。<span class="hl">如果同一个目录下你开了好几个会话，另一个窗口活动更晚，它会接错人。</span><br><br>
+<b>同目录有多个会话时，改用 <code>claude --resume</code></b>：弹出交互式选择器让你挑，还能带搜索词：
+<pre style="margin:8px 0 0"><code>claude --resume              # 列出来挑
+claude --resume 企业大脑      # 带搜索词过滤
+claude --resume &lt;session-id&gt;  # 知道 id 就直接点名</code></pre></div>
+
+<h3>「关掉」到底怎么关</h3>
+<p>下面这些<b>全都等价</b>，随便用哪个（二进制里的退出别名原文）：</p>
+<pre><code>exit    quit    :q    :q!    :wq    :wq!</code></pre>
+<p>加上按两下 <kbd>ctrl+c</kbd>、直接关终端窗口——也都行。</p>
+<div class="note ok"><b>为什么怎么关都不会丢：</b>对话转写是<b>实时逐行落盘</b>的，
+每条消息即时写进 <code>~/.claude/projects/&lt;项目&gt;/&lt;session-id&gt;.jsonl</code>。
+<span class="hl">不存在「没保存」这回事</span>，进程被 kill 也一样。</div>
+
+<div class="note"><b>还有个不用退出终端的办法：</b>在会话里直接敲 <code>/resume</code>（别名 <code>/continue</code>），
+参数同样是 <code>[conversation id or search term]</code>，可以原地切到另一条会话。</div>
 
 <div class="note ok"><b><code>--continue</code> 不是「新开一个会话」，是「把原来那个会话重新打开」。</b>
 这就是它比手动重开省的地方——省的不是打字，是<span class="hl">它不用重新读一遍你的项目</span>
@@ -356,8 +379,23 @@ claude --continue</code></pre>
 <code>requesting</code> / <code>thinking</code> / <code>tool-use</code> / <code>running tool for</code>。<br>
 <span style="color:var(--muted);font-size:14px">判据：如果词跟动作有关，二进制里应能找到 word→动作 的映射表；实际只有一串扁平常量，且同一个词收了两遍（<code>Channeling</code> / <code>Channelling</code> 美式英式各一份）。置信度 0.9。</span></div>
 
+<h3>那「在终端里的含义」是什么？</h3>
+<div class="note"><b>答案是：172 个词的终端含义<span class="hl">完全一样</span>——「我还活着，在忙」。</b><br>
+这不是偷懒的回答，是设计如此。既然是随机抽词，就<b>不可能</b>有「Sketching 表示在起草、Julienning 表示在切分任务」这种对应关系。<br><br>
+<b>那这份表还有什么用？</b>两件事：<br>
+① <b>认出它是装饰</b>——看到 <code>Transmuting…</code> 别以为它在做什么高深转换，那只是随机词；真正判断死活看 <b>↓token 数涨不涨</b>（见 §03）。<br>
+② <b>这些词本身的英语差别是真的</b>。下面每一家我都补了「语义梯度」——同一家族里的词在英语里其实有轻重、先后、褒贬之分，那部分不是随机的。</div>
+
 <div class="fam">
 <h4>① 思考类<span class="cnt">22 个 · 唯一名副其实的一家</span></h4>
+<div class="grad"><b class="t">语义梯度 · 投入程度（轻 → 重）</b>
+<div class="chain"><span class="a">Considering</span> 考虑一下（几秒钟的事） → <span class="a">Pondering</span> 带权衡（ponder 词源 = 称重，有分量） → <span class="a">Contemplating</span> 凝视式深思（更持久、更内省） → <span class="a">Deliberating</span> 正式审议（有决议压力，陪审团用词） → <span class="a">Ruminating</span> 反刍（<b>停不下来</b>，往往带负面色彩）</div>
+<b class="t" style="margin-top:10px">另一条轴 · 正式度（口语 → 学究）</b>
+<div class="chain"><span class="a">Thinking</span>（中性口语） → <span class="a">Cogitating</span>（书面 / 带戏谑） → <span class="a">Cerebrating</span>（学究到显得做作，母语者听着会笑）</div>
+<b class="t" style="margin-top:10px">另一条轴 · 认知阶段（先 → 后）</b>
+<div class="chain"><span class="a">Deciphering</span> 面对密文，先破解 → <span class="a">Inferring</span> 从已知推未知，建立逻辑链 → <span class="a">Elucidating</span> 自己懂了，讲明白给别人</div>
+<b class="t" style="margin-top:10px">贬义组（别拿来夸人）</b>
+<div class="chain"><span class="a">Pontificating</span> 端着说教 · <span class="a">Philosophising</span> 空谈哲理 · <span class="a">Puzzling</span> 被难住（中性偏被动）</div></div>
 <table>
 <tr><th>词</th><th>英语原义</th><th>真实用例</th></tr>
 <tr><td class="w">Pondering</td><td>权衡式沉思（源自 ponder = 称重）</td><td><i>She pondered the job offer for a week.</i></td></tr>
@@ -377,6 +415,14 @@ claude --continue</code></pre>
 
 <div class="fam">
 <h4>② 制作 / 创作类<span class="cnt">16 个 · Sketching 就在这家</span></h4>
+<div class="grad"><b class="t">语义梯度 · 从模糊到成形</b>
+<div class="chain"><span class="a">Ideating</span> 想点子（还没落纸） → <span class="a">Doodling</span> 走神乱画 → <span class="a">Sketching</span> 草图 → <span class="a">Crafting</span> 精工细做 → <span class="a">Forging</span> 锻打成型（<b>成品硬、不可逆</b>）</div>
+<b class="t" style="margin-top:10px">关键区别 · Sketching vs Doodling</b>
+<div style="font-size:14px">两个都是「随手画」，但 <b>Sketching 有意图</b>——它是为成品做准备的，画完要用；<b>Doodling 无意图</b>——它是走神的副产品，画完就扔。说 <i>"I sketched a plan"</i> 是认真的，说 <i>"I doodled a plan"</i> 是自嘲。</div>
+<b class="t" style="margin-top:10px">另一条轴 · 灵魂含量（高 → 低）</b>
+<div class="chain"><span class="a">Composing</span> 有结构地谱写 → <span class="a">Creating</span> 泛指创造 → <span class="a">Generating</span> 机械产出（<b>最无灵魂</b>，正是 AI 常被吐槽的那个词）</div>
+<b class="t" style="margin-top:10px">另一条轴 · 统筹层级（结构 → 动作 → 资源）</b>
+<div class="chain"><span class="a">Architecting</span> 定结构 → <span class="a">Choreographing</span> 排动作序列 → <span class="a">Orchestrating</span> 调度各方资源</div></div>
 <table>
 <tr><th>词</th><th>英语原义</th><th>真实用例</th></tr>
 <tr><td class="w">Sketching</td><td>速写、打草稿；也指粗略勾勒方案</td><td><i>Let me sketch the layout on a napkin.</i></td></tr>
@@ -393,6 +439,14 @@ claude --continue</code></pre>
 
 <div class="fam">
 <h4>③ 厨房类<span class="cnt">26 个 · 最大的一家，「慢炖出好东西」的隐喻</span></h4>
+<div class="grad"><b class="t">语义梯度 · 耗时（秒 → 天）</b>
+<div class="chain"><span class="a">Blanching</span> 90 秒 → <span class="a">Sautéing</span> 几分钟 → <span class="a">Simmering</span> 小火慢炖几十分钟 → <span class="a">Stewing</span> 更久 → <span class="a">Marinating</span> 数小时 → <span class="a">Fermenting</span> 数天</div>
+<b class="t" style="margin-top:10px">另一条轴 · 转化深度（表面 → 本质）</b>
+<div class="chain"><span class="a">Seasoning</span> 只加味，本体不变 → <span class="a">Infusing</span> 渗进去了 → <span class="a">Caramelizing</span> 发生化学变性 → <span class="a">Fermenting</span> 被微生物整个重构</div>
+<b class="t" style="margin-top:10px">收尾组 · 全是最后一步的点缀</b>
+<div class="chain"><span class="a">Garnishing</span> 摆盘 · <span class="a">Frosting</span> 裱糖霜 · <span class="a">Drizzling</span> 淋汁 · <span class="a">Zesting</span> 刨皮屑</div>
+<b class="t" style="margin-top:10px">易混 · Leavening vs Proofing</b>
+<div style="font-size:14px"><b>Leavening 是机制</b>（酵母让面团发起来这件事），<b>Proofing 是阶段</b>（发酵的那段等待时间）。所以说 <i>"yeast leavens the dough"</i>（机制）但 <i>"let the dough proof"</i>（等待）。</div></div>
 <table>
 <tr><th>词</th><th>英语原义</th><th>真实用例</th></tr>
 <tr><td class="w">Julienning</td><td>切细丝（法餐刀工 julienne）</td><td><i>Julienne the carrots for the salad.</i></td></tr>
@@ -413,6 +467,12 @@ claude --continue</code></pre>
 
 <div class="fam">
 <h4>④ 自然 · 物理 · 化学类<span class="cnt">30 个</span></h4>
+<div class="grad"><b class="t">语义梯度 · 尺度（分子 → 天体）</b>
+<div class="chain"><span class="a">Ionizing</span> 电子层 → <span class="a">Nucleating</span> 分子聚成核 → <span class="a">Crystallizing</span> 排成晶格 → <span class="a">Sublimating / Precipitating</span> 物态变化 → <span class="a">Germinating / Metamorphosing</span> 生物层 → <span class="a">Orbiting</span> 天体层</div>
+<b class="t" style="margin-top:10px">另一条轴 · 生命周期（生 → 长 → 栖）</b>
+<div class="chain"><span class="a">Pollinating</span> 授粉 → <span class="a">Germinating</span> 发芽 → <span class="a">Sprouting</span> 抽芽 → <span class="a">Cultivating</span> 栽培 → <span class="a">Propagating</span> 扩散繁殖 → <span class="a">Nesting</span> 筑巢 → <span class="a">Roosting</span> 歇枝（<b>停下来了</b>）</div>
+<b class="t" style="margin-top:10px">流体强度（弱 → 强）</b>
+<div class="chain"><span class="a">Misting</span> 起雾 → <span class="a">Ebbing</span> 退潮 → <span class="a">Flowing</span> 流动 → <span class="a">Swirling</span> 旋涌 → <span class="a">Gusting</span> 阵风 → <span class="a">Billowing</span> 翻涌 → <span class="a">Whirlpooling</span> 漩涡 → <span class="a">Thundering</span> 雷鸣</div></div>
 <table>
 <tr><th>词</th><th>英语原义</th><th>真实用例</th></tr>
 <tr><td class="w">Osmosing</td><td>渗透（osmosis 的动词化）</td><td><i>He learned French by osmosis, just living there.</i></td></tr>
@@ -431,6 +491,13 @@ claude --continue</code></pre>
 
 <div class="fam">
 <h4>⑤ 胡闹自嘲类<span class="cnt">27 个 · 最容易懵的一家，全是「磨洋工」</span></h4>
+<div class="grad"><b class="t">语义梯度 · 浪费程度（慢但有效 → 根本无效）</b>
+<div class="chain"><span class="a">Puttering</span> 有事在做，只是慢 → <span class="a">Moseying</span> 慢慢走，但方向对 → <span class="a">Meandering</span> 绕路了 → <span class="a">Lollygagging</span> 该走不走 → <span class="a">Dilly-dallying</span> 该定不定 → <span class="a">Gallivanting</span> 干脆跑出去玩了 → <span class="a">Boondoggling</span> <b>做的事本身就没意义</b></div>
+<div style="font-size:14px;margin-top:6px">这条链很值得记：<span class="hl">前三个骂的是「慢」，后四个骂的是「错」</span>。对人说 <i>"you're puttering"</i> 只是催一下，说 <i>"that's a boondoggle"</i> 是否定整件事。</div>
+<b class="t" style="margin-top:10px">另一条轴 · 把谁搞懵</b>
+<div class="chain"><span class="a">Puzzling</span> 我被难住（被动） → <span class="a">Flummoxing</span> 把我难住了 → <span class="a">Befuddling</span> 把我搞糊涂 → <span class="a">Discombobulating</span> 把我整个人搞乱套 → <span class="a">Recombobulating</span> <b>再把我拼回去</b>（反向构词玩梗）</div>
+<b class="t" style="margin-top:10px">胡闹烈度（低 → 高）</b>
+<div class="chain"><span class="a">Fiddle-faddling</span> 瞎折腾小事 → <span class="a">Tomfoolering</span> 胡闹 → <span class="a">Shenaniganing</span> 搞鬼把戏 → <span class="a">Hullaballooing</span> 闹到全场起哄</div></div>
 <table>
 <tr><th>词</th><th>英语原义 / 出处</th><th>真实用例</th></tr>
 <tr><td class="w">Discombobulating</td><td>把人搞懵（19 世纪美式生造词）</td><td><i>The jet lag left me completely discombobulated.</i></td></tr>
@@ -457,6 +524,13 @@ claude --continue</code></pre>
 
 <div class="fam">
 <h4>⑥ 舞蹈 · 音乐 · 动作类<span class="cnt">20 个</span></h4>
+<div class="grad"><b class="t">语义梯度 · 这一家其实是条时间轴（1930s → 现在）</b>
+<div class="chain"><span class="a">Jitterbugging</span> 1930s 摇摆舞 → <span class="a">Beboppin'</span> 1940s 快节奏爵士 → <span class="a">Sock-hopping</span> 1950s 高中脱鞋舞会 → <span class="a">Boogieing</span> 1970s 迪斯科 → <span class="a">Moonwalking</span> 1983 MJ → <span class="a">Grooving</span> 泛用 → <span class="a">Vibing</span> 2010s 至今</div>
+<div style="font-size:14px;margin-top:6px">整整<b>八十年的美国流行文化</b>被塞进了一个转圈词表里。</div>
+<b class="t" style="margin-top:10px">另一条轴 · 移动速度（慢 → 快）</b>
+<div class="chain"><span class="a">Waddling</span> 摇摆走 → <span class="a">Scampering</span> 蹦跳 → <span class="a">Scurrying</span> 急窜 → <span class="a">Galloping</span> 疾驰 → <span class="a">Pouncing / Swooping</span> 扑击 / 俯冲（<b>有目标了</b>）</div>
+<b class="t" style="margin-top:10px">管理隐喻 · 难度递增</b>
+<div class="chain"><span class="a">Herding</span> 赶羊（听话） → <span class="a">Wrangling</span> 套马（不听话）→ 英语里最狠的是 <i>herding cats</i>「赶猫」= 管一群完全管不住的人</div></div>
 <table>
 <tr><th>词</th><th>英语原义 / 出处</th><th>真实用例</th></tr>
 <tr><td class="w">Beboppin'</td><td>bebop = 1940s 快节奏爵士（Charlie Parker 那派），末尾撇号是刻意口语化</td><td><i>bebop era jazz</i></td></tr>
@@ -475,6 +549,12 @@ claude --continue</code></pre>
 
 <div class="fam">
 <h4>⑦ 魔法 · 科幻类<span class="cnt">14 个</span></h4>
+<div class="grad"><b class="t">语义梯度 · 改变的深度（附加 → 重生）</b>
+<div class="chain"><span class="a">Enchanting</span> 附魔（本体不变，加了属性） → <span class="a">Transfiguring</span> 变形（外形变了） → <span class="a">Transmuting</span> 嬗变（<b>本质变了</b>，铅变金） → <span class="a">Metamorphosing</span> 变态发育（生物性重生，毛虫变蝶）</div>
+<b class="t" style="margin-top:10px">另一条轴 · 移动尺度（房间 → 星系）</b>
+<div class="chain"><span class="a">Levitating</span> 离地几厘米 → <span class="a">Beaming</span> 星舰传送（行星尺度） → <span class="a">Warping</span> 曲速 → <span class="a">Hyperspacing</span> 超空间跃迁（<b>跨星系</b>）</div>
+<b class="t" style="margin-top:10px">出处彩蛋</b>
+<div style="font-size:14px"><b>Transfiguring</b> = 《哈利·波特》麦格教授的科目；<b>Beaming</b> = 《星际迷航》"Beam me up"；<b>Hyperspacing</b> = 《星球大战》。<span class="hl">三大科幻 IP 各占一格。</span></div></div>
 <table>
 <tr><th>词</th><th>英语原义 / 出处</th><th>真实用例</th></tr>
 <tr><td class="w">Transfiguring</td><td>变形术。《哈利·波特》里麦格教授教的科目就叫 Transfiguration</td><td><i>Transfiguration class</i></td></tr>
@@ -489,6 +569,10 @@ claude --continue</code></pre>
 
 <div class="fam">
 <h4>⑧ 程序员内部梗<span class="cnt">10 个 · 外人完全看不懂的一家</span></h4>
+<div class="grad"><b class="t">语义梯度 · 自嘲烈度（低 → 高）</b>
+<div class="chain"><span class="a">Actioning</span> 企业黑话（真有人这么说，只是招人烦） → <span class="a">Crunching</span> 真实术语（算数据 / 血汗加班） → <span class="a">Bootstrapping</span> 真实术语，但词源本身荒诞（拽鞋带把自己提起来） → <span class="a">Clauding / Gitifying / Newspapering</span> 纯自造词 → <span class="a">Reticulating</span> <b>明说这句话没有意义</b></div>
+<div style="font-size:14px;margin-top:6px">这条链是整份表的<b>自我说明书</b>：从「勉强算个词」一路滑到「我承认我在瞎写」。
+<span class="hl">Reticulating 是终点——一个 1994 年游戏里公开承认的假读条文案，被原样搬进了 2026 年的 AI 终端。</span></div></div>
 <table>
 <tr><th>词</th><th>梗的出处</th></tr>
 <tr><td class="w">Reticulating</td><td><b>整张表里最尖锐的自嘲。</b>《模拟城市 2000》(1994) 的读条画面写着「Reticulating splines」（织网样条）。开发者 Will Wright 后来承认<b>这句话毫无意义，纯粹是编出来忽悠玩家的假读条文案</b>。<span class="hl">它明摆着在告诉你：这行字没有信息量。</span></td></tr>
