@@ -1,0 +1,41 @@
+name: quote-guard
+
+# 本仓惯例是直推 main（近 30 次提交零 merge commit），只挂 pull_request 会永不触发，
+# 所以 push 与 pull_request 都挂。push 侧是事后拦截（标红 + 提示修复），不阻断发布。
+on:
+  push:
+    branches: [main]
+    paths: ['public/akke/**.html']
+  pull_request:
+    paths: ['public/akke/**.html']
+
+# 省 runner 分钟数：同一分支只保留最新一次
+concurrency:
+  group: quote-guard-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2   # 只要能 diff 出本次改了哪些页
+
+      - name: 找出本次改动的 akke 页面
+        id: changed
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
+            base="origin/${{ github.base_ref }}"
+          else
+            base="HEAD^"
+          fi
+          files=$(git diff --name-only --diff-filter=d "$base" HEAD -- 'public/akke/**.html' | tr '\n' ' ')
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+          echo "改动页面: ${files:-（无）}"
+
+      - name: 引语核验闸
+        if: steps.changed.outputs.files != ''
+        run: node tools/quote-guard.mjs --check ${{ steps.changed.outputs.files }}
