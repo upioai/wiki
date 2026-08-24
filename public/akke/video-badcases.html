@@ -103,13 +103,19 @@
 
 <header class="hero">
   <div class="wrap">
-    <div class="eyebrow">2026-08-24 · 销售反馈 + 早班问题复盘</div>
+    <div class="eyebrow">2026-08-24 · 销售反馈 + 早班/下午问题复盘</div>
     <h1>今天的视频 Badcase：发生了什么，用什么方案解决</h1>
     <p class="lede">
-      今天进来两件事：早班「有些画面突然没声音」、销售第二次报「有一小段描述的内容跟画面不一样」。
-      顺着查，牵出一串<b>相关但独立</b>的问题。下面<b>一张表看完</b>——每行是一个问题，
-      列就是：<b>现象 → 根因 → 怎么解决 → 状态 → 改在哪</b>。
+      今天进来三件事：早班「画面突然没声音」、销售报「画面跟描述不一样」+「同一个人前白后黄」、下午几条生成失败。
+      顺着查，<b>其中三件是同一个根</b>。下面<b>一张表看完</b>——每行一个问题：
+      <b>现象 → 根因 → 怎么解决 → 状态 → 改在哪</b>。
     </p>
+    <div class="note trap" style="max-width:74ch">
+      <span class="tag">⚠️ 今天最重要的发现</span>
+      <b>工厂机现在跑的是「老线」，不是「快车道」。</b>下午的失败、「前白后黄」都是老线的毛病；
+      更要命的是——<b>我们今天所有修复（#525/#529/#537）改的都是快车道，在这台机器上根本没生效。</b>
+      切回快车道（一条 Fly secret）是解锁一切的第一步，见表末「每天稳定出片」。
+    </div>
     <div class="stamp">
       <code>口径 2026-08-24</code>
       <code>express 快车道产线</code>
@@ -122,21 +128,21 @@
 <section>
   <div class="wrap">
     <div class="kpis">
-      <div class="kpi tot"><div class="n">7</div><div class="l">问题总数</div></div>
-      <div class="kpi ok"><div class="n">4</div><div class="l">已修上线</div></div>
-      <div class="kpi warn"><div class="n">1</div><div class="l">在修(PR 待合)</div></div>
+      <div class="kpi tot"><div class="n">9</div><div class="l">问题总数</div></div>
+      <div class="kpi ok"><div class="n">5</div><div class="l">代码已修*</div></div>
+      <div class="kpi warn"><div class="n">2</div><div class="l">根因已定·待切配置</div></div>
       <div class="kpi vio"><div class="n">1</div><div class="l">决定不做</div></div>
       <div class="kpi bad"><div class="n">1</div><div class="l">阻塞(缺前置)</div></div>
     </div>
     <div class="statusbar">
-      <div style="width:57.1%;background:#48C98A">已修 4</div>
-      <div style="width:14.3%;background:#EFB055">在修 1</div>
-      <div style="width:14.3%;background:#8D7CEA">决定不做 1</div>
-      <div style="width:14.3%;background:#F06A78">阻塞 1</div>
+      <div style="width:55.6%;background:#48C98A">代码已修 5</div>
+      <div style="width:22.2%;background:#EFB055">待切配置 2</div>
+      <div style="width:11.1%;background:#8D7CEA">决定不做 1</div>
+      <div style="width:11.1%;background:#F06A78">阻塞 1</div>
     </div>
     <div class="legend">
-      <span><i style="background:#48C98A"></i>已修上线</span>
-      <span><i style="background:#EFB055"></i>在修 · PR 待合</span>
+      <span><i style="background:#48C98A"></i>代码已修*(要工厂机跑快车道才生效)</span>
+      <span><i style="background:#EFB055"></i>根因已定 · 待切 express 配置</span>
       <span><i style="background:#8D7CEA"></i>决定不做(权衡后)</span>
       <span><i style="background:#F06A78"></i>阻塞 · 缺前置</span>
     </div>
@@ -235,13 +241,126 @@
             <td><span class="badge blocked">阻塞 · 缺前置</span></td>
             <td class="where">收割机上云<br>Workflow 仓</td>
           </tr>
+
+          <tr class="group"><td colspan="6">◆ 今天下午新发现（同一个根：工厂机在跑老线）</td></tr>
+
+          <tr>
+            <td class="idx">8</td>
+            <td><div class="phenom">下午几条视频生成失败</div>
+              <span class="sub">看板显示「生产会话中断了」「云端·失败」，如「厨房DIY收纳」「109平北户」</span></td>
+            <td class="cause"><b style="color:#F1F5FA">工厂机在跑老线(orchestrator)，不是快车道</b>。老线死在 <code>fetch</code>(下载抖音源片被风控/失败) 和 <code>cloud_tts</code>(配音脚本崩)——<b style="color:#F1F5FA">这两个死因快车道结构上就没有</b>(快车道用本店出镜人、不下载源片)。DB 铁证：这些单是 manual_review 合同、首版，却下载了抖音源片=老线独有</td>
+            <td class="fix"><b>切回快车道</b>（一条 Fly secret，不是改代码）：<code>fly secrets set PRODUCER_ENGINE=express -a akke-video-worker</code>。这同时修掉 #9，并让 #1~#5 的修复真正生效。切完盯一批确认</td>
+            <td><span class="badge wip">根因已定·待切配置</span></td>
+            <td class="where">Fly secret<br>akke-video-worker</td>
+          </tr>
+
+          <tr>
+            <td class="idx">9</td>
+            <td><div class="phenom quote">「同一个人前面白色，后面又变成黄色」</div>
+              <span class="sub">同一个人物模型，衣服颜色在片中变了</span></td>
+            <td class="cause">疑似<b style="color:#F1F5FA">与 #8 同源</b>：老线的<b style="color:#F1F5FA">生成主播镜逐镜生成</b>(i2v)，会在镜与镜之间漂移衣色/五官。而快车道用<b style="color:#F1F5FA">本店固定底片</b>贯穿全片、只动嘴，结构上不会变色</td>
+            <td class="fix">先随 #8 切回快车道，这条<b>多半一起消失</b>；若快车道仍出现，再单独查是不是这家店登记了多张不同底片、被不同镜次选中(需底片一致性检查)</td>
+            <td><span class="badge wip">待切配置后复核</span></td>
+            <td class="where">同 #8<br>+ 底片一致性</td>
+          </tr>
         </tbody>
       </table>
     </div>
 
     <div class="note law">
       <span class="tag">一句话读懂这张表</span>
-      今天用户能感知的两条（<b>1 无声音 · 2 画面对不上</b>）都已经有修复上线或在途。真正难的是 <b>7 补柜类素材</b>——A(#537) 保证「不再配错」，但「又对题又有画面」的天花板由库定，而库里柜类只占 3%。抬高天花板只有补料一条路，瓶颈不是机器，是<b>先得有一份授权过的定制柜账号清单</b>。
+      <b>先做 #8（切回快车道）</b>——它一步同时修掉下午的失败(#8)、前白后黄(#9)，并让 #1~#5 的修复真正生效。之后剩两件长期的：<b>#7 补柜类素材</b>(库里柜类只占 3%，是画面质量的天花板) 和 <b>#6 决定不做的全程口播</b>(A 已按需自动兜底)。
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 素材库落地方案 ═══ -->
+<section>
+  <div class="wrap">
+    <h2>素材库不对口（#7）：落地方案 —— 收割机能不能重启？</h2>
+    <p class="sub">你让我确认收割机能不能重启。查完结论：<b>能重启，但不是「点一下」，而且光重启补不了柜类。</b>下面把三条路摆开，按「多快见到第一批柜类素材」排。</p>
+
+    <div class="tablebox">
+      <table class="bc" style="min-width:860px">
+        <thead><tr><th>方案</th><th>要做什么</th><th>能补柜类吗</th><th>多久</th><th>难点</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="phenom">A. 先接受「柜类走主播镜」<span class="sub">＝已经在做</span></td>
+            <td class="cause">不用做任何事。A(#537)的动作闸已经在「配不对题就退回主播镜」——柜类选题自动多用主播镜、少配错画面</td>
+            <td class="fix">不补，但<b style="color:var(--ok)">不再配错</b></td>
+            <td>0（已生效*）</td>
+            <td class="where">口型费略升；画面偏单调。*要工厂机跑快车道</td>
+          </tr>
+          <tr>
+            <td class="phenom">B. 人工批量建柜类素材<span class="sub">＝库主体当初的建法</span></td>
+            <td class="cause">收一批定制柜账号视频 → 跑现有的切分/标注 pipeline(TransNetV2切镜+OCR+VL标注) 离线建库。库现有 4894 段就是这么一次性建的</td>
+            <td class="fix"><b style="color:var(--ok)">能</b>，最快见到柜类</td>
+            <td>几天</td>
+            <td class="where">要人工收视频+跑一轮；不依赖 Fly，不用修上云</td>
+          </tr>
+          <tr>
+            <td class="phenom">C. 重启收割机(上云)<span class="sub">＝自动化长跑</span></td>
+            <td class="cause">修好上云 → 喂授权清单 → 自动收割。一次性投入高，之后能自动持续补</td>
+            <td class="fix"><b style="color:var(--ok)">能</b>，可持续</td>
+            <td>1~2 周</td>
+            <td class="where">见下方三道前置</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note trap">
+      <span class="tag">收割机重启的三道前置（缺一不可，08-20 卡在这）</span>
+      <b>① Fly app + 卷 bootstrap</b>：`akke-broll-harvester` 的 app/卷可能还没建（部署探针报「看不到 app / 没有卷」）。要 org 级 token 一次性建。<br>
+      <b>② 补 secrets</b>：上云部署 4 次全挂在「同步 secrets」——缺 <code>GH_TOKEN</code>(clone 私有仓)、<code>DOUYIN_COOKIES</code>(下载源片)，外加 R2 单写 key、OpenRouter key。<br>
+      <b>③ 攒定制柜账号授权清单</b>（<b>核心瓶颈</b>）：收割机是「按清单收」，清单是 JSONL（url + 账号 + authorized=true），且对未授权一律拒收。<b>没有这份清单，修好机器也是空转</b>——它默认收的还是施工视频，补不了柜类。这一步需号主授权，是运营/BD 的活，不是技术活。
+    </div>
+    <p class="sub"><b>我的建议</b>：短期走 <b>A</b>（切快车道后即生效，先让画面别再错）；要柜类画面就并行做 <b>B</b>（人工批，最快见效，还能顺便验证「有柜类素材后对题率能到多少」）；<b>C</b> 等 B 证明了价值、且有人能长期维护喂料清单再启动——别为一个还没验证收益的自动化先啃 Fly bootstrap。</p>
+  </div>
+</section>
+
+<!-- ═══ 每天稳定出片 ═══ -->
+<section>
+  <div class="wrap">
+    <h2>目标：每天稳定产出合格的视频 —— 按这个顺序做</h2>
+    <div class="tablebox">
+      <table class="bc" style="min-width:820px">
+        <thead><tr><th>步</th><th>动作</th><th>解决什么</th><th>谁做</th><th>成本</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="idx">1</td>
+            <td class="phenom">切回快车道<br><code>PRODUCER_ENGINE=express</code></td>
+            <td class="cause">一步修掉下午失败(#8)+前白后黄(#9)，并激活 #1~#5 所有修复。老线的 fetch/tts 失败面消失</td>
+            <td class="fix">运营/有 Fly 权限的人</td>
+            <td>0，秒级</td>
+          </tr>
+          <tr>
+            <td class="idx">2</td>
+            <td class="phenom">切完盯一批</td>
+            <td class="cause">确认快车道在这台机器上健康出片（08-19 跑通过，但隔了几天，别切完不看）</td>
+            <td class="fix">看板 + pipeline-health</td>
+            <td>10 分钟</td>
+          </tr>
+          <tr>
+            <td class="idx">3</td>
+            <td class="phenom">清审片积压</td>
+            <td class="cause">现在 <b>37 条等你审</b>。产线能出片，但「合格」的最后一关是人审——不审，做再多也堆在 review。这是目前最大的瓶颈之一</td>
+            <td class="fix">运营每天审片</td>
+            <td>每天固定时段</td>
+          </tr>
+          <tr>
+            <td class="idx">4</td>
+            <td class="phenom">补柜类素材（B 人工批）</td>
+            <td class="cause">抬高「又对题又有画面」的天花板。柜类占 3% 是画面质量的硬约束，A 只能保证不配错</td>
+            <td class="fix">运营收视频 + 跑标注</td>
+            <td>几天/批</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note law">
+      <span class="tag">一句话</span>
+      「每天稳定出片」现在最缺的不是产线能力，是<b>两件运营动作</b>：① <b>切回快车道</b>（一条命令，解锁全部代码修复）；② <b>每天把 37 条积压审掉</b>（产线做得出，卡在没人审）。素材库(补柜类)是把「合格」往上提的第三步，不是当前的堵点。
     </div>
   </div>
 </section>
@@ -249,32 +368,37 @@
 <!-- ═══ 根因归类 ═══ -->
 <section>
   <div class="wrap">
-    <h2>七条问题，其实只有三类病根</h2>
+    <h2>九条问题，其实只有四类病根</h2>
     <div class="tablebox">
-      <table class="bc" style="min-width:760px">
+      <table class="bc" style="min-width:800px">
         <thead>
-          <tr><th>病根</th><th>覆盖哪几条</th><th>能不能靠代码解决</th></tr>
+          <tr><th>病根</th><th>覆盖哪几条</th><th>怎么解决</th></tr>
         </thead>
         <tbody>
           <tr>
+            <td class="phenom" style="color:var(--bad)">⓪ 工厂机跑老线（今天最大的根）</td>
+            <td class="cause">#8（下午失败）· #9（前白后黄）· 以及「所有修复没生效」</td>
+            <td class="fix"><b style="color:var(--warn)">一条 Fly secret</b>——切回快车道 <code>PRODUCER_ENGINE=express</code></td>
+          </tr>
+          <tr>
             <td class="phenom" style="color:var(--bad)">① 检索配错</td>
-            <td class="cause">#2（满分配吊顶）· #4（复发）的一半</td>
-            <td class="fix"><b style="color:var(--ok)">能</b>——词表归位 + 动作闸（A，PR #537）</td>
+            <td class="cause">#2（满分配吊顶）· #4 的一半</td>
+            <td class="fix"><b style="color:var(--ok)">能</b>——词表归位 + 动作闸（A，#537）</td>
           </tr>
           <tr>
             <td class="phenom" style="color:var(--warn)">② 问题不可见 / 修法错</td>
             <td class="cause">#1（无声音没档）· #3（对照表看不见）· #4（返修走老线）· #5（词表缺档）</td>
-            <td class="fix"><b style="color:var(--ok)">能</b>——接进审片页 + 改词表 + 返修不换线（#525/#529）</td>
+            <td class="fix"><b style="color:var(--ok)">能</b>——接审片页 + 改词表 + 返修不换线（#525/#529）</td>
           </tr>
           <tr>
             <td class="phenom" style="color:var(--violet)">③ 素材库不对口</td>
             <td class="cause">#2 的天花板 · #6（只能全口播）· #7（补料）</td>
-            <td class="fix"><b style="color:var(--bad)">不能</b>——柜类只占 3%，代码堵不住，只能补料（C，阻塞）</td>
+            <td class="fix"><b style="color:var(--bad)">代码堵不住</b>——柜类只占 3%，只能补料（见下方落地方案）</td>
           </tr>
         </tbody>
       </table>
     </div>
-    <p class="sub" style="margin-top:8px">①② 今天都靠代码处理了；③ 是「库里根本没有对题的画面」，这就是销售那句「一个场景一个人物讲完会自然点」的技术真相。</p>
+    <p class="sub" style="margin-top:8px">⓪ 是今天才发现的、也是最高杠杆的——它让①②的修复暂时都没生效。切回快车道之后，①②立即起作用；剩③是「库里根本没有对题的画面」，这就是销售那句「一个场景一个人物讲完会自然点」的技术真相。</p>
   </div>
 </section>
 
