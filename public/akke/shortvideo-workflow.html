@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>短视频获客产线全图</title>
+<style>
+  *{box-sizing:border-box;}
+
+  /* 这页刻意只有一版深色：它不是文档，是盯产线的人在出事时打开的那张图。
+     字体全部走系统栈——upio 在国内看，Google Fonts 拉不动。 */
+  :root{
+    --ground:#0B0D11;
+    --panel:#12161D;
+    --panel-2:#171D26;
+    --panel-3:#1D2531;
+    --line:#232C39;
+    --line-2:#31404F;
+    --ink:#E3E8EF;
+    --ink-2:#A6B2C0;
+    --dim:#75818F;
+    /* 铜 = 主线 = 钱。这条产线的每一步都在花钱，主色就用炉火的颜色。 */
+    --copper:#D3893F;
+    --copper-soft:rgba(211,137,63,.16);
+    /* 青 = 上游数据（Akke 那半边） */
+    --teal:#41B3AC;
+    --teal-soft:rgba(65,179,172,.14);
+    /* 紫 = 外部服务（n8n / fal / R2） */
+    --violet:#8D7CEA;
+    --violet-soft:rgba(141,124,234,.14);
+    --ok:#48C98A;
+    --warn:#EFB055;
+    --bad:#F06A78;
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    --wrap:1180px;
+  }
+
+  html{scroll-behavior:smooth;scroll-padding-top:74px;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 700px at 8% -10%, #17222E 0%, rgba(23,34,46,0) 62%),
+      radial-gradient(900px 600px at 96% -4%, #241B14 0%, rgba(36,27,20,0) 58%),
+      var(--ground);
+    color:var(--ink);
+    font-family:var(--sans);
+    font-size:15.5px;
+    line-height:1.75;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:var(--wrap);margin:0 auto;padding:0 22px;}
+
+  /* ── 顶栏 ───────────────────────────────────────────── */
+  .topbar{
+    position:sticky;top:0;z-index:50;
+    background:rgba(11,13,17,.86);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  .topbar .wrap{display:flex;align-items:center;gap:18px;height:56px;}
+  .brand{font-weight:700;letter-spacing:.04em;white-space:nowrap;}
+  .brand span{color:var(--copper);}
+  .navlinks{display:flex;gap:2px;overflow-x:auto;margin-left:auto;}
+  .navlinks a{
+    color:var(--ink-2);text-decoration:none;font-size:13.5px;
+    padding:6px 10px;border-radius:6px;white-space:nowrap;
+  }
+  .navlinks a:hover{color:var(--ink);background:var(--panel-2);}
+  .navlinks a:focus-visible{outline:2px solid var(--copper);outline-offset:2px;}
+
+  /* ── 头部 ───────────────────────────────────────────── */
+  header.hero{padding:56px 0 34px;}
+  .eyebrow{
+    font-size:12px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--copper);font-weight:600;margin-bottom:14px;
+  }
+  h1{
+    font-size:clamp(30px,4.4vw,46px);line-height:1.18;margin:0 0 16px;
+    letter-spacing:-.01em;text-wrap:balance;font-weight:700;
+  }
+  .lede{font-size:17px;color:var(--ink-2);max-width:62ch;margin:0 0 24px;}
+  .lede b{color:var(--ink);font-weight:600;}
+  .stamp{
+    display:flex;flex-wrap:wrap;gap:8px 10px;font-family:var(--mono);font-size:12px;color:var(--dim);
+  }
+  .stamp code{
+    background:var(--panel-2);border:1px solid var(--line);border-radius:5px;
+    padding:3px 8px;color:var(--ink-2);
+  }
+
+  /* ── 区块 ───────────────────────────────────────────── */
+  section{padding:40px 0;border-top:1px solid var(--line);}
+  h2{
+    font-size:24px;margin:0 0 6px;font-weight:700;letter-spacing:-.005em;
+    display:flex;align-items:baseline;gap:12px;text-wrap:balance;
+  }
+  h2 .num{
+    font-family:var(--mono);font-size:12px;color:var(--copper);
+    border:1px solid var(--copper);border-radius:4px;padding:2px 7px;
+    flex:none;letter-spacing:.06em;
+  }
+  h2 + .sub{color:var(--dim);margin:0 0 24px;max-width:70ch;}
+  h3{font-size:16.5px;margin:30px 0 10px;font-weight:650;color:var(--ink);}
+  p{margin:0 0 14px;max-width:74ch;}
+  a{color:var(--teal);}
+  code{font-family:var(--mono);font-size:.9em;background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:1px 5px;color:#CBD6E3;}
+  b,strong{color:#F1F5FA;font-weight:650;}
+
+  /* ── 主干流水线 ─────────────────────────────────────── */
+  .flow{
+    display:grid;grid-template-columns:repeat(4,minmax(230px,1fr));
+    gap:14px;margin:8px 0 6px;
+  }
+  .stationwrap{overflow-x:auto;padding-bottom:6px;}
+  .station{
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:14px 15px 15px;position:relative;
+    display:flex;flex-direction:column;
+  }
+  .station::before{
+    content:"";position:absolute;left:0;top:0;bottom:0;width:3px;
+    border-radius:10px 0 0 10px;background:var(--copper);
+  }
+  .station.up::before{background:var(--teal);}
+  .station.ext::before{background:var(--violet);}
+  .station .st{font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:.1em;}
+  .station h4{margin:3px 0 8px;font-size:15.5px;font-weight:650;}
+  .station p{font-size:13.5px;color:var(--ink-2);margin:0 0 8px;line-height:1.6;}
+  .station .who{
+    font-family:var(--mono);font-size:11.5px;color:var(--dim);
+    border-top:1px dashed var(--line);padding-top:7px;margin-top:auto;
+    word-break:break-all;
+  }
+  .station .bad{color:var(--bad);font-size:12.5px;display:block;margin-top:6px;}
+
+  /* ── 卡片 / 网格 ────────────────────────────────────── */
+  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;}
+  .card{
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;
+  }
+  .card h4{margin:0 0 8px;font-size:15px;font-weight:650;}
+  .card p{font-size:14px;color:var(--ink-2);margin:0 0 8px;}
+  .card p:last-child{margin-bottom:0;}
+
+  /* ── 表 ─────────────────────────────────────────────── */
+  .tablebox{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel);margin:16px 0;}
+  table{border-collapse:collapse;width:100%;min-width:640px;font-size:13.8px;}
+  th,td{padding:10px 13px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line);}
+  thead th{
+    background:var(--panel-2);color:var(--ink-2);font-weight:600;
+    font-size:12px;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;
+  }
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:var(--panel-2);}
+  td.mono,th.mono{font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums;}
+  td.num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;}
+
+  /* ── 徽标 ───────────────────────────────────────────── */
+  .pill{
+    display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.04em;
+    padding:2px 7px;border-radius:999px;border:1px solid var(--line-2);color:var(--ink-2);
+    white-space:nowrap;
+  }
+  .pill.akke{color:var(--teal);border-color:rgba(65,179,172,.45);background:var(--teal-soft);}
+  .pill.sw{color:var(--copper);border-color:rgba(211,137,63,.45);background:var(--copper-soft);}
+  .pill.wf{color:var(--violet);border-color:rgba(141,124,234,.45);background:var(--violet-soft);}
+  .pill.ok{color:var(--ok);border-color:rgba(72,201,138,.4);}
+  .pill.warn{color:var(--warn);border-color:rgba(239,176,85,.4);}
+  .pill.bad{color:var(--bad);border-color:rgba(240,106,120,.4);}
+
+  /* ── 提示块 ─────────────────────────────────────────── */
+  .note{
+    border-left:3px solid var(--line-2);background:var(--panel);
+    border-radius:0 8px 8px 0;padding:13px 16px;margin:16px 0;font-size:14px;color:var(--ink-2);
+  }
+  .note b{color:var(--ink);}
+  .note.law{border-left-color:var(--copper);}
+  .note.trap{border-left-color:var(--bad);}
+  .note.ok{border-left-color:var(--ok);}
+  .note .tag{
+    display:block;font-family:var(--mono);font-size:11px;letter-spacing:.14em;
+    text-transform:uppercase;margin-bottom:5px;color:var(--dim);
+  }
+
+  pre{
+    background:#0E1218;border:1px solid var(--line);border-radius:8px;
+    padding:13px 15px;overflow-x:auto;font-family:var(--mono);font-size:12.5px;
+    line-height:1.65;color:#C7D3E1;margin:14px 0;
+  }
+  pre .c{color:var(--dim);}
+
+  ul{margin:0 0 14px;padding-left:20px;max-width:74ch;}
+  li{margin-bottom:6px;color:var(--ink-2);}
+  li b{color:var(--ink);}
+
+  /* ── 状态机 ─────────────────────────────────────────── */
+  .states{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 6px;}
+  .state{
+    border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;background:var(--panel);
+    min-width:150px;flex:1 1 150px;
+  }
+  .state .k{font-family:var(--mono);font-size:12.5px;color:var(--ink);display:block;}
+  .state .d{font-size:12.5px;color:var(--dim);line-height:1.55;}
+  .state.q{border-color:rgba(117,129,143,.6);}
+  .state.r{border-color:rgba(211,137,63,.5);}
+  .state.n{border-color:rgba(239,176,85,.5);}
+  .state.v{border-color:rgba(141,124,234,.5);}
+  .state.d1{border-color:rgba(72,201,138,.5);}
+  .state.f{border-color:rgba(240,106,120,.5);}
+
+  footer{
+    border-top:1px solid var(--line);padding:28px 0 60px;color:var(--dim);font-size:13px;
+  }
+  footer p{max-width:74ch;}
+
+  @media (max-width:820px){
+    .flow{grid-template-columns:repeat(4,minmax(210px,1fr));}
+    header.hero{padding:38px 0 26px;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto;}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="wrap">
+    <div class="brand">短视频获客 · <span>产线全图</span></div>
+    <nav class="navlinks">
+      <a href="#map">总览</a>
+      <a href="#feed">① 选题</a>
+      <a href="#screens">② 店长的屏</a>
+      <a href="#line">③ 出片</a>
+      <a href="#models">④ 模型</a>
+      <a href="#money">⑤ 钱</a>
+      <a href="#debug">⑥ 排障</a>
+      <a href="#repos">⑦ 谁改什么</a>
+    </nav>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">wb.hzcytech.cn/wb　·　模块 1「短视频获客」</div>
+    <h1>一条视频从别人的爆款变成本店成片，中间经过了什么</h1>
+    <p class="lede">
+      这条产线跨 <b>三个代码仓、两朵云、四家模型供应商</b>，每天凌晨自动跑，人只剩「审片」这一件事。
+      这页把整条链拆成 8 段，每段写清楚：<b>谁在跑、跑在哪个仓、坏了长什么样、去哪查、改哪里</b>。
+    </p>
+    <div class="stamp">
+      <code>口径日期 2026-08-24</code>
+      <code>Akke @523de54b</code>
+      <code>store-workbench @3be77b8</code>
+      <code>Workflow @0d83be0</code>
+      <code>快照 · 非实时看板</code>
+    </div>
+  </div>
+</header>
+
+<!-- ════════════ 总览 ════════════ -->
+<section id="map">
+  <div class="wrap">
+    <h2><span class="num">MAP</span>整条链，八站</h2>
+    <p class="sub">
+      左边三站是<span class="pill akke">Akke 仓</span>（数据），中间两站是<span class="pill sw">store-workbench 仓</span>（店长看得见的一切 + 出片调度），
+      再往后是<span class="pill wf">Workflow 仓</span>与外部服务（真正把片子做出来）。颜色在下面全篇通用。
+    </p>
+
+    <div class="stationwrap">
+      <div class="flow">
+        <div class="station up">
+          <div class="st">站 1 · 每小时</div>
+          <h4>抓同行视频与评论</h4>
+          <p>号源账号的新视频、视频下的评论，进 <code>videos</code> / <code>comments</code>。</p>
+          <div class="who">Akke · /api/cron/scrape · scrape-hot</div>
+        </div>
+        <div class="station up">
+          <div class="st">站 2 · 每 2 分钟</div>
+          <h4>给评论打意向分</h4>
+          <p>模型判断这条评论是不是真有装修意向、是不是在要资料。</p>
+          <div class="who">Akke · /api/cron/analyze · deepseek-v4-flash</div>
+        </div>
+        <div class="station up">
+          <div class="st">站 3 · 每天 00:00</div>
+          <h4>挑出今天的选题</h4>
+          <p>昨日新入库的视频里，按统一分排出真人讲解 Top，推飞书卡 + 落台账。</p>
+          <div class="who">Akke · /api/cron/video-material-digest</div>
+        </div>
+        <div class="station">
+          <div class="st">站 4 · 0:30–6:30 每半小时</div>
+          <h4>自动提单</h4>
+          <p>把榜上前几条变成制作任务，一天目标 3 条。人不点也会提。</p>
+          <div class="who">n8n → /api/runner/auto-submit</div>
+        </div>
+        <div class="station ext">
+          <div class="st">站 5 · 每 2 分钟</div>
+          <h4>叫醒工厂机</h4>
+          <p>有活就把 Fly 上那台停着的机器 start 起来；没活它就该停着。</p>
+          <div class="who">n8n → api.machines.dev · akke-video-worker</div>
+        </div>
+        <div class="station">
+          <div class="st">站 6 · 约 6 分钟/条</div>
+          <h4>把片子做出来</h4>
+          <p>出稿 → 配音 → 排画面 → 对口型 → 烧字幕 → 交付。付费步骤经 n8n 走 fal。</p>
+          <div class="who">daemon.py · runner/express · pipeline/</div>
+        </div>
+        <div class="station">
+          <div class="st">站 7 · 等人</div>
+          <h4>店长审片</h4>
+          <p>从头看一遍，8 项自动检查 + 人眼核字幕/门店名/价格。<b>只有人能点「交付」。</b></p>
+          <div class="who">wb 视频看板 · video_jobs.state=review</div>
+        </div>
+        <div class="station ext">
+          <div class="st">站 8 · 到点自动</div>
+          <h4>发布到抖音</h4>
+          <p>批准后进发布队列，由国内那台云电脑上的常驻程序按时间发。</p>
+          <div class="who">sw_publish_tasks → 云电脑 agent</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="note law">
+      <span class="tag">一句话记住</span>
+      <b>数据是 Akke 的，屏是 store-workbench 的，片子是 Workflow 的，钱是 fal 的。</b>
+      出了问题第一步不是看代码，是判断「卡在第几站」——站数定了，仓就定了，人也就定了。
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ ① 选题 ════════════ -->
+<section id="feed">
+  <div class="wrap">
+    <h2><span class="num">01</span>今天做哪条：选题是怎么挑出来的</h2>
+    <p class="sub">你在 <code>#video-top</code>「批量剪辑」那屏看到的候选视频，不是工作台自己算的，是从 Akke 一路送过来的。三跳，中间任何一跳断了，页面就是空的。</p>
+
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>环节</th><th>做什么</th><th class="mono">在哪</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>抓</b></td>
+            <td>号源账号的新视频进 <code>videos</code>，视频下的评论进 <code>comments</code></td>
+            <td class="mono">Akke · /api/cron/scrape（每小时 10 分）<br>/api/cron/scrape-hot（每 3 分）</td>
+          </tr>
+          <tr>
+            <td><b>打分</b></td>
+            <td>每条评论判意向高/中/低、是不是在要资料</td>
+            <td class="mono">Akke · /api/cron/analyze（每 2 分）</td>
+          </tr>
+          <tr>
+            <td><b>挑</b></td>
+            <td>只看<b>昨日新入库</b>的视频，按统一分排序，出飞书卡并写进台账 <code>material_digest_pushed</code></td>
+            <td class="mono">Akke · /api/cron/video-material-digest<br>每天 UTC 16:00 = 北京 00:00</td>
+          </tr>
+          <tr>
+            <td><b>吐</b></td>
+            <td>只读台账、<b>不重算</b>，用独立钥匙 <code>MATERIAL_FEED_KEY</code> 对外只读</td>
+            <td class="mono">Akke · GET /api/material-feed</td>
+          </tr>
+          <tr>
+            <td><b>中转</b></td>
+            <td>Cloudflare Worker 挡在中间，这样工作台那台机器完全不碰那把钥匙</td>
+            <td class="mono">akke-material-upload.softieaiorg.workers.dev/api/feed<br>请求头 X-Store-Code: demo-2026</td>
+          </tr>
+          <tr>
+            <td><b>显示</b></td>
+            <td>页面和自动提单<b>共用同一份取数</b>（否则「页面 15 条、机器只提 3 条」两边都不报错）</td>
+            <td class="mono">store-workbench · lib/workbench/daily-feed.ts</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>统一分怎么算（版本 u1.2）</h3>
+    <p>排序不是按播放量，也不是按评论量——<b>热闹 ≠ 有意向</b>。四项归一加权：</p>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>维度</th><th class="num">权重</th><th>含义</th></tr></thead>
+        <tbody>
+          <tr><td>求资料条数 <code>req</code></td><td class="num">0.35</td><td>评论区有多少人在明着要资料/报价</td></tr>
+          <tr><td>求资料比例 <code>ratio</code></td><td class="num">0.25</td><td>要资料的人占抓到评论的比例（样本 ≥20 条才算）</td></tr>
+          <tr><td>中高意向数 <code>intent</code></td><td class="num">0.20</td><td>模型判定的真实购买意向条数</td></tr>
+          <tr><td>24h 增长 <code>growth</code></td><td class="num">0.20</td><td>近 24 小时评论增长速度</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="sub" style="margin-top:-4px">
+      源码：<code>src/lib/material-digest/unified-score.ts</code>。改权重必须同时 bump <code>UNIFIED_SCORE_VERSION</code>，否则历史数据对不上账。
+    </p>
+
+    <div class="note ok">
+      <span class="tag">今天实测 · 2026-08-24</span>
+      直接打 feed 拿到 <b>4 条</b>统一榜条目（<code>unifiedItems</code>），最新一天是 08-24，可回翻 08-23 / 08-22。
+      这条命令不需要任何密钥，本机就能跑，是判断「上游有没有断」最快的一招：
+      <pre><span class="c"># 上游今天出没出选题？出了几条？</span>
+curl -s "https://akke-material-upload.softieaiorg.workers.dev/api/feed?days=3" \
+  -H "X-Store-Code: demo-2026" -H "User-Agent: akke-workbench/1.0" | head -c 400</pre>
+    </div>
+
+    <div class="note trap">
+      <span class="tag">这里踩过的坑</span>
+      <b>页面顺序曾经和飞书卡对不上。</b>新口径（统一分）挑人、旧口径（意向加权）排序，
+      结果第 2 名在统一分里排第 8。教训写死在代码注释里：<b>这个接口只读台账、一个数都不许现算</b>——
+      现算必然和已经推出去的卡片打架，而运营分不清是「口径变了」还是「系统坏了」。
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ ② 屏 ════════════ -->
+<section id="screens">
+  <div class="wrap">
+    <h2><span class="num">02</span>店长在屏上做的每一步，落到哪张表</h2>
+    <p class="sub">模块 1 一共 8 屏，前 3 屏是一次性设置（引导流程），后面是每天要做的（每日任务）。<code>#video-top</code> 是其中第 05 屏。</p>
+
+    <div class="tablebox">
+      <table>
+        <thead><tr><th class="mono">屏</th><th>店长做什么</th><th class="mono">后端</th><th class="mono">落到哪</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">01</td><td><b>业务类型</b>：主营类目 + 服务城市</td><td class="mono">/api/workbench/video/business</td><td class="mono">门店档案</td></tr>
+          <tr><td class="mono">03</td><td><b>素材库</b>：上传本店视频/图片/音频</td><td class="mono">/video/uploads/presign → assets</td><td class="mono">sw_assets + R2</td></tr>
+          <tr><td class="mono">04</td><td><b>真人出镜</b>：形象照 + 60–90 秒语音样本 + 两项授权</td><td class="mono">/video/persons/[id]/voice</td><td class="mono">sw_persons.voice_id</td></tr>
+          <tr><td class="mono">05</td><td><b>批量剪辑</b>（<code>#video-top</code>）：看候选片、点「用它做今天的参考」</td><td class="mono">/video/queue/feed<br>/video/top/select</td><td class="mono">sw_video_refs<br>is_reference=true</td></tr>
+          <tr><td class="mono">06</td><td><b>看懂参考视频</b>：系统拆成「开头—问题—方案—证据—行动」5 段</td><td class="mono">/video/report/analyze</td><td class="mono">sw_video_refs.structure</td></tr>
+          <tr><td class="mono">07</td><td><b>等系统制作</b>：脚本/画面/口播/剪辑/检查五段进度</td><td class="mono">/video/queue/list</td><td class="mono">video_jobs.stages</td></tr>
+          <tr><td class="mono">08</td><td><b>检查成片</b>：从头看一遍再下载</td><td class="mono">/video/result/review</td><td class="mono">video_jobs.state</td></tr>
+          <tr><td class="mono">10</td><td><b>视频生成看板</b>：手上所有任务各到哪一步</td><td class="mono">/video/queue/list</td><td class="mono">video_jobs</td></tr>
+          <tr><td class="mono">—</td><td><b>发布</b>：系统备一批（标题+5 标签+建议时间），人点批准</td><td class="mono">/video/publish → /approve</td><td class="mono">sw_publish_tasks</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h4>第 04 屏这一下是要花钱的</h4>
+        <p>登记出镜人时录的那段语音，会去做<b>音色克隆</b>：<code>fal-ai/minimax/voice-clone</code>，<b>$1.50 / 次</b>，按次计费。</p>
+        <p>参考音频必须 ≥10 秒，短了必定失败。克隆出来的 <code>voice_id</code> 存在 <code>sw_persons</code>，之后每条片子的配音都用它，<b>不许在代码里写死</b>。</p>
+      </div>
+      <div class="card">
+        <h4>第 06 屏是同步等的，十几秒</h4>
+        <p>拆解走 <code>analyzeVideoStructure()</code>，模型是便宜的分析档 <code>deepseek/deepseek-v4-flash</code>。</p>
+        <p>失败会把 <code>structure_status</code> 落成 <code>failed</code> 并给一句人话，可以重跑；<b>不排队、不异步</b>——店长就站在屏前等结果。</p>
+      </div>
+      <div class="card">
+        <h4>「已交付」只有人能点</h4>
+        <p>产线自己<b>没有</b>判交付的权限，最多把单子推到 <code>review</code>。这是刻意的：机器判自己做得好，等于没人审。</p>
+        <p>代价是——现在最大的钱漏就在这一步（见下面「钱」那节）。</p>
+      </div>
+      <div class="card">
+        <h4>发布为什么不是「点一下就发」</h4>
+        <p>系统按流量算出 20:30 这种时间，人可能 23:00 才来点确认。做成即点即发，等于挑时间那件事白算。</p>
+        <p>所以是：<b>draft（系统备好）→ 人点批准 → queued → 到点由云电脑发</b>。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ ③ 出片 ════════════ -->
+<section id="line">
+  <div class="wrap">
+    <h2><span class="num">03</span>出片产线：一条单在机器里的一生</h2>
+    <p class="sub">所有制作任务都是 <code>video_jobs</code> 表里的一行。看板上你看到的每个状态，都是这张表的 <code>state</code> 列。</p>
+
+    <h3>七个状态（值域在 DB 的 CHECK 约束里钉着）</h3>
+    <div class="states">
+      <div class="state q"><span class="k">queued</span><span class="d">进队列了，等工厂机来领</span></div>
+      <div class="state r"><span class="k">running</span><span class="d">正在做，有心跳</span></div>
+      <div class="state n"><span class="k">needs_input</span><span class="d">卡住等店长补东西，<b>不是失败</b></span></div>
+      <div class="state v"><span class="k">review</span><span class="d">片子出来了，等人完整看一遍</span></div>
+      <div class="state v"><span class="k">revision_requested</span><span class="d">审完说有问题，返修单已开</span></div>
+      <div class="state d1"><span class="k">done</span><span class="d">已交付，<b>只能店长点</b></span></div>
+      <div class="state f"><span class="k">failed</span><span class="d">真失败，日志里有人话原因</span></div>
+    </div>
+
+    <div class="note trap">
+      <span class="tag">别手工改这张表的状态</span>
+      2026-08-15 有条单就是这么废掉的：口型<b>已经跑完并计了 $1.35</b>，为了绕开凭据问题直接改库里的 <code>stages</code>，
+      把那笔付费预留孤立了，之后每次提交都撞 <code>fal_binding_mismatch</code>。
+      <b>付费预留是挂在认领号牌上的状态机，手工复位只复位了它的一半。</b>
+      要重跑一条单，走看门狗重排或页面上「作废重开」。
+    </div>
+
+    <h3>谁在跑：三层调度</h3>
+    <div class="grid2">
+      <div class="card">
+        <h4>① 提单 <span class="pill sw">store-workbench</span></h4>
+        <p>n8n 定时器 <code>*/30 0-6 * * *</code> 调 <code>POST /api/runner/auto-submit</code>（钥匙 <code>X-Producer-Key</code>）。</p>
+        <p>一天目标 <code>DAILY_TARGET = 3</code> 条，硬帽是它的 2 倍（允许每条各换一次源片）。半小时重复调是<b>幂等</b>的：按当天已自动提的条数算名额，按 <code>source_url</code> 查全部历史去重。</p>
+      </div>
+      <div class="card">
+        <h4>② 唤醒工厂机 <span class="pill wf">n8n</span></h4>
+        <p>autoscaler 每 2 分钟查一次 <code>/api/runner/jobs?claimable=1</code>，有活就调 Fly Machines API 把 <code>akke-video-worker</code> 里 <b>stopped</b> 的机器 start 起来。</p>
+        <p><b>机器停着不是故障。</b>它是 scale-to-zero 的，队列空时就该停机——监控刻意不判它的死活。</p>
+      </div>
+      <div class="card">
+        <h4>③ 干活 <span class="pill sw">runner/daemon.py</span></h4>
+        <p>拿号牌认领一条单，每 <b>60 秒</b>报一次心跳；看门狗 <b>5 分钟</b>没收到就判死（留了 5 倍余量，抖动不误伤）。</p>
+        <p>一条单最多自动重排 <code>MAX_AUTO_ATTEMPTS = 2</code> 次。每店同时在跑默认 2 条（<code>VIDEO_MAX_PARALLEL_JOBS</code>，硬上限 8）。</p>
+      </div>
+      <div class="card">
+        <h4>两条产线，一个开关 <code>PRODUCER_ENGINE</code></h4>
+        <p><code>express</code> = 快车道，六步纯确定性，全程只调一次模型；<code>orchestrator</code> = 老复刻线，14 节点；<code>session</code> = 最老的大会话，逃生用。</p>
+        <p><b>代码默认是 orchestrator</b>；2026-08-15 起线上按 <code>fly secrets set PRODUCER_ENGINE=express</code> 切到了快车道。<b>此刻线上到底是哪条，我没验——要确认跑 <code>fly secrets list -a akke-video-worker</code>。</b></p>
+      </div>
+    </div>
+
+    <h3>快车道 express/v1：六步</h3>
+    <p>为什么会有它：老线在 2026-08-12～14 三天里<b>连续 10 单全灭、成片 0 条</b>。死因不是某个 bug，是结构性的——语义闸门一票否决、而且<b>闸拦在付过钱之后</b>。</p>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th class="mono">步</th><th>做什么</th><th>用什么</th><th>失败长什么样</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">script</td><td>出稿：钩子 + 正文 + CTA，字数按目标时长算</td><td class="mono">OpenRouter · qwen3.7-flash</td><td>三稿都不合规 → 走兜底稿，<b>不整单失败</b></td></tr>
+          <tr><td class="mono">voice</td><td>配音，量语速（3.4–5.3 字/秒），偏了降速重做一次</td><td class="mono">fal · minimax/speech-02-hd</td><td>付费步骤，走 n8n 窗口</td></tr>
+          <tr><td class="mono">plan</td><td>排画面：开头两条字幕和结尾固定给主播，中间每句去 B-roll 库找画面</td><td class="mono">本机 · 中文二元组检索</td><td>库没挂 = <b>降级</b>（全程主播镜），不是失败</td></tr>
+          <tr><td class="mono">shots</td><td>对口型，<b>只有主播格要对</b>（按秒计费，所以画面越好看越便宜）</td><td class="mono">fal · sync-lipsync v2 pro</td><td>最贵的一步，$5/分钟</td></tr>
+          <tr><td class="mono">assemble</td><td>烧字幕 + 合成，逐格按帧对齐</td><td class="mono">本机 · PIL + ffmpeg</td><td>音画错位在这一步防</td></tr>
+          <tr><td class="mono">deliver</td><td>交付，转 <code>review</code> 等店长</td><td class="mono">—</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note law">
+      <span class="tag">这条线的铁律</span>
+      <b>测量，不否决。</b>每步做完只量结果（时长、字数、语速、规格），量出来不理想就<b>调一个数重做那一步</b>（几分钱），
+      绝不因此让整单失败。老线的死法全在这条的反面：TTS 已经扣了 $0.0121，才被判「语速偏快」整单失败——钱花了、片子没有。
+      <br><br>推论，新加任何质量闸之前先问一句：<b>这道闸能不能挪到花钱之前？</b>（同族教训已经三次：08-14 语速、08-17 口型付不起、08-19 预算闸拦得太晚。）
+    </div>
+
+    <h3>老线 orchestrator：14 个节点</h3>
+    <p class="sub">要「复刻某条具体爆款」时才走它。一格一个文件，产物文件名和闸门都在 <code>pipeline/nodes.json</code> 里声明。</p>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th class="mono">节点</th><th>干什么</th><th class="mono">倒下之后</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">fetch</td><td>取片建档</td><td>fail</td></tr>
+          <tr><td class="mono">probe</td><td>量时长 + 判长短片</td><td>fail</td></tr>
+          <tr><td class="mono">analyze</td><td>转写 + 镜头分析</td><td>fail</td></tr>
+          <tr><td class="mono">gate</td><td>判型门卫 + 声明施工计划</td><td>fail</td></tr>
+          <tr><td class="mono">script</td><td>写稿 + 切分终审</td><td>escalate（等人拍板）</td></tr>
+          <tr><td class="mono">script_check</td><td>稿件闸门</td><td>fail</td></tr>
+          <tr><td class="mono">budget</td><td>预算预检</td><td>escalate</td></tr>
+          <tr><td class="mono">tts</td><td>配音 + 时间轴</td><td>fail</td></tr>
+          <tr><td class="mono">shot_assign</td><td>逐句判 A-roll / B-roll</td><td>escalate</td></tr>
+          <tr><td class="mono">plate</td><td>底片选窗 + 字幕处置</td><td>fail</td></tr>
+          <tr><td class="mono">lipsync</td><td>对口型 + 段级检查</td><td>fail</td></tr>
+          <tr><td class="mono">broll</td><td>B-roll 检索 + 编排</td><td>escalate</td></tr>
+          <tr><td class="mono">compose</td><td>合成 + 成片检查</td><td>fail</td></tr>
+          <tr><td class="mono">deliver</td><td>打包 + 对账 + 交付</td><td>fail</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>付费窗口：为什么钱要绕一趟 n8n</h3>
+    <p>所有花钱的调用（配音、口型、生图、图生视频）都<b>不直接打 fal</b>，而是提交给 n8n 的付费窗口，由它调 fal 并把账记回 Store（<code>reserve_fal</code> / <code>complete_fal</code>）。</p>
+    <ul>
+      <li><b>一次调用 = 一个 <code>operation_id</code></b>，由输入内容推导（<code>sha256(binding)[:12]</code>），<b>不能按重试次数编号</b>：换输入不换 id → 冲突；换 id 不换输入 → <b>重复付费</b>。</li>
+      <li>所以口型用的暂存签名 URL 必须落盘复用（TTL 6 小时）——<b>重签一条新 URL 就是一个新操作 = 再付一次钱</b>。</li>
+      <li>付费窗口的重试比出稿慢一个数量级（<code>60s / 180s / 300s</code>）：<b>连接断了不等于对面停了</b>，n8n 那次执行还在轮询 fal，5 秒后重试等于造出第二次并发执行。</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ════════════ ④ 模型 ════════════ -->
+<section id="models">
+  <div class="wrap">
+    <h2><span class="num">04</span>调了哪些模型，配在哪，为什么是它</h2>
+    <p class="sub">文字类全部经 <b>OpenRouter</b>（一个网关，后面接各家）；音视频类全部经 <b>fal</b>（经 n8n 付费窗口）。改任何一个之前先看最后一列。</p>
+
+    <h3>文字 / 理解</h3>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>用在哪</th><th class="mono">模型</th><th class="mono">配在哪</th><th>换的时候要注意</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>出稿</b>（快车道唯一一次模型调用）</td>
+            <td class="mono">qwen/qwen3.7-flash</td>
+            <td class="mono">EXPRESS_SCRIPT_MODEL<br>回退 ANTHROPIC_MODEL</td>
+            <td>要同步补 <code>usage_meter.py</code> 的价格表，否则大脑费记 null</td>
+          </tr>
+          <tr>
+            <td><b>复刻线的「大脑」</b>（老线整条会话）</td>
+            <td class="mono">qwen/qwen3.7-plus</td>
+            <td class="mono">daemon.py 常量<br>CLOUD_PRODUCER_MODEL</td>
+            <td><b>必须同步改三处</b>：本仓价格表 / Workflow 的 llm_ledger.py / 部署预检（漏了整条部署直接红）</td>
+          </tr>
+          <tr>
+            <td><b>拆参考视频结构</b>（第 06 屏）、抽事实</td>
+            <td class="mono">deepseek/deepseek-v4-flash</td>
+            <td class="mono">LLM_ANALYSIS_MODEL</td>
+            <td>它是推理模型，会先想再出 JSON，token 上限别给太小</td>
+          </tr>
+          <tr>
+            <td><b>面客文案</b>：发布标题、5 个标签、机器人答复</td>
+            <td class="mono">qwen/qwen3-235b-a22b-2507</td>
+            <td class="mono">LLM_CHAT_MODEL</td>
+            <td>与抖音私信通道同款，两仓刻意保持一致</td>
+          </tr>
+          <tr>
+            <td><b>看图</b>：活动海报解析等</td>
+            <td class="mono">qwen/qwen3-vl-32b-instruct</td>
+            <td class="mono">RECALL_CAMPAIGN_VISION_MODEL</td>
+            <td>文案模型只接文字，喂图会回 404 no endpoints support image input</td>
+          </tr>
+          <tr>
+            <td><b>评论意向打分 / 素材形态分类</b>（Akke 侧）</td>
+            <td class="mono">deepseek/deepseek-v4-flash</td>
+            <td class="mono">LLM_ANALYSIS_MODEL</td>
+            <td>全局 <code>LLM_MODEL</code> 会盖过所有单项（一键回滚用）</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>音 / 视频（都要花钱）</h3>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>用在哪</th><th class="mono">服务</th><th class="num">单价</th><th>备注</th></tr></thead>
+        <tbody>
+          <tr><td>配音</td><td class="mono">fal-ai/minimax/speech-02-hd</td><td class="num">$0.10 / 千字</td><td>一条 40 秒片子约 $0.02–0.04</td></tr>
+          <tr><td>音色克隆</td><td class="mono">fal-ai/minimax/voice-clone</td><td class="num">$1.50 / 次</td><td>登记出镜人时一次性，参考音频 ≥10 秒</td></tr>
+          <tr><td><b>对口型</b></td><td class="mono">fal-ai/sync-lipsync v2<br>（默认 lipsync-2-pro）</td><td class="num">$5.00 / 分钟</td><td><b>最贵的一项</b>，按主播出镜秒数计费。标准档会出现嘴部涂抹、五官漂移，生产默认必须 pro</td></tr>
+          <tr><td>生图（底图）</td><td class="mono">fal-ai/bytedance/seedream/v4<br>text-to-image / edit</td><td class="num">≈ $0.03 / 张</td><td>纯场景型才用</td></tr>
+          <tr><td>图生视频</td><td class="mono">minimax/h3/image-to-video<br>reference-to-video</td><td class="num">≈ $1.35 / 镜</td><td><b>纯场景单 95% 的钱在这</b>，降本只有这一个靶子</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>选型是怎么走到今天的（这段能省掉一次重复踩坑）</h3>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th class="mono">日期</th><th>动作</th><th>理由 / 后果</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">～08-08</td><td>大脑 = <code>moonshotai/kimi-k3</code></td><td>入价 $3.00/M，每条片大脑费约 $9 —— 成本大头</td></tr>
+          <tr><td class="mono">08-09</td><td>换 <code>deepseek-v4-flash-0731</code></td><td>同为 1M 窗口、同样支持工具调用，入价<b>便宜 33 倍</b></td></tr>
+          <tr><td class="mono">08-10</td><td><b>换回 qwen 家</b> <code>qwen3.7-flash</code></td><td>v4-flash <b>不支持图像输入</b>，而复刻线到处要看图（判型看帧、审片看成片帧）。当晚首条真单就死在这。<b>教训：选模型时「能不能看图」和「窗口多大」同等重要。</b></td></tr>
+          <tr><td class="mono">08-11</td><td>升到同门 <code>qwen3.7-plus</code></td><td>flash 暴露出工具调用不稳、判断力不足。<b>刻意只换档不换厂</b>——好把「是 flash 太弱」和「是 qwen 不行」两个猜想分开验</td></tr>
+          <tr><td class="mono">08-15</td><td>整条线换成快车道</td><td>老线 10 单全灭之后的替代路径：<b>全流程只调一次模型</b>，模型只写字、不编排 ffmpeg</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note law">
+      <span class="tag">B-roll 检索为什么不用向量</span>
+      素材库 3,494 段可用切片（已审 / 无脸 / 无字 / 无品牌 / 无水印，五条一条不松）。
+      检索用<b>中文二元组重叠 + 工序闸</b>，不用库里那 512 维向量——用向量要在产线里装 sentence-transformers 和一份模型权重，
+      而快车道的全部依赖现在只有 ffmpeg + PIL + boto3。
+      <br><br><b>并且不许改用 IDF 给稀有词加权</b>：实测「面接」（跨词切出来的假词）、「激光」都稀有，加权只会把错配捧得更高。<b>稀有 ≠ 对题。</b>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ ⑤ 钱 ════════════ -->
+<section id="money">
+  <div class="wrap">
+    <h2><span class="num">05</span>钱：两本账，永远不合并</h2>
+
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>账</th><th>是什么</th><th class="mono">记在哪</th><th>受预算拦截吗</th></tr></thead>
+        <tbody>
+          <tr><td><b>生成费</b></td><td>fal 的配音 / 口型 / 生图 / 图生视频</td><td class="mono">video_jobs.cost_usd</td><td class="mono"><span class="pill bad">是</span> 超线直接 409</td></tr>
+          <tr><td><b>大脑费</b></td><td>模型自己想事情 + 审片闸门的开销</td><td class="mono">llm_cost_usd + llm_usage</td><td class="mono"><span class="pill warn">否</span> 只记账</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>混进一本账的后果不是「数字大一点」：一单还没开始做画面，就先被自己的思考费打爆 $6 预算，然后连锁 409。</p>
+
+    <h3>预算档（按片型派生，超线不让继续花钱）</h3>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>片型</th><th class="num">预算</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr><td><code>talking_broll</code> 真人讲解 + 素材画面</td><td class="num">$6</td><td><span class="pill ok">现在只挂牌这一种</span></td></tr>
+          <tr><td><code>scene_swap_talking</code></td><td class="num">$12</td><td><span class="pill">存量</span></td></tr>
+          <tr><td><code>scene_only</code> 纯场景</td><td class="num">$15</td><td><span class="pill">存量</span></td></tr>
+          <tr><td><code>host_in_scene</code></td><td class="num">$30</td><td><span class="pill">存量</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>实测账（别引用旧表，数字每周在动）</h3>
+    <div class="grid2">
+      <div class="card">
+        <h4>单条快车道成本 · 08-15 首条真单</h4>
+        <p>出稿 $0.01 + 配音 $0.037 + 口型 $1.58 = <b>$1.62</b>，成片 31.6 秒 / 1080×1920，产线用时约 6 分钟。</p>
+        <p>加了 B-roll 之后主播占比中位 38%，一条 34 秒片子的口型费降到约 <b>$0.64</b>——<b>画面更好看的同时便宜六成</b>。</p>
+      </div>
+      <div class="card">
+        <h4>但每条<b>真交付</b>实际是 $24.08 · 08-21 复核</h4>
+        <p>全表 53 条：review 29 / failed 20 / done 4，真交付（有 <code>delivered_at</code>）只有 <b>3 条</b>；生成费合计 $72.23。</p>
+        <p><b>其中 $52.23（72%）沉在「出了片但没人审」上。</b>失败其实不贵——20 条只烧了 $6.28，说明闸门前置那套设计是有效的。</p>
+        <p><b>瓶颈不在产线，在审片。</b></p>
+      </div>
+    </div>
+
+    <div class="note trap">
+      <span class="tag">$0 有三种含义，别看错</span>
+      <table style="min-width:0;font-size:13.5px;margin-top:6px">
+        <tbody>
+          <tr><td class="mono"><code>usd=null</code> + warnings 非空</td><td>真的缺价格表 → 去 <code>usage_meter.py</code> 补单价</td></tr>
+          <tr><td class="mono"><code>usd=null</code> + warnings 空</td><td><b>压根没查过表</b> → 产线那侧的 bug</td></tr>
+          <tr><td class="mono"><code>usd=0</code> 且有 token 数</td><td>不该出现 → 有人拿 0 冒充「没花钱」，<b>最该查的一种</b></td></tr>
+        </tbody>
+      </table>
+      没有 warnings 这一列做对照，前两种在账面上长得一模一样。
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ ⑥ 排障 ════════════ -->
+<section id="debug">
+  <div class="wrap">
+    <h2><span class="num">06</span>出问题了：先看哪四个地方</h2>
+    <p class="sub">顺序别乱。从上往下，越靠前越便宜。</p>
+
+    <div class="grid2">
+      <div class="card">
+        <h4>① 看板本身</h4>
+        <p><code>wb → 视频生成</code>：每条单卡在哪个状态、失败的写着人话原因。<b>90% 的问题在这一步就能定位到「第几站」。</b></p>
+      </div>
+      <div class="card">
+        <h4>② 产线体检接口</h4>
+        <p><code>/api/runner/pipeline-health</code>，8 项判据，每一条对应一次真实事故。窗口最大 720 小时。</p>
+      </div>
+      <div class="card">
+        <h4>③ 每天 08:00 的自动体检</h4>
+        <p>GitHub Actions <code>pipeline-health.yml</code> → 异常推 Lark 项目组群；<b>全绿静默，但周一不管绿不绿都推一张</b>（否则「定时器自己停了」和「一切正常」长得一样）。</p>
+      </div>
+      <div class="card">
+        <h4>④ 逐单日志</h4>
+        <p><code>video_jobs.log</code>：每一步的耗时、花了多少、闸门判了什么。上面三步定位不了才来这一步。</p>
+      </div>
+    </div>
+
+    <pre><span class="c"># 现状一把梭（钥匙从 fly secrets / GitHub secret 取，别手抄）</span>
+curl -sS --fail-with-body -H "X-Producer-Key: $WB_PRODUCER_KEY" \
+  "https://store-workbench.fly.dev/api/runner/pipeline-health?window_hours=720" | jq
+
+<span class="c"># 只看不正常的那几项</span>
+... | jq '{level, checks: [.checks[] | select(.level != "ok")], stuck}'</pre>
+    <p class="sub" style="margin-top:-6px">没配钥匙时这个接口回 <b>401</b>（fail-closed，实测过）——<b>401 说明「你没带钥匙」，不说明产线有问题。</b></p>
+
+    <h3>体检的 8 项判据</h3>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th class="mono">检查项</th><th>报红（fail）</th><th>报黄（warn）</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">daily_submit</td><td>今天一条自动单都没提</td><td>提了但不够 3 条</td></tr>
+          <tr><td class="mono">stuck_jobs</td><td>running 但心跳断了</td><td>queued 排队 &gt;60 分钟没人领</td></tr>
+          <tr><td class="mono">delivery</td><td>窗口内 ≥2 条出结论的单<b>全部失败</b></td><td>过半失败（且 ≥3 条）</td></tr>
+          <tr><td class="mono">failure_codes</td><td><code>heartbeat_lost</code> ≥2 条</td><td>—</td></tr>
+          <tr><td class="mono">cost</td><td>—</td><td>撞预算上限，或窗口内生成费 &gt;$25</td></tr>
+          <tr><td class="mono">brain_cost</td><td>—</td><td>出了片但大脑费是 0（<b>账缺了，不是没花钱</b>）</td></tr>
+          <tr><td class="mono">producer_drain</td><td><code>WB_PRODUCER_DRAIN=1</code> 还开着</td><td>—</td></tr>
+          <tr><td class="mono">review_backlog</td><td>—</td><td>成片 &gt;3 天没人终审（<b>判的是人，所以最高只到 warn</b>）</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>症状 → 去哪查 → 谁改</h3>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>你看到的现象</th><th>大概率在第几站</th><th>怎么查</th><th>改在哪</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>选题列表是空的 / 还是昨天的</b></td>
+            <td>站 1–3（上游）</td>
+            <td>直接 curl 那条 feed（见 ① 节，不用钥匙）；有数据就是工作台侧的事，没数据就是 Akke 昨晚没跑出来</td>
+            <td class="mono"><span class="pill akke">Akke</span> cron</td>
+          </tr>
+          <tr>
+            <td><b>页面看到 15 条，机器只提了 3 条</b></td>
+            <td>站 4</td>
+            <td>看名额（一天 3 条）和去重（同 <code>source_url</code> 全历史只做一次）</td>
+            <td class="mono"><span class="pill sw">auto-submit</span></td>
+          </tr>
+          <tr>
+            <td><b>今天一条都没自动提</b></td>
+            <td>站 4</td>
+            <td>体检 <code>daily_submit</code>。常见真因：<b>僵尸单占满了并行额度</b>（产线死了但状态还挂 running）</td>
+            <td class="mono"><span class="pill sw">看门狗</span></td>
+          </tr>
+          <tr>
+            <td><b>单子一直 queued，没人领</b></td>
+            <td>站 5</td>
+            <td>工厂机没起来：看 n8n autoscaler 有没有跑、Fly 机器是不是 stopped</td>
+            <td class="mono"><span class="pill wf">n8n</span></td>
+          </tr>
+          <tr>
+            <td><b>running 很久，最后 heartbeat_lost</b></td>
+            <td>站 6</td>
+            <td>逐单日志看死在哪一步。<b>注意：心跳只证明进程活着，不等于它在干活</b></td>
+            <td class="mono"><span class="pill sw">runner</span></td>
+          </tr>
+          <tr>
+            <td><b>一批单子全失败</b></td>
+            <td>站 6</td>
+            <td>多半是<b>同一个 bug</b>。近例：写稿撞 HTTP 429 一秒判死、零重试，占一周失败的 71%，全卡在同一批自动提单</td>
+            <td class="mono"><span class="pill sw">runner</span></td>
+          </tr>
+          <tr>
+            <td><b>主播说的和画面对不上</b></td>
+            <td>站 6 · plan</td>
+            <td>三条各自独立的真因：检索证据太薄（命中一个词就过闸）／语义列没进检索／字幕对错了正文</td>
+            <td class="mono"><span class="pill sw">express/broll</span></td>
+          </tr>
+          <tr>
+            <td><b>片子后半黑屏但有人声</b></td>
+            <td>站 6 · assemble</td>
+            <td>容器时长 ≠ 视频轨时长。自检要同时查<b>时长和帧数</b>，只查时长看不出丢帧</td>
+            <td class="mono"><span class="pill sw">express/io</span></td>
+          </tr>
+          <tr>
+            <td><b>成片音画差半秒</b></td>
+            <td>站 6 · assemble</td>
+            <td>逐格 <code>round()</code> 会攒误差，要按累计位置取整再相减；用 <code>-frames:v</code> 不用 <code>-t</code></td>
+            <td class="mono"><span class="pill sw">express/steps</span></td>
+          </tr>
+          <tr>
+            <td><b>出了片但大脑费是 0</b></td>
+            <td>记账</td>
+            <td>看 <code>llm_usage.warnings</code> 是空还是有话（见「钱」那节的三态表）</td>
+            <td class="mono"><span class="pill sw">usage_meter</span></td>
+          </tr>
+          <tr>
+            <td><b>成片堆着没人审</b></td>
+            <td>站 7</td>
+            <td>体检 <code>review_backlog</code>。<b>这是目前最大的钱漏，不是技术故障</b></td>
+            <td class="mono">人</td>
+          </tr>
+          <tr>
+            <td><b>页面上按钮点了没反应</b></td>
+            <td>任意</td>
+            <td>多半是状态值域漂了：DB 的 CHECK 约束和代码里的值域<b>必须逐字一致</b>，不一致时数据库静默拒写</td>
+            <td class="mono"><span class="pill sw">video_jobs.sql</span></td>
+          </tr>
+          <tr>
+            <td><b>批准发布了但抖音上没有</b></td>
+            <td>站 8</td>
+            <td>发布是国内那台云电脑上的常驻程序拉走的（Fly 东京的 IP 被抖音挡着，发不出去）。先确认那台机器在线</td>
+            <td class="mono"><span class="pill sw">publish 队列</span> + 云电脑</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note trap">
+      <span class="tag">三条别忘的判断纪律</span>
+      <b>① 取证失败 ≠ 事情为假。</b>curl 超时、401、jq 报错，说明「没验成」，不说明「产线坏了」。<br>
+      <b>② 机器停着不是故障。</b>工厂机是 scale-to-zero 的，队列空时它就该停机。<br>
+      <b>③ 没坐实根因前别改环境。</b>改开关、改配置本身就是一次变更；失败时你不但没治好病，还多了一个新变量。
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ ⑦ 仓 ════════════ -->
+<section id="repos">
+  <div class="wrap">
+    <h2><span class="num">07</span>谁改什么：三个仓的边界与部署链</h2>
+    <p class="sub">改动进错仓 = 白做。判据只有一句：<b>屏上的字变了 → store-workbench；片子本身变了 → Workflow；抓取、打分、派单发布 → Akke。</b></p>
+
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>仓</th><th>在这条产线里负责</th><th class="mono">关键路径</th><th class="mono">怎么上线</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="pill akke">Akke-AI/Akke</span></td>
+            <td>抓视频与评论、意向打分、每日选题、素材 feed、（图文侧）派单</td>
+            <td class="mono">src/app/api/cron/**<br>src/lib/material-digest/**</td>
+            <td class="mono">PR → 合 main → Vercel<br>（main 已推不动，一律走 PR）</td>
+          </tr>
+          <tr>
+            <td><span class="pill sw">Akke-AI/store-workbench</span></td>
+            <td>店长看得见的一切、提单/审核台/看板/队列、<b>以及快车道出片步骤</b></td>
+            <td class="mono">app/wb/video/**<br>app/api/workbench/video/**<br>lib/jobs/** · runner/**</td>
+            <td class="mono">只能走 CI：push main → CI 绿 → fly-deploy<br>（Fly 东京，<b>不是 Vercel</b>）</td>
+          </tr>
+          <tr>
+            <td><span class="pill wf">WorkflowUP/Workflow</span></td>
+            <td>老复刻线 14 节点、审片镜像、n8n 工作流 JSON</td>
+            <td class="mono">pipeline/** · workflows/*.json<br>worker/**</td>
+            <td class="mono">push main → CI → deploy-video-worker<br>n8n JSON push 即同步</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <span class="tag">两条要记住的例外</span>
+      <b>① 快车道 <code>runner/express/</code> 按判据本该在 Workflow，却在 store-workbench</b>——这是明知故犯：
+      它替代的正是对面那条线，放进被替代者的仓里就没法「同一单换条线重跑」。归属待定。<br>
+      <b>② 两仓的接缝只有一份 <code>job-book.json</code></b>，互不 import。要加字段：<b>先改读的那边，再改写的那边</b>；删字段反过来。
+      顺序反了，会有一段时间线上单子在跑而对面读到 <code>None</code>。
+    </div>
+
+    <h3>数据库</h3>
+    <ul>
+      <li>三个仓<b>共用同一个 Supabase</b>。迁移版本表全库只有一份，所以 <b>DDL 一律回 Akke 提</b>。</li>
+      <li>唯一例外是 <code>video_jobs</code> 这张队列表：不进迁移链，由 <code>scripts/apply-video-jobs-ddl.sh</code> 随部署单独执行，只许追加幂等语句、只许碰这一张表。</li>
+      <li>它<b>不叫</b> <code>sw_video_jobs</code>——那是另一张表、另一套状态机，混用会把两套状态机塞进一张表。</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>
+      口径 <b>2026-08-24</b>，基于 <code>Akke@523de54b</code> · <code>store-workbench@3be77b8</code> · <code>Workflow@0d83be0</code>，
+      以及三仓的共享记忆库（<code>docs/claude-memory/</code>）与 <code>docs/runbooks/pipeline-health.md</code>。
+    </p>
+    <p>
+      <b>这是一张快照，不是实时看板。</b>产线的状态值域、认领协议、模型选型都在动——
+      引用之前先核一眼源码；要当前数字走 <code>/api/runner/pipeline-health</code> 或直接查库。
+      页内两处明确未验证：线上 <code>PRODUCER_ENGINE</code> 的实际取值、以及 08-21 之后的队列构成。
+    </p>
+    <p>内部参考页，已挂 noindex。</p>
+  </div>
+</footer>
+
+</body>
+</html>
