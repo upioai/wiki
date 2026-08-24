@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>视频 Badcase 台账</title>
+<style>
+  *{box-sizing:border-box;}
+  :root{
+    --ground:#0B0D11; --panel:#12161D; --panel-2:#171D26; --panel-3:#1C232E;
+    --line:#232C39; --line-2:#31404F;
+    --ink:#E3E8EF; --ink-2:#A6B2C0; --dim:#75818F;
+    --copper:#D3893F; --copper-soft:rgba(211,137,63,.16);
+    --teal:#41B3AC; --teal-soft:rgba(65,179,172,.14);
+    --violet:#8D7CEA; --violet-soft:rgba(141,124,234,.14);
+    --ok:#48C98A; --oks:rgba(72,201,138,.14);
+    --warn:#EFB055; --warns:rgba(239,176,85,.14);
+    --bad:#F06A78; --bads:rgba(240,106,120,.14);
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  }
+  html{scroll-behavior:smooth;scroll-padding-top:66px;}
+  body{margin:0;background:
+      radial-gradient(1100px 640px at 10% -10%, #1B1620 0%, rgba(27,22,32,0) 60%),
+      radial-gradient(900px 560px at 94% -6%, #241B14 0%, rgba(36,27,20,0) 58%),
+      var(--ground);
+    color:var(--ink);font-family:var(--sans);font-size:15.5px;line-height:1.7;
+    -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1140px;margin:0 auto;padding:0 22px;}
+
+  .topbar{position:sticky;top:0;z-index:50;background:rgba(11,13,17,.88);
+    backdrop-filter:blur(10px);border-bottom:1px solid var(--line);}
+  .topbar .wrap{display:flex;align-items:center;gap:14px;height:52px;}
+  .brand{font-weight:700;letter-spacing:.03em;white-space:nowrap;}
+  .brand span{color:var(--bad);}
+  .navlinks{display:flex;gap:2px;overflow-x:auto;margin-left:auto;}
+  .navlinks a{color:var(--ink-2);text-decoration:none;font-size:13.5px;padding:6px 9px;
+    border-radius:6px;white-space:nowrap;}
+  .navlinks a:hover{color:var(--ink);background:var(--panel-2);}
+  .navlinks a:focus-visible{outline:2px solid var(--copper);outline-offset:2px;}
+
+  header.hero{padding:48px 0 28px;}
+  .eyebrow{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--bad);
+    font-weight:600;margin-bottom:12px;}
+  h1{font-size:clamp(27px,4vw,42px);line-height:1.18;margin:0 0 14px;letter-spacing:-.01em;
+    text-wrap:balance;font-weight:700;}
+  .lede{font-size:16.5px;color:var(--ink-2);max-width:62ch;margin:0 0 20px;}
+  .lede b{color:var(--ink);font-weight:600;}
+  .stamp{display:flex;flex-wrap:wrap;gap:8px;font-family:var(--mono);font-size:12px;}
+  .stamp code{background:var(--panel-2);border:1px solid var(--line);border-radius:5px;
+    padding:3px 8px;color:var(--ink-2);}
+
+  section{padding:34px 0;border-top:1px solid var(--line);}
+  h2{font-size:22px;margin:0 0 6px;font-weight:700;display:flex;align-items:baseline;gap:11px;
+    text-wrap:balance;}
+  h2 .num{font-family:var(--mono);font-size:12px;color:var(--copper);border:1px solid var(--copper);
+    border-radius:4px;padding:2px 7px;flex:none;}
+  h2 + .sub{color:var(--dim);margin:0 0 20px;max-width:70ch;}
+  p{margin:0 0 12px;max-width:74ch;}
+  code{font-family:var(--mono);font-size:.88em;background:var(--panel-2);border:1px solid var(--line);
+    border-radius:4px;padding:1px 5px;color:#CBD6E3;}
+  b,strong{color:#F1F5FA;font-weight:650;}
+
+  /* KPI 行 */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:6px 0 4px;}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 16px;position:relative;overflow:hidden;}
+  .kpi .n{font-size:30px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1;}
+  .kpi .l{font-size:12.5px;color:var(--dim);margin-top:6px;}
+  .kpi.ok .n{color:var(--ok);} .kpi.warn .n{color:var(--warn);} .kpi.bad .n{color:var(--bad);}
+  .kpi.tot .n{color:var(--ink);}
+
+  /* 图 */
+  .figure{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;margin:16px 0;}
+  .figure h4{margin:0 0 14px;font-size:14.5px;font-weight:650;}
+  .figure figcaption{font-size:12.5px;color:var(--dim);margin-top:12px;line-height:1.6;}
+  .svgbox{overflow-x:auto;}
+  svg{display:block;max-width:100%;height:auto;}
+  svg text{font-family:var(--sans);}
+  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;}
+
+  /* 状态条 */
+  .statusbar{display:flex;height:34px;border-radius:8px;overflow:hidden;margin:4px 0 10px;}
+  .statusbar div{display:flex;align-items:center;justify-content:center;font-size:12px;
+    font-family:var(--mono);color:#0B0D11;font-weight:700;white-space:nowrap;overflow:hidden;}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12.5px;color:var(--ink-2);}
+  .legend span{display:flex;align-items:center;gap:6px;}
+  .legend i{width:11px;height:11px;border-radius:3px;display:inline-block;}
+
+  /* badcase 卡片 */
+  .cases{display:flex;flex-direction:column;gap:14px;}
+  .case{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .case .head{display:flex;align-items:flex-start;gap:12px;padding:15px 17px;border-bottom:1px solid var(--line);}
+  .case .idx{font-family:var(--mono);font-size:13px;color:var(--dim);flex:none;padding-top:2px;width:26px;}
+  .case .quote{flex:1;}
+  .case .quote .say{font-size:15.5px;color:#F1F5FA;font-weight:600;}
+  .case .quote .who{font-size:12px;color:var(--dim);margin-top:3px;font-family:var(--mono);}
+  .case .body{padding:14px 17px;display:grid;grid-template-columns:76px 1fr;gap:8px 14px;font-size:14px;}
+  .case .body .k{color:var(--dim);font-size:12.5px;text-align:right;padding-top:1px;}
+  .case .body .v{color:var(--ink-2);}
+  .case .body .v b{color:var(--ink);}
+
+  .badge{display:inline-block;font-family:var(--mono);font-size:11px;padding:3px 9px;border-radius:999px;
+    border:1px solid var(--line-2);white-space:nowrap;font-weight:600;}
+  .badge.fixed{color:var(--ok);border-color:rgba(72,201,138,.5);background:var(--oks);}
+  .badge.wip{color:var(--warn);border-color:rgba(239,176,85,.5);background:var(--warns);}
+  .badge.blocked{color:var(--bad);border-color:rgba(240,106,120,.5);background:var(--bads);}
+  .badge.decided{color:var(--violet);border-color:rgba(141,124,234,.5);background:var(--violet-soft);}
+  .pill{display:inline-block;font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:999px;
+    border:1px solid var(--line-2);color:var(--ink-2);white-space:nowrap;}
+  .pill.pr{color:var(--teal);border-color:rgba(65,179,172,.4);}
+
+  .note{border-left:3px solid var(--line-2);background:var(--panel);border-radius:0 8px 8px 0;
+    padding:12px 15px;margin:14px 0;font-size:14px;color:var(--ink-2);}
+  .note b{color:var(--ink);}
+  .note.law{border-left-color:var(--copper);}
+  .note.trap{border-left-color:var(--bad);}
+  ul{margin:0 0 12px;padding-left:20px;max-width:74ch;}
+  li{margin-bottom:6px;color:var(--ink-2);}
+  li b{color:var(--ink);}
+  footer{border-top:1px solid var(--line);padding:24px 0 60px;color:var(--dim);font-size:13px;}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto;}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="wrap">
+    <div class="brand">视频 · <span>Badcase 台账</span></div>
+    <nav class="navlinks">
+      <a href="#overview">总览</a>
+      <a href="#audio">无声音</a>
+      <a href="#mismatch">画面对不上</a>
+      <a href="#derived">衍生问题</a>
+      <a href="#todo">仍需人做</a>
+    </nav>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">2026-08-24 · 销售反馈 + 早班问题复盘</div>
+    <h1>今天的视频 Badcase,以及它们各自修到哪一步</h1>
+    <p class="lede">
+      今天有两件事进来:早班「有些画面突然没声音」、销售第二次报「有一小段描述的内容跟画面不一样」。
+      顺着查下去,牵出一串<b>相关但独立</b>的问题。这页把它们逐条摆开:
+      <b>用户原话 → 根因 → 修到哪 → 改在哪个 PR</b>。
+    </p>
+    <div class="stamp">
+      <code>口径 2026-08-24</code>
+      <code>store-workbench</code>
+      <code>express 快车道</code>
+      <code>内部台账 · noindex</code>
+    </div>
+  </div>
+</header>
+
+<!-- ════ 总览 ════ -->
+<section id="overview">
+  <div class="wrap">
+    <h2><span class="num">总</span>七条 Badcase,状态一眼看清</h2>
+    <p class="sub">按「用户能不能感知」排:前两条是今天用户直接报的,后五条是查根因时牵出来的。</p>
+
+    <div class="kpis">
+      <div class="kpi tot"><div class="n">7</div><div class="l">Badcase 总数</div></div>
+      <div class="kpi ok"><div class="n">4</div><div class="l">已修 · 已上线</div></div>
+      <div class="kpi warn"><div class="n">1</div><div class="l">在修 · PR 待合</div></div>
+      <div class="kpi bad"><div class="n">1</div><div class="l">阻塞 · 缺前置</div></div>
+    </div>
+    <p class="sub" style="margin-top:10px">还有 1 条是<b>决定不做</b>(全程口播开关,见衍生问题)——不是遗漏,是权衡后的取舍。</p>
+
+    <div class="figure">
+      <h4>状态分布</h4>
+      <div class="statusbar">
+        <div style="width:57.1%;background:#48C98A">已修 4</div>
+        <div style="width:14.3%;background:#EFB055">在修 1</div>
+        <div style="width:14.3%;background:#8D7CEA">决定不做 1</div>
+        <div style="width:14.3%;background:#F06A78">阻塞 1</div>
+      </div>
+      <div class="legend">
+        <span><i style="background:#48C98A"></i>已修上线</span>
+        <span><i style="background:#EFB055"></i>在修(PR 待合)</span>
+        <span><i style="background:#8D7CEA"></i>决定不做</span>
+        <span><i style="background:#F06A78"></i>阻塞(缺前置)</span>
+      </div>
+      <figcaption>今天进来的两条用户可感问题(无声音 / 画面对不上)都已经有对应修复上线或在途;剩下的阻塞项是「补柜类素材」,卡在机器和授权清单,不是代码能单独解决的。</figcaption>
+    </div>
+
+    <div class="figure">
+      <h4>根因归类:七条问题其实只有三类病根</h4>
+      <div class="svgbox">
+        <svg viewBox="0 0 900 210" role="img" aria-label="根因归类:检索配错、问题不可见/修法错、素材库不对口三类">
+          <g>
+            <rect x="10" y="30" width="280" height="150" rx="10" fill="rgba(240,106,120,.08)" stroke="#F06A78"/>
+            <text x="150" y="56" text-anchor="middle" font-size="14" font-weight="700" fill="#F06A78">① 检索配错</text>
+            <text x="150" y="80" text-anchor="middle" font-size="11.5" fill="#A6B2C0">打分只看字面覆盖</text>
+            <text x="150" y="98" text-anchor="middle" font-size="11.5" fill="#A6B2C0">词表把柜类词放木工档</text>
+            <text x="150" y="116" text-anchor="middle" font-size="11.5" fill="#A6B2C0">满分 1.00 也能配错</text>
+            <text x="150" y="152" text-anchor="middle" font-size="11.5" fill="#48C98A">→ A 已修(词表归位+动作闸)</text>
+            <text x="150" y="170" text-anchor="middle" font-size="11" fill="#75818F">PR #537</text>
+
+            <rect x="310" y="30" width="280" height="150" rx="10" fill="rgba(239,176,85,.08)" stroke="#EFB055"/>
+            <text x="450" y="56" text-anchor="middle" font-size="14" font-weight="700" fill="#EFB055">② 问题不可见 / 修法错</text>
+            <text x="450" y="80" text-anchor="middle" font-size="11.5" fill="#A6B2C0">对照表只在工厂机</text>
+            <text x="450" y="98" text-anchor="middle" font-size="11.5" fill="#A6B2C0">返修退回老线→复发</text>
+            <text x="450" y="116" text-anchor="middle" font-size="11.5" fill="#A6B2C0">词表缺档 / 修法方向反</text>
+            <text x="450" y="152" text-anchor="middle" font-size="11.5" fill="#48C98A">→ 已修(接进审片页+改词表)</text>
+            <text x="450" y="170" text-anchor="middle" font-size="11" fill="#75818F">PR #529 · #525</text>
+
+            <rect x="610" y="30" width="280" height="150" rx="10" fill="rgba(141,124,234,.08)" stroke="#8D7CEA"/>
+            <text x="750" y="56" text-anchor="middle" font-size="14" font-weight="700" fill="#8D7CEA">③ 素材库不对口</text>
+            <text x="750" y="80" text-anchor="middle" font-size="11.5" fill="#A6B2C0">柜类只占 3%</text>
+            <text x="750" y="98" text-anchor="middle" font-size="11.5" fill="#A6B2C0">库是施工库不是定制柜库</text>
+            <text x="750" y="116" text-anchor="middle" font-size="11.5" fill="#A6B2C0">收割机停摆 + 没料喂</text>
+            <text x="750" y="152" text-anchor="middle" font-size="11.5" fill="#F06A78">→ C 阻塞(缺账号授权清单)</text>
+            <text x="750" y="170" text-anchor="middle" font-size="11" fill="#75818F">收割机上云卡在 secrets</text>
+          </g>
+        </svg>
+      </div>
+      <figcaption>①②已经能靠代码解决,今天都处理了;③是「库里根本没有对题的画面」,代码堵不住,只能补料——这就是销售那句「一个场景一个人物讲完会自然点」的技术真相。</figcaption>
+    </div>
+  </div>
+</section>
+
+<!-- ════ 无声音 ════ -->
+<section id="audio">
+  <div class="wrap">
+    <h2><span class="num">01</span>早班:「后续一些画面没有声音了突然」</h2>
+
+    <div class="cases">
+      <div class="case">
+        <div class="head">
+          <div class="idx">#1</div>
+          <div class="quote">
+            <div class="say">「后续一些画面没有声音了突然」</div>
+            <div class="who">早班 · 审片时发现</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="k">现象</div><div class="v">成片播到某一段,画面还在、<b>人声没了</b>。自动检查一路绿灯没拦住。</div>
+          <div class="k">根因</div><div class="v">自检<b>只比总时长</b>——而音轨是一格一格拼的,哑掉的那一格照样贡献了正确的秒数,总长对得上,就漏过去了。至于那一格<b>为什么哑</b>有两种,代价差一个量级:①音频本身没生成(主播格得重付口型钱)②音频好好的、合成时没拼进去(重拼不花钱)。</div>
+          <div class="k">状态</div><div class="v"><span class="badge fixed">已修上线</span></div>
+          <div class="k">解决</div><div class="v">① 审片词表加「这段没声音」一档(此前只能勾「其他」→ 不自动处理 → 永远落人工);② 修法 <code>broll_only</code>:<b>素材格</b>作废重切(不花钱),<b>主播格只报不删</b>——在坐实是「没生成」还是「没拼进去」之前,不对付费产物做不可逆动作;③ 自检从「只查时长」升级到<b>同时查时长和帧数</b>。</div>
+          <div class="k">改在</div><div class="v"><span class="pill pr">PR #525</span> <span class="pill pr">express/revise.py</span> <span class="pill pr">review-feedback.ts</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="note law">
+      <span class="tag" style="font-family:var(--mono);font-size:11px;color:var(--dim);display:block;margin-bottom:4px">留一手</span>
+      「没声音」是词表里<b>唯一一个修法取决于那一格是什么</b>的档:素材格重切音轨不花钱,主播格的音轨是付费口型产物的一部分。所以它不自动作废主播格,报出来让人先判断怎么回事。
+    </div>
+  </div>
+</section>
+
+<!-- ════ 画面对不上 ════ -->
+<section id="mismatch">
+  <div class="wrap">
+    <h2><span class="num">02</span>销售(第二次):「有一小段描述的内容跟画面不一样」</h2>
+    <p class="sub">这条是今天的重头。它「修过又犯」,不是一个 bug,是四件事叠在一起。</p>
+
+    <div class="cases">
+      <div class="case">
+        <div class="head">
+          <div class="idx">#2</div>
+          <div class="quote">
+            <div class="say">「还是一样会有一小段描述的内容跟画面不一样」</div>
+            <div class="who">销售 · 第二轮反馈</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="k">现象</div><div class="v">口播在讲「板材封边」,画面放的是「安装灯槽周边的吊顶板」。真库实测:<b>匹配分满分 1.00</b>。</div>
+          <div class="k">根因</div><div class="v"><b>打分量的是「字被覆盖了多少」,不是「画面在做什么」</b>。素材标注是一大袋名词(物件+部位+动作+场景),名词越多的段越容易满分。再叠加:词表把「板材/封边」放进了木工档,而木工那 756 段几乎全是吊顶——一说板材封边,吊顶素材全进候选池。</div>
+          <div class="k">状态</div><div class="v"><span class="badge wip">在修 · PR #537 待合</span></div>
+          <div class="k">解决</div><div class="v"><b>A 检索收紧</b>(PR #537):① 词表归位——板材/封边/打孔/开孔 挪到柜类档;② 动作闸——查询的动作词必须真的出现在候选的动作描述里,不是命中一大袋名词。真库验证:非柜类工序 10/10 零误伤,柜类最恶劣错配挡下。</div>
+          <div class="k">改在</div><div class="v"><span class="pill pr">PR #537</span> <span class="pill pr">express/broll.py</span></div>
+        </div>
+      </div>
+
+      <div class="case">
+        <div class="head">
+          <div class="idx">#3</div>
+          <div class="quote">
+            <div class="say">找不到是哪一句、分数多少 —— 只能靠猜</div>
+            <div class="who">复盘 · 排查这条问题时暴露</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="k">现象</div><div class="v">销售说「有一小段」对不上,但<b>说不清是哪一段</b>,产线这边也查不到当时凭什么配上去的。</div>
+          <div class="k">根因</div><div class="v">产线<b>每条片子都算过一张逐句对照表</b>(这句说什么、想看什么、实际放了什么、凭什么算匹配),但它<b>只留在工厂机上,从没传出来</b>。</div>
+          <div class="k">状态</div><div class="v"><span class="badge fixed">已修上线</span></div>
+          <div class="k">解决</div><div class="v">对照表回写进 <code>video_jobs.alignment</code> 列 → 审片页可展开,<b>每行一个「这句不对」</b>:点了就跳到那一句、打点、预选好问题类型。销售再报「有一段对不上」,直接查是哪句、分多少。</div>
+          <div class="k">改在</div><div class="v"><span class="pill pr">PR #529</span> <span class="pill pr">审片页 + alignment 列</span></div>
+        </div>
+      </div>
+
+      <div class="case">
+        <div class="head">
+          <div class="idx">#4</div>
+          <div class="quote">
+            <div class="say">修过一轮,为什么还犯 —— 返修那版根本没走修好的线</div>
+            <div class="who">复盘 · 「修过又犯」的真相</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="k">现象</div><div class="v">08-19 明明修过检索,销售还是报同样的问题。</div>
+          <div class="k">根因</div><div class="v">修好的判据只在<b>快车道</b>里,而<b>返修单定位不到时会整单退回老线</b>——老线的画面选择是<b>另一套实现</b>,那三条修复一条都不生效。链路:首版快车道→报问题→返修走老线→原样复发。</div>
+          <div class="k">状态</div><div class="v"><span class="badge fixed">已修上线</span></div>
+          <div class="k">解决</div><div class="v">返修不再退回老线,留在快车道整条重做;逃生开关保留。<b>同一条线、同一套判据,修一次就真修掉。</b></div>
+          <div class="k">改在</div><div class="v"><span class="pill pr">PR #529</span> <span class="pill pr">daemon.uses_express</span></div>
+        </div>
+      </div>
+
+      <div class="case">
+        <div class="head">
+          <div class="idx">#5</div>
+          <div class="quote">
+            <div class="say">发现问题的人,没有能准确表达它的格子</div>
+            <div class="who">复盘 · 审片词表缺档</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="k">现象</div><div class="v">审片词表里最接近的一项是「画面不自然、一眼看出是 AI」——可「画面对不上」和「画面假」是<b>两件事</b>。</div>
+          <div class="k">根因</div><div class="v">勾错的代价不是标签难看,是<b>修法方向反了</b>:「画面不自然」的动作是掏钱重做底片;而「说的和画面对不上」正确的修法是换那一格素材、或退回主播镜,都不花钱。</div>
+          <div class="k">状态</div><div class="v"><span class="badge fixed">已修上线</span></div>
+          <div class="k">解决</div><div class="v">审片词表新增「画面和说的对不上」一档,修法=换素材/退主播镜。<b>主播格物理上不可能对不上</b>(人在说话,就是他在说那句话)。</div>
+          <div class="k">改在</div><div class="v"><span class="pill pr">PR #529</span> <span class="pill pr">review-feedback.ts</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════ 衍生 ════ -->
+<section id="derived">
+  <div class="wrap">
+    <h2><span class="num">03</span>销售的两条建议,其实指向两个更深的问题</h2>
+    <p class="sub">销售不只报问题,还提了两条办法。它们不是拍脑袋,恰好点到产线的两个软肋。</p>
+
+    <div class="cases">
+      <div class="case">
+        <div class="head">
+          <div class="idx">#6</div>
+          <div class="quote">
+            <div class="say">「设置一个场景一个人物一直口播讲完会自然点」</div>
+            <div class="who">销售 · 建议一 → 全程口播</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="k">解读</div><div class="v">这不是审美偏好,是<b>这个库撑不起分镜</b>的必然结果:柜类素材只占 3%,严格要求对题,画面自然就逼近全程口播。他的直觉是对的。</div>
+          <div class="k">状态</div><div class="v"><span class="badge decided">决定不做(全程口播开关)</span></div>
+          <div class="k">为什么</div><div class="v">原以为「加个开关技术很小」,细看不成立:工厂机是<b>多店共享</b>的,全局开关会把那段时间<b>所有店</b>的片子都变成全主播镜,不是「某个重要客户单独用」。要 per-job 得穿透 提单UI→DB列→job-book→runner 四层,是个真功能。<b>A 已把错配本身修掉,B 只是兜底</b>,不值得为它仓促铺四层、还可能误伤别的店。</div>
+          <div class="k">替代</div><div class="v">A 的动作闸已经在做「配不对题就退回主播镜」——等于<b>按需、自动</b>地做了他要的事,只是不需要人去勾开关。要正经做 per-job 开关的话,留了可接手的 spec。</div>
+        </div>
+      </div>
+
+      <div class="case">
+        <div class="head">
+          <div class="idx">#7</div>
+          <div class="quote">
+            <div class="say">「需要的脚本去找差不多类似的素材去抓取生成」</div>
+            <div class="who">销售 · 建议二 → 补素材(收割机)</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="k">解读</div><div class="v">正是根因③的解药:库里没有对题的柜类画面,那就<b>去抓</b>。这条方向完全对。</div>
+          <div class="k">状态</div><div class="v"><span class="badge blocked">阻塞 · 缺前置</span></div>
+          <div class="k">卡在哪</div><div class="v">之前有个 B-roll 收割机,但它<b>08-10 就停了</b>(宿主机随人离职消失),而且它这辈子只自动收了 52 段,库的主体是一次性人工建的。它默认收的是<b>复刻账号的施工视频,跟现有库同源,补不了柜类</b>。08-20 尝试上云,<b>4 次部署全失败卡在「同步 secrets」</b>。</div>
+          <div class="k">要重启</div><div class="v">三件事缺一不可:① 修好上云的 secrets;② <b>有人先攒一份定制柜账号的授权清单</b>(核心,没它重启也是空转);③ 标定一轮成本。这是中长期项目,不是「点一下重启」。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════ TODO ════ -->
+<section id="todo">
+  <div class="wrap">
+    <h2><span class="num">末</span>仍需人做的两件事(代码解决不了的)</h2>
+    <ul>
+      <li><b>开格级复用开关</b>:<code>fly secrets set EXPRESS_LOCAL_REVISION=1 -a akke-video-worker</code>。开了返修才只重做点到的那几格;不开也已经修好了,只是整条重做、更贵。(本机 flyctl 没登录,得在有权限的机器上敲。)</li>
+      <li><b>攒定制柜账号的授权清单</b>:这是补柜类素材(根因③)的唯一前置。收割机重启、A 的对题率天花板,都卡在这一步。需要号主授权,不是技术活。</li>
+    </ul>
+    <div class="note trap">
+      <span class="tag" style="font-family:var(--mono);font-size:11px;color:var(--dim);display:block;margin-bottom:4px">一句话收口</span>
+      今天用户能感知的两条问题(无声音 / 画面对不上)<b>都已经有修复上线或在途</b>。剩下真正难的是<b>根因③:库不对口</b>——A 保证「不再配错」,但「又对题又有画面」的天花板,只有补柜类素材才能抬高。而那件事的瓶颈不是机器,是<b>先得有一份授权过的定制柜账号清单</b>。
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>口径 <b>2026-08-24</b>。Badcase 来源:早班审片 + 销售两轮反馈 + 根因排查。对应改动:<code>PR #525 / #529 / #537</code>(store-workbench)。</p>
+    <p>内部台账,已挂 noindex。含真实客户反馈原话,不对外收录。</p>
+  </div>
+</footer>
+
+</body>
+</html>
