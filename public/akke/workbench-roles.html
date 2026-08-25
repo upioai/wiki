@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Akke · 门店工作台：系统逻辑与角色权限</title>
+<style>
+  :root {
+    --bg: #0b0d12;
+    --bg-elevated: #141821;
+    --bg-deep: #1a1f2b;
+    --border: #242a38;
+    --border-strong: #2f3646;
+    --text: #e4e7ed;
+    --text-dim: #9ba3b4;
+    --text-muted: #6b7384;
+    --accent: #8b5cf6;
+    --accent-soft: rgba(139, 92, 246, 0.15);
+    --accent-2: #60a5fa;
+    --accent-2-soft: rgba(96, 165, 250, 0.12);
+    --success: #34d399;
+    --success-soft: rgba(52, 211, 153, 0.12);
+    --warning: #fbbf24;
+    --warning-soft: rgba(251, 191, 36, 0.12);
+    --danger: #f87171;
+    --danger-soft: rgba(248, 113, 113, 0.12);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin:0; padding:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    font-size:16px; line-height:1.75; -webkit-font-smoothing:antialiased; }
+  .container { max-width:1080px; margin:0 auto; padding:48px 24px 120px; }
+
+  .breadcrumb { font-size:13px; color:var(--text-muted); margin-bottom:24px; }
+  .breadcrumb a { color:var(--text-dim); text-decoration:none; }
+  .breadcrumb a:hover { color:var(--accent); }
+  .breadcrumb span { margin:0 8px; color:var(--border-strong); }
+
+  header.hero { padding:16px 0 40px; border-bottom:1px solid var(--border); margin-bottom:48px; }
+  .tag { display:inline-block; padding:4px 12px; border-radius:999px; background:var(--accent-soft); color:var(--accent); font-size:13px; font-weight:500; margin-bottom:16px; }
+  h1 { font-size:42px; font-weight:700; margin:0 0 14px; letter-spacing:-0.02em; line-height:1.2;
+    background:linear-gradient(135deg,#e4e7ed 30%,var(--accent) 100%);
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+  .subtitle { font-size:18px; color:var(--text-dim); margin:0 0 18px; max-width:760px; }
+  .meta { font-size:13px; color:var(--text-muted); }
+
+  h2 { font-size:24px; font-weight:700; margin:56px 0 16px; letter-spacing:-0.01em; }
+  h2:first-of-type { margin-top:0; }
+  h3 { font-size:17px; font-weight:600; margin:26px 0 8px; }
+  p { color:var(--text-dim); }
+  strong { color:var(--text); font-weight:600; }
+  code { background:var(--bg-deep); padding:1px 6px; border-radius:4px; font-size:0.88em; color:#c4b5fd;
+    font-family:"SF Mono",Menlo,Consolas,monospace; }
+
+  .card { background:var(--bg-elevated); border:1px solid var(--border); border-radius:12px; padding:22px 24px; margin-bottom:14px; }
+  .card h3 { margin-top:0; }
+  .grid-2 { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
+  .grid-4 { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+  @media (max-width:860px) { .grid-2, .grid-4 { grid-template-columns:1fr; } }
+
+  .tablewrap { overflow-x:auto; border:1px solid var(--border); border-radius:12px; margin:14px 0 8px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; min-width:760px; }
+  thead th { background:var(--bg-deep); color:var(--text-muted); font-size:12px; font-weight:600;
+    letter-spacing:0.05em; padding:11px 16px; text-align:left; border-bottom:1px solid var(--border); white-space:nowrap; }
+  tbody td { padding:14px 16px; border-bottom:1px solid var(--border); vertical-align:top; color:var(--text-dim); }
+  tbody tr:last-child td { border-bottom:0; }
+  tbody td.k { color:var(--text); font-weight:600; white-space:nowrap; }
+  tbody td.k em { display:block; color:var(--text-muted); font-size:12px; font-style:normal; font-weight:400; }
+
+  .pill { display:inline-block; padding:2px 9px; border-radius:5px; font-size:12px; font-weight:600; white-space:nowrap; }
+  .pill.all { background:var(--success-soft); color:var(--success); }
+  .pill.store { background:var(--accent-2-soft); color:var(--accent-2); }
+  .pill.self { background:var(--warning-soft); color:var(--warning); }
+  .pill.no { background:var(--danger-soft); color:var(--danger); }
+  .pill.mgr { background:var(--accent-soft); color:var(--accent); }
+
+  .flow { display:flex; flex-direction:column; gap:0; margin:14px 0; }
+  .step { display:grid; grid-template-columns:38px 1fr; gap:0 16px; }
+  .step .n { display:flex; flex-direction:column; align-items:center; }
+  .step .n b { width:30px; height:30px; border-radius:50%; background:var(--accent-soft); color:var(--accent);
+    display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; flex:none; }
+  .step .n i { flex:1; width:1px; background:var(--border); margin:6px 0; }
+  .step:last-child .n i { display:none; }
+  .step .b { padding-bottom:22px; }
+  .step .b h4 { margin:3px 0 4px; font-size:15.5px; font-weight:600; color:var(--text); }
+  .step .b p { margin:0; font-size:14px; }
+
+  .note { border-left:3px solid var(--accent); background:var(--bg-elevated); border-radius:0 10px 10px 0;
+    padding:16px 20px; margin:16px 0; }
+  .note.warn { border-left-color:var(--warning); }
+  .note b { color:var(--text); }
+  .note p { margin:0; font-size:14.5px; }
+  .note p + p { margin-top:8px; }
+
+  ul { color:var(--text-dim); padding-left:20px; }
+  li { margin:4px 0; }
+
+  .legend { display:flex; flex-wrap:wrap; gap:8px 16px; font-size:13px; color:var(--text-muted); margin:10px 0 0; }
+
+  footer { margin-top:72px; padding-top:24px; border-top:1px solid var(--border); font-size:13px; color:var(--text-muted); }
+  footer p { margin:0 0 6px; font-size:13px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="breadcrumb"><a href="/akke">Akke</a><span>/</span>门店工作台 · 系统逻辑与角色权限</div>
+
+  <header class="hero">
+    <div class="tag">有大有小 · 门店营销工作台</div>
+    <h1>系统逻辑与角色权限</h1>
+    <p class="subtitle">
+      这套系统在替门店做四件事：拍视频获客、接待微信来的客户、把沉默的客户捞回来、
+      以及维护机器人说话所依据的那套知识。这一页讲清楚它怎么运转，以及谁能看到什么。
+    </p>
+    <p class="meta">有大有小 = 甲方，总部与各分店都在其中 · Akke = 我方，系统的开发与运维方</p>
+  </header>
+
+  <h2>一、门店系统的逻辑</h2>
+
+  <h3>1.1 系统在做的一件事</h3>
+  <p>
+    把<strong>客户从看到你、到愿意进店</strong>这条路，拆成机器能接手的几段，
+    人只在关键处做判断。四条产线各管一段，共用同一套企业知识。
+  </p>
+
+  <div class="grid-4">
+    <div class="card">
+      <h3>① 短视频获客</h3>
+      <p>做今天的视频。选题、素材、剪辑、成片、发布，把人从抖音带过来。</p>
+    </div>
+    <div class="card">
+      <h3>② 微信接待</h3>
+      <p>看今天的接待。客户加过来之后，机器人替你先聊，你只审要不要发。</p>
+    </div>
+    <div class="card">
+      <h3>③ 沉默客户跟进</h3>
+      <p>处理今天的跟进。聊过一半没下文的客户，系统挑出来并备好再聊的由头。</p>
+    </div>
+    <div class="card">
+      <h3>④ 企业大脑</h3>
+      <p>维护企业知识。机器人说的每一句话，出处都在这里。</p>
+    </div>
+  </div>
+
+  <h3>1.2 一个客户在系统里怎么走</h3>
+  <div class="flow">
+    <div class="step">
+      <div class="n"><b>1</b><i></i></div>
+      <div class="b">
+        <h4>视频把人带过来</h4>
+        <p>系统按业务类型选题、调素材、批量剪辑出片，发到门店的抖音号上。客户看到视频，加上微信。</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="n"><b>2</b><i></i></div>
+      <div class="b">
+        <h4>机器人先接待</h4>
+        <p>
+          客户发来的每一句，机器人按<strong>企业大脑里的口径</strong>组织回答——报价、工艺、质保、服务范围，
+          都要能追到具体某一份资料。答完不直接发，先进<strong>统一审核台</strong>。
+        </p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="n"><b>3</b><i></i></div>
+      <div class="b">
+        <h4>人在审核台放行</h4>
+        <p>「发出去之前先过这里」。你看到的是机器人想说的那句话和它依据的资料，点通过或改一版再发。</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="n"><b>4</b><i></i></div>
+      <div class="b">
+        <h4>聊断了的进跟进池</h4>
+        <p>
+          客户不回了，系统按沉默时长和意向高低排出「今天最值得跟进的」，
+          并备好由头：一个活动、一张按他户型生成的知识海报、一张免费量房券。
+        </p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="n"><b>5</b><i></i></div>
+      <div class="b">
+        <h4>答得不好的回流到知识</h4>
+        <p>
+          审核时发现机器人答错了，就地标一下；那句话会长进「话术禁区」，
+          相应的口径回到企业大脑去改。<strong>改完全店的机器人下一轮就按新说法回。</strong>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <h3>1.3 企业大脑：机器人的话从哪来</h3>
+  <p>知识按「谁共用」分成三层，界面上就是三面墙：</p>
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>层</th><th>装什么</th><th>谁共用</th><th>怎么进去</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="k">A 总店知识积木<em>48 个稳定槽位</em></td>
+          <td>品牌、产品、价格、交付、售后的<strong>全品牌统一口径</strong></td>
+          <td>有大有小全部门店</td>
+          <td>上传总部口径文件，AI 拆成候选，管理者确认哪一条生效</td>
+        </tr>
+        <tr>
+          <td class="k">B 分店知识积木<em>一店一块</em></td>
+          <td>只属于这家店的：本店活动、交期、合同报价、门店地址</td>
+          <td>本店</td>
+          <td>上传本店资料，读出说法，确认启用后机器人引用</td>
+        </tr>
+        <tr>
+          <td class="k">C 装修行业知识积木<em>公开原件形成</em></td>
+          <td>装修行业的通识：预算、水电、瓷砖、板材、验收</td>
+          <td>全平台共用一套</td>
+          <td>交上来先记台账，平台核过后统一灌进全局库</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <p>
+      <b>为什么要分三层：</b>同一个问题，客户想知道的答案不一样。
+      「一般装修多少钱」是行业通识（C），「你们家 568 包什么」是全品牌口径（A），
+      「你们厦门店这个月有什么活动」只有这家店知道（B）。
+      混在一起，机器人就会拿别家的价当自己的报出去。
+    </p>
+  </div>
+
+  <h3>1.4 总部和门店的分工</h3>
+  <div class="grid-2">
+    <div class="card">
+      <h3>全品牌共用，不按门店分</h3>
+      <p>
+        视频素材与成片、产品与价格口径、行业知识、机器人的基础说话规则。
+        <strong>这些东西总部定一次，所有门店一起用。</strong>
+      </p>
+    </div>
+    <div class="card">
+      <h3>按门店分，各看各的</h3>
+      <p>
+        微信接待的客户会话、沉默客户名单、本店独有的活动与交期。
+        <strong>这些是各家店自己的生意，互相看不到。</strong>
+      </p>
+    </div>
+  </div>
+
+  <h2>二、注册与身份获取方式</h2>
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>身份</th><th>初始注册需提供</th><th>身份如何获得</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="k">门店销售<em>有大有小 · 各分店</em></td>
+          <td>不自助注册。姓名 + 手机号 + 他在用的企微接待号</td>
+          <td>店长或总部在「成员管理」建号 → 发一条一次性链接给他设第一把密码，设完链接作废</td>
+        </tr>
+        <tr>
+          <td class="k">门店店长<em>有大有小 · 各分店</em></td>
+          <td>不自助注册。姓名 + 手机号 + 所属门店</td>
+          <td>总部在「成员管理」建号并指定所属门店，同样发一次性链接设密码</td>
+        </tr>
+        <tr>
+          <td class="k">总部人员<em>有大有小 · 总部</em></td>
+          <td>不自助注册。姓名 + 手机号</td>
+          <td>我方或总部管理员建号；不绑门店，因此看到的是全部门店</td>
+        </tr>
+        <tr>
+          <td class="k">我方人员<em>Akke</em></td>
+          <td>不自助注册</td>
+          <td>持有运维口令，进 <code>/ops</code> 后选一家客户代登录；<strong>不在客户的成员名单里出现</strong></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <p>
+      <b>四类身份都不自助注册。</b>能进这套系统的人，要么是有大有小的员工，要么是我方运维——
+      两种都由人指定，不存在「自己注册一个」的路径。
+    </p>
+    <p>
+      <b>企微登录：</b>已经在用企业微信接待的人，绑过一次之后可以直接点「企业微信登录」进来，不必再记密码。
+    </p>
+  </div>
+
+  <h2>三、每个身份的权限和功能</h2>
+  <p>
+    按工作台侧边栏的实际结构列。每一格回答两件事：<strong>能不能进这一屏</strong>，以及<strong>进去看到谁的数据</strong>。
+  </p>
+  <div class="legend">
+    <span><span class="pill all">全部</span> 全品牌共用，不按门店分</span>
+    <span><span class="pill store">本店</span> 只看自己门店</span>
+    <span><span class="pill self">仅自己</span> 只看自己名下的客户</span>
+    <span><span class="pill mgr">店长起</span> 销售进不去</span>
+    <span><span class="pill no">不适用</span></span>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr>
+          <th>侧边栏</th>
+          <th>这一块干什么</th>
+          <th>门店销售</th>
+          <th>门店店长</th>
+          <th>总部人员</th>
+          <th>我方人员</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="k">今日总览</td>
+          <td>今天生意怎么样：新增线索、待检查、各产线进度</td>
+          <td><span class="pill self">仅自己</span></td>
+          <td><span class="pill store">本店</span></td>
+          <td><span class="pill all">全部</span></td>
+          <td><span class="pill all">全部</span></td>
+        </tr>
+        <tr>
+          <td class="k">统一审核台</td>
+          <td>发出去之前先过这里：机器人想发的每一条，人点了才发</td>
+          <td><span class="pill self">仅自己</span></td>
+          <td><span class="pill store">本店</span></td>
+          <td><span class="pill all">全部</span></td>
+          <td><span class="pill all">全部</span></td>
+        </tr>
+        <tr>
+          <td class="k">1 · 短视频获客<em>做今天的视频</em></td>
+          <td>业务类型、素材库、真人出镜、批量剪辑、成片检查、批量发布、账号管理、机器状态</td>
+          <td><span class="pill all">全部</span></td>
+          <td><span class="pill all">全部</span></td>
+          <td><span class="pill all">全部</span></td>
+          <td><span class="pill all">全部</span></td>
+        </tr>
+        <tr>
+          <td class="k">2 · 微信接待<em>看今天的接待</em></td>
+          <td>看微信此刻在做什么、看今天接待效果、企微会话</td>
+          <td><span class="pill self">仅自己</span></td>
+          <td><span class="pill store">本店</span></td>
+          <td><span class="pill all">全部</span></td>
+          <td><span class="pill all">全部</span></td>
+        </tr>
+        <tr>
+          <td class="k">2 · 微信接待<em>配置面</em></td>
+          <td>本店独有信息、金牌案例、给回答打分、说话规则、常问问题、自动办理的服务、聚合聊天、演练对话</td>
+          <td><span class="pill mgr">店长起</span></td>
+          <td><span class="pill store">本店</span></td>
+          <td><span class="pill all">全部</span></td>
+          <td><span class="pill all">全部</span></td>
+        </tr>
+        <tr>
+          <td class="k">3 · 沉默客户跟进<em>处理今天的跟进</em></td>
+          <td>最值得跟进的客户、跟进方式效果、活动、跟进内容、知识海报、量房券</td>
+          <td><span class="pill store">本店</span></td>
+          <td><span class="pill store">本店</span></td>
+          <td><span class="pill all">全部</span></td>
+          <td><span class="pill all">全部</span></td>
+        </tr>
+        <tr>
+          <td class="k">4 · 企业大脑<em>维护企业知识</em></td>
+          <td>知识全景、上传资料、待我选择、处理冲突、实战手册、版本与发布、原始资料目录</td>
+          <td><span class="pill all">全部</span></td>
+          <td><span class="pill all">全部</span></td>
+          <td><span class="pill all">全部</span></td>
+          <td><span class="pill all">全部</span></td>
+        </tr>
+        <tr>
+          <td class="k">成员管理</td>
+          <td>建账号、改角色、停用</td>
+          <td><span class="pill no">不适用</span></td>
+          <td><span class="pill store">本店</span></td>
+          <td><span class="pill all">全部</span></td>
+          <td><span class="pill all">全部</span></td>
+        </tr>
+        <tr>
+          <td class="k">系统配置 / 排障</td>
+          <td>代登录、部署、数据修复</td>
+          <td><span class="pill no">不适用</span></td>
+          <td><span class="pill no">不适用</span></td>
+          <td><span class="pill no">不适用</span></td>
+          <td><span class="pill all">全部</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>三条判据</h3>
+  <div class="grid-2">
+    <div class="card">
+      <h3>产线默认全员可用</h3>
+      <p>
+        短视频、沉默客户跟进、企业大脑三条产线，销售和店长看到的功能<strong>完全一样</strong>。
+        一线要能自己做视频、自己捞客户、自己查口径。
+      </p>
+    </div>
+    <div class="card">
+      <h3>只有「改同店共用的说法」收给店长</h3>
+      <p>
+        微信接待的配置面（说话规则、常问问题、给回答打分、自动办理的服务）是例外：
+        <strong>一个销售改了，同店所有人的机器人跟着变</strong>，所以要店长点头。
+      </p>
+    </div>
+    <div class="card">
+      <h3>客户按门店隔离，知识不按门店隔离</h3>
+      <p>
+        微信接待的会话、沉默客户名单是各家店自己的生意，<strong>别家门店看不到</strong>；
+        而视频素材、产品口径、行业知识全品牌共用，不切。
+      </p>
+    </div>
+    <div class="card">
+      <h3>销售在自己那一层再收一次</h3>
+      <p>
+        店长看本店全部销售；<strong>销售只看自己接待的那些客户</strong>——
+        会话、回复质检、今日总览里的数字，都收敛到他名下。
+      </p>
+    </div>
+  </div>
+
+  <h2>四、登录、退出与切换账号</h2>
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>身份</th><th>平时怎么登</th><th>退出</th><th>切换账号</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="k">销售 / 店长 / 总部</td>
+          <td>首页手机号 + 密码；绑过企微的可以点「企业微信登录」一步进</td>
+          <td>侧边栏底部账号区 →「退出登录」→ 回登录页</td>
+          <td>紧挨着的「切换账号」→ 直接落到输密码那一步，手机号带过去</td>
+        </tr>
+        <tr>
+          <td class="k">我方人员</td>
+          <td><code>/ops</code> 选一家客户代登录</td>
+          <td>页头「退出代登录」→ 回 <code>/ops</code></td>
+          <td>回 <code>/ops</code> 换一家客户</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <p>
+      <b>不做「同时登录多个账号、一键切」。</b>系统已有三种登录方式要共存，
+      再叠多份登录凭据会明显放大安全面和排障成本；一台电脑换个人用，「退出 → 重登」够用。
+    </p>
+  </div>
+
+  <h2>五、要让上面这套成立，还差什么</h2>
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>缺口</th><th>影响哪一格</th><th>要动什么</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="k">短视频 11 屏 + 沉默客户 4 屏<em>目前销售进不去</em></td>
+          <td>「产线全员可用」这条</td>
+          <td>改一份屏权限名单，不涉及数据。当天可完成</td>
+        </tr>
+        <tr>
+          <td class="k">销售账号<em>目前一个都没有</em></td>
+          <td>「销售只看自己」这条</td>
+          <td>建账号并绑接待号即可，收敛逻辑已就绪</td>
+        </tr>
+        <tr>
+          <td class="k">门店不是系统里的实体<em>目前只有一行「总部」</em></td>
+          <td>「按门店隔离」的全部格子</td>
+          <td>建门店表，人与会话都要能归到店。跨两个代码仓</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note warn">
+    <p>
+      <b>门店隔离为什么不是加个字段那么简单：</b>客户会话上没有门店标记，
+      归属只能靠「这段对话是哪个企微接待号接的」反推。
+      因此顺序必须是 <strong>先把接待号补齐到人，再把人归到店，最后会话才归得到店</strong>。
+      跳过第一步会得到一张有店没人的空表。
+    </p>
+  </div>
+
+  <footer>
+    <p>本页描述的是目标状态。第五节列出的三项完成后，上面每一格都成立。</p>
+    <p>有大有小 · 门店营销工作台 · 由 Akke 开发与运维</p>
+  </footer>
+
+</div>
+</body>
+</html>
