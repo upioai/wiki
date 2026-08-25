@@ -114,7 +114,7 @@
   .bar{display:grid;grid-template-columns:110px 1fr 74px;align-items:center;gap:10px;font-size:13px;}
   .bar .name{color:var(--ink-2);text-align:right;white-space:nowrap;}
   .bar .track{background:var(--panel-3);border-radius:4px;height:19px;overflow:hidden;}
-  .bar .fill{height:100%;background:var(--line-2);border-radius:4px;}
+  .bar .fill{display:block;height:100%;background:var(--line-2);border-radius:4px;}
   .bar .fill.hot{background:var(--bad);}
   .bar .fill.copper{background:var(--copper);}
   .bar .fill.teal{background:var(--teal);}
@@ -181,6 +181,7 @@
       <a href="#words">术语</a>
       <a href="#map">全景</a>
       <a href="#roll">主播格/素材格</a>
+      <a href="#broll">素材库</a>
       <a href="#feed">选题</a>
       <a href="#line">出片</a>
       <a href="#models">模型</a>
@@ -348,10 +349,190 @@
   </div>
 </section>
 
+<!-- ════════ 素材库 B-roll ════════ -->
+<section id="broll">
+  <div class="wrap">
+    <h2><span class="num">D</span>素材格是怎么填的：一段镜头身上的标签、调用它的四道闸、和一座没标注的金矿</h2>
+    <p class="sub">上一节说了「画面对不上」只发生在素材格。这一节把素材格背后那座库掀开：一段镜头进库要盖哪些标签、出片时机器拿哪几个标签去配画面、以及库里现在有什么。数据口径 2026-08-24，取自 <code>broll-latest.db</code>。</p>
+
+    <!-- Part 1: 标签体系 -->
+    <figure class="figure">
+      <h4>一段素材进库，身上盖三类标签</h4>
+      <p style="color:var(--ink-2);font-size:13.5px;margin:0 0 14px;max-width:74ch;">一段 3–6 秒的镜头切出来后，会被盖上三组标签。<b>三组各管一件事</b>——语义决定「能不能配某句话」，安全决定「敢不敢用」，质量决定「清不清楚」。三关全过才进「可用池」。</p>
+      <div class="flow" style="grid-template-columns:repeat(3,minmax(240px,1fr));">
+        <div class="station up">
+          <div class="st">① 语义标签 · 定「配哪句话」</div>
+          <h4>它在拍什么</h4>
+          <p><code>stage</code> 工序（贴砖/封边/柜体安装…）· <code>subject</code> 主体 · <code>action</code> 动作 · <code>visible_elements</code> 可见元素 · <code>visual_fact</code> 画面事实</p>
+          <p style="margin-top:8px;"><b>另有机器视觉四列</b>（最干净的检索词）：<code>vl_subject</code> · <code>vl_action</code> · <code>vl_objects</code> · <code>vl_scene</code></p>
+          <div class="who">出片时就靠这几列跟口播文字对齐</div>
+        </div>
+        <div class="station">
+          <div class="st">② 安全标签 · 定「敢不敢用」</div>
+          <h4>画面里有没有雷</h4>
+          <p><code>has_face</code> 有没有人脸 · <code>has_text</code> 有没有字幕 · <code>has_brand</code> 有没有品牌 · <code>has_watermark</code> 有没有水印</p>
+          <p style="margin-top:8px;">四个<b>必须全为 0</b> 才进可用池——别人视频里的脸、字、logo、水印一旦混进我们的成片，就是事故。</p>
+          <div class="who">这一关是抖音成片几乎全军覆没的原因</div>
+        </div>
+        <div class="station">
+          <div class="st">③ 质量标签 · 定「清不清楚」</div>
+          <h4>拍得糊不糊</h4>
+          <p><code>quality_sharpness</code> 清晰度 · <code>quality_stability</code> 稳定度 · <code>quality_lighting</code> 光照 · <code>narration_confidence</code> 原声可信度</p>
+          <p style="margin-top:8px;">再加一个 <code>needs_human</code>：机器拿不准的，标出来等人复核。</p>
+          <div class="who">抖动/太暗/太糊的在这一关被判废</div>
+        </div>
+      </div>
+      <figcaption>
+        标签存在 <code>clips</code> / <code>segments</code> 两张表上。<b>「可用」= approved=1 且安全四列全 0 且有 R2 文件</b>——三个条件缺一不可。
+      </figcaption>
+    </figure>
+
+    <!-- Part 2: 打标签流水线 -->
+    <figure class="figure">
+      <h4>标签是怎么打上去的：收割机的六步流水线</h4>
+      <div class="stationwrap">
+        <div class="flow" style="grid-template-columns:repeat(6,minmax(150px,1fr));">
+          <div class="station ext"><div class="st">步 1</div><h4>切镜</h4>
+            <p>TransNetV2 把长视频按镜头切成一段段。便宜、跑得快。</p>
+            <div class="who">Workflow · 本地算</div></div>
+          <div class="station ext"><div class="st">步 2</div><h4>判型 + OCR</h4>
+            <p>判 A/B 型、OCR 认出原字幕位置，为后面去字幕做准备。</p>
+            <div class="who">Workflow</div></div>
+          <div class="station ext"><div class="st">步 3</div><h4>切段</h4>
+            <p>把镜头切成 3–6 秒的可用镜头单元。</p>
+            <div class="who">Workflow</div></div>
+          <div class="station ext"><div class="st">步 4 · 花钱</div><h4>VL 标注</h4>
+            <p>qwen3-vl-235b 逐段看画面，产出上面所有语义标签。<b>整条线唯一按段计费的一步。</b></p>
+            <div class="who">Workflow → OpenRouter</div></div>
+          <div class="station ext"><div class="st">步 5</div><h4>安全审</h4>
+            <p>盖 has_face/text/brand/watermark 四个安全标签。</p>
+            <div class="who">Workflow</div></div>
+          <div class="station ext"><div class="st">步 6</div><h4>入 R2 + 入库</h4>
+            <p>过关的传 R2、写进 <code>segments</code>，approved=1。</p>
+            <div class="who">Workflow → R2 / DB</div></div>
+        </div>
+      </div>
+      <figcaption>
+        ⚠️ <b>瓶颈在步 4</b>：切镜（步 1）又便宜又快，跑在最前面；VL 标注（步 4）每段花钱，跟不上。于是切了一大堆镜头、卡在没标注——这正是下面「金矿」的成因。
+      </figcaption>
+    </figure>
+
+    <!-- Part 3: 调用四道闸 -->
+    <figure class="figure">
+      <h4>出片时，机器拿哪些标签给一句口播配画面</h4>
+      <div class="svgbox">
+        <svg viewBox="0 0 900 300" role="img" aria-label="broll.pick 调用漏斗：从可用池经工序闸、动作闸、字面覆盖、覆盖率阈值，命中配素材，否则退主播镜">
+          <defs>
+            <marker id="arb" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+              <path d="M0,0 L9,4.5 L0,9 z" fill="#41B3AC"/>
+            </marker>
+          </defs>
+          <!-- 入口 -->
+          <rect x="20" y="20" width="200" height="52" rx="8" fill="rgba(65,179,172,.14)" stroke="#41B3AC"/>
+          <text class="lblb" x="120" y="42" text-anchor="middle">一句口播文字</text>
+          <text class="lblsm" x="120" y="60" text-anchor="middle">「墙砖要留 3mm 缝」</text>
+          <rect x="680" y="20" width="200" height="52" rx="8" fill="rgba(65,179,172,.14)" stroke="#41B3AC"/>
+          <text class="lblb" x="780" y="42" text-anchor="middle">可用池 3,494 段</text>
+          <text class="lblsm" x="780" y="60" text-anchor="middle">安全四关全过的干净镜头</text>
+          <!-- 四道闸漏斗 -->
+          <g>
+            <rect x="120" y="100" width="660" height="34" rx="6" fill="rgba(211,137,63,.16)" stroke="#D3893F"/>
+            <text class="lblb" x="140" y="122" text-anchor="start">闸 1 · 工序闸</text>
+            <text class="lblsm" x="770" y="122" text-anchor="end">候选的 stage 要落在这句判出的工序里（贴砖≠封边）</text>
+
+            <rect x="180" y="144" width="540" height="34" rx="6" fill="rgba(211,137,63,.16)" stroke="#D3893F"/>
+            <text class="lblb" x="200" y="166" text-anchor="start">闸 2 · 动作闸</text>
+            <text class="lblsm" x="700" y="166" text-anchor="end">句子的动作词要落在候选的 vl_action/action 里</text>
+
+            <rect x="240" y="188" width="420" height="34" rx="6" fill="rgba(211,137,63,.16)" stroke="#D3893F"/>
+            <text class="lblb" x="260" y="210" text-anchor="start">闸 3 · 字面覆盖</text>
+            <text class="lblsm" x="640" y="210" text-anchor="end">句子命中候选检索面多少字</text>
+
+            <rect x="300" y="232" width="300" height="34" rx="6" fill="rgba(211,137,63,.16)" stroke="#D3893F"/>
+            <text class="lblb" x="320" y="254" text-anchor="start">闸 4 · 覆盖率阈值</text>
+            <text class="lblsm" x="580" y="254" text-anchor="end">不够就判「配不上」</text>
+          </g>
+          <!-- 出口 -->
+          <line x1="450" y1="266" x2="450" y2="284" stroke="#41B3AC" marker-end="url(#arb)"/>
+          <text class="lblb" x="300" y="294" text-anchor="middle" fill="#48C98A">✓ 命中 → 配这段素材</text>
+          <text class="lblb" x="640" y="294" text-anchor="middle" fill="#D3893F">✗ 四闸任一不过 → 退主播镜</text>
+        </svg>
+      </div>
+      <figcaption>
+        检索面（<code>haystack</code>）= 可见元素 + 动作 + 画面事实 + VL 四列 + 工序词表 + 主体词表，拼在一起做字面匹配。<b>宁缺毋滥</b>：任一道闸不过就退回主播镜，绝不硬配一个不对题的空镜（对应上一节第三条）。
+      </figcaption>
+    </figure>
+
+    <!-- Part 4: 数据现状 + 金矿 -->
+    <figure class="figure">
+      <h4>库里现在有什么：2.7 万切片，只有 3,494 段真能用</h4>
+      <div class="stack-bar">
+        <div style="width:13.1%;background:#48C98A">可用 3,494</div>
+        <div style="width:8.2%;background:#EFB055">已标注没入池 2,207</div>
+        <div style="width:78.7%;background:#31404F;color:#A6B2C0">未标注 21,033（79%）</div>
+      </div>
+      <div class="legend">
+        <span><i style="background:#48C98A"></i>可用池 3,494（过安全审）</span>
+        <span><i style="background:#EFB055"></i>标注了但没过关 2,207</span>
+        <span><i style="background:#31404F"></i>切了镜但从没标注 21,033</span>
+      </div>
+      <figcaption style="margin-bottom:18px;">总切片 26,734。<b>真正能进成片的只有 3,494 段（13%）</b>——不是库小，是绝大多数还没跑到 VL 标注那步。</figcaption>
+
+      <h4 style="margin-top:6px;">那 21,033 未标注的，几乎全是自家干净生料</h4>
+      <div class="bars">
+        <div class="bar hi"><span class="name">干净生料·未标注</span>
+          <span class="track"><span class="fill ok" style="width:100%"></span></span>
+          <span class="val">20,963</span></div>
+        <div class="bar"><span class="name">干净生料·已标注</span>
+          <span class="track"><span class="fill teal" style="width:23%"></span></span>
+          <span class="val">4,840</span></div>
+        <div class="bar"><span class="name">抖音采·已标注</span>
+          <span class="track"><span class="fill copper" style="width:4%"></span></span>
+          <span class="val">861</span></div>
+        <div class="bar"><span class="name">抖音采·未标注</span>
+          <span class="track"><span class="fill copper" style="width:0.3%"></span></span>
+          <span class="val">70</span></div>
+      </div>
+      <figcaption style="margin-bottom:18px;">干净生料 = 门店自拍的施工空镜，没字幕没水印。<b>当前可用池 3,494 全出自它，可用率 72%。</b>抖音采来的成片几乎全卡在安全审（有字幕/人脸），别再采。</figcaption>
+
+      <h4 style="margin-top:6px;">拆开那 20,963 未标注干净生料：一半是「就差标注」的成品</h4>
+      <div class="bars">
+        <div class="bar"><span class="name">ready 待入池</span>
+          <span class="track"><span class="fill ok" style="width:100%"></span></span>
+          <span class="val">10,095</span></div>
+        <div class="bar"><span class="name">quarantine 隔离</span>
+          <span class="track"><span class="fill" style="width:82%;background:var(--warn)"></span></span>
+          <span class="val">8,266</span></div>
+        <div class="bar"><span class="name">phash 重复</span>
+          <span class="track"><span class="fill" style="width:11%;background:var(--dim)"></span></span>
+          <span class="val">1,157</span></div>
+        <div class="bar"><span class="name">pending 待标注</span>
+          <span class="track"><span class="fill ok" style="width:11%"></span></span>
+          <span class="val">1,116</span></div>
+        <div class="bar"><span class="name">rejected 判废</span>
+          <span class="track"><span class="fill hot" style="width:2%"></span></span>
+          <span class="val">229</span></div>
+      </div>
+      <figcaption>时长 100% 落在 3–6 秒（均值 3.5s），全是合格镜头长度，没有碎片。</figcaption>
+
+      <div class="note ok" style="margin-top:20px;">
+        <span class="tag">这是一座金矿，不是一堆垃圾</span>
+        <b>ready + pending ≈ 11,211 个干净生料切片</b>，全 3–6 秒，跟现在可用池同源同质——只卡在没跑第 4 步 VL 标注。<br>
+        按干净生料 72% 的可用率，补标注后能新增 <b>约 8,000 个可用镜头，可用池从 3,494 翻到约 11,000（2–3 倍）</b>。成本只是 VL 标注调用（收割机现成的一步、走封顶的 eval key），不是新开发，也不用再去抖音采。<br>
+        另有 8,266 隔离待查原因、1,386 重复/判废确定丢弃。
+      </div>
+      <div class="note trap" style="margin-top:12px;">
+        <span class="tag">别踩的坑</span>
+        <b>抖音采集这条路已验证 0 可用</b>——采来的都是带字幕/人脸的成片，过不了安全审。要扩素材，只喂门店自拍的干净施工空镜。
+      </div>
+    </figure>
+  </div>
+</section>
+
 <!-- ════════ 选题 ════════ -->
 <section id="feed">
   <div class="wrap">
-    <h2><span class="num">D</span>今天做哪条：选题走了三跳才到页面</h2>
+    <h2><span class="num">E</span>今天做哪条：选题走了三跳才到页面</h2>
 
     <figure class="figure">
       <h4>数据从 Akke 到工作台的三跳</h4>
@@ -426,7 +607,7 @@
 <!-- ════════ 出片 ════════ -->
 <section id="line">
   <div class="wrap">
-    <h2><span class="num">E</span>出片产线：一条单在机器里的一生</h2>
+    <h2><span class="num">F</span>出片产线：一条单在机器里的一生</h2>
 
     <figure class="figure">
       <h4>七个状态（值域在数据库 CHECK 约束里钉着）</h4>
@@ -538,7 +719,7 @@
 <!-- ════════ 模型 ════════ -->
 <section id="models">
   <div class="wrap">
-    <h2><span class="num">F</span>调了哪些模型</h2>
+    <h2><span class="num">G</span>调了哪些模型</h2>
     <p class="sub">文字类全走 <b>OpenRouter</b>（一个网关接各家），音视频类全走 <b>fal</b>（经 n8n 付费窗口）。</p>
 
     <div class="tablebox">
@@ -584,7 +765,7 @@
 <!-- ════════ 钱 ════════ -->
 <section id="money">
   <div class="wrap">
-    <h2><span class="num">G</span>钱：两本账，永远不合并</h2>
+    <h2><span class="num">H</span>钱：两本账，永远不合并</h2>
 
     <figure class="figure">
       <h4>一条快车道片子的成本构成（08-15 首条真单，$1.62）</h4>
@@ -638,7 +819,7 @@
 <!-- ════════ 实战案例 ════════ -->
 <section id="case">
   <div class="wrap">
-    <h2><span class="num">H</span>实战：一次「说的和画面不一样」是怎么定位的</h2>
+    <h2><span class="num">I</span>实战：一次「说的和画面不一样」是怎么定位的</h2>
     <p class="sub">2026-08-24，销售第二次报同一个问题。这一节是上面所有图的用法示范。</p>
 
     <figure class="figure">
@@ -744,7 +925,7 @@
 <!-- ════════ 排障 ════════ -->
 <section id="debug">
   <div class="wrap">
-    <h2><span class="num">I</span>出问题了：从上往下查，越靠前越便宜</h2>
+    <h2><span class="num">J</span>出问题了：从上往下查，越靠前越便宜</h2>
 
     <figure class="figure">
       <h4>四个信号源的查看顺序</h4>
