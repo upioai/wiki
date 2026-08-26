@@ -30,7 +30,30 @@
   body { margin:0; padding:0; background:var(--bg); color:var(--text);
     font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
     font-size:16px; line-height:1.75; -webkit-font-smoothing:antialiased; }
-  .container { max-width:1080px; margin:0 auto; padding:48px 24px 120px; }
+  .container { max-width:1340px; margin:0 auto; padding:48px 24px 120px;
+               display:grid; grid-template-columns:236px minmax(0,1fr); gap:56px; align-items:start; }
+  .doc { max-width:1080px; min-width:0; }
+
+  /* 左侧目录：跟着滚，自己能滚，章节多了不会把页面撑长 */
+  .toc { position:sticky; top:40px; align-self:start; display:grid; gap:2px;
+         max-height:calc(100vh - 80px); overflow-y:auto; padding-right:6px;
+         border-left:1px solid var(--line); }
+  .toc-link { display:block; color:var(--text-dim); text-decoration:none; font-size:13px;
+              line-height:1.45; padding:5px 10px; border-left:2px solid transparent;
+              margin-left:-1px; border-radius:0 4px 4px 0; }
+  .toc-link:hover { color:var(--text); background:var(--surface-2, rgba(255,255,255,.04)); }
+  /* h3 缩一格、再小一号：一眼看出哪些是大章、哪些是小节 */
+  .toc-h3 { padding-left:22px; font-size:12px; }
+  .toc-link.active { color:var(--accent); border-left-color:var(--accent); font-weight:600; }
+
+  /* 点目录跳过去时，标题别被贴在窗口最上沿 */
+  h2[id], h3[id] { scroll-margin-top:24px; }
+
+  /* 窄屏没地方放侧栏，整块收掉（正文本来就是单栏可读的） */
+  @media (max-width:1180px) {
+    .container { grid-template-columns:1fr; gap:0; }
+    .toc { display:none; }
+  }
 
   .breadcrumb { font-size:13px; color:var(--text-muted); margin-bottom:24px; }
   .breadcrumb a { color:var(--text-dim); text-decoration:none; }
@@ -107,6 +130,15 @@
 </head>
 <body>
 <div class="container">
+
+  <!--
+    左侧目录。**条目由脚本从正文的 h2/h3 现生成**，不在这儿手写一份——
+    这一页每周都在改章节，手写的目录迟早跟正文对不上，而对不上的目录
+    比没有目录更糟（点进去是别的段落）。
+  -->
+  <nav class="toc" id="toc" aria-label="本页目录"></nav>
+
+  <div class="doc">
 
   <div class="breadcrumb"><a href="/akke">Akke</a><span>/</span>门店工作台 · 系统逻辑与角色权限</div>
 
@@ -869,7 +901,89 @@
     <p>有大有小 · 门店营销工作台 · 由 Akke 开发与运维</p>
   </footer>
 
+  </div><!-- /.doc -->
+
 </div>
+
+<script>
+(function () {
+  var doc = document.querySelector('.doc')
+  var toc = document.getElementById('toc')
+  if (!doc || !toc) return
+
+  /*
+   * 只取**正文直接子级**的 h2/h3。不能用 querySelectorAll('h2,h3')——
+   * 卡片（.card）和步骤块里也有 h3（「① 短视频获客」这种），
+   * 它们是内容不是章节，混进目录会让目录比正文还长、还找不着重点。
+   */
+  var heads = doc.querySelectorAll(':scope > h2, :scope > h3')
+  if (!heads.length) { toc.remove(); return }
+
+  /*
+   * id 也是现给的。正文里原本一个 id 都没有，手工补一遍的话，
+   * 以后加一节忘了补 id，那一条就点不动——而且不会报错，只会安静地没反应。
+   * 用序号而不是标题文字：标题里有「、」「（）」这些字符，
+   * 拿它们当 id 要转义，序号没这个问题，改标题也不会让锚点失效。
+   */
+  var items = []
+  Array.prototype.forEach.call(heads, function (h, i) {
+    if (!h.id) h.id = 'sec-' + i
+    var a = document.createElement('a')
+    a.href = '#' + h.id
+    a.textContent = h.textContent.trim()
+    a.className = 'toc-link toc-' + h.tagName.toLowerCase()
+    toc.appendChild(a)
+    items.push({ head: h, link: a })
+  })
+
+  /*
+   * 高亮当前段落。用滚动位置算而不是 IntersectionObserver：
+   * 这一页的段落长短差得很远（有的一屏放不下、有的两行），
+   * observer 的「进入视口」在长段落里会一路不触发，高亮就卡在上一条不动了。
+   * 直接找「最后一个已经滚过顶部线的标题」，任何长度都对。
+   */
+  var current = null
+  function sync() {
+    var line = 120 // 顶部这条线以上的最后一个标题算「当前」
+    var found = items[0]
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].head.getBoundingClientRect().top <= line) found = items[i]
+      else break
+    }
+    if (found === current) return
+    if (current) current.link.classList.remove('active')
+    found.link.classList.add('active')
+    current = found
+    /*
+     * 目录本身可能滚出可视区（章节多的时候），把高亮那条带回来。
+     *
+     * ⚠️ **只能动 toc.scrollTop，不能用 link.scrollIntoView()**：
+     * 后者会去滚「最近的可滚动祖先」，在这一页上就是 window——
+     * 于是每次高亮变化都把页面往回拽一下，和用户自己的滚动打架，
+     * 表现成「滚到底了高亮却停在中间某一节」（实测就是这么坏的）。
+     */
+    var r = found.link.getBoundingClientRect()
+    var t = toc.getBoundingClientRect()
+    if (r.top < t.top) toc.scrollTop -= t.top - r.top
+    else if (r.bottom > t.bottom) toc.scrollTop += r.bottom - t.bottom
+  }
+
+  var ticking = false
+  window.addEventListener(
+    'scroll',
+    function () {
+      if (ticking) return
+      ticking = true
+      window.requestAnimationFrame(function () {
+        sync()
+        ticking = false
+      })
+    },
+    { passive: true },
+  )
+  sync()
+})()
+</script>
 
 </body>
 </html>
