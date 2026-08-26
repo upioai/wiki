@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Akke 视频 B-roll 三级生成与兜底逻辑</title>
+  <style>
+    :root{--bg:#0d1117;--card:#161b22;--card2:#1c2330;--line:#30363d;--ink:#e6edf3;--sub:#9da7b3;--blue:#58a6ff;--cyan:#39c5cf;--green:#3fb950;--orange:#d29922;--red:#f85149;--purple:#bc8cff}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(circle at 80% 0,#132640 0,transparent 30%),var(--bg);color:var(--ink);font:15px/1.72 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif}
+    .wrap{max-width:1080px;margin:auto;padding:38px 22px 80px}h1{font-size:34px;line-height:1.22;margin:0 0 10px}h2{font-size:23px;margin:46px 0 16px;padding-top:20px;border-top:1px solid var(--line)}h3{font-size:17px;margin:24px 0 8px;color:var(--blue)}p{margin:9px 0}.meta,.sub{color:var(--sub)}.meta{font-size:13px}.lead{margin:22px 0;padding:18px 20px;background:#162235;border:1px solid #28466b;border-left:4px solid var(--blue);border-radius:12px;font-size:16px}.lead b{color:#fff}
+    .flow{display:grid;grid-template-columns:1fr 38px 1fr 38px 1fr 38px 1fr;align-items:stretch;margin:24px 0}.arrow{display:grid;place-items:center;color:var(--sub);font-size:24px}.node{position:relative;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:16px;min-height:150px}.node .num{font-size:11px;letter-spacing:.12em;color:var(--sub)}.node .title{font-size:18px;font-weight:750;margin:5px 0}.node .desc{font-size:13px;color:var(--sub)}.node.n1{border-top:3px solid var(--green)}.node.n2{border-top:3px solid var(--cyan)}.node.n3{border-top:3px solid var(--purple)}.node.na{border-top:3px solid var(--orange)}
+    .pill{display:inline-block;margin:7px 5px 0 0;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700}.good{background:#3fb95022;color:#6bd879}.info{background:#58a6ff22;color:#79b8ff}.warn{background:#d2992222;color:#e3b341}.violet{background:#bc8cff22;color:#c9a4ff}.danger{background:#f8514922;color:#ff7b72}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:16px 0}.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:17px}.card h3{margin:0 0 7px}.kpi{font-size:27px;font-weight:800;line-height:1.2}.label{font-size:12px;color:var(--sub);margin-top:5px}.callout{padding:14px 16px;margin:16px 0;border:1px solid var(--line);border-radius:10px;background:var(--card)}.callout.ok{border-left:4px solid var(--green)}.callout.note{border-left:4px solid var(--blue)}.callout.caution{border-left:4px solid var(--orange)}
+    table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px}th,td{padding:10px 11px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--sub);font-weight:650;background:#111720}.yes{color:#6bd879}.no{color:#ff7b72}.next{color:#c9a4ff;font-weight:700}code{font-family:"SFMono-Regular",Consolas,monospace;font-size:12px;background:#090c10;border:1px solid var(--line);border-radius:5px;padding:2px 6px;color:#d2a8ff}ul,ol{padding-left:22px}li{margin:6px 0}.mini{font-size:12px;color:var(--sub)}
+    .branch{display:grid;grid-template-columns:140px 1fr;gap:10px;margin:9px 0}.branch .if{font-weight:750;color:#fff}.branch .then{color:var(--sub)}.codeflow{font:13px/1.8 "SFMono-Regular",Consolas,monospace;white-space:pre-wrap;background:#090c10;border:1px solid var(--line);border-radius:12px;padding:16px;overflow:auto;color:#c9d1d9}.foot{margin-top:50px;padding-top:16px;border-top:1px solid var(--line);color:var(--sub);font-size:12px}
+    @media(max-width:800px){h1{font-size:27px}.flow{grid-template-columns:1fr}.arrow{height:34px;transform:rotate(90deg)}.grid{grid-template-columns:1fr}.branch{grid-template-columns:1fr;gap:0}table{display:block;overflow-x:auto}}
+  </style>
+</head>
+<body><main class="wrap">
+  <h1>一条视频的 B-roll 怎么决定</h1>
+  <div class="meta">方案 1 / 方案 2 / 方案 3 的生成、作用与安全降级 · 生产版本 2026-08-26</div>
+  <div class="lead"><b>最终原则：</b>画面必须能给文稿提供证据。宁可不用 B-roll，也不拿“差不多”的镜头硬配。系统严格按 <b>方案1 → 方案2 → 方案3 → 主播讲述镜头</b>递进；任何一级失败都不能拖垮整条视频。</div>
+
+  <h2>一眼看懂：四级递进关系</h2>
+  <div class="flow">
+    <div class="node n1"><div class="num">方案 1</div><div class="title">现有审核素材命中</div><div class="desc">把每句文稿翻成“画面需求”，先在当前已审核、已标注、可直接取用的 B-roll 库里找。</div><span class="pill good">命中就使用</span></div>
+    <div class="arrow">→</div>
+    <div class="node n2"><div class="num">方案 2</div><div class="title">授权来源持续补库</div><div class="desc">收割机持续采集授权来源，切镜、清洗、标注、审核后补进同一素材库，让以后更多画面需求能命中。</div><span class="pill info">补充方案1的库存</span></div>
+    <div class="arrow">→</div>
+    <div class="node n3"><div class="num">方案 3</div><div class="title">原素材参考生成</div><div class="desc">前两层仍没有合适镜头时，只补一个最关键缺口；参考图和动作都来自当前任务的原素材视频。</div><span class="pill violet">单格 H3 ref2v</span></div>
+    <div class="arrow">→</div>
+    <div class="node na"><div class="num">最终兜底</div><div class="title">主播讲述镜头</div><div class="desc">方案3没生成成、参考不干净或预算不足，直接回主播镜头，整条视频继续完成。</div><span class="pill warn">稳定优先</span></div>
+  </div>
+  <div class="callout note"><b>重要口径：</b>方案2不是让每条视频停在现场等待下载十条素材。它是后台供应链：持续把授权来源变成合格库存；生产任务读取最新库存匹配。方案1与方案2在生产端共同形成“先用真实素材”的前两层，仍未命中才调用方案3。</div>
+
+  <h2>进入三个方案前，系统先做什么</h2>
+  <ol>
+    <li><b>文稿切句：</b>配音被拆成有明确起止时间的字幕格。</li>
+    <li><b>句子对回正文：</b>每条字幕必须确定来自哪一段正文，不能用上一句话的画面需求。</li>
+    <li><b>生成画面需求：</b>正文为每句提供可见的画面意图，例如“工人给柜门安装铰链”，而不是只拿整句文案模糊搜索。</li>
+    <li><b>固定主播区：</b>开头前两格和结尾一格强制主播讲述，不进入缺口，也不调用生成。</li>
+    <li><b>逐句留证：</b>最终写出“文稿、画面意图、实际画面、匹配分、命中理由”的逐句对照表，审片时可定位。</li>
+  </ol>
+
+  <h2>方案1：现有审核素材匹配</h2>
+  <div class="grid">
+    <div class="card"><h3>输入</h3><p>当前句子的画面需求、该字幕格需要的时长，以及当前任务已经用过的素材段和源片。</p></div>
+    <div class="card"><h3>输出</h3><p>一段已审核 B-roll、对应 R2 文件、匹配分和“为什么对得上”的证据。</p></div>
+    <div class="card"><h3>作用</h3><p>优先复用真实画面，不增加生成费用；同时尽量减少主播口型生成秒数。</p></div>
+  </div>
+  <h3>先过安全闸，再谈匹配</h3>
+  <table><thead><tr><th>硬条件</th><th>当前生产要求</th><th>挡住什么风险</th></tr></thead><tbody>
+    <tr><td>已审核</td><td><code>approved = 1</code></td><td>未审、模糊、隐私或判断不明的片段</td></tr>
+    <tr><td>没有人脸</td><td><code>has_face = 0</code></td><td>别人的脸进入客户成片</td></tr>
+    <tr><td>字幕干净</td><td>无字，或已有通过验证的干净版本</td><td>原字幕和新字幕叠在一起</td></tr>
+    <tr><td>没有品牌/水印标记</td><td><code>has_brand = 0</code> 且 <code>has_watermark = 0</code></td><td>账号、门店或平台身份混入</td></tr>
+    <tr><td>文件真实可取</td><td>必须存在 R2 文件；下载后再验视频轨</td><td>数据库说“有”，实际文件坏了或打不开</td></tr>
+  </tbody></table>
+  <h3>怎么判断“画面与文稿对得上”</h3>
+  <ul>
+    <li><b>至少命中 4 个有效字：</b>短查询则要求整句命中，防止只碰到一个词就强配。</li>
+    <li><b>泛词不算证据：</b>在超过 25% 素材里都出现的词会被自动视为泛词，例如仅命中“墙面”不能说明对题。</li>
+    <li><b>工序必须一致：</b>柜体安装不能配成瓷砖美缝；能识别工序时，跨工序候选直接排除。</li>
+    <li><b>动作必须一致：</b>讲“安装铰链”不能只因画面里有柜体就通过，候选动作也要命中。</li>
+    <li><b>工序不明时更严格：</b>无法判断工序的句子，至少要覆盖一半有效文字。</li>
+    <li><b>同一源片不重复：</b>一条成片内既不重复同一段，也不重复同一条来源视频，避免视觉上像循环播放。</li>
+  </ul>
+  <div class="branch"><div class="if yes">命中</div><div class="then">下载该素材段 → 验证视频轨 → 按字幕格时长裁切/轻微变速 → 精确对齐帧数 → 进入成片。</div></div>
+  <div class="branch"><div class="if no">没命中</div><div class="then">登记为 <code>broll_gap</code>，不拿低分第一名硬凑，继续看方案2已有补库成果；仍无合适库存才进入方案3。</div></div>
+
+  <h2>方案2：授权来源采集、清洗和补库</h2>
+  <div class="grid">
+    <div class="card"><h3>输入</h3><p>明确授权的来源队列，以及方案1长期记录的素材缺口类型。</p></div>
+    <div class="card"><h3>产物</h3><p>切分后的候选镜头、视觉语义标注、审核状态、可检索片段和 R2 文件。</p></div>
+    <div class="card"><h3>作用</h3><p>用真实行业画面扩大方案1的命中面，减少未来任务进入付费生成或退回主播的次数。</p></div>
+  </div>
+  <h3>后台补库流水线</h3>
+  <div class="codeflow">授权来源入队
+  → 下载原视频
+  → 镜头切分
+  → 字幕 / 人脸 / 品牌 / 水印检测
+  → 视觉内容精细标注（主体、动作、物件、场景、事实、工序）
+  → 安全与质量审核
+  → 合格段上传 R2
+  → 更新 broll.db 快照
+  → 新视频生产时由方案1检索使用</div>
+  <div class="callout caution"><b>授权是前置条件：</b>采集上限不是成功数量承诺。没有明确授权的来源不会为了凑数强行进入队列；采下来但没过安全或语义闸的镜头也不会进入可用池。</div>
+  <h3>2026-08-26 首轮实际结果</h3>
+  <div class="grid">
+    <div class="card"><div class="kpi">5 / 5</div><div class="label">授权队列实际可用 5 个来源，全部处理状态为 ok</div></div>
+    <div class="card"><div class="kpi">28</div><div class="label">切出的候选镜头</div></div>
+    <div class="card"><div class="kpi">3</div><div class="label">通过 B-roll 可用闸并进入可检索池</div></div>
+  </div>
+  <p class="sub">本轮任务参数上限为 10，但授权队列当时只有 5 个；另有 4 个镜头被识别为主播讲述类，保留为 A-roll，不冒充 B-roll。这里展示真实产物，不把“上限 10”写成“成功 10”。</p>
+  <div class="branch"><div class="if yes">补库后命中</div><div class="then">后续视频按方案1同样的安全闸和语义闸使用该真实素材。</div></div>
+  <div class="branch"><div class="if no">当前仍没货</div><div class="then">当前视频不等待后台无限采集，进入方案3；缺口继续保留，供后续定向补库。</div></div>
+
+  <h2>方案3：用当前原素材做 H3 参考生成</h2>
+  <div class="grid">
+    <div class="card"><h3>触发条件</h3><p>当前视频存在真实 B-roll 缺口，并且方案1/2库存都没有合格匹配。</p></div>
+    <div class="card"><h3>生成形式</h3><p>MiniMax H3 <code>ref2v</code>，5 秒、768P；不是纯文生视频。</p></div>
+    <div class="card"><h3>数量限制</h3><p>整条视频最多生成 1 格，只补最前面的关键缺口。</p></div>
+  </div>
+  <h3>参考素材怎么来</h3>
+  <ol>
+    <li>从任务书锁定的 <b>当前视频原素材链接</b>下载原视频；不使用主播底片，也不随机找网上素材。</li>
+    <li>从原素材中间位置截取一段 5 秒动作参考。</li>
+    <li>检测字幕带；若有字幕则裁掉底部字幕区域并补齐画布。</li>
+    <li>清洗后再次实测。仍检测到文字就停止方案3，不能仅凭“已经处理过”宣称干净。</li>
+    <li>从同一段干净动作视频的 20%、40%、60%、80% 位置抽取 4 张参考帧。</li>
+    <li>参考帧和动作视频临时放入私有对象存储，连同当前缺口的画面需求提交 H3 <code>ref2v</code>。</li>
+    <li>生成 5 秒结果后，只裁取当前字幕格所需时长，并按帧数严丝合缝地放回时间轴。</li>
+  </ol>
+  <h3>预算和防重复调用</h3>
+  <table><thead><tr><th>项目</th><th>生产限制</th><th>作用</th></tr></thead><tbody>
+    <tr><td>单次 H3</td><td>5 秒 × $0.225/秒 ≈ <b>$1.125</b></td><td>调用前确认至少有这笔剩余预算</td></tr>
+    <tr><td>整单 H3 上限</td><td><b>$5</b></td><td>与口型费用合并核算，不能逐格合法、整单失控</td></tr>
+    <tr><td>生成格数</td><td><b>最多 1 格</b></td><td>避免多格独立生成造成空间、人设和光线不连续</td></tr>
+    <tr><td>幂等绑定</td><td>提示词 + 参考帧 + 动作视频生成唯一摘要</td><td>同样输入重跑时复用已付费结果，避免重复扣费</td></tr>
+  </tbody></table>
+  <div class="branch"><div class="if yes">生成成功</div><div class="then">该字幕格记为 B-roll，并明确证据来源是“原素材参考生成”，不是素材库命中。</div></div>
+  <div class="branch"><div class="if no">任一步失败</div><div class="then">包括下载失败、时长测量失败、字幕清洗未通过、抽帧失败、上传失败、生成失败或预算不足：全部关闭方案3，回主播讲述镜头。</div></div>
+
+  <h2>最终兜底：不用 B-roll，回主播讲述</h2>
+  <p>以下情况都不会让整条视频失败，而是只让对应字幕格使用主播讲述镜头：</p>
+  <ul>
+    <li>素材库不存在、暂时没同步好或为空；</li>
+    <li>有候选，但安全闸、工序闸、动作闸或有效文字覆盖不合格；</li>
+    <li>选中的远端素材损坏，替补也找不到；</li>
+    <li>当前原素材无法下载、没有干净动作段或参考帧；</li>
+    <li>方案3预算不足或 H3 调用未完成。</li>
+  </ul>
+  <div class="callout ok"><b>这不是“少做了一步”，而是产品策略：</b>主播镜头至少保证“人说什么，画面就是这个人在说”；错误 B-roll 会直接给观众提供相反证据，所以宁可退主播，也不允许硬配。</div>
+
+  <h2>一格画面的完整决策伪代码</h2>
+  <div class="codeflow">如果是开头前两格或结尾一格：
+      使用主播讲述镜头
+否则：
+      从已审核素材库检索（方案1；库存由方案2持续补充）
+      如果通过安全闸 + 工序闸 + 动作闸 + 语义覆盖：
+          使用真实 B-roll，并记录匹配证据
+      否则：
+          登记素材缺口
+          如果本条还没用过方案3，且预算足够，且当前原素材能产出干净参考：
+              用原素材的 4 张参考帧 + 5 秒动作段执行 H3 ref2v
+              成功则只补这一格
+              失败则使用主播讲述镜头
+          否则：
+              使用主播讲述镜头</div>
+
+  <h2>怎么验证这次修复真的有效</h2>
+  <table><thead><tr><th>要看什么</th><th>通过标准</th><th>不能误判成通过</th></tr></thead><tbody>
+    <tr><td>文稿与画面</td><td>逐句看，画面主体、动作、位置和文稿一致</td><td>只因“都是装修画面”就算匹配</td></tr>
+    <tr><td>递进关系</td><td>有真实素材优先；没有才生成；生成失败回主播</td><td>方案3无缺口也启动，或绕过方案2</td></tr>
+    <tr><td>方案3参考</td><td>参考图和动作都能追溯到当前任务原素材</td><td>拿主播底片或不明来源素材充当参考</td></tr>
+    <tr><td>稳定性</td><td>任何 B-roll 分支失败，整条视频仍能完成</td><td>配置写对但真实任务中断</td></tr>
+    <tr><td>时间轴</td><td>所有窗口帧数加总等于配音应有帧数</td><td>容器总时长看似正确，但中途音画漂移</td></tr>
+    <tr><td>成本</td><td>H3 最多 1 格，且和口型费用一起受整单预算限制</td><td>每格分别未超预算，但全片累计失控</td></tr>
+  </tbody></table>
+  <p>系统会为每条视频产出 <code>visual-alignment.json</code>：逐句列出文稿、预期画面、实际使用主播或 B-roll、匹配分和证据。新视频验收时，应把这张表与最终成片一起看，才能判断问题是文稿、素材、匹配还是生成。</p>
+
+  <h2>为什么采用这个设计</h2>
+  <ul>
+    <li><b>历史错误1：</b>只命中“激光”“接缝”一两个词，就把量房配成铺砖、把台面收口配成美缝。现在改成有效字覆盖 + 工序 + 动作三道闸。</li>
+    <li><b>历史错误2：</b>一次独立生成 7 个镜头，约花 $12，并出现 7 个互不一致的空间。现在方案3最多 1 格、整单封顶。</li>
+    <li><b>历史错误3：</b>配置或脚本显示“已清洗”不代表画面真的没字。现在清洗后必须再次检测，没验成就停用方案3。</li>
+    <li><b>历史原则：</b>稳定的 70 分比偶发 95 分更重要，所以 B-roll 是可选增强，不是整条视频的单点故障。</li>
+  </ul>
+
+  <h2>当前上线状态</h2>
+  <div class="grid">
+    <div class="card"><div class="kpi">d660840</div><div class="label">生产版本短 SHA</div></div>
+    <div class="card"><div class="kpi">4317</div><div class="label">回归测试通过数量</div></div>
+    <div class="card"><div class="kpi">正常</div><div class="label">生产探针、任务队列与三级降级链</div></div>
+  </div>
+  <p class="sub">上线证明表示代码、测试、部署和探针均成立；“销售反馈的画面与文稿不对应是否在真实成片中解决”，仍以新视频逐句验收为最终判据。</p>
+
+  <div class="foot">Akke 视频生产说明 · 生成于 2026-08-26 · 本页为公开链接，不包含密钥、客户隐私或内部操作凭据。</div>
+</main></body></html>
