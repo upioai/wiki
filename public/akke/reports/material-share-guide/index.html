@@ -46,6 +46,42 @@
   .toc li{color:var(--text-dim);font-size:14px;padding:3px 0;break-inside:avoid}
   .toc li a{color:var(--text-dim)}
   @media(max-width:640px){.toc ol{columns:1}}
+
+  /* ── 左侧常驻目录 ─────────────────────────────────────────
+     宽屏才出现：窄屏没有那 240px 富余，硬塞会把正文压成一条。
+     窄屏退回页面顶部那份行内目录（.toc），两者互斥显示。 */
+  .sidenav{display:none}
+  @media(min-width:1200px){
+    .sidenav{
+      /* 跟容器左边缘对齐（容器 max-width:1080、居中、左右各 24 内边距，
+         所以内容起点是 50vw-540+24）。两者都锚在同一个居中容器上，
+         屏幕再宽间距也不变——写成 max(16px, 50vw-640px) 那种是错的：
+         视口越宽侧栏离正文越远。 */
+      display:block;position:fixed;left:calc(50vw - 516px);top:0;
+      width:232px;max-height:100vh;overflow-y:auto;padding:40px 0 40px 4px;
+      /* 细滚动条：目录比正文短，绝大多数时候不会滚，条太粗反而抢眼 */
+      scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent;
+    }
+    .sidenav h4{margin:0 0 12px;font-size:11px;color:var(--text-muted);
+      text-transform:uppercase;letter-spacing:.12em;font-weight:600}
+    .sidenav ol{margin:0;padding:0;list-style:none;counter-reset:sn}
+    .sidenav li{counter-increment:sn}
+    .sidenav a{display:flex;gap:9px;padding:6px 10px 6px 8px;border-radius:7px;
+      font-size:13px;line-height:1.5;color:var(--text-muted);
+      border-left:2px solid transparent;transition:color .15s,background .15s,border-color .15s}
+    .sidenav a::before{content:counter(sn);flex:none;width:14px;text-align:right;
+      color:var(--border-strong);font-variant-numeric:tabular-nums}
+    .sidenav a:hover{color:var(--text-dim);background:var(--bg-elevated)}
+    /* 当前所在那节。高亮靠左边那条竖线而不是整块底色——
+       底色块在一列细字里太重，扫的时候会先看到块、后看到字。 */
+    .sidenav a.on{color:var(--text);border-left-color:var(--accent)}
+    .sidenav a.on::before{color:var(--accent)}
+    /* 正文让开左栏。用 padding 不用 margin：容器已经 margin:0 auto 居中，
+       改 margin 会把居中算歪。 */
+    .container{padding-left:300px}
+    /* 宽屏就不用再看一遍页顶那份目录了 */
+    .toc{display:none}
+  }
   .step{background:var(--bg-elevated);border:1px solid var(--border);border-radius:14px;padding:24px 28px;margin-bottom:16px}
   .step-head{display:flex;align-items:center;gap:14px;margin-bottom:10px}
   .step .num{width:30px;height:30px;border-radius:8px;background:var(--accent-soft);color:var(--accent);
@@ -75,6 +111,21 @@
 </style>
 </head>
 <body>
+<nav class="sidenav" aria-label="目录">
+  <h4>目录</h4>
+  <ol>
+    <li><a href="#what">这套东西解决什么问题</a></li>
+    <li><a href="#trigger">什么话会触发、什么话不会、要多久</a></li>
+    <li><a href="#status">目前走到哪一步、接下来要做什么</a></li>
+    <li><a href="#manual">路线 A · 手动发（现在就能用）</a></li>
+    <li><a href="#semi">路线 B · 系统建议 + 你确认</a></li>
+    <li><a href="#generate">路线 C · 本店没有这份 → 现造一份</a></li>
+    <li><a href="#read">怎么看客户读了没</a></li>
+    <li><a href="#faq">常见疑问</a></li>
+    <li><a href="#limits">已知限制</a></li>
+  </ol>
+</nav>
+
 <div class="container">
 
 <div class="breadcrumb"><a href="/akke/">Akke</a><span>›</span>操作教程<span>›</span>发资料给客户</div>
@@ -603,5 +654,38 @@
 </div>
 
 </div>
+
+<script>
+/* 滚动到哪一节，左栏就亮哪一条。
+   用 IntersectionObserver 而不是 scroll 事件里算 offsetTop：后者每帧都要读
+   布局（强制回流），长页面滚起来会卡；而且 sticky/图片撑高之后 offsetTop
+   会失准。rootMargin 上边 -35% 是把判定线放到视口偏上——人读的是屏幕上
+   三分之一处那段，不是最顶上那一行。 */
+(function () {
+  var links = [].slice.call(document.querySelectorAll('.sidenav a'));
+  if (!links.length || !('IntersectionObserver' in window)) return;
+  var byId = {};
+  links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+  var seen = {};
+  function paint() {
+    /* 可见的可能不止一节，取文档顺序里最靠前的那个——否则两节同时进视口时
+       高亮会来回跳。 */
+    var cur = null;
+    for (var i = 0; i < links.length; i++) {
+      var id = links[i].getAttribute('href').slice(1);
+      if (seen[id]) { cur = links[i]; break; }
+    }
+    links.forEach(function (a) { a.classList.toggle('on', a === cur); });
+  }
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) { seen[e.target.id] = e.isIntersecting; });
+    paint();
+  }, { rootMargin: '-35% 0px -55% 0px' });
+  Object.keys(byId).forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) io.observe(el);
+  });
+})();
+</script>
 </body>
 </html>
