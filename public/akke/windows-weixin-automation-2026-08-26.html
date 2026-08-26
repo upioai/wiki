@@ -1,0 +1,748 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Windows 微信自动化调研</title>
+<meta name="description" content="最小化能控 / 后台不抢焦点 / 10 秒回复三问，落在同一套 Windows GUI 方案上——含四族对比、封号真相与可执行技术方案">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --surface: #ffffff;
+    --surface-2: #eef0f4;
+    --ink: #161a21;
+    --muted: #5b6675;
+    --faint: #8b95a4;
+    --line: #e0e4ea;
+    --line-strong: #cfd5df;
+    --accent: #3552c9;
+    --accent-soft: #e7ebfb;
+    --good: #0e9f6e;
+    --good-soft: #e0f3ec;
+    --warn: #b8760d;
+    --warn-soft: #f7ecd6;
+    --risk: #d2402f;
+    --risk-soft: #fbe5e1;
+    --code-bg: #f0f2f6;
+    --shadow: 0 1px 2px rgba(20,26,33,.04), 0 8px 24px rgba(20,26,33,.06);
+  }
+  :root:not([data-theme="light"]) {
+    @media (prefers-color-scheme: dark) {
+      --bg: #0e1116; --surface: #161b22; --surface-2: #1c222b;
+      --ink: #e8ecf2; --muted: #9aa4b2; --faint: #6d7887;
+      --line: #262d38; --line-strong: #333c49;
+      --accent: #8ba0f5; --accent-soft: #1e2740;
+      --good: #35c793; --good-soft: #123026;
+      --warn: #e0a23f; --warn-soft: #322613;
+      --risk: #f0705f; --risk-soft: #331916;
+      --code-bg: #1b2129;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1116; --surface: #161b22; --surface-2: #1c222b;
+    --ink: #e8ecf2; --muted: #9aa4b2; --faint: #6d7887;
+    --line: #262d38; --line-strong: #333c49;
+    --accent: #8ba0f5; --accent-soft: #1e2740;
+    --good: #35c793; --good-soft: #123026;
+    --warn: #e0a23f; --warn-soft: #322613;
+    --risk: #f0705f; --risk-soft: #331916;
+    --code-bg: #1b2129;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.4);
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 16px; line-height: 1.75; -webkit-font-smoothing: antialiased;
+  }
+  .mono, code, .k { font-family: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+  .col { max-width: 760px; }
+
+  /* header */
+  header.hero { border-bottom: 1px solid var(--line); background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%); }
+  .hero-inner { padding: 60px 0 40px; }
+  .eyebrow { font-family: "IBM Plex Mono", monospace; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); font-weight: 500; margin: 0 0 18px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .eyebrow::before { content: ""; width: 26px; height: 2px; background: var(--accent); display: inline-block; }
+  h1 { font-size: clamp(32px, 5.4vw, 50px); line-height: 1.12; font-weight: 900; letter-spacing: -0.015em; text-wrap: balance; margin: 0 0 22px; }
+  .qchips { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 24px; }
+  .qchip { font-size: 14px; font-weight: 700; padding: 7px 15px; border-radius: 30px; background: var(--accent-soft); color: var(--accent); display: inline-flex; align-items: center; gap: 8px; }
+  .qchip .n { font-family: "IBM Plex Mono", monospace; font-size: 11px; opacity: .7; }
+  .lede { font-size: 18px; color: var(--muted); max-width: 680px; margin: 0 0 26px; }
+  .lede b { color: var(--ink); }
+  .meta-row { display: flex; flex-wrap: wrap; gap: 10px 26px; font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: var(--faint); border-top: 1px solid var(--line); padding-top: 18px; }
+  .meta-row b { color: var(--muted); font-weight: 600; }
+
+  /* summary */
+  .summary { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 30px 30px 26px; box-shadow: var(--shadow); margin-top: -20px; }
+  .summary .tl { font-family: "IBM Plex Mono", monospace; font-size: 11.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); font-weight: 600; margin: 0 0 12px; }
+  .summary p { font-size: 17px; }
+  .summary .big { font-size: 18px; color: var(--ink); }
+  .fix-note { margin-top: 20px; border-left: 3px solid var(--warn); background: var(--warn-soft); border-radius: 0 10px 10px 0; padding: 13px 17px; font-size: 14.5px; line-height: 1.65; }
+  .fix-note b { color: var(--warn); }
+
+  /* TOC */
+  nav.toc { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 24px 28px; margin: 26px 0 0; box-shadow: var(--shadow); }
+  nav.toc .tl { font-family:"IBM Plex Mono",monospace; font-size: 11.5px; letter-spacing:.14em; text-transform: uppercase; color: var(--faint); font-weight: 600; margin: 0 0 16px; }
+  nav.toc ol { list-style: none; counter-reset: toc; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 28px; }
+  nav.toc li { counter-increment: toc; }
+  nav.toc a { display: flex; align-items: baseline; gap: 12px; text-decoration: none; color: var(--ink); padding: 8px 8px; border-radius: 8px; border-bottom: none; }
+  nav.toc a:hover { background: var(--surface-2); }
+  nav.toc a::before { content: counter(toc, decimal-leading-zero); font-family:"IBM Plex Mono",monospace; font-size: 12px; color: var(--accent); font-weight: 600; flex: none; }
+  nav.toc a .t { font-size: 15px; font-weight: 500; }
+  nav.toc a .d { display: block; font-size: 12px; color: var(--faint); margin-top: 1px; }
+
+  /* sections */
+  section { padding: 50px 0; border-bottom: 1px solid var(--line); scroll-margin-top: 20px; }
+  section:last-of-type { border-bottom: none; }
+  .sec-lab { font-size: 12.5px; font-family: "IBM Plex Mono", monospace; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin: 0 0 10px; display: flex; align-items: center; gap: 10px; }
+  .sec-lab .no { background: var(--accent-soft); color: var(--accent); border-radius: 6px; padding: 3px 8px; }
+  h2 { font-size: clamp(23px, 3.4vw, 30px); font-weight: 900; line-height: 1.2; letter-spacing: -0.01em; text-wrap: balance; margin: 0 0 12px; }
+  .sec-intro { font-size: 16.5px; color: var(--muted); max-width: 760px; margin: 0 0 28px; }
+  .sec-intro b { color: var(--ink); }
+  h3 { font-size: clamp(19px, 2.6vw, 22px); font-weight: 700; line-height: 1.32; letter-spacing: -0.01em; margin: 0 0 6px; }
+  p { margin: 0 0 14px; }
+  strong { font-weight: 700; }
+  a { color: var(--accent); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+  a:hover { border-bottom-color: var(--accent); }
+  a:focus-visible, nav.toc a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  code, .k { font-size: .86em; background: var(--code-bg); padding: .1em .42em; border-radius: 4px; border: 1px solid var(--line); white-space: nowrap; }
+
+  /* question blocks */
+  .q { display: flex; gap: 16px; align-items: baseline; margin: 34px 0 16px; }
+  .q:first-of-type { margin-top: 0; }
+  .q .qnum { font-family: "IBM Plex Mono", monospace; font-weight: 700; font-size: 15px; color: var(--accent); background: var(--accent-soft); border-radius: 8px; padding: 6px 11px; flex: none; line-height: 1; }
+  .answer { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--good); border-radius: 0 10px 10px 0; padding: 16px 20px; margin: 0 0 18px; }
+  .answer .a-lab { font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--good); font-weight:600; margin:0 0 5px; }
+  .answer p { margin: 0; font-size: 16px; }
+  .answer p b { color: var(--ink); }
+
+  ul.paths { list-style: none; padding: 0; margin: 0 0 8px; display: flex; flex-direction: column; gap: 12px; }
+  ul.paths > li { border: 1px solid var(--line); border-radius: 10px; padding: 15px 18px; background: var(--surface); }
+  ul.paths .head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+  ul.paths .head .name { font-weight: 700; }
+  ul.paths p { margin: 0; font-size: 14.5px; color: var(--muted); line-height: 1.66; }
+  ul.paths p b { color: var(--ink); }
+
+  .conf { font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 600; color: var(--muted); background: var(--surface-2); border: 1px solid var(--line); padding: 2px 7px; border-radius: 20px; white-space: nowrap; }
+  .conf b { color: var(--ink); }
+
+  .tag { display: inline-block; font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; letter-spacing: .02em; white-space: nowrap; }
+  .tag.good { background: var(--good-soft); color: var(--good); }
+  .tag.warn { background: var(--warn-soft); color: var(--warn); }
+  .tag.risk { background: var(--risk-soft); color: var(--risk); }
+  .tag.neu  { background: var(--surface-2); color: var(--muted); }
+
+  .contrast { display: flex; gap: 12px; align-items: flex-start; margin-top: 14px; background: var(--warn-soft); border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent); border-radius: 10px; padding: 13px 16px; }
+  .contrast .ic { color: var(--warn); font-weight: 700; font-family:"IBM Plex Mono",monospace; flex: none; }
+  .contrast p { margin: 0; font-size: 14px; color: var(--ink); line-height: 1.62; }
+  .contrast b { color: var(--warn); }
+
+  /* family stacked cards (no horizontal scroll) */
+  .fam { display: flex; flex-direction: column; gap: 16px; }
+  .famcard { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); overflow: hidden; box-shadow: var(--shadow); }
+  .famcard.base { border-color: color-mix(in srgb, var(--good) 45%, var(--line)); }
+  .famcard .fh { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 16px 20px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+  .famcard.base .fh { background: var(--good-soft); }
+  .famcard .fh .fnum { font-family:"IBM Plex Mono",monospace; font-weight: 700; font-size: 13px; color: var(--faint); }
+  .famcard .fh .fname { font-weight: 900; font-size: 18px; }
+  .famcard .fh .frep { font-family:"IBM Plex Mono",monospace; font-size: 11.5px; color: var(--faint); margin-left: auto; }
+  .famgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0; }
+  .famgrid .cell { padding: 12px 20px; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); }
+  .famgrid .cell:nth-child(2n) { border-right: none; }
+  .famgrid .cell.full { grid-column: 1 / -1; border-right: none; }
+  .famgrid .cell:last-child, .famgrid .cell:nth-last-child(2):nth-child(odd) { border-bottom: none; }
+  .famgrid .lab { font-family:"IBM Plex Mono",monospace; font-size: 10.5px; letter-spacing:.06em; text-transform: uppercase; color: var(--faint); font-weight: 600; margin: 0 0 4px; }
+  .famgrid .val { font-size: 14px; color: var(--ink); line-height: 1.55; }
+  .famgrid .val.m { color: var(--muted); }
+
+  /* timeline */
+  .tl-list { list-style: none; margin: 0; padding: 0 0 0 8px; position: relative; }
+  .tl-list::before { content:""; position: absolute; left: 8px; top: 6px; bottom: 6px; width: 2px; background: var(--line-strong); }
+  .tl-item { position: relative; padding: 0 0 22px 30px; }
+  .tl-item::before { content:""; position: absolute; left: 2px; top: 5px; width: 12px; height: 12px; border-radius: 50%; background: var(--surface); border: 2px solid var(--risk); }
+  .tl-item.official::before { border-color: var(--accent); }
+  .tl-item .date { font-family:"IBM Plex Mono",monospace; font-size: 12px; color: var(--faint); font-weight: 600; }
+  .tl-item .ev { font-weight: 700; font-size: 15.5px; margin: 1px 0 2px; }
+  .tl-item .de { font-size: 13.5px; color: var(--muted); line-height: 1.55; }
+
+  /* gate code */
+  .codeblock { background: var(--code-bg); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; overflow-x: auto; margin: 0 0 18px; }
+  .codeblock pre { margin: 0; font-family:"IBM Plex Mono",monospace; font-size: 13px; line-height: 1.7; color: var(--ink); white-space: pre; }
+  .codeblock .cm { color: var(--faint); }
+  .codeblock .st { color: var(--good); }
+
+  .trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 0 0 8px; }
+  .trio .b { border: 1px solid var(--line); border-radius: 10px; padding: 15px 16px; background: var(--surface); }
+  .trio .b .lab { font-family:"IBM Plex Mono",monospace; font-size: 11px; letter-spacing:.06em; text-transform: uppercase; font-weight: 600; margin: 0 0 6px; }
+  .trio .b h4 { margin: 0 0 6px; font-size: 15px; }
+  .trio .b p { margin: 0; font-size: 13.5px; color: var(--muted); line-height: 1.6; }
+
+  /* plan */
+  .planset { display: flex; flex-direction: column; gap: 22px; }
+  .plangroup { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
+  .plangroup .gh { padding: 16px 22px; border-bottom: 1px solid var(--line); background: var(--surface-2); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .plangroup .gh .gt { font-weight: 900; font-size: 17px; }
+  .plangroup .gh .gtag { font-family:"IBM Plex Mono",monospace; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); }
+  ol.steps { list-style: none; counter-reset: st; margin: 0; padding: 8px 0; }
+  ol.steps > li { counter-increment: st; position: relative; padding: 12px 22px 12px 58px; border-bottom: 1px solid var(--line); }
+  ol.steps > li:last-child { border-bottom: none; }
+  ol.steps > li::before { content: counter(st); position: absolute; left: 20px; top: 12px; width: 26px; height: 26px; display: grid; place-items: center; font-family:"IBM Plex Mono",monospace; font-weight: 700; font-size: 13px; background: var(--accent-soft); color: var(--accent); border-radius: 7px; }
+  ol.steps .st-t { font-weight: 700; font-size: 15px; margin: 0 0 3px; }
+  ol.steps .st-d { font-size: 14px; color: var(--muted); margin: 0 0 5px; line-height: 1.62; }
+  ol.steps .accept { font-size: 12.5px; color: var(--good); font-family:"IBM Plex Mono",monospace; background: var(--good-soft); border-radius: 6px; padding: 4px 9px; display: inline-block; }
+
+  .verdict { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 8px 0 0; }
+  .vcol { border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; background: var(--surface); }
+  .vcol .vh { font-family:"IBM Plex Mono",monospace; font-size: 12px; font-weight: 700; margin: 0 0 10px; letter-spacing: .04em; }
+  .vcol.ok .vh { color: var(--good); }
+  .vcol.maybe .vh { color: var(--warn); }
+  .vcol.no .vh { color: var(--risk); }
+  .vcol ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 9px; }
+  .vcol li { font-size: 13.5px; line-height: 1.5; padding-left: 15px; position: relative; }
+  .vcol li::before { content: "▹"; position: absolute; left: 0; color: var(--faint); }
+  .vcol li b { display: block; margin-bottom: 1px; }
+  .vcol li span { color: var(--muted); font-size: 12.5px; }
+
+  .cmp-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); background: var(--surface); margin: 6px 0 0; }
+  table.cmp { border-collapse: collapse; width: 100%; min-width: 580px; font-size: 13.5px; }
+  table.cmp th, table.cmp td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.5; }
+  table.cmp thead th { font-size: 13px; background: var(--surface-2); font-weight: 900; position: sticky; top: 0; }
+  table.cmp thead th.hook { color: var(--risk); }
+  table.cmp thead th.gui { color: var(--good); }
+  table.cmp thead th small { display:block; font-family:"IBM Plex Mono",monospace; font-size:10.5px; font-weight:500; color: var(--faint); letter-spacing:0; margin-top:2px; }
+  table.cmp tbody tr:last-child td { border-bottom: none; }
+  table.cmp td.dim { font-weight: 600; color: var(--muted); font-family:"IBM Plex Mono",monospace; font-size: 12px; white-space: nowrap; }
+  table.cmp tr.sumrow td { background: var(--surface-2); font-weight: 700; }
+  table.cmp .hookcell { border-left: 2px solid color-mix(in srgb, var(--risk) 30%, transparent); }
+  table.cmp .guicell { border-left: 2px solid color-mix(in srgb, var(--good) 30%, transparent); }
+  table.cmp b.r { color: var(--risk); } table.cmp b.g { color: var(--good); } table.cmp b.w { color: var(--warn); }
+  .callout { display: flex; gap: 14px; background: var(--risk-soft); border: 1px solid color-mix(in srgb, var(--risk) 30%, transparent); border-radius: 12px; padding: 18px 20px; margin-top: 26px; }
+  .callout.warn { background: var(--warn-soft); border-color: color-mix(in srgb, var(--warn) 30%, transparent); }
+  .callout .ic { font-size: 20px; flex: none; line-height: 1.4; }
+  .callout p { margin: 0 0 6px; font-size: 14.5px; }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout b { color: var(--risk); }
+  .callout.warn b { color: var(--warn); }
+
+  /* footer */
+  footer { padding: 42px 0 64px; color: var(--muted); font-size: 13.5px; }
+  footer h2 { margin-bottom: 14px; font-size: 20px; }
+  .src { display: flex; flex-direction: column; gap: 7px; margin: 0 0 26px; padding: 0; list-style: none; }
+  .src li { padding-left: 18px; position: relative; line-height: 1.5; }
+  .src li::before { content: "→"; position: absolute; left: 0; color: var(--faint); font-family:"IBM Plex Mono",monospace; }
+  .src a { font-size: 13px; word-break: break-all; }
+  .src .internal { color: var(--ink); font-family:"IBM Plex Mono",monospace; font-size: 12.5px; }
+  .note-box { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 15px 18px; font-size: 13.5px; line-height: 1.66; margin-bottom: 24px; }
+  .note-box b { color: var(--ink); }
+  .divider-note { font-size: 13px; color: var(--faint); margin-top: 8px; }
+
+  @media (max-width: 640px) {
+    nav.toc ol { grid-template-columns: 1fr; }
+    .famgrid { grid-template-columns: 1fr; }
+    .famgrid .cell { border-right: none; }
+    .trio, .verdict { grid-template-columns: 1fr; }
+    .hero-inner { padding: 44px 0 32px; }
+    .summary { padding: 24px 20px; }
+    ol.steps > li { padding: 12px 16px 12px 52px; }
+    ol.steps > li::before { left: 14px; }
+  }
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap hero-inner">
+    <p class="eyebrow">Windows 客户端 · 竞品技术调研 · v1.5.0 口径</p>
+    <h1>三个能力，同一套 GUI 方案</h1>
+    <div class="qchips">
+      <span class="qchip"><span class="n">Q1</span> 最小化后还能控</span>
+      <span class="qchip"><span class="n">Q2</span> 后台不抢焦点</span>
+      <span class="qchip"><span class="n">Q3</span> 10 秒内回复</span>
+    </div>
+    <p class="lede">这三问不是三条技术路线，是同一套 Windows GUI 方案的三个切面：<b>PrintWindow 不抢前台抓画面（在跑）+ 意图队列代发 + 礼让闸</b>——你们销售客户端已落地的那套；其中「PostMessage 无感切会话」尚在验证。曾经能替代它的 Hook / 协议两族，2026 年已被腾讯逐族封死。</p>
+    <div class="meta-row">
+      <span><b>对象</b>&nbsp; 销售本机上代回个人微信 / 企微</span>
+      <span><b>实测机</b>&nbsp; 微信 4.1.10.53</span>
+      <span><b>日期</b>&nbsp; 2026-08-26</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="summary">
+    <p class="tl">结论先行</p>
+    <p class="big">约束从来不是「能不能跑」，是<strong>能不能不打扰销售本人</strong>。做到这点靠的不是更准的坐标，而是分开处理读和发：<span class="k">PrintWindow</span> 打在句柄上抓画面（被别的程序完全盖住也照抓，像素差 0.0，<b>不抢前台</b>，已实测）；发送走<b>意图队列 + 礼让闸</b>（只在销售离手的空档代发）；「PostMessage 无感切会话」尚在验证。四个技术族里只有官方接口零封号但覆盖不到代回；Hook / 协议两族能力最全但已整族死亡。<strong>你们的 GUI 视觉方案是现存唯一「既能代回、封号面又最低」的路。</strong>市面竞品各走一派——<b>极域云</b>做到「最小化 + 不影响电脑其他操作 + 1~2 秒」，但<b>它官方 PPT 自证是靠 Hook 注入换来的、非纯 GUI，落在高封号族</b>；<b>水流</b>我们逐帧实测反而是占机的（红条「请暂停操作键盘鼠标」）；工作手机派（亿量 / 亿销云）干脆不在电脑上碰微信。<b>「最小化 + 不打扰」在市场上是被当卖点公开讲的——所以这不是能不能做，是你们要不要把它从「别人的口头卖点」做成「自己实测坐实的能力」。</b></p>
+    <div class="fix-note">
+      <b>据真实代码修正（v4，对齐 store-workbench 设计 spec 2026-08-17）：</b>本报告已按你们 Windows 销售客户端的实际设计校准——<strong>「读」不抢前台是实测确认的（PrintWindow），但「发」是要抢前台的</strong>，靠<strong>礼让闸</strong>（销售空闲才发、忙则排队）避免打断，不是「全程零占用」。而<strong>「不抢前台切会话」（PostMessage 点会话列表）还是 P0 待验证的开放问题，尚未坐实</strong>——早前版本把它当已实现，属过度乐观，此处更正。真最小化 PrintWindow 抓不到（实测），需恢复 / 隐藏桌面。
+    </div>
+  </div>
+
+  <nav class="toc" aria-label="目录">
+    <p class="tl">目录</p>
+    <ol>
+      <li><a href="#q"><span><span class="t">三问逐解</span><span class="d">每问对应哪个 Win32 手段</span></span></a></li>
+      <li><a href="#family"><span><span class="t">四大技术族 + 基准</span><span class="d">按「怎么拿到消息」分，无横向滚动</span></span></a></li>
+      <li><a href="#why"><span><span class="t">别的族为什么都死了</span><span class="d">七年封杀时间线</span></span></a></li>
+      <li><a href="#gate"><span><span class="t">那个「UI 树开关」</span><span class="d">一个运行时字节决定有没有控件树</span></span></a></li>
+      <li><a href="#risk"><span><span class="t">合规与封号真相</span><span class="d">纯 GUI 最低，但有一条裂缝</span></span></a></li>
+      <li><a href="#market"><span><span class="t">竞品实证</span><span class="d">极域=Hook换不打扰 / 水流占机 / 不碰电脑</span></span></a></li>
+      <li><a href="#plan"><span><span class="t">可执行技术方案</span><span class="d">三问落地 + 体检探针 + 护栏</span></span></a></li>
+      <li><a href="#android"><span><span class="t">附:安卓侧对照</span><span class="d">「不用电脑」那条产线</span></span></a></li>
+    </ol>
+  </nav>
+
+  <section id="q">
+    <p class="sec-lab"><span class="no">01</span> 三问逐解</p>
+    <h2>每一问，落在哪个 Win32 手段上</h2>
+    <p class="sec-intro">三问共享同一条链路：<b>PrintWindow 抓图 → VL/OCR 读 → LLM 生成 → PostMessage / SendInput 发</b>。差别只在每一问吃这条链路的哪一段。</p>
+
+    <div class="q">
+      <span class="qnum">Q1</span>
+      <h3>微信最小化后还能自动化控制 —— 什么方案？</h3>
+    </div>
+    <div class="answer">
+      <p class="a-lab">一句话</p>
+      <p><b>PrintWindow 打在窗口句柄上抓画面 + PostMessage 把点击投进消息队列</b>，两者都不需要窗口在前台。真正「最小化」用<b>隐藏桌面</b>，而不是系统最小化。</p>
+    </div>
+    <ul class="paths">
+      <li>
+        <div class="head"><span class="tag good">主手段</span><span class="name">PrintWindow 离屏捕获</span><span class="conf">置信度 <b>0.9</b>·团队实测</span></div>
+        <p><span class="k">PrintWindow(hwnd, hdc, PW_RENDERFULLCONTENT)</span> 直接对句柄取像素——<b>窗口被 Edge 全屏遮挡也照抓，像素差 0.0</b>（<span class="k">vision.py</span> 实测）。它不依赖窗口可见，是「看得见被盖住的微信」的根。</p>
+      </li>
+      <li>
+        <div class="head"><span class="tag good">主手段</span><span class="name">PostMessage 后台点击</span><span class="conf">置信度 <b>0.9</b></span></div>
+        <p><span class="k">PostMessageW</span> 把 <span class="k">WM_LBUTTONDOWN/UP</span> 投进目标窗口的消息队列，不激活、不聚焦，最小化 / 被盖住也能投递。坐标按客户区归一化，窗口挪动 / 缩放自动重标定。</p>
+      </li>
+      <li>
+        <div class="head"><span class="tag warn">配套</span><span class="name">隐藏桌面 ≠ 系统最小化</span><span class="conf">置信度 <b>0.7</b>·v1.5.0 默认关</span></div>
+        <p>坑：<b>系统真最小化会让部分窗口停止渲染，PrintWindow 拿到空白</b>。稳妥做法是把微信丢进独立 Windows 桌面（<span class="k">CreateDesktop</span>）或移到屏幕外——对用户「看着」像收起来了，实际全程可抓可点。v1.5.0 有此模式但默认关、探针未跑。</p>
+      </li>
+    </ul>
+    <div class="contrast">
+      <span class="ic">对照</span>
+      <p><b>为什么不能用安卓那套 SendInput：</b><span class="k">SendInput</span> 注入的是<b>系统级全局输入流</b>，必须把窗口顶到前台，最小化必然失效——这是架构差异。Windows 侧正因为改用了句柄定向的 PrintWindow / PostMessage，才绕过了这个死结。</p>
+    </div>
+
+    <div class="q">
+      <span class="qnum">Q2</span>
+      <h3>微信移到桌面下方，同时操作其他软件互不干扰 —— 什么方案？</h3>
+    </div>
+    <div class="answer">
+      <p class="a-lab">一句话（据真实 spec 校准）</p>
+      <p>分两半：<b>「读 / 采集」不抢前台</b>（PrintWindow，实测确认）；<b>「发 / 代发」要抢前台</b>，靠<b>礼让闸</b>（销售空闲才发、忙则排队）避免打断。真正「无感切会话」还是 <b>P0 待验证</b>。</p>
+    </div>
+    <ul class="paths">
+      <li>
+        <div class="head"><span class="tag good">读 · 不抢前台</span><span class="name">PrintWindow 采集循环</span><span class="conf">置信度 <b>0.9</b>·真机实测</span></div>
+        <p>默认 <b>20 秒一轮</b>，PrintWindow 读那个窗口自己的画面，与「谁在前台」无关——监控 / 读消息全程对销售零干扰。坐标读 DPI + client rect 后<b>全按相对坐标</b>算，不写死像素。</p>
+      </li>
+      <li>
+        <div class="head"><span class="tag warn">发 · 抢前台 + 礼让</span><span class="name">礼让闸挡住打断</span><span class="conf">置信度 <b>0.85</b>·spec 已定</span></div>
+        <p>代发要抢前台（填入 + 回车 + 回读）。执行前判 <span class="k">GetLastInputInfo</span> 空闲时长 + 当前前台是不是目标微信；<b>销售正在别处打字 → 意图排队等待</b>（超时默认 5 分钟）。所以不是「零占用」，是「只在销售离手的空档发」。</p>
+      </li>
+      <li>
+        <div class="head"><span class="tag risk">P0 未决</span><span class="name">PostMessage 无感切会话</span><span class="conf">置信度 <b>0.4</b>·待验证</span></div>
+        <p><b>「PostMessage 能否不激活窗口点动会话列表」是 P0 探针要验的开放问题，决定能不能做到「销售无感切会话」——目前未坐实。</b>切会话属「动界面」，与代发同一道礼让闸；拿到真机数据前，别把它当已实现能力对外讲。</p>
+      </li>
+    </ul>
+    <div class="contrast">
+      <span class="ic">量化</span>
+      <p>artifact 实测：三个活跃 UIA 项目里 <span class="k">ValuePattern</span> 与 <span class="k">invoke()</span> 全是 0 次、100% 靠真鼠标真键盘；pywechat 的 <span class="k">maximize</span> 出现 <b>740 次</b>，默认就是把微信最大化。<b>「不抢鼠标」在开源那边是付费墙后的特性，在你们这是默认。</b></p>
+    </div>
+    <div class="contrast" style="background:var(--accent-soft);border-color:color-mix(in srgb, var(--accent) 30%, transparent);">
+      <span class="ic" style="color:var(--accent)">竞品实证</span>
+      <p style="color:var(--ink)">竞品正好卡在这一格（详见 §06）：<b>极域云</b>做到「最小化 + 不影响电脑其他操作」，但靠的是 <b>Hook 注入（非纯 GUI、高封号）</b>；<b>水流</b>实测反而弹红条「请暂停操作键盘鼠标」<b>直接占机</b>；<b>鲲炬</b>官方微信可见 + 界面隐形操作，机理同路但「抢不抢焦点未验证」。<b>没有一家被实测坐实过代发时真不抢焦点——你们的「PostMessage 无感切会话」也还在 P0 待验证，谁先实测坐实谁赢这格。</b></p>
+    </div>
+
+    <div class="q">
+      <span class="qnum">Q3</span>
+      <h3>回复速度做进 10 秒 —— 什么方案？</h3>
+    </div>
+    <div class="answer">
+      <p class="a-lab">一句话（据真实 spec 校准）</p>
+      <p>先分清是<b>哪种「回复」</b>：当前设计是<b>人在环的一键代发</b>——销售点一下、我们几秒内起草好并代发，「10 秒」是这段生成 + 代发的预算。<b>不是全自动 auto-reply</b>。</p>
+    </div>
+    <ul class="paths">
+      <li>
+        <div class="head"><span class="tag good">收</span><span class="name">本地 PrintWindow 高频轮询</span><span class="conf">置信度 <b>0.8</b></span></div>
+        <p>PrintWindow 是本地 GDI 调用、便宜，可高频截帧检测红点 / 新气泡；有新消息才升频、才触发 VL。避开「每帧都发云模型」的慢。</p>
+      </li>
+      <li>
+        <div class="head"><span class="tag neu">生成</span><span class="name">快模型 + 流式</span><span class="conf">置信度 <b>0.8</b></span></div>
+        <p>LLM 几秒级（快模型 + 流式）。销售点发送后，几秒把建议话术生成好。</p>
+      </li>
+      <li>
+        <div class="head"><span class="tag warn">发 · 有轮询延迟</span><span class="name">意图队列 1–3 秒</span><span class="conf">置信度 <b>0.85</b>·spec 已定</span></div>
+        <p>发送走意图队列：点发送 → 写 <span class="k">sw_send_intents</span> → sidecar 轮询领单执行 → 回读。<b>点完到发出多 1–3 秒轮询延迟</b>（换来每条可审计 + 手机点发也能让电脑执行）。这是「10 秒」里必须算进去的一段。</p>
+      </li>
+    </ul>
+    <div class="contrast">
+      <span class="ic">校准</span>
+      <p>所以严格讲，<b>「10 秒内回复」= 销售点一下 → 生成（几秒）+ 意图队列（1–3s）+ 代发回读</b>，人在环、可控可审计。竞品口径：<b>极域云及其他家对接时都自述「1~2 秒内回复」</b>（含全自动、厂商自述），所以「10 秒」在市场上被认为绰绰有余——你们人在环的口径反而更稳。若要<b>全自动 auto-reply（无人点）</b>，那是另一档：封号面更高，亿量已因此放弃（见 §06），需单独评估。</p>
+    </div>
+  </section>
+
+  <section id="family">
+    <p class="sec-lab"><span class="no">02</span> 技术全景</p>
+    <h2>四个技术族 + 一条基准，按「怎么拿到消息」分</h2>
+    <p class="sec-intro">这些名字不在同一层，混着比会得出没意义的结论。先分清<b>它从哪里读、往哪里写</b>。基准（你们 v1.5.0）单列在最上，四族是被评估的替代路。</p>
+
+    <div class="fam">
+
+      <div class="famcard base">
+        <div class="fh"><span class="fnum">基准</span><span class="fname">GUI 视觉 · PrintWindow + PostMessage</span><span class="frep">v1.5.0 / Open-AutoGLM 26k 同构</span></div>
+        <div class="famgrid">
+          <div class="cell"><p class="lab">怎么拿消息</p><p class="val">抓句柄画面 → VL / OCR 读；PostMessage 投点击</p></div>
+          <div class="cell"><p class="lab">最小化可控</p><p class="val">读：被盖住 / 桌面下方照抓 ✅；真最小化抓不到、切会话点动待验证 ⚠️</p></div>
+          <div class="cell"><p class="lab">抢焦点</p><p class="val">读：否 ✅ / 发：抢前台 + 礼让闸</p></div>
+          <div class="cell"><p class="lab">回复时延</p><p class="val">秒级，进 10s</p></div>
+          <div class="cell"><p class="lab">版本脆弱</p><p class="val m">低——不依赖偏移 / 控件名，坐标按窗口归一化</p></div>
+          <div class="cell"><p class="lab">封号风险</p><p class="val"><span class="tag good">最低</span> 不注入不改内存（惟 SendInput 有裂缝，见 §05）</p></div>
+          <div class="cell full"><p class="lab">现状</p><p class="val m">你们 v1.5.0 在跑；市面同构 Open-AutoGLM（26k star）、竞品水流 / 子准 RPA 同族</p></div>
+        </div>
+      </div>
+
+      <div class="famcard">
+        <div class="fh"><span class="fnum">族 ①</span><span class="fname">UIA · 无障碍树</span><span class="frep">wxauto · pywechat · wechatauto-replica</span></div>
+        <div class="famgrid">
+          <div class="cell"><p class="lab">怎么拿消息</p><p class="val">问 Windows 要控件树，读结构化文本</p></div>
+          <div class="cell"><p class="lab">最小化可控</p><p class="val">⚠️ 需窗口已渲染；且微信 4.x 冷启动树是空壳（见 §04）</p></div>
+          <div class="cell"><p class="lab">抢焦点</p><p class="val">pywechat 默认 <span class="k">maximize</span> 会抢；控件调用本可不抢，活跃项目基本没用</p></div>
+          <div class="cell"><p class="lab">回复时延</p><p class="val">低（1–3s）</p></div>
+          <div class="cell"><p class="lab">版本脆弱</p><p class="val m">中——4.x 起 UI 树按需暴露，多数旧库失效</p></div>
+          <div class="cell"><p class="lab">封号风险</p><p class="val"><span class="tag warn">中低</span> 非注入，但仍被 2026-01-29 公告口径覆盖</p></div>
+          <div class="cell full"><p class="lab">现状</p><p class="val m">cluic/wxauto 已死、wxauto4 已清空、wxautox4 锁 4.0.5 付费、pywechat 活跃但许可证 NOASSERTION、wechatauto-replica 靠 WriteProcessMemory 已越线</p></div>
+        </div>
+      </div>
+
+      <div class="famcard">
+        <div class="fh"><span class="fnum">族 ②</span><span class="fname">Hook · DLL 注入</span><span class="frep">WeChatFerry · wxhelper · WeChat-Hook</span></div>
+        <div class="famgrid">
+          <div class="cell"><p class="lab">怎么拿消息</p><p class="val">注入 DLL，直接调微信内部收发函数</p></div>
+          <div class="cell"><p class="lab">最小化可控</p><p class="val">✅ 完全后台 / 可隐藏（不碰 UI）</p></div>
+          <div class="cell"><p class="lab">抢焦点</p><p class="val">否</p></div>
+          <div class="cell"><p class="lab">回复时延</p><p class="val">&lt;1s（进程内回调，最快）</p></div>
+          <div class="cell"><p class="lab">版本脆弱</p><p class="val m">极高——偏移量锁死某一构建号</p></div>
+          <div class="cell"><p class="lab">封号风险</p><p class="val"><span class="tag risk">高</span> 风控主动检测注入</p></div>
+          <div class="cell full"><p class="lab">现状</p><p class="val m"><strong>开源整族已死</strong>：WeChatFerry 已 archived、作者本人号被封自述「搞不动了」；wxhelper 停在 3.9；WeChat-Hook 无许可证=脱壳外挂。<strong>4.x 无任何可用开源 hook。</strong>但<strong>商用闭源 hook 仍在跑</strong>——竞品极域云「移动端 Hook + PC 执行引擎」就是活体案例（§06），拿封号风险换后台 / 不打扰能力。</p></div>
+        </div>
+      </div>
+
+      <div class="famcard">
+        <div class="fh"><span class="fnum">族 ③</span><span class="fname">协议 · 伪造设备</span><span class="frep">itchat · wechaty · WeChatPadPro · Gewechat</span></div>
+        <div class="famgrid">
+          <div class="cell"><p class="lab">怎么拿消息</p><p class="val">假装 iPad / 网页版直连服务器，零本地设备</p></div>
+          <div class="cell"><p class="lab">最小化可控</p><p class="val">N/A（不需要客户端）</p></div>
+          <div class="cell"><p class="lab">抢焦点</p><p class="val">否</p></div>
+          <div class="cell"><p class="lab">回复时延</p><p class="val">最低（服务端推）</p></div>
+          <div class="cell"><p class="lab">版本脆弱</p><p class="val m">高——协议变即失效</p></div>
+          <div class="cell"><p class="lab">封号风险</p><p class="val"><span class="tag risk">极高</span> 风控画像最差</p></div>
+          <div class="cell full"><p class="lab">现状</p><p class="val m"><strong>整族已死</strong>：网页版 2019 关；Gewechat 因「法律原因」2025-04-30 下线；WeChatPadPro 自带风险表标「4 级=永久封锁」，仓内多起登录即封。</p></div>
+        </div>
+      </div>
+
+      <div class="famcard">
+        <div class="fh"><span class="fnum">族 ④</span><span class="fname">官方 · 平台接口</span><span class="frep">iLink / ClawBot · 企微 kf · 会话存档</span></div>
+        <div class="famgrid">
+          <div class="cell"><p class="lab">怎么拿消息</p><p class="val">腾讯自己开的口子</p></div>
+          <div class="cell"><p class="lab">最小化可控</p><p class="val">N/A（服务端）</p></div>
+          <div class="cell"><p class="lab">抢焦点</p><p class="val">否</p></div>
+          <div class="cell"><p class="lab">回复时延</p><p class="val">低</p></div>
+          <div class="cell"><p class="lab">版本脆弱</p><p class="val m">无</p></div>
+          <div class="cell"><p class="lab">封号风险</p><p class="val"><span class="tag good">零</span> 唯一合规</p></div>
+          <div class="cell full"><p class="lab">现状 · 但覆盖不到代回</p><p class="val m">iLink 仅「机主与自己 bot」私聊、不能代回好友消息、不能主动推送；企微 kf 只客服会话 / 群发、不覆盖好友单聊。口子开在哪由腾讯定。</p></div>
+        </div>
+      </div>
+
+    </div>
+    <div class="contrast" style="margin-top:20px;">
+      <span class="ic">判据</span>
+      <p>族 ①②在<b>销售的电脑上跑</b>，族 ③<b>不需要设备</b>，族 ④<b>不需要客户端</b>。三种形态的封号面与合规面完全不同，不能放一张表里直接排名——所以本页把基准单列、四族并列，而不是硬凑一个总分。</p>
+    </div>
+  </section>
+
+  <section id="why">
+    <p class="sec-lab"><span class="no">03</span> 为什么只剩这条路</p>
+    <h2>七年里，一族一族地被关掉</h2>
+    <p class="sec-intro">每一条都<b>不是技术失效，是平台侧主动关门</b>。看清这条线，才知道现在为什么只剩 GUI 视觉和官方接口两条活路。</p>
+    <ul class="tl-list">
+      <li class="tl-item"><div class="date">2019-07</div><div class="ev">网页版登录全面关闭</div><div class="de">错误码 1203。itchat / wxpy / puppet-wechat 协议族一次性死亡。</div></li>
+      <li class="tl-item"><div class="date">2020-05</div><div class="ev">WeTool 封杀</div><div class="de">当晚近万账号被封。商业 SCRM 集体撤回企微官方 API，至今没回来。</div></li>
+      <li class="tl-item"><div class="date">2025-04-30</div><div class="ev">《违规获取微信终端用户数据打击公告》</div><div class="de">点名「以 AI 管理用户微信聊天记录等名义」的工具，处置升级至永久限制。</div></li>
+      <li class="tl-item"><div class="date">2025-10-20</div><div class="ev">PyWxDump 与 chatlog 同日收律师函</div><div class="de">9.7k / 9.2k star，作者删光代码与提交历史。不是被 ban，是法务下架。</div></li>
+      <li class="tl-item"><div class="date">2026-01-29</div><div class="ev">微信安全中心治理公告 —— 逐字点名这条线</div><div class="de">「利用<b>模拟按键、自动化脚本</b>等手段操控微信，实现『自动回复』…」——纯 GUI 也在政策射程里。</div></li>
+      <li class="tl-item official"><div class="date">2026-03-22</div><div class="ev">腾讯开出官方个人号 Bot 通道</div><div class="de">ClawBot / iLink。生态第一次有合法入口——但开的不是「代客回复」那个口。</div></li>
+      <li class="tl-item"><div class="date">2026-06-18</div><div class="ev">WeChatFerry 作者：「搞不动了」</div><div class="de">同月解释文档为何打不开：「不是失效了，是被封号了」。项目已 archived。</div></li>
+      <li class="tl-item"><div class="date">2026-07 / 08</div><div class="ev">DMCA 清剿进入高频期</div><div class="de">7 月 12 份、8 月 6 份微信通知。Gewechat 挂出「本项目已停止维护」。</div></li>
+    </ul>
+    <div class="contrast">
+      <span class="ic">读法</span>
+      <p>2019 关协议、2025 关数据、2026-01 关模拟按键。<b>三次关门方向一致</b>：把第三方从个人号的消息通道里清出去，只留官方入口。头部框架 CowAgent（46674★）、LangBot（17554★）2026 年都把非官方通道<b>整个删了</b>、只留官方 iLink——这不是观点，是两次用脚投票。</p>
+    </div>
+  </section>
+
+  <section id="gate">
+    <p class="sec-lab"><span class="no">04</span> 一个运行时字节</p>
+    <h2>微信 4.x 的「UI 树」不是发给账号的，是一个开关</h2>
+    <p class="sec-intro">社区流传「老号有树、新号没树」。真正的机制被一个仓（<span class="k">wechatauto-replica</span>）写进了注释——它和 UIA 族能不能用直接相关，也解释了旧 wxauto 为什么在 4.x 上失效。</p>
+    <div class="codeblock"><pre><span class="cm"># 微信内置 Qt accessibility gate：QAccessible 查询前会检查一个运行时 active</span>
+<span class="cm"># byte。冷启动未启用读屏时该 byte 为 0，WM_GETOBJECT 只能拿到 Qt 外壳；</span>
+<span class="cm"># 热写为 1 后当前进程立即返回 mmui provider，无需重启微信。</span>
+QACCESSIBLE_ACTIVE_RVA_BY_VERSION = {"4.1.11.22": <span class="st">0x0A1E7DB8</span>}
+QACCESSIBLE_CORE_STRING = <span class="st">b"qt.accessibility.core"</span></pre></div>
+    <div class="trio">
+      <div class="b"><p class="lab" style="color:var(--good)">冷启动</p><h4>只有空壳</h4><p>UIA 只看到 <span class="k">Qt51514QWindowIcon</span> 两个子节点。这就是旧 wxauto 在 4.x 失效的根因。</p></div>
+      <div class="b"><p class="lab" style="color:var(--warn)">写 1 之后</p><h4>树立刻物化</h4><p>变成 <span class="k">mmui::MainWindow</span>，<span class="k">chat_input_field</span> 可定位，它的 Name 就是聊天对象。</p></div>
+      <div class="b"><p class="lab" style="color:var(--risk)">代价</p><h4>越过了那条线</h4><p>靠 <span class="k">WriteProcessMemory</span> 写进微信进程。不注代码、不 hook 函数，但<strong>已不是纯 GUI</strong>。</p></div>
+    </div>
+    <div class="contrast" style="margin-top:16px;">
+      <span class="ic">带走</span>
+      <p>不管走哪条路，都有一个 <b>20 行的免费体检</b>：窗口类名是 <span class="k">mmui::*</span> 就有树，是 <span class="k">Qt51514QWindowIcon</span> 就没有。<b>这段值得抄进部署前自检，哪怕你们不走 UIA</b>——它一句话回答「这台销售机有没有结构化读的可能」。</p>
+    </div>
+  </section>
+
+  <section id="risk">
+    <p class="sec-lab"><span class="no">05</span> 合规与封号</p>
+    <h2>「我们只操作界面」这套说法，条款原文堵死了</h2>
+    <p class="sec-intro">长尾厂商的标准话术是「100% 模拟人工，非 HOOK 非协议，所以不是外挂」。这话在<b>技术封号面</b>上大致成立（纯 GUI 是最低档），但在<b>条款 / 政策面</b>上不成立——两张网射程不同，别混为一谈。</p>
+    <div class="verdict">
+      <div class="vcol ok">
+        <div class="vh">封号技术面 · 纯 GUI 最低</div>
+        <ul>
+          <li><b>无公开纯 GUI-RPA 判例</b><span>判赔的都是「注入 / 群控」：聚客通 260 万、数据精灵 500 万、云客手机 522 万——被告全是 Xposed 注入或云手机群控。</span></li>
+          <li><b>不突破安全措施</b><span>刑事「破坏计算机信息系统」要件是 hook / 协议逆向落入；纯截图点击不突破验证，目前无对应判决。</span></li>
+        </ul>
+      </div>
+      <div class="vcol maybe">
+        <div class="vh">政策 / 条款面 · 够得着</div>
+        <ul>
+          <li><b>规范 1.2.6</b><span>「通过非腾讯授权的第三方软件…对微信界面、数据进行访问、读取或控制」——UI 自动化正落在这句里。</span></li>
+          <li><b>2026-01-29 公告</b><span>逐字点名「模拟按键、自动化脚本…自动回复」。处置写的是封号 / 回收账号。DMCA 够不着它，但公告和条款够得着。</span></li>
+        </ul>
+      </div>
+      <div class="vcol no">
+        <div class="vh">一条躲不掉的裂缝</div>
+        <ul>
+          <li><b>LLMHF_INJECTED</b><span>Windows 的 <span class="k">SendInput</span> 会被系统自动打上注入标志，微信的本地低级钩子读得出「非人手输入」。微软官方文档实锤——「纯 GUI = 近零封号」这个前提本身有缝。</span></li>
+          <li><b>怎么补</b><span>回车尽量用 PostMessage(<span class="k">WM_KEYDOWN VK_RETURN</span>) 或「视觉点发送键」替代 SendInput，去掉注入标志。做个对照实测。</span></li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout warn">
+      <span class="ic">⚠</span>
+      <div>
+        <p><b>给决策的一句话：</b>这个场景 2026 年<b>不存在低风险方案</b>。要上，只能按「已知违规、低价值号试点、准备好业务预案」来做，<b>不能按「我们找到了一个安全方案」来汇报</b>。</p>
+        <p>纯 GUI 是四族里封号面最低的一档，但「最低」不等于「零」——低价值试点号 + 白名单 + 限速 + fail-closed 是硬配套。</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="market">
+    <p class="sec-lab"><span class="no">06</span> 竞品实证</p>
+    <h2>竞品分三派——占机的、宣称不打扰的、不碰电脑的</h2>
+    <p class="sec-intro">据 <a href="https://upio.ai/akke/wechat-pc-client-ui-2026-08-18">upio.ai/akke 竞品页</a> + 竞品调研 / 深度对接文件夹 + 官方 PPT + 演示视频。<b>关键：确实有竞品（极域云）做到「最小化 + 不影响电脑其他操作」——但它官方 PPT 自证是靠 Hook 注入换来的，落在高封号族、不是纯 GUI。</b>水流则是硬件 RPA 占机。<b>同一句「不打扰」，机理和封号面天差地别，别只看结论。</b></p>
+    <ul class="paths">
+      <li>
+        <div class="head"><span class="tag risk">极域云 · Hook 换不打扰</span><span class="name">Hook + WSS（微信）+ RPA（社媒）· 最小化 · 1~2 秒</span><span class="conf">证据 <b>B</b>·对接 + 官方 PPT + 演示视频</span></div>
+        <p>三源核过：①对接原话「电脑运行时<b>最小化、不影响电脑端其他操作</b>」+「<b>1~2 秒回复</b>」；②<b>官方 PPT 自证机制——「移动端 Hook + PC 端执行引擎」「微信 / 企微深度通信接入采用 Hook + WSS 私有连接」</b>；③演示视频是自研 SaaS 控制台（算力点计费、好友任务 / 聚合聊天 / 招呼语 / 间隔配置），<b>没有水流那种占机红条</b>。<br><b>关键更正：极域的「不打扰」不是纯 GUI 做到的，是靠 Hook（注入）——进程内驱动本来就不碰前台。</b>所以它和水流并不矛盾（一个 Hook 后台、一个硬件 RPA 占机，不同族不同表现）。<b>代价是极域落在高封号的 Hook 族（见 §02 / §05）——它拿封号风险换了不打扰。</b>你们选纯 GUI 避封号，就不能照抄它走 Hook；「不打扰」得靠隐藏桌面 / 句柄级自己坐实。（唯一没逐帧抓到的是「最小化那一刻代发」的画面，故这条标「机制可信、未逐帧坐实」。）</p>
+      </li>
+      <li>
+        <div class="head"><span class="tag warn">鲲炬 · 机理同路</span><span class="name">官方客户端可见 + 界面隐形操作</span><span class="conf">证据 <b>B</b>·视频逐帧</span></div>
+        <p>两层：自研桌面控制台 + 执行器驱动<b>原样的官方微信客户端</b>（任务栏里独立进程、未改），AI 在界面上「隐形」操作——机理与你们 GUI 视觉方案同族。提示词 3 万字暴露、日限 10–50/人。<b>但 upio 页标注：是否真后台、执行时抢不抢焦点「未验证」</b>——和你们 v1.5.0 的「PostMessage 无感切会话」一样，都还在待验证那格。</p>
+      </li>
+      <li>
+        <div class="head"><span class="tag risk">水流 · 实测占机</span><span class="name">聚合壳藏微信 + 硬件 RPA</span><span class="conf">证据 <b>0.85</b>·逐帧实测</span></div>
+        <p>自研微信聚合壳把多个号包进去（用户只看聚合 UI）。软件 + 硬件双模 RPA；<b>硬件模式顶部常驻红字「模拟操作中，请暂停操作键盘鼠标」+「Ctrl+Alt+Del 解除锁定」——跑起来那台电脑人不能用</b>。这是我们唯一逐帧实测的一家，也是「不打扰」的反面：它靠藏壳绕过，没解决占机。</p>
+      </li>
+      <li>
+        <div class="head"><span class="tag neu">工作手机派</span><span class="name">亿销云 / 亿量 —— 微信不在电脑上</span><span class="conf">证据 <b>B</b></span></div>
+        <p>用定制 ROM 的安卓工作手机采集，桌面只是分析 / 起草层——<b>天然不影响电脑</b>（微信压根不在电脑上）。<b>亿量</b>更保守：桌面只分析、<b>完全不做自动回复</b>。这也是一种「不打扰」的答案：把微信挪出这台电脑。</p>
+      </li>
+    </ul>
+    <div class="contrast">
+      <span class="ic">最强旁证</span>
+      <p><b>亿量原话：「原来我们也考虑过开发这一块，但很容易会导致这个封号」</b>——连竞品都判定「桌面自动代发」太容易封号而<b>主动放弃</b>。整片看下来：极域用 Hook 换到了不打扰、但把号押上封号面；水流靠占机绕过；亿量干脆不做。<b>「不打扰」+「低封号」两个同时要，市面上没有一家做到——这正是你们纯 GUI 路要坐实的空位。</b></p>
+    </div>
+
+    <h3 style="margin-top:34px;">决策表 · 极域 Hook 路 vs 你们纯 GUI 路</h3>
+    <p class="sec-intro" style="margin-bottom:12px;">同样是「代客回复个人微信」，两条路的取舍在下表。<b>不是谁绝对好，是你们把「号的安全 + 可审计」排在「极致不打扰」前面——这决定了不该照抄极域。</b></p>
+    <div class="cmp-wrap" role="region" aria-label="两条路决策对比" tabindex="0">
+      <table class="cmp">
+        <thead>
+          <tr>
+            <th>维度</th>
+            <th class="hook">极域 · Hook 路<small>Hook + WSS 注入</small></th>
+            <th class="gui">你们 · 纯 GUI 路<small>PrintWindow + 意图队列</small></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="dim">不打扰 · 读</td><td class="hookcell"><b class="g">✅</b> 进程内，天然后台</td><td class="guicell"><b class="g">✅</b> PrintWindow 不抢前台（实测）</td></tr>
+          <tr><td class="dim">不打扰 · 发/切会话</td><td class="hookcell"><b class="g">✅</b> 进程内直接调，天然不抢</td><td class="guicell"><b class="w">⚠️</b> 发抢前台 + 礼让闸；无感切会话 P0 待验证</td></tr>
+          <tr><td class="dim">最小化真后台</td><td class="hookcell"><b class="g">✅</b> 不依赖窗口</td><td class="guicell"><b class="w">⚠️</b> 真最小化抓不到，需隐藏桌面 / 恢复</td></tr>
+          <tr><td class="dim">回复时延</td><td class="hookcell">&lt;1s（进程内回调）</td><td class="guicell">秒级（生成 + 意图队列 1–3s），进 10s</td></tr>
+          <tr><td class="dim">封号面</td><td class="hookcell"><b class="r">🔴 高</b>——风控主动测注入 DLL</td><td class="guicell"><b class="g">🟢 最低</b>——不注入不改内存（惟 SendInput 一条裂缝）</td></tr>
+          <tr><td class="dim">合规射程</td><td class="hookcell"><b class="r">双网都够得着</b>：DMCA/§1201 + 治理公告</td><td class="guicell">只在治理公告 / 规范射程，<b class="g">不在 DMCA/§1201</b></td></tr>
+          <tr><td class="dim">版本脆弱</td><td class="hookcell"><b class="r">极高</b>——偏移锁死构建号，微信每更一版可能失效</td><td class="guicell"><b class="g">低</b>——不依赖偏移 / 控件名，坐标相对化 + 校准</td></tr>
+          <tr><td class="dim">工程 / 维护</td><td class="hookcell">逆向追版，需专人常态维护</td><td class="guicell">相对坐标校准 + 意图队列，复用视频 runner 同构</td></tr>
+          <tr><td class="dim">可审计 / 可控</td><td class="hookcell"><b class="r">弱</b>——进程内动作，难留证据链</td><td class="guicell"><b class="g">强</b>——每条代发一行 <span class="k">sw_send_intents</span> + 回读</td></tr>
+          <tr><td class="dim">掉链子后果</td><td class="hookcell"><b class="r">号被封</b>（wcferry 作者本人号即被封）</td><td class="guicell">发不出 / 漏发（fail-closed），<b class="g">不封号</b></td></tr>
+          <tr class="sumrow"><td class="dim">一句话</td><td class="hookcell">拿<b class="r">封号风险</b>换极致不打扰 + 速度</td><td class="guicell">拿「发时短暂抢前台 + 切会话待验证」换<b class="g">零注入 / 可审计 / 低封号</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="contrast" style="margin-top:16px;">
+      <span class="ic">取舍</span>
+      <p>最看重「销售完全无感 + 最快」→ 极域 Hook 路更强，但把号押上去、且随微信升级常态返工。最看重「<b>号活着 + 可审计 + 能对甲方交代</b>」→ <b>你们纯 GUI 路是对的</b>，缺的两格（真后台 / 无感切会话）用<b>隐藏桌面 + §07 那条 P0 实测</b>补上，而不是掉头去走 Hook。</p>
+    </div>
+  </section>
+
+  <section id="plan">
+    <p class="sec-lab"><span class="no">07</span> 可执行技术方案</p>
+    <h2>三问落地 + 一次体检 + 三条护栏</h2>
+    <p class="sec-intro">不是「换个库」，是<b>把已定架构落全、把两个未知变成已知、再把合规护栏钉上</b>。方案 A = 你们已定的真实架构（store-workbench spec），B 是半天探针，C 必须随代码走。</p>
+
+    <div class="planset">
+
+      <div class="plangroup">
+        <div class="gh"><span class="gtag">方案 A</span><span class="gt">真实架构：瘦壳 + 无界面 sidecar + 意图队列</span></div>
+        <ol class="steps">
+          <li>
+            <p class="st-t">采集循环（读，不抢前台）</p>
+            <p class="st-d"><span class="k">PrintWindow(PW_RENDERFULLCONTENT)</span> 默认 <b>20 秒一轮</b>抓句柄画面 → VL / OCR 读；读 DPI + client rect，会话列表区 / 聊天区 / 输入框 / 发送控件位置<b>全按相对坐标</b>算。真最小化抓不到（实测）→ 装机校准，<b>校准失败拒绝执行</b>。</p>
+            <span class="accept">验收：DPI 100/125/150/200% × 微信 3.x/4.x × 企微，每格校准 + dry-run 过</span>
+          </li>
+          <li>
+            <p class="st-t">意图队列发送（人在环，1–3s 轮询）</p>
+            <p class="st-d">销售网页点发送 → 写一行 <span class="k">sw_send_intents</span> → sidecar <span class="k">GET /api/agent/intents?claim=1</span> 认领（只回本设备 / 本成员、带乐观锁 + 心跳、看门狗翻超时）→ 执行 → 回报。<b>per-device 凭据</b>（销售机几十台在别人手里、会离职），不用全机队共享 key。</p>
+            <span class="accept">验收：意图状态机单测（合法迁移 / 幂等回报 / 10 分钟去重）+ 鉴权 fail-closed（缺凭据 503 而非放行）</span>
+          </li>
+          <li>
+            <p class="st-t">三道闸（每条代发必过）</p>
+            <p class="st-d"><b>①认人门</b>：切到目标会话后独立比对「当前聊天窗对方 = 意图里的人」（读聊天窗标题 + 备注名），有自己的测试。<b>②礼让闸</b>：<span class="k">GetLastInputInfo</span> 空闲 + 前台是目标微信才发，销售在忙则排队、超时 5 分钟。<b>③回读</b>：气泡出现右侧 + 输入框已清空 + 最新文本与意图近似。</p>
+            <span class="accept">验收：每台机 20 轮 dry-run 零错人 + 5 轮人工旁观真发</span>
+          </li>
+          <li>
+            <p class="st-t">⚠️ P0 待验证 · PostMessage 无感切会话</p>
+            <p class="st-d"><b>「PostMessage 能否在不激活窗口的情况下点动会话列表」是决定 P3「销售无感切会话」能否成立的开放问题——目前未坐实。</b>拿到数据前，切会话按「动界面」走礼让闸（会短暂抢前台），别写成「已实现无感」。</p>
+            <span class="accept">验收：≥3 台机采样 + PostMessage 点会话列表的 flag 判定</span>
+          </li>
+        </ol>
+      </div>
+
+      <div class="plangroup">
+        <div class="gh"><span class="gtag" style="background:var(--good-soft);color:var(--good)">方案 B</span><span class="gt">UI 树体检探针 · 半天</span></div>
+        <ol class="steps">
+          <li>
+            <p class="st-t">20 行体检</p>
+            <p class="st-d">读窗口类名：<span class="k">mmui::*</span> → 有结构化树可走 UIA；<span class="k">Qt51514QWindowIcon</span> → 只有空壳、只能视觉。多台销售机 × 多号跑一遍出命中率。</p>
+            <span class="accept">验收：拿到「这批机 mmui 命中率 X%」的确定数字</span>
+          </li>
+          <li>
+            <p class="st-t">只读那个 gate，不写</p>
+            <p class="st-d">确认 <span class="k">QACCESSIBLE</span> active byte 机制存在即可（RVA 按版本 <span class="k">{"4.1.11.22":0x0A1E7DB8}</span>）。<b>体检阶段只读不写</b>——一旦 WriteProcessMemory 写它就越过「纯 GUI」红线（见 §05）。</p>
+            <span class="accept">验收：结论落 memory，从企微扩到个人微信 Windows 端</span>
+          </li>
+        </ol>
+      </div>
+
+      <div class="plangroup">
+        <div class="gh"><span class="gtag" style="background:var(--warn-soft);color:var(--warn)">方案 C</span><span class="gt">合规护栏 · 必须随代码走</span></div>
+        <ol class="steps">
+          <li>
+            <p class="st-t">补掉 SendInput 裂缝</p>
+            <p class="st-d">回车改 <span class="k">PostMessage(WM_KEYDOWN VK_RETURN)</span> 或「视觉点发送键」，去掉 <span class="k">LLMHF_INJECTED</span> 注入标志。做对照实测（发得出去 vs 有没有注入标志）。</p>
+            <span class="accept">验收：一条消息发出、且低级钩子读不到注入标志</span>
+          </li>
+          <li>
+            <p class="st-t">灰度四档，任一档掉指标退回上一档</p>
+            <p class="st-d">SHADOW（影子生成不发）→ ALLOWLIST（白名单单联系人 / 文件传输助手）→ CONCURRENT（双联系人并发）→ FULL。每档观察：问价准确率 / 直接回答率 / 生成 P95 / STOP 原因 / 人工改写率。</p>
+            <span class="accept">验收：专用小号养 1–2 周；大号只许登录只读</span>
+          </li>
+          <li>
+            <p class="st-t">业务预案</p>
+            <p class="st-d">低价值试点号 + 限速 + fail-closed（不确定即停、发后核不到气泡即拉总闸交人工）。按「已知违规」汇报，不按「已找到安全方案」汇报。</p>
+            <span class="accept">验收：封号预案 + 回退路径成文，决策层签字后再放量</span>
+          </li>
+        </ol>
+      </div>
+
+    </div>
+
+    <div class="verdict" style="margin-top:26px;">
+      <div class="vcol ok"><div class="vh">[OK] 今天就能做</div><ul>
+        <li><b>20 行 UI 树体检</b><span>窗口类名判据，独立于任何方案</span></li>
+        <li><b>补 SendInput 裂缝</b><span>回车换 PostMessage，去注入标志</span></li>
+        <li><b>把射程写进 memory</b><span>结构化读判死那条，从企微扩到个人微信 Windows 端</span></li>
+      </ul></div>
+      <div class="vcol maybe"><div class="vh">[??] 值得单开一轮</div><ul>
+        <li><b>官方 iLink 通道</b><span>零封号，但只通销售自己。验能不能做成「AI 起草 + 人一键发」</span></li>
+        <li><b>隐藏桌面模式</b><span>探针未跑，跑通即消除唯一打扰点</span></li>
+        <li><b>企微侧官方 kf</b><span>受官方窗口限制，但零封号</span></li>
+      </ul></div>
+      <div class="vcol no"><div class="vh">[NO] 不进候选集</div><ul>
+        <li><b>整个 hook 族</b><span>头部项目作者自己号被封、自述「搞不动了」</span></li>
+        <li><b>整个协议族</b><span>付费 authKey，目标 4 级=永久封锁</span></li>
+        <li><b>把 pywechat 引进来当依赖</b><span>许可证 NOASSERTION、默认 maximize 抢焦点</span></li>
+      </ul></div>
+    </div>
+  </section>
+
+  <section id="android">
+    <p class="sec-lab"><span class="no">08</span> 附 · 安卓侧对照</p>
+    <h2>「不用电脑」那条产线（另一份 artifact）</h2>
+    <p class="sec-intro">本页三问是 Windows 侧。另一份 artifact 是<b>安卓个人微信 AI 代回</b>——同一个后端契约（<span class="k">ping/generate/confirm</span>）的另一条产线，补的是「销售身边不用有一台电脑」这一格。</p>
+    <ul class="paths">
+      <li>
+        <div class="head"><span class="tag neu">ADB 线（生产在跑）</span></div>
+        <p>Mac 上 Python + ADB 拴一台真机：每秒 adb 截图 → 云 Qwen2.5-VL 读（置信 ≥0.92）→ AdbKeyboard 灌字 → <span class="k">adb input tap</span>（坐标由 dp 几何模型推导）。<b>不注册无障碍、只点击不读树</b>，对微信可见性压到最低。</p>
+      </li>
+      <li>
+        <div class="head"><span class="tag neu">APK 线（模拟器跑通）</span></div>
+        <p>装进手机的原生 Kotlin APK：<span class="k">NotificationListenerService</span> 触发 → <span class="k">MediaProjection</span> 截屏 + 端上 MLKit 中文 OCR（免 GMS）→ 自建 <span class="k">InputMethodService.commitText</span> 打字 → 无障碍 <span class="k">dispatchGesture</span> 点击。代价：把「对微信不可见」换成了「可见」，换来「不需要电脑」。</p>
+      </li>
+      <li>
+        <div class="head"><span class="tag warn">共同前提</span></div>
+        <p>个人微信 8.0.76 真机 <span class="k">uiautomator dump</span>：会话列表页与聊天页各 1 个节点、0 个带文本节点——<b>控件树被整棵屏蔽</b>，activity 名伪装成 <span class="k">LauncherUI</span>。所以安卓两边也只能「看屏幕」，和 Windows 同理，区别只是看屏幕的那台机器是电脑还是手机。</p>
+      </li>
+    </ul>
+  </section>
+
+  <footer>
+    <h2>来源 & 说明</h2>
+    <div class="note-box">
+      <b>本版据你的两份 artifact 截图 + 竞品调研文件夹 + upio 竞品页重写。</b>核心修正已在「结论先行」标注（Windows 基准是 PrintWindow + PostMessage，不是安卓的 SendInput 盲打）。<br>
+      <b>「文件夹 + upio 链接」已接上：</b>从 <span class="k">~/Desktop/项目/akke/第4批-深挖版/0819-产品设计原型.docx</span> 找到并拉取了 <a href="https://upio.ai/akke/wechat-pc-client-ui-2026-08-18">upio.ai/akke/wechat-pc-client-ui-2026-08-18</a>（5 家个微 PC 客户端 UI 竞品），已折进 §06 与 Q2。<b>还没吃到的：亿量 / 亿销云的视频（<span class="k">0818-亿量.mp4</span> 等，我无法转录）、以及 <span class="k">第四批.docx</span> 里那条「亿量今晚 8.18 深挖」的后续。</b>要更细的竞品交互界面，我可以逐帧读 亿量 的截图。你们 Windows 客户端源码在 <span class="k">~/wecom-chat</span> 仓（与本 Akke 仓分属两仓），需要我只读比对 v1.5.0 实现说一声即可。
+    </div>
+    <p style="margin-bottom:14px; color:var(--faint); font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.1em; text-transform:uppercase;">内部来源（你的 artifact + 文件夹）</p>
+    <ul class="src">
+      <li><span class="internal">store-workbench · docs/superpowers/specs/2026-08-17-windows-store-client-design.md（发送机制 / 三道闸 / 意图队列，本版据此校准）</span></li>
+      <li><span class="internal">store-workbench · docs/claude-memory/project-windows-sales-client.md（PrintWindow 真机实测 / 200% DPI / 最小化抓不到）</span></li>
+      <li><span class="internal">代码 2026-08-24 迁入 wecom-chat cloudpc/windows-weixin/（PR #666，本地未拉到）；sw_send_intents DDL 归 Akke 仓</span></li>
+      <li><span class="internal">artifact · 微信自动化的四个技术族（Windows v1.5.0，微信 4.1.10.53 实测）</span></li>
+      <li><span class="internal">artifact · 安卓个人微信 AI 代回（ADB 线 / APK 线，com.tencent.mm 8.0.76）</span></li>
+      <li><a href="https://upio.ai/akke/wechat-pc-client-ui-2026-08-18">upio.ai/akke · 微信 PC 客户端 UI 竞品页（水流 / 鲲炬 / 亿销云 / 亿量 / 零一万物）</a></li>
+      <li><span class="internal">~/Desktop/项目/akke/123批/竞品调研-精选-深度对接/精选对接-3-一家 极域.docx（极域云对接 Q&A：「最小化不影响电脑其他操作」「1~2 秒回复」原话出处）</span></li>
+      <li><span class="internal">~/Desktop/项目/akke/123批/竞品调研-获客-3/极域云AI超级员工系统PPT.pptx（slide23/25 自证：微信 / 企微 = Hook + WSS；「移动端 Hook + PC 执行引擎」）+ 极域云演示.mp4（11min，自研 SaaS 控制台 UI，抽 6 帧无占机红条）</span></li>
+      <li><span class="internal">~/Desktop/项目/akke/123批/竞品调研-获客-1/竞品分析报告-v2-深度分析.html（水流「请暂停操作键盘鼠标」逐帧实测 0.85）</span></li>
+      <li><span class="internal">~/Desktop/项目/akke/第4批-深挖版/{0819-产品设计原型, 第四批}.docx</span></li>
+    </ul>
+    <p style="margin-bottom:14px; color:var(--faint); font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.1em; text-transform:uppercase;">外部来源（公开资料 · 交叉验证）</p>
+    <ul class="src">
+      <li><a href="https://blog.gitcode.com/8189850c9d3cb2ad706f7acb0e1a7ef4.html">WeChatFerry 深度解析（Hook 原理 / 消息拦截）</a></li>
+      <li><a href="https://cloud.tencent.com/developer/article/2474159">WeChatFerry FAQ v39 —— 版本匹配与注入失败</a></li>
+      <li>微信 4.x UIA 现状：<a href="https://github.com/AngeCoo/wxauto-4.0">wxauto-4.0</a> · <a href="https://pypi.org/project/wxautox4/">wxautox4</a> · <a href="https://github.com/Hello-Mr-Crab/pywechat">pywechat</a></li>
+      <li><a href="https://learn.microsoft.com/zh-cn/windows/win32/wintouch/sendmessage--postmessage--and-related-functions">Microsoft Learn —— SendMessage / PostMessage 后台窗口消息投递</a></li>
+      <li><a href="https://www.v2ex.com/t/1215474">Windows Session 桌面多开（会话级硬隔离，隐藏桌面思路）</a></li>
+    </ul>
+    <p class="divider-note">置信度口径：0.9+ = 你们 artifact 实测或本仓 memory 直接佐证；0.7–0.85 = 机制推断 + 旁证；&lt;0.7 = 需本机实测确认（尤其 PrintWindow 在「真最小化 vs 隐藏桌面」下的实际行为、UIA 命中率）。所有版本号 / RVA / 判赔金额均引自你们 artifact。</p>
+  </footer>
+
+</div>
+</body>
+</html>
