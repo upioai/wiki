@@ -83,14 +83,14 @@
 
 <header class="hero">
   <div class="wrap">
-    <div class="eyebrow">2026-08-24 → 08-26 · 短视频产线 badcase 复盘</div>
+    <div class="eyebrow">2026-08-24 → 08-27 · 短视频产线 badcase 复盘</div>
     <h1>视频 Badcase 台账：一条真片，挖出一整批坑</h1>
     <p class="lede">
       08-24 一条快车道成片同时犯了三四个「说修过又复发」的问题。顺着一条条挖到根、
       都在真库 / 真 ffmpeg / 真数据上量过。下面<b>一张表看完</b>——现象 → 根因 → 修复 → 状态。
     </p>
     <div class="stamp">
-      <code>口径 2026-08-26</code>
+      <code>口径 2026-08-27</code>
       <code>express 快车道产线</code>
       <code>store-workbench</code>
       <code>内部台账 · noindex</code>
@@ -101,8 +101,8 @@
 <section>
   <div class="wrap">
     <div class="kpis">
-      <div class="kpi tot"><div class="n">12</div><div class="l">badcase 总数</div></div>
-      <div class="kpi ok"><div class="n">8</div><div class="l">已修复·已上线</div></div>
+      <div class="kpi tot"><div class="n">13</div><div class="l">badcase 总数</div></div>
+      <div class="kpi ok"><div class="n">9</div><div class="l">已修复·已上线</div></div>
       <div class="kpi warn"><div class="n">2</div><div class="l">部分/靠采集补</div></div>
       <div class="kpi vio"><div class="n">2</div><div class="l">外部·已恢复/模型边界</div></div>
     </div>
@@ -245,6 +245,17 @@
             <td><span class="badge fixed">已修上线</span></td>
             <td class="where">PR #609<br>io+produce</td>
           </tr>
+
+          <tr class="grp"><td colspan="6">◆ 08-27 复审再挖（原木奶油风·已端到端验证）</td></tr>
+
+          <tr>
+            <td class="idx">13</td>
+            <td class="phenom">中段字幕/画面比口播早 ~1.7s<span class="sub">和 #12「结尾滞后」相反：这条是<b>中段超前、头尾对齐</b>，方向相反、不同根因、改的文件也不同</span></td>
+            <td class="cause"><b>和 #12 不同轴</b>。字幕断句 <code>plan_cues</code> 先按<b>字数比例估</b>每段时长、再逐点吸附最近静音（容差 1.2s）。字数估<b>累积漂移</b>，中段边界最坏偏近 2s，<b>一超过容差就吸不到正确静音、退回偏掉的估计值</b>。ASR 词级时间戳坐实。<b>非回归</b>：plan_cues 自 #333（08-15）没动，是 #562 补好音频 + broll 配上对题画面，把这个一直存在的估时误差从「听不见/看不见」显形。</td>
+            <td class="fix">逐点吸附改<b>全局 DP 对齐</b>：在「各段≈字数比例」约束下给每个边界挑<b>单调静音</b>、让全局段时长误差最小；退回估计值付软代价（等价老容差、但<b>全局择优</b>非逐点贪心），每边界只在估计 ±3s 内找静音挡跨句误吸。字幕和画面共用这组 cue、一起对齐。</td>
+            <td><span class="badge fixed">已修上线·已验证</span></td>
+            <td class="where">PR #634<br>steps.plan_cues</td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -280,15 +291,16 @@
       <li><b>脏底片已软删移出出镜池</b>（可回滚，确认无误后再彻底清）。</li>
       <li><b>待验</b>：用<b>全新提单</b>（非返修）产一条测试，验四项——全程有声 / 无字幕重叠 / 不换装 / 画面对题度。</li>
       <li><b>持续项</b>：收割机每晚补柜类素材，画面对题度随覆盖率提升逐步变好。</li>
+      <li><b>#13 已端到端验证（08-27）</b>：修复合并部署（SHA <code>10f88b1</code>）后，用<b>全新提单</b>真产一条「原木奶油风」（job <code>2640e8e4</code>，确跑在修复代码上），ASR 词级起点 vs 成片 <code>alignment</code> cue 起点逐段核——<b>8/8 段全部 ≤0.24s、平均 0.13s</b>（修复前中段最坏 ~1.7s）。这是本批首条<b>在真实成片上端到端验过</b>的修复，不是只离线验。</li>
     </ul>
   </div>
 </section>
 
 <footer>
   <div class="wrap">
-    <p>口径 2026-08-26。来源：早班审片 + 销售两轮反馈 + 逐条根因排查（真库 / 真 ffmpeg / 真数据量过）。
-    修复：<code>PR #558 / #562 / #568 / #574</code>（store-workbench，express）·收割机 <code>#245</code>（Workflow）。
-    元教训 memory：<code>feedback-express-badcase-batch-0824</code>。内部台账，已挂 noindex，含真实客户反馈，不对外收录。</p>
+    <p>口径 2026-08-27。来源：早班审片 + 销售两轮反馈 + 逐条根因排查（真库 / 真 ffmpeg / 真数据量过）。
+    修复：<code>PR #558 / #562 / #568 / #574 / #606 / #609 / #634</code>（store-workbench，express）·收割机 <code>#245</code>（Workflow）。
+    元教训 memory：<code>feedback-express-badcase-batch-0824 / -0826</code>。内部台账，已挂 noindex，含真实客户反馈，不对外收录。</p>
   </div>
 </footer>
 
