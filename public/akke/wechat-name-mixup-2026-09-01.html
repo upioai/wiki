@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>微信认人失败：模型、工具、部署架构与工作流</title>
+<style>
+:root{--bg:#f4f7f4;--card:#fff;--ink:#17201a;--muted:#5d6961;--line:#dce6de;--green:#197447;--green-bg:#e4f3ea;--orange:#9a5b08;--orange-bg:#fff0d9;--red:#a73333;--red-bg:#fde7e7;--blue:#255f99;--blue-bg:#e8f1fb;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--sans:"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+@media(prefers-color-scheme:dark){:root{--bg:#0e1310;--card:#171d19;--ink:#e7eee9;--muted:#98a69d;--line:#29342d;--green:#66c996;--green-bg:#173126;--orange:#e2aa55;--orange-bg:#302412;--red:#ef8d8d;--red-bg:#351d1d;--blue:#7db3e5;--blue-bg:#172839}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.6}.wrap{max-width:1120px;margin:auto;padding:34px 18px 80px}h1{font-size:clamp(25px,4vw,40px);margin:0 0 8px}h2{font-size:23px;margin:0 0 16px}h3{font-size:18px;margin:30px 0 12px}.sub{color:var(--muted);margin:0}.tabs{display:flex;flex-wrap:wrap;gap:8px;margin:24px 0}.tabs button{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 13px;cursor:pointer}.tabs button.on{color:#fff;background:var(--green);border-color:var(--green)}.panel[hidden]{display:none}.hero,.result{padding:17px;border-radius:13px;text-align:center;background:var(--green-bg);border:1px solid color-mix(in srgb,var(--green) 35%,var(--line))}.hero .emoji{font-size:38px}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:18px 0}.card,.node{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:15px}.stat b{display:block;font-size:20px;margin:4px 0}.muted{color:var(--muted)}.flow{display:flex;align-items:stretch;justify-content:center;gap:7px;margin:18px 0}.node{flex:1;min-width:0;text-align:center}.node .ico{font-size:30px}.node strong{display:block;margin:5px 0}.node.good{background:var(--green-bg)}.node.warn{background:var(--orange-bg)}.node.bad{background:var(--red-bg)}.node.soft{background:var(--blue-bg)}.arrow{align-self:center;font-size:24px;color:var(--muted)}code{font-family:var(--mono);font-size:.88em;overflow-wrap:anywhere}.lanes{display:grid;gap:11px}.lane{display:grid;grid-template-columns:95px 1fr;gap:10px;align-items:center}.lane-name{text-align:right;font-weight:700}.lane-body{display:flex;flex-wrap:wrap;align-items:center;gap:7px}.mini{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 10px}.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;background:var(--card);border-radius:12px;overflow:hidden}th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted);font-size:13px}.yes{color:var(--green);font-weight:700}.no{color:var(--red);font-weight:700}.compare{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;margin:18px 0}.answer{text-align:center}.answer .ico{font-size:34px}.neq{font-size:28px}.screen{max-width:620px;margin:18px auto}.screen-title{text-align:center;padding:10px;background:var(--green-bg);border-radius:10px 10px 0 0}.screen-body{position:relative;padding:52px 14px 14px;min-height:165px;background:color-mix(in srgb,var(--muted) 13%,transparent);display:grid;gap:10px}.cut{position:absolute;inset:0 0 auto;padding:11px;text-align:center;background:var(--red-bg)}.bubble{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 10px;max-width:72%}.bubble.me{justify-self:end;background:var(--green-bg)}.foot{margin-top:42px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:13px;text-align:center}
+@media(max-width:780px){.grid{grid-template-columns:1fr}.flow{flex-direction:column}.arrow{transform:rotate(90deg)}.lane{grid-template-columns:1fr}.lane-name{text-align:left}.compare{grid-template-columns:1fr}.neq{transform:rotate(90deg)}}
+</style>
+</head>
+<body><main class="wrap">
+<h1>“全屋定制-志翔”为什么被机器人叫错？</h1>
+<p class="sub">把安装包、销售电脑、云端模型和安全门逐层拆开，用小孩也能看懂的方式说明。</p>
+<nav class="tabs" aria-label="报告章节">
+<button class="on" data-tab="answer">先看答案</button><button data-tab="deploy">部署架构</button><button data-tab="tools">模型与工具</button><button data-tab="workflow">工作流程</button><button data-tab="bug">具体坏点</button><button data-tab="logs">日志翻译</button><button data-tab="owner">责任判断</button>
+</nav>
+
+<section class="panel" data-panel="answer">
+<div class="hero"><div class="emoji">📷 ✂️ 🤖 ❓</div><b>一句话答案</b><br>机器人拿到的图片里没有客户名字，但题目逼它一定写一个名字，所以它乱猜了。</div>
+<div class="compare"><div class="card answer" style="background:var(--orange-bg)"><div class="ico">🤖</div>大机器人乱猜<br><b>“主屋”或“王坚”</b></div><div class="neq">≠</div><div class="card answer" style="background:var(--green-bg)"><div class="ico">🔍</div>标题机器人看清楚<br><b>“全屋定制-志翔”</b></div></div>
+<div class="result"><b>没有发错人：</b>最后一道安全门发现名字不同，把消息拦住了。</div>
+</section>
+
+<section class="panel" data-panel="deploy" hidden>
+<h2>部署架构：东西都住在哪里？</h2>
+<div class="lanes">
+<div class="lane"><div class="lane-name">安装时</div><div class="lane-body"><span class="mini">📦 <code>cmd.exe</code> 自解压包</span>→<span class="mini">⚙️ PowerShell <code>Expand-Archive</code></span>→<span class="mini">⏰ Windows 计划任务 / 启动文件夹</span></div></div>
+<div class="lane"><div class="lane-name">销售电脑</div><div class="lane-body"><span class="mini">💬 Windows 微信 4.x</span>↔<span class="mini">🐍 内嵌 Python 3.12 小助手</span>←<span class="mini">📝 <code>config.txt</code></span></div></div>
+<div class="lane"><div class="lane-name">看图片</div><div class="lane-body"><span class="mini">👁️ <code>/wecom/ocr</code> 代理</span>→<span class="mini">🧠 Qwen3-VL 235B / 30B</span></div></div>
+<div class="lane"><div class="lane-name">想回复</div><div class="lane-body"><span class="mini">💡 <code>/wecom/chat/reply</code></span>→<span class="mini">🧠 Qwen3 235B 文本模型</span></div></div>
+</div>
+<h3>故障经过的四个关键环节</h3>
+<div class="flow">
+<div class="node good"><div class="ico">💬</div><strong>① 微信窗口</strong>软件：<code>Windows 微信 4.x</code><br>找窗口：Python <code>ctypes</code> + Win32 <code>user32</code><br>本轮：<code>active_chat</code>，没有点击列表<br>实际打开：全屋定制-志翔</div><div class="arrow">→</div>
+<div class="node bad"><div class="ico">📷</div><strong>② 本地截图</strong>运行：内嵌 <code>Python 3.12</code><br>抓图：<code>PrintWindow</code> + <code>gdi32</code><br>裁图：<code>Pillow</code> + <code>calibrate.py</code><br>坏点：<code>chat_region</code> 从 y≈6% 开始，顶部名字被剪掉</div><div class="arrow">→</div>
+<div class="node warn"><div class="ico">🧠</div><strong>③ 云端视觉识别</strong>发送：Python <code>requests</code> + Base64<br>接口：<code>/wecom/ocr/chat/completions</code><br>主：<code>Qwen3-VL 235B</code><br>备用：<code>Qwen3-VL 30B</code><br>看不到标题，却按 Prompt 猜了名字</div><div class="arrow">→</div>
+<div class="node good"><div class="ico">🛡️</div><strong>④ 本地安全门</strong>标题复核：<code>Qwen3-VL 30B</code><br>归一化：<code>weixin_identity.py</code><br>比较：<code>guards.py identity_gate()</code> 逐字相等<br>调度：<code>runner.py</code> 记录 <code>identity_mismatch</code> 并停止</div>
+</div>
+</section>
+
+<section class="panel" data-panel="tools" hidden>
+<h2>每个环节到底用了什么模型和工具？</h2>
+<div class="table-wrap"><table><thead><tr><th>任务</th><th>先用谁</th><th>失败后换谁</th><th>实质工作</th></tr></thead><tbody>
+<tr><td>读整个聊天 <code>read_chat</code></td><td><code>qwen/qwen3-vl-235b-a22b-instruct</code></td><td><code>qwen/qwen3-vl-30b-a3b-instruct</code></td><td>气泡 OCR、左右、群聊、底部，还被要求填标题</td></tr>
+<tr><td>只读顶部名字 <code>read_title</code></td><td><code>qwen/qwen3-vl-30b-a3b-instruct</code></td><td><code>qwen/qwen3-vl-235b-a22b-instruct</code></td><td>只看顶部标题条</td></tr>
+<tr><td>读列表一行 <code>read_list_row</code></td><td><code>qwen/qwen3-vl-30b-a3b-instruct</code></td><td><code>qwen/qwen3-vl-235b-a22b-instruct</code></td><td>头像、名字、消息预览</td></tr>
+<tr><td>生成回复</td><td><code>qwen/qwen3-235b-a22b-2507</code>（服务端默认）</td><td>由服务端配置决定</td><td>加载历史、画像、知识库、话术规则后写回复</td></tr>
+</tbody></table></div>
+<div class="result" style="margin-top:14px"><b>没有传统 OCR：</b>这里没有用 Tesseract。文字识别实际由 Qwen3-VL 看图完成。回复模型可能被服务端 <code>LLM_WECOM_CHAT_MODEL</code> 或 <code>LLM_MODEL</code> 覆盖，单看安装包无法证明当时最终覆盖值。</div>
+<h3>销售电脑里的机械工具</h3>
+<div class="table-wrap"><table><thead><tr><th>动作</th><th>工具</th><th>做什么</th></tr></thead><tbody>
+<tr><td>找窗口</td><td>Python <code>ctypes</code> + Win32 <code>user32</code></td><td>按进程与窗口大小找到微信</td></tr><tr><td>后台截图</td><td><code>PrintWindow</code> + <code>gdi32</code></td><td>不抢前台也能拿到窗口图片</td></tr><tr><td>点击</td><td><code>PostMessage</code></td><td>向微信窗口发送点击消息</td></tr><tr><td>输入</td><td>Windows 剪贴板 + <code>Ctrl+V</code></td><td>粘贴回复</td></tr><tr><td>礼让销售</td><td><code>GetLastInputInfo</code></td><td>查看最近键鼠活动</td></tr><tr><td>发现画面变化</td><td><code>Pillow</code> 像素 + <code>SHA-256</code></td><td>比较聊天图片指纹</td></tr>
+</tbody></table></div>
+</section>
+
+<section class="panel" data-panel="workflow" hidden>
+<h2>工作流：一步步发生了什么？</h2>
+<div class="flow"><div class="node warn"><div class="ico">🔴</div><strong>1</strong>没找到未读红点</div><div class="arrow">→</div><div class="node soft"><div class="ico">👀</div><strong>2</strong>改看当前聊天</div><div class="arrow">→</div><div class="node bad"><div class="ico">✂️</div><strong>3</strong>截图没带名字</div><div class="arrow">→</div><div class="node warn"><div class="ico">🤖</div><strong>4</strong>大模型猜名字</div><div class="arrow">→</div><div class="node good"><div class="ico">🔍</div><strong>5</strong>小模型单读标题</div><div class="arrow">→</div><div class="node good"><div class="ico">🛑</div><strong>6</strong>名字不同，停止</div></div>
+<div class="result"><code>未读红点漏检</code> + <code>active_chat 备用路</code> + <code>标题被裁掉</code> + <code>必须回答 title</code> = 连续认人失败</div>
+</section>
+
+<section class="panel" data-panel="bug" hidden>
+<h2>最具体的坏点</h2>
+<div class="screen card"><div class="screen-title">真正标题：全屋定制-志翔</div><div class="screen-body"><div class="cut">✂️ 发给大模型的图片从这里才开始，标题不在图片里</div><div class="bubble">我想了解装修</div><div class="bubble me">好的，我来帮您</div></div></div>
+<div class="compare"><div class="card answer" style="background:var(--red-bg)"><b>给模型的东西</b><br>只有聊天气泡，没有标题</div><div class="neq">但是</div><div class="card answer" style="background:var(--orange-bg)"><b>给模型的题目</b><br>必须填写 <code>title</code></div></div>
+<div class="result"><b>确定根因：</b><code>layout.chat_region</code> 从窗口约 6% 高度开始；<code>CHAT_PROMPT</code> 却要求返回 <code>title</code>。</div>
+<h3>另外三个工作流问题</h3><div class="table-wrap"><table><thead><tr><th>问题</th><th>小孩版解释</th><th>影响</th></tr></thead><tbody><tr><td>备用路没有列表名字</td><td>没看课本封面，就直接猜书名</td><td>缺少可靠身份来源</td></tr><tr><td>一个分数管所有答案</td><td>数学全对，不代表语文名字也对</td><td><code>conf=0.95</code> 不能证明标题正确</td></tr><tr><td>一次让模型做太多事</td><td>又读名字、又读消息、又判断左右</td><td>局部错误被总分藏住</td></tr></tbody></table></div>
+</section>
+
+<section class="panel" data-panel="logs" hidden>
+<h2>日志翻译</h2><div class="table-wrap"><table><thead><tr><th>日志</th><th>真正意思</th><th>判断</th></tr></thead><tbody>
+<tr><td><code>active_chat=1.0 open=0.0s</code></td><td>没点击列表，直接处理现在打开的聊天</td><td class="no">放大条件</td></tr><tr><td>要发给“主屋/王坚”</td><td>大模型猜的，不是服务器派发目标</td><td class="no">错误结果</td></tr><tr><td>当前打开“全屋定制”</td><td>标题模型读到的真实名字</td><td class="yes">正确</td></tr><tr><td><code>conf=0.95</code></td><td>整份答案自评 95 分，不等于名字 95 分</td><td class="no">容易误导</td></tr><tr><td><code>side=left/right</code></td><td>最新气泡来自客户/自己</td><td class="yes">与名字错误无关</td></tr><tr><td><code>DEFERRED</code></td><td>销售还在操作，等 4 秒，不抢键盘</td><td class="yes">与名字错误无关</td></tr><tr><td><code>identity_mismatch</code></td><td>两次名字不同，安全停止</td><td class="yes">保护成功</td></tr>
+</tbody></table></div>
+</section>
+
+<section class="panel" data-panel="owner" hidden>
+<h2>谁对谁错？</h2><div class="grid"><div class="card stat"><span class="muted">真实客户</span><b>全屋定制-志翔</b>没有选错。</div><div class="card stat"><span class="muted">有没有发错</span><b>没有</b>安全门拦住了。</div><div class="card stat"><span class="muted">真正责任点</span><b>截图 + Prompt</b>一个不给名字，一个逼着猜。</div></div>
+<div class="table-wrap"><table><thead><tr><th>部件</th><th>结论</th><th>理由</th></tr></thead><tbody><tr><td>微信当前窗口</td><td class="yes">正确</td><td>一直是全屋定制-志翔</td></tr><tr><td>回复服务</td><td class="yes">不是来源</td><td>没有派发主屋或王坚目标</td></tr><tr><td>聊天区裁剪</td><td class="no">根本问题</td><td>把标题排除在图片外</td></tr><tr><td>综合视觉 Prompt</td><td class="no">根本问题</td><td>看不到标题仍必须返回标题</td></tr><tr><td>active-chat 备用路</td><td class="no">设计薄弱</td><td>没有列表名字作身份来源</td></tr><tr><td>身份安全门</td><td class="yes">工作正确</td><td>逐字不同就不发送</td></tr><tr><td>销售礼让门</td><td class="yes">工作正确</td><td>只负责不抢键盘</td></tr></tbody></table></div>
+</section>
+
+<div class="foot">基于“销售机代回一键安装 v1.9.9”安装包静态分析 · 2026-09-01 · 未执行安装、未修改生产配置</div>
+</main>
+<script>
+const buttons=[...document.querySelectorAll('[data-tab]')],panels=[...document.querySelectorAll('[data-panel]')];buttons.forEach(b=>b.addEventListener('click',()=>{buttons.forEach(x=>x.classList.toggle('on',x===b));panels.forEach(p=>p.hidden=p.dataset.panel!==b.dataset.tab)}));
+</script>
+</body></html>
