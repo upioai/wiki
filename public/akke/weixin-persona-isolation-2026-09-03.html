@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>个微人设隔离与分配</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;700&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --ground: #F2F4F6; --surface: #FFFFFF; --surface-2: #E9EDF0;
+    --ink: #1A222B; --ink-2: #4B5865; --ink-3: #7A8793; --line: #D5DBE1;
+    --accent: #0E8A4F; --accent-ink: #0A6A3D; --accent-soft: #DDF3E6;
+    --warn: #B7791F; --warn-soft: #FBF0DA; --crit: #B4413A; --crit-soft: #F8E2E0;
+    --code-bg: #EEF1F4;
+    --serif: "Noto Serif SC", "Songti SC", "STSong", serif;
+    --sans: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    --mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #11161B; --surface: #181F26; --surface-2: #202932;
+      --ink: #E4EAEF; --ink-2: #A7B3BE; --ink-3: #74808B; --line: #2C3741;
+      --accent: #3FCF7F; --accent-ink: #6FDC9C; --accent-soft: #163A28;
+      --warn: #E0A64A; --warn-soft: #3A2E14; --crit: #E4736C; --crit-soft: #3F1F1D;
+      --code-bg: #0E1317;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--sans); font-size: 15.5px; line-height: 1.75; -webkit-font-smoothing: antialiased; }
+  .page { max-width: 920px; margin: 0 auto; padding: 44px 24px 96px; }
+  header.masthead { border-bottom: 2px solid var(--ink); padding-bottom: 20px; margin-bottom: 28px; display: grid; gap: 12px; }
+  .eyebrow { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); font-weight: 500; }
+  h1 { font-family: var(--serif); font-weight: 700; font-size: 34px; line-height: 1.25; margin: 0; text-wrap: balance; }
+  .thesis { font-size: 17px; color: var(--ink-2); margin: 0; max-width: 64ch; text-wrap: balance; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--ink-3); }
+  .meta b { color: var(--ink-2); font-weight: 500; }
+  nav.toc { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13.5px; }
+  nav.toc a { color: var(--ink-2); text-decoration: none; border-bottom: 1px dotted var(--line); }
+  nav.toc a:hover { color: var(--accent-ink); border-color: var(--accent); }
+  h2 { font-family: var(--serif); font-weight: 700; font-size: 23px; line-height: 1.3; margin: 52px 0 12px; padding-top: 18px; border-top: 1px solid var(--line); text-wrap: balance; }
+  h2 .no { font-family: var(--mono); font-size: 13px; color: var(--ink-3); margin-right: 10px; font-weight: 500; }
+  h3 { font-size: 16px; font-weight: 700; margin: 26px 0 8px; }
+  p { margin: 0 0 12px; max-width: 70ch; }
+  ul, ol { margin: 0 0 12px; padding-left: 22px; max-width: 70ch; }
+  li { margin-bottom: 6px; }
+  code { font-family: var(--mono); font-size: 0.86em; background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
+  pre { font-family: var(--mono); font-size: 13px; line-height: 1.6; background: var(--code-bg); border: 1px solid var(--line); padding: 14px 16px; overflow-x: auto; margin: 10px 0 16px; border-radius: 4px; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  .table-wrap { overflow-x: auto; margin: 10px 0 18px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; letter-spacing: 0.06em; color: var(--ink-3); font-weight: 500; text-transform: uppercase; }
+  td.num, th.num { font-variant-numeric: tabular-nums; }
+  .callout { border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 12px 16px; margin: 14px 0 18px; border-radius: 0 4px 4px 0; max-width: 72ch; }
+  .callout.warn { border-color: var(--warn); background: var(--warn-soft); }
+  .callout p:last-child { margin-bottom: 0; }
+  details { border: 1px solid var(--line); border-radius: 4px; padding: 8px 14px; margin: 10px 0 16px; background: var(--surface); }
+  summary { cursor: pointer; font-weight: 500; color: var(--ink-2); }
+  /* 图 */
+  figure { margin: 14px 0 22px; }
+  figure svg { display: block; width: 100%; max-width: 100%; height: auto; color: var(--ink); font-family: var(--sans); }
+  figcaption { font-size: 13.5px; color: var(--ink-2); margin-top: 8px; max-width: 76ch; line-height: 1.6; }
+  .box { fill: var(--surface); stroke: currentColor; stroke-width: 1.2; }
+  .box.acc { stroke: var(--accent); stroke-width: 1.6; }
+  .box.soft { fill: var(--accent-soft); stroke: var(--accent); }
+  .box.dim { fill: var(--surface-2); stroke: var(--ink-3); stroke-dasharray: 4 3; }
+  .box.warn { fill: var(--warn-soft); stroke: var(--warn); }
+  .box.crit { fill: var(--crit-soft); stroke: var(--crit); }
+  .lane { fill: none; stroke: var(--line); stroke-width: 1; }
+  .t { font-size: 12.5px; fill: currentColor; }
+  .t.b { font-weight: 700; }
+  .t.s { font-size: 11px; fill: var(--ink-2); }
+  .t.m { font-family: var(--mono); font-size: 11px; fill: var(--accent-ink); }
+  .t.h { font-size: 12px; fill: var(--ink-3); letter-spacing: 0.06em; }
+  .t.x { fill: var(--crit); }
+  .ln { stroke: currentColor; stroke-width: 1.3; fill: none; }
+  .ln.acc { stroke: var(--accent); stroke-width: 1.8; }
+  .ln.dash { stroke-dasharray: 5 4; }
+  .ln.x { stroke: var(--crit); }
+  .arr { fill: currentColor; }
+  .arr.acc { fill: var(--accent); }
+  .arr.x { fill: var(--crit); }
+  .decided { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0 18px; }
+  .decided .q { background: var(--surface); border: 1px solid var(--line); padding: 12px 16px; border-radius: 4px; font-size: 14px; }
+  .decided .q b { display: block; margin-bottom: 4px; }
+  .decided .q.open { border-color: var(--warn); }
+  @media (max-width: 640px) { .decided { grid-template-columns: 1fr; } }
+  .foot { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-3); }
+  a { color: var(--accent-ink); }
+</style>
+</head>
+<body>
+<div class="page">
+<header class="masthead">
+  <div class="eyebrow">Akke · 个人微信自动代回 · 人设治理设计稿</div>
+  <h1>个微人设隔离与分配：手机自己建，电脑端后台分</h1>
+  <p class="thesis">个人微信的人设改为服务端一张表。手机由本人填，电脑端由管理员分。机器从心跳回包里知道自己是谁，没分配就不回。人设 key 就是工作台的接待号，一个人设只绑一台机器。</p>
+  <div class="meta">
+    <span><b>范围</b> 只讲个人微信（手机 APK · Windows 销售机 · 云电脑个微）。企微人设本次不动。</span>
+    <span><b>日期</b> 2026-09-03</span>
+  </div>
+  <nav class="toc">
+    <a href="#s1">1 现在 vs 之后</a><a href="#s2">2 核心机制</a><a href="#s3">3 人设是什么</a><a href="#s4">4 手机端</a><a href="#s5">5 电脑端</a><a href="#s6">6 旧会话迁移</a><a href="#s7">7 服务端怎么拦</a><a href="#s8">8 上线顺序</a><a href="#s9">9 已定与待定</a>
+  </nav>
+</header>
+
+<h2 id="s1"><span class="no">01</span>现在 vs 之后</h2>
+<figure>
+<svg viewBox="0 0 880 320" role="img" aria-label="现在三个执行端共用企微九人表，会话混在一个池；之后个微有自己的人设表，每台机器一个 key、一个池">
+  <defs><marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arr"/></marker>
+  <marker id="a1g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arr acc"/></marker></defs>
+  <!-- 左：现在 -->
+  <text x="20" y="24" class="t h">现在</text>
+  <rect x="20" y="50" width="150" height="34" rx="6" class="box"/><text x="95" y="72" text-anchor="middle" class="t">企微云电脑</text>
+  <rect x="20" y="110" width="150" height="34" rx="6" class="box"/><text x="95" y="132" text-anchor="middle" class="t">Windows 个微端</text>
+  <rect x="20" y="170" width="150" height="34" rx="6" class="box"/><text x="95" y="192" text-anchor="middle" class="t">手机 APK × 7</text>
+  <path d="M170,67 L235,115" class="ln" marker-end="url(#a1)"/>
+  <path d="M170,127 L235,127" class="ln" marker-end="url(#a1)"/>
+  <path d="M170,187 L235,139" class="ln" marker-end="url(#a1)"/>
+  <rect x="240" y="97" width="160" height="60" rx="6" class="box"/>
+  <text x="320" y="121" text-anchor="middle" class="t b">企微九人表</text><text x="320" y="140" text-anchor="middle" class="t m">SALES_PERSONAS</text>
+  <text x="320" y="180" text-anchor="middle" class="t s">三端都借这九个 key 说话</text>
+  <path d="M320,190 L320,222" class="ln" marker-end="url(#a1)"/>
+  <rect x="220" y="226" width="200" height="60" rx="6" class="box crit"/>
+  <text x="320" y="249" text-anchor="middle" class="t m">xiawei:客户名</text><text x="320" y="270" text-anchor="middle" class="t s">五台手机 + 云电脑混一池</text>
+  <!-- 分隔 -->
+  <line x1="450" y1="20" x2="450" y2="300" class="lane"/>
+  <!-- 右：之后 -->
+  <text x="480" y="24" class="t h">之后</text>
+  <rect x="480" y="80" width="150" height="46" rx="6" class="box acc"/><text x="555" y="99" text-anchor="middle" class="t">手机</text><text x="555" y="116" text-anchor="middle" class="t s">本人填表</text>
+  <rect x="480" y="150" width="150" height="46" rx="6" class="box acc"/><text x="555" y="169" text-anchor="middle" class="t">Windows / 云电脑</text><text x="555" y="186" text-anchor="middle" class="t s">管理员分配</text>
+  <path d="M630,103 L690,120" class="ln acc" marker-end="url(#a1g)"/>
+  <path d="M630,173 L690,150" class="ln acc" marker-end="url(#a1g)"/>
+  <rect x="695" y="88" width="170" height="96" rx="6" class="box acc"/>
+  <text x="780" y="109" text-anchor="middle" class="t b">个微人设表</text>
+  <text x="780" y="130" text-anchor="middle" class="t m">wx_xiaoxia_01 ↔ 手机A</text>
+  <text x="780" y="148" text-anchor="middle" class="t m">wx_xiawei_01 ↔ 销售机B</text>
+  <text x="780" y="168" text-anchor="middle" class="t s">一个 key 只绑一台机</text>
+  <path d="M780,190 L780,222" class="ln acc" marker-end="url(#a1g)"/>
+  <rect x="680" y="226" width="200" height="60" rx="6" class="box soft"/>
+  <text x="780" y="249" text-anchor="middle" class="t m">wx_xiaoxia_01:客户名</text><text x="780" y="270" text-anchor="middle" class="t s">一机一池，工作台按前缀看</text>
+</svg>
+<figcaption>左边是今天：三个执行端都从企微的九个人设里挑 key，七台手机里五台选了夏伟，会话全写成 <code>xiawei:客户名</code>，和云电脑企微的混在一起。右边是要做成的样子：个微有自己的一张人设表，一台机器对应一个 <code>wx_</code> key，会话按 key 分池。</figcaption>
+</figure>
+<div class="table-wrap">
+<table>
+  <tr><th>今天的会话池</th><th class="num">会话数</th><th>里面是谁的</th></tr>
+  <tr><td><code>xiawei:</code></td><td class="num">295</td><td>150 段 Windows / macOS 个微端，145 段是云电脑企微和五台手机混在一起，分不出</td></tr>
+  <tr><td><code>gerenweixin:</code></td><td class="num">111</td><td>Windows / macOS 个微端共用一个接待号，分不出是哪台机</td></tr>
+  <tr><td><code>xiaoxia:</code></td><td class="num">48</td><td>46 段是云电脑企微和两台手机混在一起</td></tr>
+</table>
+</div>
+
+<h2 id="s2"><span class="no">02</span>核心机制：一张表、两个入口、一条通道</h2>
+<figure>
+<svg viewBox="0 0 880 430" role="img" aria-label="手机本人和管理员两个入口写入服务端人设表；机器每 5 分钟心跳，回包带 desired.persona；机器据此代回，会话键带 wx_ 前缀，工作台按接待号看到">
+  <defs><marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arr"/></marker>
+  <marker id="a2g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arr acc"/></marker></defs>
+  <text x="20" y="24" class="t h">① 谁来填</text>
+  <text x="330" y="24" class="t h">② 服务端</text>
+  <text x="640" y="24" class="t h">③ 机器与工作台</text>
+  <!-- 入口 A 手机 -->
+  <rect x="20" y="60" width="220" height="74" rx="6" class="box acc"/>
+  <text x="130" y="82" text-anchor="middle" class="t b">手机 · 本人</text>
+  <text x="130" y="100" text-anchor="middle" class="t s">填姓名、性别、九档风格、口头禅</text>
+  <text x="130" y="118" text-anchor="middle" class="t m">persona_register</text>
+  <!-- 入口 B 管理员 -->
+  <rect x="20" y="170" width="220" height="96" rx="6" class="box acc"/>
+  <text x="130" y="192" text-anchor="middle" class="t b">管理员 · 门店工作台</text>
+  <text x="130" y="210" text-anchor="middle" class="t s">给 Windows / 云电脑建人设并绑机器</text>
+  <text x="130" y="228" text-anchor="middle" class="t m">persona_assign</text>
+  <text x="130" y="250" text-anchor="middle" class="t s">或生成配对码，装机时输码绑定</text>
+  <!-- 到表 -->
+  <path d="M240,97 L325,150" class="ln acc" marker-end="url(#a2g)"/>
+  <path d="M240,218 L325,180" class="ln acc" marker-end="url(#a2g)"/>
+  <text x="282" y="112" class="t s" text-anchor="middle">写入</text>
+  <!-- 表 -->
+  <rect x="330" y="110" width="240" height="140" rx="6" class="box acc"/>
+  <text x="450" y="134" text-anchor="middle" class="t b">人设表 weixin_personas</text>
+  <text x="345" y="158" class="t m">key      wx_xiaoxia_01</text>
+  <text x="345" y="176" class="t m">host     salesphone-…</text>
+  <text x="345" y="194" class="t s">姓名 · 性别 · 风格 · 口头禅</text>
+  <text x="345" y="214" class="t s">唯一约束：key · host · 姓名</text>
+  <text x="345" y="234" class="t s">= 一台机只有一个人设</text>
+  <!-- 机器 -->
+  <rect x="640" y="90" width="220" height="80" rx="6" class="box"/>
+  <text x="750" y="114" text-anchor="middle" class="t b">机器</text>
+  <text x="750" y="134" text-anchor="middle" class="t s">手机 APK / Windows 边车</text>
+  <text x="750" y="154" text-anchor="middle" class="t s">落盘，断网重启都保持</text>
+  <!-- 心跳往返 -->
+  <path d="M640,115 L575,140" class="ln" marker-end="url(#a2)"/>
+  <text x="636" y="104" text-anchor="end" class="t s">心跳 每 5 分钟</text>
+  <path d="M575,165 L640,150" class="ln acc" marker-end="url(#a2g)"/>
+  <text x="580" y="190" class="t m">回包 desired.persona</text>
+  <!-- 代回 -->
+  <path d="M750,170 L750,218" class="ln" marker-end="url(#a2)"/>
+  <text x="762" y="200" class="t s">代回：generate 带 key + host</text>
+  <rect x="640" y="222" width="220" height="50" rx="6" class="box soft"/>
+  <text x="750" y="243" text-anchor="middle" class="t s">会话身份键</text>
+  <text x="750" y="261" text-anchor="middle" class="t m">wx_xiaoxia_01:客户名</text>
+  <!-- 核对 -->
+  <path d="M570,235 L636,247" class="ln dash" marker-end="url(#a2)"/>
+  <text x="600" y="228" text-anchor="middle" class="t s">核对 key 与 host</text>
+  <!-- 工作台 -->
+  <path d="M750,272 L750,318" class="ln" marker-end="url(#a2)"/>
+  <text x="762" y="300" class="t s">按前缀收窄</text>
+  <rect x="640" y="322" width="220" height="70" rx="6" class="box"/>
+  <text x="750" y="346" text-anchor="middle" class="t b">门店工作台</text>
+  <text x="750" y="365" text-anchor="middle" class="t s">成员接待号填同一个 key</text>
+  <text x="750" y="382" text-anchor="middle" class="t s">只看到自己这台机的客户</text>
+  <!-- 没分配 -->
+  <rect x="330" y="300" width="240" height="60" rx="6" class="box dim"/>
+  <text x="450" y="324" text-anchor="middle" class="t s">表里没有这台机的人设</text>
+  <text x="450" y="344" text-anchor="middle" class="t s">→ 回包不带 persona → 机器一条不回</text>
+</svg>
+<figcaption>手机和电脑端只在①「谁来填表」上不同，②③完全一样。机器不自己决定是谁：它每 5 分钟发一次心跳，服务端在回包里告诉它「你是 wx_xiaoxia_01，叫小夏」。没分配就没有这个键，机器就不回。工作台成员的接待号填同一个 key，就只看到这台机的客户。</figcaption>
+</figure>
+
+<h2 id="s3"><span class="no">03</span>人设是什么：三样原料进同一副骨架</h2>
+<figure>
+<svg viewBox="0 0 880 200" role="img" aria-label="姓名、性别、风格预设和口头禅四个原料，装进固定的 prompt 骨架，骨架里的品牌事实不可改">
+  <defs><marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arr"/></marker></defs>
+  <rect x="20" y="30" width="130" height="40" rx="6" class="box acc"/><text x="85" y="55" text-anchor="middle" class="t">姓名 · 2–4 字</text>
+  <rect x="20" y="80" width="130" height="40" rx="6" class="box acc"/><text x="85" y="105" text-anchor="middle" class="t">性别 · 男/女</text>
+  <rect x="170" y="30" width="170" height="40" rx="6" class="box acc"/><text x="255" y="55" text-anchor="middle" class="t">风格 · 九档选一</text>
+  <rect x="170" y="80" width="170" height="40" rx="6" class="box acc"/><text x="255" y="105" text-anchor="middle" class="t">口头禅 · 0–3 条可选</text>
+  <path d="M340,75 L400,90" class="ln" marker-end="url(#a3)"/>
+  <text x="370" y="66" text-anchor="middle" class="t s">装配</text>
+  <rect x="405" y="30" width="250" height="140" rx="6" class="box"/>
+  <text x="530" y="54" text-anchor="middle" class="t b">固定骨架 buildYdyxPersona</text>
+  <text x="420" y="78" class="t s">「你叫 X，有大有小的销售（X 生）」</text>
+  <text x="420" y="98" class="t s">品牌事实：568 全国统一价、板材品牌</text>
+  <text x="420" y="118" class="t s">防复读闸：口头禅别每句都甩</text>
+  <text x="420" y="138" class="t s">风格段 ← 九档预设原文 + 口头禅</text>
+  <text x="420" y="158" class="t x">骨架不给改，所以不开自由文本</text>
+  <path d="M655,100 L715,100" class="ln" marker-end="url(#a3)"/>
+  <rect x="720" y="70" width="140" height="60" rx="6" class="box soft"/>
+  <text x="790" y="95" text-anchor="middle" class="t">AI 用这个身份</text>
+  <text x="790" y="113" text-anchor="middle" class="t">替他回客户</text>
+</svg>
+<figcaption>本人或管理员只提供四样原料。它们被装进一副固定骨架，骨架里写死了品牌事实和防复读闸，所以谁填都改不了「568 全国统一价」这类事实。风格不开自由文本，九档文案直接复用现有九个企微人设的说话风格。</figcaption>
+</figure>
+<div class="table-wrap">
+<table>
+  <tr><th>九档风格</th><th>一句话</th><th>九档风格</th><th>一句话</th><th>九档风格</th><th>一句话</th></tr>
+  <tr><td>利落干练</td><td>先甩结论再补理由</td><td>热情周到</td><td>句尾软化，不催不推</td><td>温和细致</td><td>把复杂的事掰开讲</td></tr>
+  <tr><td>算账清楚</td><td>一问价就拆开算</td><td>勤快跟进</td><td>当场去核实，给时间点</td><td>实在行家</td><td>给中肯判断，帮避坑</td></tr>
+  <tr><td>稳健护盘</td><td>先交代工期安装售后</td><td>细节确认</td><td>复述一遍再往下走</td><td>先看现场</td><td>先问清房子再给建议</td></tr>
+</table>
+</div>
+
+<h2 id="s4"><span class="no">04</span>手机端：本人四步建好</h2>
+<figure>
+<svg viewBox="0 0 880 250" role="img" aria-label="手机端四步：填表、试听、登记、迁旧会话；每步和服务端交换什么">
+  <defs><marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arr"/></marker>
+  <marker id="a4g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arr acc"/></marker></defs>
+  <text x="20" y="24" class="t h">手机上</text>
+  <rect x="20" y="40" width="180" height="70" rx="6" class="box acc"/>
+  <text x="110" y="62" text-anchor="middle" class="t b">1 填表</text>
+  <text x="110" y="82" text-anchor="middle" class="t s">姓名 · 性别 · 风格 · 口头禅</text>
+  <text x="110" y="100" text-anchor="middle" class="t s">替换现在的四选一弹窗</text>
+  <path d="M200,75 L235,75" class="ln" marker-end="url(#a4)"/>
+  <rect x="240" y="40" width="180" height="70" rx="6" class="box acc"/>
+  <text x="330" y="62" text-anchor="middle" class="t b">2 试听</text>
+  <text x="330" y="82" text-anchor="middle" class="t s">看一句「客户问价」的回复</text>
+  <text x="330" y="100" text-anchor="middle" class="t s">像不像自己，不像就改</text>
+  <path d="M420,75 L455,75" class="ln" marker-end="url(#a4)"/>
+  <rect x="460" y="40" width="180" height="70" rx="6" class="box acc"/>
+  <text x="550" y="62" text-anchor="middle" class="t b">3 登记</text>
+  <text x="550" y="82" text-anchor="middle" class="t s">拿到 key，大字显示</text>
+  <text x="550" y="100" text-anchor="middle" class="t s">给工作台管理员抄接待号</text>
+  <path d="M640,75 L675,75" class="ln" marker-end="url(#a4)"/>
+  <rect x="680" y="40" width="180" height="70" rx="6" class="box acc"/>
+  <text x="770" y="62" text-anchor="middle" class="t b">4 迁旧会话</text>
+  <text x="770" y="82" text-anchor="middle" class="t s">勾自己的老客户（见 06）</text>
+  <text x="770" y="100" text-anchor="middle" class="t s">勾完开始正常回</text>
+  <!-- 服务端泳道 -->
+  <line x1="20" y1="150" x2="860" y2="150" class="lane"/>
+  <text x="20" y="144" class="t h">服务端</text>
+  <path d="M330,110 L330,165" class="ln dash" marker-end="url(#a4)"/>
+  <rect x="245" y="170" width="170" height="50" rx="6" class="box"/>
+  <text x="330" y="190" text-anchor="middle" class="t m">persona_preview</text>
+  <text x="330" y="208" text-anchor="middle" class="t s">真模型按人设回一句，不落库</text>
+  <path d="M550,110 L550,165" class="ln dash" marker-end="url(#a4)"/>
+  <rect x="465" y="170" width="170" height="50" rx="6" class="box"/>
+  <text x="550" y="190" text-anchor="middle" class="t m">persona_register</text>
+  <text x="550" y="208" text-anchor="middle" class="t s">建行、绑 host、返回 key</text>
+  <path d="M770,110 L770,165" class="ln dash" marker-end="url(#a4)"/>
+  <rect x="685" y="170" width="175" height="50" rx="6" class="box"/>
+  <text x="772" y="190" text-anchor="middle" class="t m">persona_migrate_*</text>
+  <text x="772" y="208" text-anchor="middle" class="t s">列候选、按勾选改绑</text>
+</svg>
+<figcaption>放在引导第 6 步。没建完人设引导不往下走，App 报「人设未设置（现在谁都不回）」，和「白名单为空」是同一种状态，会进心跳让服务端看见。试听那一步是为了避免今天「在 xiawei 和 xiaoxia 之间选错」这种事，听一句比看拼音可靠。</figcaption>
+</figure>
+
+<h2 id="s5"><span class="no">05</span>电脑端：管理员分，机器只管收敛</h2>
+<figure>
+<svg viewBox="0 0 880 380" role="img" aria-label="电脑端分配泳道：管理员在工作台建人设并绑机器（入口 A），或生成配对码由装机人在机器上输入（入口 B）；服务端写表；机器心跳收到 desired.persona 后落盘并代回">
+  <defs><marker id="a5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arr"/></marker>
+  <marker id="a5g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arr acc"/></marker></defs>
+  <!-- 泳道 -->
+  <rect x="20" y="30" width="840" height="100" class="lane"/><text x="28" y="48" class="t h">管理员</text>
+  <rect x="20" y="140" width="840" height="100" class="lane"/><text x="28" y="158" class="t h">服务端</text>
+  <rect x="20" y="250" width="840" height="110" class="lane"/><text x="28" y="268" class="t h">机器（Windows / 云电脑）</text>
+  <!-- A -->
+  <rect x="100" y="60" width="200" height="56" rx="6" class="box acc"/>
+  <text x="200" y="82" text-anchor="middle" class="t b">入口 A · 工作台分配</text>
+  <text x="200" y="102" text-anchor="middle" class="t s">机器页：建人设 + 绑这台机</text>
+  <path d="M200,116 L200,166" class="ln acc" marker-end="url(#a5g)"/>
+  <rect x="100" y="170" width="200" height="50" rx="6" class="box"/>
+  <text x="200" y="190" text-anchor="middle" class="t m">persona_assign</text>
+  <text x="200" y="208" text-anchor="middle" class="t s">人设行 host = 这台机</text>
+  <!-- B -->
+  <rect x="330" y="60" width="200" height="56" rx="6" class="box acc"/>
+  <text x="430" y="82" text-anchor="middle" class="t b">入口 B · 配对码</text>
+  <text x="430" y="102" text-anchor="middle" class="t s">建人设 → 生成 6 位码，24h 一次性</text>
+  <path d="M430,116 L430,276" class="ln acc" marker-end="url(#a5g)"/>
+  <text x="442" y="240" class="t s">码交给装机的人</text>
+  <rect x="330" y="280" width="200" height="50" rx="6" class="box"/>
+  <text x="430" y="300" text-anchor="middle" class="t b">首次启动输码</text>
+  <text x="430" y="318" text-anchor="middle" class="t s">机器还没上线也能绑</text>
+  <path d="M530,305 L575,222" class="ln" marker-end="url(#a5)"/>
+  <rect x="540" y="170" width="140" height="50" rx="6" class="box"/>
+  <text x="610" y="190" text-anchor="middle" class="t m">persona_claim</text>
+  <text x="610" y="208" text-anchor="middle" class="t s">绑 host，码作废</text>
+  <!-- 汇合到心跳 -->
+  <path d="M300,195 L360,195" class="ln dash"/>
+  <path d="M680,195 L705,195" class="ln dash" marker-end="url(#a5)"/>
+  <path d="M360,195 L360,150 L705,150 L705,195" class="ln dash"/>
+  <rect x="710" y="170" width="150" height="50" rx="6" class="box soft"/>
+  <text x="785" y="190" text-anchor="middle" class="t s">下一拍心跳回包</text>
+  <text x="785" y="208" text-anchor="middle" class="t m">desired.persona</text>
+  <!-- 机器心跳 -->
+  <rect x="600" y="280" width="120" height="50" rx="6" class="box"/>
+  <text x="660" y="300" text-anchor="middle" class="t">每 5 分钟心跳</text>
+  <text x="660" y="318" text-anchor="middle" class="t s">报 host</text>
+  <path d="M700,280 L740,222" class="ln" marker-end="url(#a5)"/>
+  <path d="M800,220 L780,278" class="ln acc" marker-end="url(#a5g)"/>
+  <rect x="740" y="280" width="120" height="50" rx="6" class="box soft"/>
+  <text x="800" y="300" text-anchor="middle" class="t">落盘 → 代回</text>
+  <text x="800" y="318" text-anchor="middle" class="t s">没收到就不回</text>
+</svg>
+<figcaption>两个入口写的是同一张表，之后的路一样。入口 A 给已经在发心跳、状态页上看得到的机器用。入口 B 给首装：机器还没上线、装机的人也不是销售本人，他只要在客户端输一次配对码，机器就绑上了。.env 里的 <code>AKKE_WEIXIN_PERSONA</code> 和 <code>AKKE_WEIXIN_DATA_OPERATOR</code> 退役，换人只改表里那一行，机器下一拍生效。</figcaption>
+</figure>
+
+<h2 id="s6"><span class="no">06</span>旧会话迁移：只迁手机端的，手机报名单、人来勾</h2>
+<figure>
+<svg viewBox="0 0 880 300" role="img" aria-label="xiawei 池里 150 段带显式身份的排除，145 段裸名里按手机报的名字找候选，销售勾选后精确改绑到新 key；没勾的留在原地">
+  <defs><marker id="a6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arr"/></marker>
+  <marker id="a6g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arr acc"/></marker></defs>
+  <!-- 旧池 -->
+  <rect x="20" y="40" width="250" height="220" rx="6" class="box"/>
+  <text x="145" y="64" text-anchor="middle" class="t b">今天的 xiawei: 池 · 295 段</text>
+  <rect x="35" y="80" width="220" height="60" rx="6" class="box dim"/>
+  <text x="145" y="103" text-anchor="middle" class="t s">150 段带显式身份 consult:</text>
+  <text x="145" y="122" text-anchor="middle" class="t s">Windows / macOS 的，一律排除</text>
+  <rect x="35" y="155" width="220" height="90" rx="6" class="box warn"/>
+  <text x="145" y="178" text-anchor="middle" class="t s">145 段裸名 xiawei:客户名</text>
+  <text x="145" y="198" text-anchor="middle" class="t s">云电脑企微 + 五台手机混着</text>
+  <text x="145" y="218" text-anchor="middle" class="t s">库里没有字段能分开</text>
+  <!-- 手机 -->
+  <rect x="330" y="40" width="200" height="60" rx="6" class="box acc"/>
+  <text x="430" y="63" text-anchor="middle" class="t b">手机报名单</text>
+  <text x="430" y="83" text-anchor="middle" class="t s">白名单、黑名单里的名字</text>
+  <path d="M430,100 L430,140" class="ln" marker-end="url(#a6)"/>
+  <text x="442" y="126" class="t s">按规范名匹配</text>
+  <rect x="330" y="145" width="200" height="60" rx="6" class="box"/>
+  <text x="430" y="168" text-anchor="middle" class="t b">候选清单</text>
+  <text x="430" y="188" text-anchor="middle" class="t s">客户名 · 最后一条 · 消息数</text>
+  <path d="M255,200 L325,175" class="ln" marker-end="url(#a6)"/>
+  <path d="M430,205 L430,245" class="ln" marker-end="url(#a6)"/>
+  <rect x="330" y="250" width="200" height="40" rx="6" class="box acc"/>
+  <text x="430" y="275" text-anchor="middle" class="t b">销售逐条勾</text>
+  <!-- 结果 -->
+  <path d="M530,270 L595,190" class="ln acc" marker-end="url(#a6g)"/>
+  <text x="590" y="240" class="t s">勾了的：精确改绑</text>
+  <rect x="600" y="140" width="260" height="70" rx="6" class="box soft"/>
+  <text x="730" y="164" text-anchor="middle" class="t m">wx_xiaoxia_01:客户名</text>
+  <text x="730" y="184" text-anchor="middle" class="t s">customer_profile 留 migrated_from</text>
+  <text x="730" y="200" text-anchor="middle" class="t s">可回退</text>
+  <path d="M530,285 L595,285" class="ln dash" marker-end="url(#a6)"/>
+  <rect x="600" y="262" width="260" height="30" rx="6" class="box dim"/>
+  <text x="730" y="282" text-anchor="middle" class="t s">没勾的：留在 xiawei: 不动</text>
+</svg>
+<figcaption>库里认不出一段裸名会话来自手机还是云电脑，唯一知道答案的是手机：白名单里写着测试过的人，拿手机的销售也认得自己的客户。所以由手机报名字、服务端找候选、人来勾。同一个客户可能既加了夏伟企微又加了这台手机个微，键一模一样，只有人能分辨。按今天七台手机的白名单一共六个人，要勾的是个位数。电脑端旧会话不迁：111 段共用一个接待号，也没有人在机器前勾选的环节。</figcaption>
+</figure>
+
+<h2 id="s7"><span class="no">07</span>服务端怎么拦：三个问题，答错就不回</h2>
+<figure>
+<svg viewBox="0 0 880 300" role="img" aria-label="每条代回请求依次判断：带 host 吗、persona 是 wx_ 开头吗、host 与登记一致吗；任一不满足就拒绝">
+  <defs><marker id="a7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arr"/></marker>
+  <marker id="a7g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arr acc"/></marker>
+  <marker id="a7x" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arr x"/></marker></defs>
+  <rect x="20" y="60" width="120" height="44" rx="6" class="box"/><text x="80" y="87" text-anchor="middle" class="t">代回请求进来</text>
+  <path d="M140,82 L175,82" class="ln" marker-end="url(#a7)"/>
+  <rect x="180" y="52" width="150" height="60" rx="6" class="box acc"/>
+  <text x="255" y="77" text-anchor="middle" class="t b">带 host 吗？</text>
+  <text x="255" y="97" text-anchor="middle" class="t s">新包都带</text>
+  <path d="M255,112 L255,190" class="ln x" marker-end="url(#a7x)"/><text x="262" y="150" class="t s">否 = 老包</text>
+  <rect x="180" y="195" width="150" height="56" rx="6" class="box dim"/>
+  <text x="255" y="218" text-anchor="middle" class="t s">灰度期照旧放行</text>
+  <text x="255" y="238" text-anchor="middle" class="t s">全部切完后关闸 400</text>
+  <path d="M330,82 L395,82" class="ln acc" marker-end="url(#a7g)"/><text x="362" y="74" text-anchor="middle" class="t s">是</text>
+  <rect x="400" y="52" width="160" height="60" rx="6" class="box acc"/>
+  <text x="480" y="77" text-anchor="middle" class="t b">persona 是 wx_ 开头？</text>
+  <text x="480" y="97" text-anchor="middle" class="t s">个微端不许用企微 key</text>
+  <path d="M480,112 L480,190" class="ln x" marker-end="url(#a7x)"/><text x="487" y="150" class="t s">否</text>
+  <rect x="400" y="195" width="160" height="56" rx="6" class="box crit"/>
+  <text x="480" y="218" text-anchor="middle" class="t b">400 拒绝</text>
+  <text x="480" y="238" text-anchor="middle" class="t s">手机日志「人设无效」</text>
+  <path d="M560,82 L625,82" class="ln acc" marker-end="url(#a7g)"/><text x="592" y="74" text-anchor="middle" class="t s">是</text>
+  <rect x="620" y="52" width="150" height="60" rx="6" class="box acc"/>
+  <text x="695" y="77" text-anchor="middle" class="t b">host 与登记一致？</text>
+  <text x="695" y="97" text-anchor="middle" class="t s">查人设表</text>
+  <path d="M695,112 L695,190" class="ln x" marker-end="url(#a7x)"/><text x="702" y="150" class="t s">否</text>
+  <rect x="615" y="195" width="160" height="56" rx="6" class="box crit"/>
+  <text x="695" y="218" text-anchor="middle" class="t b">不回 + Lark 告警</text>
+  <text x="695" y="238" text-anchor="middle" class="t s">persona_host_mismatch</text>
+  <path d="M770,82 L800,82" class="ln acc" marker-end="url(#a7g)"/>
+  <rect x="805" y="60" width="65" height="44" rx="6" class="box soft"/>
+  <text x="837" y="87" text-anchor="middle" class="t b">放行</text>
+</svg>
+<figcaption>三问都过才装配人设、生成回复。第二问就是「隔离」本身：带 host 的新包只能用 <code>wx_</code> 人设，企微的九个 key 在个微端从此无效。第三问就是「一机一人设」的执法：key 被别的机器拿去用，服务端不回并告警。</figcaption>
+</figure>
+<details>
+<summary>人设表和配对码表的 DDL</summary>
+<pre><code>create table public.weixin_personas (
+  id            uuid primary key default gen_random_uuid(),
+  org_id        uuid not null,
+  key           text not null,        -- wx_xiaoxia_01，服务端生成
+  origin        text not null check (origin in ('self','assigned')),  -- 手机自建 / 后台分配
+  host          text,                 -- 绑定的机器；未绑时为空
+  display_name  text not null,
+  gender        text not null check (gender in ('男','女')),
+  style_preset  text not null,
+  catchphrases  text[] not null default '{}',
+  status        text not null default 'active' check (status in ('active','retired')),
+  created_by    text not null,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+create unique index on weixin_personas (org_id, key);
+create unique index on weixin_personas (org_id, host)         where status = 'active' and host is not null;
+create unique index on weixin_personas (org_id, display_name) where status = 'active';
+
+create table public.weixin_persona_pairing_codes (
+  code        text primary key,       -- 6 位数字
+  org_id      uuid not null,
+  persona_id  uuid not null references weixin_personas(id),
+  expires_at  timestamptz not null,   -- 生成后 24 小时
+  used_at     timestamptz,
+  used_by     text
+);</code></pre>
+<p>DDL 走 <code>supabase/wecom-ddl/</code> 存档加 dashboard 执行，并补 <code>wecom_ddl_applied</code> 台账。</p>
+</details>
+<details>
+<summary>接口契约一览（八个 action）</summary>
+<div class="table-wrap">
+<table>
+  <tr><th>action</th><th>谁调</th><th>做什么</th></tr>
+  <tr><td><code>persona_preview</code></td><td>手机 / 工作台</td><td>按表单字段临时装配人设，真模型回一句固定问价，不落库</td></tr>
+  <tr><td><code>persona_register</code></td><td>手机</td><td>建 origin=self 的行并绑 host，返回 key；同名或本机已有生效人设则拒绝并说明绑在哪台</td></tr>
+  <tr><td><code>persona_assign</code></td><td>工作台 / 状态页</td><td>建或改 origin=assigned 的行，绑到指定 host；管理员 token</td></tr>
+  <tr><td><code>persona_pairing_code</code></td><td>工作台</td><td>为一个未绑定的人设生成配对码</td></tr>
+  <tr><td><code>persona_claim</code></td><td>Windows 边车</td><td>拿配对码把本机 host 绑到预建的人设，配对码作废</td></tr>
+  <tr><td><code>persona_migrate_preview</code> / <code>_commit</code></td><td>手机</td><td>列旧 persona 下裸名候选（排除显式身份的），按勾选精确改绑</td></tr>
+  <tr><td><code>heartbeat</code>（已有）</td><td>手机 / 边车</td><td>回包 <code>desired.persona</code>；telemetry 加 <code>personaKey</code>、<code>personaName</code></td></tr>
+  <tr><td><code>generate</code> / <code>opener</code> / <code>confirm</code>（已有）</td><td>手机 / 边车</td><td>新增 <code>host</code> 字段；服务端核对 (persona, host) 与登记一致</td></tr>
+</table>
+</div>
+<p>服务端认人设的函数从「查静态九人表」扩成「先查静态表，<code>wx_</code> 前缀再查库」，命中后交给同一个骨架装配，回复生成、模型选择、个微输出闸一行不改。</p>
+</details>
+
+<h2 id="s8"><span class="no">08</span>上线顺序：先服务端，再两端，最后关闸</h2>
+<figure>
+<svg viewBox="0 0 880 170" role="img" aria-label="五步上线：服务端先上并向后兼容；发手机 0.9.31；发 Windows v1.9.21；工作台加分配页并逐台分配；全部切完后关闸">
+  <defs><marker id="a8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arr"/></marker></defs>
+  <line x1="40" y1="60" x2="840" y2="60" class="ln"/>
+  <circle cx="60" cy="60" r="7" class="box acc"/><circle cx="240" cy="60" r="7" class="box acc"/><circle cx="420" cy="60" r="7" class="box acc"/><circle cx="600" cy="60" r="7" class="box acc"/><circle cx="800" cy="60" r="7" class="box crit"/>
+  <text x="60" y="40" text-anchor="middle" class="t b">1 服务端</text>
+  <text x="60" y="90" text-anchor="middle" class="t s">建表、八个 action</text>
+  <text x="60" y="108" text-anchor="middle" class="t s">老包照旧放行</text>
+  <text x="240" y="40" text-anchor="middle" class="t b">2 手机 0.9.31</text>
+  <text x="240" y="90" text-anchor="middle" class="t s">强制建人设 + 迁旧会话</text>
+  <text x="240" y="108" text-anchor="middle" class="t s">删掉四选一弹窗</text>
+  <text x="420" y="40" text-anchor="middle" class="t b">3 Windows v1.9.21</text>
+  <text x="420" y="90" text-anchor="middle" class="t s">读 desired.persona</text>
+  <text x="420" y="108" text-anchor="middle" class="t s">支持配对码，带 host</text>
+  <text x="600" y="40" text-anchor="middle" class="t b">4 工作台分配页</text>
+  <text x="600" y="90" text-anchor="middle" class="t s">六台 Windows / 云电脑</text>
+  <text x="600" y="108" text-anchor="middle" class="t s">逐台分配</text>
+  <text x="800" y="40" text-anchor="middle" class="t b">5 关闸</text>
+  <text x="800" y="90" text-anchor="middle" class="t s">所有个微机器都是 wx_ 后</text>
+  <text x="800" y="108" text-anchor="middle" class="t s">带 host 的非 wx_ 一律 400</text>
+  <text x="440" y="150" text-anchor="middle" class="t s">1 到 4 期间新旧包并存，老包不受影响；第 5 步之后隔离正式生效</text>
+</svg>
+<figcaption>验收只认行为，不认配置：①把一台新版手机的人设改回 <code>xiawei</code> 发一条，服务端应 400；②两台机器注册或分配同名「小夏」，第二台应被拒并提示绑在哪台；③给一台 Windows 机器改绑人设，下一拍心跳后状态行显示新名字、新会话前缀换成新 key；④用过期或用过的配对码，客户端应被拒且不绑定；⑤心跳表所有个微机器无重复人设；⑥销售的工作台账号填了接待号后，只看到自己机器的会话。</figcaption>
+</figure>
+
+<h2 id="s9"><span class="no">09</span>已定与待定</h2>
+<div class="decided">
+  <div class="q"><b>已定 · 风格不开自由文本</b>九档预设加口头禅。</div>
+  <div class="q"><b>已定 · 旧会话只迁手机端的</b>手机报名单、人勾选、精确改绑；电脑端不迁。</div>
+  <div class="q"><b>已定 · 配对码要做</b>首装不用先等心跳再回状态页分配。</div>
+  <div class="q"><b>已定 · 企微不动</b>企微云电脑仍用九个静态 key 和 .env，不进个微人设表。</div>
+  <div class="q open"><b>待定 · 工作台接待号自动填还是手填</b>默认手填：注册屏和分配页都把 key 显示出来给管理员抄。自动填要让 wecom-chat 的接口跨仓写工作台成员表，本次不碰。</div>
+</div>
+
+<div class="foot">
+  依据：wecom-chat origin/main（4fac2a1，2026-09-03）、store-workbench origin/main 源码；生产库 wecom_loop_heartbeats / conversations / accounts 于 2026-09-03 09:40 读取。相关页：<a href="/akke/weixin-executor-manual">执行器上手手册</a>。内部参考页，noindex。
+</div>
+</div>
+</body>
+</html>
