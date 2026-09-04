@@ -96,6 +96,23 @@
         <div class="step decision"><b>⑦ 等待再评估</b><small>回复→作废旧轮并重建；未回→到期进入下一次；满7次→低频培育。</small></div>
       </div>
 
+      <h3 class="sub">单微信窗口的任务优先级与切换</h3>
+      <div class="table-wrap"><table class="table"><thead><tr><th>优先级</th><th>触发场景</th><th>切换动作</th></tr></thead><tbody>
+        <tr><td><b>P0 · 客户新消息</b></td><td>正在召回的客户突然回复，或其他客户出现新消息。</td><td>停止领取新的召回任务；把新消息加入待回复队列，按最早未回复优先逐个处理。被召回客户回复时，同时取消该客户旧轮剩余召回任务。</td></tr>
+        <tr><td><b>P1 · 回复恢复与人工接管</b></td><td>上一条客户回复生成成功但尚未确认发出，或销售正在手动输入/发送。</td><td>先恢复并确认客户回复；检测到人工操作则让出窗口，相关召回任务重新复核后再执行。</td></tr>
+        <tr><td><b>P2 · 历史建档</b></td><td>没有待回复消息，但还有未完成的存量客户分类或历史同步。</td><td>按小批量继续扫描；每打开一个会话后都重新检查是否出现客户新消息。</td></tr>
+        <tr><td><b>P3 · 主动召回</b></td><td>没有待回复、没有待恢复发送、当前不在人工操作，并且召回任务已经到期。</td><td>一次只领取一条；搜索、身份核对、最新消息复核全部通过后才发送。</td></tr>
+      </tbody></table></div>
+      <div class="callout"><b>总原则：</b>个人微信只有一个前台窗口，必须保持“客户回复 ＞ 历史建档 ＞ 主动召回”。任何新客户消息都可以阻止下一条召回，但不能粗暴打断一个已经按下发送键的动作，否则会造成“不知道发没发”的重复发送风险。</div>
+
+      <h3 class="sub">召回执行到一半时，在哪个点切换</h3>
+      <div class="grid">
+        <article class="card ok"><span class="tag ok">尚未输入</span><h3>立即暂停召回</h3><p>仍在搜索、打开会话或读取历史时发现新消息，当前召回任务释放或延后，立即转去处理客户消息。</p></article>
+        <article class="card warn"><span class="tag warn">已经输入，尚未发送</span><h3>清草稿后切换</h3><p>先确认输入框内容属于召回草稿并安全清空，再保存任务为待重试。清不干净或无法确认时不切换发送，截图并进入人工核对。</p></article>
+        <article class="card bad"><span class="tag bad">已经点击发送</span><h3>先确认结果再切换</h3><p>不允许自动重发。先核对真实气泡并完成 sent / uncertain 回执，再处理新消息；结果不确定时把该召回转人工核对。</p></article>
+        <article class="card info"><span class="tag info">回复处理完</span><h3>重新排队，不接着盲发</h3><p>重新扫描全部未读；全部清空后，原召回任务必须再次核对客户身份、最后消息、人工跟进和到期时间，仍安全才恢复。</p></article>
+      </div>
+
       <h3 class="sub">发送节奏（按企微生产逻辑照搬）</h3>
       <div class="table-wrap"><table class="table"><thead><tr><th>当前阶段</th><th>下一次间隔</th><th>本次内容方向</th></tr></thead><tbody>
         <tr><td>新客户冷启动</td><td>前两次各间隔 1 天，第 3 次起间隔 2 天，直至本轮 7 次完成</td><td>配置与兴趣 → 环保品质 → 服务流程 → 案例/权益，再按历史继续取未发话题</td></tr>
@@ -146,7 +163,7 @@
       <div class="grid">
         <article class="card info"><span class="tag info">后端</span><h3>新增个微七次召回策略</h3><ul><li>独立策略版本，例如 <span class="mono">weixin_recall_7_v1</span>，行为对齐企微七次计划。</li><li>复用企微候选门、阶段判断、七话题计划、render、去重与安全闸；最短沉默默认仍为 24 小时，可配置。</li><li>每次成功后按当前阶段写入下一次时间；完成第 7 次后进入低频五话题培育，而不是误写成停止。</li><li>账号必须按 <span class="mono">wx_phone_…</span> 托管人设隔离，不能与企微销售 persona 混池。</li></ul></article>
         <article class="card info"><span class="tag info">接口</span><h3>给 APK 增加任务协议</h3><ul><li><span class="mono">peek_recall</span>：只问有没有活，不占任务。</li><li><span class="mono">claim_recall</span>：原子领取一条，带客户名、话术和任务 ID。</li><li><span class="mono">complete_recall</span>：回传 sent / skipped / failed 与明确原因。</li><li>协议可复用企微接口语义，但必须校验这是该手机账号的个人微信任务。</li></ul></article>
-        <article class="card info"><span class="tag info">APK</span><h3>新增主动任务循环</h3><ul><li>后台低频轮询，不依赖客户通知。</li><li>主动打开微信搜索客户，结果唯一才进入。</li><li>打开后核对标题与最后消息；客户已回或销售刚发过就取消。</li><li>发送完核对真实气泡，离开微信并回执。</li></ul></article>
+        <article class="card info"><span class="tag info">APK</span><h3>新增可打断的主动任务循环</h3><ul><li>后台低频轮询，不依赖客户通知，但领取召回前必须先清空待回复消息。</li><li>主动打开微信搜索客户，结果唯一才进入；搜索和读历史期间持续监听新消息。</li><li>打开后核对标题与最后消息；客户已回、其他客户待回复或销售刚发过就暂停召回。</li><li>以“未输入 / 已输入未发送 / 已点击发送”记录执行状态，按安全切换规则恢复。</li><li>发送完核对真实气泡并回执；结果不确定时绝不自动重发。</li></ul></article>
         <article class="card warn"><span class="tag warn">历史前置</span><h3>新增手机存量会话建档</h3><ul><li>服务端账本目前不能覆盖销售手机上的历史客户，不能把“云端查不到”当成“没有这个客户”。</li><li>APK先分页扫描会话并完成客户 / 同事 / 无关人员 / 无法确认四类识别；非客户直接跳过。</li><li>只对客户打开会话，读取当前界面可获得的历史，增量上传并保留来源、最早/最新时间和角色方向。</li><li>回读不完整时状态必须是“历史不足”，不能误判为可召回，也不能要求销售补备注。</li></ul></article>
         <article class="card info"><span class="tag info">云端</span><h3>客户历史建档协议</h3><ul><li><span class="mono">upsert_contact_classification</span>：上传分类、置信度与证据，不上传无关人员完整正文。</li><li><span class="mono">sync_chat_history</span>：按消息指纹增量写入，避免每次重复上传。</li><li><span class="mono">evaluate_recall</span>：仅接收分类为客户且历史充分的会话，输出可召回 / 不召回 / 历史不足三态。</li><li>每次发送前再同步最新可见消息，防止销售已跟进或客户已回复后仍发送旧任务。</li></ul></article>
         <article class="card bad"><span class="tag bad">总闸</span><h3>急停要挡住存量任务</h3><p>只关后端“继续入队”不够，APK仍可能领走已经 pending 的任务。总停必须同时让 claim 拒绝、APK停止主动循环，并把在途任务改成 aborted 或留待人工恢复。</p></article>
@@ -160,7 +177,7 @@
         <div class="phase"><h3>P0 · 先装包，不开召回</h3><p>将 0.9.35 装到 1 台选定手机；完成无障碍、通知访问、输入法启用、电池与厂商自启动设置。验收心跳显示版本 <span class="mono">0.9.35+fd66785</span>、ready=true。先验证现有自动回复和历史回读日志。</p></div>
         <div class="phase"><h3>P1 · 手机存量会话建档（只读）</h3><p>APK分页扫描会话，先输出客户 / 同事 / 无关人员 / 无法确认四类结果；非客户不读完整正文。抽样验收分类准确率后，只对客户增量回读并同步历史，全程不生成发送任务。</p></div>
         <div class="phase"><h3>P2 · 后端空跑判断</h3><p>实现 <span class="mono">weixin_recall_7_v1</span>，只输出候选、触次、阶段、下一次时间、历史证据、跳过原因和本次话术，不写待发送队列。连续空跑 3 天，逐条确认七次节奏、历史证据、停止条件和回复重建均与企微一致。</p></div>
-        <div class="phase"><h3>P3 · APK 主动发送腿（仍 dry-run）</h3><p>接入 peek/claim/complete，真正在微信里搜人和打开会话，但不点发送。验收唯一结果、标题核对、最新历史增量同步、客户已回拦截、人工跟进拦截和回执。</p></div>
+        <div class="phase"><h3>P3 · APK 主动发送腿（仍 dry-run）</h3><p>接入 peek/claim/complete，真正在微信里搜人和打开会话，但不点发送。注入“召回客户回复”“其他客户来消息”“销售手动接管”三类并发场景，验收任务能在安全点暂停、优先回复、清空未读后重新复核并恢复。</p></div>
         <div class="phase"><h3>P4 · 1 台真发灰度</h3><p>首周每天最多 5 条。每条以微信真实气泡为证，数据库 sent 不能单独算成功；每天复盘分类误差、回复、删除、跳过、认人失败和发送失败。</p></div>
         <div class="phase"><h3>P5 · 扩到第二台</h3><p>首台连续 7 天无异常、身份零错发、人群分类和历史判断通过验收后，再升级第二台。每台使用独立 <span class="mono">wx_phone_…</span> 人设和账号，不复用 xiawei/xiaoxia 的企微身份池。</p></div>
       </div>
@@ -183,6 +200,12 @@
         <li>APK搜索结果不唯一时必定跳过。</li>
         <li>打开错误会话或标题不确定时一个字都不发。</li>
         <li>销售刚手动跟进后，陈旧任务会被发送前复核挡住。</li>
+        <li>任何客户出现新消息时，不再领取新的召回任务。</li>
+        <li>召回对象回复后，旧轮剩余召回任务立即作废并优先承接回复。</li>
+        <li>其他客户发消息时，当前未发送的召回能安全暂停，先处理待回复队列。</li>
+        <li>召回草稿已经输入时，只有确认清空成功才能切换会话。</li>
+        <li>已经点击发送但结果不确定时不会自动重发。</li>
+        <li>待回复消息全部处理完后，召回恢复前会重新核对身份、最新消息和到期时间。</li>
         <li>同一次触达只发一个气泡；未到下一次时间不产生新任务。</li>
         <li>未回复客户按阶段间隔继续，累计最多完成 7 次。</li>
         <li>客户回复后旧轮剩余任务全部作废，先进入正常自动接待。</li>
