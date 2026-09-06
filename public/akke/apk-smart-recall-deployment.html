@@ -1,69 +1,28 @@
 <!doctype html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex,nofollow">
-<title>个人微信 · 备注白名单与7次召回部署方案</title>
-<meta name="description" content="复用销售统一备注筛选客户，根据历史和地区生成话术，按企微节奏执行最多7次召回。">
-<link rel="canonical" href="https://upio.ai/akke/apk-smart-recall-deployment">
-<style>
-:root{--bg:#f2f1eb;--paper:#fffefa;--ink:#17211d;--muted:#647069;--line:#dcded7;--green:#155f4b;--light:#daf0e7;--dark:#10231c;--amber:#fff1d6}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.8 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}.hero{background:var(--dark);color:#edf6f1;padding:56px 24px}.inner,main{max-width:1080px;margin:auto}.eyebrow{font-size:12px;letter-spacing:.15em;color:#88d1b3}h1{font-size:clamp(30px,5vw,48px);line-height:1.25;letter-spacing:-.03em;margin:18px 0}h2{font-size:26px;line-height:1.35;margin:0 0 18px}h3{font-size:18px;margin:0 0 8px}p{margin:0 0 14px}.hero p{color:#b6c9c0;max-width:820px}.pills,nav{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}.pills span,nav a{padding:6px 12px;border:1px solid #315044;border-radius:8px;font-size:13px}nav a{color:#edf6f1;text-decoration:none}main{padding:32px 24px 64px}section{margin:36px 0;scroll-margin-top:20px}.card,.tablebox{background:var(--paper);border:1px solid var(--line);border-radius:14px}.card{padding:22px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.callout{background:var(--amber);padding:18px 22px;border-radius:12px;margin:18px 0}.intro{border-left:5px solid var(--green)}.muted{color:var(--muted);font-size:14px}.tablebox{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:680px}th,td{padding:14px 18px;text-align:left;border-bottom:1px solid var(--line);font-size:14px;vertical-align:top}th{background:#e9ede7;font-weight:600}tr:last-child td{border-bottom:0}.flow{counter-reset:step;display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.flow div{background:var(--paper);border:1px solid var(--line);padding:18px;border-radius:12px;font-size:14px}.flow div:before{counter-increment:step;content:counter(step,decimal-leading-zero);display:block;color:var(--green);font-weight:700;margin-bottom:8px}.flow b{display:block}.flow span{color:var(--muted)}code{font-size:13px;overflow-wrap:anywhere}a{color:var(--green)}ul,ol{padding-left:22px}li{margin:6px 0}footer{border-top:1px solid var(--line);padding-top:20px;color:var(--muted);font-size:12px}.status{color:#9a5d0a;font-weight:600}@media(max-width:700px){.grid{grid-template-columns:1fr}.flow{grid-template-columns:1fr 1fr}main{padding:24px 16px}h2{font-size:23px}}@media(max-width:380px){.flow{grid-template-columns:1fr}}
-</style>
-</head>
-<body>
-<header class="hero"><div class="inner"><div class="eyebrow">AKKE · 召回部署方案 · 2026-09-06</div>
-<h1>用现有客户备注，<br>开启最多7次智能召回</h1>
-<p>销售已经有统一备注，系统直接用它筛选客户；再读历史判断是否适合召回，并结合地区生成对应内容。每次发一条，等待回复，客户新消息始终优先。</p>
-<div class="pills"><span>复用已有备注</span><span>不逐客补标签</span><span>仅匹配客户单聊</span><span>每轮最多7次</span></div>
-<nav><a href="#scope">客户范围</a><a href="#flow">执行逻辑</a><a href="#cadence">企微节奏</a><a href="#region">地区话术</a><a href="#interrupt">消息切换</a><a href="#deployment">部署状态</a></nav>
-</div></header>
-<main>
-<div class="card intro"><h2>本次方案变化</h2><p>取消“客户 / 同事 / 无关人员”的模型分类，改成统一备注白名单。<strong>格式符合 → 允许读取历史；历史符合 → 才允许进入召回。</strong>不符合备注的联系人直接跳过。</p><p class="muted">“7天召回”在本方案中指最多7次召回，不是对沉默7天的人发一次，也不是固定连续7天发送。本次范围到第7次结束，不自动扩展低频培育。</p></div>
-<section id="scope"><h2>01 · 客户备注白名单</h2>
-<div class="card"><p><code>闽D｜607101｜岩板示例｜13800000000</code>（脱敏示例）</p><p>已配置地区码 + 6位客户编号 + 2–8个汉字的业务/姓名 + 末尾11位手机号。默认按完整格式匹配；编号按业务编号处理，不解释成日期。</p><p class="muted">支持OCR完整文字，以及安卓无障碍接口提供的可见节点完整原文。屏幕省略但节点有全名时可以继续核对；两种方式都拿不到全名、存在多个同名目标或读屏不完整时跳过。不能只凭“闽D”或手机号就认定目标。</p></div>
-<div class="grid" style="margin-top:16px"><div class="card"><h3>符合格式也要继续判断</h3><p>必须是一对一会话、有客户原话、消息方向可信、最后不是客户在等回答，且没有拒绝、成交或履约等停止信号。</p></div><div class="card"><h3>不符合格式直接跳过</h3><p>不打开深读、不上传正文、不生成召回。群聊、系统号、身份无法核对也跳过。无需销售逐个审核。</p></div></div>
-</section>
-<section id="flow"><h2>02 · 从手机历史到7次召回</h2><p class="muted">历史可能只存在于销售手机。云端没有记录时先建档，不能把“没有云端历史”解释成“没有客户回复”。</p>
-<div class="flow"><div><b>分批扫描列表</b><span>空闲时读取可见会话，匹配统一备注。</span></div><div><b>完整核对目标</b><span>标题、一对一身份、输入框与当前页面都要确认。</span></div><div><b>读取有限历史</b><span>保留原话、角色与可信时间；不足就暂不发。</span></div><div><b>云端判断</b><span>停止规则优先，再根据历史决定阶段和召回内容。</span></div><div><b>等待到期</b><span>复用企微七话题与阶段间隔，一次只处理一条任务。</span></div><div><b>发前再次检查</b><span>核对最新消息、人工接管、新通知和云端暂停。</span></div><div><b>确认气泡并记账</b><span>真实发出才增加一次；回执重复不重复计数。</span></div><div><b>回复或结束</b><span>客户回复取消旧任务；未回则等下次；满7次结束。</span></div></div>
-</section>
-<section id="cadence"><h2>03 · 沿用企微的七话题和阶段间隔</h2>
-<p>话题顺序为：关注点选择 → 需求缺口 → 报价配置理解 → 比较清单 → 降低资料提交门槛 → 时间节点 → 温和收尾。实际内容承接客户历史，避免再问已回答的问题。</p>
-<div class="tablebox"><table><thead><tr><th>阶段</th><th>下次间隔</th><th>内容方向</th></tr></thead><tbody>
-<tr><td>冷启动</td><td>完成触次少于3时1天，之后2天</td><td>先确定关注点，逐步解释配置、需求和流程。</td></tr>
-<tr><td>明确决策中</td><td>2天</td><td>承接真实报价、方案和待确认事项。</td></tr>
-<tr><td>需求形成中</td><td>3天</td><td>结合已知户型、面积、风格、预算提供帮助。</td></tr>
-<tr><td>轻互动 / 观望</td><td>7天</td><td>相关知识与比较方法，减少催促。</td></tr>
-<tr><td>沉默30–60天 / 60–90天</td><td>10天 / 15天</td><td>降低频率，仍须与原需求有关。</td></tr>
-<tr><td>90天以上</td><td>后续30天基础间隔</td><td>低频承接原需求，仍受七次上限约束。</td></tr>
-<tr><td>未来计划 / 明确说稍后联系 / 等销售交资料</td><td>暂停自动召回</td><td>本版不猜约定日期；须有新历史证据解除等待，不能被首触默认1天提前打扰。等客户自己的设计师出图，至少延后15天。</td></tr>
-<tr><td>拒绝、成交、履约中或本轮满7次</td><td>不再派发</td><td>停止旧轮，不能以普通候选身份重新绕回。</td></tr>
-</tbody></table></div>
-<div class="callout">复用企微的选题和后续阶段节奏。普通候选首触最早在最后一条有证据的正常销售回复1天后；停止和等待约定优先。每次仍需重新读历史。不直接复制含“发群里”的群聊正文，也不把企微统一报价、活动或期限自动套到个人微信。</div>
-</section>
-<section id="region"><h2>04 · 根据地区生成不同内容</h2>
-<div class="grid"><div class="card"><h3>地区来自配置</h3><p>备注开头匹配服务端地区规则，例如闽D、闽C。地区码是客户线索，不能自动当成已经核实的装修地址；历史中客户明确的地址优先。</p></div><div class="card"><h3>话术结合历史</h3><p>本次话题 + 未完成事项 + 可用地区信息共同决定内容。仅使用已配置、可核实的服务范围或资料，不编造当地活动、样板间和可预约时间。</p></div><div class="card"><h3>未知或冲突</h3><p>无法确认地区时不猜。缺少地区业务资料时不能生成当地优惠；客户明确地址与备注地区不同时，以明确地址为准，禁用冲突的备注地区政策。</p></div><div class="card"><h3>信息边界</h3><p>手机号用于备注校验与身份核对，不写进召回话术。姓名与业务词不强行拆分，避免把“岩板”等词当成称呼。</p></div></div>
-</section>
-<section id="interrupt"><h2>05 · 新消息优先，切换前先确认现场</h2>
-<div class="tablebox"><table><thead><tr><th>发生时机</th><th>处理方式</th><th>恢复条件</th></tr></thead><tbody>
-<tr><td>尚未输入，任何客户来消息</td><td>取消本次发送机会，安全结束扫描或召回，优先回复。</td><td>处理完待回复，再重新领取或核验任务。</td></tr>
-<tr><td>已输入，尚未点击发送</td><td>核对并清空本次草稿；无法确认清空则暂停待核对。</td><td>不能带着旧草稿切到另一位客户。</td></tr>
-<tr><td>已经点击发送</td><td>先查新气泡并回执，不能立刻重试。</td><td>不确定结果进入复核，不能自动补发。</td></tr>
-<tr><td>召回对象回复</td><td>旧轮剩余任务失效，先处理客户当前问题。</td><td>只有新的正常对话和已确认回复才能作为新计划依据。</td></tr>
-<tr><td>销售自己操作 / 风险提示 / 远程暂停</td><td>停止新的扫描和发送许可，持久保存任务阶段。</td><td>恢复后重新核对身份、最新消息与任务有效性。</td></tr>
-</tbody></table></div><p class="muted" style="margin-top:14px">系统通知不能覆盖“客户正在打开的聊天页里发来消息”的全部情况，因此发送前仍需检查最新一屏。正在执行的网络请求与点击结果核验也需要时间，不承诺零延迟切换。</p>
-</section>
-<section id="deployment"><h2>06 · 部署状态与交付</h2><div class="card"><p class="status" id="release-status">状态：服务端七次召回已部署为预演；0.12.0正式安装包已生成。尚未开启真发。</p><p id="release-detail">主功能PR #965及地区配置错误提示补丁PR #966均已合并并发布。2026-09-06 19:03核验线上07659c2、服务健康；Actions发布34028947771和对应主干CI成功。召回配置返回steps=7、schemaVersion=1、mode=preview。整合全量3310项服务端测试、381项安卓测试通过；后续错误提示修复另有59项定向测试通过。</p><p id="device-status">真机状态：本机暂无连接手机。仍需试点覆盖安装、心跳版本核对，以及历史读取、新消息切换、真实气泡和回执验收；真实双连接数据库争用也未验收。不能把接口接通当作销售手机已运行。</p><p class="muted">服务端发布走GitHub Actions的vercel-deploy.yml，不依赖Vercel原生Git Integration。Upio公开链接是独立发布：截至本版交付核验仍显示旧页，不能用服务端发布成功证明公开文档已刷新。</p></div>
-<div class="grid" style="margin-top:16px"><div class="card"><h3>初始发送范围</h3><p>北京时间09:00–21:00，每台每天最多5条主动召回，同一客户每天最多1条，主动消息至少间隔10分钟。普通新消息优先。</p></div><div class="card"><h3>安装包交付</h3><p>正式release包必须可追溯到提交，记录版本、SHA256与签名。带生产设备凭据的APK单独交付，不放到这个公开页面。</p></div></div>
-</section>
-<section id="install"><h2>07 · 安装包与试点操作</h2><div class="card"><p><strong>0.12.0+bd33952 · versionCode 57 · 44.6MB · 多人共用已配置release包</strong></p><p>与用户提供的0.10.8包签名一致，可覆盖安装，不先卸载旧包。保留各手机自己的AI身份、现有权限与未完成回执。</p><p class="muted">安装包SHA256：<code>4df0eca30bca17a3c8c1f083e02c05708d484d8afbe46cbeeccd03bcc02b1b45</code>。包内含设备凭据，请勿转发或上传公共网盘。</p><ol><li>覆盖安装后确认版本0.12.0，并核对无障碍、通知访问、输入法和后台运行权限。</li><li>进入“高级设置 → 🔧 排障工具 → 七次自动召回：关闭 / 预演 / 真发”，先选择“启用预演（不发送）”。</li><li>确认目标客户的完整备注、历史方向和末条证据可读。手机有人操作或有新消息时应让路，不争抢界面。</li><li>预演通过后，使用明确选定的试点手机完成发送前中断、发送后回执和重启防重发验收；再由有权限的负责人设置云端允许和手机真发。</li></ol><p class="muted">仅把手机切到“真发”不够：云端仍为preview时不会获得真发许可。启用召回期间，普通自动回复也受同一备注白名单限制；非白名单消息可以打断召回，但不因此获准自动回复。销售无需逐个新增标签。</p></div></section>
-<section><h2>08 · 上线验收</h2><div class="card"><ul>
-<li>白名单外会话没有深读、上传或召回；相似名称、群聊与截断标题不会被放行。</li>
-<li>历史不足、最后是客户消息、明确停止或履约中的客户不召回。</li>
-<li>同一任务重复领取、重复回执和程序重启不会重复发送或重复计数。</li>
-<li>模拟7次成功后不再产生第8次；没有成功回执不推进下一触。</li>
-<li>本人和其他客户来消息时，尚未点击的召回被打断；恢复前重新检查。</li>
-<li>点击发送后故障不会自动补发；远程暂停阻止新发送许可。</li>
-<li>服务端版本、APK构建、手机心跳分别核对；真实气泡与服务端回执一致。</li>
-</ul></div></section>
-<footer>本页仅包含部署规则与脱敏示例。事实源：wecom-chat 的七次召回策略、安卓执行器源码、发布台账与机队心跳。代码合并、服务端上线、安装包生成和真机验收是四个不同状态。</footer>
-</main></body></html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>七次召回 · 当前发送逻辑</title><style>:root{--bg:#f2f1eb;--paper:#fffefa;--ink:#17211d;--muted:#647069;--line:#dcded7;--green:#155f4b}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.85 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}header{background:#10231c;color:#edf6f1;padding:52px 24px}header>div,main{max-width:1040px;margin:auto}header p{color:#b6c9c0}h1{font-size:clamp(30px,5vw,46px);line-height:1.3}h2{font-size:26px;line-height:1.4;margin:0 0 18px}h3{font-size:20px;margin:0 0 12px}p{margin:0 0 12px}main{padding:24px 24px 60px}section{margin:32px 0}.card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:24px;margin:14px 0}.note{border-left:4px solid var(--green)}.muted,small{color:var(--muted)}nav{display:flex;flex-wrap:wrap;gap:16px}nav a{color:#d7eee2}a{color:var(--green)}.tablebox{overflow:auto;background:var(--paper);border:1px solid var(--line);border-radius:14px}table{width:100%;border-collapse:collapse;min-width:600px}th,td{text-align:left;padding:15px;border-bottom:1px solid var(--line);vertical-align:top}th{background:#e9ede7}tr:last-child td{border:0}li{margin:12px 0}.tag{display:inline-block;background:#e8eee8;padding:3px 10px;border-radius:6px;font-size:13px;margin-bottom:12px}.pending{background:#fff1d6}.source{font-size:13px;color:var(--muted);overflow-wrap:anywhere}footer{border-top:1px solid var(--line);padding-top:20px;font-size:13px;color:var(--muted)}@media(max-width:650px){main{padding:18px 16px 40px}.card{padding:18px}h2{font-size:23px}}@media print{header{background:white;color:black;padding:10px}header p,nav a{color:black}main{padding:0}.card{break-inside:avoid}nav{display:none}}</style></head><body><header><div><p>AKKE · 个人微信召回 · 2026-09-06</p><h1>七次召回 · 当前发送逻辑</h1><p>先确认是客户，再读历史判断；每次只发一条，收到回复就先处理回复。七次是本轮成功发送的上限，不是沉默七天，也不是连续七天群发。</p><nav><a href="#customer">发给谁</a><a href="#judge">怎么判断</a><a href="#time">什么时候发</a><a href="#words">发什么</a><a href="#interrupt">来消息怎么办</a></nav></div></header><main>
+<section id="customer"><h2>01 · 先用已有备注找客户</h2><div class="card"><p>系统分批查看微信会话列表，只把符合统一备注格式的人列为检查对象。销售不用逐个新增“需要召回”的标签。</p><p><strong>地区码 ＋ 6位客户编号 ＋ 2～8个汉字的业务/姓名 ＋ 11位手机号</strong></p><p class="muted">脱敏示例：闽D｜607101｜岩板示例｜13800000000。地区还必须在允许范围内；编号不当成日期。“群、客服、公司、测试、官方、通知、团队、家居、装饰、装修、服务”等业务名称会被排除。</p><p>名字太长、显示省略号时，只允许先去个人资料核对完整备注；必要时打开备注页只读，不修改、不保存。确认唯一完整身份、确实是单聊，才读取和上传聊天历史。核实不了就跳过，不靠相似名字猜。</p><p class="muted">当前是分批扫描会话列表，不是读取全部通讯录。列表中不存在的聊天，不会自动补建。</p></div></section>
+<section id="judge"><h2>02 · 读历史后，才决定要不要召回</h2><div class="card"><p>历史只在手机、云端没有记录时，先从手机读取并建档。最多读取最近20条消息、最多翻8屏，保留客户和销售各自的原话及可信时间。</p><p>云端结合历史提取客户阶段，再执行停止、等待和时间检查。<strong>“没有云端历史”不等于“客户没有回复”；“没读成功”也不等于“不需要召回”。</strong></p></div>
+<div class="tablebox"><table><thead><tr><th>看到什么情况</th><th>系统怎么处理</th></tr></thead><tbody>
+<tr><td>最后是销售发言，客户还没回，历史和时间都可信</td><td>继续判断客户阶段，计算下一次召回时间；不是立即发送。</td></tr>
+<tr><td>最后是客户发言</td><td>不召回，优先处理客户当前的问题。</td></tr>
+<tr><td>明确拒绝、成交、售后、关闭或转人工</td><td>停止这轮自动召回。</td></tr>
+<tr><td>客户说稍后、下周或交房后再联系</td><td>先暂停。当前不会猜一个日期自动恢复，需新的可信历史解除等待。</td></tr>
+<tr><td>销售承诺发报价、资料或方案，客户还在等</td><td>先完成销售答应的事，不能反过来催客户。</td></tr>
+<tr><td>等客户自己的设计师出图</td><td>从已确认的正常互动时间起，至少等待15天，再结合阶段判断。</td></tr>
+<tr><td>没读到历史、没有客户原话、时间不可信或身份有疑问</td><td>不发送，保留未核实原因。</td></tr>
+<tr><td>本轮已成功发送7次</td><td>本轮结束，不自动进入第8次。</td></tr>
+</tbody></table></div></section>
+<section id="time"><h2>03 · 到时间，再等手机空闲</h2><div class="card note"><p>普通候选第一次召回，最早在最后一次有证据的正常销售回复<strong>1天后</strong>。有停止或等待约定时，先服从约定。</p><p>后续间隔从上一次确认成功的召回计算，沿用企微的阶段节奏；重新读取历史不会把计数清零，也不会把导入时间当成聊天时间。</p></div>
+<div class="tablebox"><table><thead><tr><th>客户阶段</th><th>后续发送间隔</th></tr></thead><tbody>
+<tr><td>冷启动</td><td>完成次数少于3次时，间隔1天；完成3次后，间隔2天。</td></tr><tr><td>明确决策中</td><td>2天</td></tr><tr><td>需求形成中</td><td>3天</td></tr><tr><td>轻互动、观望</td><td>7天</td></tr><tr><td>沉默30～60天</td><td>10天</td></tr><tr><td>沉默60～90天</td><td>15天</td></tr><tr><td>沉默超过90天</td><td>30天，仍受本轮七次上限限制。</td></tr>
+</tbody></table></div><div class="card"><p><strong>发送时段：</strong>北京时间09:00至21:00前；每台设备每天最多5条成功召回，两次成功召回至少间隔10分钟。</p><p><strong>手机条件：</strong>已开启自动运行、手机解锁、至少60秒无人操作、没有待处理未读消息，没有人工接管、远程暂停或风险提示。</p><p><strong>运行模式：</strong>预演只判断和展示，不发送；自动真发需要手机与云端同时允许。单人手动测试不是自动扫描。</p><p class="muted">时间到了也要等这些条件满足，不是定时整点强制发出；部署了功能不代表所有销售手机都已开启。</p></div></section>
+<section id="words"><h2>04 · 七次各有方向，内容接着历史说</h2><div class="tablebox"><table><thead><tr><th>本轮第几次</th><th>内容方向</th></tr></thead><tbody><tr><td>1</td><td>了解客户更关注价格、材料还是其他问题。</td></tr><tr><td>2</td><td>补充还缺的需求信息，不重复问已经回答的内容。</td></tr><tr><td>3</td><td>帮助理解报价和配置。</td></tr><tr><td>4</td><td>提供比较报价、材料和服务的思路。</td></tr><tr><td>5</td><td>让客户更方便地提供户型、照片等资料。</td></tr><tr><td>6</td><td>结合装修进度，确认时间安排。</td></tr><tr><td>7</td><td>温和收尾，给客户保留以后再联系的空间。</td></tr></tbody></table></div><div class="card"><p>每次结合客户原话和已知需求生成内容，不直接照搬企微“发群里”的原稿，也不套用没有依据的报价或活动。</p><p>备注地区是来源线索，不等于装修地址。历史里已经确认了城市，就以那个城市为准；没有确认时可以顺着聊天核实，不能编造当地优惠、服务承诺或可预约时间。手机号不写进召回内容。</p></div></section>
+<section id="interrupt"><h2>05 · 新消息和人工操作优先</h2><div class="tablebox"><table><thead><tr><th>发生什么</th><th>当前处理</th></tr></thead><tbody>
+<tr><td>当前召回客户回复</td><td>取消旧召回安排，先处理新问题。后续需根据新的正常对话重新判断。</td></tr>
+<tr><td>其他人发来消息</td><td>先让出手机操作；恢复召回前重新检查目标和最新聊天。非客户名单的消息也能打断，但不会因此获得自动回复资格。</td></tr>
+<tr><td>已输入，还没点击发送</td><td>核对并清理本次草稿；无法确认就暂停，不带着旧草稿去另一个聊天。</td></tr>
+<tr><td>已点击发送，随后断网或异常</td><td>先核对新消息气泡和发送记录。无法确定是否发出时，停下来待核查，不盲目补发。</td></tr>
+<tr><td>销售操作手机、锁屏、远程暂停或出现风险提示</td><td>暂停新的扫描和发送；恢复时重新检查现场，不沿用旧判断。</td></tr>
+</tbody></table></div><p class="muted">打开的聊天里来消息不一定产生通知，所以发送前还会检查最新聊天。正在进行的网络请求和结果核对需要时间，不承诺瞬间切换。</p></section>
+<section><h2>06 · 发出后记账，没确定就不推进</h2><div class="card"><p>领取一条任务 → 再读历史和核对客户 → 获得本次发送许可 → 发送 → 核对新气泡 → 保存成功记录。</p><p>只有确认成功才算完成一次。重复回执不会重复计数；重启后先处理未完成记录，不重新从第一条发起。没回复就按间隔等下一次，有回复就结束旧安排，满七次结束本轮。</p><p>筛选结果会区分“等待条件”“可召回但未到期”“不适合召回”“没核实成功”，当前保留最近10条本进程结果，不是永久客户报表。</p></div></section>
+<footer>本文只说明当前已部署代码与已交付客户端的运行规则，不包含安装步骤或验收清单，不代表每台手机已经实测通过。依据：2026-09-06核对的服务端68c8f31与客户端0.12.1；具体手机是否启用、是否实际发出，以运行记录为准。</footer></main></body></html>
