@@ -331,7 +331,7 @@
     <h2>做到了哪一步，又卡在哪里</h2>
     <div class="cover-meta">
       <p><strong>这一页讲什么</strong>　沉默客户怎么被找出来、历史聊天记录怎么拿到、召回话术今天到底由谁写、每天怎么发出去、怎么证明它真的发到了</p>
-      <p><strong>数据口径</strong>　2026-09-16。代码证据取自 <code>Akke-AI/wecom-chat</code> 的 <code>origin/main</code>；运行数据取自实机 <code>runner.log</code>、送达账本与当日日报</p>
+      <p><strong>数据口径</strong>　2026-09-16。代码证据逐条取自项目代码库的主干分支；运行数据取自实机日志、本地送达账本与当日日报</p>
       <p><strong>写作原则</strong>　正文里的数字都注明了口径与日期；查不到的就写查不到，不估算，不用别的数字去暗示没有的结论。全文不含客户姓名与联系方式</p>
     </div>
   </div>
@@ -391,7 +391,7 @@
         <tr>
           <td>Windows 销售机侧车</td>
           <td>个人微信 PC 端 GUI 自动化：扫会话列表 → 搜索认人 → 读历史 → 领任务 → 粘贴发送 → 取证</td>
-          <td class="muted"><code>cloudpc/windows-weixin/main.py</code>（<code>start.bat</code> 双击进来的就是它）</td>
+          <td class="muted">销售机上双击启动的那个常驻程序</td>
         </tr>
         <tr>
           <td>安卓执行器 APK</td>
@@ -401,16 +401,16 @@
         <tr>
           <td>服务端</td>
           <td><strong>唯一</strong>的决策、派单、去重、回执方。两个客户端都不自己决定发给谁</td>
-          <td class="muted">Next.js on Vercel · <code>windows-title-recall.ts</code> / <code>android-title-recall.ts</code></td>
+          <td class="muted">服务端的召回派单模块，两端各一套入口</td>
         </tr>
         <tr>
           <td>数据库</td>
           <td>候选池 + 任务表 + 回执，两端共用同一张候选池</td>
-          <td class="muted">Supabase · <code>windows_recall_customers</code> / <code>windows_recall_tasks</code></td>
+          <td class="muted">一张候选池表 + 一张召回任务表</td>
         </tr>
         <tr>
           <td>调度</td>
-          <td>个微线<strong>没有</strong>定时任务，靠客户端主动轮询领活（原因见第 05 节）</td>
+          <td><strong>派单</strong>没有定时任务，靠客户端主动轮询领活（原因见第 05 节）；日报汇总与健康巡检另有定时任务</td>
           <td class="muted">客户端轮询 · 企微线才走 Vercel cron</td>
         </tr>
       </tbody>
@@ -427,7 +427,8 @@
 
     <div class="callout">
       <div class="label">一条工程上的硬规矩</div>
-      <p><strong>客户端永远不自己决定发给谁。</strong>它只做三件事：报告我看见了谁、问服务端现在该发谁、把结果原样报回去。所有的"这个人能不能发、今天还能发几条、上次发的是哪个话题"都在服务端和数据库里判。这样两端的行为才可能一致，也才有可能事后复核。</p>
+      <p><strong>服务端是唯一的授权方。</strong>准确的说法是"端提名、服务端否决"：Windows 侧车完全被动，领单时不携带任何客户信息；安卓端则可以自己扫到一位客户之后<strong>指名向云端申领这一位</strong>，但发不发仍由服务端判。</p>
+      <p>不论哪一端，"这个人能不能发、今天还能发几条、上次发的是哪个话题"都在服务端和数据库里判。这样两端的行为才可能一致，也才有可能事后复核。</p>
     </div>
   </div>
 </section>
@@ -475,23 +476,23 @@
       <tbody>
         <tr><td>主路</td><td class="muted">控件树优先</td><td class="muted">抓窗口图</td></tr>
         <tr><td>兜底</td><td class="muted">端上 MLKit OCR（<strong>不花 API 费</strong>）</td><td class="muted">一屏一次视觉模型调用</td></tr>
-        <tr><td>模型</td><td class="muted">端上，不出网</td><td class="muted">主 <code>qwen3-vl-235b-a22b-instruct</code>，备 <code>qwen3-vl-30b-a3b</code></td></tr>
+        <tr><td>模型</td><td class="muted">端上，不出网</td><td class="muted">主 <code>qwen3-vl-235b-a22b-instruct</code>，备 <code>qwen3-vl-30b-a3b-instruct</code></td></tr>
       </tbody>
     </table>
 
-    <p>Windows 端"一屏一次调用"这个设计是双重的：<strong>它既是安全阀也是钱闸</strong>——一屏一调，读多少屏就花多少钱，不会因为某一次翻页失控把预算烧穿。</p>
+    <p>Windows 端读<strong>历史翻页</strong>时是"一屏一次调用"，这个设计是双重的：<strong>它既是安全阀也是钱闸</strong>——读多少屏就花多少钱，不会因为某一次翻页失控把预算烧穿。（其它场景不受这条约束，例如判断当前会话状态时，同一帧可能要调用多次。）</p>
 
     <div class="flow">
       <div class="flow-step"><div class="i">01</div><div class="c"><strong>抓当前屏</strong><span>Windows 抓微信窗口，安卓优先取控件树、取不到再截屏 OCR</span></div></div>
       <div class="flow-step"><div class="i">02</div><div class="c"><strong>翻页滚动</strong><span>一屏读不完，滚上去继续，页与页之间要能对上</span></div></div>
       <div class="flow-step"><div class="i">03</div><div class="c"><strong>转录成消息</strong><span>逐个气泡识别出说了什么</span></div></div>
       <div class="flow-step"><div class="i">04</div><div class="c"><strong>确定性归属</strong><span>谁说的这句话，按气泡在左侧还是右侧判，不让模型自己猜</span></div></div>
-      <div class="flow-step"><div class="i">05</div><div class="c"><strong>落库</strong><span>写进候选池的 <code>history</code> 字段，两端共用同一个写入点</span></div></div>
+      <div class="flow-step"><div class="i">05</div><div class="c"><strong>落库</strong><span>写进候选池的历史字段，两端共用同一个写入点</span></div></div>
     </div>
 
     <h2>"历史"其实很浅</h2>
 
-    <p>这一点容易被高估。实际的采集边界是硬的：<strong>安卓端一次最多滚 10 轮、约 20 条消息，最多 8 屏</strong>；而真正喂进生成环节的上下文只带<strong>最近 6 条、每条截断 300 字</strong>。</p>
+    <p>这一点容易被高估。实际的采集边界是硬的：<strong>安卓端一次最多滚 10 轮、约 20 条消息，最多 8 屏</strong>；而真正喂进生成环节的上下文是<strong>最近 6 条完整消息（每条截断 300 字），外加最多 20 条更早的消息摘要</strong>。</p>
 
     <p>所以这套系统掌握的不是"这个客户的全部聊天史"，而是"最近这一小段对话"。它够用来回答"他当初关心的是什么"，不够用来做任何需要长程记忆的事。</p>
 
@@ -544,8 +545,8 @@
     <p>体现在<strong>规则式的分层</strong>上，不是模型式的逐人生成：</p>
 
     <ul>
-      <li><strong>按城市分价</strong>——同一段话术里的报价按客户所在省市走两档（沪苏浙京一档，其余一档）</li>
-      <li><strong>按沉默天数分阶段</strong>——第 1 / 3 / 7 / 15 / 30 天是不同的档位</li>
+      <li><strong>按城市分价</strong>——同一段话术里的报价走两档：<strong>江浙沪京深</strong>五地一档，其余一档</li>
+      <li><strong>按召回阶梯分档</strong>——第 1 / 3 / 7 / 15 / 30 步各有不同的内容（这是阶梯的步序，不是"沉默了几天"；真正按沉默天数切的是另一套，切点在 30 / 60 / 90 天）</li>
       <li><strong>按客户状态标签排除</strong>——备注里写着"已定 / 无需求 / 不需要 / 已到店 / 成交"的人，直接不进池子</li>
       <li><strong>按"值不值得召回"分层</strong>——一套与节奏正交的价值判断，四档 <code>hot / warm / cool / skip</code>，决定要不要花配额、先发谁、用什么调性。<strong>这套打分是确定性的，不走大模型</strong>，而且每一条判断都必须挂得上客户的原话</li>
     </ul>
@@ -554,16 +555,29 @@
 
     <p class="lead">"按历史生成话术"有一个前提——这个客户得说过话。真去数了一遍之后，这个前提比想象中脆弱得多。</p>
 
-    <p>2026-09-11 对<strong>同一台设备</strong>的候选池逐条核过。下面四个数字的分母不同（分别是 49 / 54 / 54 / 12），因为它们是同一批客户在不同筛选条件下的切面，不是一条漏斗：</p>
+    <p>2026-09-11 对<strong>同一台设备</strong>的候选池做过两次清点。这两次是<strong>不同时刻的快照、口径也不同，不能拼成一组读</strong>，所以下面分开列：</p>
 
-    <div class="stats">
-      <div class="stat"><div class="n">71<small>%</small></div><div class="k">49 位里有 35 位<br><span style="color:var(--text-dim)">一条客户发言都没有</span></div></div>
-      <div class="stat"><div class="n">37<small>%</small></div><div class="k">54 位里有 20 位<br><span style="color:var(--text-dim)">确证从头到尾没开过口</span></div></div>
-      <div class="stat"><div class="n">42<small> 位</small></div><div class="k">历史被识别垃圾写坏<br><span style="color:var(--text-dim)">同一批 54 位中</span></div></div>
-      <div class="stat"><div class="n">0</div><div class="k">剩下 12 位逐个查完<br><span style="color:var(--text-dim)">建得出来的任务数</span></div></div>
-    </div>
+    <table class="t">
+      <thead><tr><th>快照</th><th>口径</th><th>结果</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>09-11 凌晨</td>
+          <td class="muted">某个人设下已启用的 49 位</td>
+          <td class="muted"><strong>35 位（71%）</strong>库里一条客户发言都没有</td>
+        </tr>
+        <tr>
+          <td>09-11 当日</td>
+          <td class="muted">54 位</td>
+          <td class="muted"><strong>20 位（37%）</strong>确证从头到尾没开过口</td>
+        </tr>
+      </tbody>
+    </table>
 
-    <p>最后那一栏值得展开：把被业务闸挡住的 12 位逐个拉出来单独查，<strong>一条任务都没建出来</strong>——价值分不够的 5 位、还在等销售回话的 2 位、明确说过别再联系的 2 位、画像待补验的 2 位、已交定金的 1 位。<strong>每一条都拦得对。</strong></p>
+    <p>另一条独立的观察是：同期有一批客户的历史被识别垃圾写坏了。这个数和上面两个不是同一次清点，所以这里不把它并进去当成一条漏斗。</p>
+
+    <p>剩下那些被业务闸挡住的，逐个拉出来单独查了一遍——<strong>建出来的任务数是 0</strong>。</p>
+
+    <p>最后那一栏值得展开：把被业务闸挡住的 12 位逐个拉出来单独查，<strong>一条任务都没建出来</strong>——价值分不够的 5 位、还在等销售回话的 2 位、明确说过别再联系的 2 位、画像待补验的 2 位、已交定金的 1 位。这些拒因<strong>大多在业务上是正确的</strong>。</p>
 
     <p>这组数字改变了问题的性质：<strong>今天卡住"针对性"的不是话术生成能力，是原料</strong>。所以近期的工程重心是把历史采集的质量做上去，而不是去调提示词。</p>
 
@@ -629,17 +643,17 @@
     <div class="chapter-num">05</div>
     <h1>每天怎么发出去</h1>
 
-    <p class="lead">个微这条线没有定时任务。不是忘了做，是做不了——服务端没有任何办法"叫醒"一台销售机或一部手机。</p>
+    <p class="lead">个微这条线的<strong>派单</strong>没有定时任务。不是忘了做，是做不了——服务端没有任何办法"叫醒"一台销售机或一部手机。（每日汇总和设备健康巡检倒是有定时任务，那些不需要唤醒客户端。）</p>
 
     <h2>所以是客户端来问</h2>
 
     <div class="flow">
-      <div class="flow-step"><div class="i">01</div><div class="c"><strong>客户端空闲时轮询</strong><span>Windows 侧车在空闲 ≥60 秒后每 300 秒问一轮；安卓端 60 秒一个心跳 tick，每次扫描之间至少隔 180 秒</span></div></div>
+      <div class="flow-step"><div class="i">01</div><div class="c"><strong>客户端空闲时轮询</strong><span>Windows 侧车在空闲 ≥60 秒后来问：普通历史候选 300 秒一轮，<strong>当前这个话题一活动是 15 秒一轮</strong>；安卓端 60 秒一个心跳 tick，每次扫描之间至少隔 180 秒</span></div></div>
       <div class="flow-step"><div class="i">02</div><div class="c"><strong>服务端原子领单</strong><span>一条 SQL 把任务锁给这台设备，同机排他锁，保证一台机器同时只有一个活跃任务</span></div></div>
       <div class="flow-step"><div class="i">03</div><div class="c"><strong>搜索 + 认人</strong><span>会话列表里的名字常被截断，必须点进去读完整标题才算认出人；对不上就跳过，不发</span></div></div>
       <div class="flow-step"><div class="i">04</div><div class="c"><strong>发送前复核</strong><span>再确认一次当前会话仍是目标客户——这一步挡住的是"点错人"这类不可撤销的错误</span></div></div>
       <div class="flow-step"><div class="i">05</div><div class="c"><strong>发文字，再逐张发图</strong><span>图片按每张单独验收</span></div></div>
-      <div class="flow-step"><div class="i">06</div><div class="c"><strong>回执与任务完成写在同一个事务里</strong><span>正常路径下不会出现"记了但没发"；崩溃路径怎么处理见第 07 节</span></div></div>
+      <div class="flow-step"><div class="i">06</div><div class="c"><strong>回报完成，落回执</strong><span>任务置为完成的同时写下这条召回的回执记录；崩溃路径怎么处理见第 07 节</span></div></div>
     </div>
 
     <h2>配额：日常很保守，活动日临时抬高</h2>
@@ -649,8 +663,8 @@
       <tbody>
         <tr><td>常规日限</td><td>5 条 / 台 / 天</td><td class="muted">数据库函数里的默认值，保守是刻意的</td></tr>
         <tr><td>同机最小间隔</td><td>10 分钟</td><td class="muted">防止一台机器短时间连续动作</td></tr>
-        <tr><td>活动日覆盖</td><td>30 → 40 条</td><td class="muted">2026-09-15 抬到 30，09-16 抬到 40；间隔同时放宽到 60 秒</td></tr>
-        <tr><td>安卓当日目标</td><td>50 人次（硬顶 60）</td><td class="muted">目标与硬顶分开设，硬顶是撞不穿的那条</td></tr>
+        <tr><td>活动日覆盖</td><td>20 → 40 条</td><td class="muted">09-15 当天实际下发 20（同期把"覆盖值的天花板"抬到 30）；09-16 当天下发 40，间隔同时放宽到 60 秒</td></tr>
+        <tr><td>安卓侧</td><td>独立的日上限 + 硬顶 60</td><td class="muted">目标与硬顶分开设，硬顶是撞不穿的那条；安卓的日上限与 Windows 的活动覆盖互不相干</td></tr>
       </tbody>
     </table>
 
@@ -675,7 +689,7 @@
         <tr>
           <td>成交与无需求</td>
           <td>已定 / 无需求 / 不需要 / 已到店 / 成交</td>
-          <td class="muted">读客户备注标题里的状态标签；客户端与服务端<strong>各有一份同族名单</strong>，两边都判</td>
+          <td class="muted">读客户备注标题里的状态标签。客户端与服务端各判一次，但<strong>两份名单目前并不一致</strong>——客户端有五项（含"不需要"），服务端只有四项。最近那次补"不需要"只改了客户端，这是一个已知的待修项</td>
         </tr>
         <tr>
           <td>客户原话退订</td>
@@ -734,7 +748,7 @@
     <ul>
       <li><strong>交过定金 / 已成交的客户不进召回</strong>——这条的判据分散在三处，必须同步改；它的已知边界是：客户在门店线下交的钱、聊天里没提过，系统看不见。</li>
       <li><strong>承载主要客户关系的账号只做只读接入，不参与自动发送</strong>——这条红线不随任何一次会话重置。</li>
-      <li><strong>个人微信没有服务端的"按人闭麦"开关</strong>——唯一的闸在销售机本地配置文件里，改完要重启才生效。"已转人工"不等于闭麦，它会自动复活。这是目前一个真实的能力缺口，不是忘了写文档。</li>
+      <li><strong>没有"按人闭麦"的名单</strong>——全仓没有按客户维度的屏蔽列表。Windows 这边唯一的闸在销售机本地配置里，改完要重启才生效；安卓那边有一个服务端下发的整机暂停开关，是即时生效的，但那是"停这台机器"，不是"只屏蔽这个人"。另外，"已转人工"不等于闭麦，它会自动复活。这是一个真实的能力缺口。</li>
     </ul>
 
     <div class="callout">
@@ -782,8 +796,8 @@
     <h2>能查到的遥测</h2>
 
     <ul>
-      <li><strong>心跳表</strong>——每台设备的轮询次数、失败次数、最后一次轮询时间、待处理数。注释里写明<strong>不带客户名和消息正文</strong>。</li>
-      <li><strong>事件账本</strong>——专门为"这一轮为什么什么都没做"而建的一张表，记的是多行卡点原因。</li>
+      <li><strong>心跳表</strong>——每台设备的轮询次数、失败次数、最后一次轮询时间、待处理数，是纯计数，不含消息内容。</li>
+      <li><strong>事件账本</strong>——专门为"这一轮为什么什么都没做"而建的一张表，记的是多行卡点原因。它<strong>会带上客户名与日志尾巴</strong>用于排查，所以这张表属于内部数据，不进任何对外产物。</li>
       <li><strong>每日汇总</strong>——三段互不相交的查询加候选池计数，避免同一条被算两次。</li>
       <li><strong>机上日志</strong>——最细的一手证据，日报里的每一条都能回溯到它。</li>
     </ul>
@@ -807,7 +821,7 @@
     <h2>企业微信：先把方法论跑通（2026 年 7–8 月）</h2>
 
     <ul class="tl">
-      <li><span class="d">2026-07-16</span><span class="h">7 天召回上线</span><span class="b">对"拿了资料就不回"的客户：按画像从甲方话术库里选 7 个话题冻结成计划，前 3 天每天 1 条、之后退避隔天，客户回复 / 被删 / 满 7 次出库。话题库共 9 类，外加 4 个画像钩子。</span></li>
+      <li><span class="d">2026-07-16</span><span class="h">7 天召回上线</span><span class="b">对"拿了资料就不回"的客户：按画像从甲方话术库里选 7 个话题冻结成计划，前 3 天每天 1 条、之后退避隔天，客户回复 / 被删 / 满 7 次出库。话题库共 10 类标准话题，外加 5 个画像钩子。</span></li>
       <li><span class="d">2026-07-30</span><span class="h">召回成果中心上线</span><span class="b">第一个客户令牌签发——甲方可以自己看召回跑成什么样，不用等我们截图。</span></li>
       <li><span class="d">2026-08-04</span><span class="h">话术可人工逐条覆盖</span><span class="b">店长工作台改未发送的召回话术，人工稿优先于系统稿。</span></li>
       <li><span class="d">2026-08-05</span><span class="h">夜间任务：先补画像，再冻结计划</span><span class="b">顺序是刻意的——画像没补就冻结，选出来的 7 个话题会是错的。</span></li>
@@ -820,14 +834,14 @@
     <ul class="tl">
       <li><span class="d">2026-08-31</span><span class="h">历史回填只做规划与对抗评审，一行代码没写</span><span class="b">这一天的产出是"哪条路能走、哪条路判死"，不是功能。事后看，这是省时间的。</span></li>
       <li><span class="d">2026-09-03</span><span class="h">两端只读历史探针落地，安卓接进生产</span><span class="b">先只读、不发送——确认"能读到东西"之后才谈发。</span></li>
-      <li><span class="d">2026-09-06</span><span class="h">两端评估：零真客户召回</span><span class="b">链路是通的，但一条真客户的召回都没发出去。这一天的结论是"现在的问题在候选池，不在发送"。</span></li>
+      <li><span class="d">2026-09-06</span><span class="h">两端评估：零真客户召回</span><span class="b">链路是通的，但一条真客户的召回都没发出去。当天定的首因是<strong>发送侧</strong>——两端的闸都还停在预演档；同时也记下了候选池里几乎没有真人。"问题主要在候选池"是到 09-11 才得出的结论，不是这一天。</span></li>
       <li><span class="d">2026-09-07 → 09-08</span><span class="h">补车道、放宽认人、改历史遍历</span><span class="b">Windows 端加"旧客户尾消息"车道，安卓端放宽标题识别，历史遍历改成固定行定位。</span></li>
-      <li><span class="d">2026-09-09</span><span class="h">价值分层上线</span><span class="b">把"何时发"和"值不值得发"拆成两个正交的维度。</span></li>
-      <li><span class="d">2026-09-10</span><span class="h">转真发；当天就被自己的闸拦了一次</span><span class="b">执行器给一位<strong>已交定金</strong>的客户打了字——整机被远程暂停。这件事直接催生了第 06 节那条红线的三处同步判定。同一天还有一个数字值得记住：6 小时里把微信拉到前台 197 次，实发 0 条。</span></li>
-      <li><span class="d">2026-09-11 01:31</span><span class="h">有史以来第一条真召回发出</span><span class="b">用精确计数核过：<code>android-recall:</code> 前缀的消息数 = 1，同时用一个已知非零的口径（11811 条）做阳性对照，确认查询本身是能返数的。</span></li>
+      <li><span class="d">2026-09-09</span><span class="h">价值分层上线（只开预览面）</span><span class="b">把"何时发"和"值不值得发"拆成两个正交的维度。当天明确只开预览、<strong>真发闸维持不开</strong>。</span></li>
+      <li><span class="d">2026-09-10</span><span class="h">转真发；当天就被自己的闸拦了一次</span><span class="b">执行器给一位<strong>已交定金</strong>的客户打了字——整机被远程暂停（当晚 21:33 恢复）。这件事直接催生了第 06 节那条红线的三处同步判定。同一天还有一个数字值得记住：6 小时里把微信拉到前台 197 次，实发 0 条。</span></li>
+      <li><span class="d">2026-09-11 01:31</span><span class="h">有史以来第一条真召回发出</span><span class="b">用精确计数核过：带安卓召回前缀的消息数 = 1；同时用一个已知非零的口径（11811 条）做阳性对照，确认这条查询本身是能返数的——不然"只有 1 条"和"查询写错了"分不开。</span></li>
       <li><span class="d">2026-09-12</span><span class="h">手机耗尽关机、微信退出登录</span><span class="b">整机暂停，14 条任务作废。退出登录的原因至今没有定论。</span></li>
       <li><span class="d">2026-09-15</span><span class="h">改走"标题通道"</span><span class="b">不再要求先读完历史——认出完整客户标题就可以进召回队列，五话题轮换。当天 Windows 端确认送达 25 名、安卓端发出 11 条。</span></li>
-      <li><span class="d">2026-09-16</span><span class="h">改文字 + 图片；两个真根因落地；上限抬到 40</span><span class="b">上午定位到两个此前一直被误判的根因：手机是<strong>横放</strong>（不是"屏幕熄了"），以及无障碍组件名的<strong>缩写形态</strong>没被认出来。11:54 当天第一条发出。同日合并一轮 34 条缺陷的审计修复。</span></li>
+      <li><span class="d">2026-09-16</span><span class="h">改文字 + 图片；两个真根因落地；Windows 当日目标抬到 40</span><span class="b">上午定位到两个此前一直被误判的根因：手机是<strong>横放</strong>（不是"屏幕熄了"），以及无障碍组件名的<strong>缩写形态</strong>没被认出来。11:54 当天第一条发出。同日合并一轮 34 条缺陷的审计修复。</span></li>
     </ul>
 
     <div class="callout amber">
@@ -868,7 +882,7 @@
 
     <div class="stats">
       <div class="stat"><div class="n">11</div><div class="k">当日发出条数<br><span style="color:var(--text-dim)">分布在 14:59–21:50</span></div></div>
-      <div class="stat"><div class="n">21<small> 分钟</small></div><div class="k">相邻两条的间隔中位数</div></div>
+      <div class="stat"><div class="n">21<small> 分钟</small></div><div class="k">相邻两次<strong>尝试</strong>的间隔中位数<br><span style="color:var(--text-dim)">分母是尝试次数，不是发出条数</span></div></div>
       <div class="stat"><div class="n">≈85<small>%</small></div><div class="k">的拍次被"手机不空闲"挡掉<br><span style="color:var(--text-dim)">按扫描预算算出的理论次数与实发数之比</span></div></div>
       <div class="stat"><div class="n">180<small> 秒</small></div><div class="k">两次扫描之间的最小预算</div></div>
     </div>
@@ -884,8 +898,8 @@
       <tbody>
         <tr><td>常规日限</td><td>5 条 / 台 / 天</td><td class="muted">数据库函数默认值</td></tr>
         <tr><td>同机最小间隔</td><td>10 分钟（活动日 60 秒）</td><td class="muted">同上 / 活动覆盖</td></tr>
-        <tr><td>活动日上限</td><td>30（09-15）→ 40（09-16）</td><td class="muted">两条独立的迁移文件</td></tr>
-        <tr><td>安卓当日目标</td><td>50 人次，硬顶 60</td><td class="muted">09-16 口径</td></tr>
+        <tr><td>Windows 活动日实际下发</td><td>20（09-15）→ 40（09-16）</td><td class="muted">下发值写在当日的一次性工作流里；迁移文件抬的是天花板，不是当天的量</td></tr>
+        <tr><td>安卓侧硬顶</td><td>60</td><td class="muted">09-16 口径；日上限另设，与 Windows 的活动覆盖互不相干</td></tr>
         <tr><td>Windows 侧车版本</td><td>1.14.22</td><td class="muted">发布台账最后一行</td></tr>
         <tr><td>安卓 APK 版本</td><td>0.21.1（versionCode 131）</td><td class="muted">发布台账最后一行</td></tr>
       </tbody>
@@ -903,8 +917,9 @@
     </ul>
 
     <div class="callout amber">
-      <div class="label">查不到的数字，就写查不到</div>
-      <p><strong>召回的回复率、转化率、到店率——目前全仓没有任何统计口径，也没有对应的落库字段。</strong>这一页不给这三个数字，也不用别的数字去暗示它们。原因见下一节第二条。</p>
+      <div class="label">效果类数字：企微侧有口径，个微这条线没有</div>
+      <p>需要说清楚的一个区分：<strong>企业微信</strong>那条线的召回成果中心有完整的效果口径——回复率（客户在首发之后回过话）、到店（有明确的到店承诺时间）、转化（进入决策阶段或转人工承接），都有对应的落库字段。</p>
+      <p>但<strong>个人微信</strong>两端的召回任务表<strong>没有 replied 这一列</strong>。也就是说，这一页讲的这条线，目前没有办法成规模地回答"发出去的这些召回，有多少条换来了回话"。所以本页不给个微侧的回复率、转化率、到店率——不是不重要，是这条线现在算不出来。</p>
     </div>
   </div>
 </section>
@@ -923,21 +938,25 @@
 
     <p>0.21.1 做的事是让这种停摆变得可见（能报出"这一拍为什么什么都没干"），<strong>但可见不等于变少</strong>。真正的解法要么是换执行形态，要么是接受安卓端只做补充、主力放在 Windows 侧车。</p>
 
-    <h2>二、召回之后客户回话了没有——这条还没验过</h2>
+    <h2>二、召回的效果，这条线目前度量不了</h2>
 
     <blockquote>
-      <p>近 36 小时库里 11 条召回、0 条客户回复。这条链路是读代码读通的，仍未在真实回复上验过。</p>
+      <p>近 36 小时库里 11 条召回、0 条客户回复。</p>
     </blockquote>
 
-    <p>这是目前最大的一个未知。<strong>0 条回复有两种可能</strong>：客户真的没回，或者客户回了但这套系统没接住。这两件事今天分不开——因为分开它们需要的正是那套还不存在的统计口径。</p>
+    <p>先把话说准：<strong>"客户回了召回会不会被接住"这件事，是有过实例的</strong>——2026-09-15 17:54 就有一位客户回了一句"到时候再联系吧"，系统的安全闸把它认出来，后续召回停了 35 分钟。所以链路本身不是黑的。</p>
 
-    <p>在它被验证之前，任何关于"召回效果"的数字都不该被说出口。这也是第 04 节里"暂时不切模型生成话术"的直接原因：<strong>连回话有没有被接住都不知道，谈不上优化话术。</strong></p>
+    <p>真正缺的是<strong>成规模的度量</strong>：个微两端的召回任务表没有"是否已回复"这一列，于是"发出去的 N 条换来了几条回话"这个问题，今天只能靠逐条翻日志回答，不能靠查询回答。</p>
+
+    <p>这也是第 04 节里"暂时不切模型生成话术"的直接原因：<strong>连上一版话术管不管用都算不出来，就没有依据去调下一版。</strong>补上这一列，比换一个更聪明的模型更值钱。</p>
 
     <h2>三、历史导入这一环，至今没成功过</h2>
 
     <p>这是三件事里最根本的一件，也是第 04 节那组数字的直接来源。</p>
 
-    <p>翻页时的几何校验和页与页之间的一致性契约仍会偶发失败，而更严重的是：<strong>历史导入从来没有真正跑成功过</strong>——结果就是候选池里只装得下"最新一屏"，采集是否可信这个标记也一直写不上去。</p>
+    <p>翻页时的几何校验和页与页之间的一致性契约仍会偶发失败。更麻烦的是 09-11 到 09-12 那一段的观察：<strong>对当时那批客户，历史导入反复没能成功</strong>，结果是候选池里只装得下"最新一屏"，采集是否可信这个标记也写不上去。</p>
+
+    <p>要准确地说：这是<strong>那个时窗、那批客户</strong>的结论，不是"这个功能从来没工作过"——候选池里确实有成功导入的历史，第 04 节那几个逐位清点的数字，分母就来自导入结果。</p>
 
     <p>当前活动用一个绕法回避了它：只需要发第一个话题时，<strong>认出完整客户标题就直接进召回队列</strong>，不必先把历史读完，免得把"历史没读成"误判成"这个客户不能召回"。</p>
 
@@ -963,7 +982,7 @@
 <footer>
   <div class="divider"></div>
   <p>upio.ai · 知识分享<br>
-  代码证据取自 <code>Akke-AI/wecom-chat</code> <code>origin/main</code>，运行数据取自实机日志与当日日报<br>
+  代码证据取自项目代码库主干，运行数据取自实机日志与当日日报<br>
   数据口径 2026-09-16 · 全文不含客户姓名与联系方式</p>
   <p><a href="/learn">← 回到知识分享目录</a></p>
 </footer>
