@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<title>讲过的话，换个说法再讲 — upio.ai 知识分享</title>
+<meta name="description" content="个人微信召回「换个说法再讲」的完整部署逻辑：客户以前收到过的内容（含销售用群发助手发过的）怎么认出来、新说法怎么出稿和确认、没确认之前怎么办，以及 2026-09-17 的上线记录。">
+<style>
+  :root {
+    --paper: #ffffff;
+    --canvas: #f3f5f2;
+    --ink: #1c2321;
+    --slate: #5b6560;
+    --faint: #8c948f;
+    --line: #e1e5e0;
+    --bubble-them: #ffffff;
+    --bubble-us: #95ec69;
+    --green: #0f7a47;
+    --green-soft: #e3f3ea;
+    --red: #b3392b;
+    --red-soft: #fbece9;
+    --amber: #8f6210;
+    --amber-soft: #faf1de;
+    --grey-soft: #eceeec;
+    --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+    font-variant-numeric: tabular-nums;
+  }
+  a { color: var(--green); }
+  a:focus-visible, summary:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; border-radius: 4px; }
+  p { margin: 0 0 14px; }
+  strong { font-weight: 600; }
+
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 32px; }
+
+  /* ---------- top ---------- */
+  .top {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 22px 0; font-size: 13px; color: var(--faint);
+  }
+  .top a { color: var(--slate); text-decoration: none; }
+  .top a:hover { color: var(--ink); }
+
+  /* ---------- hero ---------- */
+  .hero { padding: 56px 0 72px; }
+  .hero h1 {
+    font-size: 46px; line-height: 1.22; font-weight: 600; letter-spacing: -0.01em;
+    margin: 0 0 22px; max-width: 13em;
+  }
+  .hero .lede { font-size: 19px; line-height: 1.7; color: var(--slate); max-width: 34em; margin: 0 0 48px; }
+
+  .board {
+    background: var(--paper); border: 1px solid var(--line); border-radius: 14px;
+    padding: 32px 36px; display: grid; grid-template-columns: 1fr 300px; gap: 40px; align-items: center;
+  }
+  .waffle { display: grid; grid-template-columns: repeat(21, 1fr); gap: 5px; }
+  .waffle i { aspect-ratio: 1; border-radius: 3px; background: var(--grey-soft); display: block; box-shadow: inset 0 0 0 1px rgba(28,35,33,.05); }
+  .waffle i.v { background: var(--green); }
+  .waffle i.n { background: #a9d8bd; }
+  .waffle i.s { background: #c9cfca; }
+  .legend { list-style: none; margin: 0; padding: 0; }
+  .legend li { display: grid; grid-template-columns: 14px 1fr auto; gap: 12px; align-items: baseline; padding: 11px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+  .legend li:last-child { border-bottom: 0; }
+  .legend b { display: block; width: 12px; height: 12px; border-radius: 3px; transform: translateY(1px); box-shadow: inset 0 0 0 1px rgba(28,35,33,.08); }
+  .legend .num { font-size: 22px; font-weight: 600; }
+  .legend .total { color: var(--slate); font-size: 14px; }
+  .board-note { grid-column: 1 / -1; margin: 0; padding-top: 20px; border-top: 1px solid var(--line); font-size: 15px; color: var(--slate); }
+  .board-note strong { color: var(--ink); }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .waffle i { animation: pop .35s ease-out both; animation-delay: calc(var(--k) * 9ms); }
+    @keyframes pop { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: none; } }
+  }
+
+  /* ---------- sections ---------- */
+  .sec { background: var(--paper); border-top: 1px solid var(--line); }
+  .sec:nth-of-type(even) { background: var(--canvas); }
+  .sec-grid { display: grid; grid-template-columns: 220px 1fr; gap: 48px; padding-top: 80px; padding-bottom: 80px; }
+  .sec-head { position: sticky; top: 28px; align-self: start; }
+  .sec-head .n { font-size: 14px; color: var(--green); font-weight: 600; margin-bottom: 6px; }
+  .sec-head h2 { font-size: 26px; line-height: 1.3; font-weight: 600; margin: 0; }
+  .sec-body { max-width: 720px; min-width: 0; }
+  .sec-body > .intro { font-size: 18px; color: var(--slate); margin-bottom: 36px; }
+  h3 { font-size: 18px; font-weight: 600; margin: 44px 0 14px; }
+  h3:first-child { margin-top: 0; }
+  .muted { color: var(--slate); }
+  .small { font-size: 14px; color: var(--faint); }
+
+  /* tables */
+  .tbl { width: 100%; border-collapse: collapse; font-size: 15px; margin: 8px 0 12px; }
+  .tbl th { text-align: left; font-weight: 600; font-size: 13px; color: var(--slate); padding: 10px 14px 10px 0; border-bottom: 1px solid var(--ink); }
+  .tbl td { padding: 14px 14px 14px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .tbl td:first-child { font-weight: 600; white-space: nowrap; }
+  .tbl .r { text-align: right; white-space: nowrap; }
+  .tbl tr.sum td { border-bottom: 0; border-top: 1px solid var(--ink); font-weight: 600; }
+  .scroll { overflow-x: auto; }
+
+  /* routes */
+  .routes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .route { background: var(--paper); padding: 18px 18px 20px; }
+  .route .name { font-weight: 600; margin-bottom: 6px; }
+  .route .why { font-size: 14px; color: var(--slate); line-height: 1.6; }
+  .route .verdict { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 99px; margin-bottom: 10px; background: var(--grey-soft); color: var(--slate); }
+  .route.on { background: var(--green-soft); }
+  .route.on .verdict { background: var(--green); color: #fff; }
+
+  /* steps */
+  .steps { list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; counter-reset: s; }
+  .steps li { counter-increment: s; border-top: 2px solid var(--green); padding-top: 12px; }
+  .steps li::before { content: counter(s); font-size: 13px; font-weight: 600; color: var(--green); display: block; margin-bottom: 2px; }
+  .steps b { display: block; font-weight: 600; margin-bottom: 4px; }
+  .steps span { font-size: 14px; color: var(--slate); line-height: 1.55; display: block; }
+
+  /* lanes */
+  .lanes { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .lane { border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; background: var(--paper); }
+  .lane .t { font-weight: 600; font-size: 17px; margin-bottom: 4px; }
+  .lane .s { font-size: 14px; margin-bottom: 12px; }
+  .lane ul { margin: 0; padding-left: 18px; font-size: 15px; color: var(--slate); }
+  .lane li { margin-bottom: 4px; }
+  .lane.used { border-color: var(--ink); }
+  .pill { display: inline-block; font-size: 12px; line-height: 1.6; padding: 1px 9px; border-radius: 99px; font-weight: 600; white-space: nowrap; }
+  .pill.g { background: var(--green-soft); color: var(--green); }
+  .pill.x { background: var(--grey-soft); color: var(--slate); }
+
+  .note { border-left: 3px solid var(--green); padding: 4px 0 4px 18px; margin: 28px 0 0; color: var(--slate); }
+  .note strong { color: var(--ink); }
+
+  /* topics */
+  .topics { list-style: none; margin: 0; padding: 0; }
+  .topics li { display: grid; grid-template-columns: 110px 1fr; gap: 20px; padding: 18px 0; border-bottom: 1px solid var(--line); }
+  .topics li:first-child { padding-top: 4px; }
+  .topics .k { font-weight: 600; }
+  .topics .k small { display: block; font-weight: 400; color: var(--faint); font-size: 13px; }
+  .topics q { quotes: none; color: var(--ink); }
+  .topics .img { display: block; font-size: 13px; color: var(--faint); margin-top: 4px; }
+
+  /* cases */
+  .filter { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 28px; }
+  .filter button {
+    font: inherit; font-size: 14px; border: 1px solid var(--line); background: var(--paper); color: var(--slate);
+    padding: 6px 14px; border-radius: 99px; cursor: pointer;
+  }
+  .filter button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .filter button:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+
+  .case { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px 20px; margin-bottom: 16px; }
+  .case[hidden] { display: none; }
+  .case-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .case-top .who { font-weight: 600; font-size: 17px; }
+  .case-top .when { font-size: 14px; color: var(--faint); }
+  .case-top .tag { margin-left: auto; }
+  .tag { font-size: 13px; font-weight: 600; padding: 2px 10px; border-radius: 99px; white-space: nowrap; }
+  .tag.bad { background: var(--red-soft); color: var(--red); }
+  .tag.miss { background: var(--amber-soft); color: var(--amber); }
+  .tag.ok { background: var(--green-soft); color: var(--green); }
+  .tag.na { background: var(--grey-soft); color: var(--slate); }
+
+  .chat { background: #ededed; border-radius: 10px; padding: 16px 14px; display: flex; flex-direction: column; gap: 10px; }
+  .msg { max-width: 82%; }
+  .msg .lbl { font-size: 12px; color: #8a8a8a; margin: 0 6px 3px; }
+  .msg .b { padding: 9px 13px; border-radius: 6px; font-size: 15px; line-height: 1.6; position: relative; }
+  .msg.them { align-self: flex-start; }
+  .msg.them .b { background: var(--bubble-them); }
+  .msg.us { align-self: flex-end; text-align: left; }
+  .msg.us .lbl { text-align: right; }
+  .msg.us .b { background: var(--bubble-us); }
+  .msg .ctx { font-size: 13px; color: #7a7a7a; margin: 4px 6px 0; }
+
+  .why { display: grid; grid-template-columns: 44px 1fr; gap: 4px 12px; margin-top: 16px; font-size: 15px; }
+  .why dt { color: var(--faint); font-size: 14px; padding-top: 1px; }
+  .why dd { margin: 0; }
+
+  /* findings */
+  .findings { list-style: none; padding: 0; margin: 0; }
+  .findings li { display: grid; grid-template-columns: 1fr auto; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--line); align-items: baseline; }
+  .findings .d { font-weight: 600; }
+  .findings .d span { display: block; font-weight: 400; color: var(--slate); font-size: 15px; margin-top: 2px; }
+
+  .closing { font-size: 20px; line-height: 1.7; margin: 44px 0 0; padding-top: 28px; border-top: 1px solid var(--ink); }
+
+  /* fixes */
+  .fixes { list-style: none; margin: 0; padding: 0; }
+  .fix { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px 18px; margin-bottom: 16px; }
+  .fix-top { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+  .fix-top .step { font-size: 14px; font-weight: 600; color: var(--green); }
+  .fix-top .cnt { font-size: 14px; color: var(--faint); }
+  .fix .cause { color: var(--slate); font-size: 15px; margin-bottom: 10px; }
+  .fix ul { margin: 0 0 12px; padding-left: 18px; font-size: 15px; }
+  .fix ul li { margin-bottom: 4px; }
+  .fix .check { margin: 0; padding-top: 10px; border-top: 1px solid var(--line); font-size: 14px; color: var(--slate); }
+  .fix .check b { color: var(--ink); font-weight: 600; margin-right: 8px; }
+
+  footer { padding: 40px 0 64px; font-size: 13px; color: var(--faint); }
+  footer p { margin: 0 0 6px; }
+
+  /* ---------- responsive ---------- */
+  @media (max-width: 900px) {
+    .board { grid-template-columns: 1fr; gap: 28px; }
+    .sec-grid { grid-template-columns: 1fr; gap: 20px; padding-top: 56px; padding-bottom: 56px; }
+    .sec-head { position: static; }
+    .routes { grid-template-columns: 1fr 1fr; }
+    .steps { grid-template-columns: 1fr; gap: 14px; }
+    .steps li { display: grid; grid-template-columns: 24px 1fr; column-gap: 8px; border-top: 0; border-left: 2px solid var(--green); padding: 0 0 0 12px; }
+    .steps li::before { grid-row: span 2; }
+  }
+  @media (max-width: 600px) {
+    .wrap { padding: 0 16px; }
+    .hero { padding: 28px 0 48px; }
+    .hero h1 { font-size: 31px; }
+    .hero .lede { font-size: 17px; margin-bottom: 32px; }
+    .board { padding: 20px 18px; }
+    .waffle { gap: 3px; }
+    .routes, .lanes { grid-template-columns: 1fr; }
+    .topics li { grid-template-columns: 1fr; gap: 4px; }
+    .case { padding: 18px 16px; }
+    .case-top .tag { margin-left: 0; }
+    .msg { max-width: 92%; }
+    .tbl { font-size: 14px; }
+    .closing { font-size: 18px; }
+  }
+
+  /* ---------- this page ---------- */
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .tile { background: var(--paper); padding: 20px 22px; }
+  .tile .k { font-size: 13px; color: var(--faint); }
+  .tile .v { font-size: 24px; font-weight: 600; margin: 4px 0 2px; }
+  .tile .s { font-size: 14px; color: var(--slate); line-height: 1.55; }
+  .tile.ok .v { color: var(--green); }
+  .tile.wait .v { color: var(--amber); }
+  .flow { list-style: none; margin: 0; padding: 0; counter-reset: f; }
+  .flow li { counter-increment: f; display: grid; grid-template-columns: 34px 1fr; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .flow li::before { content: counter(f); width: 26px; height: 26px; border-radius: 99px; background: var(--green-soft); color: var(--green); font-weight: 600; font-size: 14px; display: grid; place-items: center; }
+  .flow li.new::before { background: var(--green); color: #fff; }
+  .flow b { display: block; }
+  .flow span { color: var(--slate); font-size: 15px; }
+  .flow .from { font-size: 12px; color: var(--faint); margin-left: 6px; font-weight: 400; }
+  .timeline { list-style: none; margin: 0; padding: 0; border-left: 2px solid var(--line); }
+  .timeline li { position: relative; padding: 0 0 18px 20px; }
+  .timeline li::before { content: ""; position: absolute; left: -7px; top: 8px; width: 12px; height: 12px; border-radius: 99px; background: var(--paper); border: 2px solid var(--green); }
+  .timeline li.pending::before { border-color: var(--amber); }
+  .timeline .t { font-size: 13px; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .timeline .d { font-weight: 600; }
+  .timeline .x { font-size: 15px; color: var(--slate); }
+  .bars { display: grid; gap: 10px; margin: 8px 0 4px; }
+  .bar { display: grid; grid-template-columns: 170px 1fr 56px; gap: 12px; align-items: center; font-size: 14px; }
+  .bar .track { height: 12px; background: var(--grey-soft); border-radius: 99px; overflow: hidden; }
+  .bar .fill { height: 100%; background: var(--green); border-radius: 99px; }
+  .bar .fill.warn { background: #d69a3a; }
+  .bar .fill.grey { background: #aab3ae; }
+  .bar .n { text-align: right; font-weight: 600; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .88em; background: var(--grey-soft); padding: 1px 6px; border-radius: 5px; }
+  @media (max-width: 900px) { .tiles { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 600px) { .tiles { grid-template-columns: 1fr; } .bar { grid-template-columns: 1fr 44px; } .bar .track { grid-column: 1 / -1; grid-row: 2; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <nav class="top" aria-label="站点">
+    <a href="/learn">知识分享</a>
+    <span>口径截至 2026 年 9 月 17 日 23:20</span>
+  </nav>
+
+  <header class="hero">
+    <h1>讲过的话，怎么换个说法再讲？</h1>
+    <p class="lede">个人微信召回的新规矩：客户以前收到过的内容——包括销售早先用群发助手发过的——再讲一遍时，换一种讲法；卖点不变，顺序、语气、切入点要变。没有人工确认过的新说法，这一条就先不发。这一页讲清楚这套机制怎么判断、怎么出稿、怎么上线。</p>
+
+    <div class="tiles">
+      <div class="tile wait"><div class="k">服务端</div><div class="v">部署中</div><div class="s">第一步已上线（a9b921f）；第二步 23:19 合并（57f6e08），正在部署</div></div>
+      <div class="tile ok"><div class="k">群发目录</div><div class="v">27 条</div><div class="s">小鱼销售那台电脑，6/5～8/14，8 个时间段</div></div>
+      <div class="tile wait"><div class="k">新说法</div><div class="v">待审 13 版</div><div class="s">已确认 0 版：确认之前，讲过的话题一律先不发</div></div>
+      <div class="tile wait"><div class="k">Windows 客户端</div><div class="v">1.14.55</div><div class="s">代码已合并，待打包上传并装到小鱼销售那台电脑</div></div>
+    </div>
+  </header>
+</div>
+
+<main>
+
+<section class="sec" id="rule">
+  <div class="wrap sec-grid">
+    <div class="sec-head"><div class="n">1</div><h2>规则</h2></div>
+    <div class="sec-body">
+      <p class="intro">对照历史库里「已经讲过什么」写新话术：卖点保持真实，换讲的顺序、语气和切入点，而不是只换几个词；结尾问句沿用已上线的提问钩子。新话术先过重复比对，再经人工确认；价格、政策、材质只用甲方确认过的资料。</p>
+      <h3>落地时定下的七件事</h3>
+      <table class="tbl">
+        <tbody>
+          <tr><td>新说法的粒度</td><td class="muted">按话题写几版，审一次，所有客户共用；发的时候按客户稳定挑一版他没听过的</td></tr>
+          <tr><td>人工确认在哪</td><td class="muted">在对话里审，脚本落库，记下是谁、什么时候确认的</td></tr>
+          <tr><td>没确认之前</td><td class="muted">讲过的话题这一条先不发，等确认；不照旧发原文</td></tr>
+          <tr><td>群发发给了谁</td><td class="muted">备注编号在不同销售之间会重号，认不了人，<strong>只按客户聊天记录里的时间去对</strong></td></tr>
+          <tr><td>客户端</td><td class="muted">Windows 客户端一起发新版，发送前往上读时把时间一起带上来</td></tr>
+          <tr><td>品牌对比</td><td class="muted">新增为<strong>话题六</strong>（只在 Windows；安卓与企微仍是五个话题）</td></tr>
+          <tr><td>群发文案</td><td class="muted">算甲方确认过的资料，可以写进同话题的新说法</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="flow">
+  <div class="wrap sec-grid">
+    <div class="sec-head"><div class="n">2</div><h2>发一条召回，现在要过哪几步</h2></div>
+    <div class="sec-body">
+      <p class="intro">前三步是同一天早些时候已经上线的，后四步是这次加的（绿底序号）。三个发送入口——七次召回领单、按备注名召回、发送前现场重算——走的是同一套判断。</p>
+      <ol class="flow">
+        <li><div><b>读全部聊天记录，判该不该发<span class="from">已上线</span></b><span>服务端消息、候选登记历史、手机采集件、电脑端画像四处一起看：成交、明确拒绝不发，有拒绝倾向的暂停 30 天。</span></div></li>
+        <li><div><b>发之前往上读<span class="from">已上线，客户端 1.14.54</span></b><span>打开聊天从底部往上读，读到客户最近一句为止，最多 8 屏；读不成这一轮不发。</span></div></li>
+        <li><div><b>按客户上次的话选话题<span class="from">已上线</span></b><span>说过「回来再说」只从话题一、二里选；问过价格发话题五；记录里讲过的话题跳过。</span></div></li>
+        <li class="new"><div><b>认出他收到过哪几组群发</b><span>用第 2 步读到的每条我方消息上方的时间分隔，去对群发助手的发送时间，再用文字确认是哪一组（见第 4 节）。对上的记下来，以后不用再对。</span></div></li>
+        <li class="new"><div><b>「讲过」的范围放大</b><span>群发对上的话题、历史库、以前召回发过的正文都算讲过；话题从五个变成六个（加了品牌对比）。</span></div></li>
+        <li class="new"><div><b>讲过的话题换一版已确认的新说法</b><span>挑一版这位客户没听过的，价格按他的地区档填；新说法结尾统一加提问钩子（承接句已经在问时不加）。一版都没有，就放回队列 6 小时后再看，不占重试次数。</span></div></li>
+        <li class="new"><div><b>配图照旧</b><span>换说法只换文字，海报仍按话题发；话题六没有配图。</span></div></li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="catalog">
+  <div class="wrap sec-grid">
+    <div class="sec-head"><div class="n">3</div><h2>群发助手发过什么</h2></div>
+    <div class="sec-body">
+      <p class="intro">按群发助手的两张长截图逐条转录，共 27 条。同一个时间段里，不同的内容发给了不同的一批人，所以按「时间段 + 收件分组」来记。收件人的名字和手机号不入库。</p>
+      <div class="scroll">
+      <table class="tbl">
+        <thead><tr><th>时间段</th><th>分组</th><th>内容</th><th>对应话题</th></tr></thead>
+        <tbody>
+          <tr><td>6 月 5 日 16:50</td><td class="muted">156 人</td><td>和传统定制的区别 + 对比长图</td><td>话题六 品牌对比</td></tr>
+          <tr><td>6 月 21 日 18:34</td><td class="muted">265 人</td><td>对比长图 +「左边是我们的标准」</td><td>话题六 品牌对比</td></tr>
+          <tr><td>7 月 16 日 15:13</td><td class="muted">308 人</td><td>展厅邀约</td><td class="muted">只记为讲过</td></tr>
+          <tr><td rowspan="2">7 月 30 日 10:16</td><td class="muted">54 人</td><td>样板房客户专属权益</td><td>话题四 样板房的好处</td></tr>
+          <tr><td class="muted">150 人</td><td>样板房征集补充协议 +「打扰啦」</td><td>话题三 样板房政策</td></tr>
+          <tr><td>7 月 30 日 10:24</td><td class="muted">57 人</td><td>假一赔三协议 + 环保补充协议 + 书面承诺</td><td>话题一 书面保障</td></tr>
+          <tr><td rowspan="5">8 月 4 日 14:52</td><td class="muted">150 人</td><td>样板房客户专属权益</td><td>话题四</td></tr>
+          <tr><td class="muted">25 人</td><td>样板房征集补充协议 +「打扰啦」</td><td>话题三</td></tr>
+          <tr><td class="muted">57 人</td><td>设计 / 安装 / 验收 / 售后流程图 + 全流程标准化</td><td>话题二 全流程服务</td></tr>
+          <tr><td class="muted">36 人</td><td>环保补充协议 + 假一赔三协议 + 书面承诺</td><td>话题一</td></tr>
+          <tr><td class="muted">82 人</td><td>产品配置海报 + 环保检测全额赔款海报 + 配置报价</td><td>话题五 配置与价格</td></tr>
+          <tr><td>8 月 8 日 09:18</td><td class="muted">348 人</td><td>展厅邀约</td><td class="muted">只记为讲过</td></tr>
+          <tr><td>8 月 14 日 14:38</td><td class="muted">348 人</td><td>展厅邀约</td><td class="muted">只记为讲过</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p class="note"><strong>为什么不按收件人名单认人：</strong>名单只露前三四个备注名，而「省份 + 六位编号」在不同销售之间会重号。拿截图里的收件人去库里按编号、名字、手机号查，一个都对不上，同编号的是别的客户。</p>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="match">
+  <div class="wrap sec-grid">
+    <div class="sec-head"><div class="n">4</div><h2>怎么认出他收到过哪几组</h2></div>
+    <div class="sec-body">
+      <p class="intro">群发在客户的聊天窗口里就是一段我方气泡，上方挂着微信的时间分隔。拿这个时间去对群发助手的时间段。</p>
+      <table class="tbl">
+        <thead><tr><th>看到了什么</th><th>怎么算</th></tr></thead>
+        <tbody>
+          <tr><td>时间对上，文字也对上</td><td class="muted">算收到这一组（证据最强）。时间窗口是群发时间前 1 分钟到后 30 分钟，不跨到下一个时间段；同一段文字在两个时间段都发过时，靠时间分清是哪一次。</td></tr>
+          <tr><td>时间对上，只看到图片</td><td class="muted">这个时间段里发过图的几组都算收到</td></tr>
+          <tr><td>时间对上，文字认不出</td><td class="muted">这个时间段里有文字的几组都算收到（多半是识别花了）</td></tr>
+          <tr><td>没有时间，文字对上</td><td class="muted">所有发过这段文字的组都算收到</td></tr>
+        </tbody>
+      </table>
+      <p class="note"><strong>拿不准的一律按「收到了」算：</strong>多算的代价，是这个话题换一种说法再讲；少算的代价，是同一段话再发一遍。对上的结果记进库里，只增不删——下一次读不到那么远，也不会忘。</p>
+
+      <h3>为什么要发客户端</h3>
+      <p>客户端读屏时，其实已经把每个气泡和它上方的时间分隔绑好了，但 1.14.54 上传时只带「谁说的 + 内容」，把时间丢了。1.14.55 把时间一起传上来，并且当场换成两边约定的绝对时间（服务端认不得「下午 2:38」这类写法）。往上翻页时，下面那屏顶部气泡的时间分隔常在屏幕外，拼接两屏时从上面那屏补上；两屏对不上时不补，免得跨过漏掉的消息。</p>
+
+      <h3>现在库里能对上多少</h3>
+      <p class="muted">口径：小鱼销售那台电脑名下的全部企微单聊会话，用库里已存的记录离线对一遍（9 月 17 日 22:08）。</p>
+      <div class="bars">
+        <div class="bar"><span>库里的客户</span><div class="track"><div class="fill grey" style="width:100%"></div></div><span class="n">93</span></div>
+        <div class="bar"><span>有我方消息记录</span><div class="track"><div class="fill grey" style="width:63.4%"></div></div><span class="n">59</span></div>
+        <div class="bar"><span>记录带时间分隔</span><div class="track"><div class="fill warn" style="width:16.1%"></div></div><span class="n">15</span></div>
+        <div class="bar"><span>对上至少一组群发</span><div class="track"><div class="fill" style="width:5.4%"></div></div><span class="n">5</span></div>
+      </div>
+      <p>对上的 5 位收到的都是展厅邀约，不涉及话题。覆盖这么低，是因为库里存的记录大多很浅，按备注名召回以前又不读记录；带时间的 15 位，时间格式全部能解析（54 条，100%），不是解析的问题。<strong>真正的对账发生在每次发送前</strong>：客户端 1.14.55 装上后，发之前往上读到的每一屏都带时间，那时才对得上。群发助手里的好友有 348 位，库里目前只有 93 位，其余的会在按备注名召回扫到时陆续入库。</p>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="copy">
+  <div class="wrap sec-grid">
+    <div class="sec-head"><div class="n">5</div><h2>新说法怎么来</h2></div>
+    <div class="sec-body">
+      <p class="intro">每个话题出几版，每版指定一个讲法角度（先说顾虑、先讲好处、把最后一个点提前、像熟人随口同步……），由代码分配，不让模型自己挑。</p>
+      <ol class="steps">
+        <li><b>出稿</b><span>模型拿到：话题原文、同话题的群发原文、已经讲过的话、这一版的角度</span></li>
+        <li><b>只用甲方资料</b><span>数字、价格、政策、材质词必须在资料里出现过；价格写成占位按档填</span></li>
+        <li><b>重复比对</b><span>跟原文、群发、历史库、其他版本都不能太像（见第 6 节）</span></li>
+        <li><b>存为待审</b><span>三稿都过不了的角度直接放弃</span></li>
+        <li><b>人工确认</b><span>确认时拿当下的历史库再比一遍，记下是谁确认的</span></li>
+      </ol>
+
+      <h3>机器拦得住的</h3>
+      <table class="tbl">
+        <tbody>
+          <tr><td>新增事实</td><td class="muted">资料里没有的数字、免费、质保、甲醛、实木、无醛、阻尼、合同、名额、审核、流程、今天、限时……出现一个就拦</td></tr>
+          <tr><td>价格</td><td class="muted">只许写原价 / 补贴价 / 每平立减三个占位，按客户地区档填（沪苏浙京 898 / 598，其余 868 / 568，立减都是 300）；资料里没有价格的话题一个数字都不许出现</td></tr>
+          <tr><td>问句</td><td class="muted">正文不许有问号，也不许有「要不要」「……吗」这种没问号的问句——结尾的问题由提问钩子统一加</td></tr>
+          <tr><td>称呼与语言</td><td class="muted">只用「您」；不许夹英文（资料里本来就有的 ENF、PUR、SOP 除外）</td></tr>
+          <tr><td>卖点</td><td class="muted">本话题的核心卖点一个不能少，比如话题一必须讲到环保补充协议、假一赔三和协议 / 合同</td></tr>
+        </tbody>
+      </table>
+      <p class="note"><strong>机器拦不住的，要靠人工确认：</strong>「流程也简单」「每套都能申请」「比市面上大多数更扎实」这类软性夸大，词表覆盖不全。第一轮试出稿里就有几版「过了检查」却编了「提交资料过审」「还有空余名额」，这几句后来都补进了拦截规则，原文也收进了回归测试。</p>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="compare">
+  <div class="wrap sec-grid">
+    <div class="sec-head"><div class="n">6</div><h2>重复比对</h2></div>
+    <div class="sec-body">
+      <p class="intro">两层比对，回答的问题不一样。</p>
+      <div class="lanes">
+        <div class="lane">
+          <div class="t">讲过哪个话题</div>
+          <div class="s"><span class="pill x">按记录去重，原样沿用</span></div>
+          <ul>
+            <li>一段我方消息和某个话题的双字组重合 ≥ 60%，就算讲过这个话题</li>
+            <li>容忍识别截断、前面加了称呼</li>
+            <li>已确认的新说法、群发原文也算这个话题的措辞</li>
+          </ul>
+        </div>
+        <div class="lane used">
+          <div class="t">这版措辞讲没讲过</div>
+          <div class="s"><span class="pill g">这次新加</span></div>
+          <ul>
+            <li>先把卖点名词和数字遮掉，再量四样</li>
+            <li>整体相似度 ≥ 45%，或照搬连续 10 个字，或开头 6 个字一样，或是同一段话的片段（重合 ≥ 60%），任一命中就算讲过</li>
+          </ul>
+        </div>
+      </div>
+      <p class="note"><strong>为什么措辞那层要遮名词：</strong>话题五全是必须原样保留的品牌、板材、免责说明，第一层不遮名词，话题五的任何说法在它眼里都是同一段——真正重写过的旧版话题五和现役原文重合 64%，新写的一版 69%。遮掉之后分别是 48% 和 43%，而新说法被截成半截再比，仍然有 92%～100%。只换四个词的版本，整体相似度是 81%。</p>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="defer">
+  <div class="wrap sec-grid">
+    <div class="sec-head"><div class="n">7</div><h2>没确认之前会怎样</h2></div>
+    <div class="sec-body">
+      <table class="tbl">
+        <thead><tr><th>入口</th><th>讲过、又没有可用的新说法时</th></tr></thead>
+        <tbody>
+          <tr><td>七次召回</td><td class="muted">任务放回队列，6 小时后再看，不占重试次数。以前「允许的话题都讲过」会直接取消，而取消是终态，确认了新说法也发不出去，所以改成等。</td></tr>
+          <tr><td>按备注名召回</td><td class="muted">领任务之前就判，这位这一轮跳过、不建任务；下一轮扫描还会看到他。</td></tr>
+          <tr><td>发送前现场重算</td><td class="muted">回「这条不发」，任务放回队列等 6 小时。</td></tr>
+          <tr><td>第二轮召回</td><td class="muted">不走这一步：文案和两张配图是入队时指定的，默认那段本身就是换过说法的话题二。</td></tr>
+        </tbody>
+      </table>
+      <h3>七次召回的顺序变了</h3>
+      <p>以前是话题一到五，第 6、7 次回到话题一、二。现在是话题一到六，第 7 次回到话题二（配验收、售后流程图）。回头的那一次一定撞上讲过的话题，所以没有确认稿时一定不发——这是设计，不是卡住。</p>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="deploy">
+  <div class="wrap sec-grid">
+    <div class="sec-head"><div class="n">8</div><h2>上线记录</h2></div>
+    <div class="sec-body">
+      <p class="intro">9 月 17 日一天，分两步上线；中间同事的两个相关改动先合进去，第一步当场接上了它们。</p>
+      <ul class="timeline">
+        <li><div class="t">17:14</div><div class="d">发前查全部聊天记录、按上次的话选话题</div><div class="x">同事的改动先上线，本机制接在它后面。</div></li>
+        <li><div class="t">17:53</div><div class="d">建表：历史库 + 新说法池</div><div class="x">先在事务里试跑再撤销，确认无误后执行并记账；两张表只加不改。</div></li>
+        <li><div class="t">18:08 / 18:12</div><div class="d">同事的「发送前往上读」「第二轮召回」先合并</div><div class="x">本机制随即接入这两个新入口，顺手修了两者叠加后第二轮配图会被清空的问题。</div></li>
+        <li><div class="t">18:29 → 18:33</div><div class="d">第一步合并并上线</div><div class="x">线上探针确认版本；99 条排队中的召回任务，新旧逻辑选出的话题 0 处不同。</div></li>
+        <li><div class="t">傍晚</div><div class="d">收到群发助手截图，定下按时间匹配、发客户端、加话题六</div><div class="x">收件人按编号在库里查不到，改为按聊天记录里的时间认。</div></li>
+        <li><div class="t">22:03</div><div class="d">建表：群发目录 + 收到记录 + 话题六</div><div class="x">同样先试跑再执行，原有 7 版待审稿完好。</div></li>
+        <li><div class="t">22:05</div><div class="d">导入 27 条群发，离线对账，出第二批稿</div><div class="x">待审共 13 版，其中话题六 1 版。</div></li>
+        <li><div class="t">23:19</div><div class="d">第二步合并并上线</div><div class="x">四项检查通过（其中一项因构建机卡住重跑）；自动审查只跑了 7 轮，另做了一轮独立代码审查，未发现需要合并前修的问题。线上部署进行中。</div></li>
+        <li class="pending"><div class="t">待办</div><div class="d">Windows 客户端 1.14.55</div><div class="x">打包上传后写版本台账；给小鱼销售那台下发更新需要运维令牌，由有权限的同事执行；持机人重启一次程序才会换上新版。</div></li>
+      </ul>
+      <h3>接下来</h3>
+      <ol class="fixes">
+        <li class="fix"><div class="fix-top"><span class="step">审稿</span></div><p class="cause">13 版待审稿逐条确认或打回。确认之前，讲过的话题一律先不发。</p><p class="check"><b>验收</b>确认后，对应话题的召回任务从「等确认」变回可发；换说法发出去的那条，召回记录里的正文等于某条已确认新说法加提问钩子，且状态为已送达。</p></li>
+        <li class="fix"><div class="fix-top"><span class="step">装客户端</span></div><p class="cause">小鱼销售那台电脑装上 1.14.55（持机人重启一次程序才会换版本）。</p><p class="check"><b>验收</b>召回记录的读取标记显示本次读到了客户发言；收到记录里开始出现「时间 + 文字」对上的群发。</p></li>
+        <li class="fix"><div class="fix-top"><span class="step">补目录</span></div><p class="cause">其他销售的群发助手同样截图转录后导入；以后新的群发也要补进目录，否则认不出。</p></li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="wrap">
+  <footer>
+    <p>本页不含客户姓名、电话、微信号；群发文案属于甲方资料，收件人名单未入库。</p>
+    <p>数字来自召回任务、群发目录与会话记录的直接查询，口径见各节。</p>
+    <p><a href="/learn">回到知识分享</a></p>
+  </footer>
+</div>
+</body>
+</html>
