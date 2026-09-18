@@ -68,6 +68,10 @@
   .kpi .v small { font-size:13px; color:var(--text-muted); font-weight:600; margin-left:3px; }
   .kpi .s { font-size:12px; color:var(--text-dim); margin-top:4px; line-height:1.55; }
   .kpi.now { border-style:dashed; }
+  a.kpi.bug { text-decoration:none; color:inherit; border-color:rgba(236,131,90,.45); transition:.15s; }
+  a.kpi.bug:hover { border-color:var(--serious); background:#1a1c24; }
+  a.kpi.bug .l { color:#f0a78a; }
+  a.kpi.bug .go { color:var(--serious); font-weight:600; }
 
   /* ── 机器卡 ── */
   .machines { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:14px; }
@@ -89,6 +93,8 @@
   .idn .row { display:flex; gap:8px; }
   .idn .row em { font-style:normal; color:var(--text-muted); flex:0 0 5.2em; }
   .flag { display:inline-block; font-size:11.5px; padding:1px 8px; border-radius:6px; background:rgba(250,178,25,.1); color:#fcd34d; border:1px solid rgba(250,178,25,.25); margin:2px 4px 0 0; }
+  a.multi { display:block; margin-top:12px; padding:8px 12px; border-radius:9px; font-size:12.5px; text-decoration:none; color:#f0a78a; background:rgba(236,131,90,.08); border:1px solid rgba(236,131,90,.3); }
+  a.multi:hover { border-color:var(--serious); }
   .ver { font-family:"SF Mono",Menlo,Consolas,monospace; font-size:11px; color:var(--text-muted); }
 
   /* ── 7 天趋势（两张小图，一图一个量，不做双轴）── */
@@ -233,7 +239,8 @@
     <b>数字怎么算的</b>
     <ul>
       <li><b>自动回复</b>：客户在个人微信里发来消息，电脑端自动读到、AI 写好、自动发出去的那一条。客户连着发好几条算<b>一批</b>，只回一次，所以看回上率按批算。</li>
-      <li><b>回复用时</b>：从客户这一批的最后一条，到我们那条发出去。电脑端有时会晚一步才把客户消息存进库，这时回复前面看不到客户消息，就标为算不出用时，这条仍算在自动回复条数里，但不进回复用时的统计。明细里每条消息都标了发来 / 发出的时间（精确到秒）。总览给的是完整分布：中位数（一半比它快）、75% 的批在多久以内、最慢的一批，以及一共几批，不挑样本。客户刚发 5 分钟内还没回的记为处理中，不算没回上。</li>
+      <li><b>异常记录不在本页</b>：回复前面没记到客户消息的、把微信系统提示（朋友验证、拒收等）当成客户消息的，都挪到了 <a href="/akke/personal-wechat-pc-bugs" style="color:#f0a78a">bug 合集</a>，不进本页的明细、回上率、回复用时和客户消息数；但它们确实发出去了，所以仍算在自动回复发出的条数里（卡片上注明含几条）。</li>
+      <li><b>回复用时</b>：从客户这一批的最后一条，到我们那条发出去。明细里每条消息都标了发来 / 发出的时间（精确到秒）。总览给的是完整分布：中位数（一半比它快）、75% 的批在多久以内、最慢的一批，以及一共几批，不挑样本。客户刚发 5 分钟内还没回的记为处理中，不算没回上。</li>
       <li><b>召回</b>：客户一段时间没说话，系统主动发一条。有三种：按节奏（第 1、3、7、15、30 天）、次日跟进（销售回了、客户没再回）、接着上次聊的话题往下说；第二轮召回会带两张图。按实际发出的时间算到哪一天。</li>
       <li><b>召回待发、正在发</b>：是此刻的数，不随上面选的日期变（虚线框标出）。</li>
       <li><b>机器状态</b>：电脑端隔一会儿报一次心跳，10 分钟内报过算在线。在线但没在干活（没就绪、已停止）会单独标出来，别只看在不在线。</li>
@@ -295,13 +302,18 @@ function renderKpis() {
   const lat = state.machine ? ms[0].day.latency : payload.totals.latency;
   const answered = d("answered"), unanswered = d("unanswered"), inProgress = d("inProgress");
   const scope = state.machine ? MC[state.machine].label : "三台";
+  const anom = (payload.anomalies || []).filter(a => !state.machine || a.machine === state.machine);
+  const anomReplies = anom.filter(a => a.reply).length;
   $("kpiTitle").innerHTML = `${payload.isToday ? "今天" : esc(payload.date)} 总览 <span class="hint">${esc(scope)}</span>`;
   $("kpis").innerHTML = `
-    <div class="kpi"><div class="l">自动回复发出</div><div class="v">${d("autoReplies")}<small>条</small></div><div class="s">客户发来 ${d("customerMsgs")} 条消息</div></div>
+    <div class="kpi"><div class="l">自动回复发出</div><div class="v">${d("autoReplies")}<small>条</small></div><div class="s">客户发来 ${d("customerMsgs")} 条消息${anomReplies ? ` · 含 ${anomReplies} 条异常回复` : ""}</div></div>
     <div class="kpi"><div class="l">客户消息回上了</div><div class="v">${answered}<small>/ ${answered + unanswered} 批</small></div><div class="s">回上率 ${pct(answered, answered + unanswered)}${inProgress ? ` · 另有 ${inProgress} 批处理中` : ""}</div></div>
     <div class="kpi"><div class="l">回复用时（中位数）</div><div class="v">${dur(lat.p50)}</div><div class="s">${lat.n ? `75% 在 ${dur(lat.p75)} 内 · 最慢 ${dur(lat.max)} · 共 ${lat.n} 批` : "当天没有已回的批"}</div></div>
     <div class="kpi"><div class="l">召回发出</div><div class="v">${d("recallSent")}<small>条</small></div><div class="s">按实际发出时间算</div></div>
-    <div class="kpi now"><div class="l">召回待发（此刻）</div><div class="v">${b("due")}<small>条</small></div><div class="s">已到点还没发 · 另有 ${b("queued")} 条没到点${b("inFlight") ? ` · ${b("inFlight")} 条正在发` : ""}</div></div>`;
+    <div class="kpi now"><div class="l">召回待发（此刻）</div><div class="v">${b("due")}<small>条</small></div><div class="s">已到点还没发 · 另有 ${b("queued")} 条没到点${b("inFlight") ? ` · ${b("inFlight")} 条正在发` : ""}</div></div>
+    <a class="kpi bug" href="/akke/personal-wechat-pc-bugs?date=${payload.date}${state.machine ? `&m=${state.machine}` : ""}">
+      <div class="l">异常记录（已移出本页）</div><div class="v">${anom.length}<small>条</small></div>
+      <div class="s">${anom.length ? "回复前没记到客户消息、把系统提示当成客户消息等" : "这一天没有"} · <span class="go">看 bug 合集 →</span></div></a>`;
 }
 
 // ── 机器卡 ──
@@ -338,6 +350,7 @@ function renderMachines() {
         <div><b>${m.backlog.due}</b><span>召回待发</span></div>
       </div>
       ${ids || `<div class="idn">没有匹配到这台机器的微信身份</div>`}
+      ${m.identities.length > 1 ? `<a class="multi" href="/akke/personal-wechat-pc-bugs${state.machine ? `?m=${state.machine}` : ""}">! 一个人登记了 ${m.identities.length} 个微信身份，召回只能由各自那台发 · 看 bug 合集 →</a>` : ""}
     </div>`;
   }).join("");
 }
