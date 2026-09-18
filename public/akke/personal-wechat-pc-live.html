@@ -78,7 +78,7 @@
   .pill i { font-style:normal; font-weight:800; }
   .pill.good i { color:var(--good); } .pill.warning i { color:var(--warning); } .pill.critical i { color:var(--critical); } .pill.serious i { color:var(--serious); }
   .mc .hd .pill { margin-left:auto; }
-  .mnums { display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; margin-bottom:12px; }
+  .mnums { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-bottom:12px; }
   .mnums div { background:var(--bg-deep); border-radius:9px; padding:7px 8px; text-align:center; }
   .mnums b { display:block; font-size:19px; font-weight:650; line-height:1.3; }
   .mnums span { font-size:11.5px; color:var(--text-muted); }
@@ -133,18 +133,22 @@
   .ev .t { font-variant-numeric:tabular-nums; color:var(--text); font-weight:600; }
   .ev .who { display:inline-flex; align-items:center; gap:6px; color:var(--text-dim); }
   .ev .cu { color:var(--text); }
-  .ev .ref { font-family:"SF Mono",Menlo,Consolas,monospace; font-size:11px; color:var(--text-muted); }
   .chip { font-size:11.5px; font-weight:600; padding:2px 9px; border-radius:6px; }
   .chip.reply { background:rgba(96,165,250,.16); color:#93c5fd; }
   .chip.recall { background:var(--accent-soft); color:var(--accent-ink); }
   .chip.miss { background:var(--bg-deep); color:var(--text-dim); border:1px solid var(--border-strong); }
   .ev .meta .pill { margin-left:auto; }
-  .bub { max-width:760px; padding:7px 12px; border-radius:10px; font-size:14px; line-height:1.6; white-space:pre-wrap; word-break:break-word; margin:4px 0; }
+  /* 明细里每条消息一行：左边是时间 + 谁说的，右边是原文全文 */
+  .msg { display:grid; grid-template-columns:78px minmax(0, 1fr); gap:10px; align-items:start; margin:6px 0; }
+  .msg .when { padding-top:7px; line-height:1.35; }
+  .msg .when b { display:block; font-size:12.5px; font-weight:600; color:var(--text-dim); font-variant-numeric:tabular-nums; }
+  .msg .when span { font-size:11.5px; color:var(--text-muted); }
+  .bub { max-width:780px; padding:7px 12px; border-radius:10px; font-size:14px; line-height:1.6; white-space:pre-wrap; word-break:break-word; }
   .bub.c { background:var(--bg-deep); color:var(--text-dim); border:1px solid var(--border); }
-  .bub.a { background:rgba(96,165,250,.09); color:var(--text); border:1px solid rgba(96,165,250,.22); margin-left:22px; }
+  .bub.a { background:rgba(96,165,250,.09); color:var(--text); border:1px solid rgba(96,165,250,.22); }
   .bub.r { background:rgba(139,92,246,.08); color:var(--text); border:1px solid rgba(139,92,246,.22); }
-  /* 折叠放在气泡里层：直接夹在带内边距的气泡上会露出第 4 行半截 */
-  .clamp { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; cursor:pointer; }
+  .speed { display:flex; flex-wrap:wrap; align-items:center; gap:6px 14px; margin-top:8px; padding-top:8px; border-top:1px dashed var(--border); font-size:12.5px; color:var(--text-dim); font-variant-numeric:tabular-nums; }
+  .speed b { color:var(--text); font-weight:600; }
   .sub { font-size:12px; color:var(--text-muted); margin-top:4px; }
   .more { margin-top:10px; background:var(--bg-elevated); border:1px solid var(--border); color:var(--text-dim); border-radius:9px; padding:8px 14px; font:inherit; font-size:13px; cursor:pointer; }
   .more:hover { color:var(--text); border-color:var(--border-strong); }
@@ -160,9 +164,8 @@
     .container { padding: 28px 16px 80px; }
     h1 { font-size: 30px; }
     .subtitle { font-size: 15.5px; }
-    .mnums { grid-template-columns:repeat(2, 1fr); }
     .machines, .charts { grid-template-columns: 1fr; }
-    .bub.a { margin-left:10px; }
+    .msg { grid-template-columns:62px minmax(0, 1fr); gap:8px; }
   }
 </style>
 </head>
@@ -195,7 +198,7 @@
     <h2 id="kpiTitle">当天总览</h2>
     <div class="kpis" id="kpis"></div>
 
-    <h2>三台机器此刻的状态 <span class="hint">上排前两格是所选那天的量，后两格是此刻的数；状态来自电脑端定时上报的心跳，只有此刻，不存历史</span></h2>
+    <h2>三台机器此刻的状态 <span class="hint">上排前两格是所选那天的量，第三格是此刻的数；状态来自电脑端定时上报的心跳，只有此刻，不存历史</span></h2>
     <div class="machines" id="machines"></div>
 
     <h2>近 7 天每天发了多少 <span class="hint">点某一天的柱子可以切过去看那天的明细</span></h2>
@@ -213,22 +216,19 @@
       </div>
     </div>
     <div class="rows" id="events"></div>
-
-    <h2 id="rvTitle">召回卡住、等人处理的</h2>
-    <div class="rows" id="reviews"></div>
   </div>
 
   <div class="notes">
     <b>数字怎么算的</b>
     <ul>
       <li><b>自动回复</b>：客户在个人微信里发来消息，电脑端自动读到、AI 写好、自动发出去的那一条。客户连着发好几条算<b>一批</b>，只回一次，所以看回上率按批算。</li>
-      <li><b>回复用时</b>：从客户这一批的最后一条，到我们那条发出去。给的是完整分布：中位数（一半比它快）、75% 的批在多久以内、最慢的一批，以及一共几批，不挑样本。客户刚发 5 分钟内还没回的记为处理中，不算没回上。</li>
+      <li><b>回复用时</b>：从客户这一批的最后一条，到我们那条发出去。电脑端有时会晚一步才把客户消息存进库，这时回复前面看不到客户消息，就标为算不出用时，这条仍算在自动回复条数里，但不进回复用时的统计。明细里每条消息都标了发来 / 发出的时间（精确到秒）。总览给的是完整分布：中位数（一半比它快）、75% 的批在多久以内、最慢的一批，以及一共几批，不挑样本。客户刚发 5 分钟内还没回的记为处理中，不算没回上。</li>
       <li><b>召回</b>：客户一段时间没说话，系统主动发一条。有三种：按节奏（第 1、3、7、15、30 天）、次日跟进（销售回了、客户没再回）、接着上次聊的话题往下说；第二轮召回会带两张图。按实际发出的时间算到哪一天。</li>
-      <li><b>待发、正在发、等人处理</b>：是此刻的数，不随上面选的日期变（虚线框标出）。等人处理 = 系统发之前核对没通过、自己停下来等人看的，比如聊天记录最后一条对不上、按名字搜出不止一个人。</li>
+      <li><b>召回待发、正在发</b>：是此刻的数，不随上面选的日期变（虚线框标出）。</li>
       <li><b>机器状态</b>：电脑端隔一会儿报一次心跳，10 分钟内报过算在线。在线但没在干活（没就绪、已停止）会单独标出来，别只看在不在线。</li>
       <li>张小鱼这台有两个微信身份（小鱼销售、小鱼），合在一起算。</li>
     </ul>
-    <div class="privacy">客户名只显示第一个字，消息里的手机号和长串数字已打码；名字后面的 # 编号是会话编号，用来分辨是不是同一个人。本页已设 noindex，请勿把链接贴到公开可被搜索的地方。</div>
+    <div class="privacy">客户名是销售给客户的备注名，完整显示；名字和消息里的手机号、长串数字已打码。本页已设 noindex，请勿把链接贴到公开可被搜索的地方。</div>
   </div>
 </div>
 <div id="tip" role="tooltip"></div>
@@ -246,7 +246,7 @@ const esc = (s) => (s == null ? "" : String(s)).replace(/[&<>"']/g, c => ({ "&":
 
 let state = { date: null, machine: "", type: "" }; // date=null → 今天
 let payload = null;
-let showAllEvents = false, showAllReviews = false;
+let showAllEvents = false;
 let timer = null;
 let loadSeq = 0;
 
@@ -290,8 +290,7 @@ function renderKpis() {
     <div class="kpi"><div class="l">客户消息回上了</div><div class="v">${answered}<small>/ ${answered + unanswered} 批</small></div><div class="s">回上率 ${pct(answered, answered + unanswered)}${inProgress ? ` · 另有 ${inProgress} 批处理中` : ""}</div></div>
     <div class="kpi"><div class="l">回复用时（中位数）</div><div class="v">${dur(lat.p50)}</div><div class="s">${lat.n ? `75% 在 ${dur(lat.p75)} 内 · 最慢 ${dur(lat.max)} · 共 ${lat.n} 批` : "当天没有已回的批"}</div></div>
     <div class="kpi"><div class="l">召回发出</div><div class="v">${d("recallSent")}<small>条</small></div><div class="s">按实际发出时间算</div></div>
-    <div class="kpi now"><div class="l">召回待发（此刻）</div><div class="v">${b("due")}<small>条</small></div><div class="s">已到点还没发 · 另有 ${b("queued")} 条没到点${b("inFlight") ? ` · ${b("inFlight")} 条正在发` : ""}</div></div>
-    <div class="kpi now"><div class="l">召回等人处理（此刻）</div><div class="v">${b("needsReview")}<small>条</small></div><div class="s">系统自己停下的，见页面下方清单</div></div>`;
+    <div class="kpi now"><div class="l">召回待发（此刻）</div><div class="v">${b("due")}<small>条</small></div><div class="s">已到点还没发 · 另有 ${b("queued")} 条没到点${b("inFlight") ? ` · ${b("inFlight")} 条正在发` : ""}</div></div>`;
 }
 
 // ── 机器卡 ──
@@ -316,7 +315,7 @@ function renderMachines() {
       return `<div class="idn">
         <div class="top">${multi ? `<b>${esc(i.name)}</b>` : ""}<span class="pill ${c}"><i>${ic}</i>${t}</span><span>最后心跳 ${esc(ago(i.lastSeenAt))}</span>${i.version ? `<span class="ver">v${esc(i.version.split("+")[0])}</span>` : ""}</div>
         <div class="row"><em>在干什么</em><span>${esc(i.actionLabel)}</span></div>
-        ${i.recallLabel ? `<div class="row"><em>召回</em><span>${esc(i.recallLabel)}</span></div>` : ""}
+        ${i.recallLabel ? `<div class="row"><em>召回准备</em><span>${esc(i.recallLabel)}</span></div>` : ""}
         ${i.flags.length ? `<div>${i.flags.map(f => `<span class="flag">${esc(f)}</span>`).join("")}</div>` : ""}
       </div>`;
     }).join("");
@@ -326,7 +325,6 @@ function renderMachines() {
         <div><b>${m.day.autoReplies}</b><span>自动回复</span></div>
         <div><b>${m.day.recallSent}</b><span>召回发出</span></div>
         <div><b>${m.backlog.due}</b><span>召回待发</span></div>
-        <div><b>${m.backlog.needsReview}</b><span>等人处理</span></div>
       </div>
       ${ids || `<div class="idn">没有匹配到这台机器的微信身份</div>`}
     </div>`;
@@ -390,25 +388,38 @@ function who(e) {
   const idn = e.identity && e.identity !== m.label ? ` · ${esc(e.identity)}` : "";
   return `<span class="who">${sw(m.color)}${esc(m.label)}${idn}</span>`;
 }
-function bubbles(list, cls) { return list.filter(Boolean).map(t => `<div class="bub ${cls}">${esc(t)}</div>`).join(""); }
+function hms(iso) { return iso ? new Date(Date.parse(iso) + 8 * 3600e3).toISOString().slice(11, 19) : "—"; }
+function msgLine(iso, who, text, cls) {
+  return `<div class="msg"><div class="when"><b>${hms(iso)}</b><span>${esc(who)}</span></div><div class="bub ${cls}">${esc(text)}</div></div>`;
+}
+function customerLines(e) {
+  const times = e.customerTimes || []; // 旧版接口没有逐条时间，就只显示原文
+  return e.customerMsgs.map((t, k) => msgLine(times[k] || null, "客户", t, "c")).join("");
+}
 function evHtml(e) {
-  const head = `<span class="t">${bjtHM(e.at)}</span>${who(e)}<span class="cu">${esc(e.customer)} <span class="ref">#${esc(e.ref)}</span></span>`;
+  const head = `<span class="t">${hms(e.at)}</span>${who(e)}<span class="cu">${esc(e.customer)}</span>`;
   if (e.type === "reply") {
     const [c, ic, t] = latClass(e.latencySec);
     return `<div class="ev"><div class="meta">${head}<span class="chip reply">自动回复</span>
-      ${e.latencySec != null ? `<span class="pill ${c}"><i>${ic}</i>用时 ${dur(e.latencySec)} · ${t}</span>` : ""}</div>
-      ${e.customerMsgs.length ? bubbles(e.customerMsgs, "c") : `<div class="sub">（前面没有对应的客户消息）</div>`}
-      <div class="bub a">${esc(e.reply)}</div></div>`;
+      ${e.latencySec != null ? `<span class="pill ${c}"><i>${ic}</i>回复用时 ${dur(e.latencySec)} · ${t}</span>` : ""}</div>
+      ${e.customerMsgs.length ? customerLines(e) : `<div class="sub">库里这条回复之前没记到客户消息</div>`}
+      ${msgLine(e.at, "自动回复", e.reply, "a")}
+      <div class="speed">${e.customerAt
+        ? `<span>客户最后一条 <b>${hms(e.customerAt)}</b></span><span>→ 自动回复发出 <b>${hms(e.at)}</b></span><span>回复用时 <b>${dur(e.latencySec)}</b></span>${e.customerMsgs.length > 1 ? `<span>客户连发 ${e.customerMsgs.length} 条，合并成一次回复</span>` : ""}`
+        : `<span>自动回复发出 <b>${hms(e.at)}</b></span><span>算不出回复用时（缺客户消息记录）</span>`}</div></div>`;
   }
   if (e.type === "unanswered") {
     const pill = e.inProgress ? `<span class="pill"><i>…</i>处理中</span>` : `<span class="pill critical"><i>✕</i>没回上</span>`;
-    return `<div class="ev"><div class="meta">${head}<span class="chip miss">客户消息</span>${pill}</div>${bubbles(e.customerMsgs, "c")}
-      <div class="sub">${e.inProgress ? "客户 5 分钟内刚发的，还在等电脑端处理" : "这一批客户消息之后，自动回复没有发出（可能按规则不回、转人工，或机器没在跑）"}</div></div>`;
+    const waited = payload.isToday ? Math.round((Date.now() - Date.parse(e.at)) / 1000) : null;
+    return `<div class="ev"><div class="meta">${head}<span class="chip miss">客户消息</span>${pill}</div>${customerLines(e)}
+      <div class="speed"><span>客户最后一条 <b>${hms(e.at)}</b></span>${e.inProgress
+        ? `<span>5 分钟内刚发的，还在等电脑端处理</span>`
+        : `<span>${waited != null ? `已等 <b>${dur(waited)}</b>，` : ""}自动回复没有发出（可能按规则不回、转人工，或机器没在跑）</span>`}</div></div>`;
   }
-  const late = Math.round((Date.parse(e.at) - Date.parse(e.dueAt)) / 60000);
+  const late = Math.round((Date.parse(e.at) - Date.parse(e.dueAt)) / 1000);
   return `<div class="ev"><div class="meta">${head}<span class="chip recall">召回</span><span class="sub" style="margin:0">${esc(e.label)}</span></div>
-    <div class="bub r"><div class="clamp" title="点一下展开全文">${esc(e.message)}</div></div>
-    <div class="sub">${e.images ? `附图 ${e.images} 张 · ` : ""}应发 ${bjtMDHM(e.dueAt)} → 实发 ${bjtHM(e.at)}${late > 1 ? `（晚了 ${dur(late * 60)}）` : ""}</div></div>`;
+    ${msgLine(e.at, "召回发出", e.message, "r")}
+    <div class="speed"><span>应发 <b>${bjtMDHM(e.dueAt)}</b></span><span>→ 实发 <b>${hms(e.at)}</b></span>${late > 60 ? `<span>晚了 <b>${dur(late)}</b></span>` : ""}${e.images ? `<span>附图 ${e.images} 张</span>` : ""}</div></div>`;
 }
 function renderEvents() {
   let list = payload.events.filter(e => (!state.machine || e.machine === state.machine) && (!state.type || e.type === state.type));
@@ -420,20 +431,7 @@ function renderEvents() {
     (n > cap && !showAllEvents ? `<button class="more" id="moreEv">再看剩下 ${n - cap} 条</button>` : "");
   const btn = $("moreEv"); if (btn) btn.onclick = () => { showAllEvents = true; renderEvents(); };
 }
-function renderReviews() {
-  const list = payload.reviews.filter(r => !state.machine || r.machine === state.machine);
-  $("rvTitle").innerHTML = `召回卡住、等人处理的 <span class="hint">此刻 ${list.length} 条，按应发时间从新到旧</span>`;
-  if (!list.length) { $("reviews").innerHTML = `<div class="empty-state">没有卡住的召回。</div>`; return; }
-  const cap = 8;
-  $("reviews").innerHTML = list.slice(0, showAllReviews ? list.length : cap).map(r => `<div class="ev">
-      <div class="meta"><span class="t">${bjtMDHM(r.dueAt)}</span>${who(r)}<span class="cu">${esc(r.customer)} <span class="ref">#${esc(r.ref)}</span></span>
-        <span class="sub" style="margin:0">${esc(r.label)}</span><span class="pill serious"><i>!</i>${esc(r.reasonLabel)}</span></div>
-      ${r.message ? `<div class="bub r"><div class="clamp" title="点一下展开全文">${esc(r.message)}</div></div>` : ""}</div>`).join("") +
-    (list.length > cap && !showAllReviews ? `<button class="more" id="moreRv">再看剩下 ${list.length - cap} 条</button>` : "");
-  const btn = $("moreRv"); if (btn) btn.onclick = () => { showAllReviews = true; renderReviews(); };
-}
-
-function renderAll() { if (!payload) return; renderKpis(); renderMachines(); renderTrend(); renderEvents(); renderReviews(); }
+function renderAll() { if (!payload) return; renderKpis(); renderMachines(); renderTrend(); renderEvents(); }
 
 // ── 拉数据 ──
 function setStatus(kind, text) { $("statusDot").className = "dot" + (kind === "ok" ? "" : kind === "err" ? " err" : " idle"); $("updatedAt").textContent = text; }
@@ -486,7 +484,7 @@ function setActive(id, btn) { [...$(id).children].forEach(b => b.classList.toggl
 
 $("dateSel").addEventListener("click", e => { const b = e.target.closest("button"); if (b) setDate(shiftDate(bjtToday(), -Number(b.dataset.off))); });
 $("dateInput").addEventListener("change", e => setDate(e.target.value));
-$("machineSel").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; state.machine = b.dataset.m; setActive("machineSel", b); showAllEvents = false; showAllReviews = false; syncUrl(); renderAll(); });
+$("machineSel").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; state.machine = b.dataset.m; setActive("machineSel", b); showAllEvents = false; syncUrl(); renderAll(); });
 $("typeSel").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; state.type = b.dataset.t; setActive("typeSel", b); showAllEvents = false; renderEvents(); });
 $("charts").addEventListener("pointermove", e => { const c = e.target.closest(".col"); c ? showTip(c, e.clientX, e.clientY) : hideTip(); });
 $("charts").addEventListener("pointerleave", hideTip);
@@ -494,7 +492,6 @@ $("charts").addEventListener("focusin", e => { const c = e.target.closest(".col"
 $("charts").addEventListener("focusout", hideTip);
 $("charts").addEventListener("click", e => { const c = e.target.closest(".col"); if (c) { hideTip(); setDate(c.dataset.date); } });
 $("charts").addEventListener("keydown", e => { const c = e.target.closest(".col"); if (c && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setDate(c.dataset.date); } });
-document.addEventListener("click", e => { const b = e.target.closest(".clamp"); if (b) { b.classList.remove("clamp"); b.removeAttribute("title"); } });
 
 (function init() {
   const p = new URLSearchParams(location.search);
