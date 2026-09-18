@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>Windows 个人微信 · 自动回复与召回逻辑</title>
+<meta name="description" content="装在销售 Windows 电脑上的个人微信自动化，按 2026-09-18 最新代码梳理：客户来消息怎么自动回、云端怎么决定回什么、召回给谁发、什么时候发、发什么、电脑怎么把召回发出去，三台电脑现在的状态，以及已知问题。">
+<style>
+  :root {
+    --paper: #ffffff;
+    --canvas: #f3f5f2;
+    --ink: #1c2321;
+    --slate: #5b6560;
+    --faint: #8c948f;
+    --line: #e1e5e0;
+    --green: #0f7a47;
+    --green-soft: #e3f3ea;
+    --amber: #8f6210;
+    --amber-soft: #faf1de;
+    --red: #b3392b;
+    --red-soft: #fbece9;
+    --blue: #2b5c9e;
+    --blue-soft: #e8eff9;
+    --grey-soft: #eceeec;
+    --bubble-us: #95ec69;
+    --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--canvas); color: var(--ink); font-family: var(--sans); font-size: 16px; line-height: 1.75; -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums; }
+  a { color: var(--green); }
+  a:focus-visible, summary:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; border-radius: 4px; }
+  p { margin: 0 0 14px; }
+  strong { font-weight: 600; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 32px; }
+
+  .top { display: flex; justify-content: space-between; gap: 16px; padding: 22px 0; font-size: 13px; color: var(--faint); }
+  .top a { color: var(--slate); text-decoration: none; }
+
+  .hero { padding: 44px 0 56px; }
+  .hero h1 { font-size: 40px; line-height: 1.25; font-weight: 600; margin: 0 0 18px; }
+  .hero .lede { font-size: 19px; color: var(--slate); margin: 0 0 36px; max-width: 36em; }
+
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .tile { background: var(--paper); padding: 18px 20px; }
+  .tile .k { font-size: 13px; color: var(--faint); }
+  .tile .v { font-size: 22px; font-weight: 600; margin: 2px 0; }
+  .tile .s { font-size: 14px; color: var(--slate); line-height: 1.55; }
+  .tile.ok .v { color: var(--green); }
+  .tile.wait .v { color: var(--amber); }
+  .tile.info .v { color: var(--blue); }
+
+  .roles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 28px 0 0; }
+  .roles div { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .roles b { display: block; font-size: 16px; }
+  .roles span { display: block; font-size: 14px; color: var(--slate); line-height: 1.6; margin-top: 4px; }
+
+  section { background: var(--paper); border-top: 1px solid var(--line); padding: 56px 0; }
+  section:nth-of-type(even) { background: var(--canvas); }
+  .n { font-size: 14px; color: var(--green); font-weight: 600; }
+  h2 { font-size: 26px; line-height: 1.35; font-weight: 600; margin: 2px 0 12px; }
+  .intro { font-size: 17px; color: var(--slate); margin-bottom: 28px; }
+  h3 { font-size: 17px; font-weight: 600; margin: 40px 0 12px; }
+  .muted { color: var(--slate); }
+  .guess { display: inline-block; font-size: 12px; font-weight: 600; color: var(--amber); background: var(--amber-soft); border-radius: 99px; padding: 0 8px; margin-left: 4px; vertical-align: 1px; white-space: nowrap; }
+
+  /* 步骤 */
+  .flow { list-style: none; margin: 0; padding: 0; counter-reset: f; }
+  .flow li { counter-increment: f; display: grid; grid-template-columns: 36px 1fr; gap: 14px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+  .flow li:last-child { border-bottom: 0; }
+  .flow li::before { content: counter(f); width: 28px; height: 28px; border-radius: 99px; background: var(--green); color: #fff; font-weight: 600; font-size: 14px; display: grid; place-items: center; }
+  .flow b { display: block; font-size: 17px; }
+  .flow span { color: var(--slate); }
+  .branch { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
+  .branch div { border-radius: 10px; padding: 12px 16px; font-size: 15px; line-height: 1.65; }
+  .branch .yes { background: var(--green-soft); }
+  .branch .no { background: var(--amber-soft); }
+  .branch em { font-style: normal; font-weight: 600; display: block; }
+
+  /* 聊天气泡 */
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 8px; }
+  .chat { background: #ededed; border-radius: 12px; padding: 14px; }
+  .chat .lbl { font-size: 13px; color: #6f6f6f; margin-bottom: 8px; }
+  .chat .b { border-radius: 6px; padding: 9px 13px; font-size: 15px; line-height: 1.65; margin-bottom: 8px; max-width: 92%; }
+  .chat .b:last-child { margin-bottom: 0; }
+  .chat .them { background: #fff; }
+  .chat .us { background: var(--bubble-us); margin-left: auto; }
+  .chat .us.bad { background: #f3d7d2; text-decoration: line-through; text-decoration-color: rgba(179,57,43,.5); }
+  .chat .sys { font-size: 13px; color: #6f6f6f; text-align: center; margin: 6px 0; }
+  .pair-note { margin: 14px 0 0; font-size: 15px; color: var(--slate); }
+  .fallback { margin-top: 16px; }
+  .fallback .chat { max-width: 520px; }
+
+  /* 表 */
+  .scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tbl { width: 100%; border-collapse: collapse; font-size: 15px; }
+  .tbl th { text-align: left; font-weight: 600; font-size: 13px; color: var(--slate); padding: 8px 14px 8px 0; border-bottom: 1px solid var(--ink); white-space: nowrap; }
+  .tbl td { padding: 11px 14px 11px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .tbl td:first-child { font-weight: 600; }
+  .tbl.nowrap1 td:first-child { white-space: nowrap; }
+  .tag { display: inline-block; font-size: 12px; font-weight: 600; border-radius: 99px; padding: 0 8px; white-space: nowrap; }
+  .tag.ok { color: var(--green); background: var(--green-soft); }
+  .tag.wait { color: var(--amber); background: var(--amber-soft); }
+  .tag.bad { color: var(--red); background: var(--red-soft); }
+
+  .rules { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .rules li { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; }
+  section:nth-of-type(odd) .rules li { background: var(--canvas); }
+  .rules b { display: block; }
+  .rules span { color: var(--slate); font-size: 15px; }
+
+  .note { border-left: 3px solid var(--green); padding: 2px 0 2px 16px; margin: 24px 0 0; color: var(--slate); }
+  .note strong { color: var(--ink); }
+  .note.warn { border-left-color: var(--amber); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .chips li { background: var(--paper); border: 1px solid var(--line); border-radius: 99px; padding: 4px 14px; font-size: 15px; }
+  section:nth-of-type(odd) .chips li { background: var(--canvas); }
+
+  .nosend { columns: 2; column-gap: 28px; margin: 0; padding-left: 18px; font-size: 15px; }
+  .nosend li { break-inside: avoid; margin-bottom: 8px; }
+
+  /* 待办 */
+  .todo { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+  .todo li { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 18px 22px; }
+  .todo .head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 14px; margin-bottom: 6px; }
+  .todo .head b { font-size: 18px; }
+  .who { font-size: 13px; font-weight: 600; padding: 1px 10px; border-radius: 99px; background: var(--amber-soft); color: var(--amber); }
+  .who.dev { background: var(--blue-soft); color: var(--blue); }
+  .todo p { margin: 0 0 8px; color: var(--slate); }
+  .todo .done { margin: 0; padding-top: 8px; border-top: 1px solid var(--line); font-size: 14px; color: var(--slate); }
+  .todo .done b { color: var(--ink); margin-right: 6px; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; background: var(--grey-soft); padding: 1px 6px; border-radius: 4px; word-break: break-all; }
+
+  .timeline { list-style: none; margin: 0; padding: 0; border-left: 2px solid var(--line); }
+  .timeline li { position: relative; padding: 0 0 18px 20px; }
+  .timeline li::before { content: ""; position: absolute; left: -7px; top: 8px; width: 12px; height: 12px; border-radius: 99px; background: var(--paper); border: 2px solid var(--green); }
+  .timeline li.pending::before { border-color: var(--amber); }
+  .timeline .t { font-size: 13px; color: var(--faint); }
+  .timeline .d { font-weight: 600; }
+  .timeline .x { font-size: 15px; color: var(--slate); }
+
+  details { margin-top: 32px; background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 14px 20px; }
+  summary { cursor: pointer; font-weight: 600; }
+  details h4 { font-size: 15px; margin: 22px 0 8px; }
+  details ul { margin: 8px 0 4px; padding-left: 18px; font-size: 15px; color: var(--slate); }
+  details li { margin-bottom: 6px; }
+  details .tbl { font-size: 14px; }
+
+  footer { padding: 36px 0 60px; font-size: 13px; color: var(--faint); }
+  footer p { margin: 0 0 6px; }
+
+  @media (max-width: 700px) {
+    .wrap { padding: 0 16px; }
+    .hero { padding: 24px 0 40px; }
+    .hero h1 { font-size: 29px; }
+    .hero .lede { font-size: 17px; }
+    .tiles, .pair, .branch, .roles { grid-template-columns: 1fr; }
+    .nosend { columns: 1; }
+    section { padding: 40px 0; }
+    h2 { font-size: 22px; }
+    .top { flex-direction: column; gap: 2px; }
+    .tbl { font-size: 14px; }
+    .tbl.stack thead { display: none; }
+    .tbl.stack tr { display: block; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .tbl.stack td { display: block; border: 0; padding: 2px 0; }
+    .tbl.stack td[data-k]::before { content: attr(data-k) "："; color: var(--faint); font-weight: 400; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <nav class="top" aria-label="站点">
+    <a href="/akke">← Akke 知识库</a>
+    <span>按 9 月 18 日最新代码梳理 · 状态截至 15:10</span>
+  </nav>
+
+  <header class="hero">
+    <h1>Windows 个人微信：自动回复和召回是怎么跑的</h1>
+    <p class="lede">销售自己的 Windows 电脑上装了一个小程序，替销售盯着个人微信：客户来消息，它自动回；客户一段时间没动静，它隔天去跟进，这就是召回。<strong>电脑只管看屏幕、点鼠标；说什么、该不该说，全由云端决定。</strong></p>
+
+    <div class="tiles">
+      <div class="tile ok"><div class="k">自动回复</div><div class="v">在跑</div><div class="s">今天到 15:00 客户来了 4 批消息，4 批都回上了：一半在 23 秒内，最慢 71 秒</div></div>
+      <div class="tile wait"><div class="k">召回</div><div class="v">两天没发出</div><div class="s">最后一条发在 9 月 16 日 21:53；此刻 145 条在排队，29 条卡着等人核对</div></div>
+      <div class="tile info"><div class="k">今天合的「每天 20 条」</div><div class="v">不管 Windows</div><div class="s">那是企业微信召回的上限。Windows 仍是每台电脑每天 5 条，可临时放宽</div></div>
+    </div>
+
+    <div class="roles">
+      <div><b>电脑（销售的 Windows）</b><span>看红点、点开会话、认人、读消息、把话发出去，再确认真发出去了。</span></div>
+      <div><b>云端大脑</b><span>判断这句该不该回、回什么；挑召回对象、定节奏、写召回内容。</span></div>
+      <div><b>人</b><span>决定每台电脑真发还是只出稿；确认新说法；处理卡着等人核对的消息。</span></div>
+    </div>
+  </header>
+</div>
+
+<main>
+
+<section>
+  <div class="wrap">
+    <div class="n">1</div>
+    <h2>客户发来消息，电脑这边怎么回</h2>
+    <p class="intro">程序一直在转圈：看红点 → 点开 → 认人 → 读消息 → 问云端 → 发出去。整个过程只有两小段要占用微信窗口，每段一两秒，其余时间销售照常用电脑。</p>
+    <ol class="flow">
+      <li><div><b>盯红点</b><span>每 3 秒看一眼会话列表最上面 8 行，有红点就是有未读。一次只处理 1 个人，刚处理过的人排到最后。</span></div></li>
+      <li><div><b>礼让销售</b><span>销售 4 秒内动过键盘鼠标、微信又不在最前面，就先不动手。红点留着，下一圈再来。</span></div></li>
+      <li><div><b>点开前先瞄一眼这一行</b><span>截下这一行，让小模型读名字：像公众号的、在黑名单里的，不点。微信团队、微信安全中心来消息只报警、不点开，点开红点就没了，销售会看不到。</span></div></li>
+      <li><div><b>点开会话</b><span>抢到前台 → 点这一行 → 滚到最底 → 截图 → 马上把前台还给销售。</span></div></li>
+      <li><div><b>认人</b><span>读窗口顶部的名字，备注必须是客户格式：（抖）+ 省份简称 +（字母）+ 6 位编号 + 名字 +（手机号）。不是这个格式的就到此为止，正文都不读，同事、朋友、系统号都这样挡掉。群聊另有两道关卡单独拦。</span></div></li>
+      <li><div><b>读消息</b><span>用读图模型读聊天区：左边是客户，右边是我们。我们最后一句之后客户连着发的几条，就是这一轮要回答的问题。模型说是客户，像素却显示在右边的，按我们自己发的算。</span></div></li>
+      <li><div><b>过规矩</b><span>这几种情况不回：最后一句是我们说的；客户这句已经超过 24 小时（改去翻聊天记录，交给召回）；不在 9:00–22:00；只剩系统提示。</span></div></li>
+      <li><div><b>问云端</b><span>把客户名、这一轮的几句话、屏幕上最近 6 条送给云端，等它回一句话，以及要不要配图。这一步不占电脑。</span></div></li>
+      <li><div><b>发之前再核一遍</b><span>重新读顶部名字，确认还是这个人；确认销售没在输入框里打字。</span></div></li>
+      <li><div><b>发出去，并确认真发出去了</b><span>粘贴 → 确认字进了输入框 → 回车 → 看三条证据：输入框清空了、消息区变了、最新一条在右边。至少两条成立、且没有红叹号，才算发出。有图再发 1 张。最后告诉云端「发出去了」，云端这时才把这句记进聊天记录。</span></div></li>
+    </ol>
+    <div class="branch">
+      <div class="yes"><em>拿不准的时候：一个字都不发</em>云端没回话、网络断了，电脑上没有备用话术可以顶。网络问题最多再问 3 次（隔 15 秒、45 秒、2 分钟）。</div>
+      <div class="no"><em>发了但说不清有没有发出去</em>这个客户冻住，绝不重发，等人来看。程序重启后才解冻。</div>
+    </div>
+    <p class="note"><strong>电脑每一圈的先后顺序：先回未读消息，其次召回，最后翻聊天记录。</strong>召回和翻记录只在没有未读、销售离开键鼠满 60 秒时才做。有一个例外会把顺序反过来，见第 6 部分第 3 条。</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="n">2</div>
+    <h2>回什么，由云端决定</h2>
+    <p class="intro">电脑只负责搬运。云端收到一轮客户消息后，依次做这几件事。</p>
+    <ol class="flow">
+      <li><div><b>认是哪个销售</b><span>每台电脑绑定一个销售身份（人设），一台一个。身份被停用，就不回。</span></div></li>
+      <li><div><b>判断是不是新话</b><span>这一轮的话库里都已经有了，就不回。两种情况会补答：上一句客户话还没回过，或者客户已经等了 5 分钟以上。</span></div></li>
+      <li><div><b>先按规矩分流</b><span>有几种情况不交给模型写，见下方。</span></div></li>
+      <li><div><b>出话</b><span>问价、而且面积算得出：直接用算好的报价。常见问题：用模板。其余交给大模型写。</span></div></li>
+      <li><div><b>写完过闸，再交回电脑</b><span>见下方的闸表。</span></div></li>
+    </ol>
+
+    <h3>先按规矩分流</h3>
+    <ul class="rules">
+      <li><b>要找真人、投诉、施工出事、改合同，或者连续两次拒绝</b><span>转人工：不回，推一张飞书卡。</span></li>
+      <li><b>客户明确不要了：别联系、签了别家、已经装完、不装了</b><span>回一句固定的收尾话，之后不再追。</span></li>
+      <li><b>我们已经收尾，客户只回一句「好的」</b><span>只记录，不回。</span></li>
+      <li><b>这个会话已经转人工</b><span>不回。24 小时后客户再来、且没有负面的话，自动接回来。</span></li>
+    </ul>
+
+    <h3>大模型写回复时看了什么</h3>
+    <ul class="chips">
+      <li>销售人设</li><li>当前阶段的规则（培育期 / 决策期）</li><li>最相关的 3 篇知识文档</li><li>决策规则</li><li>素材库</li><li>甲方审定话术</li><li>客户画像和聊天摘要</li>
+    </ul>
+    <p class="note">个人微信专用要求：<strong>2–3 句，尽量不超过 50 字；先答客户这一句；一次最多问一个问题；已经知道的不再问；别每条都喊名字。</strong>模型是 qwen3-235b（2507 版），和企业微信用的是同一个。</p>
+
+    <h3>写出来以后还要过的闸</h3>
+    <div class="scroll">
+      <table class="tbl stack">
+        <thead><tr><th>闸</th><th>拦什么</th><th>拦下后怎么办</th></tr></thead>
+        <tbody>
+          <tr><td>写作护栏</td><td data-k="拦什么">约 30 条：编价格、说发了其实没发、空头承诺、头两轮就催到店、复读</td><td data-k="拦下后">让模型重写，最多 2 次；还不行就删掉违规的句子</td></tr>
+          <tr><td>投递闸（个人微信专用）</td><td data-k="拦什么">客户已拒绝还追问；没依据的承诺（赔付、写进合同、检测数值）；客户没问却提门店、报价、发图；问价没答价</td><td data-k="拦下后">删掉那几句，或整条换成兜底话术</td></tr>
+          <tr><td>发图闸</td><td data-k="拦什么">这台电脑发不了图；价格海报和客户城市对不上；客户没要图；嘴上说发了图其实没发</td><td data-k="拦下后">去掉图，删掉相关的那句话</td></tr>
+          <tr><td>乱码、超长</td><td data-k="拦什么">输出乱码；超过 200 字</td><td data-k="拦下后">乱码换兜底话术；超长的截短</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="fallback">
+      <div class="chat"><div class="lbl">兜底话术（护栏救不回来时发这句）</div><div class="b us">这个我不敢凭感觉答您，说岔了反而误导您。您把具体情况再说细点儿，我把我这边能确定的部分一条条给您讲明白，拿不准的我也直接跟您说拿不准。</div></div>
+    </div>
+
+    <h3>今天（#1411）修掉了投递闸的两个误判</h3>
+    <div class="pair">
+      <div class="chat">
+        <div class="lbl">修之前：客户已经走了，还被追问城市</div>
+        <div class="b them">不好意思，你报价太高，我另外订</div>
+        <div class="sys">模型本来回了一句得体的收尾，但句子里有「价」字，闸以为客户在问价，整条换成了：</div>
+        <div class="b us bad">柜体按投影面积计价。您在哪个城市？我确认后直接给您准确单价。</div>
+      </div>
+      <div class="chat">
+        <div class="lbl">修之后：先判断客户是不是不要了</div>
+        <div class="sys">只看客户最近 2 条话，分两档</div>
+        <div class="b them">赶人（别再发了）</div>
+        <div class="b us">好的，不打扰您了。以后有需要随时找我。</div>
+        <div class="b them">选了别家 / 不做了</div>
+        <div class="b us">保留模型原话，删掉带问号的句子和追问城市、面积、到店、优惠的句子</div>
+      </div>
+    </div>
+    <p class="pair-note">第二个误判：模型用「几百一平」这种口语报价，闸不认「一平」，把正确的报价也换成了问城市。现在块、一平、每平、平米、平方这几种说法都认。还在砍价的不算拒绝；这套判断只影响这一轮话术，不写库，也不停召回。</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="n">3</div>
+    <h2>召回：给谁发、什么时候发、发什么</h2>
+    <p class="intro">召回任务全部由云端挑、云端写。电脑只负责找到人、发出去（第 4 部分）。召回<strong>不经人工审稿</strong>，自动发出。</p>
+
+    <h3>两种人会被召回</h3>
+    <ul class="rules">
+      <li><b>我们说了最后一句，客户 24 小时没回</b><span>普通召回，最多 5 次（话题一到五）。</span></li>
+      <li><b>客户说了最后一句，超过 24 小时没人接</b><span>这时不直接回旧话，先把聊天记录翻全，再排召回，最多 7 次（话题一到六，第 7 次回到话题二、换个说法）。</span></li>
+    </ul>
+    <p class="muted" style="margin-top:12px;font-size:15px">另有几种专项召回：按聊天历史或按备注名只发话题一（每人只发 1 次），以及人工触发一次的第二轮。它们用的是同一套名额和关卡。</p>
+
+    <h3>节奏：拿一位客户举例</h3>
+    <ul class="timeline">
+      <li><div class="t">周一 15:00</div><div class="d">销售最后说了一句，客户没回</div></li>
+      <li><div class="t">周二 15:00 起</div><div class="d">可以发第 1 次</div><div class="x">一句承接话 + 话题一 + 2 张图。假设 16:10 送达。</div></li>
+      <li><div class="t">周三 16:10 起</div><div class="d">发第 2 次（话题二）</div><div class="x">每次都从上一次<strong>真正送达</strong>的时间往后数 24 小时，不是从计划时间数。</div></li>
+      <li><div class="t">周四到周六</div><div class="d">依次发话题三、四、五，发完就停</div></li>
+      <li class="pending"><div class="t">任何一天客户回了话</div><div class="d">排着的召回作废，交给自动回复</div><div class="x">之后我们说完最后一句，再从头数 24 小时，从还没讲过的话题接着发。问过价的客户优先发话题五。</div></li>
+      <li class="pending"><div class="t">当天名额满了，或者过了 21 点</div><div class="d">顺延到第二天 9 点以后</div></li>
+    </ul>
+    <p class="note warn">说明书里写的 day 1 / 3 / 7 / 15 / 30 只是<strong>第几次</strong>的编号，不是间隔天数。9 月 16 日起改成了每次间隔一天。</p>
+
+    <h3>名额</h3>
+    <ul class="rules">
+      <li><b>每台电脑每天 5 条</b><span>按北京时间自然日算；普通、超过 24 小时、话题一这几类共用这 5 条（第二轮不占名额）。</span></li>
+      <li><b>可以临时放宽</b><span>普通召回最多放到 20 条，按备注名召回最多 40 条；必须同时写一个 12 小时内的到期时间，过期自动回到 5 条。</span></li>
+      <li><b>同一台电脑两条之间至少隔 10 分钟；同一个客户一天最多 1 条</b><span>同一时间一台电脑只发 1 条。</span></li>
+      <li><b>晚 9 点到早 9 点不派</b><span>可以临时延长，最多延 12 小时。</span></li>
+    </ul>
+
+    <h3>发什么</h3>
+    <p>每条召回 = <strong>一句承接话</strong>（大模型写，6–40 字，不许带数字、价格、约时间；写得不合格就不加）+ <strong>话题原文</strong> + 可能加一句问装修进行到哪一步 + <strong>配图</strong>（最多 2 张）。</p>
+    <div class="scroll">
+      <table class="tbl nowrap1">
+        <thead><tr><th>话题</th><th>讲什么</th><th>配图</th></tr></thead>
+        <tbody>
+          <tr><td>话题一</td><td>两份书面保障：环保、真材实料</td><td>2 张</td></tr>
+          <tr><td>话题二</td><td>设计和安装的服务流程</td><td>2 张</td></tr>
+          <tr><td>话题三</td><td>样板房征集政策</td><td>1 张</td></tr>
+          <tr><td>话题四</td><td>样板房活动对业主的三点好处</td><td>2 张</td></tr>
+          <tr><td>话题五</td><td>活动配置和价格（按城市分档）</td><td>2 张</td></tr>
+          <tr><td>话题六</td><td>和传统定制的区别（9 月 17 日新增）</td><td>无</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">客户已经听过的话题（包括销售用群发助手发过的），会换一版<strong>人工确认过</strong>的新说法；一版确认过的都没有，这条先不发，6 小时后再看。详见 <a href="/learn/weixin-recall-rewrite">讲过的话，换个说法再讲</a>。</p>
+
+    <h3>这些情况一定不发</h3>
+    <ul class="nosend">
+      <li>群、公众号；备注不是客户格式，或带着群、客服、测试这类字</li>
+      <li>已成交或在售后：阶段是成交，或客户说过交了定金、签了、装好了、找了别家</li>
+      <li>明确拒绝（别再发、不需要了）。之后又问价、问量房的，算回心转意</li>
+      <li>犹豫（不要吧、先不用了）：停 30 天</li>
+      <li>客户正在等我们回，又不符合超过 24 小时那一类</li>
+      <li>聊天记录没翻全、时间对不上、认不出客户在哪个城市</li>
+      <li>运营把这位客户关了、这台电脑被暂停、销售身份停用</li>
+      <li>这位客户有一条说不清发没发出去的，在等人核对</li>
+      <li>今天已经给他发过</li>
+    </ul>
+    <p class="note"><strong>人只在三处插手：</strong>确认新说法；处理等人核对的飞书卡片；决定每台电脑是真发还是只出稿。</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="n">4</div>
+    <h2>召回在电脑上怎么发出去</h2>
+    <p class="intro">比自动回复多两道保险：发之前往上读一遍聊天记录，按回车前先向云端报备。</p>
+    <ol class="flow">
+      <li><div><b>等空档</b><span>没有未读、销售离开键鼠满 60 秒才开始；中途来了新消息，立刻让路。</span></div></li>
+      <li><div><b>领任务</b><span>每 5 分钟问云端一次，一次领 1 条（按备注名召回时 15 秒问一次）。</span></div></li>
+      <li><div><b>先筛一遍</b><span>备注里写着已定、无需求、不需要、已到店、成交的，直接退回。</span></div></li>
+      <li><div><b>找人</b><span>点搜索框，像人一样一个字一个字打 6 位编号，不打全名；搜索结果连续两次认成同一个人才点；点开后再核顶部名字。</span></div></li>
+      <li><div><b>往上读聊天记录</b><span>从最底部往上一屏一屏读，读到客户说的话就停，最多 8 屏。读到的内容交给云端再判一次：云端可以改稿，也可以叫停。读完滚回最底部。</span></div></li>
+      <li><div><b>打字</b><span>像人一样逐字打进去，核对字真的进了输入框。</span></div></li>
+      <li><div><b>按回车前先报备</b><span>云端同意了才按。本机账本上记着这一轮已经发过的，绝不重发。</span></div></li>
+      <li><div><b>确认发出，回报云端</b><span>和自动回复一样看像素证据，还要确认没弹出需要好友验证。成功了告诉云端，云端推一张飞书回执卡；说不清发没发出去的，这位客户冻住，转为等人核对。</span></div></li>
+    </ol>
+
+    <h3>空闲时翻聊天记录（为召回做准备）</h3>
+    <p>没有召回任务时，电脑趁销售不用的空档，把老客户往上几屏的聊天记录读出来，交给云端建客户画像。云端靠它判断这个人该不该召回、从哪个话题讲起。</p>
+    <ul class="chips">
+      <li>每次只读 1 屏</li><li>同一个客户读满 8 屏收工，24 小时后再来</li><li>同一屏读两遍一致才算数</li><li>读完一定滚回最底部</li><li>不发任何消息</li><li>每天最多 30 屏</li>
+    </ul>
+
+    <h3>真发还是只出稿，两边各有开关</h3>
+    <div class="scroll">
+      <table class="tbl stack">
+        <thead><tr><th>在哪设</th><th>选项</th><th>效果</th></tr></thead>
+        <tbody>
+          <tr><td>电脑上的配置</td><td data-k="选项">预览（出厂默认）/ 真发 / 只翻记录</td><td data-k="效果">预览会照样找人、翻记录，只是不打字；真发还要同时关掉演习开关；只翻记录就不领召回任务</td></tr>
+          <tr><td>云端按电脑设</td><td data-k="选项">普通召回 / 按聊天历史的话题一 / 按备注名的话题一</td><td data-k="效果">决定这台电脑领哪一类任务</td></tr>
+          <tr><td>云端按电脑设</td><td data-k="选项">真发开关（带到期时间）</td><td data-k="效果">只管话题一、按备注名这两类：到期或没设，就只出稿。普通召回云端不拦，看电脑上的配置</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="n">5</div>
+    <h2>三台电脑现在是什么情况</h2>
+    <p class="intro">9 月 18 日 15:00–15:10 从个微电脑端看板和数据库查到的状态，只是一张快照，不是结论。实时情况看 <a href="/akke/personal-wechat-pc-live">个人微信电脑端看板</a>。</p>
+    <div class="scroll">
+      <table class="tbl stack">
+        <thead><tr><th>销售</th><th>电脑上的程序</th><th>云端的召回设置</th><th>备注</th></tr></thead>
+        <tbody>
+          <tr><td>张小鱼（身份：小鱼）</td><td data-k="程序"><span class="tag ok">在线</span> 1.14.55，刚启动</td><td data-k="召回">普通召回，云端没加限制</td><td data-k="备注">真发还是只出稿，看这台电脑上的配置（出厂是预览）</td></tr>
+          <tr><td>张小鱼（身份：小鱼销售）</td><td data-k="程序"><span class="tag bad">离线</span> 1.14.41，9 月 17 日 19:03 起</td><td data-k="召回">按备注名召回；真发开关 9 月 16 日 22:00 已到期 → 只出稿</td><td data-k="备注">版本低于 1.14.54，本来也领不到召回任务</td></tr>
+          <tr><td>高一瑞</td><td data-k="程序"><span class="tag ok">在线</span> 1.14.54，空闲</td><td data-k="召回">普通召回；今天名额临时放宽到 10 条，到 21:52 为止</td><td data-k="备注">今天到 15:00 一条召回都没发出，原因没查</td></tr>
+          <tr><td>高鹏</td><td data-k="程序"><span class="tag wait">没就绪</span> 1.14.54（微信窗口、校准或停止开关有一项不满足）</td><td data-k="召回">按备注名召回、真发；临时 40 条已在 9 月 17 日 21:00 到期 → 每天 5 条</td><td data-k="备注">这个模式开着时，普通自动回复不跑（见第 6 部分第 3 条）</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">召回任务全量：<strong>已发出 105 条</strong>、排队 145、正在发 1、作废 43、等人核对 29。最后一次发出是 9 月 16 日 21:53，高一瑞那台。</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="n">6</div>
+    <h2>已知问题，还差什么</h2>
+    <p class="intro">标了<span class="guess">按代码推断</span>的，是从代码里读出来的，还没在销售的电脑上验证过。</p>
+    <ol class="todo">
+      <li>
+        <div class="head"><b>① 召回从 9 月 16 日晚上起一条都没发出</b><span class="who">要人去查</span></div>
+        <p>145 条在排队，29 条等人核对。先看等人核对的飞书卡片，再逐台对一下第 5 部分那张表：小鱼销售那台离线、真发开关也到期了；小鱼那台要看电脑上是不是还在预览；高鹏没就绪；高一瑞放宽了名额却一条没发出。</p>
+        <p class="done"><b>做完的样子</b>每台电脑要么有当天的召回回执，要么写清楚为什么不发。</p>
+      </li>
+      <li>
+        <div class="head"><b>② 夜里来的消息，第二天不会自己补回</b><span class="who dev">要改代码</span><span class="guess">按代码推断</span></div>
+        <p>9:00–22:00 这道判断排在点开会话、读完屏之后。所以夜里的红点照样被点掉，读屏的钱照样花，然后这条就跳过了。第二天客户如果不再说话，这条一直没人回。</p>
+        <p class="done"><b>做完的样子</b>夜里不去点红点；或者第二天早上把夜里的消息补回。</p>
+      </li>
+      <li>
+        <div class="head"><b>③ 话题一模式开着时，这台电脑的普通自动回复不跑</b><span class="who dev">要改代码或改设置</span><span class="guess">按代码推断</span></div>
+        <p>这个模式可以由云端远程打开。打开后，电脑每一圈只管召回，根本不看未读。高鹏那台云端现在就开着这个模式。</p>
+        <p class="done"><b>做完的样子</b>要么召回和自动回复能同时跑，要么这个模式只在明确的时间段里开，到点自动关。</p>
+      </li>
+      <li>
+        <div class="head"><b>④ 出厂只允许发 1 张图，召回大多要 2 张</b><span class="who">要改设置</span></div>
+        <p>话题一、二、四、五都带 2 张图。没改过这项设置的电脑，这些召回会一律退回、不发。已经真发过召回的电脑都手动改成了 2，新装的电脑要记得改。</p>
+        <p class="done"><b>做完的样子</b>出厂默认改成 2，或者装机清单里写上这一步。</p>
+      </li>
+      <li>
+        <div class="head"><b>⑤ 云端说不用回，电脑会白白再问 3 次</b><span class="who dev">要改代码</span></div>
+        <p>云端把不回的原因放在一个字段里，电脑去读的是另一个字段名，读不到就当成重复请求，而重复请求被设成可以重试。不会多发给客户，但会多花几次调用，日志里也看不出真正的原因。</p>
+        <p class="done"><b>做完的样子</b>电脑读对字段，日志里能看到云端给的真实原因。</p>
+      </li>
+    </ol>
+
+    <details>
+      <summary>技术细节（给开发看）</summary>
+
+      <h4>代码在哪（wecom-chat 仓）</h4>
+      <ul>
+        <li>电脑端：<code>cloudpc/windows-weixin/</code>，入口 <code>main.py</code>，主逻辑 <code>runner.py</code>；召回 <code>recall_client.py</code> / <code>recall_presend.py</code> / <code>recall_delivery.py</code>；翻记录 <code>idle_history.py</code> / <code>history_*.py</code>。</li>
+        <li>请求云端：<code>cloudpc/weixin-shared/weixin_relay.py</code>。路径：电脑 → Fly 中转 <code>akke-wecom-relay</code> → <code>/api/wecom/chat/reply</code>。自动回复和召回共用这个入口，按 <code>action</code> 区分。</li>
+        <li>回复：<code>src/app/api/wecom/chat/reply/route.ts</code>、<code>src/lib/wecom/weixin-client-context.ts</code>（投递闸）、<code>src/lib/wecom/churn-signals.ts</code>（#1411 拒绝判据）、<code>src/lib/llm.ts</code>。</li>
+        <li>召回：<code>src/lib/wecom/windows-recall-service.ts</code>（接口）、<code>windows-recall-policy.ts</code>（节奏）、<code>src/lib/wecom-recall/fixed-five.ts</code>（话题原文和配图）、<code>recall-bridge.ts</code>（承接话）、<code>recall-guard.ts</code>（拒绝 / 成交 / 犹豫判断）。</li>
+        <li>领单函数 <code>windows_recall_claim</code> 在 <code>supabase/wecom-ddl/</code>，手工执行；9 月 17 日前的 Windows 相关文件都已登记在 <code>wecom_ddl_applied</code>。</li>
+      </ul>
+
+      <h4>召回接口和状态</h4>
+      <ul>
+        <li>电脑调：<code>windows_recall_poll</code> → <code>windows_recall_context</code>（发前读取，最多 80 条）→ <code>windows_recall_current</code> / <code>windows_recall_arm</code> → <code>windows_recall_complete</code> 或 <code>windows_recall_fail</code>；翻记录用 <code>windows_history_import</code>。</li>
+        <li>任务状态只有 6 个：pending → claimed → armed → sent，另有 cancelled、needs_review。claimed 超过 10 分钟退回 pending；armed 不会自动回收；needs_review 没有自动出口，只冻住这一位客户。</li>
+        <li>领单需要电脑端 1.14.54 以上（发前读取），旧版本照常轮询但领不到任务。</li>
+        <li>#1409 只改了 <code>src/lib/wecom-recall/dispatch.ts</code> 的企业微信 <code>DAILY_CAP</code>（100→20）；Windows 的上限在 <code>windows_recall_claim</code> 里，默认 5。</li>
+      </ul>
+
+      <h4>关键数字</h4>
+      <div class="scroll">
+        <table class="tbl">
+          <thead><tr><th>项</th><th>值</th></tr></thead>
+          <tbody>
+            <tr><td>轮询间隔</td><td>空闲 3 秒（出厂配置；代码默认 8 秒），刚干完活 1 秒</td></tr>
+            <tr><td>读屏模型</td><td>正文 qwen3-vl-235b，失败换 30b；认人和列表预判先用 30b。读超时 45 秒</td></tr>
+            <tr><td>置信度门槛</td><td>正文 0.92 / 标题 0.85 / 列表预判 0.93 / 召回搜索结果 0.98</td></tr>
+            <tr><td>自动回复节奏</td><td>9-22 点；两条最少隔 8 秒（实际抖到 8–15 秒）；日 / 时 / 单客上限默认不限</td></tr>
+            <tr><td>请求云端超时</td><td>连接 5 秒、读 30 秒（云端最长可跑 120 秒，超过 30 秒靠重试 + 云端补答接住）</td></tr>
+            <tr><td>被踢下线熔断</td><td>登回来后停 30 分钟，7 天内再犯翻倍，封顶 2 小时</td></tr>
+            <tr><td>心跳</td><td>180 秒一次，带版本、最近结果、召回进度，不带客户名</td></tr>
+            <tr><td>召回重试</td><td>确定没发出：15 秒 / 45 秒 / 2 分钟，之后每 30 分钟；发前读取连续失败 3 次作废</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>代码和说明书对不上的地方</h4>
+      <ul>
+        <li>电脑端 README 的更新记录停在 v1.12.0，代码已到 1.14.55；开头还写着「真机未验」，实际 8 月 27 日起已经真发过。</li>
+        <li>README 说超过 24 小时的尾消息召回发完即止，代码里是最多 7 次。</li>
+        <li>README 写的演习开关名 <code>AKKE_DRY_RUN</code> 不对，实际是 <code>AKKE_WEIXIN_DRY_RUN</code>。</li>
+        <li>有两个 STOP 文件位置：启动日志让人在 <code>state\STOP</code> 建，暂停脚本建的是安装根目录下的 STOP。</li>
+      </ul>
+
+      <h4>其他从代码读出来的小问题（未在真机验证）</h4>
+      <ul>
+        <li>回执失败会写进 <code>pending_confirms.json</code>，但读它的 <code>take_due</code> 全仓没有调用：只写不读。</li>
+        <li>冻结名单和去重记录只在内存里，程序重启就清空。</li>
+        <li>程序重启后第一圈只记下当前画面，当时开着的会话里已有的客户消息不会回。</li>
+        <li>粘贴会覆盖销售剪贴板里的内容。</li>
+        <li>营销终态（客户说不要了）和选择题两条路不经过投递闸；终态判断里「已交定金」会被归成签了别家。</li>
+        <li>第二轮召回沿用第 1 次任务的锚点，在按备注名召回模式下可能领不到，普通模式下可能被当成客户情况变了而作废。</li>
+      </ul>
+    </details>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>代码基线：wecom-chat 主分支 <code>b36fc0d</code>（2026-09-18 13:09），线上服务端报的是同一版；电脑端最新包 1.14.55。</p>
+    <p>状态数据：2026-09-18 15:00–15:10，个微电脑端看板接口 + 数据库只读查询。页面不含客户信息。</p>
+    <p>相关：<a href="/akke/personal-wechat-pc-live">电脑端实时看板</a> · <a href="/learn/weixin-recall-rewrite">讲过的话，换个说法再讲</a> · <a href="/akke/personal-wechat-speed-2026-09-16">自动回复速度专题</a></p>
+  </div>
+</footer>
+
+</body>
+</html>
