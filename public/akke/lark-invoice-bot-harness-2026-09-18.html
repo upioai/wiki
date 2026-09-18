@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lark 发票提醒机器人搭建过程</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #182230;
+      --muted: #667085;
+      --line: #d8dee8;
+      --page: #f5f7fb;
+      --panel: #ffffff;
+      --green: #137547;
+      --green-soft: #e8f6ee;
+      --blue: #2563eb;
+      --blue-soft: #eaf1ff;
+      --amber: #a45d12;
+      --amber-soft: #fff4df;
+      --red: #b42318;
+      --red-soft: #fff0ed;
+      --shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif;
+      background: var(--page);
+      color: var(--ink);
+      line-height: 1.65;
+    }
+
+    .page {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 32px 20px 56px;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 20px;
+      align-items: end;
+      padding: 28px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    h1, h2, h3, p { margin: 0; }
+
+    h1 {
+      font-size: 30px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      font-size: 20px;
+      margin-bottom: 14px;
+    }
+
+    h3 {
+      font-size: 16px;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      margin-top: 10px;
+      color: var(--muted);
+      max-width: 760px;
+    }
+
+    .stamp {
+      min-width: 230px;
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fafcff;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .stamp strong {
+      display: block;
+      margin-top: 4px;
+      color: var(--ink);
+      font-size: 15px;
+    }
+
+    section {
+      margin-top: 22px;
+      padding: 24px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .status {
+      display: grid;
+      grid-template-columns: 1.35fr 1fr;
+      gap: 18px;
+      align-items: stretch;
+      margin-top: 22px;
+    }
+
+    .banner {
+      padding: 20px;
+      border-radius: 8px;
+      background: var(--green-soft);
+      border: 1px solid #b7dfc8;
+    }
+
+    .banner h2 {
+      margin-top: 12px;
+      margin-bottom: 8px;
+      font-size: 22px;
+    }
+
+    .label {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 2px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .label.good { color: var(--green); background: var(--green-soft); }
+    .label.blue { color: var(--blue); background: var(--blue-soft); }
+    .label.warn { color: var(--amber); background: var(--amber-soft); }
+    .label.bad { color: var(--red); background: var(--red-soft); }
+
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .kpi {
+      min-height: 118px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcff;
+    }
+
+    .kpi span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .kpi b {
+      display: block;
+      margin-top: 8px;
+      font-size: 22px;
+      line-height: 1.25;
+      word-break: break-word;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    .card {
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcff;
+    }
+
+    .card p,
+    td,
+    li {
+      color: #344054;
+      font-size: 14px;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .step {
+      min-height: 124px;
+      padding: 14px;
+      border-radius: 8px;
+      border: 1px solid #b8c7db;
+      background: #f8fbff;
+    }
+
+    .step small {
+      display: block;
+      color: var(--blue);
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    th,
+    td {
+      padding: 12px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+
+    th {
+      color: #475467;
+      font-size: 13px;
+      background: #f8fafc;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+
+    ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    code {
+      font-family: Consolas, "SFMono-Regular", monospace;
+      font-size: 0.95em;
+      background: #eef2f7;
+      border-radius: 4px;
+      padding: 1px 5px;
+    }
+
+    .note {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 940px) {
+      header,
+      .status,
+      .two-col {
+        grid-template-columns: 1fr;
+      }
+
+      .grid,
+      .flow {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 640px) {
+      .page { padding: 18px 12px 36px; }
+      header,
+      section { padding: 18px; }
+      h1 { font-size: 24px; }
+      .kpis,
+      .grid,
+      .flow {
+        grid-template-columns: 1fr;
+      }
+      th,
+      td {
+        padding: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <div>
+        <h1>Lark 发票提醒机器人搭建过程</h1>
+        <p class="subtitle">这页记录从一句需求到 Lark 工作流启用的完整过程：每天 18:00 检查报销明细，只看当周数据，只要发票附件不为空，就提醒指定负责人。</p>
+      </div>
+      <div class="stamp">
+        页面生成时间
+        <strong>2026-09-18 CST</strong>
+        <div>发布范围：公开脱敏版</div>
+      </div>
+    </header>
+
+    <div class="status">
+      <div class="banner">
+        <span class="label good">当前结论</span>
+        <h2>机器人已经放进 Lark 工作流，并保存启用。</h2>
+        <p>它现在按“发票不为空 + 日期等于本周”两个条件查找报销明细。两个条件必须同时满足，才会进入提醒消息。</p>
+      </div>
+      <div class="kpis">
+        <div class="kpi">
+          <span>触发时间</span>
+          <b>每天 18:00</b>
+        </div>
+        <div class="kpi">
+          <span>数据来源</span>
+          <b>报销明细表</b>
+        </div>
+        <div class="kpi">
+          <span>筛选范围</span>
+          <b>当周数据</b>
+        </div>
+        <div class="kpi">
+          <span>通知对象</span>
+          <b>指定负责人</b>
+        </div>
+      </div>
+    </div>
+
+    <section>
+      <h2>原始需求</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>要解决什么</h3>
+          <p>报销表里有人上传发票附件时，不想靠人工每天翻表。需要一个机器人每天固定时间检查，并把结果发给负责人。</p>
+        </div>
+        <div class="card">
+          <h3>核心规则</h3>
+          <p>只看“发票”附件字段。附件为空就不打扰；附件不为空就说明这条记录需要进入提醒。</p>
+        </div>
+        <div class="card">
+          <h3>后续补充</h3>
+          <p>提醒范围改成只筛选当周数据，避免每天把历史记录重复推送出来。</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>搭建流程</h2>
+      <div class="flow">
+        <div class="step">
+          <small>01</small>
+          <b>确认表格位置</b>
+          <p>进入 Lark 多维表，确认工作流挂在财务汇总里的“报销明细”表上。</p>
+        </div>
+        <div class="step">
+          <small>02</small>
+          <b>新建定时触发</b>
+          <p>设置每天 18:00 自动运行，不需要人工点按钮。</p>
+        </div>
+        <div class="step">
+          <small>03</small>
+          <b>查找记录</b>
+          <p>选择“报销明细”，让工作流只返回满足条件的记录。</p>
+        </div>
+        <div class="step">
+          <small>04</small>
+          <b>配置筛选</b>
+          <p>先加“发票不为空”，再加“日期等于本周”，并设置为所有条件同时满足。</p>
+        </div>
+        <div class="step">
+          <small>05</small>
+          <b>发送提醒</b>
+          <p>配置 Lark 消息，把查到的记录推送给负责人。</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>最终配置</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>节点</th>
+            <th>配置</th>
+            <th>说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1. 定时触发</td>
+            <td><span class="label blue">每天 18:00</span></td>
+            <td>每天到点自动跑一次，适合做下班前的报销附件检查。</td>
+          </tr>
+          <tr>
+            <td>2. 查找记录</td>
+            <td><code>发票 不为空</code> + <code>日期 等于 本周</code></td>
+            <td>两个条件是“所有条件”关系，也就是 AND。只有当周、且有发票附件的记录会被查出来。</td>
+          </tr>
+          <tr>
+            <td>3. 发送 Lark 消息</td>
+            <td><span class="label good">发送给指定负责人</span></td>
+            <td>消息里带上查找到的记录内容，方便负责人直接处理。</td>
+          </tr>
+          <tr>
+            <td>异常情况</td>
+            <td><span class="label warn">无记录则终止</span></td>
+            <td>如果没有符合条件的记录，工作流不会继续发无意义提醒。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>机器人逻辑</h2>
+      <div class="two-col">
+        <div class="card">
+          <h3>判断规则</h3>
+          <ul>
+            <li>如果发票附件字段为空：不通知。</li>
+            <li>如果发票附件字段有文件：进入提醒。</li>
+            <li>如果日期不属于本周：不进入当天提醒。</li>
+            <li>如果同时满足“本周 + 有发票”：推送给负责人。</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>提醒内容</h3>
+          <ul>
+            <li>说明这是发票报销提醒。</li>
+            <li>带出工作流查到的记录。</li>
+            <li>让负责人知道哪些记录有发票附件。</li>
+            <li>减少人工每天进表核对的动作。</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>做这个机器人的关键点</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>关键点</th>
+            <th>为什么重要</th>
+            <th>这次怎么处理</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>先放到 Lark 里面</td>
+            <td>Lark 原生工作流更容易长期运行，也更容易被业务同事看到和维护。</td>
+            <td>已在 Lark 表格的“工作流”里完成配置。</td>
+          </tr>
+          <tr>
+            <td>筛选条件要少而准</td>
+            <td>规则太复杂容易误报，规则太宽会天天打扰。</td>
+            <td>只保留两个核心条件：发票不为空、日期等于本周。</td>
+          </tr>
+          <tr>
+            <td>避免重复提醒历史数据</td>
+            <td>每天都推老数据会让负责人失去判断重点。</td>
+            <td>新增“本周”筛选，控制提醒范围。</td>
+          </tr>
+          <tr>
+            <td>保存启用要二次确认</td>
+            <td>启用后会影响后续真实通知，属于外部消息动作。</td>
+            <td>确认后点击保存启用，并看到“工作流已保存并启用”。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>验收结果</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>工作流开关</h3>
+          <p>已开启，页面显示保存启用成功。</p>
+        </div>
+        <div class="card">
+          <h3>筛选条件</h3>
+          <p>已确认显示为“发票不为空”和“日期等于本周”。</p>
+        </div>
+        <div class="card">
+          <h3>推送节奏</h3>
+          <p>每天 18:00 自动检查。没符合条件的记录，就不继续发送提醒。</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>后续可以升级的方向</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>加运行日志</h3>
+          <p>每天记录“查了几条、推了几条、有没有失败”，方便以后复盘。</p>
+        </div>
+        <div class="card">
+          <h3>加消息模板</h3>
+          <p>把提醒内容固定成更容易看的格式，比如按人员、金额、事项分行展示。</p>
+        </div>
+        <div class="card">
+          <h3>做代码版 harness</h3>
+          <p>Lark 工作流够用后，可以再升级成代码机器人，支持更复杂的校验、重试和异常通知。</p>
+        </div>
+      </div>
+      <p class="note">公开说明：本页是脱敏版本，不包含内部 Lark 文档链接、用户 open_id、本机路径、密钥或真实附件内容。</p>
+    </section>
+  </main>
+</body>
+</html>
