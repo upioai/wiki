@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- 本页展示客户消息（客户名只留首字、手机号已打码）：禁止搜索引擎收录 -->
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<title>个人微信电脑端看板 · Akke</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0b0d12; --bg-elevated: #141821; --bg-deep: #1a1f2b;
+    --border: #242a38; --border-strong: #2f3646;
+    --text: #e4e7ed; --text-dim: #9ba3b4; --text-muted: #6b7384;
+    --accent: #8b5cf6; --accent-soft: rgba(139,92,246,.15); --accent-ink: #c4b5fd;
+    --dm: #60a5fa;
+    /* 三台机器 = 分类色前三位（深色档，已在 #141821 上跑过色弱校验，三两两都过） */
+    --m-xiaoyu: #3987e5; --m-gaoyirui: #d95926; --m-gaopeng: #199e70;
+    /* 状态色只表示好坏，永远配图标 + 文字 */
+    --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b;
+    --grid: #232937; --axis: #343b4c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(96,165,250,.06), transparent 60%),
+      radial-gradient(1000px 500px at -10% 0%, rgba(139,92,246,.06), transparent 55%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px; line-height: 1.7; -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 1160px; margin: 0 auto; padding: 48px 24px 100px; }
+  .breadcrumb { font-size: 13px; color: var(--text-muted); margin-bottom: 22px; }
+  .breadcrumb a { color: var(--text-dim); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--accent); }
+  .breadcrumb span { margin: 0 8px; color: var(--border-strong); }
+
+  header.hero { padding: 4px 0 26px; border-bottom: 1px solid var(--border); margin-bottom: 26px; }
+  .tag { display:inline-flex; align-items:center; gap:7px; padding:4px 13px; border-radius:999px; background:var(--accent-soft); color:var(--accent-ink); font-size:13px; font-weight:500; margin-bottom:14px; }
+  .tag .dot { width:7px; height:7px; border-radius:50%; background:#34d399; animation:pulse 2.2s infinite; }
+  .tag .dot.err { background:var(--critical); animation:none; }
+  .tag .dot.idle { background:var(--text-muted); animation:none; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(52,211,153,.5);} 70%{box-shadow:0 0 0 6px rgba(52,211,153,0);} 100%{box-shadow:0 0 0 0 rgba(52,211,153,0);} }
+  h1 { text-wrap: balance; font-size: 40px; font-weight: 700; margin: 0 0 12px; letter-spacing: -0.02em; line-height: 1.15;
+    background: linear-gradient(135deg, #e4e7ed 20%, var(--dm) 70%, var(--accent) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .subtitle { font-size: 17px; color: var(--text-dim); margin: 0 0 18px; max-width: 820px; }
+  .toolbar { display:flex; align-items:center; gap:12px 16px; flex-wrap:wrap; }
+  .segmented { display:inline-flex; flex-wrap:wrap; background:var(--bg-elevated); border:1px solid var(--border); border-radius:10px; padding:3px; }
+  .segmented button { background:transparent; border:0; color:var(--text-dim); font-size:14px; font-weight:500; padding:7px 14px; border-radius:7px; cursor:pointer; font-family:inherit; transition:.18s; }
+  .segmented button:hover { color:var(--text); }
+  .segmented button.active { background:var(--accent-soft); color:var(--accent-ink); }
+  .datebox { display:inline-flex; align-items:center; gap:8px; font-size:13px; color:var(--text-muted); }
+  .datebox input { background:var(--bg-elevated); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:6px 10px; font:inherit; font-size:14px; color-scheme:dark; }
+  .swatch { display:inline-block; width:10px; height:10px; border-radius:3px; flex:0 0 auto; }
+
+  h2 { font-size:12px; font-weight:600; color:var(--text-muted); letter-spacing:.12em; margin:36px 0 14px; display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
+  h2 .hint { letter-spacing:0; font-weight:400; font-size:12.5px; color:var(--text-muted); }
+  #main { transition: opacity .2s; }
+  #main.loading { opacity:.55; }
+
+  /* ── KPI 小卡 ── */
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:12px; }
+  .kpi { background:var(--bg-elevated); border:1px solid var(--border); border-radius:12px; padding:13px 16px; }
+  .kpi .l { font-size:12.5px; color:var(--text-muted); }
+  .kpi .v { font-size:26px; font-weight:650; line-height:1.3; margin-top:2px; }
+  .kpi .v small { font-size:13px; color:var(--text-muted); font-weight:600; margin-left:3px; }
+  .kpi .s { font-size:12px; color:var(--text-dim); margin-top:4px; line-height:1.55; }
+  .kpi.now { border-style:dashed; }
+
+  /* ── 机器卡 ── */
+  .machines { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:14px; }
+  .mc { background:var(--bg-elevated); border:1px solid var(--border); border-radius:14px; padding:16px 18px; }
+  .mc .hd { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+  .mc .hd .nm { font-size:18px; font-weight:650; }
+  .pill { display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:600; padding:2px 10px; border-radius:999px; background:var(--bg-deep); color:var(--text-dim); border:1px solid var(--border); white-space:nowrap; }
+  .pill i { font-style:normal; font-weight:800; }
+  .pill.good i { color:var(--good); } .pill.warning i { color:var(--warning); } .pill.critical i { color:var(--critical); } .pill.serious i { color:var(--serious); }
+  .mc .hd .pill { margin-left:auto; }
+  .mnums { display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; margin-bottom:12px; }
+  .mnums div { background:var(--bg-deep); border-radius:9px; padding:7px 8px; text-align:center; }
+  .mnums b { display:block; font-size:19px; font-weight:650; line-height:1.3; }
+  .mnums span { font-size:11.5px; color:var(--text-muted); }
+  .idn { border-top:1px solid var(--border); padding-top:10px; margin-top:10px; font-size:13px; color:var(--text-dim); }
+  .idn:first-of-type { border-top:0; margin-top:0; padding-top:0; }
+  .idn .top { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:4px; }
+  .idn .top b { color:var(--text); font-weight:600; }
+  .idn .row { display:flex; gap:8px; }
+  .idn .row em { font-style:normal; color:var(--text-muted); flex:0 0 5.2em; }
+  .flag { display:inline-block; font-size:11.5px; padding:1px 8px; border-radius:6px; background:rgba(250,178,25,.1); color:#fcd34d; border:1px solid rgba(250,178,25,.25); margin:2px 4px 0 0; }
+  .ver { font-family:"SF Mono",Menlo,Consolas,monospace; font-size:11px; color:var(--text-muted); }
+
+  /* ── 7 天趋势（两张小图，一图一个量，不做双轴）── */
+  .legend { display:flex; flex-wrap:wrap; gap:6px 18px; font-size:13px; color:var(--text-dim); margin-bottom:10px; }
+  .legend span { display:inline-flex; align-items:center; gap:7px; }
+  .charts { display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:14px; }
+  .chart { background:var(--bg-elevated); border:1px solid var(--border); border-radius:14px; padding:14px 16px 10px; }
+  .chart .ct { font-size:14px; font-weight:600; margin-bottom:2px; }
+  .chart .cs { font-size:12px; color:var(--text-muted); margin-bottom:10px; }
+  .plot { position:relative; height:190px; margin-left:28px; }
+  .gl { position:absolute; left:0; right:0; border-top:1px solid var(--grid); }
+  .gl.base { border-top-color:var(--axis); }
+  .gl span { position:absolute; left:-30px; top:-9px; width:24px; text-align:right; font-size:11px; color:var(--text-muted); font-variant-numeric:tabular-nums; }
+  .cols { position:absolute; inset:0 0 0 0; display:flex; }
+  .col { flex:1 1 0; position:relative; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; cursor:pointer; outline:none; border-radius:8px; }
+  .col:hover, .col:focus-visible { background:rgba(255,255,255,.035); }
+  .col.sel { background:rgba(139,92,246,.09); }
+  .stack { width:min(24px, 60%); display:flex; flex-direction:column-reverse; gap:2px; }
+  .stack i { display:block; width:100%; min-height:2px; }
+  .stack i:last-child { border-radius:4px 4px 0 0; }
+  .col .tot { font-size:11.5px; color:var(--text-dim); margin-bottom:3px; font-variant-numeric:tabular-nums; }
+  .xlab { display:flex; margin-left:28px; margin-top:6px; }
+  .xlab span { flex:1 1 0; text-align:center; font-size:11px; color:var(--text-muted); white-space:nowrap; }
+  .xlab span.sel { color:var(--accent-ink); font-weight:600; }
+  #tip { position:fixed; z-index:20; pointer-events:none; background:#0f131b; border:1px solid var(--border-strong); border-radius:10px; padding:9px 12px; font-size:12.5px; color:var(--text-dim); box-shadow:0 8px 24px rgba(0,0,0,.45); display:none; min-width:150px; }
+  #tip .d { color:var(--text-muted); font-size:11.5px; margin-bottom:4px; }
+  #tip .r { display:flex; align-items:center; gap:8px; }
+  #tip .r i { display:inline-block; width:12px; height:2px; border-radius:1px; }
+  #tip .r b { color:var(--text); font-size:14px; font-weight:650; min-width:2ch; font-variant-numeric:tabular-nums; }
+  details.tbl { margin-top:12px; font-size:13px; color:var(--text-dim); }
+  details.tbl summary { cursor:pointer; color:var(--text-muted); }
+  .tw { overflow-x:auto; }
+  table { border-collapse:collapse; width:100%; margin-top:8px; font-variant-numeric:tabular-nums; }
+  th, td { border-bottom:1px solid var(--border); padding:6px 10px; text-align:right; white-space:nowrap; }
+  th:first-child, td:first-child { text-align:left; }
+  th { color:var(--text-muted); font-weight:500; font-size:12px; }
+
+  /* ── 明细 ── */
+  .rows { display:flex; flex-direction:column; gap:10px; }
+  .ev { background:var(--bg-elevated); border:1px solid var(--border); border-radius:14px; padding:13px 16px; }
+  .ev .meta { display:flex; align-items:center; gap:8px 10px; flex-wrap:wrap; font-size:13px; margin-bottom:9px; }
+  .ev .t { font-variant-numeric:tabular-nums; color:var(--text); font-weight:600; }
+  .ev .who { display:inline-flex; align-items:center; gap:6px; color:var(--text-dim); }
+  .ev .cu { color:var(--text); }
+  .ev .ref { font-family:"SF Mono",Menlo,Consolas,monospace; font-size:11px; color:var(--text-muted); }
+  .chip { font-size:11.5px; font-weight:600; padding:2px 9px; border-radius:6px; }
+  .chip.reply { background:rgba(96,165,250,.16); color:#93c5fd; }
+  .chip.recall { background:var(--accent-soft); color:var(--accent-ink); }
+  .chip.miss { background:var(--bg-deep); color:var(--text-dim); border:1px solid var(--border-strong); }
+  .ev .meta .pill { margin-left:auto; }
+  .bub { max-width:760px; padding:7px 12px; border-radius:10px; font-size:14px; line-height:1.6; white-space:pre-wrap; word-break:break-word; margin:4px 0; }
+  .bub.c { background:var(--bg-deep); color:var(--text-dim); border:1px solid var(--border); }
+  .bub.a { background:rgba(96,165,250,.09); color:var(--text); border:1px solid rgba(96,165,250,.22); margin-left:22px; }
+  .bub.r { background:rgba(139,92,246,.08); color:var(--text); border:1px solid rgba(139,92,246,.22); }
+  /* 折叠放在气泡里层：直接夹在带内边距的气泡上会露出第 4 行半截 */
+  .clamp { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; cursor:pointer; }
+  .sub { font-size:12px; color:var(--text-muted); margin-top:4px; }
+  .more { margin-top:10px; background:var(--bg-elevated); border:1px solid var(--border); color:var(--text-dim); border-radius:9px; padding:8px 14px; font:inherit; font-size:13px; cursor:pointer; }
+  .more:hover { color:var(--text); border-color:var(--border-strong); }
+
+  .empty-state { background:var(--bg-elevated); border:1px solid var(--border); border-radius:14px; padding:36px 24px; text-align:center; color:var(--text-muted); font-size:14px; }
+  .notes { margin-top:36px; padding:20px 24px; background:var(--bg-elevated); border:1px solid var(--border); border-radius:14px; font-size:13.5px; color:var(--text-dim); line-height:1.75; }
+  .notes b { color:var(--text); }
+  .notes ul { margin:8px 0 0; padding-left:20px; } .notes li { margin:5px 0; }
+  .privacy { margin-top:14px; padding:12px 16px; border-radius:10px; background:rgba(251,191,36,.08); border:1px solid rgba(251,191,36,.25); color:#fcd34d; font-size:12.5px; }
+  .err-banner { display:none; background:rgba(208,59,59,.12); border:1px solid rgba(208,59,59,.35); color:#fca5a5; border-radius:10px; padding:12px 16px; font-size:14px; margin-bottom:20px; }
+
+  @media (max-width: 640px) {
+    .container { padding: 28px 16px 80px; }
+    h1 { font-size: 30px; }
+    .subtitle { font-size: 15.5px; }
+    .mnums { grid-template-columns:repeat(2, 1fr); }
+    .machines, .charts { grid-template-columns: 1fr; }
+    .bub.a { margin-left:10px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="breadcrumb"><a href="/akke/">Akke 知识库</a><span>›</span><a href="/akke/personal-wechat-group-recall">个人微信</a><span>›</span>电脑端自动化看板</div>
+  <header class="hero">
+    <span class="tag"><span class="dot idle" id="statusDot"></span><span id="updatedAt">加载中…</span></span>
+    <h1>个人微信 · 电脑端自动化看板</h1>
+    <p class="subtitle">张小鱼、高一瑞、高鹏三台 Windows 电脑上的个人微信，每天自动回了多少客户消息、主动召回发了多少条、有没有卡住。数据直连生产库，看今天时每分钟自动刷新。</p>
+    <div class="toolbar">
+      <div class="segmented" id="dateSel">
+        <button data-off="0" class="active">今天</button>
+        <button data-off="1">昨天</button>
+        <button data-off="2">前天</button>
+      </div>
+      <label class="datebox">选日期 <input type="date" id="dateInput"></label>
+      <div class="segmented" id="machineSel">
+        <button data-m="" class="active">三台全部</button>
+        <button data-m="xiaoyu"><span class="swatch" style="background:var(--m-xiaoyu)"></span> 张小鱼</button>
+        <button data-m="gaoyirui"><span class="swatch" style="background:var(--m-gaoyirui)"></span> 高一瑞</button>
+        <button data-m="gaopeng"><span class="swatch" style="background:var(--m-gaopeng)"></span> 高鹏</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="err-banner" id="errBanner"></div>
+
+  <div id="main">
+    <h2 id="kpiTitle">当天总览</h2>
+    <div class="kpis" id="kpis"></div>
+
+    <h2>三台机器此刻的状态 <span class="hint">上排前两格是所选那天的量，后两格是此刻的数；状态来自电脑端定时上报的心跳，只有此刻，不存历史</span></h2>
+    <div class="machines" id="machines"></div>
+
+    <h2>近 7 天每天发了多少 <span class="hint">点某一天的柱子可以切过去看那天的明细</span></h2>
+    <div class="legend" id="legend"></div>
+    <div class="charts" id="charts"></div>
+    <details class="tbl"><summary>看数字表</summary><div class="tw" id="trendTable"></div></details>
+
+    <h2 id="evTitle">当天明细</h2>
+    <div class="toolbar" style="margin-bottom:12px">
+      <div class="segmented" id="typeSel">
+        <button data-t="" class="active">全部</button>
+        <button data-t="reply">自动回复</button>
+        <button data-t="recall">召回</button>
+        <button data-t="unanswered">没回上</button>
+      </div>
+    </div>
+    <div class="rows" id="events"></div>
+
+    <h2 id="rvTitle">召回卡住、等人处理的</h2>
+    <div class="rows" id="reviews"></div>
+  </div>
+
+  <div class="notes">
+    <b>数字怎么算的</b>
+    <ul>
+      <li><b>自动回复</b>：客户在个人微信里发来消息，电脑端自动读到、AI 写好、自动发出去的那一条。客户连着发好几条算<b>一批</b>，只回一次，所以看回上率按批算。</li>
+      <li><b>回复用时</b>：从客户这一批的最后一条，到我们那条发出去。给的是完整分布：中位数（一半比它快）、75% 的批在多久以内、最慢的一批，以及一共几批，不挑样本。客户刚发 5 分钟内还没回的记为处理中，不算没回上。</li>
+      <li><b>召回</b>：客户一段时间没说话，系统主动发一条。有三种：按节奏（第 1、3、7、15、30 天）、次日跟进（销售回了、客户没再回）、接着上次聊的话题往下说；第二轮召回会带两张图。按实际发出的时间算到哪一天。</li>
+      <li><b>待发、正在发、等人处理</b>：是此刻的数，不随上面选的日期变（虚线框标出）。等人处理 = 系统发之前核对没通过、自己停下来等人看的，比如聊天记录最后一条对不上、按名字搜出不止一个人。</li>
+      <li><b>机器状态</b>：电脑端隔一会儿报一次心跳，10 分钟内报过算在线。在线但没在干活（没就绪、已停止）会单独标出来，别只看在不在线。</li>
+      <li>张小鱼这台有两个微信身份（小鱼销售、小鱼），合在一起算。</li>
+    </ul>
+    <div class="privacy">客户名只显示第一个字，消息里的手机号和长串数字已打码；名字后面的 # 编号是会话编号，用来分辨是不是同一个人。本页已设 noindex，请勿把链接贴到公开可被搜索的地方。</div>
+  </div>
+</div>
+<div id="tip" role="tooltip"></div>
+
+<script>
+const API_BASE = "https://wecom-chat.vercel.app/api/public/weixin-pc-live";
+const MACHINES = [
+  { key: "xiaoyu", label: "张小鱼", color: "var(--m-xiaoyu)" },
+  { key: "gaoyirui", label: "高一瑞", color: "var(--m-gaoyirui)" },
+  { key: "gaopeng", label: "高鹏", color: "var(--m-gaopeng)" },
+];
+const MC = Object.fromEntries(MACHINES.map(m => [m.key, m]));
+const $ = (id) => document.getElementById(id);
+const esc = (s) => (s == null ? "" : String(s)).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+
+let state = { date: null, machine: "", type: "" }; // date=null → 今天
+let payload = null;
+let showAllEvents = false, showAllReviews = false;
+let timer = null;
+let loadSeq = 0;
+
+function bjtToday() { return new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10); }
+function shiftDate(d, n) { return new Date(Date.parse(d + "T00:00:00+08:00") + n * 864e5 + 8 * 3600e3).toISOString().slice(0, 10); }
+function bjtHM(iso) { return iso ? new Date(Date.parse(iso) + 8 * 3600e3).toISOString().slice(11, 16) : "—"; }
+function bjtMDHM(iso) { if (!iso) return "—"; const s = new Date(Date.parse(iso) + 8 * 3600e3).toISOString(); return s.slice(5, 10).replace("-", "/") + " " + s.slice(11, 16); }
+function mdLabel(d) { return Number(d.slice(5, 7)) + "/" + Number(d.slice(8, 10)); }
+function ago(iso) {
+  if (!iso) return "—";
+  const s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000);
+  if (s < 90) return "刚刚";
+  if (s < 3600) return Math.round(s / 60) + " 分钟前";
+  if (s < 86400 * 2) return Math.round(s / 3600) + " 小时前";
+  return Math.round(s / 86400) + " 天前";
+}
+function dur(sec) {
+  if (sec == null) return "—";
+  if (sec < 60) return sec + " 秒";
+  if (sec < 3600) return (sec / 60).toFixed(sec < 600 ? 1 : 0) + " 分钟";
+  return (sec / 3600).toFixed(1) + " 小时";
+}
+function latClass(sec) { return sec == null ? ["", "?", "—"] : sec <= 60 ? ["good", "✓", "快"] : sec <= 180 ? ["warning", "!", "偏慢"] : ["critical", "✕", "慢"]; }
+function pct(a, b) { return b ? Math.round(a / b * 100) + "%" : "—"; }
+function sw(color) { return `<span class="swatch" style="background:${color}"></span>`; }
+
+function selectedMachines() { return payload.machines.filter(m => !state.machine || m.key === state.machine); }
+
+// ── KPI ──
+function renderKpis() {
+  const ms = selectedMachines();
+  const sum = (f) => ms.reduce((a, m) => a + f(m), 0);
+  const d = (k) => sum(m => m.day[k]);
+  const b = (k) => sum(m => m.backlog[k]);
+  const lat = state.machine ? ms[0].day.latency : payload.totals.latency;
+  const answered = d("answered"), unanswered = d("unanswered"), inProgress = d("inProgress");
+  const scope = state.machine ? MC[state.machine].label : "三台";
+  $("kpiTitle").innerHTML = `${payload.isToday ? "今天" : esc(payload.date)} 总览 <span class="hint">${esc(scope)}</span>`;
+  $("kpis").innerHTML = `
+    <div class="kpi"><div class="l">自动回复发出</div><div class="v">${d("autoReplies")}<small>条</small></div><div class="s">客户发来 ${d("customerMsgs")} 条消息</div></div>
+    <div class="kpi"><div class="l">客户消息回上了</div><div class="v">${answered}<small>/ ${answered + unanswered} 批</small></div><div class="s">回上率 ${pct(answered, answered + unanswered)}${inProgress ? ` · 另有 ${inProgress} 批处理中` : ""}</div></div>
+    <div class="kpi"><div class="l">回复用时（中位数）</div><div class="v">${dur(lat.p50)}</div><div class="s">${lat.n ? `75% 在 ${dur(lat.p75)} 内 · 最慢 ${dur(lat.max)} · 共 ${lat.n} 批` : "当天没有已回的批"}</div></div>
+    <div class="kpi"><div class="l">召回发出</div><div class="v">${d("recallSent")}<small>条</small></div><div class="s">按实际发出时间算</div></div>
+    <div class="kpi now"><div class="l">召回待发（此刻）</div><div class="v">${b("due")}<small>条</small></div><div class="s">已到点还没发 · 另有 ${b("queued")} 条没到点${b("inFlight") ? ` · ${b("inFlight")} 条正在发` : ""}</div></div>
+    <div class="kpi now"><div class="l">召回等人处理（此刻）</div><div class="v">${b("needsReview")}<small>条</small></div><div class="s">系统自己停下的，见页面下方清单</div></div>`;
+}
+
+// ── 机器卡 ──
+const NOT_WORKING = ["not_ready", "stopped", "crash-stop", "failed"];
+function isWorking(i) { return i.online === true && !NOT_WORKING.includes(i.action); }
+function machineOverall(m) {
+  // 取最差的那个身份说话：张小鱼两个身份里只要一个掉了，就不能整台报运行中
+  const ids = m.identities;
+  if (!ids.length || ids.every(i => i.online === null)) return ["", "?", "没有心跳记录"];
+  const n = ids.filter(isWorking).length;
+  if (n === ids.length) return ["good", "✓", "在线运行中"];
+  if (n > 0) return ["warning", "!", `${ids.length - n} 个身份没在干活`];
+  if (ids.some(i => i.online)) return ["warning", "!", "在线，但没在干活"];
+  return ["critical", "✕", "离线"];
+}
+function renderMachines() {
+  $("machines").innerHTML = selectedMachines().map(m => {
+    const [cls, icon, txt] = machineOverall(m);
+    const ids = m.identities.map(i => {
+      const [c, ic, t] = i.online === null ? ["", "?", "没有心跳"] : i.online ? ["good", "✓", "在线"] : ["critical", "✕", "离线"];
+      const multi = m.identities.length > 1;
+      return `<div class="idn">
+        <div class="top">${multi ? `<b>${esc(i.name)}</b>` : ""}<span class="pill ${c}"><i>${ic}</i>${t}</span><span>最后心跳 ${esc(ago(i.lastSeenAt))}</span>${i.version ? `<span class="ver">v${esc(i.version.split("+")[0])}</span>` : ""}</div>
+        <div class="row"><em>在干什么</em><span>${esc(i.actionLabel)}</span></div>
+        ${i.recallLabel ? `<div class="row"><em>召回</em><span>${esc(i.recallLabel)}</span></div>` : ""}
+        ${i.flags.length ? `<div>${i.flags.map(f => `<span class="flag">${esc(f)}</span>`).join("")}</div>` : ""}
+      </div>`;
+    }).join("");
+    return `<div class="mc">
+      <div class="hd">${sw(MC[m.key].color)}<span class="nm">${esc(m.label)}</span><span class="pill ${cls}"><i>${icon}</i>${txt}</span></div>
+      <div class="mnums">
+        <div><b>${m.day.autoReplies}</b><span>自动回复</span></div>
+        <div><b>${m.day.recallSent}</b><span>召回发出</span></div>
+        <div><b>${m.backlog.due}</b><span>召回待发</span></div>
+        <div><b>${m.backlog.needsReview}</b><span>等人处理</span></div>
+      </div>
+      ${ids || `<div class="idn">没有匹配到这台机器的微信身份</div>`}
+    </div>`;
+  }).join("");
+}
+
+// ── 7 天趋势：两张堆叠柱图（召回 / 自动回复），同一套颜色跟着机器走 ──
+function niceMax(v) { if (v <= 4) return 4; const p = Math.pow(10, Math.floor(Math.log10(v))); for (const k of [1, 1.2, 1.6, 2, 3, 4, 5, 6, 8, 10]) if (k * p >= v) return Math.round(k * p); return 10 * p; }
+function chartHtml(field, title, sub) {
+  const ms = MACHINES.filter(m => !state.machine || m.key === state.machine);
+  const totals = payload.trend.map(t => ms.reduce((a, m) => a + (t.machines[m.key]?.[field] || 0), 0));
+  const max = niceMax(Math.max(1, ...totals));
+  const ticks = [0, max / 2, max];
+  const plotH = 190 - 18; // 柱顶数字留 18px；网格线和柱高用同一个基准
+  const grid = ticks.map(v => `<div class="gl ${v === 0 ? "base" : ""}" style="bottom:${v / max * plotH}px"><span>${v}</span></div>`).join("");
+  const cols = payload.trend.map((t, i) => {
+    // 整根柱高 = 合计/上限；段按数值分，段间 2px 缝由 flex 从总高里扣，不会把柱子撑高
+    const segs = ms.map(m => {
+      const v = t.machines[m.key]?.[field] || 0;
+      return v ? `<i style="flex:${v} 1 0;background:${m.color}"></i>` : "";
+    }).join("");
+    const nSeg = ms.filter(m => t.machines[m.key]?.[field]).length;
+    const h = totals[i] ? Math.max(totals[i] / max * plotH, nSeg * 4) : 0;
+    const sel = t.date === payload.date ? "sel" : "";
+    return `<div class="col ${sel}" tabindex="0" data-date="${t.date}" data-field="${field}" aria-label="${mdLabel(t.date)} ${esc(title)} ${totals[i]} 条">
+      ${totals[i] ? `<span class="tot">${totals[i]}</span>` : ""}<div class="stack" style="height:${h}px">${segs}</div></div>`;
+  }).join("");
+  const xl = payload.trend.map(t => `<span class="${t.date === payload.date ? "sel" : ""}">${mdLabel(t.date)}</span>`).join("");
+  return `<div class="chart"><div class="ct">${esc(title)}</div><div class="cs">${esc(sub)}</div>
+    <div class="plot">${grid}<div class="cols">${cols}</div></div><div class="xlab">${xl}</div></div>`;
+}
+function renderTrend() {
+  const ms = MACHINES.filter(m => !state.machine || m.key === state.machine);
+  $("legend").innerHTML = ms.map(m => `<span>${sw(m.color)}${esc(m.label)}</span>`).join("");
+  $("charts").innerHTML =
+    chartHtml("recallSent", "每天召回发出（条）", "系统主动发给不说话客户的") +
+    chartHtml("autoReplies", "每天自动回复发出（条）", "客户来消息后 AI 自动回的");
+  const head = `<tr><th>日期</th>${ms.map(m => `<th>${esc(m.label)} 召回</th><th>${esc(m.label)} 自动回复</th><th>${esc(m.label)} 客户消息</th>`).join("")}</tr>`;
+  const body = payload.trend.map(t => `<tr><td>${t.date}</td>${ms.map(m => { const x = t.machines[m.key] || {}; return `<td>${x.recallSent || 0}</td><td>${x.autoReplies || 0}</td><td>${x.customerMsgs || 0}</td>`; }).join("")}</tr>`).join("");
+  $("trendTable").innerHTML = `<table>${head}${body}</table>`;
+}
+function showTip(el, x, y) {
+  const t = payload.trend.find(r => r.date === el.dataset.date); if (!t) return;
+  const f = el.dataset.field;
+  const ms = MACHINES.filter(m => !state.machine || m.key === state.machine);
+  const tot = ms.reduce((a, m) => a + (t.machines[m.key]?.[f] || 0), 0);
+  const tip = $("tip");
+  tip.innerHTML = `<div class="d">${t.date}（${f === "recallSent" ? "召回" : "自动回复"}）</div>` +
+    ms.map(m => `<div class="r"><i style="background:${m.color}"></i><b>${t.machines[m.key]?.[f] || 0}</b>${esc(m.label)}</div>`).join("") +
+    (ms.length > 1 ? `<div class="r" style="margin-top:3px"><i style="background:transparent"></i><b>${tot}</b>合计</div>` : "");
+  tip.style.display = "block";
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  tip.style.left = Math.min(window.innerWidth - w - 8, Math.max(8, x + 14)) + "px";
+  tip.style.top = Math.max(8, y - h - 12) + "px";
+}
+function hideTip() { $("tip").style.display = "none"; }
+
+// ── 明细 ──
+function who(e) {
+  const m = MC[e.machine];
+  const idn = e.identity && e.identity !== m.label ? ` · ${esc(e.identity)}` : "";
+  return `<span class="who">${sw(m.color)}${esc(m.label)}${idn}</span>`;
+}
+function bubbles(list, cls) { return list.filter(Boolean).map(t => `<div class="bub ${cls}">${esc(t)}</div>`).join(""); }
+function evHtml(e) {
+  const head = `<span class="t">${bjtHM(e.at)}</span>${who(e)}<span class="cu">${esc(e.customer)} <span class="ref">#${esc(e.ref)}</span></span>`;
+  if (e.type === "reply") {
+    const [c, ic, t] = latClass(e.latencySec);
+    return `<div class="ev"><div class="meta">${head}<span class="chip reply">自动回复</span>
+      ${e.latencySec != null ? `<span class="pill ${c}"><i>${ic}</i>用时 ${dur(e.latencySec)} · ${t}</span>` : ""}</div>
+      ${e.customerMsgs.length ? bubbles(e.customerMsgs, "c") : `<div class="sub">（前面没有对应的客户消息）</div>`}
+      <div class="bub a">${esc(e.reply)}</div></div>`;
+  }
+  if (e.type === "unanswered") {
+    const pill = e.inProgress ? `<span class="pill"><i>…</i>处理中</span>` : `<span class="pill critical"><i>✕</i>没回上</span>`;
+    return `<div class="ev"><div class="meta">${head}<span class="chip miss">客户消息</span>${pill}</div>${bubbles(e.customerMsgs, "c")}
+      <div class="sub">${e.inProgress ? "客户 5 分钟内刚发的，还在等电脑端处理" : "这一批客户消息之后，自动回复没有发出（可能按规则不回、转人工，或机器没在跑）"}</div></div>`;
+  }
+  const late = Math.round((Date.parse(e.at) - Date.parse(e.dueAt)) / 60000);
+  return `<div class="ev"><div class="meta">${head}<span class="chip recall">召回</span><span class="sub" style="margin:0">${esc(e.label)}</span></div>
+    <div class="bub r"><div class="clamp" title="点一下展开全文">${esc(e.message)}</div></div>
+    <div class="sub">${e.images ? `附图 ${e.images} 张 · ` : ""}应发 ${bjtMDHM(e.dueAt)} → 实发 ${bjtHM(e.at)}${late > 1 ? `（晚了 ${dur(late * 60)}）` : ""}</div></div>`;
+}
+function renderEvents() {
+  let list = payload.events.filter(e => (!state.machine || e.machine === state.machine) && (!state.type || e.type === state.type));
+  const n = list.length;
+  $("evTitle").innerHTML = `${payload.isToday ? "今天" : esc(payload.date)} 明细 <span class="hint">共 ${n} 条，最新的在上面${payload.eventsTruncated ? "（当天太多，只取最新 300 条）" : ""}</span>`;
+  if (!n) { $("events").innerHTML = `<div class="empty-state">${payload.isToday ? "今天" : "这一天"}这个范围里没有自动回复、召回或客户消息。</div>`; return; }
+  const cap = 40;
+  $("events").innerHTML = list.slice(0, showAllEvents ? n : cap).map(evHtml).join("") +
+    (n > cap && !showAllEvents ? `<button class="more" id="moreEv">再看剩下 ${n - cap} 条</button>` : "");
+  const btn = $("moreEv"); if (btn) btn.onclick = () => { showAllEvents = true; renderEvents(); };
+}
+function renderReviews() {
+  const list = payload.reviews.filter(r => !state.machine || r.machine === state.machine);
+  $("rvTitle").innerHTML = `召回卡住、等人处理的 <span class="hint">此刻 ${list.length} 条，按应发时间从新到旧</span>`;
+  if (!list.length) { $("reviews").innerHTML = `<div class="empty-state">没有卡住的召回。</div>`; return; }
+  const cap = 8;
+  $("reviews").innerHTML = list.slice(0, showAllReviews ? list.length : cap).map(r => `<div class="ev">
+      <div class="meta"><span class="t">${bjtMDHM(r.dueAt)}</span>${who(r)}<span class="cu">${esc(r.customer)} <span class="ref">#${esc(r.ref)}</span></span>
+        <span class="sub" style="margin:0">${esc(r.label)}</span><span class="pill serious"><i>!</i>${esc(r.reasonLabel)}</span></div>
+      ${r.message ? `<div class="bub r"><div class="clamp" title="点一下展开全文">${esc(r.message)}</div></div>` : ""}</div>`).join("") +
+    (list.length > cap && !showAllReviews ? `<button class="more" id="moreRv">再看剩下 ${list.length - cap} 条</button>` : "");
+  const btn = $("moreRv"); if (btn) btn.onclick = () => { showAllReviews = true; renderReviews(); };
+}
+
+function renderAll() { if (!payload) return; renderKpis(); renderMachines(); renderTrend(); renderEvents(); renderReviews(); }
+
+// ── 拉数据 ──
+function setStatus(kind, text) { $("statusDot").className = "dot" + (kind === "ok" ? "" : kind === "err" ? " err" : " idle"); $("updatedAt").textContent = text; }
+async function load() {
+  const date = state.date || bjtToday();
+  const seq = ++loadSeq;
+  clearTimeout(timer);
+  $("main").classList.add("loading");
+  try {
+    const res = await fetch(`${API_BASE}?date=${date}`, { cache: "no-store" });
+    let body = null; try { body = await res.json(); } catch (_) {}
+    if (seq !== loadSeq) return; // 用户已经切到别的日期，丢掉这次的结果
+    if (!res.ok || !body || body.error) throw new Error((body && body.error) || ("HTTP " + res.status));
+    payload = body;
+    renderAll();
+    setStatus(payload.isToday ? "ok" : "idle", (payload.isToday ? "实时 · 每分钟刷新 · " : "历史日期 · ") + "数据时间 " + bjtHM(payload.generatedAt));
+    $("errBanner").style.display = "none";
+  } catch (e) {
+    if (seq !== loadSeq) return;
+    // 取数失败 ≠ 没有数据：保留上一版画面，只报没拉到
+    setStatus("err", "数据获取失败");
+    const b = $("errBanner"); b.style.display = "block";
+    b.textContent = "暂时没拉到最新数据（" + e.message + "），" + (payload ? "下面还是上一次成功拉到的内容，" : "") + "会自动重试。";
+  } finally {
+    if (seq === loadSeq) $("main").classList.remove("loading");
+  }
+  if (seq !== loadSeq) return;
+  timer = setTimeout(load, (!state.date || state.date === bjtToday()) ? 60000 : 300000);
+}
+
+function syncUrl() {
+  const p = new URLSearchParams();
+  if (state.date && state.date !== bjtToday()) p.set("date", state.date);
+  if (state.machine) p.set("m", state.machine);
+  history.replaceState(null, "", location.pathname + (p.toString() ? "?" + p : ""));
+}
+function syncDateUi() {
+  const today = bjtToday(), d = state.date || today;
+  $("dateInput").value = d; $("dateInput").max = today;
+  [...$("dateSel").children].forEach(b => b.classList.toggle("active", shiftDate(today, -Number(b.dataset.off)) === d));
+}
+function setDate(d) {
+  const today = bjtToday();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d || "") || d > today) d = today;
+  state.date = d === today ? null : d;
+  showAllEvents = false;
+  syncDateUi(); syncUrl(); load();
+}
+function setActive(id, btn) { [...$(id).children].forEach(b => b.classList.toggle("active", b === btn)); }
+
+$("dateSel").addEventListener("click", e => { const b = e.target.closest("button"); if (b) setDate(shiftDate(bjtToday(), -Number(b.dataset.off))); });
+$("dateInput").addEventListener("change", e => setDate(e.target.value));
+$("machineSel").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; state.machine = b.dataset.m; setActive("machineSel", b); showAllEvents = false; showAllReviews = false; syncUrl(); renderAll(); });
+$("typeSel").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; state.type = b.dataset.t; setActive("typeSel", b); showAllEvents = false; renderEvents(); });
+$("charts").addEventListener("pointermove", e => { const c = e.target.closest(".col"); c ? showTip(c, e.clientX, e.clientY) : hideTip(); });
+$("charts").addEventListener("pointerleave", hideTip);
+$("charts").addEventListener("focusin", e => { const c = e.target.closest(".col"); if (c) { const r = c.getBoundingClientRect(); showTip(c, r.left + r.width / 2, r.top + 20); } });
+$("charts").addEventListener("focusout", hideTip);
+$("charts").addEventListener("click", e => { const c = e.target.closest(".col"); if (c) { hideTip(); setDate(c.dataset.date); } });
+$("charts").addEventListener("keydown", e => { const c = e.target.closest(".col"); if (c && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setDate(c.dataset.date); } });
+document.addEventListener("click", e => { const b = e.target.closest(".clamp"); if (b) { b.classList.remove("clamp"); b.removeAttribute("title"); } });
+
+(function init() {
+  const p = new URLSearchParams(location.search);
+  const m = p.get("m");
+  if (m && MC[m]) { state.machine = m; setActive("machineSel", [...$("machineSel").children].find(b => b.dataset.m === m)); }
+  setDate(p.get("date") || bjtToday());
+})();
+</script>
+</body>
+</html>
