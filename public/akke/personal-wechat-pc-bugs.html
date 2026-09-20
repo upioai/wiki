@@ -284,14 +284,28 @@ function ago(iso) {
 }
 // 一个人登记了两个及以上微信身份：召回任务绑死在身份上，离线那个名下的召回发不出去
 function renderCfg() {
-  const ms = payload.machines.filter(m => (!state.machine || m.key === state.machine) && m.identities.length > 1);
-  if (!ms.length) { $("cfg").innerHTML = `<div class="empty-state"><span class="ok">✓</span>没有发现配置问题。</div>`; return; }
-  $("cfg").innerHTML = ms.map(m => {
+  const mine = payload.machines.filter(m => !state.machine || m.key === state.machine);
+  const ms = mine.filter(m => m.identities.filter(i => !i.disabled).length > 1);
+  // 已停用、但名下还挂着发不出去的召回的身份，单独提一条
+  const leftovers = mine.flatMap(m => m.identities
+    .filter(i => i.disabled && i.backlog && (i.backlog.due + i.backlog.queued + i.backlog.inFlight + i.backlog.needsReview) > 0)
+    .map(i => ({ m, i })));
+  if (!ms.length && !leftovers.length) { $("cfg").innerHTML = `<div class="empty-state"><span class="ok">✓</span>没有发现配置问题。</div>`; return; }
+  const leftoverHtml = leftovers.map(({ m, i }) => {
+    const b = i.backlog, total = b.due + b.queued + b.inFlight + b.needsReview;
+    return `<div class="cfg" style="--mc:${MC[m.key].color}">
+      <div class="ct2">${sw(MC[m.key].color)}${esc(m.label)} · ${esc(i.name)}：身份已停用，名下还挂着 ${total} 条召回<span class="kchip">配置问题</span></div>
+      <p>这个身份已经停用（对应的微信号不再用了），它名下还有 <b>${b.needsReview} 条等人处理</b>、<b>${b.due + b.queued} 条待发</b>、<b>${b.inFlight} 条正在发</b>。
+      召回只能由这个身份自己的电脑端领走，所以这些<b>永远发不出去</b>，只是挂在账上。要清掉就把它们取消，要留着当记录也行——不影响在用的那个身份。</p></div>`;
+  }).join("");
+  $("cfg").innerHTML = leftoverHtml + ms.map(m => {
     const mc = MC[m.key];
     const rows = m.identities.map(i => {
       const b = i.backlog;
       const stuck = i.online !== true && b && (b.due + b.queued + b.needsReview) > 0;
-      const st = i.online === null ? `<span class="pill">? 没有心跳</span>` : i.online ? `<span class="pill good"><i>✓</i>在线</span>` : `<span class="pill critical"><i>✕</i>离线</span>`;
+      const st = i.disabled ? `<span class="pill">— 已停用</span>`
+        : i.online === null ? `<span class="pill">? 没有心跳</span>`
+        : i.online ? `<span class="pill good"><i>✓</i>在线</span>` : `<span class="pill critical"><i>✕</i>离线</span>`;
       return `<tr class="${stuck ? "stuck" : ""}"><td><b>${esc(i.name)}</b></td><td>${st}</td><td>${esc(ago(i.lastSeenAt))}</td><td>${esc(i.actionLabel)}</td>
         <td>${i.version ? "v" + esc(i.version.split("+")[0]) : "—"}</td>
         <td class="num">${b ? b.due + b.queued : "—"}</td><td class="num">${b ? b.needsReview : "—"}</td></tr>`;
