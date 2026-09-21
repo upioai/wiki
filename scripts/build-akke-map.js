@@ -97,7 +97,7 @@ if (process.env.REFRESH_DATES) {
       if (iso) { dates[href] = iso.slice(0, 10); added++; }
     } catch {}
   }
-  if (added) { fs.writeFileSync(datesPath, JSON.stringify(dates)); console.log(`[dates] +${added}`); }
+  if (added) { fs.writeFileSync(datesPath, JSON.stringify(dates, null, 2) + '\n'); console.log(`[dates] +${added}`); }
 }
 
 // ---- 归类 ----
