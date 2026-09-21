@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>销售机自动化 · 2026-09-21 日结</title>
+<style>
+  *{box-sizing:border-box;}
+  :root{
+    --ground:#070A0F; --panel:#0D131B; --panel-2:#111A24;
+    --line:#1E2B3A; --line-2:#2A3B4E;
+    --ink:#DCE5F0; --ink-2:#A8B8C9; --dim:#7C8FA4;
+    --wire:#4FA3FF; --purple:#B58BFF; --green:#3FD48C; --amber:#F0B45A; --red:#FF6E7E;
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  }
+  body{
+    margin:0;
+    background:
+      radial-gradient(1100px 620px at 12% -8%, #10202F 0%, rgba(16,32,47,0) 60%),
+      radial-gradient(900px 560px at 92% 4%, #1A1430 0%, rgba(26,20,48,0) 58%),
+      var(--ground);
+    color:var(--ink); font-family:var(--sans); font-size:15px; line-height:1.75;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1100px;margin:0 auto;padding:56px 22px 110px;}
+  .eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.18em;color:var(--dim);text-transform:uppercase;margin:0 0 14px;}
+  h1{font-size:clamp(28px,4.2vw,46px);line-height:1.15;margin:0 0 16px;font-weight:650;letter-spacing:-.015em;}
+  h1 em{font-style:normal;color:var(--wire);}
+  .lede{max-width:70ch;color:var(--ink-2);font-size:16.5px;margin:0 0 34px;}
+  .lede b{color:var(--ink);font-weight:600;}
+
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);
+    border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:0 0 56px;}
+  .stat{background:var(--panel);padding:16px 18px;}
+  .stat .n{font-family:var(--mono);font-size:26px;font-weight:600;letter-spacing:-.02em;}
+  .stat .k{font-size:12.5px;color:var(--dim);margin-top:2px;}
+  .n.good{color:var(--green);} .n.warn{color:var(--amber);} .n.bad{color:var(--red);} .n.info{color:var(--wire);}
+
+  h2{font-size:23px;margin:62px 0 6px;font-weight:620;letter-spacing:-.01em;}
+  h2 .num{font-family:var(--mono);color:var(--wire);font-size:15px;margin-right:10px;}
+  .sub{color:var(--dim);font-size:14px;margin:0 0 24px;}
+  h3{font-size:17px;margin:32px 0 8px;font-weight:600;}
+  p{margin:0 0 14px;color:var(--ink-2);} p b,li b{color:var(--ink);font-weight:600;}
+  ul{margin:0 0 16px;padding-left:20px;color:var(--ink-2);} li{margin:0 0 7px;}
+  code{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);
+    border-radius:5px;padding:1px 6px;color:var(--ink);}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px 22px;margin:0 0 16px;}
+  .card.fix{border-left:3px solid var(--green);}
+  .card.open{border-left:3px solid var(--red);}
+  .card h4{margin:0 0 6px;font-size:16px;font-weight:620;color:var(--ink);}
+  .card .ver{font-family:var(--mono);font-size:11px;color:var(--dim);border:1px solid var(--line-2);
+    border-radius:20px;padding:2px 9px;margin-left:8px;vertical-align:1px;}
+  .kv{display:grid;grid-template-columns:76px 1fr;gap:4px 14px;margin-top:12px;font-size:14px;}
+  .kv dt{color:var(--dim);font-size:13px;} .kv dd{margin:0;color:var(--ink-2);}
+  .kv dd b{color:var(--ink);}
+
+  table{width:100%;border-collapse:collapse;margin:0 0 20px;font-size:14px;}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top;}
+  th{color:var(--dim);font-weight:500;font-size:12.5px;text-transform:uppercase;letter-spacing:.06em;}
+  td b{color:var(--ink);}
+  .tag{font-family:var(--mono);font-size:11px;border-radius:20px;padding:2px 9px;white-space:nowrap;display:inline-block;}
+  .tag.ok{background:rgba(63,212,140,.12);color:var(--green);border:1px solid rgba(63,212,140,.3);}
+  .tag.no{background:rgba(255,110,126,.12);color:var(--red);border:1px solid rgba(255,110,126,.3);}
+  .tag.half{background:rgba(240,180,90,.12);color:var(--amber);border:1px solid rgba(240,180,90,.3);}
+
+  .flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:14px 0 22px;}
+  .step{background:var(--panel-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 13px;font-size:13.5px;}
+  .step small{display:block;color:var(--dim);font-size:11.5px;font-family:var(--mono);margin-top:2px;}
+  .arrow{color:var(--dim);font-family:var(--mono);}
+  .step.gate{border-color:rgba(240,180,90,.45);}
+  .step.send{border-color:rgba(63,212,140,.45);}
+
+  .chat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:0 0 14px;}
+  .chat .who{font-size:12px;color:var(--dim);font-family:var(--mono);margin-bottom:10px;}
+  .bub{max-width:88%;padding:9px 13px;border-radius:12px;margin:0 0 9px;font-size:14px;line-height:1.65;}
+  .bub.cust{background:var(--panel-2);border:1px solid var(--line-2);color:var(--ink);}
+  .bub.ai{background:rgba(79,163,255,.1);border:1px solid rgba(79,163,255,.32);margin-left:auto;color:var(--ink);}
+  .bub .lab{display:block;font-family:var(--mono);font-size:10.5px;color:var(--dim);margin-bottom:3px;}
+  .note{font-size:13px;color:var(--dim);border-left:2px solid var(--line-2);padding-left:12px;margin:10px 0 0;}
+
+  .callout{background:rgba(240,180,90,.07);border:1px solid rgba(240,180,90,.28);border-radius:10px;
+    padding:16px 18px;margin:0 0 20px;color:var(--ink-2);font-size:14.5px;}
+  .callout b{color:var(--amber);}
+  .callout.red{background:rgba(255,110,126,.07);border-color:rgba(255,110,126,.28);}
+  .callout.red b{color:var(--red);}
+  .foot{margin-top:76px;padding-top:22px;border-top:1px solid var(--line);color:var(--dim);font-size:12.5px;}
+  a{color:var(--wire);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">Winds 销售机 · 内部日结</p>
+  <h1>今天修了什么，<em>还有什么没修</em></h1>
+  <p class="lede">
+    2026-09-21，销售机（个人微信自动化）一天里合并了 <b>10 条改动</b>、出了一个新包 <b>1.19.3</b>。
+    这页用大白话讲清楚三件事：<b>今天每一条修了什么问题</b>、<b>自动回复和首触现在到底怎么工作</b>、
+    以及<b>哪些坑还在</b>。所有数字来自数据库全量统计，不是抽样。
+  </p>
+
+  <div class="stats">
+    <div class="stat"><div class="n info">1.19.3</div><div class="k">新包版本</div></div>
+    <div class="stat"><div class="n good">10</div><div class="k">今天合并的改动</div></div>
+    <div class="stat"><div class="n good">17</div><div class="k">AI 自动回复（条）</div></div>
+    <div class="stat"><div class="n bad">2 / 33</div><div class="k">召回发出 / 建单</div></div>
+    <div class="stat"><div class="n warn">0</div><div class="k">AI 首触（干跑中）</div></div>
+    <div class="stat"><div class="n bad">70%</div><div class="k">召回卡在回读（未修）</div></div>
+  </div>
+
+  <!-- ============ 一、今天修了什么 ============ -->
+  <h2><span class="num">01</span>今天修了什么</h2>
+  <p class="sub">按"现场看到的现象"排列，不按代码排列。</p>
+
+  <div class="card fix">
+    <h4>① 升级装不上，人要手动救<span class="ver">1.18.5</span></h4>
+    <dl class="kv">
+      <dt>现象</dt><dd>双击 start.bat 升级，弹"安装目录被占用，搬不动"。反复重试、关软件都没用，最后只能重启电脑。今天连着栽了三次。</dd>
+      <dt>根因</dt><dd><b>占着目录的就是 start.bat 自己</b>——脚本第一行就把自己的工作目录设成了安装目录，窗口开着，目录就改不了名。</dd>
+      <dt>修了</dt><dd>① start.bat 不再进安装目录；② 安装器搬之前自动停掉还占着的进程，别人的程序只点名不强杀；③ 搬不动时改成逐个文件覆盖（改名要独占，覆盖不要）；④ 旧目录被上次失败的安装搬走时，从备份里把配置和账本读回来。</dd>
+      <dt>现在</dt><dd><b>下次升级应该一把过</b>，不用再手动 Stop-Process 或重启。</dd>
+    </dl>
+  </div>
+
+  <div class="card fix">
+    <h4>② 安装器把机器的身份改成了别人<span class="ver">1.18.3</span></h4>
+    <dl class="kv">
+      <dt>现象</dt><dd>升级完，服务端看到的是"另一台销售机又活了"：这台机顶着别人的人设回客户，自己名下的 63 个召回候选一个都看不见，召回整条停摆。<b>全程没有任何告警。</b></dd>
+      <dt>根因</dt><dd>安装器里写死了某一台机的人设和机器名（本意是让那台机免去手动设置身份），而这段代码是<b>无条件执行</b>的——任何一台机装或升这个包，身份都会被改成那一台的。</dd>
+      <dt>修了</dt><dd>安装器不再碰身份；要"解压即用"的专机包，改成打包时显式注入，且只在这份配置还没有身份时才写。</dd>
+      <dt>现在</dt><dd>已修复，但<b>规矩留下来了</b>：每次升级完都回服务端核四项——机器名、人设、版本号、召回开关。端上说"装好了"和服务端"认这台机"是两件事。</dd>
+    </dl>
+  </div>
+
+  <div class="card fix">
+    <h4>③ 抢不到微信窗口，把准备好的话术耗没了<span class="ver">1.18.4</span></h4>
+    <dl class="kv">
+      <dt>现象</dt><dd>一天 1343 次"暂缓"、1178 次抢窗口失败——销售整天在用这台电脑，抢不过来。有一位客户的回复<b>话术已经生成好了</b>，四分钟内被三次"没抢到窗口"耗成放弃，客户就此没收到回复。</dd>
+      <dt>根因</dt><dd>"没抢到窗口"和"大脑答不上"共用同一份重试额度。但这两件事完全不同：前者等销售松开鼠标就能成，后者等多久都没用。</dd>
+      <dt>修了</dt><dd>抢不到窗口改成"让步"：只记次数、不花重试额度，20 秒后再来；上界改成挂钟（45 分钟），到点报"一直没等到机会"而不是"大脑答不上"。</dd>
+      <dt>现在</dt><dd>话术生成好了就不会再被白白耗掉。</dd>
+    </dl>
+  </div>
+
+  <div class="card fix">
+    <h4>④ 说了"发您两份协议"，图一张都没到<span class="ver">1.18.4 / 1.19.2</span></h4>
+    <dl class="kv">
+      <dt>现象</dt><dd>客户收到"白纸黑字盖公章的两份保障"，但图没来。今天这类召回任务有 <b>5 条永久发不出去</b>，重试多少次都一样。</dd>
+      <dt>根因</dt><dd>客户端配置"一轮最多发几张图"默认是 <b>1</b>（因为每张图要占 3~5 秒微信窗口），而召回话题一固定要发两张协议图。<code>1 &lt; 2</code> 恒成立 → 每轮都被拒。<b>这不是某台机配错了，是默认值和业务要求互相矛盾。</b></dd>
+      <dt>修了</dt><dd>① 召回的图是"任务契约"，不再受那个前台预算旋钮限制；② 代回（客户问话时配图）那条路仍然受限，但客户端现在会<b>告诉服务端自己一轮能发几张</b>，服务端按这个裁，不再承诺发不出的张数；③ "本端发不了图"（永久）和"图没下齐"（临时）分成两个原因码，前者一次转人工，后者连续 3 次转人工——<b>永久问题不许伪装成临时故障</b>。</dd>
+    </dl>
+  </div>
+
+  <div class="card fix">
+    <h4>⑤ 价格算错：矮柜按实际高度算了<span class="ver">服务端</span></h4>
+    <dl class="kv">
+      <dt>现象</dt><dd>窗台柜高 0.87 米，AI 按 3.2×0.87 算出 2.784㎡、报价 1581 元。销售当场撤回改口："高度不足一米按一米算"，重算 1817.6 元。</dd>
+      <dt>根因</dt><dd>投影面积的计价规则里，<b>高度不足 1 米要按 1 米计</b>，深度不参与计价——这条规则原来没写进 AI 的计价逻辑。</dd>
+      <dt>现在</dt><dd>已修。<b>这是今天最值钱的一条</b>：报低了签约要涨价，客户会投诉"怎么涨价了"——今天现场就真出现了这句话。</dd>
+    </dl>
+  </div>
+
+  <div class="card fix">
+    <h4>⑥ 客户说"我另外订了"，AI 还在推销<span class="ver">服务端</span></h4>
+    <dl class="kv">
+      <dt>修了</dt><dd>客户说"房子装修好了""我另外订"这类话时不再继续推销；个微这条线也不再发"你喜欢哪种风格"的选择题；客户说"刚刚/已经说过"时进入抗议处理。</dd>
+    </dl>
+  </div>
+
+  <div class="card fix">
+    <h4>⑦ 找到客户后要干等几分钟<span class="ver">1.19.3</span></h4>
+    <dl class="kv">
+      <dt>修了</dt><dd>列表逐个点开核对，认出一位符合条件的客户后，<b>立刻</b>问服务端有没有他的召回任务，不再等下一次轮询周期。</dd>
+      <dt>说明</dt><dd>这条省的是<b>等待时间</b>，不是今天发不出去的原因——今天那 33 条任务都已经拿到任务了。</dd>
+    </dl>
+  </div>
+
+  <div class="card fix">
+    <h4>⑧ 新好友首触：判据放行三种真实形态<span class="ver">1.19.0 / 1.19.1</span></h4>
+    <dl class="kv">
+      <dt>现象</dt><dd>首触功能刚上（干跑阶段），但三张真机截图里的新好友<b>一个都认不出来</b>。</dd>
+      <dt>根因</dt><dd>判据要求"聊天区一条气泡都没有"，而销售加好友时随验证请求发的那句招呼语，微信会渲染成一条<b>我方气泡</b>——于是凡是带招呼语加的好友全被判成"不是新好友"，而那正是主场景。另外"我通过了你的朋友验证请求"这句话，<b>出现在对方气泡里是客户在说</b>（=我方主动加，该首触），出现在居中系统提示里才是我方点的通过。</dd>
+      <dt>修了</dt><dd>判据改成"<b>客户</b>说过话没有"——我方招呼语、好友通过提示都不算客户开口；方向判定带上气泡位置。</dd>
+    </dl>
+  </div>
+
+  <!-- ============ 二、自动回复怎么工作 ============ -->
+  <h2><span class="num">02</span>自动回复现在怎么工作</h2>
+  <p class="sub">从"看到红点"到"消息发出去"，中间有几道闸。</p>
+
+  <div class="flow">
+    <span class="step">看到红点<small>列表扫描</small></span><span class="arrow">→</span>
+    <span class="step">点开会话<small>抢微信窗口</small></span><span class="arrow">→</span>
+    <span class="step gate">读屏认人<small>标题条 = 唯一身份</small></span><span class="arrow">→</span>
+    <span class="step gate">身份闸<small>备注合不合规</small></span><span class="arrow">→</span>
+    <span class="step">问大脑<small>服务端出话术</small></span><span class="arrow">→</span>
+    <span class="step gate">发前复核<small>窗口没变、还在底部</small></span><span class="arrow">→</span>
+    <span class="step send">粘贴 + 回车<small>再抢一次窗口</small></span><span class="arrow">→</span>
+    <span class="step send">发送回执<small>肉眼核验发出去了</small></span>
+  </div>
+
+  <h3>标题识别：机器靠"备注名"认人</h3>
+  <p>
+    客户端<b>唯一的身份来源是聊天窗口顶部那行标题</b>（也就是你给客户的备注名），不是头像、不是列表预览。
+    标准格式是 <code>地区简称 + 字母 + 六位编号 + 名称 + 手机号</code>，例如 <code>闽C606541王姐13800138000</code>。
+  </p>
+  <ul>
+    <li><b>认不出来就不回</b>（fail-closed）。备注不规范时机器宁可一个字不说，也不冒险回错人。</li>
+    <li>备注里出现 <code>已定 / 无需求 / 不需要 / 已到店 / 成交</code> 这几个词，直接不打扰。</li>
+    <li>群聊、公众号、"微信团队"这类系统会话，一律不回。</li>
+    <li>今天的现实：近 30 天新建的 188 条会话里，<b>71.3% 备注合规</b>（全链路正常）、23.9% 合规但没写城市（能回复，但召回被拦）、<b>4.8% 完全不合规（一个字都不回）</b>。</li>
+  </ul>
+
+  <h3>话术：大脑在服务端，不在这台电脑里</h3>
+  <p>
+    电脑只负责"读屏 → 把服务端给的字打进微信"。<b>说什么完全由服务端决定</b>，所以改话术不用重装客户端，改完下一条消息就生效。
+    话术按客户所处阶段切换语气：破冰期（刚认识）、培育期（在比价、问材料）、决策期（问工期、定金）。
+  </p>
+  <div class="callout">
+    <b>价格永远不让模型现编。</b>活动价按城市分两档（568 / 598），由城市决定；城市不知道就先问城市，不赌档位——
+    报低了签约要涨价、报高了直接劝退。今天那条"高度不足一米按一米算"也是同一类规则：<b>计价规则写进代码，不靠模型记忆。</b>
+  </div>
+
+  <!-- ============ 三、首触 ============ -->
+  <h2><span class="num">03</span>首触现在怎么工作</h2>
+  <p class="sub">首触 = 我方主动对一个刚加上的陌生人开口，比被动回复危险，所以判据更严。</p>
+
+  <div class="callout red">
+    <b>今天 0 条首触是 AI 发的。</b>个微这条线的首触还在"干跑"阶段——只判断"这个人算不算新好友"并记日志，<b>不取话术、不发送</b>。
+    截图里看到的那句"我们是有大有小全屋定制…加微申领补贴"，是<b>销售自己在加好友时手打的</b>。
+  </div>
+
+  <h3>识别：三道判据同时成立才算新好友</h3>
+  <ul>
+    <li><b>不是群聊</b>；</li>
+    <li><b>客户一句话都没说过</b>——我方的招呼语气泡、"好友通过"的提示气泡都不算客户开口（今天刚修的就是这条）；</li>
+    <li><b>是我方主动加的</b>：认"你已添加了 X，现在可以开始聊天了"、以及客户发来的"我通过了你的朋友验证请求"。
+      反过来（对方主动加、我方点通过）本期<b>不首触</b>——对方是带着来意来的，开场白该不该一样是另一个问题。</li>
+  </ul>
+  <p class="note">
+    再加两道成本闸：同一位客户 24 小时内不重复探测；每天最多探测 40 位（每探测一位要多读一次屏 = 一次视觉模型调用）。
+  </p>
+
+  <h3>话术：三条路，按优先级</h3>
+  <table>
+    <tr><th>优先级</th><th>走哪条</th><th>发什么</th><th>现状</th></tr>
+    <tr>
+      <td><b>1</b></td><td>门店工作台发布的配置版</td>
+      <td>运营在后台写好的固定开场白 + 一张海报</td>
+      <td><span class="tag half">表里 0 条，不生效</span></td>
+    </tr>
+    <tr>
+      <td><b>2</b></td><td>活动版（样板房活动）</td>
+      <td>城市已知：按城市报 568 或 598 档 + 两张海报（活动介绍 + 产品配置）<br>
+          城市未知：发不带价格的版本，先问"您家房子在哪个城市呀"</td>
+      <td><span class="tag ok">已应用到所有销售号</span></td>
+    </tr>
+    <tr>
+      <td><b>3</b></td><td>大脑现生成的冷开场</td>
+      <td>只暖场 + 问需求，<b>禁止要微信号、禁止逼单</b>，会带上抖音画像避免重复提问</td>
+      <td><span class="tag ok">兜底</span></td>
+    </tr>
+  </table>
+
+  <!-- ============ 四、今日实况 ============ -->
+  <h2><span class="num">04</span>今天实际跑出来什么</h2>
+  <p class="sub">数据库全量统计（北京时间 09-21 全天）。</p>
+
+  <table>
+    <tr><th>项目</th><th>数字</th><th>说明</th></tr>
+    <tr><td>客户发来的消息</td><td><b>10 条</b></td><td>有效对话 6 组</td></tr>
+    <tr><td>AI 自动回复</td><td><b>17 条</b></td><td>平均 15~27 秒答一条</td></tr>
+    <tr><td>召回任务建单</td><td><b>33 条</b></td><td>列表轮询认出的候选</td></tr>
+    <tr><td>召回真正发出</td><td><b class="n bad">2 条</b></td><td>都是第 2 轮召回，走完了全部关卡</td></tr>
+    <tr><td>AI 首触</td><td><b>0 条</b></td><td>干跑阶段，符合预期</td></tr>
+    <tr><td>今天新建会话</td><td><b>14 条</b></td><td>12 条是列表扫描登记的空会话，2 条客户先开口</td></tr>
+  </table>
+
+  <h3>自动回复实况样例（原文照录）</h3>
+
+  <div class="chat">
+    <div class="who">津A606412 野乔 · 27 秒答复</div>
+    <div class="bub cust"><span class="lab">客户</span>你们有环保证书吗？</div>
+    <div class="bub ai"><span class="lab">AI</span>每垛板到货都带厂家出具的合格证，上面有ENF级标识和生产批号，安装时您可现场核验。</div>
+    <p class="note">答得准：没有空泛保证，给的是"怎么验"。</p>
+  </div>
+
+  <div class="chat">
+    <div class="who">金喜Ly · 15 秒答复（同行/渠道对话）</div>
+    <div class="bub cust"><span class="lab">客户</span>张总，这个蔡总是不接我电话的。你叫他来打我电话，我打不通他的电话。</div>
+    <div class="bub ai"><span class="lab">AI</span>我让蔡总马上给您回电，您电话保持畅通，这边盯着他打过去。</div>
+    <div class="bub cust"><span class="lab">客户</span>我这边指定让他找你拿货就OK了嘛…您这边是厂家的吗？还是说是供应链的？</div>
+    <div class="bub ai"><span class="lab">AI</span>咱们是有大有小全屋装修供应链，源头直供价，您指定装修公司找我拿货，合作稳稳的。<b>［图片］</b></div>
+    <p class="note">这是一条"渠道合作"而非零售客户的对话，AI 没有硬套零售话术，接住了。</p>
+  </div>
+
+  <p>
+    第三组（闽D想家）是今天信息量最大的一组——AI 报价被销售当场撤回改口。
+    <b><a href="/akke/cases/xiangjia-2026-09-21">单独一页拆解 →</a></b>
+  </p>
+
+  <!-- ============ 五、badcase ============ -->
+  <h2><span class="num">05</span>Badcase：卡在哪、为什么、修了没</h2>
+  <p class="sub">今天 33 条召回任务，只发出 2 条。下面是另外 31 条卡在哪。</p>
+
+  <table>
+    <tr><th>卡点</th><th>条数</th><th>根因（大白话）</th><th>修了没</th></tr>
+    <tr>
+      <td><b>发送前回读失败</b></td><td><b class="n bad">23</b></td>
+      <td>发召回之前要从底部往上翻聊天记录，确认客户最近说的是什么（怕给说过"已经订了"的人发通用召回）。翻的时候两屏之间要能对得上，对不上就宁可不发。今天 70% 卡在这里。</td>
+      <td><span class="tag no">未修</span></td>
+    </tr>
+    <tr>
+      <td><b>海报发不出</b></td><td><b>5</b></td>
+      <td>话题一固定两张协议图，而客户端默认一轮只发一张 → 永久卡死，不是"图还没准备好"。</td>
+      <td><span class="tag ok">已修 1.19.2</span></td>
+    </tr>
+    <tr>
+      <td>回读反复失败被取消</td><td>2</td>
+      <td>同一个会话连续 3 次读不成，自动放弃并交人工——这是保护机制，不是 bug。</td>
+      <td><span class="tag ok">设计如此</span></td>
+    </tr>
+    <tr>
+      <td>目标会话没打开</td><td>1</td>
+      <td>准备发的时候那个会话不在眼前了（列表被新消息挤动）。会让位、稍后重来。</td>
+      <td><span class="tag ok">设计如此</span></td>
+    </tr>
+  </table>
+
+  <div class="callout red">
+    <b>最大的一块还没修。</b>那 23 条（70%）卡在"发送前回读"，修法取决于失败原因分布——
+    两屏拼不上 / 分隔线读不出 / 气泡数对不上，<b>三种原因的修法是相反的</b>，所以在拿到端上日志统计之前不动手，
+    免得白改一轮。这是明天召回量级能不能起来的关键。
+  </div>
+
+  <h3>另外两条现场纠正</h3>
+  <ul>
+    <li><b>"列表扫描和服务端派发不同步"不是今天的主因。</b>那 33 条任务<b>都已经拿到任务了</b>，说明派发没卡住。
+      "认出客户后立即轮询"这条修复省的是等待时间，不是损耗。</li>
+    <li><b>两台机的心跳曾经撞在一起。</b>身份被改写那段时间，两台机写进同一行心跳记录，
+      所以那段时间的"今日已发""版本号"字段<b>都不可信</b>。判断"几台在线"要看同一个机器名的心跳是否<b>持续推进</b>，
+      不是看某一刻谁新鲜。</li>
+  </ul>
+
+  <!-- ============ 六、机队 ============ -->
+  <h2><span class="num">06</span>机队现状</h2>
+  <table>
+    <tr><th>机器</th><th>在跑版本</th><th>下发目标</th><th>召回</th></tr>
+    <tr><td>高一瑞</td><td>1.18.4</td><td><b>1.19.3</b>（已下好，等人点 start.bat）</td><td><span class="tag ok">真发</span> 列表轮询 + 每天换话题</td></tr>
+    <tr><td>小鱼</td><td>1.18.5</td><td>待下发</td><td><span class="tag half">演习</span> 只轮询不发</td></tr>
+  </table>
+  <p class="note">
+    装的时候：关掉黑窗口 → 双击一次 start.bat → 别碰鼠标 → 装完别点第二次。
+    装完回服务端核四项：机器名、人设、版本号、召回开关。
+  </p>
+
+  <div class="foot">
+    数据来源：Supabase 全量查询（<code>messages</code> / <code>conversations</code> / <code>windows_recall_tasks</code> / <code>wecom_loop_heartbeats</code>）+ 当日合并的 10 条 PR。<br>
+    生成于 2026-09-21 · 内部页，含客户备注名与对话原文，<b>不对外</b>。
+  </div>
+
+</div>
+</body>
+</html>
