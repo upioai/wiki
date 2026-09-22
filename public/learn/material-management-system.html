@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="upio:date" content="2026-05-25">
+<meta name="upio:source" content="desktop">
+<meta name="upio:category" content="Agent · AI 工程">
+<meta name="description" content="面向公司 IT / 办公设备的微信扫码自助借还与自动催收系统设计方案：动线、四层架构、7 张表、6 级升级链、资质选型与分阶段路线。">
+<title>物资管理系统设计方案 · 扫码即借，扫码即还</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+/* tokens 取自 /design-system */
+:root {
+  --bg: #0a0d14; --bg-elevated: #131720; --bg-deep: #1a1f2b;
+  --border: #232936; --border-strong: #2f3646;
+  --text: #e8eaef; --text-dim: #9ba3b4; --text-muted: #6b7384;
+  --accent: #8b5cf6; --accent-soft: rgba(139, 92, 246, 0.15); --accent-strong: rgba(139, 92, 246, 0.35);
+  --accent-2: #60a5fa; --accent-2-soft: rgba(96, 165, 250, 0.13);
+  --accent-3: #34d399; --accent-3-soft: rgba(52, 211, 153, 0.14);
+  --warning: #fbbf24; --warning-soft: rgba(251, 191, 36, 0.14);
+  --danger: #f87171; --danger-soft: rgba(248, 113, 113, 0.14);
+  --font-display: 'Instrument Serif', 'Source Han Serif SC', 'Songti SC', Georgia, serif;
+  --font-ui: 'Inter Tight', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: var(--font-ui);
+  font-size: 15.5px; line-height: 1.7; -webkit-font-smoothing: antialiased; }
+.container { max-width: 1080px; margin: 0 auto; padding: 56px 24px 120px; }
+.breadcrumb { font-size: 12.5px; color: var(--text-muted); margin-bottom: 20px; font-family: var(--font-mono); }
+.breadcrumb a { color: var(--text-dim); text-decoration: none; }
+.breadcrumb a:hover { color: var(--accent); }
+.breadcrumb span { margin: 0 8px; color: var(--border-strong); }
+a { color: var(--accent-2); text-decoration: none; }
+a:hover { color: var(--accent); }
+code { background: var(--bg-deep); padding: 1px 6px; border-radius: 4px; font-size: 0.86em; color: #c4b5fd; font-family: var(--font-mono); }
+
+/* hero */
+header.hero { padding: 8px 0 12px; margin-bottom: 8px; }
+.tag { display: inline-block; padding: 4px 12px; border-radius: 999px; background: var(--accent-soft); color: var(--accent);
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 18px; }
+h1 { font-family: var(--font-display); font-style: italic; font-size: 64px; font-weight: 400; margin: 0 0 18px;
+  letter-spacing: -0.02em; line-height: 1.1;
+  background: linear-gradient(135deg, #f4f5f8 30%, var(--accent) 75%, var(--accent-2) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.subtitle { font-size: 17px; color: var(--text-dim); margin: 0 0 28px; max-width: 760px; line-height: 1.6; }
+.subtitle strong { color: var(--text); font-weight: 600; }
+.hero-meta { display: flex; gap: 28px; flex-wrap: wrap; font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); margin-top: 22px; }
+.hero-meta strong { color: var(--text-dim); font-weight: 500; }
+
+/* KPI */
+.kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0 6px; }
+.kpi { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 14px; padding: 20px 20px 18px; position: relative; overflow: hidden; }
+.kpi::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--accent); }
+.kpi.k-green::before { background: var(--accent-3); } .kpi.k-amber::before { background: var(--warning); }
+.kpi .k-label { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 10px; }
+.kpi .k-val { font-family: var(--font-mono); font-size: 32px; font-weight: 700; line-height: 1.1; margin-bottom: 8px; color: var(--accent); }
+.kpi.k-green .k-val { color: var(--accent-3); } .kpi.k-amber .k-val { color: var(--warning); }
+.kpi .k-sub { font-size: 12.5px; color: var(--text-dim); line-height: 1.5; }
+
+/* section head */
+.section-head { display: flex; gap: 24px; align-items: baseline; padding-top: 32px; margin-top: 56px; border-top: 1px solid var(--border); }
+.section-head .num { font-family: var(--font-display); font-style: italic; font-size: 80px; line-height: 1; font-weight: 400; color: var(--accent); flex-shrink: 0; }
+.section-head .meta { flex: 1; padding-top: 16px; min-width: 0; }
+.section-head h2 { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); letter-spacing: 0.14em; text-transform: uppercase; margin: 0 0 6px; font-weight: 700; }
+.section-head .lede { font-family: var(--font-display); font-style: italic; font-size: 30px; line-height: 1.25; color: var(--text); }
+section { margin-bottom: 24px; }
+section > p { margin: 14px 0; color: var(--text-dim); }
+section > p strong { color: var(--text); font-weight: 600; }
+h3 { font-family: var(--font-ui); font-size: 17px; font-weight: 600; color: var(--text); margin: 0 0 8px; letter-spacing: -0.01em; }
+h4 { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); letter-spacing: 0.12em; text-transform: uppercase; margin: 0 0 8px; font-weight: 700; }
+
+/* cards & grids */
+.grid-2, .grid-3, .grid-4, .grid-6 { display: grid; gap: 12px; margin: 18px 0; }
+.grid-2 { grid-template-columns: repeat(2, 1fr); }
+.grid-3 { grid-template-columns: repeat(3, 1fr); }
+.grid-4 { grid-template-columns: repeat(4, 1fr); }
+.grid-6 { grid-template-columns: repeat(6, 1fr); }
+.card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
+.card .idx { font-family: var(--font-mono); font-size: 11px; font-weight: 700; color: var(--accent); letter-spacing: 0.1em; margin-bottom: 6px; }
+.card p { margin: 6px 0 0; color: var(--text-dim); font-size: 14px; }
+.card ul { margin: 8px 0 0; padding-left: 18px; color: var(--text-dim); font-size: 14px; }
+.card li { margin: 3px 0; }
+.card .sub { font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+
+/* steps */
+.steps { list-style: none; margin: 10px 0 0; padding: 0; }
+.steps li { display: flex; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--text-dim); }
+.steps li:last-child { border-bottom: none; }
+.steps .pill { flex-shrink: 0; align-self: flex-start; margin-top: 3px; min-width: 76px; text-align: center; }
+.steps .n { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); color: var(--accent);
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+
+/* layer stack */
+.stack { display: flex; flex-direction: column; gap: 10px; margin: 18px 0; }
+.layer { display: flex; gap: 16px; align-items: stretch; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.layer .lv { flex-shrink: 0; width: 64px; display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-weight: 700; font-size: 15px; color: var(--accent); background: var(--accent-soft); }
+.layer:nth-child(2) .lv { color: var(--accent-2); background: var(--accent-2-soft); }
+.layer:nth-child(3) .lv { color: var(--accent-3); background: var(--accent-3-soft); }
+.layer:nth-child(4) .lv { color: var(--warning); background: var(--warning-soft); }
+.layer .body { padding: 14px 16px 14px 0; min-width: 0; }
+.layer .body h4 { margin-bottom: 4px; }
+.layer .body div { font-size: 14px; color: var(--text); }
+
+/* tables */
+.tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 16px 0; border: 1px solid var(--border); border-radius: 12px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 640px; }
+th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+th { color: var(--text-muted); font-weight: 600; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; background: var(--bg-deep); font-family: var(--font-mono); }
+td { color: var(--text-dim); }
+td:first-child { color: var(--text); font-weight: 500; white-space: nowrap; }
+table.nw2 td:nth-child(2) { white-space: nowrap; }
+td code { white-space: nowrap; }
+
+/* escalation */
+.esc { position: relative; }
+.esc .card { padding: 14px 14px 16px; }
+.esc .t { font-family: var(--font-mono); font-size: 20px; font-weight: 700; color: var(--accent); line-height: 1.2; }
+.esc .card:nth-child(1) .t, .esc .card:nth-child(2) .t { color: var(--accent-3); }
+.esc .card:nth-child(3) .t, .esc .card:nth-child(4) .t { color: var(--warning); }
+.esc .card:nth-child(5) .t, .esc .card:nth-child(6) .t { color: var(--danger); }
+.esc .when { font-size: 12.5px; color: var(--text-muted); margin-bottom: 8px; }
+.esc .who { font-size: 13.5px; color: var(--text); margin-bottom: 4px; }
+.esc .via { font-family: var(--font-mono); font-size: 11.5px; color: var(--text-dim); }
+
+/* pills & callouts */
+.pill { display: inline-block; padding: 2px 8px; border-radius: 6px; font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; }
+.pill.p1 { background: var(--accent-3-soft); color: var(--accent-3); }
+.pill.p2 { background: var(--accent-2-soft); color: var(--accent-2); }
+.pill.p3 { background: var(--accent-soft); color: var(--accent); }
+.pill.warn { background: var(--warning-soft); color: var(--warning); }
+.callout { border-radius: 10px; padding: 14px 18px; margin: 18px 0; font-size: 14px; line-height: 1.7; }
+.callout.info { background: var(--accent-2-soft); border-left: 3px solid var(--accent-2); color: var(--text-dim); }
+.callout.info strong { color: var(--accent-2); }
+.callout.warn { background: var(--warning-soft); border-left: 3px solid var(--warning); color: var(--text-dim); }
+.callout.warn strong { color: var(--warning); }
+.callout.success { background: var(--accent-3-soft); border-left: 3px solid var(--accent-3); color: var(--text-dim); }
+.callout.success strong { color: var(--accent-3); }
+.yes { color: var(--accent-3); } .no { color: var(--danger); }
+.oos li { list-style: none; }
+.oos { padding-left: 0 !important; }
+.oos li::before { content: '✕'; color: var(--danger); font-weight: 700; margin-right: 8px; }
+
+footer { margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 13px; text-align: center; font-family: var(--font-mono); }
+footer a { color: var(--accent); }
+
+@media (max-width: 860px) {
+  .grid-3, .grid-4 { grid-template-columns: 1fr 1fr; }
+  .grid-6 { grid-template-columns: 1fr 1fr; }
+  .kpi-grid { grid-template-columns: 1fr 1fr 1fr; }
+}
+@media (max-width: 600px) {
+  .container { padding: 36px 16px 96px; }
+  h1 { font-size: 44px; }
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  .kpi-grid { grid-template-columns: 1fr; }
+  .kpi .k-val { font-size: 28px; }
+  .section-head { gap: 14px; }
+  .section-head .num { font-size: 52px; }
+  .section-head .lede { font-size: 23px; }
+  .layer .lv { width: 48px; font-size: 13px; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <nav class="breadcrumb">
+    <a href="/">upio.ai</a><span>/</span><a href="/learn">知识分享</a><span>/</span><span style="color:var(--text-dim);">物资管理系统设计方案</span>
+  </nav>
+
+  <header class="hero">
+    <span class="tag">Design Proposal · 2026</span>
+    <h1>扫码即借，扫码即还</h1>
+    <p class="subtitle">面向公司 IT / 办公设备的<strong>微信扫码自助借还 · 智能催收系统</strong>设计方案：员工扫物资上的二维码，借还一气呵成；超期由系统自动催收。</p>
+    <div class="kpi-grid">
+      <div class="kpi k-green"><div class="k-label">Design goal · 01</div><div class="k-val">24h</div><div class="k-sub">自助借还，无需 IT 值守</div></div>
+      <div class="kpi k-amber"><div class="k-label">Design goal · 02</div><div class="k-val">0 人工</div><div class="k-sub">超期催收，自动多级升级</div></div>
+      <div class="kpi"><div class="k-label">Design goal · 03</div><div class="k-val">100%</div><div class="k-sub">操作留痕，审计可追溯</div></div>
+    </div>
+    <div class="hero-meta"><span><strong>VERSION</strong> 0.1 · 2026-05-25</span><span><strong>SCOPE</strong> MVP · Phase 1</span><span><strong>STACK</strong> WeChat Mini Program · 企业微信 · PostgreSQL</span></div>
+  </header>
+
+  <section>
+    <div class="section-head"><div class="num">01</div><div class="meta"><h2>Problem</h2><div class="lede">为什么现在的借还流程在内耗</div></div></div>
+    <div class="grid-4">
+      <div class="card"><div class="idx">01</div><h3>手工登记</h3><ul><li>Excel 表 / 微信群截图</li><li>借还都要找 IT 在场</li><li>下班、节假日完全停摆</li></ul></div>
+      <div class="card"><div class="idx">02</div><h3>催收靠记忆</h3><ul><li>超期没人主动追</li><li>IT 凭印象去问那个本子还了没</li><li>超过 2 周大概率就丢了</li></ul></div>
+      <div class="card"><div class="idx">03</div><h3>盘点黑盒</h3><ul><li>物资在谁手上、在哪个工位</li><li>一年盘一次，全靠人工</li><li>丢损率没人说得清</li></ul></div>
+      <div class="card"><div class="idx">04</div><h3>责任不清</h3><ul><li>归还时不验收、不留证</li><li>损坏后双方扯皮</li><li>维修费走采购账，财务难看</li></ul></div>
+    </div>
+    <div class="callout warn"><strong>根因：</strong>四大痛点全部指向同一件事 —— IT 既是审计者，又是流程瓶颈。</div>
+  </section>
+
+  <section>
+    <div class="section-head"><div class="num">02</div><div class="meta"><h2>Solution</h2><div class="lede">把 IT 从「看门人」变成「审计员」</div></div></div>
+    <p><strong>员工扫物资上的二维码，借还一气呵成；超期由系统自动催收。</strong>系统分成三块：</p>
+    <div class="grid-3">
+      <div class="card"><div class="idx">01 · 用户端</div><h3>员工微信扫码</h3><div class="sub">微信小程序 / 企业微信</div><ul><li>扫码借用</li><li>扫码归还（可拍照存证）</li><li>我的借用 · 续期</li></ul></div>
+      <div class="card"><div class="idx">02 · 管理端</div><h3>IT / HR 后台</h3><div class="sub">Web 后台</div><ul><li>物资批量录入 + 打印二维码</li><li>借用单查询 + 强制归还</li><li>信用分 / 黑名单 / 审计日志</li></ul></div>
+      <div class="card"><div class="idx">03 · 智能层</div><h3>自动催收 + 留痕</h3><div class="sub">Cron + 多通道推送</div><ul><li>升级链：到期前 → 超期 → 主管 → HR</li><li>Redis 防并发借</li><li>全操作 audit_log</li></ul></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><div class="num">03</div><div class="meta"><h2>Interaction</h2><div class="lede">三条核心动线，每条 ≤ 4 步</div></div></div>
+    <div class="grid-3">
+      <div class="card"><h4>借用</h4><ol class="steps">
+        <li><span class="n">1</span><span>员工微信扫物资二维码</span></li>
+        <li><span class="n">2</span><span>进入小程序物资详情页</span></li>
+        <li><span class="n">3</span><span>确认借期 + 授权订阅消息</span></li>
+        <li><span class="n">4</span><span>成功：状态 <code>idle → borrowed</code></span></li></ol></div>
+      <div class="card"><h4>归还</h4><ol class="steps">
+        <li><span class="n">1</span><span>持有人再次扫同一个码</span></li>
+        <li><span class="n">2</span><span>选择完好 / 损坏 / 部件丢失</span></li>
+        <li><span class="n">3</span><span>可选拍照存证</span></li>
+        <li><span class="n">4</span><span>成功：状态 <code>borrowed → idle</code></span></li></ol></div>
+      <div class="card"><h4>催收</h4><ol class="steps">
+        <li><span class="n">1</span><span>到期前 24h · 订阅消息</span></li>
+        <li><span class="n">2</span><span>超期 1 天 · 抄送主管</span></li>
+        <li><span class="n">3</span><span>超期 3 天 · 企微群通知</span></li>
+        <li><span class="n">4</span><span>超期 14 天 · 进黑名单</span></li></ol></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><div class="num">04</div><div class="meta"><h2>Architecture</h2><div class="lede">四层分层架构</div></div></div>
+    <div class="stack">
+      <div class="layer"><div class="lv">L1</div><div class="body"><h4>用户端 / Client</h4><div>微信小程序 · 企业微信自建应用 · IT 管理后台（Web）</div></div></div>
+      <div class="layer"><div class="lv">L2</div><div class="body"><h4>网关 / API Gateway</h4><div>Nginx + JWT · Rate Limit · CSRF · HMAC 二维码校验</div></div></div>
+      <div class="layer"><div class="lv">L3</div><div class="body"><h4>服务 / Service</h4><div>NestJS · 借还核心 · 审批流 · 催收 Cron · 审计日志 · 小程序码生成</div></div></div>
+      <div class="layer"><div class="lv">L4</div><div class="body"><h4>数据 + 推送 / Data &amp; Push</h4><div>PostgreSQL · Redis · 腾讯云 COS ┊ 订阅消息 · 企业微信 · 短信 · 邮件</div></div></div>
+    </div>
+    <div class="callout info"><strong>部署估算：</strong>腾讯云 / 阿里云 CVM 2C4G + RDS PostgreSQL + Redis + COS，方案估算月成本 ¥300–800。</div>
+  </section>
+
+  <section>
+    <div class="section-head"><div class="num">05</div><div class="meta"><h2>Data Model</h2><div class="lede">7 张核心表，关系扁平，索引清晰</div></div></div>
+    <p>7 张表的主键都是 <code>id (uuid)</code>。</p>
+    <div class="tbl-wrap"><table class="nw2">
+      <thead><tr><th>表</th><th>含义</th><th>主要字段</th><th>依赖 / 约束</th></tr></thead>
+      <tbody>
+        <tr><td><code>users</code></td><td>用户</td><td>openid · 实名 · 部门 · 角色 · trust_score · 黑名单</td><td>依赖 departments</td></tr>
+        <tr><td><code>items</code></td><td>物资</td><td>sn · 分类 · 状态 · 当前持有人 · 位置 · 二维码 URL</td><td>依赖 categories · locations · users</td></tr>
+        <tr><td><code>categories</code></td><td>分类</td><td>树形 · 默认借期 · 是否需审批 · 押金</td><td>self-FK</td></tr>
+        <tr><td><code>borrowings</code></td><td>借用单</td><td>item · user · 预期归还 · 实际归还 · 状态 · 验收照片</td><td>核心流水表 · 索引 (status, expected_return_at)</td></tr>
+        <tr><td><code>reminders</code></td><td>提醒记录</td><td>borrowing · template_key · channel · 发送状态</td><td>UNIQUE(borrowing_id, template_key) 防重发</td></tr>
+        <tr><td><code>approval_requests</code></td><td>审批工单</td><td>borrowing · 审批人 · pending / approved / rejected</td><td>needs_approval=true 时创建</td></tr>
+        <tr><td><code>audit_logs</code></td><td>审计日志</td><td>actor · action · target · payload(JSON) · ip · ua</td><td>所有写操作必落</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <div class="section-head"><div class="num">06</div><div class="meta"><h2>Flow · Borrow</h2><div class="lede">借用流程：员工自助，0 人工介入</div></div></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>步骤</th><th>动作</th><th>实现</th><th>备注</th></tr></thead>
+      <tbody>
+        <tr><td>01 扫码</td><td>微信扫物资二维码（小程序码）</td><td><code>wx.scanCode</code> 原生</td><td></td></tr>
+        <tr><td>02 登录</td><td><code>wx.login</code> → openid 拉用户档案</td><td></td><td>首次需补实名 + 手机号</td></tr>
+        <tr><td>03 判态</td><td><code>items.status</code> = idle ? borrowed ?</td><td>Redis <code>SETNX item:{id}</code></td><td>防并发借</td></tr>
+        <tr><td>04 授权</td><td>勾选订阅消息（用于催收）</td><td></td><td>用户拒绝时降级短信</td></tr>
+        <tr><td>05 落单</td><td>INSERT borrowings + UPDATE items</td><td>同一事务内</td><td>写 audit_log</td></tr>
+        <tr><td>06 回执</td><td>成功页，显示预计归还日期</td><td></td><td>二维码可加入手机相册</td></tr>
+      </tbody>
+    </table></div>
+    <div class="callout info"><strong>审批分支：</strong><code>category.needs_approval=true</code> → 创建 approval_request → 主管在小程序内一键审批。</div>
+  </section>
+
+  <section>
+    <div class="section-head"><div class="num">07</div><div class="meta"><h2>Flow · Return</h2><div class="lede">归还流程 + 异常处理</div></div></div>
+    <div class="grid-2">
+      <div class="card"><h4>主流程 · 自助归还</h4><ol class="steps">
+        <li><span class="n">1</span><span>持有人再次扫物资码</span></li>
+        <li><span class="n">2</span><span>系统识别 <code>current_holder == openid</code>，显示「归还」按钮</span></li>
+        <li><span class="n">3</span><span>选择状态：完好 / 损坏 / 部件丢失</span></li>
+        <li><span class="n">4</span><span>可选拍照存证（推荐：物资上 + 损坏处）</span></li>
+        <li><span class="n">5</span><span>提交 → <code>status=returned</code>，<code>items=idle</code></span></li></ol></div>
+      <div class="card"><h4>异常分支 · 自动工单</h4><ol class="steps">
+        <li><span class="pill warn">damaged</span><span>归还时勾选「损坏」→ 自动建 disputed 工单给 IT；照片做证据链；维修费走 IT 预算</span></li>
+        <li><span class="pill warn">overdue</span><span>超期归还 → <code>users.trust_score</code> 按天扣；重度超期触发黑名单</span></li>
+        <li><span class="pill warn">not-holder</span><span>非持有人扫到借出物资 → 显示当前持有人 + 预期归还，并提供「举报问题」入口</span></li>
+        <li><span class="pill warn">lost</span><span>举报丢失 → 转 IT 后台人工裁定；责任方走 HR 流程</span></li></ol></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><div class="num">08</div><div class="meta"><h2>Escalation</h2><div class="lede">超期自动催收：6 级升级链，0 人工</div></div></div>
+    <div class="grid-6 esc">
+      <div class="card"><div class="t">T-24h</div><div class="when">到期前 24h</div><div class="who">借用人</div><div class="via">订阅消息</div></div>
+      <div class="card"><div class="t">T-0</div><div class="when">到期当天</div><div class="who">借用人</div><div class="via">订阅消息</div></div>
+      <div class="card"><div class="t">+1d</div><div class="when">超期 1 天</div><div class="who">借用人 + 抄送主管</div><div class="via">订阅消息 + 企业微信</div></div>
+      <div class="card"><div class="t">+3d</div><div class="when">超期 3 天</div><div class="who">借用人 + 主管 + IT</div><div class="via">订阅 + 企微群通知</div></div>
+      <div class="card"><div class="t">+7d</div><div class="when">超期 7 天</div><div class="who">借用人 + HR + 部门负责人</div><div class="via">短信 + 邮件 + 企微</div></div>
+      <div class="card"><div class="t">+14d</div><div class="when">超期 14 天</div><div class="who">仅管理员可见 · 暂停借用权限</div><div class="via">全通道 + trust_score 清零</div></div>
+    </div>
+    <div class="callout success"><strong>幂等保护：</strong><code>reminders(borrowing_id, template_key)</code> UNIQUE 防重发；订阅消息授权失效时自动降级到短信通道。</div>
+  </section>
+
+  <section>
+    <div class="section-head"><div class="num">09</div><div class="meta"><h2>Automation</h2><div class="lede">减少人工的 7 个设计点</div></div></div>
+    <div class="grid-3">
+      <div class="card"><div class="idx">01 <span class="pill p1">PHASE 1</span></div><h3>全自助扫码借还</h3><p>IT 不在场也能借。</p></div>
+      <div class="card"><div class="idx">02 <span class="pill p1">PHASE 1</span></div><h3>Cron + 多通道催收</h3><p>无需人工追超期。</p></div>
+      <div class="card"><div class="idx">03 <span class="pill p2">PHASE 2</span></div><h3>信用分 + 自动黑名单</h3><p>失信员工自动冷却。</p></div>
+      <div class="card"><div class="idx">04 <span class="pill p2">PHASE 2</span></div><h3>借 / 还强制拍照</h3><p>把损坏责任的举证链固化下来。</p></div>
+      <div class="card"><div class="idx">05 <span class="pill p2">PHASE 2</span></div><h3>30 天未扫码 → 盘点</h3><p>物资责任部门收到复核提醒。</p></div>
+      <div class="card"><div class="idx">06 <span class="pill p2">PHASE 2</span></div><h3>周 / 月报自动推送</h3><p>IT 经理在企微收到 Dashboard。</p></div>
+      <div class="card"><div class="idx">07 <span class="pill p3">PHASE 3</span></div><h3>OCR 拍铭牌录入</h3><p>新物资的型号、SN 自动填写。</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><div class="num">10</div><div class="meta"><h2>Compliance</h2><div class="lede">资质评估：个人主体 / 企业小程序 / 企业微信</div></div></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>关键能力</th><th>个人主体</th><th>企业小程序</th><th>企业微信自建</th></tr></thead>
+      <tbody>
+        <tr><td>注册成本</td><td>免费</td><td>营业执照 + ¥300/年</td><td>营业执照</td></tr>
+        <tr><td>获取员工手机号</td><td class="no">❌ 不开放</td><td class="yes">✅ ¥0.03/次</td><td class="yes">✅ 通讯录直拿</td></tr>
+        <tr><td>订阅消息（催收）</td><td>部分类目受限</td><td class="yes">✅ 全量</td><td class="yes">✅ 应用消息直推</td></tr>
+        <tr><td>类目「企业管理」</td><td class="no">❌ 选不到</td><td class="yes">✅ 可选</td><td>—（无类目）</td></tr>
+        <tr><td>通讯录免填部门</td><td class="no">❌</td><td class="no">❌</td><td class="yes">✅</td></tr>
+        <tr><td>短信签名（公司名）</td><td class="no">❌</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+      </tbody>
+    </table></div>
+    <div class="callout warn"><strong>结论：</strong>个人主体有 3 个硬伤（拿不到手机号 / 类目过不了 / 短信通道弱）→ 强烈推荐企业主体或企业微信。</div>
+  </section>
+
+  <section>
+    <div class="section-head"><div class="num">11</div><div class="meta"><h2>Roadmap</h2><div class="lede">三条可执行路径，按现状选</div></div></div>
+    <div class="grid-3">
+      <div class="card"><div class="idx">A · ⭐ 推荐</div><h3>企业主体小程序</h3><ul>
+        <li><strong>适用</strong>：长期为公司服务，物资 &gt; 50 件，用户 &gt; 20 人</li>
+        <li><strong>成本</strong>：营业执照 + ¥300/年；云资源 ¥300–800/月</li>
+        <li><strong>周期</strong>：4–6 周，ICP 备案 2–4 周是瓶颈</li></ul></div>
+      <div class="card"><div class="idx">B · ⭐⭐ 极推荐</div><h3>企业微信自建应用</h3><ul>
+        <li><strong>适用</strong>：公司已用企业微信，内部场景纯粹，员工 ≤ 200（免费版）</li>
+        <li><strong>成本</strong>：企业微信免费；云资源 ¥300–800/月</li>
+        <li><strong>周期</strong>：1–2 周，省去订阅消息授权层</li></ul></div>
+      <div class="card"><div class="idx">C · 🧪 验证用</div><h3>个人主体 + 体验版</h3><ul>
+        <li><strong>适用</strong>：先做 demo 验证，家用或 &lt; 10 人，不上线正式发布</li>
+        <li><strong>成本</strong>：免费，仅开发者机器</li>
+        <li><strong>周期</strong>：1 周出原型，不能长期生产用</li></ul></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><div class="num">12</div><div class="meta"><h2>Phases</h2><div class="lede">分阶段实施：3 个 Phase，渐进式上线</div></div></div>
+    <div class="grid-3">
+      <div class="card"><div class="idx"><span class="pill p1">PHASE 1</span></div><h3>MVP · 2–3 周</h3><ul>
+        <li>微信小程序架子 + 借 / 还交互</li>
+        <li>users / items / categories / borrowings CRUD</li>
+        <li>二维码批量生成（小程序码 + PDF 拼版）</li>
+        <li>超期 Cron + 订阅消息（4 级模板）</li>
+        <li>IT 后台：物资管理 / 借用单 / 强制归还</li>
+        <li>Excel 一键导入存量物资</li></ul></div>
+      <div class="card"><div class="idx"><span class="pill p2">PHASE 2</span></div><h3>流程完善 · 2 周</h3><ul>
+        <li>审批流（主管小程序内一键审批）</li>
+        <li>归还拍照存证 + 损坏举报工单</li>
+        <li>信用分 + 自动黑名单</li>
+        <li>企业微信群机器人推送</li>
+        <li>周期盘点提醒（30 天未扫码）</li>
+        <li>周报 / 月报自动推送 IT 经理</li></ul></div>
+      <div class="card"><div class="idx"><span class="pill p3">PHASE 3</span></div><h3>智能化深化 · 按需</h3><ul>
+        <li>OCR 拍铭牌自动录入设备</li>
+        <li>用量分析 → 闲置识别 → 调拨建议</li>
+        <li>续期申请（小程序内一键延期）</li>
+        <li>钉钉 / 企业微信通讯录同步</li>
+        <li>设备生命周期分析（采购 → 报废 ROI）</li>
+        <li>RFID 评估（视规模决定）</li></ul></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><div class="num">13</div><div class="meta"><h2>Out of scope · Next step</h2><div class="lede">明确不做的事，和立即可做的事</div></div></div>
+    <div class="grid-2">
+      <div class="card"><h4>明确不做</h4><ul class="oos">
+        <li><strong>RFID / NFC 硬件</strong> —— 扫码已足够，Phase 3 再评估</li>
+        <li><strong>押金线上支付</strong> —— 用线下押金 + 黑名单替代</li>
+        <li><strong>App / H5 端</strong> —— 小程序覆盖 99% 场景</li>
+        <li><strong>多公司 SaaS 化</strong> —— 先单租户跑通</li>
+        <li><strong>AI 损坏识别</strong> —— 积累 1000+ 样本后再训</li></ul></div>
+      <div class="card"><h4>立即可做</h4><ol class="steps">
+        <li><span class="n">1</span><span><strong>确认路径</strong>：A / B / C 三选一，决定主体类型</span></li>
+        <li><span class="n">2</span><span><strong>ICP 备案</strong>：企业主体路径需 2–4 周，立即启动</span></li>
+        <li><span class="n">3</span><span><strong>数据导入</strong>：汇总现有物资清单（Excel），字段为名称 / 分类 / SN</span></li>
+        <li><span class="n">4</span><span><strong>试点范围</strong>：选 1 个部门 + 50 件物资做 Phase 1 灰度</span></li>
+        <li><span class="n">5</span><span><strong>上线复盘</strong>：2 周后看借还次数 / 超期率 / 满意度</span></li></ol></div>
+    </div>
+  </section>
+
+  <footer>
+    MATERIAL MANAGEMENT · 设计方案 · 2026-05-25 · <a href="/learn">← 知识分享</a> · <a href="/">upio.ai</a>
+  </footer>
+
+</div>
+</body>
+</html>

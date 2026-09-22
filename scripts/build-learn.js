@@ -75,6 +75,7 @@ const CATEGORIES = [
       { slug: 'enterprise-context-layer', date: '2026-08-31', title: '给 AI 用的企业上下文层', desc: '企业知识中枢的分层、溯源与冷热分腿方法（公开版）。' },
       { slug: 'open-source-fintech-research', date: '2026-09-06', title: '开源金融投研资源图鉴 · GitHub × Hugging Face', desc: '量化/AI 投研开源资源目录的公开调研。' },
       { slug: 'vl-vs-ocr', date: '2026-09-20', title: 'VL 与 OCR 的分界：测量仪器与会读图的读者', desc: 'VL 与 OCR 的能力边界通用讲解。' },
+      { slug: 'material-management-system', date: '2026-05-25', title: '物资管理系统设计方案 · 扫码即借，扫码即还', desc: '面向公司 IT / 办公设备的微信扫码自助借还与自动催收系统：三条 ≤4 步动线、四层架构、7 张核心表、6 级超期升级链，个人主体 / 企业小程序 / 企业微信三种资质对比与分阶段路线。' },
     ],
   },
   {
