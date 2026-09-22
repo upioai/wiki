@@ -107,6 +107,16 @@
   <!-- ============ 一、首触链路 ============ -->
   <h2><span class="num">01</span>首触：靠什么触发，说什么话</h2>
   <p class="sub">首触 = 我方主动对一个刚加上的陌生人开口。比被动回复危险，所以判据更严。</p>
+  <div class="callout ok">
+    <b>本段写的是 09-21 当天的状态（P2 干跑，只识别不发送）。</b>后续已经变了：
+    <a href="https://github.com/Akke-AI/wecom-chat/pull/1505">#1505</a>（<code>1.20.0</code>，09-22 12:33）
+    把首触升成<b>真发</b>——认出来就问服务端要话术、就在眼前这个已打开的会话里发，走与召回同一条发送入口。
+    端上闸：开关 <code>AKKE_WEIXIN_FIRST_TOUCH_SEND</code>（默认开）、<code>dry_run</code>、
+    <b>每天最多 10 位</b>（<code>SEND_DAILY_CAP</code>，与「每天探测 40 位」是两回事：
+    探测预算管花多少钱去看，发送上限管主动对多少陌生人开口）。
+    幂等不靠端上记性，靠服务端 opener 落库（<code>W-10</code>）后自己回 <code>alreadyGreeted</code>。
+    <b>三台都还没装 1.20.0，所以真机上还没开始发。</b>
+  </div>
 
   <div class="flow">
     <span class="step">列表逐行点开<small>每 60s 一圈</small></span><span class="arrow">→</span>
@@ -227,17 +237,19 @@
     完整案例、修法、进度在 <a href="/akke/personal-wechat-pc-bugs">bug 合集页</a>，编号一一对应。</p>
 
   <div class="callout">
-    <b>09-22 12:30 复查（逐条查到最新包 1.19.4 的代码）</b>：13 条里 <b>11 条在最新包里确实已解决</b>（每条的证据在
-    <a href="/akke/personal-wechat-pc-bugs">bug 合集页</a>的「查证」一行，带文件:行）；<code>W-13</code> 未解决<b>且是刻意的</b>；
-    <code>W-12</code> 我<b>没验成</b>——代码上首触腿已经送统一哈希，但 09-21 现场的时间线对不上（详见合集页）。<br>
-    <b>但「代码解决了」不等于「真机上好了」</b>：服务端那批（<code>W-05</code>/<code>W-06</code>/<code>W-09</code>/<code>W-10</code>/<code>W-11</code>）
-    合了就全量生效；客户端那批要人去机器上点一次 <code>start.bat</code>——
-    <b>三台现在一台都没装 1.19.x</b>（小鱼 <code>1.18.5</code>、高一瑞 <code>1.18.4</code>、高鹏 <code>1.14.54</code>，最新包 <code>1.19.4</code>），
-    所以 <code>W-04</code> / <code>W-07</code> / <code>W-08</code> 的修复<b>在真机上一条都还没跑起来</b>。
+    <b>09-22 13:10 复查（逐条查到最后出的那个包 <code>1.20.0</code> 的代码）</b>：这 13 条里 <b>11 条确实已解决</b>
+    （证据在 <a href="/akke/personal-wechat-pc-bugs">bug 合集页</a>的「查证」一行，带文件:行）；
+    <code>W-12</code> 我<b>没验成</b>（代码上首触腿已送统一哈希，但 09-21 现场时间线对不上）；
+    <code>W-13</code> 仍未解决，<b>但已经有 PR</b> —— <a href="https://github.com/Akke-AI/wecom-chat/pull/1508">#1508</a>
+    加城市简称别名表，顺带查清了范围：近 30 天 883 条会话里这类备注<b>只有「杭」一个字、4 位客户</b>。<br>
+    <b>版本基准（三个数别混）</b>：最后出的包是 <code>1.20.0</code>；打包脚本里的 <code>VERSION</code> 已经是
+    <code>1.20.1</code> <b>但那个包还没出</b>；#1508 合并后会到 <code>1.20.2</code>。<br>
+    <b>真机上仍然一台都没装</b>（心跳现查 13:05：小鱼 <code>1.18.5</code>、高一瑞 <code>1.18.4</code>、高鹏 <code>1.14.54</code>），
+    所以 <code>W-04</code> / <code>W-07</code> / <code>W-08</code> 的修复<b>一条都还没跑起来</b>。
   </div>
 
   <table>
-    <tr><th>编号</th><th>现象</th><th>根因（大白话）</th><th>修了没</th><th>最新包 1.19.4 里</th><th>机器上生效了没（09-22 12:30）</th></tr>
+    <tr><th>编号</th><th>现象</th><th>根因（大白话）</th><th>修了没</th><th>最后出的包 1.20.0 里</th><th>机器上生效了没（09-22 13:10）</th></tr>
     <tr>
       <td><code>W-01</code></td>
       <td><b>升级装不上，只能重启</b></td>
@@ -284,7 +296,7 @@
       <td><code>W-08</code></td>
       <td><b>新好友一个都认不出</b></td>
       <td>判据要求"一条气泡都没有"，而加好友招呼语本身就是一条我方气泡</td>
-      <td><span class="tag ok">1.19.1</span><br><small style="color:var(--dim)">#1491 · 打进 1.19.3 包</small></td><td><span class="tag ok">✅ 已解决</span><br><small style="color:var(--dim)">customer_spoke / 侧别判定</small></td><td><span class="tag no">三台都未装</span></td>
+      <td><span class="tag ok">1.19.1</span><br><small style="color:var(--dim)">#1491 · 打进 1.19.3 包</small></td><td><span class="tag ok">✅ 已解决</span><br><small style="color:var(--dim)">customer_spoke / 侧别判定；1.20.0 起<b>首触真发</b></small></td><td><span class="tag no">三台都未装</span></td>
     </tr>
     <tr>
       <td><code>W-09</code></td>
@@ -314,7 +326,7 @@
       <td><code>W-13</code></td>
       <td><b>「杭A60288 小夏」服务端不认</b></td>
       <td>「杭」不是车牌省简称（浙江是「浙」），编号也只有 5 位</td>
-      <td><span class="tag no">仍未修</span><br><small style="color:var(--dim)">编号位数写错按 #1502 红线①<b>刻意继续拒</b></small></td><td><span class="tag no">❌ 未解决</span><br><small style="color:var(--dim)">PROVINCES 仍无「杭」·刻意</small></td><td>—</td>
+      <td><span class="tag no">仍未修</span><br><small style="color:var(--dim)">编号位数写错按 #1502 红线①<b>刻意继续拒</b></small></td><td><span class="tag no">❌ 未解决</span><br><small style="color:var(--dim)">PROVINCES 仍无「杭」·<a href="https://github.com/Akke-AI/wecom-chat/pull/1508">#1508</a> 已提待合并</small></td><td>—</td>
     </tr>
   </table>
 
