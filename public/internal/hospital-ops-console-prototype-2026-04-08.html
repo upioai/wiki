@@ -1,0 +1,1244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="upio:date" content="2026-04-08">
+<meta name="upio:source" content="downloads">
+<meta name="upio:category" content="internal">
+<meta name="robots" content="noindex,nofollow">
+<meta name="description" content="医院系统运营后台交互原型（内部，全虚构演示数据）。">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>医院智能回复系统 · 运营后台交互原型 v2.0</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --primary:#1B4F8A; --primary-d:#133A66; --primary-l:#2E6DA4;
+  --accent:#2E86C1; --accent-l:#AED6F1;
+  --success:#1A7A4A; --success-bg:#E8F5EE;
+  --warning:#D35400; --warning-bg:#FEF3E8;
+  --danger:#C0392B;  --danger-bg:#FDEDEC;
+  --neutral:#5D6D7E;
+  --bg:#EFF3F8; --surface:#fff;
+  --border:#D5E0EC; --border-l:#EEF2F7;
+  --text:#1C2B3A; --text-m:#7F8C9A;
+  --sidebar:220px; --topbar:56px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans SC',sans-serif;background:var(--bg);color:var(--text);font-size:13px;line-height:1.6}
+
+/* ── Login screen ── */
+#login-screen{
+  position:fixed;inset:0;background:linear-gradient(135deg,#0F2D52 0%,#1B4F8A 50%,#2471A3 100%);
+  display:flex;align-items:center;justify-content:center;z-index:9999;
+}
+.login-card{
+  background:#fff;border-radius:16px;padding:40px 44px;width:380px;
+  box-shadow:0 24px 64px rgba(0,0,0,.35);
+}
+.login-logo{text-align:center;margin-bottom:28px}
+.login-logo .icon{font-size:40px;margin-bottom:8px}
+.login-logo h2{font-size:17px;font-weight:700;color:var(--primary)}
+.login-logo p{font-size:11.5px;color:var(--text-m);margin-top:3px}
+.login-form .fl{margin-bottom:16px}
+.login-form label{display:block;font-size:12px;font-weight:600;margin-bottom:5px;color:var(--text)}
+.login-form input,.login-form select{
+  width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;
+  font-size:13px;font-family:inherit;outline:none;transition:border .15s;
+}
+.login-form input:focus,.login-form select:focus{border-color:var(--accent)}
+.login-btn{
+  width:100%;padding:11px;background:var(--primary);color:#fff;border:none;
+  border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-top:4px;
+  font-family:inherit;transition:background .15s;
+}
+.login-btn:hover{background:var(--primary-l)}
+.login-hint{font-size:11px;color:var(--text-m);text-align:center;margin-top:14px}
+.login-hint span{color:var(--accent);font-weight:600}
+
+/* ── App shell ── */
+#app{display:none;height:100vh;overflow:hidden;flex-direction:column}
+#app.show{display:flex}
+
+.topbar{
+  height:var(--topbar);background:var(--primary);
+  display:flex;align-items:center;padding:0 20px;gap:14px;flex-shrink:0;
+}
+.topbar-brand{color:#fff;font-size:14px;font-weight:700;white-space:nowrap}
+.topbar-sep{width:1px;height:22px;background:rgba(255,255,255,.2)}
+.topbar-title{color:rgba(255,255,255,.85);font-size:13px}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+.user-chip{
+  display:flex;align-items:center;gap:8px;
+  background:rgba(255,255,255,.12);border-radius:20px;padding:5px 12px;cursor:pointer;
+  transition:background .15s;
+}
+.user-chip:hover{background:rgba(255,255,255,.2)}
+.user-avatar{
+  width:26px;height:26px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0;
+}
+.user-chip-name{color:#fff;font-size:12px;font-weight:600}
+.user-chip-role{color:rgba(255,255,255,.6);font-size:10px}
+.notif-btn{
+  width:32px;height:32px;background:rgba(255,255,255,.12);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;
+  color:#fff;font-size:15px;transition:background .15s;
+}
+.notif-btn:hover{background:rgba(255,255,255,.2)}
+.notif-dot{
+  position:absolute;top:4px;right:4px;width:8px;height:8px;
+  background:#E74C3C;border-radius:50%;border:1.5px solid var(--primary);
+}
+.logout-btn{
+  color:rgba(255,255,255,.7);font-size:11.5px;cursor:pointer;padding:4px 8px;
+  border-radius:6px;transition:all .15s;
+}
+.logout-btn:hover{background:rgba(255,255,255,.1);color:#fff}
+.status-pill{
+  display:flex;align-items:center;gap:5px;font-size:11px;
+  color:rgba(255,255,255,.7);
+}
+.dot-green{width:7px;height:7px;border-radius:50%;background:#2ECC71;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 2px rgba(46,204,113,.25)}50%{box-shadow:0 0 0 5px rgba(46,204,113,.08)}}
+
+/* ── Body layout ── */
+.body-wrap{display:flex;flex:1;overflow:hidden}
+
+.sidebar{
+  width:var(--sidebar);background:#1C3A5E;
+  display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto;
+}
+.sidebar-section{padding:10px 0 4px}
+.sidebar-label{
+  padding:0 16px 5px;font-size:9px;font-weight:700;
+  letter-spacing:1.5px;color:rgba(255,255,255,.3);text-transform:uppercase;
+}
+.nav-item{
+  display:flex;align-items:center;gap:9px;padding:9px 16px;
+  color:rgba(255,255,255,.65);cursor:pointer;transition:all .15s;
+  border-left:3px solid transparent;font-size:12.5px;position:relative;
+}
+.nav-item:hover{background:rgba(255,255,255,.07);color:#fff}
+.nav-item.active{background:rgba(255,255,255,.11);color:#fff;border-left-color:#5DADE2}
+.nav-item .icon{font-size:14px;width:18px;text-align:center}
+.nav-item .badge{
+  margin-left:auto;background:#E74C3C;color:#fff;
+  border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700;
+}
+.nav-item.locked{opacity:.4;cursor:not-allowed}
+.nav-item.locked::after{
+  content:'🔒';font-size:10px;margin-left:auto;
+}
+
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.page-nav{
+  display:flex;gap:5px;padding:10px 20px;background:#fff;
+  border-bottom:1px solid var(--border);flex-wrap:wrap;flex-shrink:0;
+}
+.pnb{
+  padding:4px 12px;border-radius:16px;font-size:11.5px;font-weight:600;
+  cursor:pointer;border:1.5px solid var(--border);background:#fff;
+  color:var(--text-m);transition:all .15s;font-family:inherit;
+}
+.pnb:hover{border-color:var(--accent);color:var(--accent)}
+.pnb.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.pnb.locked{opacity:.4;cursor:not-allowed}
+
+.page{flex:1;overflow-y:auto;padding:18px 22px;display:none}
+.page.active{display:block}
+
+/* ── UI Components ── */
+.card{background:#fff;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:14px}
+.card-header{
+  padding:12px 16px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:10px;
+}
+.card-title{font-weight:700;font-size:13px;color:var(--primary)}
+.card-body{padding:14px 16px}
+
+.grid{display:grid;gap:14px}
+.g4{grid-template-columns:repeat(4,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g2{grid-template-columns:repeat(2,1fr)}
+
+.stat{
+  background:#fff;border:1px solid var(--border);border-radius:8px;
+  padding:14px 16px;display:flex;flex-direction:column;gap:5px;
+}
+.stat-label{font-size:11px;color:var(--text-m);font-weight:500}
+.stat-value{font-size:24px;font-weight:700;color:var(--primary);line-height:1}
+.stat-sub{font-size:10.5px;color:var(--success);font-weight:500}
+.stat-sub.w{color:var(--warning)}
+
+.tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:600;gap:3px}
+.t-xhs{background:#FFE0E6;color:#C0003C}
+.t-auto{background:var(--success-bg);color:var(--success)}
+.t-human{background:var(--warning-bg);color:var(--warning)}
+.t-comfort{background:#EEF2FF;color:#4338CA}
+.t-sensitive{background:var(--danger-bg);color:var(--danger)}
+.t-normal{background:#F0F4F8;color:var(--neutral)}
+.t-ok{background:var(--success-bg);color:var(--success)}
+.t-wrong{background:var(--danger-bg);color:var(--danger)}
+.t-super{background:#FEF9C3;color:#92400E}
+.t-admin{background:#EDE9FE;color:#5B21B6}
+.t-op{background:#DBEAFE;color:#1E40AF}
+.t-viewer{background:#F1F5F9;color:#475569}
+
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{
+  background:#F5F8FB;color:var(--text-m);font-size:10.5px;font-weight:700;
+  letter-spacing:.4px;padding:8px 12px;text-align:left;
+  border-bottom:1px solid var(--border);white-space:nowrap;
+}
+.tbl td{padding:10px 12px;border-bottom:1px solid var(--border-l);font-size:12px;vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:#FAFCFF}
+
+.btn{
+  display:inline-flex;align-items:center;gap:5px;padding:6px 14px;
+  border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;
+  border:none;transition:all .15s;font-family:inherit;
+}
+.btn-p{background:var(--primary);color:#fff}.btn-p:hover{background:var(--primary-l)}
+.btn-a{background:var(--accent);color:#fff}.btn-a:hover{background:#2171A0}
+.btn-o{background:transparent;border:1px solid var(--border);color:var(--text)}.btn-o:hover{border-color:var(--accent);color:var(--accent)}
+.btn-s{background:var(--success);color:#fff}
+.btn-d{background:var(--danger);color:#fff}
+.btn-sm{padding:4px 10px;font-size:11px}
+.btn-xs{padding:2px 8px;font-size:10.5px}
+
+.fc{margin-bottom:12px}
+.fl{display:block;font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px}
+.fl .req{color:var(--danger);margin-left:2px}
+.fh{font-size:10.5px;color:var(--text-m);margin-top:3px}
+.fh.w{color:var(--warning)}.fh.ok{color:var(--success)}
+.fi{
+  width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;
+  font-size:12.5px;font-family:inherit;color:var(--text);background:#fff;
+  transition:border-color .15s;outline:none;
+}
+.fi:focus{border-color:var(--accent)}
+.fi::placeholder{color:#B0BEC5}
+textarea.fi{resize:vertical;min-height:72px}
+select.fi{cursor:pointer}
+
+.eg{
+  background:#F8FAFC;border:1px dashed #B0C4D8;border-radius:5px;
+  padding:7px 10px;font-size:11px;color:var(--text-m);margin-top:4px;
+}
+.eg strong{color:var(--accent)}
+
+.notice{padding:9px 12px;border-radius:6px;font-size:11.5px;display:flex;gap:8px;margin-bottom:12px}
+.ni{background:#EBF5FB;border-left:3px solid var(--accent);color:#154360}
+.nw{background:var(--warning-bg);border-left:3px solid var(--warning);color:#784212}
+.nd{background:var(--danger-bg);border-left:3px solid var(--danger);color:#641E16}
+.ns{background:var(--success-bg);border-left:3px solid var(--success);color:#145A32}
+
+.ph{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px}
+.ph-name{font-size:17px;font-weight:700;color:var(--primary)}
+.ph-desc{font-size:11.5px;color:var(--text-m);margin-top:2px}
+.ph-badge{background:var(--primary);color:#fff;font-size:10px;font-weight:700;padding:3px 10px;border-radius:12px}
+
+.callout{
+  position:relative;border:1.5px dashed #F0B429;border-radius:7px;
+  padding:11px 13px;background:#FFFBEB;margin:8px 0;
+}
+.callout-lbl{
+  position:absolute;top:-9px;left:12px;background:#F0B429;color:#fff;
+  font-size:9.5px;font-weight:700;padding:1px 8px;border-radius:10px;
+}
+
+.score-bar{display:flex;align-items:center;gap:7px}
+.score-track{flex:1;height:5px;background:#E8EDF2;border-radius:3px;overflow:hidden}
+.score-fill{height:100%;border-radius:3px}
+.sf-h{background:var(--success)}.sf-m{background:var(--warning)}.sf-l{background:var(--danger)}
+
+.tabs{display:flex;border-bottom:2px solid var(--border);margin-bottom:16px}
+.tab{padding:8px 16px;font-size:12.5px;font-weight:600;color:var(--text-m);
+  cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s}
+.tab:hover{color:var(--accent)}
+.tab.active{color:var(--primary);border-bottom-color:var(--primary)}
+
+.divider{height:1px;background:var(--border);margin:14px 0}
+
+/* Avatar colors */
+.av-0{background:#E74C3C}.av-1{background:#2E86C1}.av-2{background:#1A7A4A}
+.av-3{background:#8E44AD}.av-4{background:#D35400}
+
+/* Permission toggle */
+.perm-row{display:flex;align-items:center;padding:9px 0;border-bottom:1px solid var(--border-l)}
+.perm-row:last-child{border-bottom:none}
+.perm-name{flex:1;font-size:12.5px}
+.perm-desc{font-size:10.5px;color:var(--text-m);margin-top:1px}
+.toggle{
+  width:36px;height:20px;border-radius:10px;position:relative;cursor:pointer;
+  transition:background .2s;flex-shrink:0;
+}
+.toggle.on{background:var(--success)}
+.toggle.off{background:#CBD5E1}
+.toggle::after{
+  content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;
+  background:#fff;border-radius:50%;transition:left .2s;
+}
+.toggle.on::after{left:18px}
+
+/* Workload bar */
+.wl-bar{height:10px;border-radius:5px;background:var(--accent);transition:width .5s}
+.wl-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.wl-name{width:80px;font-size:12px;font-weight:600;flex-shrink:0}
+.wl-track{flex:1;height:10px;background:#E8EDF2;border-radius:5px;overflow:hidden}
+.wl-fill{height:100%;border-radius:5px}
+.wl-val{width:36px;text-align:right;font-size:11px;font-weight:700;color:var(--primary);flex-shrink:0}
+
+/* Access denied overlay */
+.denied{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  height:100%;gap:10px;color:var(--text-m);
+}
+.denied .icon{font-size:48px}
+.denied h3{font-size:16px;font-weight:700;color:var(--danger)}
+.denied p{font-size:12px;text-align:center;max-width:260px}
+</style>
+</head>
+<body>
+
+<!-- ══ LOGIN SCREEN ══════════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="icon">🏥</div>
+      <h2>智能回复系统</h2>
+      <p>运营管理后台 v2.0</p>
+    </div>
+    <div class="login-form">
+      <div class="fl">
+        <label>选择账号</label>
+        <select class="fi" id="login-user">
+          <option value="">— 请选择登录账号 —</option>
+          <option value="super">王院长助理（超级管理员）</option>
+          <option value="admin">李运营主管（管理员）</option>
+          <option value="op1">张小美（运营专员）</option>
+          <option value="op2">陈大明（运营专员）</option>
+        </select>
+      </div>
+      <button class="login-btn" onclick="doLogin()">登 录</button>
+      <div class="login-hint">
+        交互原型 · 全部为虚构演示数据 · 演示账号无需密码，选择账号即可进入，不同账号权限不同
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ APP SHELL ══════════════════════════════════════════════════ -->
+<div id="app">
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="topbar-brand">🏥 医院智能回复系统</div>
+    <div class="topbar-sep"></div>
+    <div class="topbar-title" id="tb-title">数据看板</div>
+    <div class="topbar-right">
+      <div class="status-pill"><div class="dot-green"></div>系统运行中</div>
+      <div class="notif-btn">🔔<div class="notif-dot"></div></div>
+      <div class="user-chip" id="user-chip">
+        <div class="user-avatar av-1" id="user-avatar">李</div>
+        <div>
+          <div class="user-chip-name" id="user-name">李运营主管</div>
+          <div class="user-chip-role" id="user-role">管理员</div>
+        </div>
+      </div>
+      <div class="logout-btn" onclick="doLogout()">退出 →</div>
+    </div>
+  </div>
+
+  <div class="body-wrap">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-label">概览</div>
+        <div class="nav-item active" onclick="showPage('dashboard')">
+          <span class="icon">📊</span>数据看板
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-label">消息处理</div>
+        <div class="nav-item" id="nav-queue" onclick="showPage('queue')">
+          <span class="icon">📋</span>人工处理队列<span class="badge">7</span>
+        </div>
+        <div class="nav-item" id="nav-history" onclick="showPage('history')">
+          <span class="icon">🕐</span>自动回复记录
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-label">知识库</div>
+        <div class="nav-item" id="nav-faq" onclick="showPage('faq')">
+          <span class="icon">📚</span>FAQ 管理
+        </div>
+        <div class="nav-item" id="nav-import" onclick="showPage('import')">
+          <span class="icon">📥</span>批量导入
+        </div>
+        <div class="nav-item" id="nav-keywords" onclick="showPage('keywords')">
+          <span class="icon">🚫</span>敏感词管理
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-label">团队管理</div>
+        <div class="nav-item" id="nav-workload" onclick="showPage('workload')">
+          <span class="icon">📈</span>工作量统计
+        </div>
+        <div class="nav-item" id="nav-users" onclick="showPage('users')">
+          <span class="icon">👥</span>人员与权限
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-label">系统</div>
+        <div class="nav-item" id="nav-settings" onclick="showPage('settings')">
+          <span class="icon">⚙️</span>系统设置
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main">
+      <div class="page-nav" id="page-nav"></div>
+
+      <!-- ── PAGE: dashboard ───────────────────────────── -->
+      <div class="page active" id="page-dashboard">
+        <div class="ph">
+          <div><div class="ph-name">数据看板</div><div class="ph-desc">运营数据总览，每5分钟刷新。展示当前登录用户可见范围内的数据。</div></div>
+          <span class="ph-badge">PAGE 1</span>
+        </div>
+
+        <div class="grid g4" style="margin-bottom:14px">
+          <div class="stat"><div class="stat-label">今日消息总量</div><div class="stat-value">312</div><div class="stat-sub">↑ 较昨日 +18%</div></div>
+          <div class="stat"><div class="stat-label">自动回复率</div><div class="stat-value" style="color:var(--success)">68%</div><div class="stat-sub">目标 ≥60% ✓</div></div>
+          <div class="stat"><div class="stat-label">平均响应时长</div><div class="stat-value" style="font-size:20px">2.3 <span style="font-size:12px;font-weight:400">分钟</span></div><div class="stat-sub">目标 &lt;5分钟 ✓</div></div>
+          <div class="stat"><div class="stat-label">待人工处理</div><div class="stat-value" style="color:var(--warning)">7</div><div class="stat-sub w">最长等待 43分钟</div></div>
+        </div>
+
+        <!-- Today workload mini -->
+        <div class="card">
+          <div class="card-header"><div class="card-title">👥 今日团队处理量概览</div><span style="margin-left:auto;font-size:11px;color:var(--text-m)">点击「工作量统计」查看完整报表</span></div>
+          <div class="card-body">
+            <div style="display:flex;gap:24px">
+              <div style="flex:1">
+                <div class="wl-row"><div class="wl-name">张小美</div><div class="wl-track"><div class="wl-fill" style="width:72%;background:#2E86C1"></div></div><div class="wl-val">36条</div></div>
+                <div class="wl-row"><div class="wl-name">陈大明</div><div class="wl-track"><div class="wl-fill" style="width:52%;background:#1A7A4A"></div></div><div class="wl-val">26条</div></div>
+                <div class="wl-row"><div class="wl-name">李运营</div><div class="wl-track"><div class="wl-fill" style="width:30%;background:#8E44AD"></div></div><div class="wl-val">15条</div></div>
+              </div>
+              <div style="flex:1;border-left:1px solid var(--border);padding-left:24px">
+                <div style="font-size:11.5px;color:var(--text-m);margin-bottom:8px">今日各类处理方式</div>
+                <div style="display:flex;flex-direction:column;gap:6px;font-size:12px">
+                  <div style="display:flex;justify-content:space-between"><span>人工回复（团队合计）</span><strong>77 条</strong></div>
+                  <div style="display:flex;justify-content:space-between"><span>自动回复</span><strong style="color:var(--success)">212 条</strong></div>
+                  <div style="display:flex;justify-content:space-between"><span>安抚模板</span><strong style="color:#4338CA">63 条</strong></div>
+                  <div style="display:flex;justify-content:space-between"><span>转上级处理</span><strong style="color:var(--danger)">3 条</strong></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid g2">
+          <div class="card">
+            <div class="card-header"><div class="card-title">🔥 高频命中 FAQ TOP5（本周）</div></div>
+            <div style="overflow-x:auto">
+              <table class="tbl">
+                <thead><tr><th>#</th><th>问题</th><th>命中</th><th>自动率</th></tr></thead>
+                <tbody>
+                  <tr><td><strong>1</strong></td><td>如何预约挂号？</td><td>89</td><td><span style="color:var(--success);font-weight:600">100%</span></td></tr>
+                  <tr><td><strong>2</strong></td><td>停车场在哪里？</td><td>54</td><td><span style="color:var(--success);font-weight:600">100%</span></td></tr>
+                  <tr><td><strong>3</strong></td><td>体检需要空腹吗？</td><td>41</td><td><span style="color:var(--success);font-weight:600">98%</span></td></tr>
+                  <tr><td><strong>4</strong></td><td>住院需要带什么？</td><td>33</td><td><span style="color:var(--success);font-weight:600">100%</span></td></tr>
+                  <tr><td><strong>5</strong></td><td>儿科门诊在几楼？</td><td>28</td><td><span style="color:var(--success);font-weight:600">100%</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">⚠️ 待关注事项</div></div>
+            <div class="card-body" style="display:flex;flex-direction:column;gap:8px">
+              <div class="notice nd">🔴 2条急症/投诉消息待处理，最长等待43分钟</div>
+              <div class="notice nw">🟡 本周标注「错误」回复累计12条，超过阈值，建议复盘FAQ</div>
+              <div class="notice ni">💡 系统检测到3个高频未匹配问题，建议新增FAQ</div>
+              <div class="notice ns">✅ 小红书API连接正常，最后同步：2分钟前</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── PAGE: queue ────────────────────────────────── -->
+      <div class="page" id="page-queue">
+        <div class="ph">
+          <div><div class="ph-name">人工处理队列</div><div class="ph-desc">按优先级排序的待处理消息。每条回复发布后自动记入当前登录人的工作量。</div></div>
+          <span class="ph-badge">PAGE 2</span>
+        </div>
+        <div id="queue-own-notice" class="notice ni">👤 当前以 <strong id="queue-user-label">张小美</strong> 身份处理，回复记录将计入您的工作量统计。</div>
+
+        <!-- Q1 urgent -->
+        <div class="card" style="border-left:4px solid var(--danger)">
+          <div class="card-header" style="background:#FEF9F9">
+            <span style="font-size:12px;font-weight:700;color:var(--danger)">🔴 高优先级</span>
+            <span class="tag t-sensitive">急症求助</span><span class="tag t-xhs">小红书评论</span>
+            <span style="margin-left:auto;font-size:11px;color:var(--text-m)">14:23 · 等待43分钟</span>
+            <span id="q1-assign" style="font-size:11px;color:var(--text-m);margin-left:8px">负责人：张小美</span>
+          </div>
+          <div class="card-body">
+            <div style="background:#EBF5FB;border:1px solid var(--accent-l);border-radius:7px;padding:9px 12px;font-size:12.5px;margin-bottom:10px">
+              <div style="font-size:10px;font-weight:700;color:var(--text-m);margin-bottom:3px">👤 用户 xhs_u8823**</div>
+              我妈妈突然晕倒了，现在在你们医院门口，怎么办？？急急急
+            </div>
+            <div class="callout"><div class="callout-lbl">⚠️ 注意事项</div>
+              <div style="font-size:11.5px;color:#7D6608;line-height:1.7">已触发<strong>急症关键词</strong>，系统已自动发送安抚模板B（含急诊电话）。请人工立即跟进：引导就诊，勿在公开评论中出现可能引发恐慌的内容。<br>本条处理完成后将计入您今日工作量。</div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <div style="flex:1">
+                <label class="fl">回复内容 <span class="req">*</span></label>
+                <textarea class="fi" style="min-height:64px">您好，我们非常担心！请立即前往急诊大厅入口，告知工作人员需要急救，急诊电话：XXXX-XXXXXXX</textarea>
+                <div class="fh w">⚠ 急症消息：直接引导就诊，禁止追问病情。</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px;padding-top:18px">
+                <button class="btn btn-d btn-sm">📤 发布并记录</button>
+                <button class="btn btn-o btn-sm" id="reassign-btn" onclick="showReassign()">↗ 转交他人</button>
+                <button class="btn btn-o btn-sm">✅ 标记已处理</button>
+              </div>
+            </div>
+            <!-- Reassign panel -->
+            <div id="reassign-panel" style="display:none;margin-top:10px;background:#F8FAFC;border:1px solid var(--border);border-radius:7px;padding:12px">
+              <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--primary)">转交处理</div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <select class="fi" style="flex:1"><option>张小美（运营专员）</option><option>陈大明（运营专员）</option><option>李运营主管（管理员）</option></select>
+                <input class="fi" placeholder="转交备注（可选）" style="flex:2">
+                <button class="btn btn-a btn-sm">确认转交</button>
+              </div>
+              <div class="fh">转交后此消息将从您的队列移除，计入对方工作量。</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Q2 complaint -->
+        <div class="card" style="border-left:4px solid var(--warning);margin-top:12px">
+          <div class="card-header" style="background:#FFFBF5">
+            <span style="font-size:12px;font-weight:700;color:var(--warning)">🟡 中优先级</span>
+            <span class="tag t-sensitive">投诉纠纷</span><span class="tag t-xhs">小红书评论</span>
+            <span style="margin-left:auto;font-size:11px;color:var(--text-m)">14:38 · 等待28分钟</span>
+            <span style="font-size:11px;color:var(--text-m);margin-left:8px">负责人：陈大明</span>
+          </div>
+          <div class="card-body">
+            <div style="background:#FFF8F0;border:1px solid #F5CBA7;border-radius:7px;padding:9px 12px;font-size:12.5px;margin-bottom:10px">
+              <div style="font-size:10px;font-weight:700;color:var(--text-m);margin-bottom:3px">👤 用户 xhs_u3310**</div>
+              挂了一上午的号结果说医生临时有事，让我等下午！专门请假来的，太让人失望了！
+            </div>
+            <div class="callout"><div class="callout-lbl">⚠️ 注意事项</div>
+              <div style="font-size:11.5px;color:#7D6608;line-height:1.7">投诉消息。公开回复：<strong>仅道歉+引导私信</strong>，禁止承诺赔偿、解释内部原因、提具体时间节点。</div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <div style="flex:1">
+                <label class="fl">回复内容 <span class="req">*</span></label>
+                <textarea class="fi" style="min-height:64px">非常抱歉给您带来不便和困扰！请您私信我们，留下联系方式，我们的患者服务部门会尽快与您取得联系。</textarea>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px;padding-top:18px">
+                <button class="btn btn-a btn-sm">📤 发布并记录</button>
+                <button class="btn btn-o btn-sm">↗ 转交他人</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── PAGE: history ──────────────────────────────── -->
+      <div class="page" id="page-history">
+        <div class="ph">
+          <div><div class="ph-name">自动回复记录</div><div class="ph-desc">查询所有已自动发出的回复，可按处理人筛选，标注结果用于FAQ优化。</div></div>
+          <span class="ph-badge">PAGE 3</span>
+        </div>
+        <div class="card" style="margin-bottom:14px">
+          <div class="card-body" style="padding:10px 14px">
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+              <div style="flex:1;min-width:120px"><label class="fl">时间范围</label><select class="fi"><option>今天</option><option>最近7天</option><option>最近30天</option></select></div>
+              <div style="flex:1;min-width:100px"><label class="fl">处理方式</label><select class="fi"><option>全部</option><option>自动回复</option><option>人工回复</option><option>安抚模板</option></select></div>
+              <div style="flex:1;min-width:100px" id="filter-operator-wrap"><label class="fl">处理人</label><select class="fi" id="filter-operator"><option>全部</option><option>张小美</option><option>陈大明</option><option>李运营主管</option></select></div>
+              <div style="flex:1;min-width:100px"><label class="fl">标注状态</label><select class="fi"><option>全部</option><option>未标注</option><option>正确</option><option>错误</option></select></div>
+              <button class="btn btn-p">🔍 查询</button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">回复记录列表</div><span style="margin-left:auto;font-size:11px;color:var(--text-m)">共 289 条 · 今日</span><button class="btn btn-o btn-sm">📥 导出</button></div>
+          <div style="overflow-x:auto">
+            <table class="tbl">
+              <thead><tr><th>时间</th><th>用户消息</th><th>处理方式</th><th>处理人</th><th>置信度</th><th>回复摘要</th><th>标注</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td style="white-space:nowrap;font-size:11px;color:var(--text-m)">15:32</td>
+                  <td style="max-width:160px;font-size:11.5px">如何在网上预约挂号？</td>
+                  <td><span class="tag t-auto">自动回复</span></td>
+                  <td><div style="display:flex;align-items:center;gap:5px"><div class="user-avatar av-1" style="width:20px;height:20px;font-size:10px">张</div><span style="font-size:11.5px">张小美</span></div></td>
+                  <td><span style="color:var(--success);font-weight:700">0.94</span></td>
+                  <td style="font-size:11.5px;max-width:180px">姐妹好～可以通过官方微信小程序预约...</td>
+                  <td><span class="tag t-ok">✓ 正确</span></td>
+                  <td><button class="btn btn-o btn-xs">详情</button></td>
+                </tr>
+                <tr>
+                  <td style="white-space:nowrap;font-size:11px;color:var(--text-m)">15:10</td>
+                  <td style="max-width:160px;font-size:11.5px">医保卡可以直接用吗</td>
+                  <td><span class="tag t-auto">自动回复</span></td>
+                  <td><div style="display:flex;align-items:center;gap:5px"><div class="user-avatar av-2" style="width:20px;height:20px;font-size:10px">陈</div><span style="font-size:11.5px">陈大明</span></div></td>
+                  <td><span style="color:var(--success);font-weight:700">0.88</span></td>
+                  <td style="font-size:11.5px;max-width:180px">支持城镇职工医保和居民医保...</td>
+                  <td><span class="tag t-wrong">✗ 错误</span></td>
+                  <td><div style="display:flex;gap:3px"><button class="btn btn-o btn-xs">详情</button><button class="btn btn-o btn-xs">修正</button></div></td>
+                </tr>
+                <tr>
+                  <td style="white-space:nowrap;font-size:11px;color:var(--text-m)">14:55</td>
+                  <td style="max-width:160px;font-size:11.5px">做肠镜痛不痛啊</td>
+                  <td><span class="tag t-human">人工回复</span></td>
+                  <td><div style="display:flex;align-items:center;gap:5px"><div class="user-avatar av-1" style="width:20px;height:20px;font-size:10px">张</div><span style="font-size:11.5px">张小美</span></div></td>
+                  <td><span style="color:var(--text-m)">—</span></td>
+                  <td style="font-size:11.5px;max-width:180px">我院提供无痛肠镜，全程麻醉...</td>
+                  <td><div style="display:flex;gap:3px"><button class="btn btn-s btn-xs">✓</button><button class="btn btn-d btn-xs">✗</button></div></td>
+                  <td><button class="btn btn-o btn-xs">详情</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── PAGE: faq ──────────────────────────────────── -->
+      <div class="page" id="page-faq">
+        <div class="ph">
+          <div><div class="ph-name">FAQ 知识库管理</div><div class="ph-desc">管理员及以上可新增/编辑/停用FAQ，运营专员仅可查看。</div></div>
+          <span class="ph-badge">PAGE 4</span>
+        </div>
+        <div id="faq-readonly-notice" class="notice ni" style="display:none">👁 您的权限为只读，如需修改请联系管理员。</div>
+        <div style="display:flex;gap:10px;margin-bottom:12px;align-items:flex-end">
+          <div style="flex:2"><input class="fi" placeholder="🔍 搜索关键词..."></div>
+          <select class="fi" style="flex:1"><option>全部分类</option><option>挂号就诊</option><option>科室信息</option><option>住院须知</option><option>检查准备</option></select>
+          <select class="fi" style="flex:1"><option>全部敏感等级</option><option>0·安全</option><option>1·需审核</option><option>2·转人工</option></select>
+          <button class="btn btn-p" id="faq-add-btn">＋ 新增 FAQ</button>
+        </div>
+        <div class="card">
+          <table class="tbl">
+            <thead><tr><th>ID</th><th>标准问题</th><th>分类</th><th>敏感</th><th>状态</th><th>本周命中</th><th>最后修改人</th><th>操作</th></tr></thead>
+            <tbody>
+              <tr>
+                <td style="font-family:monospace;font-size:11px;color:var(--text-m)">FAQ_001</td>
+                <td><div style="font-size:12.5px">如何预约挂号？</div><div style="font-size:10.5px;color:var(--text-m)">同义：怎么挂号；网上挂号</div></td>
+                <td><span class="tag t-normal">挂号就诊</span></td>
+                <td><span class="tag t-auto">0·安全</span></td>
+                <td><span style="color:var(--success);font-weight:600;font-size:11.5px">● 启用</span></td>
+                <td><strong>89</strong></td>
+                <td><div style="display:flex;align-items:center;gap:5px"><div class="user-avatar av-1" style="width:18px;height:18px;font-size:9px">李</div><span style="font-size:11px">李运营</span></div></td>
+                <td><div style="display:flex;gap:4px"><button class="btn btn-o btn-xs" id="faq-edit-btn">编辑</button><button class="btn btn-o btn-xs" id="faq-disable-btn">停用</button></div></td>
+              </tr>
+              <tr>
+                <td style="font-family:monospace;font-size:11px;color:var(--text-m)">FAQ_002</td>
+                <td><div style="font-size:12.5px">医院停车场在哪里？</div><div style="font-size:10.5px;color:var(--text-m)">同义：怎么停车；停车收费</div></td>
+                <td><span class="tag t-normal">就诊须知</span></td>
+                <td><span class="tag t-auto">0·安全</span></td>
+                <td><span style="color:var(--success);font-weight:600;font-size:11.5px">● 启用</span></td>
+                <td><strong>54</strong></td>
+                <td><div style="display:flex;align-items:center;gap:5px"><div class="user-avatar av-2" style="width:18px;height:18px;font-size:9px">张</div><span style="font-size:11px">张小美</span></div></td>
+                <td><div style="display:flex;gap:4px"><button class="btn btn-o btn-xs" id="faq-edit-btn2">编辑</button><button class="btn btn-o btn-xs">停用</button></div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Edit form (inline) -->
+        <div id="faq-edit-form" style="display:none">
+          <div class="divider"></div>
+          <div style="font-size:14px;font-weight:700;color:var(--primary);margin-bottom:12px">编辑 FAQ · FAQ_001</div>
+          <div class="grid g2" style="gap:16px">
+            <div>
+              <div class="fc"><label class="fl">标准问题 <span class="req">*</span></label><input class="fi" value="如何预约挂号？"><div class="fh">简洁明确，≤30字，用于向量化。</div></div>
+              <div class="fc"><label class="fl">同义变体 <span class="req">*</span></label><textarea class="fi" style="min-height:70px">怎么挂号&#10;网上挂号&#10;手机预约&#10;微信挂号</textarea><div class="fh">每行一条，越多召回率越高。</div></div>
+              <div class="fc"><label class="fl">分类 <span class="req">*</span></label><select class="fi"><option selected>挂号就诊</option><option>科室信息</option><option>住院须知</option></select></div>
+              <div class="fc"><label class="fl">敏感等级 <span class="req">*</span></label><select class="fi"><option selected>0·安全（可自动回复）</option><option>1·需审核</option><option>2·强制转人工</option></select></div>
+            </div>
+            <div>
+              <div class="fc"><label class="fl">标准回复 <span class="req">*</span></label><textarea class="fi" style="min-height:100px">可通过以下方式预约：&#10;1. 官方微信小程序「XX医院」&#10;2. 医院官网&#10;3. 门诊电话 XXXX-XXXXXXX</textarea><div class="fh w">⚠ 不得含诊断、疗效承诺、价格数字。</div></div>
+              <div class="fc"><label class="fl">小红书定制回复（选填）</label><textarea class="fi" style="min-height:80px" placeholder="不填则用标准回复+通用语气模板...">姐妹好～预约挂号超方便！微信搜「XX医院」小程序直接约 🏥</textarea></div>
+              <div class="notice ns">✅ 合规预检通过，未检测到违规词汇</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+            <button class="btn btn-o" onclick="document.getElementById('faq-edit-form').style.display='none'">取消</button>
+            <button class="btn btn-p">✅ 保存并触发向量化</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── PAGE: import ──────────────────────────────── -->
+      <div class="page" id="page-import">
+        <div class="ph">
+          <div><div class="ph-name">FAQ 批量导入</div><div class="ph-desc">上传标准格式Excel，仅超级管理员和管理员可操作。</div></div>
+          <span class="ph-badge">PAGE 5</span>
+        </div>
+        <div id="import-denied" class="denied" style="display:none">
+          <div class="icon">🔒</div><h3>权限不足</h3><p>批量导入功能仅管理员及以上角色可操作，请联系上级。</p>
+        </div>
+        <div id="import-content">
+          <div class="notice nw">⚠️ 批量导入会覆盖同ID的FAQ，操作前请确认Excel内容无误，并已完成合规自检。</div>
+          <div class="grid g2" style="gap:16px">
+            <div class="card">
+              <div class="card-header"><div class="card-title">📋 Excel列格式规范</div></div>
+              <div class="card-body">
+                <table class="tbl" style="font-size:11.5px">
+                  <thead><tr><th>列名</th><th>必填</th><th>示例</th></tr></thead>
+                  <tbody>
+                    <tr><td><code>标准问题</code></td><td><span style="color:var(--danger)">必填</span></td><td>如何预约挂号？</td></tr>
+                    <tr><td><code>同义变体</code></td><td>建议</td><td>怎么挂号；网上挂号</td></tr>
+                    <tr><td><code>标准回复</code></td><td><span style="color:var(--danger)">必填</span></td><td>可通过官方小程序...</td></tr>
+                    <tr><td><code>分类</code></td><td><span style="color:var(--danger)">必填</span></td><td>挂号就诊</td></tr>
+                    <tr><td><code>敏感等级</code></td><td><span style="color:var(--danger)">必填</span></td><td>0 / 1 / 2</td></tr>
+                  </tbody>
+                </table>
+                <button class="btn btn-o" style="margin-top:10px;width:100%">📥 下载标准模板.xlsx</button>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-header"><div class="card-title">📤 上传文件</div></div>
+              <div class="card-body">
+                <div style="border:2px dashed #B0C4D8;border-radius:8px;padding:28px;text-align:center;background:#F8FAFC;margin-bottom:12px">
+                  <div style="font-size:26px;margin-bottom:6px">📄</div>
+                  <div style="font-size:13px;font-weight:600;color:var(--primary);margin-bottom:3px">点击或拖拽文件至此</div>
+                  <div style="font-size:11px;color:var(--text-m)">支持 .xlsx / .xls，≤10MB</div>
+                  <button class="btn btn-a" style="margin-top:10px">选择文件</button>
+                </div>
+                <div class="fc"><label class="fl">导入模式</label><select class="fi"><option>新增模式（ID重复则跳过）</option><option>覆盖模式（ID重复则更新）</option><option>全量替换（⚠ 危险）</option></select></div>
+                <button class="btn btn-p" style="width:100%">🚀 开始导入</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── PAGE: keywords ────────────────────────────── -->
+      <div class="page" id="page-keywords">
+        <div class="ph">
+          <div><div class="ph-name">敏感词管理</div><div class="ph-desc">维护敏感词库与白名单。管理员及以上可编辑，专员只读。</div></div>
+          <span class="ph-badge">PAGE 6</span>
+        </div>
+        <div class="notice nd">🛡️ 敏感词库是合规最后防线，修改前请与法务确认。</div>
+        <div class="grid g2" style="gap:16px">
+          <div class="card">
+            <div class="card-header"><div class="card-title">🚫 敏感词库</div><span style="margin-left:auto;font-size:11px;color:var(--text-m)">156个词</span><button class="btn btn-o btn-sm" id="kw-add-btn">＋ 添加</button></div>
+            <div class="card-body">
+              <div class="tabs" style="margin-bottom:10px"><div class="tab active" style="font-size:11px;padding:5px 10px">诊断类</div><div class="tab" style="font-size:11px;padding:5px 10px">疗效承诺</div><div class="tab" style="font-size:11px;padding:5px 10px">急症类</div><div class="tab" style="font-size:11px;padding:5px 10px">投诉类</div></div>
+              <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px">
+                <span style="background:var(--danger-bg);color:var(--danger);padding:2px 9px;border-radius:20px;font-size:11.5px;font-weight:600">确诊 ×</span>
+                <span style="background:var(--danger-bg);color:var(--danger);padding:2px 9px;border-radius:20px;font-size:11.5px;font-weight:600">患有 ×</span>
+                <span style="background:var(--danger-bg);color:var(--danger);padding:2px 9px;border-radius:20px;font-size:11.5px;font-weight:600">是什么病 ×</span>
+                <span style="background:var(--danger-bg);color:var(--danger);padding:2px 9px;border-radius:20px;font-size:11.5px;font-weight:600">诊断 ×</span>
+              </div>
+              <div id="kw-add-form" style="display:none;display:flex;gap:8px">
+                <input class="fi" placeholder="输入新敏感词...">
+                <select class="fi" style="width:110px"><option>诊断类</option><option>疗效承诺</option><option>急症类</option><option>投诉类</option></select>
+                <button class="btn btn-d btn-sm">添加</button>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">✅ 白名单</div><span style="margin-left:auto;font-size:11px;color:var(--text-m)">12个词</span></div>
+            <div class="card-body">
+              <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px">
+                <span style="background:var(--success-bg);color:var(--success);padding:2px 9px;border-radius:20px;font-size:11.5px;font-weight:600">无痛 ×</span>
+                <span style="background:var(--success-bg);color:var(--success);padding:2px 9px;border-radius:20px;font-size:11.5px;font-weight:600">健康检查 ×</span>
+                <span style="background:var(--success-bg);color:var(--success);padding:2px 9px;border-radius:20px;font-size:11.5px;font-weight:600">体检 ×</span>
+              </div>
+              <div class="fh">白名单优先级高于敏感词，豁免检测。谨慎添加。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── PAGE: workload ─────────────────────────────── -->
+      <div class="page" id="page-workload">
+        <div class="ph">
+          <div><div class="ph-name">工作量统计</div><div class="ph-desc">统计每位运营人员的处理量、回复质量、响应效率。管理员可看全员，专员只看自己。</div></div>
+          <span class="ph-badge">PAGE 7</span>
+        </div>
+
+        <!-- Filter -->
+        <div class="card" style="margin-bottom:14px">
+          <div class="card-body" style="padding:10px 14px">
+            <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+              <div style="flex:1;min-width:100px"><label class="fl">时间范围</label><select class="fi"><option>今天</option><option selected>本周</option><option>本月</option><option>自定义</option></select></div>
+              <div style="flex:1;min-width:100px" id="wl-member-wrap"><label class="fl">成员筛选</label><select class="fi" id="wl-member"><option>全部成员</option><option>张小美</option><option>陈大明</option><option>李运营主管</option></select></div>
+              <div style="flex:1;min-width:100px"><label class="fl">处理类型</label><select class="fi"><option>全部</option><option>人工回复</option><option>转交处理</option></select></div>
+              <button class="btn btn-p">🔍 查询</button>
+              <button class="btn btn-o">📥 导出报表</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Summary cards -->
+        <div class="grid g3" style="margin-bottom:14px" id="wl-summary">
+          <div class="card" style="border-top:3px solid #2E86C1">
+            <div class="card-body">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+                <div class="user-avatar av-1" style="width:36px;height:36px;font-size:16px">张</div>
+                <div><div style="font-weight:700;font-size:13px">张小美</div><span class="tag t-op">运营专员</span></div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:7px;font-size:12px">
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--text-m)">本周处理总量</span><strong>183 条</strong></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--text-m)">人工回复</span><strong>156 条</strong></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--text-m)">转交他人</span><strong>8 条</strong></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--text-m)">回复标注正确率</span><strong style="color:var(--success)">94.2%</strong></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--text-m)">平均响应时长</span><strong>3.2分钟</strong></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--text-m)">高优先级处理</span><strong>12 条</strong></div>
+              </div>
+              <button class="btn btn-o btn-sm" style="width:100%;margin-top:10px">查看明细 →</button>
+            </div>
+          </div>
+          <div class="card" style="border-top:3px solid #1A7A4A">
+            <div class="card-body">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+                <div class="user-avatar av-2" style="width:36px;height:36px;font-size:16px">陈</div>
+                <div><div style="font-weight:700;font-size:13px">陈大明</div><span class="tag t-op">运营专员</span></div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:7px;font-size:12px">
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--text-m)">本周处理总量</span><strong>142 条</strong></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--text-m)">人工回复</span><strong>128 条</strong></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--text-m)">转交他人</span><strong>3 条</strong></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--text-m)">回复标注正确率</span><strong style="color:var(--success)">91.8%</strong></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--text-m)">平均响应时长</span><strong>4.1分钟</strong></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--text-m)">高优先级处理</span><strong>7 条</strong></div>
+              </div>
+              <button class="btn btn-o btn-sm" style="width:100%;margin-top:10px">查看明细 →</button>
+            </div>
+          </div>
+          <div class="card" style="border-top:3px solid #8E44AD">
+            <div class="card-body">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+                <div class="user-avatar av-3" style="width:36px;height:36px;font-size:16px">李</div>
+                <div><div style="font-weight:700;font-size:13px">李运营主管</div><span class="tag t-admin">管理员</span></div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:7px;font-size:12px">
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--text-m)">本周处理总量</span><strong>68 条</strong></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--text-m)">人工回复</span><strong>52 条</strong></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--text-m)">转交他人</span><strong>1 条</strong></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--text-m)">回复标注正确率</span><strong style="color:var(--success)">96.2%</strong></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--text-m)">平均响应时长</span><strong>2.8分钟</strong></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--text-m)">高优先级处理</span><strong>15 条</strong></div>
+              </div>
+              <button class="btn btn-o btn-sm" style="width:100%;margin-top:10px">查看明细 →</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Detail table -->
+        <div class="card">
+          <div class="card-header"><div class="card-title">📅 本周每日处理量明细</div></div>
+          <div style="overflow-x:auto">
+            <table class="tbl">
+              <thead><tr><th>日期</th><th>张小美</th><th>陈大明</th><th>李运营主管</th><th>团队合计</th><th>自动回复</th><th>总消息量</th></tr></thead>
+              <tbody>
+                <tr><td>周一（3/31）</td><td>38</td><td>29</td><td>14</td><td><strong>81</strong></td><td style="color:var(--success)">198</td><td>279</td></tr>
+                <tr><td>周二（4/1）</td><td>41</td><td>33</td><td>12</td><td><strong>86</strong></td><td style="color:var(--success)">215</td><td>301</td></tr>
+                <tr><td>周三（4/2）</td><td>29</td><td>25</td><td>18</td><td><strong>72</strong></td><td style="color:var(--success)">188</td><td>260</td></tr>
+                <tr><td>周四（4/3）</td><td>39</td><td>28</td><td>11</td><td><strong>78</strong></td><td style="color:var(--success)">202</td><td>280</td></tr>
+                <tr><td>周五（4/4）</td><td>36</td><td>27</td><td>13</td><td><strong>76</strong></td><td style="color:var(--success)">209</td><td>285</td></tr>
+                <tr style="background:#F5F8FB;font-weight:600"><td>合计</td><td>183</td><td>142</td><td>68</td><td><strong>393</strong></td><td style="color:var(--success)">1012</td><td>1405</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="callout" style="margin-top:12px">
+          <div class="callout-lbl">📌 说明</div>
+          <div style="font-size:11.5px;color:#7D6608;line-height:1.7">
+            「处理量」仅统计<strong>人工介入</strong>的条目（人工回复 + 转交处理 + 审核后发布），自动回复不计入个人工作量。<br>
+            「回复标注正确率」基于其他人对该员工发出回复的抽检标注结果，样本量不足20条时不显示。
+          </div>
+        </div>
+      </div>
+
+      <!-- ── PAGE: users ────────────────────────────────── -->
+      <div class="page" id="page-users">
+        <div class="ph">
+          <div><div class="ph-name">人员与权限管理</div><div class="ph-desc">管理账号信息和角色权限。仅超级管理员可新增/删除账号，管理员可调整运营专员权限。</div></div>
+          <span class="ph-badge">PAGE 8</span>
+        </div>
+
+        <div id="users-denied" class="denied" style="display:none">
+          <div class="icon">🔒</div><h3>权限不足</h3><p>人员与权限管理仅管理员及以上可访问。</p>
+        </div>
+
+        <div id="users-content">
+          <div class="notice ni">👑 超级管理员可新增/删除账号并分配角色；管理员可调整运营专员的细粒度权限；运营专员不可访问此页面。</div>
+
+          <!-- Role explanation -->
+          <div class="card" style="margin-bottom:14px">
+            <div class="card-header"><div class="card-title">🎭 角色说明</div></div>
+            <div class="card-body">
+              <div style="display:flex;gap:16px">
+                <div style="flex:1;padding:12px;background:#FEF9C3;border-radius:7px;border:1px solid #FDE68A">
+                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><span class="tag t-super">👑 超级管理员</span></div>
+                  <div style="font-size:11.5px;line-height:1.7;color:var(--text)">全部权限。可新增/删除账号，分配角色，查看全员工作量，修改系统核心参数。建议仅1人担任。</div>
+                </div>
+                <div style="flex:1;padding:12px;background:#EDE9FE;border-radius:7px;border:1px solid #C4B5FD">
+                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><span class="tag t-admin">🔧 管理员</span></div>
+                  <div style="font-size:11.5px;line-height:1.7;color:var(--text)">可处理消息、管理FAQ库（新增/编辑/停用）、查看全员工作量、调整专员权限。不可新增账号。</div>
+                </div>
+                <div style="flex:1;padding:12px;background:#DBEAFE;border-radius:7px;border:1px solid #93C5FD">
+                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><span class="tag t-op">👤 运营专员</span></div>
+                  <div style="font-size:11.5px;line-height:1.7;color:var(--text)">处理消息队列、标注回复、查看FAQ（只读）、查看自己的工作量。权限由管理员配置。</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Account list -->
+          <div class="card" style="margin-bottom:14px">
+            <div class="card-header">
+              <div class="card-title">👥 账号列表</div>
+              <span style="margin-left:auto;font-size:11px;color:var(--text-m)">共4个账号</span>
+              <button class="btn btn-p btn-sm" id="add-user-btn">＋ 新增账号</button>
+            </div>
+            <table class="tbl">
+              <thead><tr><th>姓名</th><th>账号</th><th>角色</th><th>状态</th><th>最后登录</th><th>本周处理量</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td><div style="display:flex;align-items:center;gap:8px"><div class="user-avatar av-0" style="width:28px;height:28px;font-size:12px">王</div><div><div style="font-weight:600;font-size:12.5px">王院长助理</div><div style="font-size:10.5px;color:var(--text-m)">wang@example.com</div></div></div></td>
+                  <td style="font-family:monospace;font-size:11.5px">wang_admin</td>
+                  <td><span class="tag t-super">👑 超级管理员</span></td>
+                  <td><span style="color:var(--success);font-weight:600;font-size:11.5px">● 在线</span></td>
+                  <td style="font-size:11px;color:var(--text-m)">刚刚</td>
+                  <td>—</td>
+                  <td><button class="btn btn-o btn-xs" disabled style="opacity:.4">不可修改</button></td>
+                </tr>
+                <tr>
+                  <td><div style="display:flex;align-items:center;gap:8px"><div class="user-avatar av-1" style="width:28px;height:28px;font-size:12px">李</div><div><div style="font-weight:600;font-size:12.5px">李运营主管</div><div style="font-size:10.5px;color:var(--text-m)">li@example.com</div></div></div></td>
+                  <td style="font-family:monospace;font-size:11.5px">li_mgr</td>
+                  <td><span class="tag t-admin">🔧 管理员</span></td>
+                  <td><span style="color:var(--success);font-weight:600;font-size:11.5px">● 在线</span></td>
+                  <td style="font-size:11px;color:var(--text-m)">5分钟前</td>
+                  <td>68条</td>
+                  <td><div style="display:flex;gap:4px"><button class="btn btn-o btn-xs" onclick="showPermPanel('li')">权限</button><button class="btn btn-o btn-xs">重置密码</button></div></td>
+                </tr>
+                <tr>
+                  <td><div style="display:flex;align-items:center;gap:8px"><div class="user-avatar av-2" style="width:28px;height:28px;font-size:12px">张</div><div><div style="font-weight:600;font-size:12.5px">张小美</div><div style="font-size:10.5px;color:var(--text-m)">zhang@example.com</div></div></div></td>
+                  <td style="font-family:monospace;font-size:11.5px">zhang_op</td>
+                  <td><span class="tag t-op">👤 运营专员</span></td>
+                  <td><span style="color:var(--text-m);font-weight:600;font-size:11.5px">○ 离线</span></td>
+                  <td style="font-size:11px;color:var(--text-m)">1小时前</td>
+                  <td>183条</td>
+                  <td><div style="display:flex;gap:4px"><button class="btn btn-o btn-xs" onclick="showPermPanel('zhang')">权限</button><button class="btn btn-o btn-xs">重置密码</button><button class="btn btn-d btn-xs" id="disable-zhang-btn">停用</button></div></td>
+                </tr>
+                <tr>
+                  <td><div style="display:flex;align-items:center;gap:8px"><div class="user-avatar av-3" style="width:28px;height:28px;font-size:12px">陈</div><div><div style="font-weight:600;font-size:12.5px">陈大明</div><div style="font-size:10.5px;color:var(--text-m)">chen@example.com</div></div></div></td>
+                  <td style="font-family:monospace;font-size:11.5px">chen_op</td>
+                  <td><span class="tag t-op">👤 运营专员</span></td>
+                  <td><span style="color:var(--success);font-weight:600;font-size:11.5px">● 在线</span></td>
+                  <td style="font-size:11px;color:var(--text-m)">10分钟前</td>
+                  <td>142条</td>
+                  <td><div style="display:flex;gap:4px"><button class="btn btn-o btn-xs" onclick="showPermPanel('chen')">权限</button><button class="btn btn-o btn-xs">重置密码</button><button class="btn btn-d btn-xs">停用</button></div></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Permission detail panel -->
+          <div id="perm-panel" style="display:none">
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title" id="perm-panel-title">权限配置 · 张小美</div>
+                <button class="btn btn-o btn-sm" style="margin-left:auto" onclick="document.getElementById('perm-panel').style.display='none'">关闭</button>
+              </div>
+              <div class="card-body">
+                <div class="notice ni" style="margin-bottom:14px">以下权限仅对「运营专员」角色生效，管理员权限固定不可单独配置。</div>
+                <div class="grid g2" style="gap:0">
+                  <div>
+                    <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:8px">📋 消息处理</div>
+                    <div class="perm-row"><div><div class="perm-name">处理人工队列</div><div class="perm-desc">查看并回复需人工处理的消息</div></div><div class="toggle on" onclick="this.classList.toggle('on');this.classList.toggle('off')"></div></div>
+                    <div class="perm-row"><div><div class="perm-name">转交消息给他人</div><div class="perm-desc">将队列中的消息转交给其他成员</div></div><div class="toggle on" onclick="this.classList.toggle('on');this.classList.toggle('off')"></div></div>
+                    <div class="perm-row"><div><div class="perm-name">标注回复正确/错误</div><div class="perm-desc">对自动回复内容进行质量标注</div></div><div class="toggle on" onclick="this.classList.toggle('on');this.classList.toggle('off')"></div></div>
+                    <div class="perm-row"><div><div class="perm-name">查看全员回复记录</div><div class="perm-desc">关闭则仅能查看自己的记录</div></div><div class="toggle off" onclick="this.classList.toggle('on');this.classList.toggle('off')"></div></div>
+                  </div>
+                  <div style="border-left:1px solid var(--border);padding-left:20px">
+                    <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:8px">📚 知识库</div>
+                    <div class="perm-row"><div><div class="perm-name">查看FAQ列表</div><div class="perm-desc">浏览所有FAQ条目（只读）</div></div><div class="toggle on" onclick="this.classList.toggle('on');this.classList.toggle('off')"></div></div>
+                    <div class="perm-row"><div><div class="perm-name">新增/编辑FAQ</div><div class="perm-desc">允许创建和修改FAQ内容</div></div><div class="toggle off" onclick="this.classList.toggle('on');this.classList.toggle('off')"></div></div>
+                    <div class="perm-row"><div><div class="perm-name">批量导入FAQ</div><div class="perm-desc">上传Excel批量导入知识库</div></div><div class="toggle off" onclick="this.classList.toggle('on');this.classList.toggle('off')"></div></div>
+                    <div class="perm-row"><div><div class="perm-name">管理敏感词库</div><div class="perm-desc">添加/删除敏感词和白名单</div></div><div class="toggle off" onclick="this.classList.toggle('on');this.classList.toggle('off')"></div></div>
+                    <div style="font-size:12px;font-weight:700;color:var(--primary);margin:12px 0 8px">📈 数据</div>
+                    <div class="perm-row"><div><div class="perm-name">查看自己的工作量</div><div class="perm-desc">自己的处理量统计</div></div><div class="toggle on" onclick="this.classList.toggle('on');this.classList.toggle('off')"></div></div>
+                    <div class="perm-row"><div><div class="perm-name">查看全员工作量</div><div class="perm-desc">关闭则只能看自己的</div></div><div class="toggle off" onclick="this.classList.toggle('on');this.classList.toggle('off')"></div></div>
+                  </div>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+                  <button class="btn btn-o" onclick="document.getElementById('perm-panel').style.display='none'">取消</button>
+                  <button class="btn btn-p">💾 保存权限配置</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Add user form -->
+          <div id="add-user-form" style="display:none">
+            <div class="card">
+              <div class="card-header"><div class="card-title">＋ 新增账号</div><button class="btn btn-o btn-sm" style="margin-left:auto" onclick="document.getElementById('add-user-form').style.display='none'">取消</button></div>
+              <div class="card-body">
+                <div class="grid g2" style="gap:14px">
+                  <div>
+                    <div class="fc"><label class="fl">姓名 <span class="req">*</span></label><input class="fi" placeholder="例：王小华"><div class="fh">用于系统内展示和工作量归属。</div></div>
+                    <div class="fc"><label class="fl">登录账号 <span class="req">*</span></label><input class="fi" placeholder="例：wang_op（字母数字下划线）"><div class="fh">账号创建后不可修改，请谨慎填写。</div></div>
+                    <div class="fc"><label class="fl">邮箱</label><input class="fi" type="email" placeholder="用于接收系统通知（可选）"></div>
+                  </div>
+                  <div>
+                    <div class="fc"><label class="fl">角色 <span class="req">*</span></label><select class="fi"><option>运营专员</option><option>管理员</option><option disabled>超级管理员（仅系统初始化时设定）</option></select><div class="fh">角色决定基础权限，专员可在下方细粒度配置。</div></div>
+                    <div class="fc"><label class="fl">初始密码 <span class="req">*</span></label><input class="fi" type="password" placeholder="至少8位，含字母和数字"><div class="fh w">⚠ 请通知新成员首次登录后立即修改密码。</div></div>
+                    <div class="notice ni">新账号创建后默认权限：处理队列 ✓ · 查看FAQ ✓ · 其余权限默认关闭，可在「权限」中单独开启。</div>
+                  </div>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                  <button class="btn btn-p">✅ 创建账号</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── PAGE: settings ────────────────────────────── -->
+      <div class="page" id="page-settings">
+        <div class="ph">
+          <div><div class="ph-name">系统设置</div><div class="ph-desc">配置核心参数。仅管理员及以上可修改，专员只读。</div></div>
+          <span class="ph-badge">PAGE 9</span>
+        </div>
+        <div class="grid g2" style="gap:16px">
+          <div class="card">
+            <div class="card-header"><div class="card-title">🎯 置信度阈值</div></div>
+            <div class="card-body">
+              <div class="fc"><label class="fl">自动回复阈值</label><input class="fi" type="number" value="0.82" min="0.5" max="1" step="0.01"><div class="fh">相似度≥此值自动回复。建议0.80-0.88之间。</div></div>
+              <div class="fc"><label class="fl">候选提示阈值</label><input class="fi" type="number" value="0.65" min="0.3" max="0.82" step="0.01"><div class="fh">此值与自动回复阈值之间：转人工并附候选FAQ参考。</div></div>
+              <div class="fc"><label class="fl">Top-K候选数</label><select class="fi"><option>3（推荐）</option><option>5</option></select></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">⏰ 工作时段</div></div>
+            <div class="card-body">
+              <div class="fc"><label class="fl">工作时段</label><div style="display:flex;gap:8px;align-items:center"><input class="fi" type="time" value="09:00" style="width:100px"><span>至</span><input class="fi" type="time" value="17:30" style="width:100px"></div><div class="fh">非工作时段自动发安抚模板，次日人工跟进。</div></div>
+              <div class="fc"><label class="fl">工作日</label>
+                <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">
+                  <span style="background:var(--primary);color:#fff;padding:3px 10px;border-radius:20px;font-size:11.5px;cursor:pointer">一</span>
+                  <span style="background:var(--primary);color:#fff;padding:3px 10px;border-radius:20px;font-size:11.5px;cursor:pointer">二</span>
+                  <span style="background:var(--primary);color:#fff;padding:3px 10px;border-radius:20px;font-size:11.5px;cursor:pointer">三</span>
+                  <span style="background:var(--primary);color:#fff;padding:3px 10px;border-radius:20px;font-size:11.5px;cursor:pointer">四</span>
+                  <span style="background:var(--primary);color:#fff;padding:3px 10px;border-radius:20px;font-size:11.5px;cursor:pointer">五</span>
+                  <span style="background:#E8EDF2;color:var(--neutral);padding:3px 10px;border-radius:20px;font-size:11.5px;cursor:pointer">六</span>
+                  <span style="background:#E8EDF2;color:var(--neutral);padding:3px 10px;border-radius:20px;font-size:11.5px;cursor:pointer">日</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:4px">
+          <button class="btn btn-o">放弃修改</button>
+          <button class="btn btn-p" id="settings-save-btn">💾 保存设置</button>
+        </div>
+      </div>
+
+    </div><!-- end .main -->
+  </div><!-- end .body-wrap -->
+</div><!-- end #app -->
+
+<script>
+// ── User definitions ─────────────────────────────────────────────
+const USERS = {
+  super: { name:'王院长助理', role:'超级管理员', roleTag:'t-super', avatar:'王', avClass:'av-0',
+    perms:['dashboard','queue','history','faq','import','keywords','workload','users','settings'] },
+  admin: { name:'李运营主管', role:'管理员', roleTag:'t-admin', avatar:'李', avClass:'av-1',
+    perms:['dashboard','queue','history','faq','import','keywords','workload','users','settings'] },
+  op1:  { name:'张小美', role:'运营专员', roleTag:'t-op', avatar:'张', avClass:'av-2',
+    perms:['dashboard','queue','history','faq','workload'] },
+  op2:  { name:'陈大明', role:'运营专员', roleTag:'t-op', avatar:'陈', avClass:'av-3',
+    perms:['dashboard','queue','history','faq','workload'] },
+};
+
+const PAGE_META = {
+  dashboard:{ label:'📊 数据看板', title:'数据看板' },
+  queue:    { label:'📋 人工队列', title:'人工处理队列' },
+  history:  { label:'🕐 回复记录', title:'自动回复记录' },
+  faq:      { label:'📚 FAQ管理', title:'FAQ 知识库管理' },
+  import:   { label:'📥 批量导入', title:'FAQ 批量导入' },
+  keywords: { label:'🚫 敏感词', title:'敏感词管理' },
+  workload: { label:'📈 工作量', title:'工作量统计' },
+  users:    { label:'👥 人员权限', title:'人员与权限管理' },
+  settings: { label:'⚙️ 系统设置', title:'系统设置' },
+};
+
+let currentUser = null;
+let currentPage = 'dashboard';
+
+function doLogin() {
+  const sel = document.getElementById('login-user').value;
+  if (!sel) { alert('请选择登录账号'); return; }
+  currentUser = USERS[sel];
+  applyUser();
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').classList.add('show');
+  renderNav();
+  showPage('dashboard');
+}
+
+function doLogout() {
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('app').classList.remove('show');
+  document.getElementById('login-user').value = '';
+}
+
+function applyUser() {
+  const u = currentUser;
+  document.getElementById('user-name').textContent = u.name;
+  document.getElementById('user-role').textContent = u.role;
+  document.getElementById('user-avatar').textContent = u.avatar;
+  document.getElementById('user-avatar').className = 'user-avatar ' + u.avClass;
+  document.getElementById('queue-user-label').textContent = u.name;
+}
+
+function renderNav() {
+  const u = currentUser;
+  const allPages = ['dashboard','queue','history','faq','import','keywords','workload','users','settings'];
+
+  // Page nav buttons
+  const pnav = document.getElementById('page-nav');
+  pnav.innerHTML = '';
+  allPages.forEach(p => {
+    const btn = document.createElement('button');
+    btn.className = 'pnb' + (u.perms.includes(p) ? '' : ' locked');
+    btn.textContent = PAGE_META[p].label;
+    if (u.perms.includes(p)) btn.onclick = () => showPage(p);
+    else btn.title = '权限不足';
+    btn.dataset.page = p;
+    pnav.appendChild(btn);
+  });
+
+  // Sidebar nav lock state
+  const navMap = { queue:'nav-queue', history:'nav-history', faq:'nav-faq',
+    import:'nav-import', keywords:'nav-keywords', workload:'nav-workload',
+    users:'nav-users', settings:'nav-settings' };
+  Object.entries(navMap).forEach(([p, id]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (!u.perms.includes(p)) { el.classList.add('locked'); el.onclick = null; }
+    else { el.classList.remove('locked'); el.onclick = () => showPage(p); }
+  });
+
+  // Role-specific UI tweaks
+  applyRoleUI();
+}
+
+function applyRoleUI() {
+  const u = currentUser;
+  const isSuper = u.role === '超级管理员';
+  const isAdmin = u.role === '管理员' || isSuper;
+  const isOp = u.role === '运营专员';
+
+  // FAQ: read-only for ops
+  const faqNotice = document.getElementById('faq-readonly-notice');
+  const faqAddBtn = document.getElementById('faq-add-btn');
+  const faqEditBtn = document.getElementById('faq-edit-btn');
+  const faqDisableBtn = document.getElementById('faq-disable-btn');
+  if (faqNotice) faqNotice.style.display = isOp ? 'flex' : 'none';
+  if (faqAddBtn) { faqAddBtn.disabled = isOp; faqAddBtn.style.opacity = isOp ? '.4' : '1'; }
+  [faqEditBtn, faqDisableBtn].forEach(b => { if(b){ b.disabled = isOp; b.style.opacity = isOp ? '.4' : '1'; }});
+
+  // Import: denied for ops
+  const importDenied = document.getElementById('import-denied');
+  const importContent = document.getElementById('import-content');
+  if (importDenied) importDenied.style.display = isOp ? 'flex' : 'none';
+  if (importContent) importContent.style.display = isOp ? 'none' : 'block';
+
+  // Users: denied for ops
+  const usersDenied = document.getElementById('users-denied');
+  const usersContent = document.getElementById('users-content');
+  if (usersDenied) usersDenied.style.display = isOp ? 'flex' : 'none';
+  if (usersContent) usersContent.style.display = isOp ? 'none' : 'block';
+
+  // Add user btn: only super
+  const addUserBtn = document.getElementById('add-user-btn');
+  if (addUserBtn) { addUserBtn.style.display = isSuper ? 'inline-flex' : 'none'; }
+
+  // Workload: ops only see themselves
+  const wlMemberWrap = document.getElementById('wl-member-wrap');
+  if (wlMemberWrap) wlMemberWrap.style.display = isOp ? 'none' : 'block';
+  const wlSummary = document.getElementById('wl-summary');
+  if (wlSummary && isOp) {
+    // show only own card
+    const cards = wlSummary.querySelectorAll('.card');
+    const nameMap = { '张小美':0, '陈大明':1, '李运营主管':2 };
+    const myIdx = nameMap[u.name] ?? -1;
+    cards.forEach((c, i) => { c.style.display = (i === myIdx || myIdx === -1) ? 'block' : 'none'; });
+    wlSummary.style.gridTemplateColumns = '1fr';
+  } else if (wlSummary) {
+    const cards = wlSummary.querySelectorAll('.card');
+    cards.forEach(c => c.style.display = 'block');
+    wlSummary.style.gridTemplateColumns = 'repeat(3,1fr)';
+  }
+
+  // Filter operator in history: ops can't filter by others
+  const filterOpWrap = document.getElementById('filter-operator-wrap');
+  if (filterOpWrap) filterOpWrap.style.display = isOp ? 'none' : 'block';
+
+  // Settings: ops read-only
+  const settingsSave = document.getElementById('settings-save-btn');
+  if (settingsSave) { settingsSave.disabled = isOp; settingsSave.style.opacity = isOp ? '.4' : '1'; }
+
+  // Keywords: add btn
+  const kwAddBtn = document.getElementById('kw-add-btn');
+  if (kwAddBtn) { kwAddBtn.style.display = isOp ? 'none' : 'inline-flex'; }
+}
+
+function showPage(id) {
+  if (!currentUser) return;
+  if (!currentUser.perms.includes(id)) {
+    alert('您没有访问此页面的权限，请联系管理员。'); return;
+  }
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.pnb').forEach(b => b.classList.remove('active'));
+
+  const page = document.getElementById('page-' + id);
+  if (page) { page.classList.add('active'); page.scrollTop = 0; }
+
+  document.getElementById('tb-title').textContent = PAGE_META[id]?.title || id;
+
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.getAttribute('onclick') && n.getAttribute('onclick').includes("'"+id+"'")) n.classList.add('active');
+  });
+  document.querySelectorAll('.pnb').forEach(b => {
+    if (b.dataset.page === id) b.classList.add('active');
+  });
+  currentPage = id;
+}
+
+function showPermPanel(user) {
+  const panel = document.getElementById('perm-panel');
+  const title = document.getElementById('perm-panel-title');
+  const names = { li:'李运营主管', zhang:'张小美', chen:'陈大明' };
+  title.textContent = '权限配置 · ' + (names[user] || user);
+  panel.style.display = 'block';
+  panel.scrollIntoView({ behavior:'smooth' });
+}
+
+function showReassign() {
+  const p = document.getElementById('reassign-panel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+}
+
+// Wire up buttons that need JS
+document.getElementById('add-user-btn')?.addEventListener('click', () => {
+  const f = document.getElementById('add-user-form');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+});
+document.getElementById('faq-edit-btn')?.addEventListener('click', () => {
+  const f = document.getElementById('faq-edit-form');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+});
+</script>
+</body>
+</html>

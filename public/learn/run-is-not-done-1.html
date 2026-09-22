@@ -1,0 +1,986 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>跑通不算完 · 工程思维入门（第一讲）</title>
+<meta name="upio:date" content="2026-09-07">
+<meta name="upio:source" content="artifact">
+<meta name="upio:category" content="思维 · 心智模型">
+<style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found]){display:none!important}</style></head><body>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@400;700;900&display=swap">
+<style>
+  :root{
+    --bg:#06080C; --bg2:#0A0E15; --panel:#0D1119; --panel2:#11161F;
+    --line:rgba(255,255,255,.07); --line2:rgba(255,255,255,.12);
+    --head:#F2F6FB; --ink:#DBE3EC; --muted:#7C8798; --dim:#525C6B;
+
+    --teal:#3FE0C5;    /* 机器 / 自动 / 已在生产 */
+    --amber:#F6B352;   /* 人在环 / 待拍板 */
+    --blue:#6FA8FF;    /* 服务端 / 契约 */
+    --violet:#B48CFF;  /* 后台 / 看不见的地方 */
+    --rose:#FF7D97;    /* 执行端 / 真机 */
+    --teal-d:#1C9D8B;
+
+    --ok:#3FE0C5; --warn:#F6B352; --risk:#F2555A; --neutral:#8C9BB0;
+
+    --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+    --serif:"Noto Serif SC",Songti SC,serif;
+    --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:var(--sans);
+    background:var(--bg);
+    color:var(--ink);
+    line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
+      transition-duration:.01ms!important;scroll-behavior:auto!important}
+  }
+  html[data-anim="off"] *,html[data-anim="off"] *::before,html[data-anim="off"] *::after{
+    animation:none!important;transition:none!important}
+
+  /* ── 固定背景 ── */
+  .bg{position:fixed;inset:0;z-index:0;pointer-events:none}
+  .bg .grid{
+    position:absolute;inset:-2px;
+    background-image:
+      linear-gradient(var(--line) 1px,transparent 1px),
+      linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:64px 64px;
+    -webkit-mask-image:radial-gradient(circle at 50% 26%,#000 0%,transparent 78%);
+    mask-image:radial-gradient(circle at 50% 26%,#000 0%,transparent 78%);
+    opacity:.5;
+  }
+  .bg .glow{position:absolute;border-radius:50%;filter:blur(120px);opacity:.5}
+  .bg .g1{width:640px;height:640px;top:-280px;left:50%;transform:translateX(-50%);
+    background:radial-gradient(circle,rgba(63,224,197,.26),transparent 68%);animation:drift 22s ease-in-out infinite}
+  .bg .g2{width:520px;height:520px;top:40%;left:-180px;
+    background:radial-gradient(circle,rgba(111,168,255,.15),transparent 70%);animation:drift2 28s ease-in-out infinite}
+  .bg .g3{width:480px;height:480px;bottom:-140px;right:-140px;
+    background:radial-gradient(circle,rgba(246,179,82,.12),transparent 70%);animation:drift2 26s ease-in-out infinite reverse}
+  @keyframes drift{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,40px)}}
+  @keyframes drift2{0%,100%{transform:translateY(0)}50%{transform:translateY(38px)}}
+  .bg .noise{position:absolute;inset:0;opacity:.035;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+  .progress{position:fixed;top:0;left:0;height:2px;width:0;z-index:60;
+    background:linear-gradient(90deg,var(--teal),var(--blue));box-shadow:0 0 12px var(--teal)}
+
+  .rail{position:fixed;top:50%;left:26px;transform:translateY(-50%);z-index:50;
+    display:flex;flex-direction:column;gap:15px}
+  .rail a{display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--dim);
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;transition:color .3s}
+  .rail a .tick{width:22px;height:2px;background:currentColor;transition:width .3s,background .3s}
+  .rail a .lbl{opacity:0;transform:translateX(-6px);transition:.3s;white-space:nowrap}
+  .rail a:hover .lbl,.rail a.on .lbl{opacity:1;transform:none}
+  .rail a:focus-visible{outline:2px solid var(--teal);outline-offset:4px;border-radius:3px}
+  .rail a.on{color:var(--teal)}
+  .rail a.on .tick{width:38px;box-shadow:0 0 10px var(--teal)}
+  @media(max-width:1240px){.rail{display:none}}
+
+  main{position:relative;z-index:2;max-width:1080px;margin:0 auto;padding:0 40px}
+  section{padding:100px 0}
+
+  .rv{opacity:0;transform:translateY(26px);transition:opacity .8s cubic-bezier(.16,1,.3,1),transform .8s cubic-bezier(.16,1,.3,1)}
+  .rv.in{opacity:1;transform:none}
+  .stagger>*{opacity:0;transform:translateY(22px);transition:opacity .7s cubic-bezier(.16,1,.3,1),transform .7s cubic-bezier(.16,1,.3,1)}
+  .stagger.in>*{opacity:1;transform:none}
+  .stagger.in>*:nth-child(1){transition-delay:.05s}
+  .stagger.in>*:nth-child(2){transition-delay:.12s}
+  .stagger.in>*:nth-child(3){transition-delay:.19s}
+  .stagger.in>*:nth-child(4){transition-delay:.26s}
+  .stagger.in>*:nth-child(5){transition-delay:.33s}
+  .stagger.in>*:nth-child(6){transition-delay:.40s}
+
+  .sec-head{display:flex;align-items:baseline;gap:20px;margin-bottom:36px}
+  .sec-head .idx{font-family:var(--mono);font-size:13px;color:var(--teal);
+    font-weight:500;padding-top:6px;position:relative;flex:none}
+  .sec-head .idx::before{content:"";position:absolute;left:-14px;top:11px;width:8px;height:8px;
+    border-radius:50%;background:var(--teal);box-shadow:0 0 10px var(--teal)}
+  .eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--muted);display:block;margin-bottom:8px}
+  .sec-head h2{font-family:var(--serif);font-weight:700;font-size:clamp(26px,4vw,40px);
+    line-height:1.2;color:var(--head);letter-spacing:.01em;text-wrap:balance}
+  .lede{font-size:16.5px;color:var(--muted);max-width:680px;margin:-18px 0 36px;line-height:1.78}
+  .lede b,.lede strong{color:var(--ink);font-weight:600}
+  code{font-family:var(--mono);font-size:.85em;background:rgba(63,224,197,.09);color:#8ff0e0;
+    border:1px solid rgba(63,224,197,.16);border-radius:5px;padding:1px 6px}
+
+  /* ── HERO ── */
+  .hero{padding:74px 0 18px;position:relative}
+  .hero .tag{font-family:var(--mono);font-size:12px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--teal);display:inline-flex;align-items:center;gap:10px;margin-bottom:24px}
+  .hero .tag .pulse{width:9px;height:9px;border-radius:50%;background:var(--teal);
+    box-shadow:0 0 0 0 rgba(63,224,197,.6);animation:pulse 2s infinite;flex:none}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(63,224,197,.55)}70%{box-shadow:0 0 0 12px rgba(63,224,197,0)}100%{box-shadow:0 0 0 0 rgba(63,224,197,0)}}
+  .hero h1{font-family:var(--serif);font-weight:900;font-size:clamp(48px,10vw,108px);line-height:1.02;
+    color:var(--head);letter-spacing:.01em;margin-bottom:6px}
+  .hero h1 .accent{background:linear-gradient(115deg,var(--teal),var(--blue) 72%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero .desc{font-size:clamp(17px,2.3vw,21px);color:var(--ink);max-width:720px;margin:22px 0 12px;line-height:1.62}
+  .hero .desc b{color:var(--teal);font-weight:600}
+  .hero .role{font-family:var(--mono);font-size:12.5px;color:var(--muted);margin-bottom:30px;line-height:1.9}
+  .ticker{display:flex;gap:10px;flex-wrap:wrap;max-width:880px}
+  .chip{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;color:var(--ink);
+    border:1px solid var(--line2);border-radius:100px;padding:7px 15px;background:rgba(255,255,255,.02);
+    display:inline-flex;align-items:center;gap:8px}
+  .chip .d{width:6px;height:6px;border-radius:50%;background:var(--teal);flex:none}
+  .chip .d.a{background:var(--amber)}.chip .d.b{background:var(--blue)}
+  .chip .d.v{background:var(--violet)}.chip .d.r{background:var(--rose)}
+
+  .statband{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:34px}
+  .stat{background:linear-gradient(165deg,var(--panel2),var(--bg2));border:1px solid var(--line);
+    border-radius:14px;padding:17px 18px 15px;transition:.35s}
+  .stat:hover{border-color:rgba(63,224,197,.3);transform:translateY(-3px)}
+  .stat .v{font-family:var(--mono);font-size:clamp(24px,3.4vw,31px);font-weight:600;color:var(--teal);line-height:1.1;
+    text-shadow:0 0 24px rgba(63,224,197,.35);font-variant-numeric:tabular-nums}
+  .stat .v .suf{font-size:15px;color:var(--muted);margin-left:3px}
+  .stat .l{font-size:12.5px;color:var(--muted);margin-top:9px;line-height:1.55}
+  .stat .src{font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.05em;margin-top:7px;display:block}
+  .stat.a .v{color:var(--amber);text-shadow:0 0 24px rgba(246,179,82,.3)}
+  .stat.b .v{color:var(--blue);text-shadow:0 0 24px rgba(111,168,255,.3)}
+  .stat.r .v{color:var(--rose);text-shadow:0 0 24px rgba(255,125,151,.3)}
+
+  .thesis{margin-top:30px;background:linear-gradient(160deg,var(--panel2),var(--bg2));
+    border:1px solid var(--line);border-left:3px solid var(--teal);border-radius:14px;padding:26px 30px}
+  .thesis p{font-family:var(--serif);font-weight:700;font-size:clamp(19px,2.6vw,25px);
+    line-height:1.58;color:var(--head);text-wrap:balance}
+  .thesis p em{font-style:normal;color:var(--teal)}
+  .thesis .k{font-family:var(--mono);font-size:11px;letter-spacing:.16em;color:var(--teal);
+    text-transform:uppercase;display:block;margin-bottom:12px}
+
+  /* ── 三轴（01 的视觉件）── */
+  .axes{display:flex;flex-direction:column}
+  .ax{display:grid;grid-template-columns:172px 1fr;gap:26px;padding:30px 0;align-items:center}
+  .ax+.ax{border-top:1px solid var(--line)}
+  .axname{font-family:var(--serif);font-weight:900;font-size:clamp(28px,4.4vw,40px);line-height:1.1;
+    color:var(--c,var(--teal))}
+  .axname .axk{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--muted);font-weight:400;margin-bottom:9px}
+  .axq{font-size:16px;color:var(--ink);line-height:1.72;margin-bottom:16px;max-width:640px}
+  .axq b{color:var(--head);font-weight:600}
+  .axtrack{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:stretch}
+  .axtrack .seg{display:flex;align-items:center;font-family:var(--mono);font-size:11px;letter-spacing:.06em;
+    padding:9px 14px;border-radius:8px;line-height:1.4}
+  .axtrack .prog{color:var(--muted);border:1px dashed var(--line2);background:rgba(255,255,255,.02);white-space:nowrap}
+  .axtrack .eng{color:var(--c,var(--teal));
+    border:1px solid color-mix(in srgb,var(--c,var(--teal)) 34%,transparent);
+    background:linear-gradient(90deg,color-mix(in srgb,var(--c,var(--teal)) 13%,transparent),transparent)}
+
+  /* ── 原则卡（02）── */
+  .axgroup{margin-bottom:18px;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  .axgroup .gk{font-family:var(--mono);font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--c,var(--teal));border:1px solid color-mix(in srgb,var(--c,var(--teal)) 30%,transparent);
+    border-radius:100px;padding:4px 12px;flex:none}
+  .axgroup h3{font-family:var(--serif);font-weight:700;font-size:21px;color:var(--head)}
+  .axgroup p{font-size:13.5px;color:var(--muted);flex-basis:100%;line-height:1.6}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:52px}
+  .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  .cell{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;transition:.35s;
+    display:flex;flex-direction:column}
+  .cell:hover{border-color:var(--line2);background:var(--panel2);transform:translateY(-3px)}
+  .cell .from{font-family:var(--mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;
+    color:var(--c,var(--teal));margin-bottom:11px;display:block}
+  .cell h3{font-family:var(--serif);font-size:18.5px;color:var(--head);margin-bottom:10px;font-weight:700;line-height:1.4}
+  .cell .quote{font-family:var(--mono);font-size:11.5px;line-height:1.65;color:var(--muted);
+    border-left:2px solid color-mix(in srgb,var(--c,var(--teal)) 40%,transparent);
+    padding:2px 0 2px 12px;margin-bottom:12px}
+  .cell p{font-size:13.5px;color:var(--ink);line-height:1.7}
+  .cell p b{color:var(--head);font-weight:600}
+  .cell .ours{margin-top:auto;padding-top:14px;border-top:1px solid var(--line);
+    font-size:12.5px;color:var(--muted);line-height:1.65}
+  .cell .ours b{font-family:var(--mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;
+    color:var(--c,var(--teal));display:block;margin-bottom:5px;font-weight:500}
+  .cell .src{margin-top:auto;padding-top:15px;font-family:var(--mono);font-size:11px;color:var(--dim);
+    letter-spacing:.04em;line-height:1.7}
+  .cell .src b{color:var(--teal);font-weight:500}
+  .cell .ico{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+    margin-bottom:15px;border:1px solid rgba(63,224,197,.28);color:var(--teal);flex:none;
+    background:linear-gradient(150deg,rgba(63,224,197,.13),rgba(63,224,197,.02));
+    box-shadow:0 0 22px -10px var(--teal) inset}
+  .cell .ico svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .cell .ico.b{border-color:rgba(111,168,255,.28);color:var(--blue);
+    background:linear-gradient(150deg,rgba(111,168,255,.13),rgba(111,168,255,.02));box-shadow:0 0 22px -10px var(--blue) inset}
+  .cell .ico.a{border-color:rgba(246,179,82,.28);color:var(--amber);
+    background:linear-gradient(150deg,rgba(246,179,82,.13),rgba(246,179,82,.02));box-shadow:0 0 22px -10px var(--amber) inset}
+  .cell .ico.v{border-color:rgba(180,140,255,.28);color:var(--violet);
+    background:linear-gradient(150deg,rgba(180,140,255,.13),rgba(180,140,255,.02));box-shadow:0 0 22px -10px var(--violet) inset}
+  .cell .ico.r{border-color:rgba(255,125,151,.28);color:var(--rose);
+    background:linear-gradient(150deg,rgba(255,125,151,.13),rgba(255,125,151,.02));box-shadow:0 0 22px -10px var(--rose) inset}
+
+  /* ── 症状对照表 ── */
+  .spec{width:100%;border-collapse:collapse;font-size:13.5px}
+  .spec thead th{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--muted);text-align:left;padding:12px 14px;border-bottom:1px solid var(--line2);white-space:nowrap}
+  .spec td{padding:14px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.6}
+  .spec tbody tr{transition:.25s}
+  .spec tbody tr:hover{background:rgba(63,224,197,.03)}
+  .spec td:first-child{color:var(--head);font-weight:600}
+  .spec td:nth-child(2){color:var(--muted)}
+  .spec td:nth-child(3){color:var(--ink)}
+  .spec td .src{font-family:var(--mono);font-size:11px;color:var(--dim);display:block;margin-top:6px;letter-spacing:.04em}
+  .spec .grn{color:var(--ok);font-family:var(--mono);font-size:11.5px;letter-spacing:.1em}
+
+  /* ── 管线 spine ── */
+  .pipe{position:relative;padding-left:38px;margin-top:6px}
+  .pipe::before{content:"";position:absolute;left:11px;top:8px;bottom:8px;width:2px;
+    background:linear-gradient(var(--blue),var(--teal),var(--amber),var(--rose))}
+  .pipe .flowdot{position:absolute;left:6px;width:12px;height:12px;border-radius:50%;
+    background:var(--teal);box-shadow:0 0 16px 3px var(--teal);animation:flow 5.4s cubic-bezier(.5,0,.5,1) infinite}
+  @keyframes flow{0%{top:2px;opacity:0}8%{opacity:1}92%{opacity:1}100%{top:calc(100% - 14px);opacity:0}}
+  .pstep{position:relative;padding:15px 0;display:grid;grid-template-columns:132px 1fr;gap:20px;align-items:start}
+  .pstep+.pstep{border-top:1px dashed var(--line)}
+  .pstep::before{content:"";position:absolute;left:-32px;top:24px;width:10px;height:10px;border-radius:50%;
+    background:var(--bg);border:2px solid var(--who,var(--teal));box-shadow:0 0 0 4px var(--bg)}
+  .pstep .who{font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;padding:6px 9px;border-radius:7px;
+    background:color-mix(in srgb,var(--who) 15%,transparent);color:var(--who);
+    border:1px solid color-mix(in srgb,var(--who) 30%,transparent);text-align:center;line-height:1.45}
+  .pstep .who b{display:block;font-weight:600;font-size:11.5px;letter-spacing:.02em}
+  .pstep .txt{font-size:14.5px;color:var(--ink)}
+  .pstep .txt b{color:var(--head);font-weight:600}
+  .pstep .txt .verdict{display:inline-block;font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;
+    padding:2px 8px;border-radius:5px;vertical-align:2px}
+  .pstep .txt .verdict.g{color:var(--ok);background:rgba(63,224,197,.1);border:1px solid rgba(63,224,197,.24)}
+  .pstep .txt .verdict.r{color:var(--risk);background:rgba(242,85,90,.1);border:1px solid rgba(242,85,90,.28)}
+  .pipe-note{margin-top:20px;font-size:13.5px;color:var(--muted);font-family:var(--mono);
+    padding-left:38px;line-height:1.7}
+  .pipe-note b{color:var(--teal)}
+
+  /* ── 2×2 象限 ── */
+  .quadwrap{display:grid;grid-template-columns:78px 1fr;gap:12px;align-items:stretch;margin-top:26px}
+  .qaxis-y{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--muted);display:flex;flex-direction:column;justify-content:space-around;text-align:right;gap:8px}
+  .qaxis-y span{display:block;line-height:1.5}
+  .quad{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .qcell{border:1px solid var(--line);border-radius:13px;padding:19px;background:var(--panel);min-height:124px}
+  .qcell .v{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    margin-bottom:9px;display:flex;align-items:center;gap:8px}
+  .qcell .v .dot{width:8px;height:8px;border-radius:50%;flex:none}
+  .qcell p{font-size:13px;color:var(--muted);line-height:1.65}
+  .qcell.fire{border-color:rgba(242,85,90,.32);background:linear-gradient(160deg,rgba(242,85,90,.08),var(--panel))}
+  .qcell.fire .v{color:var(--risk)}.qcell.fire .v .dot{background:var(--risk);box-shadow:0 0 10px var(--risk)}
+  .qcell.hold .v{color:var(--neutral)}.qcell.hold .v .dot{background:var(--neutral)}
+  .qcell.calm .v{color:var(--ok)}.qcell.calm .v .dot{background:var(--ok);box-shadow:0 0 10px var(--ok)}
+  .qaxis-x{grid-column:2;font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--muted);display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px;text-align:center}
+
+  /* ── hbar ── */
+  .hbar{margin-top:32px}
+  .hbar .row{display:grid;grid-template-columns:184px 1fr 92px;gap:14px;align-items:center;padding:9px 0}
+  .hbar .lab{font-size:13.5px;color:var(--ink);text-align:right;line-height:1.4}
+  .hbar .lab i{font-style:normal;color:var(--muted);font-size:12px;display:block}
+  .hbar .track{display:block;height:20px;background:rgba(255,255,255,.04);border-radius:5px;overflow:hidden}
+  .hbar .fill{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,#2A3644,#46586C);
+    width:0;transition:width 1.1s cubic-bezier(.16,1,.3,1)}
+  .hbar .fill.hi{background:linear-gradient(90deg,var(--teal-d),var(--teal));box-shadow:0 0 14px -2px var(--teal)}
+  .hbar .val{font-family:var(--mono);font-size:13px;color:var(--head);font-variant-numeric:tabular-nums}
+  .chartnote{font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:.05em;margin-top:16px;line-height:1.7}
+
+  /* ── 三列坑清单 ── */
+  .cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .colbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px}
+  .colbox h4{font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--c,var(--teal));margin-bottom:14px;padding-bottom:11px;border-bottom:1px solid var(--line);line-height:1.6}
+  .colbox ul{list-style:none}
+  .colbox li{font-size:13.5px;color:var(--ink);padding:8px 0 8px 18px;position:relative;line-height:1.6}
+  .colbox li::before{content:"▸";position:absolute;left:0;color:var(--dim)}
+  .colbox li b{color:var(--head)}
+  .colbox li i{font-style:normal;color:var(--muted);display:block;font-size:12.5px;margin-top:3px}
+
+  .band{margin-top:24px;background:var(--panel);border:1px solid var(--line);
+    border-left:3px solid var(--c,var(--amber));border-radius:12px;padding:22px 26px}
+  .band .k{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--c,var(--amber));
+    text-transform:uppercase;margin-bottom:9px;display:block}
+  .band p{font-size:15px;color:var(--ink);margin:0;line-height:1.76}
+  .band p b{color:var(--head)}
+  .band p+p{margin-top:12px}
+
+  /* ── 自检清单 ── */
+  .checks{display:flex;flex-direction:column;gap:12px}
+  .check{display:grid;grid-template-columns:44px 1fr;gap:18px;align-items:start;
+    background:linear-gradient(160deg,var(--panel),var(--bg2));border:1px solid var(--line);
+    border-radius:14px;padding:22px 24px;transition:.35s}
+  .check:hover{border-color:rgba(63,224,197,.28);transform:translateX(4px)}
+  .check .n{font-family:var(--mono);font-size:20px;font-weight:600;color:var(--teal);line-height:1.2;
+    text-shadow:0 0 20px rgba(63,224,197,.3)}
+  .check h3{font-family:var(--serif);font-size:19px;font-weight:700;color:var(--head);margin-bottom:7px;line-height:1.45}
+  .check p{font-size:14px;color:var(--muted);line-height:1.72}
+  .check p b{color:var(--ink);font-weight:600}
+
+  footer{position:relative;z-index:2;max-width:1080px;margin:32px auto 0;padding:52px 40px 76px;
+    border-top:1px solid var(--line)}
+  footer .fl{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:20px}
+  footer .brand{font-family:var(--serif);font-weight:700;font-size:20px;color:var(--head)}
+  footer .brand span{display:block;font-family:var(--mono);font-size:11.5px;color:var(--muted);
+    font-weight:400;letter-spacing:.08em;margin-top:8px;line-height:1.8}
+  footer .meta{font-family:var(--mono);font-size:11.5px;color:var(--dim);letter-spacing:.06em;text-align:right;line-height:1.95}
+  footer .meta b{color:var(--teal);font-weight:500}
+
+  @media(max-width:900px){
+    main{padding:0 22px}
+    section{padding:72px 0}
+    .grid2,.cols3,.grid3{grid-template-columns:1fr}
+    .grid3{margin-bottom:40px}
+    .statband{grid-template-columns:repeat(2,1fr)}
+    .sec-head{gap:14px;margin-bottom:28px}
+    .lede{margin-top:-10px}
+    .ax{grid-template-columns:1fr;gap:14px;padding:24px 0}
+    .axname{font-size:26px}
+    .axtrack{grid-template-columns:1fr}
+    .axtrack .prog{white-space:normal}
+    .pstep{grid-template-columns:1fr;gap:10px}
+    .pstep .who{justify-self:start}
+    .hbar .row{grid-template-columns:120px 1fr 72px;gap:10px}
+    .hbar .lab{font-size:12.5px}
+    .quadwrap{grid-template-columns:1fr}
+    .qaxis-y{flex-direction:row;justify-content:space-between;text-align:left}
+    .qaxis-x{grid-column:1}
+    .spec{font-size:12.5px}
+    .spec td,.spec thead th{padding:11px 9px}
+    footer{padding:44px 22px 64px}
+    footer .meta{text-align:left}
+  }
+  @media(max-width:560px){.statband{grid-template-columns:1fr}.quad{grid-template-columns:1fr}.qaxis-x{display:none}}
+  .tablewrap{width:100%;overflow-x:auto}
+  .tablewrap table{min-width:660px}
+  ::selection{background:rgba(63,224,197,.28);color:#fff}
+</style>
+
+<div class="bg" aria-hidden="true">
+  <div class="grid"></div>
+  <div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
+  <div class="noise"></div>
+</div>
+<div class="progress" id="progress"></div>
+
+<nav class="rail" id="rail" aria-label="章节导航">
+  <a href="#hero" data-s="hero"><span class="tick"></span><span class="lbl">开场</span></a>
+  <a href="#what" data-s="what"><span class="tick"></span><span class="lbl">01 定义</span></a>
+  <a href="#canon" data-s="canon"><span class="tick"></span><span class="lbl">02 九条</span></a>
+  <a href="#ours" data-s="ours"><span class="tick"></span><span class="lbl">03 我们的反例</span></a>
+  <a href="#rules" data-s="rules"><span class="tick"></span><span class="lbl">04 落成判据</span></a>
+  <a href="#exam" data-s="exam"><span class="tick"></span><span class="lbl">05 我们出的题</span></a>
+  <a href="#tomorrow" data-s="tomorrow"><span class="tick"></span><span class="lbl">06 明天</span></a>
+</nav>
+
+<main>
+
+<!-- ══════════ HERO ══════════ -->
+<section class="hero" id="hero">
+  <span class="tag"><span class="pulse"></span>早会分享 · 工程思维入门 · 2026-09-07</span>
+  <h1>跑通<span class="accent">不算完</span></h1>
+  <p class="desc">写代码这件事，学会「让它跑起来」大概要几个月；学会「让它在<b>时间里、在别人手上、在你不看着的时候</b>仍然是对的」，要几年。后面这段，就是工程思维。</p>
+  <p class="role">本文为公开版，具体标识已替换为占位符：团队成员以角色代称，内部仓名与 PR 编号已隐去。<br>前半部分是可以直接借用的成熟做法（Google / Linux / SQLite / Rust / Netflix / Stripe / Etsy），后半部分是它们在我们自己项目里的样子。</p>
+  <div class="ticker">
+    <span class="chip"><span class="d b"></span>Hyrum 定律</span>
+    <span class="chip"><span class="d b"></span>不破坏用户空间</span>
+    <span class="chip"><span class="d a"></span>Beyoncé 规则</span>
+    <span class="chip"><span class="d a"></span>选无聊的技术</span>
+    <span class="chip"><span class="d v"></span>Chaos Monkey</span>
+    <span class="chip"><span class="d v"></span>Crater</span>
+    <span class="chip"><span class="d r"></span>幂等键</span>
+  </div>
+
+  <div class="statband">
+    <div class="stat">
+      <div class="v">590<span class="suf">×</span></div>
+      <div class="l">SQLite 的测试代码量 ÷ 库代码量<br>92,053.1 KSLOC 对 155.8 KSLOC</div>
+      <span class="src">外部 · sqlite.org/testing.html · v3.42.0</span>
+    </div>
+    <div class="stat b">
+      <div class="v">100<span class="suf">%</span></div>
+      <div class="l">SQLite 核心库的分支覆盖率<br>（含 MC/DC 判定条件覆盖）</div>
+      <span class="src">外部 · TH3 测试工具</span>
+    </div>
+    <div class="stat a">
+      <div class="v"><span class="cnum" data-v="269">269</span><span class="suf">条</span></div>
+      <div class="l">我们的收割机绿灯亮着的一周多里<br>队列中始终没被采走的源片</div>
+      <span class="src">我们 · 素材采集管线</span>
+    </div>
+    <div class="stat r">
+      <div class="v">30<span class="suf">写</span> → 3<span class="suf">跑</span></div>
+      <div class="l">同一个成本闸<br>三处配置都显示 30，机器实跑 3</div>
+      <span class="src">我们 · 素材采集管线</span>
+    </div>
+  </div>
+
+  <div class="thesis">
+    <span class="k">今天只讲一件事</span>
+    <p>把「<em>我以为它在工作</em>」，换成「<em>我能指出它此刻正在产出的那一行证据</em>」。</p>
+  </div>
+</section>
+
+<!-- ══════════ 01 定义 ══════════ -->
+<section id="what">
+  <div class="sec-head rv">
+    <span class="idx">01</span>
+    <div>
+      <span class="eyebrow">Programming vs. software engineering</span>
+      <h2>先把「编程」和「工程」分开</h2>
+    </div>
+  </div>
+  <p class="lede rv">Google 那本《Software Engineering at Google》开篇给了一个定义，值得逐字记住：<b>「Software engineering is programming integrated over time.」</b>——软件工程，是编程对时间的积分。编程是产生新代码；工程是让这些代码在时间流过之后依然成立。</p>
+
+  <div class="band rv" style="--c:var(--blue);margin-bottom:44px">
+    <span class="k">初级和资深的分水岭</span>
+    <p>初级开发者交付的是<b>「我写完了」</b>：功能能演示，测试跑过，PR 提了。资深开发者交付的是<b>「它好了」</b>：我知道它在什么条件下会坏、坏了谁会先发现、发现之后从哪一行日志开始查、以及为什么我确信它现在真的在产出。</p>
+    <p>这两者的距离，不是聪明程度，是<b>把一个问题问到底的次数</b>。下面这三个轴，就是那三个必须问下去的方向。</p>
+  </div>
+
+  <div class="axes rv">
+    <div class="ax" style="--c:var(--blue)">
+      <div class="axname"><span class="axk">Axis 01</span>时间</div>
+      <div>
+        <p class="axq">我今天写对的这行代码，<b>三个月后、依赖升级过、旁边被别人改过之后，还对吗？</b>那时候我可能已经忘了它为什么这么写。</p>
+        <div class="axtrack">
+          <span class="seg prog">编程在这里结束</span>
+          <span class="seg eng">工程要负责的是这一整段 →</span>
+        </div>
+      </div>
+    </div>
+    <div class="ax" style="--c:var(--amber)">
+      <div class="axname"><span class="axk">Axis 02</span>别人</div>
+      <div>
+        <p class="axq">我这个函数、这个接口、这个目录结构，<b>下一个人不问我就能看懂并且不会用错吗？</b>我依赖的那个库，半年后还有人维护吗？</p>
+        <div class="axtrack">
+          <span class="seg prog">「我自己知道就行」</span>
+          <span class="seg eng">工程要负责的是这一整段 →</span>
+        </div>
+      </div>
+    </div>
+    <div class="ax" style="--c:var(--violet)">
+      <div class="axname"><span class="axk">Axis 03</span>看不见</div>
+      <div>
+        <p class="axq">它在凌晨两点、在我睡觉的时候、在没人盯着的机器上跑，<b>坏了会有人知道吗？</b>还是要等到一个月后有人问「怎么数据不对」？</p>
+        <div class="axtrack">
+          <span class="seg prog">本地跑通了</span>
+          <span class="seg eng">工程要负责的是这一整段 →</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ 02 九条 ══════════ -->
+<section id="canon">
+  <div class="sec-head rv">
+    <span class="idx">02</span>
+    <div>
+      <span class="eyebrow">Nine practices, three axes</span>
+      <h2>别人已经踩完的九条，按三个轴排好</h2>
+    </div>
+  </div>
+  <p class="lede rv">这九条全部来自公开可查的工程实践，不是我编的口号。<b>每一条都配了它在我们仓库里对应的那件事</b>——你会发现我们踩的坑，人家十几年前就命名过了。</p>
+
+  <!-- ── 轴一：时间 ── -->
+  <div class="axgroup rv" style="--c:var(--blue)">
+    <span class="gk">Axis 01</span>
+    <h3>时间 —— 代码活得比你的记忆长</h3>
+    <p>这三条讲的都是同一件事：你以为的「临时」「内部」「没人用」，时间会把它变成契约。</p>
+  </div>
+  <div class="grid3 stagger">
+
+    <div class="cell" style="--c:var(--blue)">
+      <span class="from">Google · SWE Book</span>
+      <h3>Hyrum 定律</h3>
+      <p class="quote">"With a sufficient number of users of an API, it does not matter what you promise in the contract: all observable behaviors of your system will be depended on by somebody."</p>
+      <p>用的人一多，你写在文档里的承诺就不重要了——<b>系统所有可被观察到的行为，都会有人依赖</b>。返回顺序、报错文案、甚至响应快慢。</p>
+      <p class="ours"><b>我们身上</b>安卓端一组候选点击坐标（26/50/74dp）是"内部实现细节"，但真机上它就是契约——三键导航机的用户身上，头两个点位落在系统导航栏里。</p>
+    </div>
+
+    <div class="cell" style="--c:var(--blue)">
+      <span class="from">Linux Kernel · Linus</span>
+      <h3>不破坏用户空间</h3>
+      <p class="quote">"We don't break userspace."</p>
+      <p>内核最高铁律：<b>无论你的新写法多正确，只要它让已有的用户程序不能跑，就是你的 bug，不是用户的</b>。回归被当成比设计缺陷更严重的错误。</p>
+      <p class="ours"><b>我们身上</b>有一次改动里，skill 侧单测本来就有 7 failures / 21 errors（本机 ffmpeg 版本问题）。他没修也没装看不见，而是<b>逐条比对失败集合与改动前完全一致</b>，把这句话写进提交信息。这才叫回归通过。</p>
+    </div>
+
+    <div class="cell" style="--c:var(--blue)">
+      <span class="from">Chesterton · 经典比喻</span>
+      <h3>切斯特顿的栅栏</h3>
+      <p class="quote">"Go away and think. Then when you can come back and tell me that you do see the use of it, I may allow you to destroy it."</p>
+      <p>路中间有道栅栏，你看不出它有什么用。<b>正确做法不是拆掉，是先去搞清楚当初为什么有人立它</b>——说得出来，才有资格拆。</p>
+      <p class="ours"><b>我们身上</b>那个盖掉成本闸的同名 secret，就是"某次标定留下的"——留的人当时有理由，但理由没写下来，一年后它变成了一个纯粹的地雷。<b>栅栏要么拆掉，要么写清楚为什么留。</b></p>
+    </div>
+  </div>
+
+  <!-- ── 轴二：别人 ── -->
+  <div class="axgroup rv" style="--c:var(--amber)">
+    <span class="gk">Axis 02</span>
+    <h3>别人 —— 你不在场的时候，代码要自己说话</h3>
+    <p>这三条讲的是把「靠人记得」换成「靠机制保证」，以及不要给团队制造不必要的新知识负担。</p>
+  </div>
+  <div class="grid3 stagger">
+
+    <div class="cell" style="--c:var(--amber)">
+      <span class="from">Google · Beyoncé Rule</span>
+      <h3>Beyoncé 规则</h3>
+      <p class="quote">"If you liked it, you should have put a CI test on it."</p>
+      <p>基础设施改动把你的东西搞坏了，而 CI 里<b>没有一条测试能抓到</b>——那不算基础设施团队的责任。<b>你在乎什么，就给什么写一条 CI 测试。</b>口头叮嘱不是保护。</p>
+      <p class="ours"><b>我们身上</b>「要发出去的包只从已合并的提交打」写进记忆本靠人记得，第二次又踩，当天改成 <code>release-guard.mjs</code> 在两个打包脚本里拦（我们某个客户端的打包流程）。</p>
+    </div>
+
+    <div class="cell" style="--c:var(--amber)">
+      <span class="from">Etsy · Dan McKinley</span>
+      <h3>选无聊的技术</h3>
+      <p class="quote">"Choose boring technology. You have a limited number of innovation tokens."</p>
+      <p>每个团队的<b>「创新额度」只有大约三个</b>，花在哪就没了。用一个你已经知道它会怎么坏的旧技术，长期成本远低于一个漂亮但没人摸清脾气的新技术。</p>
+      <p class="ours"><b>我们身上</b>判断标准很简单：<b>这个新东西宣称解决的痛点，对得上我们真实发生过的事故吗？</b>对不上，就是在给不存在的问题买工具——那笔额度请留给真的能救命的地方。</p>
+    </div>
+
+    <div class="cell" style="--c:var(--amber)">
+      <span class="from">Stripe API · 幂等键</span>
+      <h3>把隐含契约写成显式参数</h3>
+      <p class="quote">Idempotency-Key: 同一个键重复提交，只产生一次副作用。</p>
+      <p>网络会重发、用户会双击、重试会叠加。Stripe 的做法不是"祈祷不会重复"，而是<b>让调用方带一个键，服务端保证同键只生效一次</b>——把一个隐含假设变成了写在协议里的东西。</p>
+      <p class="ours"><b>我们身上</b>这正是 E2 那道题预埋的坑：题面<b>没写</b>同一单会来两次。去重要在<b>收到时</b>就记，不是完成后才记——否则重复请求落在冷启动窗口里那单必挂。</p>
+    </div>
+  </div>
+
+  <!-- ── 轴三：看不见 ── -->
+  <div class="axgroup rv" style="--c:var(--violet)">
+    <span class="gk">Axis 03</span>
+    <h3>看不见 —— 不去证伪，就等于不知道</h3>
+    <p>这三条是本次分享的重点：<b>「没出错」不是证据，「我验过它出错时会怎样」才是。</b></p>
+  </div>
+  <div class="grid3 stagger">
+
+    <div class="cell" style="--c:var(--violet)">
+      <span class="from">Netflix · Chaos Monkey</span>
+      <h3>主动把它弄坏</h3>
+      <p class="quote">在生产环境随机关掉实例，工作日、上班时间，有人盯着。</p>
+      <p>逻辑非常朴素：<b>你没见过它 failover 成功，就不能说它能 failover</b>。与其等半夜真挂了才发现容灾是假的，不如白天自己动手，在能立刻处理的时候先挂一次。</p>
+      <p class="ours"><b>我们身上</b>一条从没红过的告警和一条天天红的告警，是同一种失败。交付一道闸时要能指出<b>它真实触发的那一次</b>：哪个 run、输出长什么样。指不出来，它就还没装上。</p>
+    </div>
+
+    <div class="cell" style="--c:var(--violet)">
+      <span class="from">Rust · Crater</span>
+      <h3>拿整个生态当回归基线</h3>
+      <p class="quote">在 crates.io 与 GitHub 上抓取大量真实项目，用新旧两版编译器各跑一遍 build + test，<b>比对结果差异</b>。</p>
+      <p>Rust 团队在稳定一个改动之前会跑 Crater。注意它的判据不是"新版本测试全绿"，而是<b>「新旧两版的失败集合有没有变化」</b>——绝对数字不重要，差值才重要。</p>
+      <p class="ours"><b>我们身上</b>同一个思路的小型版：我们某个安卓客户端的一次修复做了「变异验证」——把新加的导航栏变量忽略掉重跑，<b>76 条用例恰好红这 3 条</b>，这才证明新判据真在起作用。</p>
+    </div>
+
+    <div class="cell" style="--c:var(--violet)">
+      <span class="from">SQLite · testing.html</span>
+      <h3>不信任的程度，取决于坏了谁会疼</h3>
+      <p class="quote">库代码 155.8 KSLOC，测试代码与脚本 92,053.1 KSLOC —— <b>590 倍</b>；核心库 100% 分支覆盖，含 MC/DC。</p>
+      <p>这条不是让你写 590 倍测试。它给的是一把尺子：<b>投入多少验证，取决于这段代码坏掉时谁会疼、疼多久、多久才会被发现。</b>SQLite 装在几十亿台设备上，所以是 590 倍。</p>
+      <p class="ours"><b>我们身上</b>同一把尺子：一个只有你自己用的脚本，跑通就行；一个每晚无人值守跑、坏了一个月后才有人问的管线，必须有产出断言。</p>
+    </div>
+  </div>
+
+  <div class="band rv" style="--c:var(--teal);margin-top:-28px">
+    <span class="k">九条压成一句</span>
+    <p>凡是<b>「错了也不报错」</b>的东西——生成出来的产物、后台跑的管线、装上去的闸、算出来的比值——它的质量只能靠<b>产出端的断言</b>，不能靠<b>消费端的抽查</b>。抽查对第一次有效，对第二次永远无效，因为没人会为了同一件事再翻一遍。</p>
+  </div>
+</section>
+
+<!-- ══════════ 03 我们的反例 ══════════ -->
+<section id="ours">
+  <div class="sec-head rv">
+    <span class="idx">03</span>
+    <div>
+      <span class="eyebrow">Our own counterexamples</span>
+      <h2>全绿的故障：这些原则在我们身上的反例</h2>
+    </div>
+  </div>
+  <p class="lede rv">上面九条听起来都很有道理。下面五件事是今年真实发生的，分属五个不同的仓、五种不同的技术，<b>失效形态却完全一样</b>：没有异常、没有红灯、没有报警，每一处你能想到去看的地方都是对的——只有产出不对。</p>
+
+  <div class="tablewrap rv">
+    <table class="spec">
+      <thead>
+        <tr><th>它当时看起来是</th><th>它实际上是</th><th>为什么没人发现</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="grn">● 绿</span> 收割机每晚在跑，素材库天天在长<span class="src">我们某条素材管线</span></td>
+          <td>每晚只喂进 1 条，队列里 283 条有 269 条没采，产能空转一周多</td>
+          <td>探针的判据是「最新入库距今 &lt; 36h」。库天天在长，所以它<b>永远判绿</b></td>
+        </tr>
+        <tr>
+          <td><span class="grn">● 绿</span> 成本闸写 30，workflow 日志 30，机器 config 也是 30<span class="src">我们某条素材管线</span></td>
+          <td>机器自己的运行日志写「最多喂 3 条」——同名 secret 静默覆盖了每轮的 <code>--env</code></td>
+          <td>三处数字不一致，<b>但没有任何一处报错</b>。「改了、也确认过、但没生效」</td>
+        </tr>
+        <tr>
+          <td><span class="grn">● 绿</span> 值班脚本算出 B-roll 覆盖率掉了三成<span class="src">我们某个值班脚本</span></td>
+          <td>分母（配音）每条单都付含失败单，分子（口型）只有走到后段的单才付。摊到同一批单后是 1.06 倍，没掉</td>
+          <td>比值算得出来、也算得对，<b>只是两个数不是同一批单摊出来的</b></td>
+        </tr>
+        <tr>
+          <td><span class="grn">● 绿</span> 安卓端候选点位 26/50/74dp 三下全点了<span class="src">我们某个安卓客户端</span></td>
+          <td>前两下落在 48dp 的三键导航栏里——那是一颗真按键，第一下就把当前页面切走了</td>
+          <td>代码逻辑无误、点击也确实执行了。<b>只是点在了系统身上</b></td>
+        </tr>
+        <tr>
+          <td><span class="grn">● 绿</span> pre-push 两道阻断闸装在那里<span class="src">我们某个仓的 pre-push 钩子</span></td>
+          <td>探针被 <code>sh -e</code> 判死，两道闸事实上早已停摆</td>
+          <td>闸不报错也不拦人，<b>它只是安静地不再触发</b></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="band rv" style="--c:var(--rose);margin-top:34px;margin-bottom:44px">
+    <span class="k">同一台机器，五种坏法</span>
+    <p>下面这条线值得完整看一遍：它不是一次事故，是<b>同一个东西以五种不同方式安静地坏掉</b>，每一次都被人补上一道闸，而下一次总是从上一道闸没覆盖的角度进来。<b>序号每换一次颜色就是一次交接。</b></p>
+  </div>
+
+  <div class="pipe rv">
+    <span class="flowdot" aria-hidden="true"></span>
+
+    <div class="pstep" style="--who:var(--blue)">
+      <span class="who"><b>值班同学</b>建探针</span>
+      <div class="txt"><b>先建告警，再谈别的。</b>收割机跑在一台机器上，于是他做了一个<b>外部于那台机器</b>的每日探针——不问机器"你还好吗"，而是从外面看产出。<span class="verdict g">方向对</span></div>
+    </div>
+
+    <div class="pstep" style="--who:var(--blue)">
+      <span class="who"><b>值班同学</b>修夜批</span>
+      <div class="txt">夜批全灭。根因是 <code>launchd</code> 的裸 PATH 找不到 <code>ffprobe</code>——<b>手工跑得通，被调度器拉起来就跑不通</b>。这是「环境不是你以为的那个环境」的经典形态。</div>
+    </div>
+
+    <div class="pstep" style="--who:var(--amber)">
+      <span class="who"><b>搬家</b>迁到云端</span>
+      <div class="txt">收割机从一台<b>个人 Mac</b> 搬到 Fly，顺手补上一直缺席的喂料方。搬家时才发现这条链路一直缺一环——之前没人察觉，因为<b>它缺着也不报错</b>。</div>
+    </div>
+
+    <div class="pstep" style="--who:var(--amber)">
+      <span class="who"><b>随迁</b>补权限与记忆</span>
+      <div class="txt">部署闸缺 <code>actions:read</code>，查 CI 结论被 403 挡住；同时把两份写着旧宿主的团队记忆改正。<b>搬走一个东西，事实源要跟着搬</b>——不然半年后有人照着旧记忆去排查。</div>
+    </div>
+
+    <div class="pstep" style="--who:var(--risk)">
+      <span class="who"><b>探针被关</b>2026-08</span>
+      <div class="txt">探针连报 8 天同一句噪音红，被人手动 <code>disabled_manually</code> 关掉了。<b>此后一个多月没有任何告警——不是因为没问题，是因为没人在看。</b><span class="verdict r">静默</span></div>
+    </div>
+
+    <div class="pstep" style="--who:var(--teal)">
+      <span class="who"><b>新同事</b>补判据</span>
+      <div class="txt">补第五种判定 <code>red_low_yield</code>：<b>「库在长」不等于「产能用上了」</b>。判据是两个条件的合取——连续 2 天入库 &lt; 6 条，<b>且</b>队列里还剩 ≥ 50 条没采。少一个都会变噪音。</div>
+    </div>
+
+    <div class="pstep" style="--who:var(--teal)">
+      <span class="who"><b>新同事</b>查根因</span>
+      <div class="txt">查到底：双根因。同名 secret 把上限从 30 盖成 3；剩下那 3 条里 2 条源站凭据过期下不动。上一道 <b>fail-closed</b> 的闸——判据只看名字，<code>HARVEST_*</code> 出现在 secrets 里即是错，命中就红掉不启动。</div>
+    </div>
+  </div>
+
+  <p class="pipe-note rv">这条链路上真正花时间的从来不是写代码——是搞清楚「<b>它到底有没有在干活</b>」。</p>
+</section>
+
+<!-- ══════════ 04 判据 ══════════ -->
+<section id="rules">
+  <div class="sec-head rv">
+    <span class="idx">04</span>
+    <div>
+      <span class="eyebrow">From principles to checkable criteria</span>
+      <h2>原则落成判据：我们自己写下来的六条</h2>
+    </div>
+  </div>
+  <p class="lede rv">原则记不住也用不上，<b>判据可以</b>——判据是一句能当场判真假的话。下面六条都已经写在我们的提交信息和测试里，可以从明天开始照抄。</p>
+
+  <div class="grid2 stagger">
+
+    <div class="cell">
+      <div class="ico"><svg viewBox="0 0 24 24"><path d="M3 17l5-5 4 3 5-7"/><path d="M3 21h18"/><circle cx="17" cy="8" r="2"/></svg></div>
+      <h3>「在跑」不等于「在产出」</h3>
+      <p>存活心跳只证明进程没死。业务指标要落到<b>最细的产出单元</b>：这条管线声明要处理 N 个来源，我能不能说出每个来源今天各产出了多少？答不上来，聚合绿灯就是假的。</p>
+      <p class="src"><b>素材采集管线</b> · red_low_yield<br>判据：连续 2 天 &lt; 6 条 且 队列剩 ≥ 50</p>
+    </div>
+
+    <div class="cell">
+      <div class="ico b"><svg viewBox="0 0 24 24"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg></div>
+      <h3>「配置里写了什么」≠「进程读到什么」</h3>
+      <p>排查顺序永远是<b>先看进程的运行日志，再看配置</b>。配置有三层、四个来源、两套覆盖规则，而进程只有一个真相。三处都写 30、机器日志写 3——只有最后那个是真的。</p>
+      <p class="src"><b>素材采集管线</b> · fail-closed 闸<br>Fly secret 静默覆盖 machine env</p>
+    </div>
+
+    <div class="cell">
+      <div class="ico a"><svg viewBox="0 0 24 24"><path d="M5 6h14"/><path d="M5 18h14"/><path d="M8 6l-3 6h6z"/><path d="M13 12l3-6 3 6z"/><path d="M12 6v12"/></svg></div>
+      <h3>任何 A÷B，先问 A 和 B 是不是同一批单</h3>
+      <p>同一张成本表里的两栏，天然分属产线的不同阶段：配音在早段每条都付（含失败单），口型在后段只有走到那步才付。<b>零失败的日子和有失败的窗口不可直接比。</b></p>
+      <p class="src"><b>值班脚本</b><br>朴素 1.32 倍 → 摊回同批后 1.06 倍</p>
+    </div>
+
+    <div class="cell">
+      <div class="ico v"><svg viewBox="0 0 24 24"><path d="M4 4v16h16"/><path d="M8 15l3-4 3 2 4-6"/><path d="M4 11h4"/><path d="M4 7h2"/></svg></div>
+      <h3>回归不看绝对数字，看和基线的差</h3>
+      <p>本机环境导致的既有失败可以不修，<b>但必须证明失败集合和改动前逐条一致</b>，并把这句话写进提交信息。这是 Crater 那套思路的小型版。</p>
+      <p class="src"><b>素材采集管线</b> · 新同事<br>pytest 459→463 · unittest 648→654</p>
+    </div>
+
+    <div class="cell">
+      <div class="ico r"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/><path d="M3 12h3"/><path d="M18 12h3"/></svg></div>
+      <h3>新装的闸，要指出它真实触发的那一次</h3>
+      <p>「变异验证」：把新加的变量忽略掉重跑，<b>76 条用例恰好红这 3 条</b>——这才证明新判据真的在起作用。一条在现场恒真或恒假的判据，等于没装。</p>
+      <p class="src"><b>安卓客户端</b> · 单测 +3<br>导航栏 inset 锚定 · 393 单测全绿</p>
+    </div>
+
+    <div class="cell">
+      <div class="ico"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/><path d="M12 14v2"/></svg></div>
+      <h3>同一条教训第二次犯 → 升级成机器闸</h3>
+      <p>第一次踩：写下来。<b>第二次踩：当天把它变成机器能拦的东西</b>——一个脚本、一条 CI check、一个 assert。这就是 Beyoncé 规则的本地版本。</p>
+      <p class="src"><b>客户端打包</b> · release-guard<br>只拦已配置包，<code>--allow-unmerged</code> 放行试装</p>
+    </div>
+
+  </div>
+
+  <div class="band rv" style="--c:var(--amber);margin-top:44px">
+    <span class="k">但是——告警装错比不装更贵</span>
+    <p>上面一直在说「要装闸」，这里说反面。<b>2026 年 8 月那个探针，是被自己的告警搞死的</b>：连报 8 天同一句噪音红，然后被人手动关掉，此后一个多月的真实空转无人知晓。所以后来补新判据时，刻意用了<b>两个条件的合取</b>，并且规定<b>证据不全时不报</b>——它报的是「没用满」不是「坏了」，宁可漏也不要噪音。</p>
+  </div>
+
+  <div class="quadwrap rv">
+    <div class="qaxis-y">
+      <span>队列还剩<br>≥ 50 条没采</span>
+      <span>队列<br>见底了</span>
+    </div>
+    <div class="quad">
+      <div class="qcell fire">
+        <div class="v"><span class="dot"></span>判红 · red_low_yield</div>
+        <p>能采而没采 —— 这才是「产能空转」。告警正文直接点名去看 <code>feed-report.json</code> 与源站凭据。</p>
+      </div>
+      <div class="qcell calm">
+        <div class="v"><span class="dot"></span>不判 · 正常</div>
+        <p>队列有料、吞吐也正常，闸用满了。这一格是常态，一年也不该响一次。</p>
+      </div>
+      <div class="qcell hold">
+        <div class="v"><span class="dot"></span>不判 · 本来就没料</div>
+        <p>吞吐低是因为没东西可采，不是坏了。只看吞吐这一个条件的话，<b>队列排空那几天会天天误报</b>。</p>
+      </div>
+      <div class="qcell hold">
+        <div class="v"><span class="dot"></span>不判 · 正在收尾</div>
+        <p>正常速度啃完了队列。只看队列这一个条件的话，这一格也会被误报。</p>
+      </div>
+    </div>
+    <div class="qaxis-x">
+      <span>连续 2 天入库 &lt; 6 条</span>
+      <span>入库量正常</span>
+    </div>
+  </div>
+
+  <p class="chartnote" style="margin-top:18px">阈值不是拍的：6 = 夜采上限 30 的 20%，量的是「产能用了几成」而非绝对好坏线，所以代码注释里写明「改夜采上限时这里要跟着改」。校准实测：填 3 会把入库 3 条那几天算成达标，整条判据失效。</p>
+</section>
+
+<!-- ══════════ 05 出的题 ══════════ -->
+<section id="exam">
+  <div class="sec-head rv">
+    <span class="idx">05</span>
+    <div>
+      <span class="eyebrow">The exam we wrote</span>
+      <h2>我们自己出的题，考的就是这个</h2>
+    </div>
+  </div>
+  <p class="lede rv">我们给实习生出的那三道题，是三类常见业务链路的缩小版。每道题都<b>预埋了「题面没明说、但真实生产一定会遇到」的坑</b>——这份坑清单，其实就是我们对工程思维的操作性定义。<b>拿它自测一下：这三列里，有几个坑是你会主动想到的？</b></p>
+
+  <div class="cols3 stagger">
+    <div class="colbox" style="--c:var(--blue)">
+      <h4>E1 · 迷你企业大脑<br>检索 30 篇内部文档</h4>
+      <ul>
+        <li><b><code>.archive/</code> 里的旧副本</b><i>与现行文档大段重复，但数字过期：¥780→¥880、质保 5→10 年。答得出来、看着也对，就是旧的</i></li>
+        <li><b>包在正经配置说明里的假凭据</b><i>常见借口是「那明显是假的」。追问一句：你代码里怎么判真假？</i></li>
+        <li><b>写着「每日覆盖，不要引用」的实时数字</b><i>从快照里捞一个数当答案 —— 问他「138 张是哪天的」，答不上来</i></li>
+      </ul>
+    </div>
+    <div class="colbox" style="--c:var(--amber)">
+      <h4>E2 · 工作流自动化<br>webhook → 异步渲染 → 通知</h4>
+      <ul>
+        <li><b>webhook 必须 2 秒内回</b><i>题面只说「调用方 3 秒就断」。在 handler 里等渲染完成的实现，冷启动那单必挂</i></li>
+        <li><b>同一单会来两次（题面没写）</b><i>这就是幂等键那一条。去重要在收到时就记，不是完成后才记</i></li>
+        <li><b>四种失败形态处置各不同</b><i>该重试的、不该重试的、要自己判超时的。把 500 直接判失败和对 failed 无限重试，是同一种偷懒的两面</i></li>
+      </ul>
+    </div>
+    <div class="colbox" style="--c:var(--rose)">
+      <h4>E3 · 消息自动回复<br>UI 自动化驱动仿真页面</h4>
+      <ul>
+        <li><b>当前会话不出红点</b><i>题面写了这条契约。只扫红点的实现漏 2 条（23→21）。<b>我们自己的参考实现第一版也掉进去了</b> —— 读了契约，但没想它的后果</i></li>
+        <li><b>弹窗挡住输入框</b><i>用 JS 删 DOM 绕过 → 没有 popup_closed 事件，照样违规</i></li>
+        <li><b>转人工之后必须闭嘴</b><i>状态存哪？进程重启会丢吗？</i></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="hbar rv" data-hbar>
+    <div class="row">
+      <span class="lab">解决问题<i>题面没说的那些</i></span>
+      <span class="track"><span class="fill hi" data-w="83"></span></span>
+      <span class="val">25 分</span>
+    </div>
+    <div class="row">
+      <span class="lab">验收<i>评测脚本能不能跑绿</i></span>
+      <span class="track"><span class="fill" data-w="100"></span></span>
+      <span class="val">30 分</span>
+    </div>
+    <div class="row">
+      <span class="lab">工程质量</span>
+      <span class="track"><span class="fill" data-w="50"></span></span>
+      <span class="val">15 分</span>
+    </div>
+    <div class="row">
+      <span class="lab">沟通与过程</span>
+      <span class="track"><span class="fill" data-w="50"></span></span>
+      <span class="val">15 分</span>
+    </div>
+    <div class="row">
+      <span class="lab">迭代响应<i>收到意见后改一轮</i></span>
+      <span class="track"><span class="fill" data-w="50"></span></span>
+      <span class="val">15 分</span>
+    </div>
+    <p class="chartnote">口径：题目自带的评分细则，满分 100。青色条为本节重点维度，非最高分项。</p>
+  </div>
+
+  <div class="band rv" style="--c:var(--teal)">
+    <span class="k">这条规则请记住</span>
+    <p>评分口径里写着：<b>「发现了但选择不处理、并写明原因，也算发现。」</b>——我们要的从来不是「全都修好」，是<b>你知道它在那儿</b>。这条对我们自己同样成立：一个诚实的半成品，比一个看不懂的全成品有价值；README 或 PR 描述里那句「我发现了 X，这次不处理，因为 Y」，<b>和代码一样是交付物</b>。</p>
+  </div>
+</section>
+
+<!-- ══════════ 06 明天 ══════════ -->
+<section id="tomorrow">
+  <div class="sec-head rv">
+    <span class="idx">06</span>
+    <div>
+      <span class="eyebrow">Four questions, starting tomorrow</span>
+      <h2>明天就能用的四个问句</h2>
+    </div>
+  </div>
+  <p class="lede rv">九条原则、六条判据都记不住没关系。<b>把下面四个问句抄在手边就够了</b>——它们对应前面的三个轴。答不上来不丢人，答不上来还往下走才是。</p>
+
+  <div class="checks stagger">
+    <div class="check">
+      <span class="n">01</span>
+      <div>
+        <h3>我说「已修 / 已部署 / 已生效」时，看的是哪一行日志？</h3>
+        <p>贴了输出不等于验过了。每条证据都要能回答：<b>它的主语，是不是我要判定的那个对象</b>？CI 绿不等于线上更新了，PR 合了不等于部署跑了，工作区干净不等于 PR 干净。</p>
+      </div>
+    </div>
+    <div class="check">
+      <span class="n">02</span>
+      <div>
+        <h3>这个数字的分子和分母，是不是同一批单？</h3>
+        <p>凡是誊抄时经过<b>任何运算</b>的列——单位换算、百分比、求和、时区——肉眼校对等于没校，因为两个数看起来都像对的。带 <code>--limit</code> 的列表命令会静默截断；「查到 0」在证明端点可用之前，只能写「取不到数」。</p>
+      </div>
+    </div>
+    <div class="check">
+      <span class="n">03</span>
+      <div>
+        <h3>我新加的这条判据，在真实现场是恒真还是恒假？</h3>
+        <p>一条从没红过的告警和一条天天红的告警，是同一种失败。交付一道闸时要能指出<b>它真实触发的那一次</b>：哪个 run、输出长什么样。这就是 Chaos Monkey 那条——<b>没见过它触发，就不能说它装上了</b>。</p>
+      </div>
+    </div>
+    <div class="check">
+      <span class="n">04</span>
+      <div>
+        <h3>这条教训，是第几次了？</h3>
+        <p>第一次踩：写下来。<b>第二次踩：当天把它变成机器能拦的东西。</b>靠「下次记得」维持的纪律，第三次一定还会犯，而且往往是同一个人。你在乎它，就给它一条 CI 测试。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="thesis rv" style="margin-top:34px">
+    <span class="k">一句话带走</span>
+    <p>编程是让它跑起来；工程是<em>让它在你不看着的时候还是对的</em>。</p>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="fl">
+    <div class="brand">跑通不算完
+      <span>早会分享 · 工程思维入门 · 2026-09-07</span>
+    </div>
+    <div class="meta">
+      外部引用 <b>abseil.io/resources/swe-book ch01</b>（Winters 定义 / Beyoncé 规则 / Hyrum 定律）<br>
+      <b>sqlite.org/testing.html</b> v3.42.0 · <b>github.com/rust-lang/crater</b> · <b>mcfunley.com/choose-boring-technology</b><br>
+      内部案例 取自团队今年几条管线与客户端的真实提交<br>
+      公开版已隐去仓名、PR 编号与成员账号
+    </div>
+  </div>
+</footer>
+
+<script>
+  if(new URLSearchParams(location.search).get('anim') === 'off')
+    document.documentElement.dataset.anim = 'off';
+  const ANIM_OFF = document.documentElement.dataset.anim === 'off'
+    || matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const prog = document.getElementById('progress');
+  const onScroll = () => {
+    const h = document.documentElement;
+    const span = h.scrollHeight - h.clientHeight;
+    prog.style.width = (span > 0 ? h.scrollTop / span * 100 : 0) + '%';
+  };
+  document.addEventListener('scroll', onScroll, {passive:true}); onScroll();
+
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); }
+  }), {threshold:.14, rootMargin:'0px 0px -6% 0px'});
+  if(ANIM_OFF) document.querySelectorAll('.rv,.stagger').forEach(el => el.classList.add('in'));
+  else document.querySelectorAll('.rv,.stagger').forEach(el => io.observe(el));
+
+  const revealPast = () => {
+    document.querySelectorAll('.rv:not(.in),.stagger:not(.in)').forEach(el => {
+      if(el.getBoundingClientRect().top < innerHeight * .9){ el.classList.add('in'); io.unobserve(el); }
+    });
+  };
+  document.addEventListener('scroll', revealPast, {passive:true});
+  revealPast(); addEventListener('load', revealPast);
+
+  const PENDING = [];
+  function onEnter(sel, fn, threshold = .25){
+    const o = new IntersectionObserver(es => es.forEach(e => {
+      if(e.isIntersecting) fire(e.target);
+    }), {threshold});
+    document.querySelectorAll(sel).forEach(el => {
+      if(ANIM_OFF){ fn(el, true); return; }
+      PENDING.push([el, fn, o]); o.observe(el);
+    });
+  }
+  function fire(el){
+    const i = PENDING.findIndex(x => x[0] === el);
+    if(i < 0) return;
+    const [, fn, o] = PENDING.splice(i, 1)[0];
+    o.unobserve(el); fn(el, false);
+  }
+  const settle = () => {
+    for(const [el] of [...PENDING])
+      if(el.getBoundingClientRect().top < innerHeight * .9) fire(el);
+  };
+  addEventListener('scroll', settle, {passive:true});
+  addEventListener('load', settle);
+
+  onEnter('.cnum', (el, instant) => {
+    const target = +el.dataset.v, dur = 1200;
+    const put = v => el.textContent = Math.round(v).toLocaleString('en-US');
+    if(instant){ put(target); return; }
+    const t0 = performance.now();
+    const tick = t => {
+      const p = Math.min((t - t0) / dur, 1);
+      put(target * (1 - Math.pow(1 - p, 3)));
+      if(p < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    setTimeout(() => put(target), dur + 500);
+  }, .5);
+
+  onEnter('[data-hbar]', (el, instant) => {
+    const run = () => el.querySelectorAll('.fill').forEach(f => f.style.width = f.dataset.w + '%');
+    if(instant){ run(); return; }
+    requestAnimationFrame(run); setTimeout(run, 1700);
+  }, .2);
+
+  const rail = [...document.querySelectorAll('.rail a')];
+  const secObs = new IntersectionObserver(es => es.forEach(e => {
+    if(e.isIntersecting) rail.forEach(a => a.classList.toggle('on', a.dataset.s === e.target.id));
+  }), {rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('main section').forEach(s => secObs.observe(s));
+</script>
+
+</body></html>

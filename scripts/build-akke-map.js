@@ -17,7 +17,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
 const AKKE = path.join(ROOT, 'public', 'akke');
@@ -69,6 +69,10 @@ const dateOf = (href) => {
 const mmdd = (d) => (d && d.length >= 10 ? d.slice(5, 10) : '');
 const esc = (s) => s; // 描述已是可信 HTML 片段(来自我们自己的 manifest)
 
+// 供 build-timeline.js 复用分类规则与日期缓存(require 时不触发构建)
+module.exports = { CATS, classify, overrides, dates };
+if (require.main !== module) return;
+
 // ---- 枚举所有页面 ----
 const featuredHrefs = new Set(map.featured.map(f => f.href));
 const HIDDEN = new Set(['/akke/index']); // intro 仍在「入门·架构」列卡;它同时也在 hero/从这里开始 置顶
@@ -93,7 +97,9 @@ if (process.env.REFRESH_DATES) {
     if (dates[href]) continue;
     try {
       const rel = path.relative(ROOT, file);
-      const iso = execSync(`git log --diff-filter=A --follow --format=%aI -1 -- ${JSON.stringify(rel)}`, { cwd: ROOT, encoding: 'utf8' }).trim();
+      // 不用 --follow:模板化页面(日报、model-watch)内容相近,--follow 会把它们误认成改名,拿到别的文件的入库日期
+      const out = execFileSync('git', ['log', '--diff-filter=A', '--format=%as', '--', rel], { cwd: ROOT, encoding: 'utf8' }).trim();
+      const iso = out.split('\n').pop(); // 最早一次 A
       if (iso) { dates[href] = iso.slice(0, 10); added++; }
     } catch {}
   }

@@ -1,0 +1,478 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>在 Work Buddy / 千问办公里连上门店工作台（Agent 接入指南）</title>
+<meta name="upio:date" content="2026-08-19">
+<meta name="upio:source" content="artifact">
+<meta name="upio:category" content="ops">
+<style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style></head><body>
+<style>
+  /* 浅色是完整定义；深色只重定义 token。三态都要覆盖：
+     显式 light / 显式 dark / 未标记（跟系统）。 */
+  :root {
+    --ground: #F5F7F7;
+    --surface: #FFFFFF;
+    --surface-sunk: #ECF0F0;
+    --ink: #131A1C;
+    --ink-soft: #3C4A4D;
+    --muted: #5A6A6D;
+    --line: #D8E0E0;
+    --line-soft: #E7EDED;
+    --accent: #0F5F66;
+    --accent-soft: #E3EFEF;
+    --ok: #2E7D5B;
+    --warn: #9A6215;
+    --bad: #A63D33;
+    --code-bg: #101A1C;
+    --code-ink: #DCE8E8;
+    --code-dim: #7A8F90;
+    --shadow: 0 1px 2px rgba(19, 26, 28, .05), 0 8px 24px -12px rgba(19, 26, 28, .18);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0D1416;
+      --surface: #141D1F;
+      --surface-sunk: #101819;
+      --ink: #E4EDED;
+      --ink-soft: #C3D2D2;
+      --muted: #8A9C9D;
+      --line: #253133;
+      --line-soft: #1C2628;
+      --accent: #5FB3B8;
+      --accent-soft: #17292B;
+      --ok: #63BC92;
+      --warn: #D19A4C;
+      --bad: #DB8078;
+      --code-bg: #0A1113;
+      --code-ink: #D3E2E2;
+      --code-dim: #6C8081;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px -12px rgba(0, 0, 0, .6);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #0D1416;
+    --surface: #141D1F;
+    --surface-sunk: #101819;
+    --ink: #E4EDED;
+    --ink-soft: #C3D2D2;
+    --muted: #8A9C9D;
+    --line: #253133;
+    --line-soft: #1C2628;
+    --accent: #5FB3B8;
+    --accent-soft: #17292B;
+    --ok: #63BC92;
+    --warn: #D19A4C;
+    --bad: #DB8078;
+    --code-bg: #0A1113;
+    --code-ink: #D3E2E2;
+    --code-dim: #6C8081;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px -12px rgba(0, 0, 0, .6);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+                 "Microsoft YaHei", "Segoe UI", Roboto, sans-serif;
+    font-size: 16px;
+    line-height: 1.75;
+    margin: 0;
+    padding: 0 20px 96px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 760px; margin: 0 auto; }
+
+  code, pre, .mono {
+    font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
+                 "Liberation Mono", monospace;
+  }
+
+  /* ── 页眉 ───────────────────────────────────────────── */
+  header { padding: 72px 0 40px; border-bottom: 1px solid var(--line); }
+
+  .eyebrow {
+    font-size: 12px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+    margin: 0 0 18px;
+  }
+
+  h1 {
+    font-size: clamp(30px, 5vw, 40px);
+    line-height: 1.2;
+    letter-spacing: -.02em;
+    font-weight: 700;
+    margin: 0 0 18px;
+    text-wrap: balance;
+  }
+
+  .lede {
+    font-size: 18px;
+    color: var(--ink-soft);
+    margin: 0;
+    max-width: 62ch;
+  }
+
+  .meta {
+    margin-top: 28px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .meta span { display: inline-flex; align-items: center; gap: 7px; }
+  .meta .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--ok); flex: none;
+  }
+
+  /* ── 段落结构 ───────────────────────────────────────── */
+  h2 {
+    font-size: 22px;
+    letter-spacing: -.01em;
+    font-weight: 700;
+    margin: 56px 0 6px;
+    text-wrap: balance;
+  }
+
+  h3 {
+    font-size: 15px;
+    font-weight: 650;
+    margin: 30px 0 8px;
+    color: var(--ink);
+  }
+
+  p { margin: 0 0 16px; max-width: 68ch; }
+  .sub { color: var(--muted); font-size: 15px; margin-top: -2px; }
+
+  a { color: var(--accent); text-underline-offset: 3px; }
+  a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 3px;
+  }
+
+  /* ── 步骤脊线：编号是真实顺序，不是装饰 ─────────────── */
+  .steps { margin: 32px 0 0; padding: 0; list-style: none; }
+
+  .step {
+    position: relative;
+    padding: 0 0 40px 46px;
+    border-left: 1px solid var(--line);
+  }
+  .step:last-child { border-left-color: transparent; padding-bottom: 8px; }
+
+  .step::before {
+    content: attr(data-n);
+    position: absolute;
+    left: -14px;
+    top: -2px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    color: var(--accent);
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12px;
+    font-weight: 600;
+    display: grid;
+    place-items: center;
+  }
+
+  .step h2 { margin-top: -4px; font-size: 19px; }
+
+  /* ── 代码 ───────────────────────────────────────────── */
+  pre {
+    background: var(--code-bg);
+    color: var(--code-ink);
+    border-radius: 8px;
+    padding: 18px 20px;
+    overflow-x: auto;
+    font-size: 13.5px;
+    line-height: 1.7;
+    margin: 14px 0 16px;
+    tab-size: 2;
+  }
+  pre .c { color: var(--code-dim); }
+  pre .k { color: #7FC7CB; }
+  pre .s { color: #C8D9A8; }
+
+  p code, li code, td code {
+    background: var(--surface-sunk);
+    border: 1px solid var(--line-soft);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: .89em;
+  }
+
+  /* ── 卡片 / 提示 ────────────────────────────────────── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 20px 22px;
+    box-shadow: var(--shadow);
+    margin: 18px 0;
+  }
+  .card > :last-child { margin-bottom: 0; }
+
+  .note {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-soft);
+    border-radius: 0 8px 8px 0;
+    padding: 16px 20px;
+    margin: 20px 0;
+    font-size: 15px;
+  }
+  .note > :last-child { margin-bottom: 0; }
+  .note strong { color: var(--ink); }
+
+  .note.caution { border-left-color: var(--warn); background: color-mix(in srgb, var(--warn) 9%, var(--surface)); }
+  .note.stop { border-left-color: var(--bad); background: color-mix(in srgb, var(--bad) 9%, var(--surface)); }
+
+  /* ── 表 ─────────────────────────────────────────────── */
+  .tablewrap { overflow-x: auto; margin: 18px 0 6px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; min-width: 460px; }
+  th {
+    text-align: left;
+    font-size: 12px;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+    padding: 0 14px 8px 0;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  td {
+    padding: 11px 14px 11px 0;
+    border-bottom: 1px solid var(--line-soft);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  td.mono, th.mono { font-size: 13px; font-variant-numeric: tabular-nums; }
+
+  /* ── 能问什么 ───────────────────────────────────────── */
+  .asks { display: grid; gap: 10px; margin: 18px 0 8px; padding: 0; list-style: none; }
+  .asks li {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 9px 18px;
+    font-size: 15px;
+    color: var(--ink-soft);
+  }
+  .asks li::before { content: "「"; color: var(--muted); }
+  .asks li::after { content: "」"; color: var(--muted); }
+
+  /* ── 权限边界 ───────────────────────────────────────── */
+  .split { display: grid; gap: 16px; margin: 18px 0; }
+  @media (min-width: 620px) { .split { grid-template-columns: 1fr 1fr; } }
+
+  .box { border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; background: var(--surface); }
+  .box h3 { margin: 0 0 12px; display: flex; align-items: center; gap: 9px; font-size: 14px; }
+  .box ul { margin: 0; padding-left: 20px; font-size: 14.5px; color: var(--ink-soft); }
+  .box li { margin-bottom: 7px; }
+  .box li:last-child { margin-bottom: 0; }
+  .tag {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 10.5px;
+    letter-spacing: .06em;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+  }
+  .tag.can { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+  .tag.cant { background: color-mix(in srgb, var(--bad) 16%, transparent); color: var(--bad); }
+
+  footer {
+    margin-top: 64px;
+    padding-top: 24px;
+    border-top: 1px solid var(--line);
+    font-size: 13.5px;
+    color: var(--muted);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .step, .card { animation: rise .5s cubic-bezier(.2, .7, .3, 1) both; }
+    @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">门店工作台 · Agent 接入</p>
+    <h1>在 Work Buddy 里连上门店工作台</h1>
+    <p class="lede">
+      连上之后，你可以在办公软件里直接问「今天门店怎么样」「哪些客户该跟了」「这句话能不能发给客户」，
+      它会去工作台取真实数据回答你。全程三步，大约五分钟。
+    </p>
+    <p class="sub" style="margin-top:14px">本文为公开版，具体标识已替换为占位符；服务地址向负责人索取。</p>
+    <div class="meta">
+      <span><i class="dot"></i>服务已上线，14 个工具可用</span>
+      <span>国内直连实测 0.6–0.9 秒</span>
+      <span>更新于 2026-08-19</span>
+    </div>
+  </header>
+
+  <ol class="steps">
+
+    <li class="step" data-n="1">
+      <h2>拿一条 Agent 凭据</h2>
+      <p>负责人会单独发给你一条 Agent 凭据。它就是你的钥匙。</p>
+      <div class="note stop">
+        <p><strong>两件事别做：</strong>别把它发在群里或写进代码库；也别转给别人用 —— 丢了或怀疑泄露，找负责人换一条。</p>
+      </div>
+    </li>
+
+    <li class="step" data-n="2">
+      <h2>把配置粘进客户端</h2>
+      <p class="sub">按你实际在用的那个软件挑一段，把 <code>&lt;你的凭据&gt;</code> 换成第 1 步拿到的字符串，<code>&lt;门店工作台地址&gt;</code> 换成负责人给你的服务地址。</p>
+
+      <h3>腾讯 Work Buddy</h3>
+      <p>编辑 <code>~/.workbuddy/mcp.json</code>（也可以放项目目录下的 <code>.workbuddy/mcp.json</code>）：</p>
+      <pre><span class="c">// ~/.workbuddy/mcp.json</span>
+{
+  <span class="k">"mcpServers"</span>: {
+    <span class="k">"workbench"</span>: {
+      <span class="k">"type"</span>: <span class="s">"streamable_http"</span>,
+      <span class="k">"url"</span>: <span class="s">"https://&lt;门店工作台地址&gt;/api/mcp"</span>,
+      <span class="k">"headers"</span>: {
+        <span class="k">"Authorization"</span>: <span class="s">"Bearer &lt;你的凭据&gt;"</span>
+      }
+    }
+  }
+}</pre>
+
+      <h3>阿里 QwenWork（千问办公）</h3>
+      <p>扩展 → 连接器 → 粘 JSON。<strong>只有一个字不一样</strong>：<code>type</code> 用连字符。</p>
+      <pre>{
+  <span class="k">"mcpServers"</span>: {
+    <span class="k">"workbench"</span>: {
+      <span class="k">"type"</span>: <span class="s">"streamable-http"</span>,   <span class="c">// ← 连字符，不是下划线</span>
+      <span class="k">"url"</span>: <span class="s">"https://&lt;门店工作台地址&gt;/api/mcp"</span>,
+      <span class="k">"headers"</span>: {
+        <span class="k">"Authorization"</span>: <span class="s">"Bearer &lt;你的凭据&gt;"</span>
+      }
+    }
+  }
+}</pre>
+
+      <div class="note caution">
+        <p><strong>这两个键名我们没能在真机上验过。</strong>它们来自两家的公开文档。
+          如果客户端提示连不上，第一件事就是把 <code>streamable_http</code> 和
+          <code>streamable-http</code> 互换再试一次 —— 这是最可能的原因，改一个字符的事。</p>
+      </div>
+    </li>
+
+    <li class="step" data-n="3">
+      <h2>验一下确实连上了</h2>
+      <p>重启客户端，然后问它一句：</p>
+      <ul class="asks">
+        <li>你现在能用门店工作台的哪些工具</li>
+      </ul>
+      <p>它应该列出 <strong>14 个</strong>以 <code>store_</code> 开头的工具。数量对上就算通了。</p>
+    </li>
+
+    <li class="step" data-n="4">
+      <h2>开始用</h2>
+      <p>直接说人话就行，不用记工具名。这些是它最擅长回答的：</p>
+      <ul class="asks">
+        <li>今天门店怎么样，有什么要我处理的</li>
+        <li>有哪些内容等我批</li>
+        <li>哪些客户该跟了 / 张女士什么情况</li>
+        <li>我们家现在能对外说的价格活动是什么</li>
+        <li>机器人接待得怎么样，客户都在问什么</li>
+        <li>这句话能不能发给这个客户</li>
+        <li>我们家不能说什么，一天最多发几条</li>
+      </ul>
+      <p class="sub">最后两句值得单独记一下：它知道这家店的红线（不许承诺最低价、必问哪几件事、服务哪几个城市），
+        也能在你发出去之前先帮你过一遍六道出站检查，省掉「排进去才发现批不了」的来回。</p>
+    </li>
+
+  </ol>
+
+  <h2>它能做什么，不能做什么</h2>
+  <p class="sub">这条边界是产品设计，不是权限没配好。</p>
+
+  <div class="split">
+    <div class="box">
+      <h3><span class="tag can">可以</span>你的凭据允许</h3>
+      <ul>
+        <li>读门店的全部经营数据：客户、接待记录、资料、视频素材、效果数据</li>
+        <li>零副作用地自检一句话过不过闸</li>
+        <li>给某位客户<strong>起草</strong>一条跟进，排进审核台</li>
+      </ul>
+    </div>
+    <div class="box">
+      <h3><span class="tag cant">不行</span>设计上不给</h3>
+      <ul>
+        <li><strong>批准</strong>任何内容 —— 那是店长在工作台点的那一下</li>
+        <li>直接给客户发消息</li>
+        <li>改门店资料、线上话术、闸配置、量房券、视频产线</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="note">
+    <p><strong>起草不等于发出去。</strong>你让它排一条跟进，它只会写进审核台变成一条待批记录，
+      在有人到工作台点批准之前，<strong>触达不到任何客户</strong>。而且它会先把内容念给你听、等你点头，
+      才真的写进去 —— 你说「不对，改一下」它就不会写。</p>
+  </div>
+
+  <h2>出问题了看这里</h2>
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>你看到的</th><th>多半是</th><th>怎么办</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="mono">客户端连不上<br>但网页能开</td>
+          <td><code>type</code> 键名写反了</td>
+          <td><code>streamable_http</code> ↔ <code>streamable-http</code> 互换</td>
+        </tr>
+        <tr>
+          <td class="mono">401</td>
+          <td>凭据没带上，或被撤销/过期了</td>
+          <td>检查 <code>Bearer</code> 后面有没有空格；还不行找负责人换一条</td>
+        </tr>
+        <tr>
+          <td class="mono">429</td>
+          <td>请求太频繁，触发了限流</td>
+          <td>等一分钟；或者把几个问题合成一句问</td>
+        </tr>
+        <tr>
+          <td>回答像是缺了一截</td>
+          <td>单次结果太长被截断了</td>
+          <td>问得具体一点，比如限定门店、时间段或数量</td>
+        </tr>
+        <tr>
+          <td>工具列表少于 14 个</td>
+          <td>凭据的权限范围和预期不一致</td>
+          <td>找负责人确认你拿到的凭据能用哪些工具</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>一件需要你知道的事</h2>
+  <div class="card">
+    <p>它读到的是门店的真实经营数据。请照着「这台电脑上开着门店后台」的标准来对待它：别在公共场合投屏演示，别把回答整段转发到外部群。</p>
+  </div>
+
+  <footer>
+    <p>接不上、或者想加别的能力，直接找负责人。</p>
+  </footer>
+
+</div>
+
+</body></html>

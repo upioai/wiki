@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="upio:date" content="2026-06-18">
+<meta name="upio:source" content="desktop">
+<meta name="upio:category" content="Agent · AI 工程">
+<title>ASI 与企业 AI 中的 Ontology · 简明讲解</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,400&family=Noto+Serif+SC:wght@400;600;900&family=Noto+Sans+SC:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0c10;
+    --bg-soft:#111319;
+    --ink:#ece7df;
+    --ink-dim:#9a958c;
+    --line:#23262f;
+    --amber:#e8a13a;
+    --amber-soft:#f0c477;
+    --indigo:#7c89ff;
+    --indigo-soft:#aab3ff;
+    --green:#5ec98a;
+    --red:#e06a6a;
+    --maxw:1080px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"Noto Sans SC",sans-serif;
+    font-weight:300;
+    line-height:1.8;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  /* grain + glow background */
+  body::before{
+    content:"";position:fixed;inset:0;z-index:-2;
+    background:
+      radial-gradient(60vw 50vh at 78% -8%, rgba(124,137,255,.16), transparent 60%),
+      radial-gradient(50vw 50vh at 8% 18%, rgba(232,161,58,.10), transparent 60%),
+      var(--bg);
+  }
+  body::after{
+    content:"";position:fixed;inset:0;z-index:-1;opacity:.035;pointer-events:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 28px}
+
+  /* ---------- top bar ---------- */
+  .topbar{
+    position:fixed;top:0;left:0;right:0;z-index:50;
+    display:flex;justify-content:space-between;align-items:center;
+    padding:16px 28px;
+    font-family:"Space Mono",monospace;font-size:12px;letter-spacing:.12em;
+    color:var(--ink-dim);
+    backdrop-filter:blur(8px);
+    border-bottom:1px solid transparent;transition:.3s;
+  }
+  .topbar.solid{border-bottom-color:var(--line);background:rgba(11,12,16,.7)}
+  .topbar b{color:var(--amber);font-weight:700}
+  .topbar .prog{color:var(--indigo-soft)}
+
+  /* ---------- hero ---------- */
+  .hero{padding:160px 0 90px;position:relative}
+  .kicker{
+    font-family:"Space Mono",monospace;font-size:13px;letter-spacing:.32em;
+    color:var(--amber);text-transform:uppercase;margin-bottom:28px;
+    display:flex;align-items:center;gap:14px;
+  }
+  .kicker::before{content:"";width:46px;height:1px;background:var(--amber)}
+  h1{
+    font-family:"Noto Serif SC",serif;font-weight:900;
+    font-size:clamp(42px,8vw,92px);line-height:1.04;letter-spacing:-.01em;
+    margin-bottom:30px;
+  }
+  h1 .it{font-family:"Fraunces",serif;font-style:italic;font-weight:400;color:var(--amber-soft)}
+  h1 .nb{position:relative;white-space:nowrap}
+  h1 .nb::after{content:"";position:absolute;left:-2px;right:-2px;bottom:.08em;height:.18em;background:rgba(124,137,255,.28);z-index:-1}
+  .lede{font-size:clamp(17px,2.4vw,21px);max-width:680px;color:var(--ink);font-weight:300}
+  .lede b{color:var(--amber-soft);font-weight:500}
+  .herometa{
+    margin-top:48px;display:flex;flex-wrap:wrap;gap:32px;
+    font-family:"Space Mono",monospace;font-size:12px;letter-spacing:.08em;color:var(--ink-dim);
+  }
+  .herometa span b{color:var(--ink);display:block;font-size:24px;font-family:"Fraunces",serif;font-weight:600;margin-bottom:2px}
+
+  /* reveal */
+  .reveal{opacity:0;transform:translateY(26px);transition:opacity .8s cubic-bezier(.2,.7,.2,1),transform .8s cubic-bezier(.2,.7,.2,1)}
+  .reveal.in{opacity:1;transform:none}
+
+  /* ---------- section ---------- */
+  section{padding:70px 0;border-top:1px solid var(--line)}
+  .sec-no{font-family:"Space Mono",monospace;font-size:13px;color:var(--indigo);letter-spacing:.2em;margin-bottom:18px}
+  h2{font-family:"Noto Serif SC",serif;font-weight:900;font-size:clamp(28px,4.6vw,46px);line-height:1.15;margin-bottom:22px;letter-spacing:-.01em}
+  h2 .en{font-family:"Fraunces",serif;font-style:italic;font-weight:400;color:var(--ink-dim);font-size:.55em;display:block;margin-top:6px;letter-spacing:0}
+  .p{font-size:17px;color:var(--ink);max-width:760px;margin-bottom:18px;font-weight:300}
+  .p b{color:var(--amber-soft);font-weight:500}
+  .p .ind{color:var(--indigo-soft);font-weight:500}
+
+  /* stage ladder ANI/AGI/ASI */
+  .ladder{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin:38px 0 10px}
+  .rung{
+    border:1px solid var(--line);border-radius:14px;padding:26px 22px;position:relative;
+    background:linear-gradient(160deg,rgba(255,255,255,.025),transparent);overflow:hidden;transition:.35s;
+  }
+  .rung:hover{transform:translateY(-5px);border-color:var(--amber)}
+  .rung .tag{font-family:"Space Mono",monospace;font-size:11px;letter-spacing:.18em;color:var(--ink-dim);margin-bottom:14px}
+  .rung h3{font-family:"Fraunces",serif;font-weight:600;font-size:30px;margin-bottom:6px}
+  .rung .cn{font-family:"Noto Serif SC",serif;font-weight:600;font-size:16px;margin-bottom:14px;color:var(--ink)}
+  .rung p{font-size:14px;color:var(--ink-dim);line-height:1.7}
+  .rung .lv{position:absolute;top:18px;right:20px;font-family:"Fraunces",serif;font-size:46px;font-weight:300;color:var(--line);line-height:1}
+  .rung.r1 h3{color:var(--green)} .rung.r2 h3{color:var(--amber)} .rung.r3 h3{color:var(--indigo)}
+  .rung.r3{border-color:rgba(124,137,255,.4);background:linear-gradient(160deg,rgba(124,137,255,.08),transparent)}
+
+  /* callout */
+  .callout{
+    border-left:3px solid var(--amber);padding:20px 26px;margin:34px 0;
+    background:rgba(232,161,58,.06);border-radius:0 12px 12px 0;
+  }
+  .callout .l{font-family:"Space Mono",monospace;font-size:11px;letter-spacing:.16em;color:var(--amber);margin-bottom:8px;text-transform:uppercase}
+  .callout p{font-size:16px;color:var(--ink);font-weight:300}
+  .callout.ind{border-color:var(--indigo);background:rgba(124,137,255,.07)}
+  .callout.ind .l{color:var(--indigo-soft)}
+
+  /* two col */
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:34px 0}
+  .card{border:1px solid var(--line);border-radius:14px;padding:26px;background:var(--bg-soft);transition:.3s}
+  .card:hover{border-color:var(--indigo)}
+  .card h4{font-family:"Noto Serif SC",serif;font-weight:600;font-size:18px;margin-bottom:12px;display:flex;align-items:center;gap:10px}
+  .card h4 .dot{width:8px;height:8px;border-radius:50%;background:var(--amber)}
+  .card.b h4 .dot{background:var(--indigo)}
+  .card p{font-size:15px;color:var(--ink-dim);line-height:1.75}
+
+  /* ontology layer stack */
+  .stack{margin:38px 0;border:1px solid var(--line);border-radius:16px;overflow:hidden}
+  .layer{display:grid;grid-template-columns:130px 1fr;gap:0;border-bottom:1px solid var(--line);transition:.3s}
+  .layer:last-child{border-bottom:none}
+  .layer:hover{background:rgba(124,137,255,.05)}
+  .layer .ll{padding:22px 20px;font-family:"Space Mono",monospace;font-size:12px;letter-spacing:.1em;color:var(--indigo-soft);border-right:1px solid var(--line);display:flex;align-items:center;background:rgba(124,137,255,.04)}
+  .layer .lr{padding:22px 24px}
+  .layer .lr h4{font-family:"Noto Serif SC",serif;font-weight:600;font-size:17px;margin-bottom:6px}
+  .layer .lr p{font-size:14px;color:var(--ink-dim);line-height:1.7}
+  .layer .lr code{font-family:"Space Mono",monospace;font-size:12px;color:var(--amber-soft);background:rgba(232,161,58,.08);padding:1px 7px;border-radius:5px}
+
+  /* before/after compare */
+  .vs{display:grid;grid-template-columns:1fr 60px 1fr;gap:0;align-items:stretch;margin:34px 0}
+  .vs .side{border:1px solid var(--line);border-radius:14px;padding:24px}
+  .vs .side.bad{border-color:rgba(224,106,106,.35);background:rgba(224,106,106,.04)}
+  .vs .side.good{border-color:rgba(94,201,138,.35);background:rgba(94,201,138,.05)}
+  .vs .side .t{font-family:"Space Mono",monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:14px}
+  .vs .side.bad .t{color:var(--red)} .vs .side.good .t{color:var(--green)}
+  .vs .side ul{list-style:none}
+  .vs .side li{font-size:14px;color:var(--ink-dim);padding:7px 0 7px 22px;position:relative;line-height:1.6}
+  .vs .side.bad li::before{content:"✕";position:absolute;left:0;color:var(--red);font-size:12px}
+  .vs .side.good li::before{content:"✓";position:absolute;left:0;color:var(--green);font-size:12px}
+  .vs .arrow{display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--amber)}
+
+  /* bridge / connection */
+  .bridge{margin:38px 0;padding:38px 30px;border:1px solid rgba(232,161,58,.3);border-radius:18px;
+    background:linear-gradient(135deg,rgba(232,161,58,.08),rgba(124,137,255,.08));text-align:center}
+  .bridge .eq{font-family:"Fraunces",serif;font-size:clamp(20px,3.4vw,30px);line-height:1.5;font-weight:400}
+  .bridge .eq b{color:var(--amber-soft);font-weight:600;font-style:italic}
+  .bridge .eq .ind{color:var(--indigo-soft);font-weight:600;font-style:italic}
+  .bridge .sub{margin-top:16px;font-size:15px;color:var(--ink-dim)}
+
+  /* takeaways */
+  .takes{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:34px}
+  .take{display:flex;gap:16px;align-items:flex-start;padding:20px;border-radius:12px;background:var(--bg-soft);border:1px solid var(--line)}
+  .take .n{font-family:"Fraunces",serif;font-size:28px;font-weight:300;color:var(--amber);line-height:1;min-width:34px}
+  .take p{font-size:15px;color:var(--ink);font-weight:300;line-height:1.7}
+  .take p b{color:var(--amber-soft);font-weight:500}
+
+  /* footer */
+  footer{padding:60px 0 80px;border-top:1px solid var(--line);text-align:center}
+  footer .note{font-family:"Space Mono",monospace;font-size:12px;letter-spacing:.1em;color:var(--ink-dim);line-height:2}
+  footer .note b{color:var(--amber)}
+  footer .note a{color:var(--indigo-soft);text-decoration:none;border-bottom:1px solid rgba(124,137,255,.35)}
+
+  @media(max-width:760px){
+    .ladder{grid-template-columns:1fr}
+    .cols{grid-template-columns:1fr}
+    .takes{grid-template-columns:1fr}
+    .vs{grid-template-columns:1fr;gap:14px}
+    .vs .arrow{transform:rotate(90deg)}
+    .layer{grid-template-columns:1fr}
+    .layer .ll{border-right:none;border-bottom:1px solid var(--line)}
+    .topbar .mid{display:none}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar" id="topbar">
+  <span><b>◆</b> ASI × ONTOLOGY</span>
+  <span class="mid">企业 AI 简明讲解</span>
+  <span class="prog" id="prog">00%</span>
+</div>
+
+<header class="hero wrap">
+  <div class="kicker reveal">一份简明讲解 · 2026</div>
+  <h1 class="reveal">超级智能 <span class="it">ASI</span><br>与企业 AI 的<br><span class="nb">本体 Ontology</span></h1>
+  <p class="lede reveal">两个常被混为一谈、实则属于不同层面的关键词。<b>ASI</b> 谈的是「机器智能能走多远」；<b>Ontology</b> 谈的是「企业怎么让 AI 真正读懂自己的业务」。这份讲解把它们拆开、讲透，再说清它们如何相遇。</p>
+  <div class="herometa reveal">
+    <span><b>03</b>智能阶段 ANI→AGI→ASI</span>
+    <span><b>5</b>本体核心构件</span>
+    <span><b>1</b>条贯穿主线：语义</span>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- PART 1: ASI -->
+  <section>
+    <div class="sec-no reveal">PART 01 — 智能的天花板</div>
+    <h2 class="reveal">什么是 ASI？<span class="en">Artificial Super Intelligence</span></h2>
+    <p class="p reveal"><b>ASI（人工超级智能）</b>指在<b>几乎所有领域</b>——科学创造、战略决策、社交情感、艺术——都<b>全面超越最聪明人类</b>的智能体。它不是「更快的计算器」，而是在质量与广度上都凌驾于人类心智之上的存在。今天它仍是理论与远景，尚未出现。</p>
+    <p class="p reveal">要理解 ASI，先把人工智能放到一条阶梯上看。我们今天所有的 AI——包括最强的大模型——都还停在第一级。</p>
+
+    <div class="ladder">
+      <div class="rung r1 reveal"><span class="lv">01</span>
+        <div class="tag">NARROW · 现在</div>
+        <h3>ANI</h3>
+        <div class="cn">狭义人工智能</div>
+        <p>只在特定任务上强：下棋、翻译、写代码、识图。换个领域就抓瞎。今天的 ChatGPT、推荐系统都属于这一级。</p>
+      </div>
+      <div class="rung r2 reveal"><span class="lv">02</span>
+        <div class="tag">GENERAL · 临界</div>
+        <h3>AGI</h3>
+        <div class="cn">通用人工智能</div>
+        <p>在<b>多数</b>认知任务上达到人类水平，能跨领域迁移、自主学习新技能。被视为通往 ASI 的门槛，目前尚未实现。</p>
+      </div>
+      <div class="rung r3 reveal"><span class="lv">03</span>
+        <div class="tag">SUPER · 远景</div>
+        <h3>ASI</h3>
+        <div class="cn">超级人工智能</div>
+        <p>在<b>所有</b>领域远超人类，且能自我改进、加速进化。可能带来巨大跃迁，也是「对齐 / 安全」议题的核心焦点。</p>
+      </div>
+    </div>
+
+    <div class="callout reveal">
+      <div class="l">一句话区分</div>
+      <p>ANI 是<b style="color:var(--green)">专才</b>，AGI 是<b style="color:var(--amber)">全才</b>，ASI 是<b style="color:var(--indigo-soft)">超人</b>。三者不是更大的模型那么简单，而是智能「广度」与「自主性」的层级跃迁。</p>
+    </div>
+
+    <p class="p reveal">为什么大家如此在意 ASI？因为它一旦出现，可能触发<span class="ind">智能爆炸</span>——AI 自己改进自己，能力呈指数级飙升，速度快到人类来不及反应。这正是「<b>AI 对齐（Alignment）</b>」与「<b>AI 安全</b>」成为头等议题的原因：我们希望在超越发生之前，先确保它的目标与人类价值一致。</p>
+  </section>
+
+  <!-- PART 2: Ontology -->
+  <section>
+    <div class="sec-no reveal">PART 02 — 让 AI 读懂业务</div>
+    <h2 class="reveal">企业 AI 里的 Ontology<span class="en">从「哲学本体论」到「业务语义层」</span></h2>
+    <p class="p reveal">Ontology 这个词来自哲学，原意是「研究存在本身」。但在<b>企业 AI</b> 语境里，它被借用为一个非常具体的工程概念：<b>对一家公司的业务世界做一次形式化、机器可读的建模</b>——有哪些实体、它们之间什么关系、遵循什么规则、能执行什么动作。</p>
+
+    <div class="callout ind reveal">
+      <div class="l">工作定义</div>
+      <p>企业 Ontology = 一张把<b style="color:var(--amber-soft)">数据</b>、<b style="color:var(--amber-soft)">业务逻辑</b>与<b style="color:var(--amber-soft)">可执行动作</b>连成一体的「<b>业务语义地图</b>」。它让冷冰冰的数据库表，变成 AI 和人都能理解的「客户、订单、工厂、风险」。</p>
+    </div>
+
+    <p class="p reveal">最广为人知的产品化代表是 <b>Palantir Ontology</b>，它把分散在各系统里的数据，统一映射成业务对象，再挂上逻辑与行动。一个成熟的企业本体通常由这几层构件组成：</p>
+
+    <div class="stack reveal">
+      <div class="layer">
+        <div class="ll">OBJECTS</div>
+        <div class="lr"><h4>对象 · 业务中的「名词」</h4><p>把数据抽象成现实概念：<code>客户</code> <code>订单</code> <code>设备</code> <code>员工</code>。不再是表 t_user，而是「一位客户」。</p></div>
+      </div>
+      <div class="layer">
+        <div class="ll">PROPERTIES</div>
+        <div class="lr"><h4>属性 · 对象的特征</h4><p>每个对象身上的字段：客户的<code>信用评级</code>、订单的<code>金额</code>、设备的<code>温度</code>。来自底层数据但被赋予业务含义。</p></div>
+      </div>
+      <div class="layer">
+        <div class="ll">LINKS</div>
+        <div class="lr"><h4>关系 · 对象间的连线</h4><p>客户「下了」订单、订单「来自」工厂、工厂「使用」设备。关系让孤立数据织成一张可推理的网。</p></div>
+      </div>
+      <div class="layer">
+        <div class="ll">ACTIONS</div>
+        <div class="lr"><h4>动作 · 可写回的操作</h4><p>不止于查看：<code>审批订单</code> <code>调度产线</code> <code>冻结账户</code>。动作把「看见」变成「改变」，并带权限与审计。</p></div>
+      </div>
+      <div class="layer">
+        <div class="ll">LOGIC / FN</div>
+        <div class="lr"><h4>逻辑与函数 · 业务规则</h4><p>风险评分公式、库存补货策略、合规校验——把企业的「know-how」沉淀成可复用、可治理的计算。</p></div>
+      </div>
+    </div>
+
+    <p class="p reveal">为什么企业非要这层不可？因为没有它，AI 面对的是一堆<b>互不相认的数据孤岛</b>——CRM 里的「客户」和 ERP 里的「客户」对不上号，AI 只能给出听起来合理、却脱离真实业务的答案。</p>
+
+    <div class="vs reveal">
+      <div class="side bad">
+        <div class="t">没有 Ontology</div>
+        <ul>
+          <li>数据散落在几十个系统，字段命名各异</li>
+          <li>AI 看到的是表和列，不懂业务含义</li>
+          <li>回答「听上去对」，但无法落到行动</li>
+          <li>每个分析都要工程师重新拼数据</li>
+        </ul>
+      </div>
+      <div class="arrow">→</div>
+      <div class="side good">
+        <div class="t">有了 Ontology</div>
+        <ul>
+          <li>统一的业务对象，全公司一套语言</li>
+          <li>AI 理解「客户 / 风险 / 产线」的真实关系</li>
+          <li>不只回答，还能触发审批、调度等动作</li>
+          <li>规则与权限内建，结果可治理、可审计</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- PART 3: connection -->
+  <section>
+    <div class="sec-no reveal">PART 03 — 两者如何相遇</div>
+    <h2 class="reveal">ASI 与 Ontology 的连接点<span class="en">智能的上限 × 业务的语义底座</span></h2>
+    <p class="p reveal">ASI 是关于<b>智能能有多强</b>的远景命题；Ontology 是关于<b>当下如何让 AI 在企业里可靠落地</b>的工程实践。它们在一个关键点上交汇：<span class="ind">语义</span>——AI 要做出好决策，前提是真正「理解」它所处的世界。</p>
+
+    <div class="bridge reveal">
+      <div class="eq">再强的 <b>智能</b>，<br>也要先<span class="ind">读懂</span>你的业务，<br>才能替你<b>行动</b>。</div>
+      <div class="sub">Ontology 提供「读懂」的底座；智能（从今天的 LLM 到未来的 AGI/ASI）提供「思考」的能力。</div>
+    </div>
+
+    <div class="cols">
+      <div class="card reveal">
+        <h4><span class="dot"></span>Ontology 是智能的「上下文」</h4>
+        <p>把企业的对象、关系、规则喂给 AI，等于给了它一张精确的世界地图。模型越强，地图越值钱——没有地图，再聪明的智能体也只是在猜。</p>
+      </div>
+      <div class="card b reveal">
+        <h4><span class="dot"></span>智能放大 Ontology 的价值</h4>
+        <p>更强的推理能力让本体从「查询和看板」升级为「自主决策与执行」。这正是企业级 AI Agent 的雏形：在治理好的语义层上自动行动。</p>
+      </div>
+    </div>
+
+    <p class="p reveal">所以现实路径是：企业不会等 ASI 降临才动手。它们<b>今天</b>就在搭建 Ontology，把业务语义、规则和权限治理好。这层底座既让当下的 LLM 用得更准、更安全，也为未来更强的智能体预留了一个<b>可控、可审计</b>的接口。</p>
+  </section>
+
+  <!-- takeaways -->
+  <section>
+    <div class="sec-no reveal">RECAP — 五句话带走</div>
+    <h2 class="reveal">关键要点</h2>
+    <div class="takes">
+      <div class="take reveal"><span class="n">1</span><p><b>ASI</b> = 在所有领域全面超越人类的智能，目前仍是远景，处于 ANI→AGI→ASI 阶梯的顶端。</p></div>
+      <div class="take reveal"><span class="n">2</span><p>今天的 AI 都还是 <b>ANI（专才）</b>；AGI 是门槛，跨过它且能自我加速，才接近 ASI。</p></div>
+      <div class="take reveal"><span class="n">3</span><p>企业 <b>Ontology</b> 是业务语义层：把数据、逻辑、动作连成机器可读的「业务地图」。</p></div>
+      <div class="take reveal"><span class="n">4</span><p>它由<b>对象 / 属性 / 关系 / 动作 / 逻辑</b>五类构件组成，打通数据孤岛、让 AI 读懂业务。</p></div>
+      <div class="take reveal"><span class="n">5</span><p>两者交汇于<b>语义</b>：Ontology 给智能提供上下文与治理底座，智能则放大本体的决策价值。</p></div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="wrap">
+  <div class="note">
+    一份简明讲解 · <b>ASI × Enterprise Ontology</b><br>
+    概念用于科普目的；ASI 仍属理论远景，企业 Ontology 已是落地实践 · 2026<br>
+    延伸阅读：<a href="/learn/recursive-self-improvement">递归自我改进</a> · <a href="/learn/fde">FDE 前线部署工程师</a>
+  </div>
+</footer>
+
+<script>
+  // scroll reveal
+  const io=new IntersectionObserver((es)=>{
+    es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}})
+  },{threshold:.12});
+  document.querySelectorAll('.reveal').forEach((el,i)=>{
+    el.style.transitionDelay=(i%6)*60+'ms';
+    io.observe(el);
+  });
+  // topbar + progress
+  const tb=document.getElementById('topbar'),pg=document.getElementById('prog');
+  const onScroll=()=>{
+    const h=document.documentElement;
+    const p=Math.round(h.scrollTop/(h.scrollHeight-h.clientHeight)*100);
+    pg.textContent=String(Math.min(99,Math.max(0,p))).padStart(2,'0')+'%';
+    tb.classList.toggle('solid',h.scrollTop>40);
+  };
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+</script>
+</body>
+</html>

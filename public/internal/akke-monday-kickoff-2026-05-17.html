@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="upio:date" content="2026-05-17">
+  <meta name="upio:source" content="desktop">
+  <meta name="upio:category" content="internal">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Akke 周一晨会框架 v1.0</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css" />
+  <style>
+    /* ───────── Claude / Anthropic 风格主题 ───────── */
+    :root {
+      --bg: #F5F1EB;           /* warm cream */
+      --bg-deep: #EDE6DA;
+      --ink: #2A2622;          /* near-black warm */
+      --ink-soft: #5C544C;
+      --accent: #D97757;       /* Anthropic coral */
+      --accent-deep: #B65A3D;
+      --line: #D6CDBE;
+      --green: #5A8C5C;
+      --amber: #C99843;
+      --red: #B65A3D;
+    }
+    html, body { background: var(--bg); color: var(--ink); }
+    .reveal {
+      font-family: -apple-system, "PingFang SC", "Noto Serif SC", "Helvetica Neue", serif;
+      font-weight: 400;
+      letter-spacing: 0.01em;
+    }
+    .reveal .slides { text-align: left; }
+    .reveal .slides section { padding: 1.5em 2em; }
+
+    /* Headings */
+    .reveal h1, .reveal h2, .reveal h3, .reveal h4 {
+      font-family: "Tiempos Headline", "PingFang SC", Georgia, serif;
+      font-weight: 500;
+      color: var(--ink);
+      text-transform: none;
+      letter-spacing: -0.01em;
+      margin-bottom: 0.4em;
+    }
+    .reveal h1 { font-size: 2.4em; line-height: 1.1; }
+    .reveal h2 { font-size: 1.7em; line-height: 1.2; }
+    .reveal h3 { font-size: 1.25em; color: var(--accent-deep); }
+
+    /* Body text */
+    .reveal p, .reveal li { color: var(--ink); font-size: 0.82em; line-height: 1.55; }
+    .reveal ul, .reveal ol { margin-left: 1em; }
+    .reveal li { margin-bottom: 0.45em; }
+    .reveal strong { color: var(--accent-deep); font-weight: 600; }
+    .reveal em { color: var(--ink-soft); font-style: italic; }
+
+    /* Code & monospace */
+    .reveal code {
+      background: var(--bg-deep);
+      color: var(--accent-deep);
+      padding: 0.08em 0.4em;
+      border-radius: 3px;
+      font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+      font-size: 0.85em;
+    }
+
+    /* Accent line under H1/H2 */
+    .reveal section > h1::after,
+    .reveal section > h2::after {
+      content: "";
+      display: block;
+      width: 60px;
+      height: 3px;
+      background: var(--accent);
+      margin-top: 0.35em;
+    }
+
+    /* Tables — quiet, line-only */
+    .reveal table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 0.6em 0;
+      font-size: 0.74em;
+    }
+    .reveal table th, .reveal table td {
+      padding: 0.5em 0.7em;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+    .reveal table th {
+      color: var(--ink-soft);
+      font-weight: 600;
+      font-size: 0.85em;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 2px solid var(--ink);
+    }
+
+    /* Cover slide */
+    .cover {
+      text-align: center !important;
+      padding-top: 4em !important;
+    }
+    .cover .eyebrow {
+      font-size: 0.7em;
+      letter-spacing: 0.3em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 1.2em;
+    }
+    .cover h1 {
+      font-size: 3em;
+      margin-bottom: 0.4em;
+    }
+    .cover h1::after { display: none; }
+    .cover .sub {
+      font-size: 1.05em;
+      color: var(--ink-soft);
+      max-width: 22em;
+      margin: 0 auto 2em;
+      line-height: 1.5;
+    }
+    .cover .meta {
+      font-size: 0.7em;
+      color: var(--ink-soft);
+      letter-spacing: 0.2em;
+      margin-top: 3em;
+    }
+    .cover .glyph {
+      font-size: 3em;
+      color: var(--accent);
+      margin-bottom: 1em;
+      letter-spacing: 0.1em;
+    }
+
+    /* Two-column layout */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5em;
+      align-items: start;
+    }
+    .three-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 1.2em;
+      align-items: start;
+    }
+
+    /* KPI cards */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 0.7em;
+      margin-top: 0.8em;
+    }
+    .kpi {
+      background: white;
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--accent);
+      padding: 0.9em 0.7em;
+      border-radius: 6px;
+    }
+    .kpi .label {
+      font-size: 0.55em;
+      color: var(--ink-soft);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      line-height: 1.3;
+      margin-bottom: 0.4em;
+    }
+    .kpi .thresh {
+      font-size: 0.62em;
+      color: var(--ink);
+      line-height: 1.4;
+    }
+    .kpi .lights {
+      margin-top: 0.5em;
+      font-size: 0.75em;
+    }
+
+    /* Time-box timeline */
+    .timeline {
+      display: grid;
+      grid-template-columns: 80px 80px 1fr 90px;
+      gap: 0.4em 1em;
+      font-size: 0.78em;
+      margin: 1em 0;
+    }
+    .timeline .head {
+      color: var(--ink-soft);
+      font-size: 0.7em;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 0.3em;
+    }
+    .timeline .row { padding: 0.55em 0; border-bottom: 1px dashed var(--line); }
+    .timeline .row.accent { color: var(--accent-deep); font-weight: 600; }
+
+    /* Pill labels */
+    .pill {
+      display: inline-block;
+      padding: 0.15em 0.6em;
+      border-radius: 12px;
+      font-size: 0.62em;
+      letter-spacing: 0.05em;
+      font-weight: 600;
+      margin-right: 0.3em;
+    }
+    .pill.green { background: #E3EEDD; color: var(--green); }
+    .pill.amber { background: #F5E8CC; color: #8A6420; }
+    .pill.red   { background: #F2D9CF; color: var(--red); }
+    .pill.accent { background: #F5DDD0; color: var(--accent-deep); }
+
+    /* Quote / callout */
+    .callout {
+      border-left: 3px solid var(--accent);
+      background: var(--bg-deep);
+      padding: 0.9em 1.2em;
+      margin: 1em 0;
+      font-size: 0.78em;
+      line-height: 1.55;
+      border-radius: 0 4px 4px 0;
+    }
+    .callout .tag {
+      font-size: 0.7em;
+      color: var(--accent-deep);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: 600;
+      margin-bottom: 0.4em;
+      display: block;
+    }
+
+    /* Slide footer */
+    .reveal .slide-number {
+      background: transparent;
+      color: var(--ink-soft);
+      font-size: 0.7em;
+    }
+    .footer-brand {
+      position: fixed;
+      bottom: 1em;
+      left: 1.5em;
+      font-size: 0.6em;
+      color: var(--ink-soft);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      pointer-events: none;
+    }
+
+    /* Bullets with custom marker */
+    .reveal ul li::marker { color: var(--accent); }
+
+    /* Anti-pattern list */
+    .anti li::marker { content: "✕  "; color: var(--red); font-weight: 700; }
+    .do  li::marker { content: "✓  "; color: var(--green); font-weight: 700; }
+
+    /* Small note */
+    .small { font-size: 0.7em; color: var(--ink-soft); margin-top: 1em; }
+  </style>
+</head>
+<body>
+
+<div class="footer-brand">AKKE · Monday Kickoff Framework</div>
+
+<div class="reveal">
+  <div class="slides">
+
+    <!-- ───────── 1. 封面 ───────── -->
+    <section class="cover">
+      <div class="glyph">◆ ◆ ◆</div>
+      <div class="eyebrow">Akke 团队节奏 · v1.0</div>
+      <h1>周一晨会框架</h1>
+      <p class="sub">45 分钟，把过去一周和未来一周对齐到同一页。<br/>少开会，多决策，可回看。</p>
+      <div class="meta">2026·05·17　&nbsp;|&nbsp;　主持人轮值制</div>
+    </section>
+
+    <!-- ───────── 2. 为什么需要这份框架 ───────── -->
+    <section>
+      <h2>为什么需要框架</h2>
+      <div class="two-col">
+        <div>
+          <h3>现状</h3>
+          <ul>
+            <li>团队 ≤6 人，多 track 并行（抓取 / DM / Prompt / 基建）</li>
+            <li>本周（5/11–5/17）新增 <strong>17 条 feedback memory</strong>，事故和教训密度很高</li>
+            <li>没有固定节奏 → 信息散在 commit / Lark / 私聊里</li>
+            <li>已出现多次<strong>并行任务互相踩踏</strong>的事故，根因之一是周末/周初对齐不充分</li>
+          </ul>
+        </div>
+        <div>
+          <h3>目标</h3>
+          <ul>
+            <li>每周一开 <strong>45 分钟</strong> 把齿轮咬合好</li>
+            <li>所有人知道 KPI 红绿 / Top 3 是什么 / 谁卡谁</li>
+            <li>会后产物归档到团队周会目录</li>
+            <li>积累框架本身——两周做一次 retro，迭代这份模板</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────── 3. 设计原则 ───────── -->
+    <section>
+      <h2>设计原则（融合三家做法）</h2>
+      <table>
+        <thead>
+          <tr><th>来源</th><th>做法</th><th>Akke 怎么用</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Amazon</strong></td>
+            <td>6-pager 静默阅读 → 再讨论</td>
+            <td>周报 Day0 写好；会上前 5 min 全员安静读，禁口头汇报</td>
+          </tr>
+          <tr>
+            <td><strong>Stripe / Linear</strong></td>
+            <td>书面优先；async 能解决的不进会议</td>
+            <td>上周已 ship 的代码不复述；只讨论需要决策 / 有阻塞的事</td>
+          </tr>
+          <tr>
+            <td><strong>Pixar Braintrust</strong></td>
+            <td>Lessons 必须当事人讲，对事不对人</td>
+            <td>事故 / 反例环节由 owner 自己 review，不许第三方代述</td>
+          </tr>
+          <tr>
+            <td><strong>Spotify Squad Health</strong></td>
+            <td>固定 3–5 个信号灯，不写长报告</td>
+            <td>数据透视环节固定 <strong>5 项 KPI</strong>，不增不减</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="small">原则：先做减法。每加一个环节都要砍掉一个旧的。</p>
+    </section>
+
+    <!-- ───────── 4. 反模式 ───────── -->
+    <section>
+      <h2>开始之前 · 反模式硬禁止</h2>
+      <ul class="anti">
+        <li>不做"我上周做了 X / 今天做 Y"的轮报 — <em>那是 daily standup，不是 Monday kickoff</em></li>
+        <li>不在会上看代码、看 dashboard 详情、调试 bug — <em>拉小会</em></li>
+        <li>不让一个人讲超过 5 分钟 — <em>时间员负责打断</em></li>
+        <li>不在会上做"要不要做 X"的开放头脑风暴 — <em>进需求文档库，走需求模板流程</em></li>
+        <li>不把 Top 3 加到第 4 条 — <em>scope 蔓延是 Akke 项目最大的隐性成本</em></li>
+      </ul>
+      <div class="callout">
+        <span class="tag">铁律</span>
+        <strong>会前 24h 没准备完 = 取消本次会，发书面 update 顶替。</strong>
+        这条比按时开会更重要。
+      </div>
+    </section>
+
+    <!-- ───────── 5. 会前准备 ───────── -->
+    <section>
+      <h2>Day 0 · 会前准备（周日 22:00 前）</h2>
+      <p>主持人（rotating）写完 → PM 复核 → 提交到团队周会目录（<code>YYYY-MM-DD.md</code>）</p>
+      <h3>需要凑齐的 5 份输入</h3>
+      <ol>
+        <li><strong>生产 KPI 快照</strong> — 全量测试 + 数据审计脚本</li>
+        <li><strong>上周交付清单</strong> — <code>git log --since="7 days ago" --oneline</code> 中 feat/fix</li>
+        <li><strong>上周事故 / 教训</strong> — 团队 memory 库本周新增的 feedback 条目</li>
+        <li><strong>本周 Top 3 候选</strong> — PM 拍板，每条配 owner + Friday 收口标准</li>
+        <li><strong>未决问题</strong> — 需要会上拍板的 ≤3 个 yes/no 问题</li>
+      </ol>
+      <div class="callout">
+        <span class="tag">原则</span>
+        <strong>80% async 就绪。</strong> 会上只补差距、做决策、对齐方向。如果 80% 都没准备完，会议就没必要开。
+      </div>
+    </section>
+
+    <!-- ───────── 6. 时间盒总览 ───────── -->
+    <section>
+      <h2>会议节奏 · 45 分钟刚性时间盒</h2>
+      <div class="timeline">
+        <div class="head">时段</div><div class="head">时长</div><div class="head">环节 &amp; 产出</div><div class="head">Owner</div>
+
+        <div class="row">00:00–05:00</div>
+        <div class="row"><span class="pill accent">5 min</span></div>
+        <div class="row"><strong>静默阅读</strong> · 在 Day0 doc 上加 inline 评论 / 问号</div>
+        <div class="row">全员</div>
+
+        <div class="row">05:00–15:00</div>
+        <div class="row"><span class="pill accent">10 min</span></div>
+        <div class="row"><strong>数据透视</strong> · 5 项 KPI 红黄绿；红色项进决策区</div>
+        <div class="row">主持人</div>
+
+        <div class="row">15:00–25:00</div>
+        <div class="row"><span class="pill accent">10 min</span></div>
+        <div class="row"><strong>上周回顾</strong> · Shipped × Missed × Lessons；每人 ≤2 min</div>
+        <div class="row">各 owner</div>
+
+        <div class="row accent">25:00–40:00</div>
+        <div class="row"><span class="pill accent">15 min</span></div>
+        <div class="row"><strong>本周聚焦</strong> · Top 3 + 嵌入式决策；写进 requirements / Issue</div>
+        <div class="row">PM + owner</div>
+
+        <div class="row">40:00–45:00</div>
+        <div class="row"><span class="pill accent">5 min</span></div>
+        <div class="row"><strong>收尾</strong> · Action items；下次主持人轮值</div>
+        <div class="row">主持人</div>
+      </div>
+      <p class="small">超时硬截断。如果某环节膨胀，砍掉它的下一个环节内容，不延长总时长。</p>
+    </section>
+
+    <!-- ───────── 7. KPI 5 项 ───────── -->
+    <section>
+      <h2>数据透视 · 固定 5 项 KPI</h2>
+      <p>多了不看，少了不算数。任一红色项 → 自动进决策区，必须给本周收口计划。</p>
+      <div class="kpi-grid">
+        <div class="kpi" style="grid-column: span 3;">
+          <div class="label">业务核心指标 × 3</div>
+          <div class="thresh">按当期业务线自定（如产出量 / 有效率 / 上游成功率）<br/>7d 滚动，对比上周环比</div>
+          <div class="lights">各自设定 <span class="pill amber">黄</span> / <span class="pill red">红</span> 阈值</div>
+        </div>
+        <div class="kpi">
+          <div class="label">生产事故数</div>
+          <div class="thresh">Lark 告警群本周条数</div>
+          <div class="lights"><span class="pill amber">≥3</span> 黄 · <span class="pill red">≥5</span> 红</div>
+        </div>
+        <div class="kpi">
+          <div class="label">CI 通过率</div>
+          <div class="thresh">main 7d CI pass rate</div>
+          <div class="lights"><span class="pill amber">&lt;95%</span> 黄</div>
+        </div>
+      </div>
+      <h3 style="margin-top: 1em;">客户漏斗（同环节展示）</h3>
+      <p style="font-size: 0.8em;">comments → high-intent → approved → sent → reply<br/>
+      <em>关注转化率而不是绝对值。某一段掉 ≥30% → 进决策区。</em></p>
+    </section>
+
+    <!-- ───────── 8. 上周回顾 ───────── -->
+    <section>
+      <h2>上周回顾 · 三栏硬性格式</h2>
+      <p>每个 owner ≤2 分钟。避免变成流水账。</p>
+      <div class="three-col">
+        <div>
+          <h3>✅ Shipped</h3>
+          <p style="font-size: 0.78em;">≤3 条最重要的<br/>每条带 commit hash 或 PR 号</p>
+          <div class="callout" style="font-size: 0.72em;">
+            <strong>feat(queue):</strong> 原子 claim RPC + 24h 回库 cron
+          </div>
+        </div>
+        <div>
+          <h3>❌ Missed</h3>
+          <p style="font-size: 0.78em;">上周 commit 但没收口<br/>必须说为什么</p>
+          <div class="callout" style="font-size: 0.72em;">
+            <strong>反向评论扩样:</strong> Caption 抓取治杜撰已上，但候选有效率仍 &lt;40% — 卡在 source pool 太薄
+          </div>
+        </div>
+        <div>
+          <h3>💡 Lessons</h3>
+          <p style="font-size: 0.78em;">本周写入团队 memory 库<br/>必须附 memory 条目名</p>
+          <div class="callout" style="font-size: 0.72em;">
+            <code>feedback_xxx.md</code> — 一句话写清教训（示例略）
+          </div>
+        </div>
+      </div>
+      <div class="callout">
+        <span class="tag">关键</span>
+        本周如果没写任何 memory，要么是没干活，要么是没反思。<strong>PM 当场点名追问。</strong>
+        Akke 最有价值的资产就是团队 memory 库（截至 2026-05-17 已 220+ 条），每周新增 3–5 条才能保持团队学习速度。
+      </div>
+    </section>
+
+    <!-- ───────── 9. 本周聚焦 ───────── -->
+    <section>
+      <h2>本周聚焦 · Top 3 硬约束</h2>
+      <p>只看 Top 3。第 4 条往后默认 OOS（out of scope）。</p>
+      <h3>每条 Top 3 必须满足</h3>
+      <table>
+        <thead><tr><th>字段</th><th>要求</th><th>反例</th></tr></thead>
+        <tbody>
+          <tr><td>Owner</td><td>唯一人名</td><td>"团队负责" / "@a 和 @b"</td></tr>
+          <tr><td>收口标准</td><td>Friday 17:00 可验证</td><td>"做一下 X"</td></tr>
+          <tr><td>回滚预案</td><td>翻车怎么撤</td><td>未填</td></tr>
+          <tr><td>依赖</td><td>卡谁 / 卡什么</td><td>"应该没依赖"</td></tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        <span class="tag">禁止</span>
+        <strong>把 Top 4–6 也加进来 = 这周哪个都做不好。</strong>
+        全员举手不反对 → 过；有人反对 → PM 当场拍板，不开放讨论。
+      </div>
+    </section>
+
+    <!-- ───────── 10. 风险与决策 ───────── -->
+    <section>
+      <h2>风险与决策 · 嵌入 Top 3 环节</h2>
+      <div class="two-col">
+        <div>
+          <h3>只问两类问题</h3>
+          <ul>
+            <li><strong>Yes/No 决策</strong>：可以当场拍的，PM 给一句话答案</li>
+            <li><strong>Blocker</strong>：谁卡住、需要谁出手；写入 action items</li>
+          </ul>
+          <p class="small">不能现场解决 → 下午拉小会 + 写到 doc 里。不允许在大会上展开技术讨论。</p>
+        </div>
+        <div>
+          <h3>红色 KPI 自动入场</h3>
+          <ul class="do">
+            <li>有 owner 接手</li>
+            <li>有本周收口计划</li>
+            <li>有 Lark 卡片同步全员</li>
+          </ul>
+          <p class="small">三项缺一不可，否则不让出会议室。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────── 11. 会议产物 ───────── -->
+    <section>
+      <h2>会议产物 · 周一 18:00 前归档</h2>
+      <p>三件套，缺一不可。</p>
+      <div class="three-col">
+        <div>
+          <h3>① 纪要</h3>
+          <p style="font-size: 0.78em;">填进团队周会目录 <code>YYYY-MM-DD.md</code></p>
+        </div>
+        <div>
+          <h3>② Top 3 工单</h3>
+          <p style="font-size: 0.78em;">每条对应需求文档库里的一份需求<br/>或 GitHub Issue with <code>priority/top3</code></p>
+          <p class="small">走需求模板流程</p>
+        </div>
+        <div>
+          <h3>③ Lark 卡片</h3>
+          <p style="font-size: 0.78em;">会议摘要推送工具<br/>推送本周聚焦 + KPI 红色项<br/>template=<code>blue</code></p>
+          <p class="small">卡片风格：简洁、图表优先</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────── 12. 本周示例（2026-05-19 预填）───────── -->
+    <section>
+      <h2>本周示例 · 2026-05-19 预填</h2>
+      <p style="color: var(--ink-soft); font-size: 0.78em;">原稿用 5/11–5/17 的真实周数据预填，证明框架能跑；本版略去内部事故明细与 memory 条目名，只保留格式。</p>
+      <h3>上周事故 / 教训（从本周新增 feedback 中挑 5 条）</h3>
+      <table>
+        <thead><tr><th>级别</th><th>memory 条目</th><th>一句话</th></tr></thead>
+        <tbody>
+          <tr><td><span class="pill red">🔴</span></td><td><code>feedback_xxx</code></td><td>影响生产、必须当周收口的事故</td></tr>
+          <tr><td><span class="pill amber">🟡</span></td><td><code>feedback_yyy</code></td><td>有损耗但可控的问题 / 流程教训</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ───────── 13. Top 3 候选 ───────── -->
+    <section>
+      <h2>本周 Top 3 候选（待 PM 拍板）</h2>
+      <table>
+        <thead><tr><th>#</th><th>主题</th><th>Owner</th><th>Friday 收口标准</th><th>回滚</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td><strong>Prompt eval harness baseline 落库</strong></td>
+            <td>工程负责人</td>
+            <td>Langfuse 反向评论 v9 / ice_break v16 各 30 条 baseline + 跑通一次回归</td>
+            <td>Langfuse 删 dataset</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td><strong>主题 gate 二阶副作用回填验证</strong></td>
+            <td>工程负责人</td>
+            <td>被误伤客户 home→re-analyze 后 ≥80% 重新可见</td>
+            <td>回填脚本 revert</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td><strong>反向评论候选扩样 + WDA 稳态 7 天</strong></td>
+            <td>工程负责人</td>
+            <td>daily_report 7 天连续 ≥10 条/day + Lark 卡片不告警</td>
+            <td>DAILY_CAP 回到 10</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="small"><strong>OOS（本周不做）：</strong>DM 通路重写 · 新建 messaging 账号导入 · prompt-eval CI 集成（推迟下周）</p>
+    </section>
+
+    <!-- ───────── 14. 模板速览 ───────── -->
+    <section>
+      <h2>Day 0 文档模板（复制即用）</h2>
+      <pre style="background: var(--bg-deep); padding: 1em; border-radius: 6px; font-size: 0.55em; line-height: 1.45; color: var(--ink); overflow: hidden;">
+# Akke 周一晨会 · YYYY-MM-DD
+主持人: @xxx | 时间: 10:00–10:45 | 到场: @a @b @c
+
+## 1. KPI 快照（7d 滚动）
+| 指标 | 本周 | 上周 | Δ | 状态 |
+| 业务指标 1 | | | | 🟢/🟡/🔴 |
+| 业务指标 2 | | | | |
+| 业务指标 3 | | | | |
+| 事故数      | | | | |
+| CI 通过率   | | | | |
+漏斗：comments {n} → high-intent {n} → approved {n} → sent {n} → reply {n}
+
+## 2. 上周交付（按 owner 分组）
+### @owner-a
+- ✅ Shipped: ...
+- ❌ Missed:  ...
+- 💡 Lesson:  feedback_xxx（memory 条目名）
+
+## 3. 上周教训汇总（本周新增 memory 清单）
+
+## 4. 本周 Top 3
+| # | 主题 | Owner | 收口标准 | 回滚 | 依赖 |
+
+## 5. 决策记录
+
+## 6. Action Items
+- [ ] @x 负责 yyy，due 周三
+**下周主持人**: @next
+      </pre>
+      <p class="small">文件位置：团队周会目录 <code>YYYY-MM-DD.md</code> · 完整版见团队框架文档</p>
+    </section>
+
+    <!-- ───────── 15. 首次试运行 ───────── -->
+    <section>
+      <h2>首次试运行 · 2026-05-19</h2>
+      <h3>会议当天 checklist</h3>
+      <ul class="do">
+        <li>Day0 文档周日晚 22:00 前 commit 进 repo</li>
+        <li>会议准点 10:00 开始 / 10:45 结束（误差 ≤5 min）</li>
+        <li>静默阅读阶段没人说话（违反者罚 ¥10 入团建基金）</li>
+        <li>会后 18:00 前 Lark 卡片推送到 Akke Bot 群</li>
+        <li>Top 3 三条都有对应需求文档或 Issue</li>
+        <li>下次主持人已确定</li>
+      </ul>
+      <div class="callout">
+        <span class="tag">两周后</span>
+        <strong>2026-06-01 做一次框架 retro。</strong>
+        如果 KPI 5 项有冗余、Top 3 总在 Friday 收不了、或 lessons 环节质量低 → 修改本框架后 PR review merge。框架本身也要迭代。
+      </div>
+    </section>
+
+    <!-- ───────── 16. 结尾 ───────── -->
+    <section class="cover">
+      <div class="glyph">◆</div>
+      <h1>开始</h1>
+      <p class="sub">一份能跑的框架，比一份完美的计划更重要。<br/>下周一 10:00 见。</p>
+      <div class="meta">AKKE TEAM · 2026</div>
+    </section>
+
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script>
+  Reveal.initialize({
+    hash: true,
+    slideNumber: 'c/t',
+    transition: 'fade',
+    transitionSpeed: 'default',
+    backgroundTransition: 'fade',
+    controls: true,
+    progress: true,
+    center: false,
+    width: 1280,
+    height: 800,
+    margin: 0.06,
+  });
+</script>
+
+</body>
+</html>

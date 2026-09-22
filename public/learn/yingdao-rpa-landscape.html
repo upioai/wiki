@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="upio:date" content="2026-04-10">
+<meta name="upio:source" content="desktop">
+<meta name="upio:category" content="工具入门">
+<meta name="description" content="RPA 工具选型的通用调研（公开版）。">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>影刀 RPA 调研 · 与 n8n / Playwright / Computer Use 怎么分工</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d27;
+    --border: #2a2d3a;
+    --text: #e4e4e7;
+    --muted: #9ca3af;
+    --accent: #818cf8;
+    --accent2: #34d399;
+    --accent3: #f97316;
+    --accent4: #f43f5e;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    padding: 2rem;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin-bottom: 2.5rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 1.5rem;
+  }
+  h2 {
+    font-size: 1.4rem;
+    margin: 2.5rem 0 1rem;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  h2::before {
+    content: '';
+    width: 4px;
+    height: 1.2em;
+    background: var(--accent);
+    border-radius: 2px;
+  }
+  h3 {
+    font-size: 1.1rem;
+    margin: 1.5rem 0 0.75rem;
+    color: var(--accent2);
+  }
+  p { margin-bottom: 1rem; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin: 1rem 0;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.9rem;
+  }
+  th {
+    background: var(--card);
+    color: var(--accent);
+    text-align: left;
+    padding: 0.75rem 1rem;
+    border-bottom: 2px solid var(--accent);
+    font-weight: 600;
+  }
+  td {
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  tr:hover td { background: rgba(129, 140, 248, 0.05); }
+  .tbl-scroll { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
+  code {
+    background: #252836;
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    font-size: 0.85em;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    color: var(--accent2);
+  }
+  pre {
+    background: #252836;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.25rem;
+    overflow-x: auto;
+    margin: 1rem 0;
+    font-size: 0.85rem;
+    line-height: 1.6;
+  }
+  pre code {
+    background: none;
+    padding: 0;
+    color: var(--text);
+  }
+  .tag {
+    display: inline-block;
+    padding: 0.2em 0.6em;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
+  .tag-yes { background: rgba(52, 211, 153, 0.15); color: var(--accent2); }
+  .tag-no { background: rgba(244, 63, 94, 0.15); color: var(--accent4); }
+  .tag-limited { background: rgba(249, 115, 22, 0.15); color: var(--accent3); }
+  .tag-enterprise { background: rgba(129, 140, 248, 0.15); color: var(--accent); }
+  .verdict {
+    background: linear-gradient(135deg, rgba(129, 140, 248, 0.1), rgba(52, 211, 153, 0.1));
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+  }
+  .verdict-title {
+    font-weight: 700;
+    font-size: 1.1rem;
+    margin-bottom: 0.75rem;
+    color: var(--accent2);
+  }
+  ul { padding-left: 1.5rem; margin: 0.5rem 0 1rem; }
+  li { margin-bottom: 0.4rem; }
+  .toc {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .toc-title { font-weight: 600; margin-bottom: 0.5rem; color: var(--muted); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .toc ol { padding-left: 1.25rem; }
+  .toc li { margin-bottom: 0.3rem; font-size: 0.9rem; }
+  .flow { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 1rem 0; font-size: 0.9rem; }
+  .flow-item { background: var(--card); border: 1px solid var(--border); padding: 0.5rem 1rem; border-radius: 8px; }
+  .flow-arrow { color: var(--accent); font-weight: bold; }
+  footer {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.8rem;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<h1>影刀 RPA 调研报告</h1>
+<p class="subtitle">桌面自动化工具对比与集成方案 | 2026-04-10</p>
+<p style="margin:-1.5rem 0 2rem;color:var(--muted);font-size:0.85rem">本文为公开版，具体标识已替换为占位符；工具能力与模型信息以 2026-04 调研时为准。</p>
+
+<nav class="toc">
+  <div class="toc-title">目录</div>
+  <ol>
+    <li><a href="#integration">影刀 RPA 集成方式</a></li>
+    <li><a href="#vs-n8n">影刀 vs n8n</a></li>
+    <li><a href="#vs-playwright">影刀 vs Playwright vs Computer Use</a></li>
+    <li><a href="#alternatives">同类替代工具全景</a></li>
+    <li><a href="#browser-use">Browser Use 配置示例</a></li>
+    <li><a href="#conclusion">最终结论</a></li>
+  </ol>
+</nav>
+
+<!-- ===== Section 1 ===== -->
+<h2 id="integration">1. 影刀 RPA 集成方式</h2>
+
+<p>影刀 RPA 提供了有限的外部集成选项，核心路径是官方 MCP Server。</p>
+
+<div class="tbl-scroll"><table>
+  <thead>
+    <tr><th>集成方式</th><th>可用性</th><th>说明</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>MCP Server</td>
+      <td><span class="tag tag-yes">官方提供</span></td>
+      <td>GitHub: <code>ying-dao/yingdao_mcp_server</code>，支持 Stdio / SSE</td>
+    </tr>
+    <tr>
+      <td>Open API</td>
+      <td><span class="tag tag-enterprise">仅企业版</span></td>
+      <td>AccessKeyId / AccessKeySecret 鉴权</td>
+    </tr>
+    <tr>
+      <td>CLI</td>
+      <td><span class="tag tag-no">无</span></td>
+      <td>没有官方命令行工具</td>
+    </tr>
+    <tr>
+      <td>SDK / Webhook</td>
+      <td><span class="tag tag-no">无</span></td>
+      <td>无独立 SDK，无 Webhook 机制</td>
+    </tr>
+  </tbody>
+</table></div>
+
+<h3>MCP Server 两种运行模式</h3>
+
+<div class="tbl-scroll"><table>
+  <thead>
+    <tr><th>模式</th><th>配置</th><th>要求</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>本地模式</td>
+      <td><code>RPA_MODEL=local</code></td>
+      <td>需安装影刀客户端（个人版可用）</td>
+    </tr>
+    <tr>
+      <td>Open API 模式</td>
+      <td><code>RPA_MODEL=openApi</code></td>
+      <td>需企业版 AccessKey</td>
+    </tr>
+  </tbody>
+</table></div>
+
+<h3>Stdio vs SSE 协议对比</h3>
+<div class="tbl-scroll"><table>
+  <thead>
+    <tr><th></th><th>Stdio</th><th>SSE</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>通信方式</td><td>标准输入/输出（stdin/stdout）</td><td>HTTP Server-Sent Events</td></tr>
+    <tr><td>进程模型</td><td>Claude Code 直接启动子进程</td><td>独立运行 HTTP 服务</td></tr>
+    <tr><td>配置方式</td><td><code>"command": "npx"</code></td><td>填 URL，如 <code>http://&lt;host&gt;:&lt;port&gt;/sse</code></td></tr>
+    <tr><td>适用场景</td><td>本地单人使用（推荐）</td><td>远程 / 多客户端共享</td></tr>
+    <tr><td>网络依赖</td><td>不需要</td><td>需要监听端口</td></tr>
+  </tbody>
+</table></div>
+
+<h3>Claude Code 配置示例</h3>
+<pre><code>// Claude Code 的 MCP 配置（项目级可放 .mcp.json）
+{
+  "mcpServers": {
+    "yingdao": {
+      "command": "npx",
+      "args": ["-y", "yingdao-mcp-server"],
+      "env": {
+        "RPA_MODEL": "local"
+      }
+    }
+  }
+}</code></pre>
+
+<pre><code>// 企业版 Open API 模式
+{
+  "env": {
+    "RPA_MODEL": "openApi",
+    "ACCESS_KEY_ID": "your-key-id",
+    "ACCESS_KEY_SECRET": "your-secret"
+  }
+}</code></pre>
+
+<!-- ===== Section 2 ===== -->
+<h2 id="vs-n8n">2. 影刀 vs n8n</h2>
+
+<p>两者定位不同，互补大于竞争。</p>
+
+<div class="tbl-scroll"><table>
+  <thead>
+    <tr><th></th><th>影刀 RPA</th><th>n8n</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>本质</td><td>桌面自动化（模拟人操作电脑）</td><td>后端工作流编排（API 对 API）</td></tr>
+    <tr><td>擅长</td><td>操作没有 API 的软件——点按钮、填表单、抓网页</td><td>连接有 API 的服务——webhook、数据库、SaaS</td></tr>
+    <tr><td>运行环境</td><td>需要有桌面的 Windows 机器</td><td>服务器 / Docker，无需 GUI</td></tr>
+    <tr><td>触发方式</td><td>定时 / 手动 / 被 API 调用</td><td>Webhook / 定时 / 事件驱动</td></tr>
+    <tr><td>典型场景</td><td>登录后台导出报表、操作 ERP、批量填写政务系统</td><td>Lark 消息 &rarr; 写数据库 &rarr; 发通知 &rarr; 调 AI</td></tr>
+    <tr><td>编程门槛</td><td>低，可视化录制 + 拖拽</td><td>中等，节点拖拽但常需写表达式</td></tr>
+    <tr><td>平台</td><td>仅 Windows（macOS 支持有限）</td><td>跨平台，Docker 部署</td></tr>
+  </tbody>
+</table></div>
+
+<div class="verdict">
+  <div class="verdict-title">选择建议</div>
+  <ul>
+    <li><strong>有 API 的</strong> &rarr; 用 n8n 直接对接，更稳定高效</li>
+    <li><strong>没有 API 的</strong>（老系统、网页后台、桌面软件） &rarr; 用影刀模拟人去操作</li>
+    <li><strong>复杂流程</strong> &rarr; 两者结合：n8n 做主编排，需要操作桌面时调影刀执行</li>
+  </ul>
+</div>
+
+<!-- ===== Section 3 ===== -->
+<h2 id="vs-playwright">3. 影刀 vs Playwright vs Computer Use</h2>
+
+<div class="tbl-scroll"><table>
+  <thead>
+    <tr><th></th><th>Playwright</th><th>Computer Use</th><th>影刀 RPA</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>操作范围</td><td>仅浏览器</td><td>整个桌面</td><td>整个桌面 + 浏览器</td></tr>
+    <tr><td>识别方式</td><td>DOM 选择器（精准）</td><td>截图 + AI 视觉识别</td><td>DOM + 图像识别 + 坐标</td></tr>
+    <tr><td>稳定性</td><td><span class="tag tag-yes">很高</span></td><td><span class="tag tag-limited">较低</span></td><td><span class="tag tag-limited">中高</span></td></tr>
+    <tr><td>速度</td><td>快</td><td>慢（每步截图+推理）</td><td>中等</td></tr>
+    <tr><td>成本</td><td>免费</td><td>API 调用费（每步烧 token）</td><td>软件订阅费</td></tr>
+    <tr><td>编程门槛</td><td>需写代码</td><td>自然语言指令</td><td>可视化拖拽，低门槛</td></tr>
+    <tr><td>无头运行</td><td><span class="tag tag-yes">支持</span></td><td><span class="tag tag-no">需要桌面</span></td><td><span class="tag tag-no">需要桌面</span></td></tr>
+  </tbody>
+</table></div>
+
+<h3>适用场景分配</h3>
+<div class="tbl-scroll"><table>
+  <thead>
+    <tr><th>场景</th><th>推荐工具</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>网页端操作（登录、采集、填表）</td><td>Playwright</td></tr>
+    <tr><td>原生桌面软件（Excel、ERP、财务软件）</td><td>影刀 RPA</td></tr>
+    <tr><td>临时性、一次性探索任务</td><td>Computer Use</td></tr>
+    <tr><td>非技术人员自维护的自动化流程</td><td>影刀 RPA</td></tr>
+  </tbody>
+</table></div>
+
+<!-- ===== Section 4 ===== -->
+<h2 id="alternatives">4. 同类替代工具全景</h2>
+
+<h3>浏览器自动化（替代影刀的网页部分）</h3>
+<div class="tbl-scroll"><table>
+  <thead>
+    <tr><th>工具</th><th>特点</th><th>适合场景</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>Playwright</strong></td><td>最强浏览器自动化，微软出品</td><td>网页操作、采集</td></tr>
+    <tr><td><strong>Puppeteer</strong></td><td>Chrome 专用，Playwright 的前身</td><td>轻量 Chrome 场景</td></tr>
+    <tr><td><strong>Selenium</strong></td><td>老牌，生态最大</td><td>需要兼容老浏览器</td></tr>
+    <tr><td><strong>Browser Use</strong></td><td>AI 驱动浏览器，自然语言操控</td><td>不想写选择器，动态页面</td></tr>
+    <tr><td><strong>Stagehand</strong></td><td>Browserbase 出品，AI + Playwright</td><td>用 AI 定位元素，比纯 Computer Use 快</td></tr>
+  </tbody>
+</table></div>
+
+<h3>桌面原生自动化（替代影刀的桌面部分）</h3>
+<div class="tbl-scroll"><table>
+  <thead>
+    <tr><th>工具</th><th>平台</th><th>特点</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>PyAutoGUI</strong></td><td>跨平台</td><td>Python，模拟键鼠 + 截图定位，最简单</td></tr>
+    <tr><td><strong>AppleScript / Shortcuts</strong></td><td>macOS</td><td>原生系统级自动化，可控制任意 App</td></tr>
+    <tr><td><strong>Hammerspoon</strong></td><td>macOS</td><td>Lua 脚本，窗口管理 + 自动化，极其灵活</td></tr>
+    <tr><td><strong>AutoHotkey</strong></td><td>Windows</td><td>Windows 桌面自动化事实标准</td></tr>
+    <tr><td><strong>xdotool</strong></td><td>Linux</td><td>模拟键鼠输入</td></tr>
+    <tr><td><strong>robotjs</strong></td><td>跨平台</td><td>Node.js 桌面自动化</td></tr>
+  </tbody>
+</table></div>
+
+<h3>AI 驱动自动化（替代 Computer Use）</h3>
+<div class="tbl-scroll"><table>
+  <thead>
+    <tr><th>工具</th><th>特点</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>Browser Use</strong></td><td>开源，LLM 驱动浏览器，支持多模型</td></tr>
+    <tr><td><strong>Stagehand</strong></td><td>AI 辅助定位元素，底层 Playwright，比纯视觉更快更稳</td></tr>
+    <tr><td><strong>Open Interpreter</strong></td><td>自然语言 &rarr; 代码执行，可操作本地系统</td></tr>
+    <tr><td><strong>UI-TARS</strong>（字节）</td><td>开源视觉 Agent，类似 Computer Use</td></tr>
+  </tbody>
+</table></div>
+
+<!-- ===== Section 5 ===== -->
+<h2 id="browser-use">5. Browser Use 配置示例</h2>
+
+<p>经调研，Browser Use 和 Stagehand 均提供 MCP Server。但 Stagehand 必须依赖 Browserbase 云账号且不支持 OpenRouter，因此下面只给出 Browser Use 的配置示例。</p>
+
+<h3>Browser Use vs Stagehand 对比</h3>
+<div class="tbl-scroll"><table>
+  <thead>
+    <tr><th></th><th>Browser Use</th><th>Stagehand</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>方式</td><td>完全 AI Agent 驱动，自然语言下指令</td><td>AI 辅助定位元素，底层还是 Playwright</td></tr>
+    <tr><td>适合</td><td>"帮我登录XX并导出报表"这种整段任务</td><td>精确控制流程，但不想手写选择器</td></tr>
+    <tr><td>与 Playwright 的关系</td><td>替代 Playwright</td><td>增强 Playwright</td></tr>
+    <tr><td>Token 消耗</td><td>高（每步截图+推理）</td><td>低（只在定位元素时用 AI）</td></tr>
+    <tr><td>OpenRouter 支持</td><td><span class="tag tag-yes">支持</span></td><td><span class="tag tag-no">不支持</span></td></tr>
+    <tr><td>本地运行</td><td><span class="tag tag-yes">支持</span></td><td><span class="tag tag-no">需 Browserbase 云账号</span></td></tr>
+  </tbody>
+</table></div>
+
+<h3>配置示例</h3>
+
+<div class="card">
+  <p><strong>1. Browser Use 的 LLM 配置</strong></p>
+<pre><code>{
+  "llm": {
+    "api_key": "&lt;OPENROUTER_API_KEY&gt;",
+    "base_url": "https://openrouter.ai/api/v1",
+    "model": "anthropic/claude-sonnet-4-20250514"
+  }
+}</code></pre>
+</div>
+
+<div class="card">
+  <p><strong>2. Claude Code 的 MCP 配置（用户级）</strong></p>
+<pre><code>{
+  "mcpServers": {
+    "browser-use": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["browser-use[cli]", "--mcp"],
+      "env": {
+        "OPENAI_API_KEY": "&lt;OPENROUTER_API_KEY&gt;",
+        "BROWSER_USE_LLM_MODEL": "anthropic/claude-sonnet-4-20250514"
+      }
+    }
+  }
+}</code></pre>
+</div>
+
+<p style="color:var(--muted);font-size:0.85rem">时效说明：示例中的模型 ID <code>anthropic/claude-sonnet-4-20250514</code> 是 2026-04 写作时的写法，现已过时，使用时请按 OpenRouter 当前模型列表替换。</p>
+
+<h3>推荐自动化工具组合</h3>
+
+<div class="flow">
+  <span class="flow-item">网页操作</span><span class="flow-arrow">&rarr;</span><span class="flow-item"><strong>Playwright</strong></span>
+</div>
+<div class="flow">
+  <span class="flow-item">AI 浏览器</span><span class="flow-arrow">&rarr;</span><span class="flow-item"><strong>Browser Use</strong></span>
+</div>
+<div class="flow">
+  <span class="flow-item">macOS App</span><span class="flow-arrow">&rarr;</span><span class="flow-item"><strong>AppleScript / Hammerspoon</strong></span>
+</div>
+<div class="flow">
+  <span class="flow-item">后端编排</span><span class="flow-arrow">&rarr;</span><span class="flow-item"><strong>n8n</strong></span>
+</div>
+
+<!-- ===== Section 6 ===== -->
+<h2 id="conclusion">6. 最终结论</h2>
+
+<div class="verdict">
+  <div class="verdict-title">影刀 RPA 对于当前技术栈的价值判断</div>
+  <p>以 macOS + 会写代码的技术背景，<strong>Playwright + Browser Use + n8n 已覆盖绝大多数自动化需求</strong>。影刀的核心价值场景：</p>
+  <ul>
+    <li><strong>操作 Windows 原生桌面软件</strong>（ERP、财务软件等）</li>
+    <li><strong>非技术人员自维护</strong>的可视化自动化流程</li>
+  </ul>
+  <p style="margin-top: 1rem; color: var(--muted);">如果没有上述两类需求，<strong>不需要引入影刀</strong>。</p>
+</div>
+
+<footer>
+  Generated by Claude Code &mdash; 2026-04-10
+</footer>
+
+</body>
+</html>

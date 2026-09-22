@@ -276,6 +276,13 @@ ${projectCards}
           <p>团队内部多次技术分享的沉淀：大模型基础、Agent / AI 工程、工具入门。点击进入知识分享中心 →</p>
         </div>
       </a>
+      <a class="learn-card" href="/timeline" style="margin-top: 12px;">
+        <span class="learn-card__icon">🗓️</span>
+        <div class="learn-card__body">
+          <h3>知识时间线</h3>
+          <p>全站知识页按入库时间排列：知识分享、Akke、Workflow、Softie、Vivi 与通用指南，可按分区筛选、按标题搜索 →</p>
+        </div>
+      </a>
     </section>
 
     <section>

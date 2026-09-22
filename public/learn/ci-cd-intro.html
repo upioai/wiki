@@ -1,0 +1,716 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>先验一遍，再送上线 · CI/CD 入门</title>
+<meta name="description" content="面向非技术读者的 CI/CD 通用科普（公开版）。">
+<meta name="upio:date" content="2026-09-09">
+<meta name="upio:source" content="artifact">
+<meta name="upio:category" content="工具入门">
+<style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found]){display:none!important}</style>
+</head><body>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@500;700;900&display=swap');
+
+  :root{
+    --bg:#06080C; --bg2:#0A0E15; --panel:#0D1119; --panel2:#11161F;
+    --line:rgba(255,255,255,.07); --line2:rgba(255,255,255,.12);
+    --head:#F2F6FB; --ink:#DBE3EC; --muted:#7C8798;
+    --dim:#525C6B;
+
+    --teal:#3FE0C5;    /* SIG-01 机器/自动 */
+    --amber:#F6B352;   /* SIG-02 人工/在环 */
+    --blue:#6FA8FF;    /* SIG-03 平台/服务端 */
+    --violet:#B48CFF;  /* SIG-04 后台 */
+    --rose:#FF7D97;    /* SIG-05 生产/真实用户 */
+    --teal-d:#1C9D8B;
+
+    --ser-1:#3FE0C5; --ser-2:#F6B352; --ser-3:#6FA8FF; --ser-4:#B48CFF;
+    --ser-5:#FF7D97; --ser-6:#86DE6E; --ser-7:#E86FD0; --ser-8:#8C9BB0;
+
+    --seq-1:#0A392F; --seq-2:#116353; --seq-3:#198F78; --seq-4:#21BA9C; --seq-5:#4CDFC2;
+
+    --ok:#3FE0C5; --warn:#F6B352; --risk:#F2555A; --neutral:#8C9BB0;
+
+    --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+    --serif:"Noto Serif SC","Songti SC","STSong","SimSun",serif;
+    --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{font-family:var(--sans);background:var(--bg);color:var(--ink);line-height:1.7;
+    -webkit-font-smoothing:antialiased;overflow-x:hidden}
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
+      transition-duration:.01ms!important;scroll-behavior:auto!important}
+  }
+  html[data-anim="off"] *,html[data-anim="off"] *::before,html[data-anim="off"] *::after{
+    animation:none!important;transition:none!important}
+  html[data-shot="1"] .hero{min-height:auto;padding:80px 0 72px}
+
+  /* ── 固定背景：网格 + 辉光 + 颗粒 ── */
+  .bg{position:fixed;inset:0;z-index:0;pointer-events:none}
+  .bg .grid{position:absolute;inset:-2px;
+    background-image:linear-gradient(var(--line) 1px,transparent 1px),
+      linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:64px 64px;
+    -webkit-mask-image:radial-gradient(circle at 50% 32%,#000 0%,transparent 78%);
+    mask-image:radial-gradient(circle at 50% 32%,#000 0%,transparent 78%);opacity:.5}
+  .bg .glow{position:absolute;border-radius:50%;filter:blur(120px);opacity:.5}
+  .bg .g1{width:640px;height:640px;top:-260px;left:50%;transform:translateX(-50%);
+    background:radial-gradient(circle,rgba(63,224,197,.28),transparent 68%);animation:drift 22s ease-in-out infinite}
+  .bg .g2{width:520px;height:520px;top:38%;left:-160px;
+    background:radial-gradient(circle,rgba(111,168,255,.16),transparent 70%);animation:drift 28s ease-in-out infinite reverse}
+  .bg .g3{width:480px;height:480px;bottom:-120px;right:-120px;
+    background:radial-gradient(circle,rgba(246,179,82,.12),transparent 70%);animation:drift 26s ease-in-out infinite}
+  @keyframes drift{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,40px)}}
+  .bg .noise{position:absolute;inset:0;opacity:.035;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+  .progress{position:fixed;top:0;left:0;height:2px;width:0;z-index:60;
+    background:linear-gradient(90deg,var(--teal),var(--blue));box-shadow:0 0 12px var(--teal)}
+
+  .rail{position:fixed;top:50%;left:26px;transform:translateY(-50%);z-index:50;
+    display:flex;flex-direction:column;gap:15px}
+  .rail a{display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--dim);
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;transition:color .3s}
+  .rail a .tick{width:22px;height:2px;background:currentColor;transition:width .3s,background .3s}
+  .rail a .lbl{opacity:0;transform:translateX(-6px);transition:.3s}
+  .rail a:hover .lbl,.rail a.on .lbl{opacity:1;transform:none}
+  .rail a.on{color:var(--teal)}
+  .rail a.on .tick{width:38px;box-shadow:0 0 10px var(--teal)}
+  .rail a:focus-visible{outline:2px solid var(--teal);outline-offset:4px;border-radius:3px}
+  @media(max-width:1180px){.rail{display:none}}
+
+  main{position:relative;z-index:2;max-width:1080px;margin:0 auto;padding:0 40px}
+  section{padding:118px 0;border-top:1px solid transparent}
+
+  .rv{opacity:0;transform:translateY(26px);transition:opacity .8s cubic-bezier(.16,1,.3,1),transform .8s cubic-bezier(.16,1,.3,1)}
+  .rv.in{opacity:1;transform:none}
+  .stagger>*{opacity:0;transform:translateY(22px);transition:opacity .7s cubic-bezier(.16,1,.3,1),transform .7s cubic-bezier(.16,1,.3,1)}
+  .stagger.in>*{opacity:1;transform:none}
+  .stagger.in>*:nth-child(1){transition-delay:.05s}
+  .stagger.in>*:nth-child(2){transition-delay:.13s}
+  .stagger.in>*:nth-child(3){transition-delay:.21s}
+  .stagger.in>*:nth-child(4){transition-delay:.29s}
+  .stagger.in>*:nth-child(5){transition-delay:.37s}
+
+  .sec-head{display:flex;align-items:baseline;gap:20px;margin-bottom:42px}
+  .sec-head .idx{font-family:var(--mono);font-size:13px;color:var(--teal);font-weight:500;padding-top:6px;position:relative}
+  .sec-head .idx::before{content:"";position:absolute;left:-14px;top:11px;width:8px;height:8px;
+    border-radius:50%;background:var(--teal);box-shadow:0 0 10px var(--teal)}
+  .eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--muted);display:block;margin-bottom:8px}
+  .sec-head h2{font-family:var(--serif);font-weight:700;font-size:clamp(27px,4vw,42px);
+    line-height:1.18;color:var(--head);letter-spacing:.01em;text-wrap:balance}
+  .lede{font-size:16.5px;color:var(--muted);max-width:660px;margin:-24px 0 40px;line-height:1.75}
+  .lede b,.lede strong{color:var(--ink);font-weight:600}
+  code{font-family:var(--mono);font-size:.85em;background:rgba(63,224,197,.09);color:#8ff0e0;
+    border:1px solid rgba(63,224,197,.16);border-radius:5px;padding:1px 6px}
+
+  /* ── HERO ── */
+  .hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;
+    padding:100px 0 72px;border:0;position:relative}
+  .hero .tag{font-family:var(--mono);font-size:12px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--teal);display:inline-flex;align-items:center;gap:10px;margin-bottom:26px}
+  .hero .tag .pulse{width:9px;height:9px;border-radius:50%;background:var(--teal);
+    box-shadow:0 0 0 0 rgba(63,224,197,.6);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(63,224,197,.55)}70%{box-shadow:0 0 0 12px rgba(63,224,197,0)}100%{box-shadow:0 0 0 0 rgba(63,224,197,0)}}
+  .hero h1{font-family:var(--serif);font-weight:900;font-size:clamp(46px,9vw,104px);line-height:1.02;
+    color:var(--head);letter-spacing:.005em;margin-bottom:8px}
+  .hero h1 .accent{background:linear-gradient(115deg,var(--teal),var(--blue) 70%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero h1 .cursor{display:inline-block;width:.06em;height:.92em;background:var(--teal);
+    vertical-align:-6px;margin-left:6px;animation:blink 1.1s steps(1) infinite;box-shadow:0 0 14px var(--teal)}
+  @keyframes blink{50%{opacity:0}}
+  .hero .desc{font-size:clamp(17px,2.3vw,22px);color:var(--ink);max-width:680px;margin:24px 0 14px;line-height:1.6}
+  .hero .desc b{color:var(--teal);font-weight:600}
+  .hero .role{font-family:var(--mono);font-size:13px;color:var(--muted);margin-bottom:34px}
+  .ticker{display:flex;gap:10px;flex-wrap:wrap;max-width:820px}
+  .chip{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;color:var(--ink);
+    border:1px solid var(--line2);border-radius:100px;padding:7px 15px;background:rgba(255,255,255,.02);
+    display:inline-flex;align-items:center;gap:8px;transition:.3s}
+  .chip:hover{border-color:var(--teal);color:var(--teal);box-shadow:0 0 20px -6px var(--teal)}
+  .chip .d{width:6px;height:6px;border-radius:50%;background:var(--teal)}
+  .chip .d.a{background:var(--amber)}.chip .d.b{background:var(--blue)}.chip .d.v{background:var(--violet)}
+  .scrollcue{position:absolute;bottom:34px;left:0;font-family:var(--mono);font-size:11px;
+    letter-spacing:.2em;color:var(--dim);display:flex;align-items:center;gap:10px}
+  .scrollcue .bar{width:1px;height:34px;background:linear-gradient(var(--teal),transparent);
+    animation:cue 1.8s ease-in-out infinite}
+  @keyframes cue{0%,100%{opacity:.3;transform:scaleY(.6)}50%{opacity:1;transform:scaleY(1)}}
+
+  /* ── statband ── */
+  .statband{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:28px}
+  .stat{background:linear-gradient(165deg,var(--panel2),var(--bg2));border:1px solid var(--line);
+    border-radius:14px;padding:17px 18px 15px;transition:.35s}
+  .stat:hover{border-color:rgba(63,224,197,.3);transform:translateY(-3px)}
+  .stat .v{font-family:var(--mono);font-size:30px;font-weight:600;color:var(--teal);line-height:1.1;
+    text-shadow:0 0 24px rgba(63,224,197,.35);font-variant-numeric:tabular-nums}
+  .stat .v .suf{font-size:15px;color:var(--muted);margin-left:2px}
+  .stat .v .pre{font-size:19px;color:var(--muted);margin-right:1px}
+  .stat .l{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.5}
+  .stat .sub{display:block;font-family:var(--mono);font-size:10.5px;color:var(--dim);margin-top:9px}
+  .stat.a .v{color:var(--amber);text-shadow:0 0 24px rgba(246,179,82,.3)}
+  .stat.b .v{color:var(--blue);text-shadow:0 0 24px rgba(111,168,255,.3)}
+  .stat.v2 .v{color:var(--violet);text-shadow:0 0 24px rgba(180,140,255,.3)}
+
+  /* ── 卡片 ── */
+  .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  .cell{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 22px;transition:.35s}
+  .cell:hover{border-color:var(--line2);background:var(--panel2);transform:translateY(-3px)}
+  .cell .ico{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+    margin-bottom:14px;border:1px solid rgba(63,224,197,.28);color:var(--teal);
+    background:linear-gradient(150deg,rgba(63,224,197,.13),rgba(63,224,197,.02));
+    box-shadow:0 0 22px -10px var(--teal) inset}
+  .cell .ico svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .cell .ico.a{border-color:rgba(246,179,82,.28);color:var(--amber);
+    background:linear-gradient(150deg,rgba(246,179,82,.13),rgba(246,179,82,.02));box-shadow:0 0 22px -10px var(--amber) inset}
+  .cell .ico.r{border-color:rgba(255,125,151,.28);color:var(--rose);
+    background:linear-gradient(150deg,rgba(255,125,151,.13),rgba(255,125,151,.02));box-shadow:0 0 22px -10px var(--rose) inset}
+  .cell h3{font-size:16px;color:var(--head);margin-bottom:7px;font-weight:600}
+  .cell h3 .m{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:.08em;display:block;margin-bottom:4px;font-weight:500}
+  .cell p{font-size:13.5px;color:var(--muted);line-height:1.65}
+  .cell p b{color:var(--ink)}
+
+  /* ── 提示条 ── */
+  .note-band{margin-top:22px;background:rgba(246,179,82,.06);border:1px solid rgba(246,179,82,.2);
+    border-radius:14px;padding:18px 22px;display:flex;gap:16px;align-items:flex-start}
+  .note-band .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--amber);
+    text-transform:uppercase;white-space:nowrap;padding-top:2px}
+  .note-band p{font-size:14.5px;color:var(--ink);margin:0}
+  .note-band p b{color:var(--amber)}
+  .why{background:linear-gradient(160deg,rgba(255,125,151,.07),transparent);
+    border:1px solid rgba(255,125,151,.2);border-radius:16px;padding:26px 28px;margin-bottom:20px}
+  .why .k{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--rose);
+    text-transform:uppercase;margin-bottom:10px;display:block}
+  .why p{font-size:15.5px;color:var(--ink);margin:0}
+  .why p b{color:var(--rose)}
+  .band{margin-top:22px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--teal);
+    border-radius:12px;padding:20px 24px}
+  .band .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--teal);
+    text-transform:uppercase;margin-bottom:8px;display:block}
+  .band p{font-size:15px;color:var(--ink);margin:0}
+  .band p b{color:var(--head)}
+  .band .cmd{display:block;font-family:var(--mono);font-size:12.5px;color:var(--teal);
+    background:rgba(63,224,197,.06);border:1px solid rgba(63,224,197,.14);border-radius:8px;
+    padding:11px 14px;margin-top:14px;overflow-x:auto;white-space:pre;line-height:1.7}
+
+  /* ── FLOW:pipe 竖向脊线 ── */
+  .pipe{position:relative;padding-left:38px;margin-top:8px}
+  .pipe::before{content:"";position:absolute;left:11px;top:8px;bottom:8px;width:2px;
+    background:linear-gradient(var(--amber),var(--teal),var(--blue),var(--rose))}
+  .pipe .flowdot{position:absolute;left:6px;width:12px;height:12px;border-radius:50%;
+    background:var(--teal);box-shadow:0 0 16px 3px var(--teal);animation:flow 4.2s cubic-bezier(.5,0,.5,1) infinite}
+  @keyframes flow{0%{top:2px;opacity:0}8%{opacity:1}92%{opacity:1}100%{top:calc(100% - 14px);opacity:0}}
+  .pstep{position:relative;padding:16px 0;display:grid;grid-template-columns:112px 1fr;gap:18px;align-items:start}
+  .pstep+.pstep{border-top:1px dashed var(--line)}
+  .pstep::before{content:"";position:absolute;left:-32px;top:24px;width:10px;height:10px;border-radius:50%;
+    background:var(--bg);border:2px solid var(--who,var(--teal));box-shadow:0 0 0 4px var(--bg)}
+  .pstep .who{font-family:var(--mono);font-size:11px;letter-spacing:.05em;padding:5px 9px;border-radius:7px;
+    background:color-mix(in srgb,var(--who) 15%,transparent);color:var(--who);
+    border:1px solid color-mix(in srgb,var(--who) 30%,transparent);text-align:center;line-height:1.35}
+  .pstep .txt{font-size:14.5px;color:var(--ink)}
+  .pstep .txt b{color:var(--head);font-weight:600}
+  .pipe-note{margin-top:20px;font-size:13.5px;color:var(--muted);font-family:var(--mono);
+    padding-left:38px;line-height:1.6}
+  .pipe-note b{color:var(--teal)}
+
+  /* ── FLOW:flow-h 横向流程带。span 当盒子必须 display:block ── */
+  .flowh{position:relative;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:0;padding:14px 0 6px}
+  .flowh .fs{position:relative;padding:0 16px;text-align:center}
+  .flowh .fs .dot{display:block;width:15px;height:15px;border-radius:50%;background:var(--bg);margin:0 auto 16px;
+    border:2px solid var(--c,var(--teal));box-shadow:0 0 14px -2px var(--c,var(--teal));position:relative;z-index:2}
+  .flowh .fs .k{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--c,var(--teal));display:block;margin-bottom:5px}
+  .flowh .fs .t{display:block;font-size:13.5px;color:var(--head);font-weight:600;line-height:1.4}
+  .flowh .fs .d{display:block;font-size:12px;color:var(--muted);margin-top:5px;line-height:1.55}
+  .flowh .fs::before{content:"";position:absolute;top:7px;left:0;right:50%;height:2px;
+    background:linear-gradient(90deg,transparent,var(--line2))}
+  .flowh .fs::after{content:"";position:absolute;top:7px;left:50%;right:0;height:2px;
+    background:linear-gradient(90deg,var(--line2),transparent)}
+  .flowh .fs:first-child::before,.flowh .fs:last-child::after{display:none}
+  .flowh .runner{position:absolute;top:3px;left:0;width:9px;height:9px;border-radius:50%;
+    background:var(--teal);box-shadow:0 0 14px 3px var(--teal);animation:runh 5s cubic-bezier(.45,0,.55,1) infinite;z-index:1}
+  @keyframes runh{0%{left:6%;opacity:0}8%{opacity:1}92%{opacity:1}100%{left:94%;opacity:0}}
+
+  /* ── FLOW:branch 分支判定 ── */
+  .br-box{fill:var(--panel2);stroke:var(--line2);stroke-width:1.2;rx:10}
+  .br-box.ok{stroke:rgba(63,224,197,.45)}
+  .br-box.hu{stroke:rgba(246,179,82,.45)}
+  .br-dia{fill:rgba(246,179,82,.09);stroke:var(--amber);stroke-width:1.4}
+  .br-t{font-family:var(--sans);font-size:12.5px;fill:var(--head);text-anchor:middle;font-weight:600}
+  .br-s{font-family:var(--mono);font-size:10px;fill:var(--dim);text-anchor:middle;letter-spacing:.1em}
+  .br-cond{font-family:var(--mono);font-size:11px;letter-spacing:.08em}
+  .br-link{fill:none;stroke:var(--line2);stroke-width:1.6}
+
+  /* ── FLOW:lane 泳道 ── */
+  .lane{display:grid;grid-template-columns:104px repeat(4,1fr);gap:8px;min-width:680px}
+  .lane .lh{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--dim);text-align:center;padding-bottom:4px}
+  .lane .lr{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;color:var(--c,var(--teal));
+    border-left:3px solid var(--c,var(--teal));padding:12px 0 12px 10px;display:flex;align-items:center;
+    text-transform:uppercase;line-height:1.4}
+  .lane .cellbox{background:rgba(255,255,255,.02);border:1px solid var(--line);border-radius:10px;
+    padding:12px 13px;min-height:64px}
+  .lane .cellbox.on{background:color-mix(in srgb,var(--c) 8%,transparent);
+    border-color:color-mix(in srgb,var(--c) 34%,transparent)}
+  .lane .cellbox .n{font-family:var(--mono);font-size:10px;color:var(--c,var(--teal));letter-spacing:.1em;display:block;margin-bottom:4px}
+  .lane .cellbox .s{display:block;font-size:12.5px;color:var(--head);line-height:1.45}
+  .lane .cellbox.void{background:transparent;border-style:dashed;border-color:rgba(255,255,255,.045)}
+  .laneScroll{overflow-x:auto}
+
+  /* ── hbar 横条。track / fill 必须 display:block ── */
+  .hbar .row{display:grid;grid-template-columns:170px 1fr 84px;gap:14px;align-items:center;padding:9px 0}
+  .hbar .lab{font-size:13.5px;color:var(--ink);text-align:right;line-height:1.35}
+  .hbar .lab .pl{display:block;font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.1em}
+  .hbar .track{display:block;height:18px;background:rgba(255,255,255,.04);border-radius:5px;overflow:hidden}
+  .hbar .fill{display:block;height:100%;border-radius:4px;
+    background:linear-gradient(90deg,var(--teal-d),var(--teal));box-shadow:0 0 14px -2px var(--teal);
+    width:0;transition:width 1.1s cubic-bezier(.16,1,.3,1)}
+  .hbar .fill.dim{background:linear-gradient(90deg,#2A3644,#46586C);box-shadow:none}
+  .hbar .val{font-family:var(--mono);font-size:13px;color:var(--head);font-variant-numeric:tabular-nums}
+
+  /* ── 规格表 ── */
+  .spec{width:100%;border-collapse:collapse;font-size:13.5px}
+  .spec thead th{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--muted);text-align:left;padding:12px 14px;border-bottom:1px solid var(--line2)}
+  .spec td{padding:13px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  .spec tbody tr{transition:.25s}
+  .spec tbody tr:hover{background:rgba(63,224,197,.03)}
+  .spec td:first-child{color:var(--head);font-weight:600;white-space:nowrap}
+  .spec td:nth-child(2){color:var(--muted)}
+  .spec td:nth-child(3){font-family:var(--mono);font-size:12.5px;color:var(--teal);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .quote{margin-top:30px;background:linear-gradient(160deg,var(--panel2),var(--bg2));
+    border:1px solid var(--line);border-radius:16px;padding:28px 30px;font-size:16px;line-height:1.75;color:var(--ink)}
+  .quote b{color:var(--teal)}
+
+  .chart-cap{font-size:15px;color:var(--head);font-weight:600;margin-bottom:2px}
+  .chart-unit{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.1em;
+    text-transform:uppercase;margin-bottom:16px}
+  .chart-note{margin-top:16px;font-family:var(--mono);font-size:11.5px;color:var(--dim);letter-spacing:.04em}
+  .chart-note b{color:var(--teal)}
+
+  footer{position:relative;z-index:2;max-width:1080px;margin:40px auto 0;padding:60px 40px 80px;
+    border-top:1px solid var(--line)}
+  footer .fl{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:18px}
+  footer .brand{font-family:var(--serif);font-weight:700;font-size:20px;color:var(--head)}
+  footer .meta{font-family:var(--mono);font-size:11.5px;color:var(--dim);letter-spacing:.08em;text-align:right;line-height:1.9}
+  footer .meta b{color:var(--teal)}
+
+  .svgwrap{width:100%;overflow-x:auto}
+  .svgwrap svg{display:block;width:100%;height:auto}
+  @media(max-width:820px){ .svgwrap svg.wide{min-width:600px} }
+  @media(max-width:600px){ .svgwrap svg.wide{min-width:0;width:100%;height:auto} }
+
+  @media(max-width:520px){.statband{grid-template-columns:1fr}}
+  @media(max-width:820px){
+    main{padding:0 22px}
+    section{padding:82px 0}
+    .grid2{grid-template-columns:1fr}
+    .statband{grid-template-columns:repeat(2,1fr)}
+    .sec-head{gap:14px;margin-bottom:32px}
+    .lede{margin-top:-16px}
+    .pstep{grid-template-columns:1fr;gap:8px}
+    .pstep .who{justify-self:start}
+    .hbar .row{grid-template-columns:118px 1fr 66px;gap:10px}
+    .hbar .lab{font-size:12px}
+    .spec{font-size:12.5px}
+    .spec td,.spec thead th{padding:10px 8px}
+    /* 横向流程带转竖向 */
+    .flowh{grid-auto-flow:row;gap:22px}
+    .flowh .fs{text-align:left;padding:0 0 0 34px}
+    .flowh .fs .dot{position:absolute;left:0;top:2px;margin:0}
+    .flowh .fs::before,.flowh .fs::after{display:none}
+    .flowh .runner{display:none}
+    .flowh .fs:not(:last-child) .dot::after{content:"";position:absolute;left:50%;top:15px;
+      width:2px;height:44px;background:linear-gradient(var(--line2),transparent);transform:translateX(-50%)}
+  }
+  ::selection{background:rgba(63,224,197,.28);color:#fff}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track{background:var(--bg)}
+  ::-webkit-scrollbar-thumb{background:#1c2430;border-radius:8px;border:2px solid var(--bg)}
+  ::-webkit-scrollbar-thumb:hover{background:var(--teal-d)}
+</style>
+
+
+<div class="bg">
+  <div class="grid"></div>
+  <div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
+  <div class="noise"></div>
+</div>
+<div class="progress" id="progress"></div>
+
+<nav class="rail" id="rail">
+  <a href="#hero" data-s="hero"><span class="tick"></span><span class="lbl">概览</span></a>
+  <a href="#why" data-s="why"><span class="tick"></span><span class="lbl">为什么需要</span></a>
+  <a href="#ci" data-s="ci"><span class="tick"></span><span class="lbl">CI 是什么</span></a>
+  <a href="#cd" data-s="cd"><span class="tick"></span><span class="lbl">CD 是什么</span></a>
+  <a href="#journey" data-s="journey"><span class="tick"></span><span class="lbl">完整链路</span></a>
+  <a href="#traps" data-s="traps"><span class="tick"></span><span class="lbl">两个陷阱</span></a>
+  <a href="#bill" data-s="bill"><span class="tick"></span><span class="lbl">谁在付钱</span></a>
+</nav>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero" id="hero">
+    <span class="tag rv"><span class="pulse"></span>CI / CD 入门 · 用我们自己的仓库讲</span>
+    <h1 class="rv">先<span class="accent">验一遍</span><br>再<span class="accent">送上线</span><span class="cursor"></span></h1>
+    <p class="desc rv">CI 是<b>质检员</b>，拦住写坏的代码；CD 是<b>快递员</b>，把验过的代码送到用户面前。</p>
+    <p class="role rv">// 面向团队所有人 · 没写过代码也能看懂<br>// 本文为公开版，具体标识已替换为占位符，账单与用量数字改为示意</p>
+    <div class="ticker rv">
+      <span class="chip"><span class="d"></span>GITHUB ACTIONS</span>
+      <span class="chip"><span class="d a"></span>计价币种 USD</span>
+      <span class="chip"><span class="d b"></span>多个 ORG</span>
+      <span class="chip"><span class="d"></span>TEAM 3000 · FREE 2000</span>
+      <span class="chip"><span class="d a"></span>按分钟计费</span>
+    </div>
+    <div class="statband rv">
+      <div class="stat"><div class="v"><span class="cnum" data-v="2000">0</span><span class="suf">min</span></div>
+        <div class="l">Free 档每月免费分钟<span class="sub">仅私有仓消耗 · 每月重置</span></div></div>
+      <div class="stat a"><div class="v"><span class="cnum" data-v="3000">0</span><span class="suf">min</span></div>
+        <div class="l">Team 档每月免费分钟<span class="sub">超出部分才按分钟计费</span></div></div>
+      <div class="stat b"><div class="v"><span class="pre">$</span><span class="cnum" data-v="0.006" data-dec="3">0</span></div>
+        <div class="l">Linux 每分钟单价<span class="sub">官方定价，美元</span></div></div>
+      <div class="stat v2"><div class="v"><span class="cnum" data-v="8640">0</span><span class="suf">min</span></div>
+        <div class="l">每 5 分钟跑一次的脚本 · 一个月<span class="sub">示意 · 不足 1 分钟按 1 分钟收</span></div></div>
+    </div>
+    <div class="scrollcue"><span class="bar"></span>SCROLL / 向下滚动</div>
+  </section>
+
+  <!-- 01 为什么需要 -->
+  <section id="why">
+    <div class="sec-head rv">
+      <span class="idx">01</span>
+      <div><span class="eyebrow">Why It Exists</span>
+      <h2>没有 CI 的那个下午</h2></div>
+    </div>
+    <p class="lede rv">问题不在于代码会坏——代码总会坏。问题在于 <strong>三天后才发现</strong>，而这三天里所有人都在这份坏代码上继续写。</p>
+    <div class="laneScroll rv">
+      <div class="lane">
+        <span></span>
+        <span class="lh">周一上午</span><span class="lh">周一下午</span><span class="lh">周三</span><span class="lh">周三晚上</span>
+
+        <span class="lr" style="--c:var(--amber)">开发</span>
+        <div class="cellbox on" style="--c:var(--amber)"><span class="n">01</span><span class="s">你改了 A 文件，本地跑通</span></div>
+        <div class="cellbox on" style="--c:var(--amber)"><span class="n">02</span><span class="s">同事改了 B 文件，本地也跑通</span></div>
+        <div class="cellbox void"></div>
+        <div class="cellbox on" style="--c:var(--amber)"><span class="n">05</span><span class="s">翻三天的提交，找是哪一改动</span></div>
+
+        <span class="lr" style="--c:var(--blue)">主干代码</span>
+        <div class="cellbox void"></div>
+        <div class="cellbox void"></div>
+        <div class="cellbox on" style="--c:var(--blue)"><span class="n">03</span><span class="s">两份改动合到一起，没有任何人验</span></div>
+        <div class="cellbox void"></div>
+
+        <span class="lr" style="--c:var(--rose)">线上用户</span>
+        <div class="cellbox void"></div>
+        <div class="cellbox void"></div>
+        <div class="cellbox void"></div>
+        <div class="cellbox on" style="--c:var(--rose)"><span class="n">04</span><span class="s">点开就报错，客服先知道</span></div>
+      </div>
+    </div>
+    <p class="chart-note rv">// 序号跨行跳一次 = 一次交接 · <b>01 → 04 之间隔了三天，中间没有任何一道闸</b></p>
+    <div class="note-band rv">
+      <span class="k">Point</span>
+      <p>各自本地都是好的，<b>合到一起才坏</b>——这就是 Integration（集成）这个词的由来。CI 要解决的就是「合起来这一刻没人验」。</p>
+    </div>
+  </section>
+
+  <!-- 02 CI -->
+  <section id="ci">
+    <div class="sec-head rv">
+      <span class="idx">02</span>
+      <div><span class="eyebrow">Continuous Integration</span>
+      <h2>CI：每次推代码，机器先验一遍</h2></div>
+    </div>
+    <p class="lede rv">不用等谁想起来跑测试。代码一推上去，GitHub 就<strong>开一台干净的机器</strong>，把项目从头装一遍、编译一遍、测一遍。下面五步是<b>我们这边</b>的实际配置，别的团队顺序可能不同。</p>
+    <div class="flowh rv">
+      <span class="runner"></span>
+      <div class="fs" style="--c:var(--amber)"><span class="dot"></span><span class="k">01 · 你</span><span class="t">推代码</span><span class="d">git push 到自己的分支</span></div>
+      <div class="fs" style="--c:var(--teal)"><span class="dot"></span><span class="k">02 · 机器</span><span class="t">装依赖</span><span class="d">开一台干净机器，从零装</span></div>
+      <div class="fs" style="--c:var(--teal)"><span class="dot"></span><span class="k">03 · 机器</span><span class="t">查类型和规范</span><span class="d">tsc 编译 + eslint 检查</span></div>
+      <div class="fs" style="--c:var(--teal)"><span class="dot"></span><span class="k">04 · 机器</span><span class="t">跑测试</span><span class="d">所有单测跑一遍</span></div>
+      <div class="fs" style="--c:var(--amber)"><span class="dot"></span><span class="k">05 · 闸门</span><span class="t">红了就拦住</span><span class="d">PR 上直接打红叉</span></div>
+    </div>
+    <p class="chart-note rv">// 琥珀 = 人或闸门 · 青 = 机器自动 · 流光点表示这条链路一直在跑</p>
+    <div class="note-band rv">
+      <span class="k">Continuous</span>
+      <p>「持续」的意思是<b>每次推送都跑</b>，不是每周跑一次。它的全部价值在快——坏了几分钟内就知道，而不是三天后从一堆改动里翻。</p>
+    </div>
+  </section>
+
+  <!-- 03 CD -->
+  <section id="cd">
+    <div class="sec-head rv">
+      <span class="idx">03</span>
+      <div><span class="eyebrow">Continuous Delivery / Deployment</span>
+      <h2>CD：验完了，怎么送上线</h2></div>
+    </div>
+    <p class="lede rv">CD 有<strong>两个都对的展开</strong>，区别只有一个：最后那一下，是人点的，还是机器自己点的。</p>
+    <div class="svgwrap rv">
+      <svg class="wide" viewBox="0 0 720 400" role="img" aria-label="分支流程图：CI 全绿后判断是否需要人工点发布，需要则为持续交付，打好包等人点；不需要则为持续部署，合并即自动上线，我们的 Vercel 属于后者">
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" fill="rgba(255,255,255,.12)"/>
+          </marker>
+        </defs>
+        <g class="br-link" marker-end="url(#ar)">
+          <path d="M360,70 L360,112"/>
+          <path d="M308,150 L150,150 L150,226"/>
+          <path d="M412,150 L570,150 L570,226"/>
+          <path d="M570,276 L570,318"/>
+        </g>
+        <rect class="br-box ok" x="290" y="22" width="140" height="48"/>
+        <text class="br-t" x="360" y="43">CI 全绿</text><text class="br-s" x="360" y="59">ALL CHECKS PASS</text>
+
+        <polygon class="br-dia" points="360,112 412,150 360,188 308,150"/>
+        <text class="br-t" x="360" y="147" style="font-size:12px">要人点一下吗</text>
+        <text class="br-s" x="360" y="163">HUMAN GATE</text>
+
+        <text class="br-cond" x="228" y="142" fill="#F6B352" text-anchor="middle">要 · YES</text>
+        <text class="br-cond" x="492" y="142" fill="#3FE0C5" text-anchor="middle">不要 · NO</text>
+
+        <rect class="br-box hu" x="80" y="226" width="140" height="50"/>
+        <text class="br-t" x="150" y="248">持续交付</text><text class="br-s" x="150" y="264">DELIVERY</text>
+        <text class="br-s" x="150" y="294" style="font-size:11px;fill:#7C8798">打好包放在门口</text>
+        <text class="br-s" x="150" y="310" style="font-size:11px;fill:#7C8798">等人点发布</text>
+
+        <rect class="br-box ok" x="500" y="226" width="140" height="50"/>
+        <text class="br-t" x="570" y="248">持续部署</text><text class="br-s" x="570" y="264">DEPLOYMENT</text>
+
+        <rect class="br-box ok" x="500" y="318" width="140" height="50"/>
+        <text class="br-t" x="570" y="340">合并即上线</text><text class="br-s" x="570" y="356">我们的 VERCEL</text>
+      </svg>
+    </div>
+    <p class="chart-note rv">// 菱形 = 判断点 · <b>两条路都叫 CD，选哪条取决于这次上线错了有多贵</b></p>
+    <div class="grid2 stagger" style="margin-top:26px">
+      <div class="cell">
+        <span class="ico a"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5v9.5M12 14l-3.4-3.4M12 14l3.4-3.4"/><path d="M4 16.5v2a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5v-2"/></svg></span>
+        <h3><span class="m">CONTINUOUS DELIVERY</span>持续交付</h3>
+        <p>机器把包打好、放在门口，<b>人点一下才真的发布</b>。适合上线成本高、要挑时间窗的场景。</p>
+      </div>
+      <div class="cell">
+        <span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12h11.5"/><path d="M12.5 8.2L16.3 12l-3.8 3.8"/><circle cx="19.4" cy="12" r="1.9"/></svg></span>
+        <h3><span class="m">CONTINUOUS DEPLOYMENT</span>持续部署</h3>
+        <p>CI 一绿<b>直接自动上线</b>，没有人工按钮。我们的 Vercel 走的是这条——但只有<b>改到前端</b>的提交才会真的触发部署（见下一章）。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 完整链路 -->
+  <section id="journey">
+    <div class="sec-head rv">
+      <span class="idx">04</span>
+      <div><span class="eyebrow">End-to-End</span>
+      <h2>一次改动的完整旅程</h2></div>
+    </div>
+    <p class="lede rv">从你敲下 <code>git push</code>，到确认线上真的变了——我们这边的这六步，<strong>哪一步断了都不算送到</strong>。</p>
+    <div class="pipe rv">
+      <div class="flowdot"></div>
+      <div class="pstep" style="--who:var(--amber)">
+        <span class="who">你<br>PUSH</span>
+        <span class="txt">改动推到<b>自己的分支</b>，不直接推 main</span>
+      </div>
+      <div class="pstep" style="--who:var(--teal)">
+        <span class="who">GITHUB<br>CI</span>
+        <span class="txt">Actions 自动开一台干净机器：<b>装依赖 → 查类型 → 跑测试</b>，结果打在 PR 上</span>
+      </div>
+      <div class="pstep" style="--who:var(--amber)">
+        <span class="who">你 / 同事<br>合并</span>
+        <span class="txt">CI 全绿才合进 <code>main</code>。改到<b>核心目录</b>（模型调用 / 定时任务 / 数据库结构 / 登录鉴权）还要额外的人工复核</span>
+      </div>
+      <div class="pstep" style="--who:var(--blue)">
+        <span class="who">GITHUB<br>部署</span>
+        <span class="txt">Actions 的 <code>Deploy Vercel</code> 调 Vercel API 打包（Vercel 自带的 git 监听<b>已关掉</b>）；只动文档或后端时，这一步<b>整个跳过</b></span>
+      </div>
+      <div class="pstep" style="--who:var(--blue)">
+        <span class="who">VERCEL<br>上线</span>
+        <span class="txt">构建产物推到 CDN，<b>新版本对所有用户生效</b></span>
+      </div>
+      <div class="pstep" style="--who:var(--rose)">
+        <span class="who">你<br>验一眼</span>
+        <span class="txt"><b>请求一条本次新增的路由</b> —— 404 就是没部署上去，别只看 CI 的绿灯</span>
+      </div>
+    </div>
+    <p class="pipe-note rv">// 第 6 步不能省：<b>前五步全绿，线上仍可能是旧版本</b>。</p>
+  </section>
+
+  <!-- 05 两个陷阱 -->
+  <section id="traps">
+    <div class="sec-head rv">
+      <span class="idx">05</span>
+      <div><span class="eyebrow">Two False Greens</span>
+      <h2>两个最容易信错的绿灯</h2></div>
+    </div>
+    <p class="lede rv">绿灯只说明「<strong>某件事跑完了</strong>」，不说明「你要的那件事成了」。下面这次事故和两类绿灯，我们都真踩过。</p>
+    <div class="why rv">
+      <span class="k">Resolved Incident · 2026-08-13</span>
+      <p>整个 GitHub 组织的 Actions 停摆 <b>2.5 小时</b>，43 个任务直接启动失败，而<b>告警一条都没发出来</b>——监控自己也跑在 GitHub Actions 上，跟着一起被闸断了。团队排查了代码、workflow 语法、GitHub 状态页，全部正常。真因是<b>风控自动打的账号级计费锁</b>，而所有计费页面当时都显示一切正常。当天解锁后重跑恢复；九月至今同类拦截 <b>0 次</b>。</p>
+    </div>
+    <div class="grid2 stagger">
+      <div class="cell">
+        <span class="ico r"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.6"/><path d="M8.6 12.2l2.4 2.4 4.4-5"/><path d="M4.4 4.4l15.2 15.2"/></svg></span>
+        <h3><span class="m">FALSE GREEN 01</span>CI 绿 ≠ 代码是对的</h3>
+        <p>CI 只验证了<b>你写的那些测试</b>。测试没覆盖到的地方，它一无所知。构建成功只说明<b>能编译</b>，不说明<b>逻辑对</b>。</p>
+      </div>
+      <div class="cell">
+        <span class="ico a"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.4l8 4.2v6.1c0 3.6-3.2 6.6-8 8.2-4.8-1.6-8-4.6-8-8.2V7.6l8-4.2z"/><path d="M12 9v4"/><circle cx="12" cy="16.2" r=".9" fill="currentColor" stroke="none"/></svg></span>
+        <h3><span class="m">FALSE GREEN 02</span>CI 绿 ≠ 线上已更新</h3>
+        <p>部署是<b>另一件事</b>。额度用完、计费锁、配置漏了，都会让它悄悄没跑，<b>而 CI 那边照样是绿的</b>。九月 35 次部署有 <b>21 次被跳过</b>——绝大多数是<b>该跳过的</b>（改的是文档或后端，前端没变）。真正的陷阱是：你以为改了前端、但路径没匹配上，<b>这两种从外面看一模一样</b>。</p>
+      </div>
+    </div>
+    <div class="band rv">
+      <span class="k">那怎么才算验过</span>
+      <p>别问 CI，<b>去问生产</b>：请求一条这次新增的路由，看它认不认。</p>
+      <span class="cmd">curl -s -o /dev/null -w '%{http_code}' https://你的域名/本次新增的路由
+# 404 → 没部署上去    200 / 401 → 部署了</span>
+    </div>
+  </section>
+
+  <!-- 06 账单 -->
+  <section id="bill">
+    <div class="sec-head rv">
+      <span class="idx">06</span>
+      <div><span class="eyebrow">The Bill · Priced in USD</span>
+      <h2>这些机器时间，谁在付钱</h2></div>
+    </div>
+    <p class="lede rv">GitHub 全球<strong>只用美元计价</strong>。国内卡付款时，是卡组织按当日汇率折成人民币扣——账单和发票本身始终是美元。</p>
+    <div class="rv" style="margin-bottom:34px">
+      <div class="chart-cap">额度与消耗（示意）</div>
+      <div class="chart-unit">单位：分钟 / 月 · 示意数据，非真实账单 · 仅 GitHub 托管 runner 的私有仓计费 · 自托管 runner 分钟不计费也不入此表</div>
+      <div class="hbar" data-hbar>
+        <div class="row"><span class="lab">其余免费 org<span class="pl">FREE · 每月额度</span></span><span class="track"><span class="fill dim" data-w="23"></span></span><span class="val">2,000</span></div>
+        <div class="row"><span class="lab">主力团队 org<span class="pl">TEAM · 每月额度</span></span><span class="track"><span class="fill dim" data-w="35"></span></span><span class="val">3,000</span></div>
+        <div class="row"><span class="lab">*/30 定时脚本<span class="pl">单个 JOB · 一个月</span></span><span class="track"><span class="fill" data-w="17"></span></span><span class="val">1,440</span></div>
+        <div class="row"><span class="lab">*/5 定时脚本<span class="pl">单个 JOB · 一个月</span></span><span class="track"><span class="fill" data-w="100"></span></span><span class="val">8,640</span></div>
+      </div>
+      <p class="chart-note">// 条长按最大值 8,640 归一 · 灰 = 每月免费额度，青 = 消耗 · <b>一个每 5 分钟跑一次的小脚本，一个月就超过 4 个 Free 额度</b> · 把用量大的仓改跑自建 runner，这部分算力不再计入 GitHub 账单，但机器本身的成本是另一笔账</p>
+    </div>
+    <div class="rv" style="overflow-x:auto">
+      <table class="spec">
+        <thead><tr><th>项目</th><th>口径</th><th>值</th></tr></thead>
+        <tbody>
+          <tr><td>计价币种</td><td>GitHub 全球统一，无人民币计价</td><td>USD</td></tr>
+          <tr><td>Linux 2 核单价</td><td>每个 <b>job</b> 单独计，不足 1 分钟按 1 分钟收</td><td>$0.006 / min</td></tr>
+          <tr><td>免费额度 · Free</td><td>每月重置，仅私有仓消耗</td><td>2,000 min</td></tr>
+          <tr><td>免费额度 · Team</td><td>主力团队 org 用的是这一档</td><td>3,000 min</td></tr>
+          <tr><td>公开仓</td><td>标准 runner 不计入额度；大规格 runner 仍计费</td><td>标准 runner 免费</td></tr>
+          <tr><td>自托管 runner</td><td>机器自备，分钟不计入 GitHub 账单</td><td>机器成本另算</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note-band rv">
+      <span class="k">最容易超的地方</span>
+      <p>不是大项目，是<b>每 5 分钟跑一次的小脚本</b>——跑 1 秒也按 1 分钟收。<code>*/5</code> 一个月就是 <b>8,640 分钟</b>，远超 2,000 的免费额度；改成 <code>*/30</code> 就是 1,440 分钟，稳稳在内。</p>
+    </div>
+    <div class="quote rv">
+      <b>一句话记住：</b>CI 是<b>质检员</b>，拦住坏东西；CD 是<b>快递员</b>，送出好东西。GitHub Actions 是雇他俩的平台，按分钟付<b>美元</b>。账单降到 $0 不一定是变免费了：把用量大的仓改跑自建 runner，GitHub 这侧的用量就会降到额度以内，而<b>那台机器的成本是另一笔账</b>。
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="fl">
+    <span class="brand">CI <span style="color:var(--teal)">/</span> CD · 团队入门</span>
+    <span class="meta">单价与额度按 GitHub 官方定价（口径 <b>2026-09-09</b>）<br>账单与用量数字为示意，非真实账单</span>
+  </div>
+</footer>
+
+<script>
+  /* 关动画开关：?anim=off 等价于 <html data-anim="off"> */
+  if(new URLSearchParams(location.search).get('anim') === 'off')
+    document.documentElement.dataset.anim = 'off';
+  if(new URLSearchParams(location.search).get('shot') === '1')
+    document.documentElement.dataset.shot = '1';
+  const ANIM_OFF = document.documentElement.dataset.anim === 'off'
+    || matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(ANIM_OFF) addEventListener('load', () =>
+    document.querySelectorAll('svg').forEach(s => s.pauseAnimations && s.pauseAnimations()));
+
+  /* 滚动进度条（空值守卫：删了 DOM 也不会整段中止） */
+  const prog = document.getElementById('progress');
+  const onScroll = () => {
+    if(!prog) return;
+    const h = document.documentElement;
+    prog.style.width = (h.scrollTop / (h.scrollHeight - h.clientHeight) * 100) + '%';
+  };
+  document.addEventListener('scroll', onScroll, {passive:true}); onScroll();
+
+  /* 逐段 reveal（IO 主触发 + 滚动兜底） */
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); }
+  }), {threshold:.16, rootMargin:'0px 0px -8% 0px'});
+  if(ANIM_OFF) document.querySelectorAll('.rv,.stagger').forEach(el => el.classList.add('in'));
+  else document.querySelectorAll('.rv,.stagger').forEach(el => io.observe(el));
+
+  const revealPast = () => {
+    document.querySelectorAll('.rv:not(.in),.stagger:not(.in)').forEach(el => {
+      if(el.getBoundingClientRect().top < innerHeight * .9){ el.classList.add('in'); io.unobserve(el); }
+    });
+  };
+  document.addEventListener('scroll', revealPast, {passive:true});
+  revealPast(); addEventListener('load', revealPast);
+
+  addEventListener('load', () => document.querySelectorAll('#hero .rv')
+    .forEach((el,i) => setTimeout(() => el.classList.add('in'), 120 + i*110)));
+
+  /* 统一「进视口触发」范式：IO → rAF → setTimeout 兜底直落终值 */
+  const PENDING = [];
+  function onEnter(sel, fn, threshold = .25){
+    const o = new IntersectionObserver(es => es.forEach(e => {
+      if(e.isIntersecting) fire(e.target);
+    }), {threshold});
+    document.querySelectorAll(sel).forEach(el => {
+      if(ANIM_OFF){ fn(el, true); return; }
+      PENDING.push([el, fn, o]); o.observe(el);
+    });
+  }
+  function fire(el){
+    const i = PENDING.findIndex(x => x[0] === el);
+    if(i < 0) return;
+    const [, fn, o] = PENDING.splice(i, 1)[0];
+    o.unobserve(el); fn(el, false);
+  }
+  const settle = () => {
+    for(const [el] of [...PENDING])
+      if(el.getBoundingClientRect().top < innerHeight * .9) fire(el);
+  };
+  addEventListener('scroll', settle, {passive:true});
+  addEventListener('load', settle);
+
+  /* count-up 大数字 */
+  onEnter('.cnum', (el, instant) => {
+    const target = +el.dataset.v, dec = +(el.dataset.dec || 0), dur = 1300;
+    const put = v => el.textContent = v.toLocaleString('en-US',
+      {minimumFractionDigits:dec, maximumFractionDigits:dec});
+    if(instant){ put(target); return; }
+    const t0 = performance.now();
+    const tick = t => {
+      const p = Math.min((t - t0) / dur, 1);
+      put(target * (1 - Math.pow(1 - p, 3)));
+      if(p < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    setTimeout(() => put(target), dur + 500);
+  }, .5);
+
+  /* hbar 条形展开 */
+  onEnter('[data-hbar]', (el, instant) => {
+    const run = () => el.querySelectorAll('.fill').forEach(f => f.style.width = f.dataset.w + '%');
+    if(instant){ run(); return; }
+    requestAnimationFrame(run); setTimeout(run, 1700);
+  }, .25);
+
+  /* 侧栏章节高亮 */
+  const rail = [...document.querySelectorAll('.rail a')];
+  if(rail.length){
+    const secObs = new IntersectionObserver(es => es.forEach(e => {
+      if(e.isIntersecting) rail.forEach(a => a.classList.toggle('on', a.dataset.s === e.target.id));
+    }), {rootMargin:'-45% 0px -50% 0px'});
+    document.querySelectorAll('main section').forEach(s => secObs.observe(s));
+  }
+</script>
+
+</body></html>

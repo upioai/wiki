@@ -1,0 +1,880 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Jev 决策层评估：只做判断的那半个模型</title>
+<meta name="description" content="Jev 决策层的代码级落点评估（内部）。">
+<meta name="upio:date" content="2026-09-20">
+<meta name="upio:source" content="artifact">
+<meta name="upio:category" content="internal">
+<meta name="robots" content="noindex,nofollow">
+<style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@500;700;900&display=swap');
+  :root{
+    --bg:#06080C; --bg2:#0A0E15; --panel:#0D1119; --panel2:#11161F;
+    --line:rgba(255,255,255,.07); --line2:rgba(255,255,255,.12);
+    --head:#F2F6FB; --ink:#DBE3EC; --muted:#7C8798; --dim:#525C6B;
+    --teal:#3FE0C5; --amber:#F6B352; --blue:#6FA8FF; --violet:#B48CFF; --rose:#FF7D97;
+    --teal-d:#1C9D8B;
+    --ser-1:#3FE0C5; --ser-2:#F6B352; --ser-3:#6FA8FF; --ser-4:#B48CFF;
+    --ser-5:#FF7D97; --ser-6:#86DE6E; --ser-7:#E86FD0; --ser-8:#8C9BB0;
+    --seq-1:#0A392F; --seq-2:#116353; --seq-3:#198F78; --seq-4:#21BA9C; --seq-5:#4CDFC2;
+    --ok:#3FE0C5; --warn:#F6B352; --risk:#F2555A; --neutral:#8C9BB0;
+    --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --serif:"Noto Serif SC","Songti SC","STSong","SimSun",serif;
+    --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  /* Artifact 宿主骨架给 :root 的安全区内边距被上面的 * 重置清掉了，补回来 */
+  :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+  html{scroll-behavior:smooth}
+  body{font-family:var(--sans);background:var(--bg);color:var(--ink);line-height:1.7;
+    -webkit-font-smoothing:antialiased;overflow-x:hidden}
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
+      transition-duration:.01ms!important;scroll-behavior:auto!important}
+  }
+  html[data-anim="off"] *,html[data-anim="off"] *::before,html[data-anim="off"] *::after{
+    animation:none!important;transition:none!important}
+  html[data-shot="1"] .hero{min-height:auto;padding:80px 0 72px}
+
+  /* ── 固定背景三层 ── */
+  .bg{position:fixed;inset:0;z-index:0;pointer-events:none}
+  .bg .grid{position:absolute;inset:-2px;
+    background-image:linear-gradient(var(--line) 1px,transparent 1px),
+      linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:64px 64px;
+    -webkit-mask-image:radial-gradient(circle at 50% 32%,#000 0%,transparent 78%);
+    mask-image:radial-gradient(circle at 50% 32%,#000 0%,transparent 78%);opacity:.5}
+  .bg .glow{position:absolute;border-radius:50%;filter:blur(120px);opacity:.5}
+  .bg .g1{width:640px;height:640px;top:-260px;left:50%;transform:translateX(-50%);
+    background:radial-gradient(circle,rgba(63,224,197,.28),transparent 68%);animation:drift 22s ease-in-out infinite}
+  .bg .g2{width:520px;height:520px;top:40%;left:-160px;
+    background:radial-gradient(circle,rgba(111,168,255,.16),transparent 70%);animation:drift 28s ease-in-out infinite reverse}
+  .bg .g3{width:480px;height:480px;bottom:-120px;right:-120px;
+    background:radial-gradient(circle,rgba(246,179,82,.12),transparent 70%);animation:drift 26s ease-in-out infinite}
+  @keyframes drift{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,40px)}}
+  .bg .noise{position:absolute;inset:0;opacity:.035;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+  .progress{position:fixed;top:0;left:0;height:2px;width:0;z-index:60;
+    background:linear-gradient(90deg,var(--teal),var(--blue));box-shadow:0 0 12px var(--teal)}
+
+  .rail{position:fixed;top:50%;left:26px;transform:translateY(-50%);z-index:50;
+    display:flex;flex-direction:column;gap:15px}
+  .rail a{display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--dim);
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;transition:color .3s}
+  .rail a .tick{width:22px;height:2px;background:currentColor;transition:width .3s,background .3s}
+  .rail a .lbl{opacity:0;transform:translateX(-6px);transition:.3s}
+  .rail a:hover .lbl,.rail a.on .lbl{opacity:1;transform:none}
+  .rail a.on{color:var(--teal)}
+  .rail a.on .tick{width:38px;box-shadow:0 0 10px var(--teal)}
+  @media(max-width:1180px){.rail{display:none}}
+
+  main{position:relative;z-index:2;max-width:1080px;margin:0 auto;padding-inline:40px}
+  section{padding-block:118px}
+
+  .rv{opacity:0;transform:translateY(26px);transition:opacity .8s cubic-bezier(.16,1,.3,1),transform .8s cubic-bezier(.16,1,.3,1)}
+  .rv.in{opacity:1;transform:none}
+  .stagger>*{opacity:0;transform:translateY(22px);transition:opacity .7s cubic-bezier(.16,1,.3,1),transform .7s cubic-bezier(.16,1,.3,1)}
+  .stagger.in>*{opacity:1;transform:none}
+  .stagger.in>*:nth-child(1){transition-delay:.05s}
+  .stagger.in>*:nth-child(2){transition-delay:.13s}
+  .stagger.in>*:nth-child(3){transition-delay:.21s}
+  .stagger.in>*:nth-child(4){transition-delay:.29s}
+  .stagger.in>*:nth-child(5){transition-delay:.37s}
+
+  .sec-head{display:flex;align-items:baseline;gap:20px;margin-bottom:42px}
+  .sec-head .idx{font-family:var(--mono);font-size:13px;color:var(--teal);font-weight:500;padding-top:6px;position:relative}
+  .sec-head .idx::before{content:"";position:absolute;left:-14px;top:11px;width:8px;height:8px;
+    border-radius:50%;background:var(--teal);box-shadow:0 0 10px var(--teal)}
+  .eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--muted);display:block;margin-bottom:8px}
+  .sec-head h2{font-family:var(--serif);font-weight:700;font-size:clamp(27px,4vw,42px);
+    line-height:1.18;color:var(--head);letter-spacing:.01em;text-wrap:balance}
+  .lede{font-size:16.5px;color:var(--muted);max-width:660px;margin:-24px 0 40px;line-height:1.75}
+  .lede b,.lede strong{color:var(--ink);font-weight:600}
+  code{font-family:var(--mono);font-size:.85em;background:rgba(63,224,197,.09);color:#8ff0e0;
+    border:1px solid rgba(63,224,197,.16);border-radius:5px;padding:1px 6px}
+
+  /* ── HERO ── */
+  .hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;
+    padding:100px 0 72px;position:relative}
+  .hero .tag{font-family:var(--mono);font-size:12px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--teal);display:inline-flex;align-items:center;gap:10px;margin-bottom:26px}
+  .hero .tag .pulse{width:9px;height:9px;border-radius:50%;background:var(--teal);
+    box-shadow:0 0 0 0 rgba(63,224,197,.6);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(63,224,197,.55)}70%{box-shadow:0 0 0 12px rgba(63,224,197,0)}100%{box-shadow:0 0 0 0 rgba(63,224,197,0)}}
+  .hero h1{font-family:var(--serif);font-weight:900;font-size:clamp(46px,9vw,104px);line-height:1.02;
+    color:var(--head);letter-spacing:.005em;margin-bottom:8px}
+  .hero h1 .accent{background:linear-gradient(115deg,var(--teal),var(--blue) 70%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero h1 .cursor{display:inline-block;width:.06em;height:.92em;background:var(--teal);
+    vertical-align:-6px;margin-left:6px;animation:blink 1.1s steps(1) infinite;box-shadow:0 0 14px var(--teal)}
+  @keyframes blink{50%{opacity:0}}
+  .hero .desc{font-size:clamp(17px,2.3vw,22px);color:var(--ink);max-width:680px;margin:24px 0 14px;line-height:1.6}
+  .hero .desc b{color:var(--teal);font-weight:600}
+  .hero .role{font-family:var(--mono);font-size:13px;color:var(--muted);margin-bottom:34px}
+  .ticker{display:flex;gap:10px;flex-wrap:wrap;max-width:820px}
+  .chip{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;color:var(--ink);
+    border:1px solid var(--line2);border-radius:100px;padding:7px 15px;background:rgba(255,255,255,.02);
+    display:inline-flex;align-items:center;gap:8px;transition:.3s}
+  .chip:hover{border-color:var(--teal);color:var(--teal);box-shadow:0 0 20px -6px var(--teal)}
+  .chip .d{width:6px;height:6px;border-radius:50%;background:var(--teal)}
+  .chip .d.a{background:var(--amber)}.chip .d.b{background:var(--blue)}.chip .d.v{background:var(--violet)}
+  .scrollcue{position:absolute;bottom:34px;left:0;font-family:var(--mono);font-size:11px;
+    letter-spacing:.2em;color:var(--dim);display:flex;align-items:center;gap:10px}
+  .scrollcue .bar{width:1px;height:34px;background:linear-gradient(var(--teal),transparent);
+    animation:cue 1.8s ease-in-out infinite}
+  @keyframes cue{0%,100%{opacity:.3;transform:scaleY(.6)}50%{opacity:1;transform:scaleY(1)}}
+
+  /* ── statband ── */
+  .statband{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:28px}
+  .stat{background:linear-gradient(165deg,var(--panel2),var(--bg2));border:1px solid var(--line);
+    border-radius:14px;padding:17px 18px 15px;transition:.35s}
+  .stat:hover{border-color:rgba(63,224,197,.3);transform:translateY(-3px)}
+  .stat .v{font-family:var(--mono);font-size:30px;font-weight:600;color:var(--teal);line-height:1.1;
+    text-shadow:0 0 24px rgba(63,224,197,.35);font-variant-numeric:tabular-nums}
+  .stat .v .suf{font-size:14px;color:var(--muted);margin-left:3px}
+  .stat .v .pre{font-size:15px;color:var(--muted);margin-right:2px}
+  .stat .l{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.5}
+  .stat .src{display:block;font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:9px;letter-spacing:.04em}
+  .stat.a .v{color:var(--amber);text-shadow:0 0 24px rgba(246,179,82,.3)}
+  .stat.b .v{color:var(--blue);text-shadow:0 0 24px rgba(111,168,255,.3)}
+  .stat.r .v{color:var(--risk);text-shadow:0 0 24px rgba(242,85,90,.3)}
+
+  /* ── 卡片 ── */
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  .cell{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;transition:.35s}
+  .cell:hover{border-color:var(--line2);background:var(--panel2);transform:translateY(-3px)}
+  .cell .ico{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+    margin-bottom:14px;border:1px solid rgba(63,224,197,.28);color:var(--teal);
+    background:linear-gradient(150deg,rgba(63,224,197,.13),rgba(63,224,197,.02));
+    box-shadow:0 0 22px -10px var(--teal) inset}
+  .cell .ico svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .cell .ico.b{border-color:rgba(111,168,255,.28);color:var(--blue);
+    background:linear-gradient(150deg,rgba(111,168,255,.13),rgba(111,168,255,.02));box-shadow:0 0 22px -10px var(--blue) inset}
+  .cell .ico.a{border-color:rgba(246,179,82,.28);color:var(--amber);
+    background:linear-gradient(150deg,rgba(246,179,82,.13),rgba(246,179,82,.02));box-shadow:0 0 22px -10px var(--amber) inset}
+  .cell .ico.v{border-color:rgba(180,140,255,.28);color:var(--violet);
+    background:linear-gradient(150deg,rgba(180,140,255,.13),rgba(180,140,255,.02));box-shadow:0 0 22px -10px var(--violet) inset}
+  .cell .ico.r{border-color:rgba(255,125,151,.28);color:var(--rose);
+    background:linear-gradient(150deg,rgba(255,125,151,.13),rgba(255,125,151,.02));box-shadow:0 0 22px -10px var(--rose) inset}
+  .cell h3{font-size:16px;color:var(--head);margin-bottom:7px;font-weight:600}
+  .cell h3 .m{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:.08em;display:block;margin-bottom:4px;font-weight:500}
+  .cell h3 .m.a{color:var(--amber)} .cell h3 .m.b{color:var(--blue)}
+  .cell p{font-size:13.5px;color:var(--muted);line-height:1.65}
+  .cell p b{color:var(--ink);font-weight:600}
+  .cell .model{margin-top:12px;font-family:var(--mono);font-size:11.5px;color:var(--teal);
+    background:rgba(63,224,197,.07);border:1px solid rgba(63,224,197,.15);border-radius:7px;padding:5px 10px;display:inline-block}
+
+  /* ── 提示带 ── */
+  .note-band{margin-top:22px;background:rgba(246,179,82,.06);border:1px solid rgba(246,179,82,.2);
+    border-radius:14px;padding:18px 22px;display:flex;gap:16px;align-items:flex-start}
+  .note-band.risk{background:rgba(242,85,90,.06);border-color:rgba(242,85,90,.22)}
+  .note-band .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--amber);
+    text-transform:uppercase;white-space:nowrap;padding-top:2px}
+  .note-band.risk .k{color:var(--risk)}
+  .note-band p{font-size:14.5px;color:var(--ink);margin:0}
+  .note-band p b{color:var(--head)}
+  .band{margin-top:22px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--teal);
+    border-radius:12px;padding:20px 24px}
+  .band .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--teal);text-transform:uppercase;margin-bottom:8px;display:block}
+  .band p{font-size:15px;color:var(--ink);margin:0}
+  .band p b{color:var(--head)}
+
+  /* ── 横向流程带 ── */
+  .flowh{position:relative;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:0;padding:14px 0 6px}
+  .flowh .fs{position:relative;padding:0 16px;text-align:center}
+  .flowh .fs .dot{display:block;width:15px;height:15px;border-radius:50%;background:var(--bg);margin:0 auto 16px;
+    border:2px solid var(--c,var(--teal));box-shadow:0 0 14px -2px var(--c,var(--teal));position:relative;z-index:2}
+  .flowh .fs .k{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--c,var(--teal));margin-bottom:5px}
+  .flowh .fs .t{display:block;font-size:13.5px;color:var(--head);font-weight:600;line-height:1.4}
+  .flowh .fs .d{display:block;font-size:12px;color:var(--muted);margin-top:5px;line-height:1.55}
+  .flowh .fs::before{content:"";position:absolute;top:7px;left:0;right:50%;height:2px;
+    background:linear-gradient(90deg,transparent,var(--line2))}
+  .flowh .fs::after{content:"";position:absolute;top:7px;left:50%;right:0;height:2px;
+    background:linear-gradient(90deg,var(--line2),transparent)}
+  .flowh .fs:first-child::before,.flowh .fs:last-child::after{display:none}
+  .flowh .runner{position:absolute;top:3px;left:0;width:9px;height:9px;border-radius:50%;
+    background:var(--teal);box-shadow:0 0 14px 3px var(--teal);animation:runh 5s cubic-bezier(.45,0,.55,1) infinite;z-index:1}
+  @keyframes runh{0%{left:6%;opacity:0}8%{opacity:1}92%{opacity:1}100%{left:94%;opacity:0}}
+
+  /* ── 竖向脊线 ── */
+  .pipe{position:relative;padding-left:38px;margin-top:8px}
+  .pipe::before{content:"";position:absolute;left:11px;top:8px;bottom:8px;width:2px;
+    background:linear-gradient(var(--teal),var(--blue),var(--amber),var(--violet))}
+  .pipe .flowdot{position:absolute;left:6px;width:12px;height:12px;border-radius:50%;
+    background:var(--teal);box-shadow:0 0 16px 3px var(--teal);animation:flow 4.2s cubic-bezier(.5,0,.5,1) infinite}
+  @keyframes flow{0%{top:2px;opacity:0}8%{opacity:1}92%{opacity:1}100%{top:calc(100% - 14px);opacity:0}}
+  .pstep{position:relative;padding:16px 0;display:grid;grid-template-columns:112px 1fr;gap:18px;align-items:start}
+  .pstep+.pstep{border-top:1px dashed var(--line)}
+  .pstep::before{content:"";position:absolute;left:-32px;top:24px;width:10px;height:10px;border-radius:50%;
+    background:var(--bg);border:2px solid var(--who,var(--teal));box-shadow:0 0 0 4px var(--bg)}
+  .pstep .who{font-family:var(--mono);font-size:11px;letter-spacing:.05em;padding:5px 9px;border-radius:7px;
+    background:color-mix(in srgb,var(--who) 15%,transparent);color:var(--who);
+    border:1px solid color-mix(in srgb,var(--who) 30%,transparent);text-align:center;line-height:1.35}
+  .pstep .txt{font-size:14.5px;color:var(--ink)}
+  .pstep .txt b{color:var(--head);font-weight:600}
+  .pipe-note{margin-top:20px;font-size:13.5px;color:var(--muted);font-family:var(--mono);
+    padding-left:38px;line-height:1.6}
+  .pipe-note b{color:var(--teal)}
+
+  /* ── 横条 ── */
+  .hbar .row{display:grid;grid-template-columns:186px 1fr 104px;gap:14px;align-items:center;padding:9px 0}
+  .hbar .lab{font-size:13.5px;color:var(--ink);text-align:right;line-height:1.35}
+  .hbar .lab .s{display:block;font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.03em;margin-top:2px}
+  .hbar .track{display:block;height:18px;background:rgba(255,255,255,.04);border-radius:5px;overflow:hidden;position:relative}
+  .hbar .fill{display:block;height:100%;border-radius:4px;
+    background:linear-gradient(90deg,var(--teal-d),var(--teal));box-shadow:0 0 14px -2px var(--teal);
+    width:0;transition:width 1.1s cubic-bezier(.16,1,.3,1)}
+  .hbar .fill.dim{background:linear-gradient(90deg,#2A3644,#46586C);box-shadow:none}
+  .hbar .fill.warn{background:linear-gradient(90deg,#B7803A,var(--amber));box-shadow:0 0 14px -2px var(--amber)}
+  .hbar .fill.blue{background:linear-gradient(90deg,#2F5C99,var(--blue));box-shadow:0 0 14px -2px var(--blue)}
+  .hbar .val{font-family:var(--mono);font-size:13px;color:var(--head);font-variant-numeric:tabular-nums}
+  .hbar .val .u{color:var(--muted);font-size:11px}
+
+  /* ── 图表容器与说明 ── */
+  .svgwrap{width:100%;overflow-x:auto}
+  .svgwrap svg{display:block;width:100%;height:auto}
+  @media(max-width:820px){ .svgwrap svg.wide{min-width:600px} }
+  .ax-txt{font-family:var(--mono);font-size:10.5px;fill:var(--dim);letter-spacing:.08em}
+  .ax-txt.lit{fill:var(--muted)}
+  .pt-lbl{font-family:var(--sans);font-size:11.5px;fill:var(--ink)}
+  .qd-tint{opacity:.05}
+  .qd-axis{stroke:var(--line2);stroke-width:1.4}
+  .qd-pt{stroke:var(--bg);stroke-width:1.5;opacity:0;transition:opacity .5s}
+  .qd-pt.on{opacity:1}
+  .qd-qn{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase}
+  .panelbox{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px 28px 30px}
+  .ctitle{font-size:15px;color:var(--head);font-weight:600;margin-bottom:2px}
+  .cunit{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.1em;
+    text-transform:uppercase;margin-bottom:18px}
+  .chart-note{margin-top:16px;font-family:var(--mono);font-size:11.5px;color:var(--muted);letter-spacing:.04em;line-height:1.7}
+  .chart-note b{color:var(--teal)}
+  .legend{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:16px;font-size:12.5px;color:var(--muted)}
+
+  /* ── 代码块 ── */
+  .code{background:#070A10;border:1px solid var(--line);border-radius:12px;padding:18px 20px;
+    overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.75;color:var(--ink);white-space:pre}
+  .code .c{color:var(--dim)} .code .s{color:#8ff0e0} .code .n{color:var(--amber)} .code .kw{color:var(--blue)}
+  .codecap{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--muted);margin-bottom:10px;display:block}
+
+  /* ── 表格 ── */
+  .tablewrap{width:100%;overflow-x:auto}
+  .spec{width:100%;border-collapse:collapse;font-size:13.5px;min-width:660px}
+  .spec thead th{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--muted);text-align:left;padding:12px 14px;border-bottom:1px solid var(--line2)}
+  .spec td{padding:13px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  .spec tbody tr{transition:.25s}
+  .spec tbody tr:hover{background:rgba(63,224,197,.03)}
+  .spec td:first-child{color:var(--head);font-weight:600;white-space:nowrap}
+  .spec td .loc{display:block;font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400;margin-top:3px;white-space:normal}
+  .spec td:nth-child(2){color:var(--ink)}
+  .spec td:nth-child(3){color:var(--muted);font-size:12.5px}
+  .spec td:nth-child(4){font-family:var(--mono);font-size:12px;color:var(--teal);white-space:nowrap}
+  .spec .t-no{color:var(--neutral)} .spec .t-wait{color:var(--amber)}
+
+  /* ── 三列判定 ── */
+  .cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .colbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px}
+  .colbox h4{font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--teal);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+  .colbox h4 .st{font-size:9.5px;letter-spacing:.16em;opacity:.75;margin-right:7px}
+  .colbox ul{list-style:none}
+  .colbox li{font-size:13.5px;color:var(--ink);padding:6px 0 6px 18px;position:relative;line-height:1.55}
+  .colbox li::before{content:"\25B8";position:absolute;left:0;color:var(--dim)}
+  .colbox li b{color:var(--head)}
+  .colbox li .loc{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .colbox.ok{border-color:rgba(63,224,197,.18)} .colbox.ok h4{color:var(--teal)}
+  .colbox.no{border-color:rgba(255,125,151,.18)} .colbox.no h4{color:var(--rose)}
+  .colbox.wait{border-color:rgba(246,179,82,.18)} .colbox.wait h4{color:var(--amber)}
+
+  .quote{margin-top:30px;background:linear-gradient(160deg,var(--panel2),var(--bg2));
+    border:1px solid var(--line);border-radius:16px;padding:28px 30px;font-size:16px;line-height:1.75;color:var(--ink)}
+  .quote b{color:var(--teal)}
+
+  footer{position:relative;z-index:2;max-width:1080px;margin:40px auto 0;padding:60px 40px 80px;border-top:1px solid var(--line)}
+  footer .fl{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:18px}
+  footer .brand{font-family:var(--serif);font-weight:700;font-size:20px;color:var(--head)}
+  footer .meta{font-family:var(--mono);font-size:11.5px;color:var(--muted);letter-spacing:.08em;text-align:right;line-height:1.9}
+  footer .meta b{color:var(--teal)}
+
+  @media(max-width:900px){.statband{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:820px){
+    main{padding-inline:22px}
+    section{padding-block:82px}
+    .grid3,.grid2,.cols3{grid-template-columns:1fr}
+    .sec-head{gap:14px;margin-bottom:32px}
+    .lede{margin-top:-16px}
+    .pstep{grid-template-columns:1fr;gap:8px}
+    .pstep .who{justify-self:start}
+    .hbar .row{grid-template-columns:118px 1fr 84px;gap:10px}
+    .hbar .lab{font-size:12px}
+    .panelbox{padding:20px 18px 24px}
+    .flowh{grid-auto-flow:row;gap:22px}
+    .flowh .fs{text-align:left;padding:0 0 0 34px}
+    .flowh .fs .dot{position:absolute;left:0;top:2px;margin:0}
+    .flowh .fs::before,.flowh .fs::after{display:none}
+    .flowh .runner{display:none}
+    .flowh .fs:not(:last-child) .dot::after{content:"";position:absolute;left:50%;top:15px;
+      width:2px;height:44px;background:linear-gradient(var(--line2),transparent);transform:translateX(-50%)}
+    footer{padding:48px 22px 70px}
+  }
+  @media(max-width:520px){.statband{grid-template-columns:1fr}}
+  ::selection{background:rgba(63,224,197,.28);color:#fff}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track{background:var(--bg)}
+  ::-webkit-scrollbar-thumb{background:#1C2430;border-radius:8px;border:2px solid var(--bg)}
+  ::-webkit-scrollbar-thumb:hover{background:var(--teal-d)}
+</style>
+
+<div class="bg">
+  <div class="grid"></div>
+  <div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
+  <div class="noise"></div>
+</div>
+<div class="progress" id="progress"></div>
+
+<nav class="rail" id="rail">
+  <a href="#hero" data-s="hero"><span class="tick"></span><span class="lbl">概览</span></a>
+  <a href="#what" data-s="what"><span class="tick"></span><span class="lbl">它是什么</span></a>
+  <a href="#prim" data-s="prim"><span class="tick"></span><span class="lbl">三种题型</span></a>
+  <a href="#cost" data-s="cost"><span class="tick"></span><span class="lbl">省在哪</span></a>
+  <a href="#fit" data-s="fit"><span class="tick"></span><span class="lbl">落点盘查</span></a>
+  <a href="#first" data-s="first"><span class="tick"></span><span class="lbl">先动哪处</span></a>
+  <a href="#limit" data-s="limit"><span class="tick"></span><span class="lbl">边界</span></a>
+</nav>
+
+<main>
+  <!-- HERO -->
+  <section class="hero" id="hero">
+    <span class="tag rv"><span class="pulse"></span>TypeSafe AI · 2026-09-15 发布 · 速览</span>
+    <h1 class="rv">只做判断的<br><span class="accent">那半个模型</span><span class="cursor"></span></h1>
+    <p class="desc rv">Jev 一个字都不写，只回<b>「是不是 / 选哪个 / 几分」</b>，外加一个概率。</p>
+    <p class="role rv">// 它是什么 · 我们库里哪些地方用得上 · 先动哪一处、要付多少改造费<br>// 内部存档版：仓内文件与行号、定时任务名、脚本路径已删去</p>
+    <div class="ticker rv">
+      <span class="chip"><span class="d"></span>SYSTEM ONE MODEL</span>
+      <span class="chip"><span class="d b"></span>NOUL / CHOICE / SCORE</span>
+      <span class="chip"><span class="d"></span>70–500 MS</span>
+      <span class="chip"><span class="d a"></span>$0.042 / MTOK · 输出 $0</span>
+      <span class="chip"><span class="d v"></span>64K/请求 · STATE+题 ≤32K</span>
+      <span class="chip"><span class="d a"></span>OPENROUTER · ALPHA 端点</span>
+      <span class="chip"><span class="d b"></span>闭源 · 仅云 API · 纯文本</span>
+    </div>
+    <div class="statband rv">
+      <div class="stat">
+        <div class="v"><span class="pre">$</span><span class="cnum" data-v="0.042" data-dec="3">0</span></div>
+        <div class="l">每百万输入 token，输出免费
+          <span class="src">typesafe.ai 官博 · 09-20 核</span></div></div>
+      <div class="stat b">
+        <div class="v"><span class="cnum" data-v="500">0</span><span class="suf">ms</span></div>
+        <div class="l">端到端上限，下限 70ms——厂商口径
+          <span class="src">无第三方复现</span></div></div>
+      <div class="stat a">
+        <div class="v"><span class="cnum" data-v="9">0</span><span class="suf">处</span></div>
+        <div class="l">我们库里<b style="color:var(--ink)">主产物是枚举 / 布尔 / 分数</b>的 LLM 调用点
+          <span class="src">口径见 §04 · 2026-09-20 代码盘查</span></div></div>
+      <div class="stat">
+        <div class="v" style="color:var(--violet);text-shadow:0 0 24px rgba(180,140,255,.3)"><span class="cnum" data-v="64">0</span><span class="suf">K</span></div>
+        <div class="l">单请求上限，其中 state + 最长一题 ≤32K
+          <span class="src">docs.typesafe.ai/models</span></div></div>
+    </div>
+    <div class="scrollcue"><span class="bar"></span>SCROLL / 向下滚动</div>
+  </section>
+
+  <!-- 01 它是什么 -->
+  <section id="what">
+    <div class="sec-head rv">
+      <span class="idx">01</span>
+      <div><span class="eyebrow">What It Is</span>
+      <h2>它把「判断」从文字里摘了出来</h2></div>
+    </div>
+    <p class="lede rv">大模型给你一串<strong>要解析的文字</strong>，Jev 直接给你一个<strong>已经定好类型的值</strong>——求它吐 JSON 的提示、解析、兜底重试这三层省了。</p>
+
+    <div class="grid2 stagger">
+      <div class="cell">
+        <span class="ico r"><svg viewBox="0 0 24 24"><path d="M4 5.5h16M4 10h16M4 14.5h11M4 19h8"/></svg></span>
+        <h3><span class="m a">现在的做法</span>让会写作文的去做选择题</h3>
+        <p>你写一段 prompt 求它「只返回 JSON」，它返回一段<b>文字</b>，你再解析、再校验、再兜底重试。模型多数算力花在了组织语言上。</p>
+      </div>
+      <div class="cell">
+        <span class="ico"><svg viewBox="0 0 24 24"><path d="M4 12.4l5 5L20 6.6"/></svg></span>
+        <h3><span class="m">Jev 的做法</span>选项是你先定死的</h3>
+        <p>答案空间由你在请求里给定，模型只在里面挑。官方称结构化输出错误率 <b>0%（by construction）</b>——不是调教出来的，是结构上不可能。</p>
+      </div>
+    </div>
+
+    <div class="panelbox rv" style="margin-top:22px">
+      <div class="ctitle">一次调用的形状</div>
+      <div class="cunit">一份 state + 一组题 → 一次并行 pass → 类型化答案</div>
+      <div class="flowh">
+        <span class="runner"></span>
+        <div class="fs" style="--c:var(--blue)"><span class="dot"></span><span class="k">01 · State</span><span class="t">塞状态</span><span class="d">字符串 / JSON 对象 / 文本数组，三选一</span></div>
+        <div class="fs" style="--c:var(--teal)"><span class="dot"></span><span class="k">02 · Questions</span><span class="t">列题目</span><span class="d">一份 state 上可以挂一串题</span></div>
+        <div class="fs" style="--c:var(--teal)"><span class="dot"></span><span class="k">03 · One Pass</span><span class="t">并行答</span><span class="d">所有题在同一个 pass 里答完</span></div>
+        <div class="fs" style="--c:var(--violet)"><span class="dot"></span><span class="k">04 · Typed</span><span class="t">拿到值</span><span class="d">枚举 / 布尔 / 分数，各带概率</span></div>
+        <div class="fs" style="--c:var(--amber)"><span class="dot"></span><span class="k">05 · Branch</span><span class="t">直接分支</span><span class="d">结果进 if / switch，中间不再有解析层</span></div>
+      </div>
+      <p class="chart-note">// 出处：<b>docs.typesafe.ai/api</b> 的请求与响应样例<br>
+      // 关键前提：能合成一次的是<b>同一份 state</b> 上的多道题，不是任意三个判断</p>
+    </div>
+
+    <div class="note-band rv">
+      <span class="k">Who</span>
+      <p>作者 <b>Diogo Almeida</b>（前 OpenAI 研究员，参与 RLHF 与 InstructGPT），联创 Erik Gafni、Sasha Sheng。<b>4000 万美元、DCVC 领投</b>——出处是公司官方新闻稿与承办律所公告，<b>产品官博里没写</b>。</p>
+    </div>
+  </section>
+
+  <!-- 02 三种题型 -->
+  <section id="prim">
+    <div class="sec-head rv">
+      <span class="idx">02</span>
+      <div><span class="eyebrow">Three Primitives</span>
+      <h2>只有三种题可以问</h2></div>
+    </div>
+    <p class="lede rv">整个模型的表达力就这三样。<strong>问不出来的东西，它就做不了</strong>——这既是它的限制，也是它不会跑偏的原因。</p>
+
+    <div class="grid3 stagger">
+      <div class="cell">
+        <span class="ico"><svg viewBox="0 0 24 24"><path d="M5.5 12.4l4 4 9-9"/><path d="M3 20.5h18"/></svg></span>
+        <h3><span class="m">NOUL</span>是非题</h3>
+        <p>返回<b>「为真的概率」</b>，0–1 的一个数。没有单独的 confidence 字段，这个概率本身就是。</p>
+        <span class="model">"noul": 0.95</span>
+      </div>
+      <div class="cell">
+        <span class="ico b"><svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="5" rx="1.6"/><rect x="3.5" y="14.5" width="17" height="5" rx="1.6"/><path d="M7 7h.01"/></svg></span>
+        <h3><span class="m b">CHOICE</span>选项题</h3>
+        <p>从你定义的选项里挑一个，<b>单题上限 255 个</b>。回每个选项的概率 + 一个 confidence。</p>
+        <span class="model">"choice": "billing"</span>
+      </div>
+      <div class="cell">
+        <span class="ico a"><svg viewBox="0 0 24 24"><path d="M4 19V5"/><path d="M4 16h5M4 12h9M4 8h13"/></svg></span>
+        <h3><span class="m a">SCORE</span>评分题</h3>
+        <p>按你给的<b>有序档位（2–10 档）</b>打分，回一个连续值 + 每档的概率分布。</p>
+        <span class="model">"score": 1.05</span>
+      </div>
+    </div>
+
+    <div class="panelbox rv" style="margin-top:22px">
+      <span class="codecap">Request · TypeSafe 直连格式，结构逐字照官方文档，值是示例</span>
+      <p class="chart-note" style="margin:0 0 12px">⚠️ 我们走的是 OpenRouter，端点不是这个——见 §05「不是改一个 model 字段」。<br>
+      两边 body 都是 <code>model + state + questions</code>，但<b>字段是否完全一致，我只有二手确认 [待验证]</b></p>
+      <div class="code"><span class="kw">POST</span> https://api.typesafe.ai/v1/systemone
+
+{
+  <span class="s">"model"</span>: <span class="s">"jev-latest"</span>,
+  <span class="s">"state"</span>: <span class="s">"评论：装修到水电了，主卧衣柜想做到顶，预算 3 万左右"</span>,
+  <span class="s">"questions"</span>: {
+    <span class="s">"genuine"</span>: { <span class="s">"type"</span>: <span class="n">"noul"</span>,   <span class="s">"instructions"</span>: <span class="s">"是真实业主，还是同行 / 广告？"</span>,
+                   <span class="s">"criteria"</span>: { <span class="s">"true"</span>: <span class="s">"真实业主在问"</span>, <span class="s">"false"</span>: <span class="s">"同行、广告、无关"</span> } },
+    <span class="s">"category"</span>:{ <span class="s">"type"</span>: <span class="n">"choice"</span>, <span class="s">"instructions"</span>: <span class="s">"这条评论属于哪一类"</span>,
+                   <span class="s">"criteria"</span>: { <span class="s">"问价"</span>: <span class="s">"..."</span>, <span class="s">"问工艺"</span>: <span class="s">"..."</span>, <span class="s">"晒单"</span>: <span class="s">"..."</span>, <span class="s">"无关"</span>: <span class="s">"..."</span> } },
+    <span class="s">"intent"</span>:  { <span class="s">"type"</span>: <span class="n">"score"</span>,  <span class="s">"instructions"</span>: <span class="s">"购买意向强度"</span>,
+                   <span class="s">"criteria"</span>: [<span class="s">"路过"</span>, <span class="s">"感兴趣"</span>, <span class="s">"在比价"</span>, <span class="s">"想成交"</span>] }
+  }
+}</div>
+      <span class="codecap" style="margin-top:20px">Response · 每个答案自带概率分布</span>
+      <div class="code">{
+  <span class="s">"model"</span>: <span class="s">"jev-1.13.0"</span>,
+  <span class="s">"answers"</span>: {
+    <span class="s">"genuine"</span>: { <span class="s">"type"</span>: <span class="n">"noul"</span>,   <span class="s">"noul"</span>: <span class="n">0.93</span> },
+    <span class="s">"category"</span>:{ <span class="s">"type"</span>: <span class="n">"choice"</span>, <span class="s">"choice"</span>: <span class="s">"问价"</span>, <span class="s">"probabilities"</span>: {…}, <span class="s">"confidence"</span>: <span class="n">0.81</span> },
+    <span class="s">"intent"</span>:  { <span class="s">"type"</span>: <span class="n">"score"</span>,  <span class="s">"score"</span>: <span class="n">2.15</span>,
+                 <span class="c">// legend 是档位名，probabilities 才是分布</span>
+                 <span class="s">"legend"</span>: { <span class="s">"0"</span>:<span class="s">"路过"</span>, <span class="s">"1"</span>:<span class="s">"感兴趣"</span>, <span class="s">"2"</span>:<span class="s">"在比价"</span>, <span class="s">"3"</span>:<span class="s">"想成交"</span> },
+                 <span class="s">"probabilities"</span>: { <span class="s">"0"</span>:<span class="n">0.0</span>, <span class="s">"1"</span>:<span class="n">0.10</span>, <span class="s">"2"</span>:<span class="n">0.65</span>, <span class="s">"3"</span>:<span class="n">0.25</span> },
+                 <span class="s">"confidence"</span>: <span class="n">0.88</span> }
+  },
+  <span class="s">"usage"</span>: { <span class="s">"input_tokens"</span>: <span class="n">304</span>, <span class="s">"output_tokens"</span>: <span class="n">18</span> }
+}</div>
+      <p class="chart-note">// 三道题挂在<b>同一条评论</b>上，所以能合成一次请求<br>
+      // 反例：装修阶段分类（吃主页视频）与入站真伪判定（吃我方开场白+回复）state 不同、<br>
+      &nbsp;&nbsp;&nbsp;跑在不同定时任务上，<b>合并不了</b>——别把「都是判断」当成「能合成一次」</p>
+    </div>
+  </section>
+
+  <!-- 03 省在哪 -->
+  <section id="cost">
+    <div class="sec-head rv">
+      <span class="idx">03</span>
+      <div><span class="eyebrow">Cost &amp; Speed · With Caveats</span>
+      <h2>便宜是真的，但省的不是你以为的那块</h2></div>
+    </div>
+    <p class="lede rv">「输出免费」对我们意义有限——这些判断型调用<strong>输出本来就只有几百 token</strong>。真正的差在输入单价和延迟。</p>
+
+    <div class="panelbox rv">
+      <div class="ctitle">输入单价对比</div>
+      <div class="cunit">美元 / 百万输入 token · 线性刻度 · 口径见脚注</div>
+      <div class="hbar" data-hbar>
+        <div class="row"><span class="lab">Jev<span class="s">jev-latest · 09-20 核</span></span>
+          <span class="track"><span class="fill" data-w="2.1"></span></span><span class="val">$0.042</span></div>
+        <div class="row"><span class="lab">qwen3-235b-a22b<span class="s">Akke chat 槽 · 08-07 价</span></span>
+          <span class="track"><span class="fill blue" data-w="4.5"></span></span><span class="val">$0.09</span></div>
+        <div class="row"><span class="lab">Claude Haiku 4.5<span class="s">官方价 · 08-04</span></span>
+          <span class="track"><span class="fill dim" data-w="50"></span></span><span class="val">$1.00</span></div>
+        <div class="row"><span class="lab">Claude Sonnet 5<span class="s">官方价 · 08-04</span></span>
+          <span class="track"><span class="fill dim" data-w="100"></span></span><span class="val">$2.00</span></div>
+      </div>
+      <p class="chart-note">// 最上面那条不是渲染坏了，线性刻度下 <b>$0.042</b> 就是这么短<br>
+      // 下面三条是 <b>2026-08 的价，本轮未复核</b>，已超我们自己「定价老于 30 天要重核」的线<br>
+      // analyze 槽在用的 deepseek-v4-flash 没进图：内部两条记录打架（08-09 记 $0.14 / 08-17 记 $0.09）</p>
+    </div>
+
+    <div class="panelbox rv" style="margin-top:18px">
+      <div class="ctitle">我们判断型调用现在的 max_tokens 上限</div>
+      <div class="cunit">token · 全部 temperature 0 · 2026-09-20 读自各仓</div>
+      <div class="hbar" data-hbar>
+        <div class="row"><span class="lab">入站私信真伪<span class="s">Akke</span></span>
+          <span class="track"><span class="fill" data-w="28.5"></span></span><span class="val">200</span></div>
+        <div class="row"><span class="lab">opener 质量闸<span class="s">Akke</span></span>
+          <span class="track"><span class="fill" data-w="28.5"></span></span><span class="val">200</span></div>
+        <div class="row"><span class="lab">镜头是否切题<span class="s">Workflow</span></span>
+          <span class="track"><span class="fill blue" data-w="57"></span></span><span class="val">400</span></div>
+        <div class="row"><span class="lab">话术质检<span class="s">Akke</span></span>
+          <span class="track"><span class="fill blue" data-w="71.4"></span></span><span class="val">500</span></div>
+        <div class="row"><span class="lab">装修阶段分类<span class="s">Akke</span></span>
+          <span class="track"><span class="fill blue" data-w="73.1"></span></span><span class="val">512</span></div>
+        <div class="row"><span class="lab">逐镜红线闸<span class="s">Workflow</span></span>
+          <span class="track"><span class="fill warn" data-w="100"></span></span><span class="val">700</span></div>
+      </div>
+      <p class="chart-note">// 输出小 + temperature 0 ＝ 这本来就是选择题，这是它们适合换 Jev 的<b>正面证据</b><br>
+      // §04 的 9 处这里只画了 6 条。没画的三条：评论意向轴（<b>整批一次请求</b>，max_tokens 8192<br>
+      &nbsp;&nbsp;&nbsp;且没传 temperature）、成交信号（无调用点）、Zkki 知识库命中（判断与生成混在一起）</p>
+    </div>
+
+    <div class="note-band risk rv">
+      <span class="k">Caveat</span>
+      <p>官方宣称的 <b>193.6× 快 / 444.6× 便宜</b>，是 TypeSafe 在自家 workflow 上跑的，<b>官方自己标注「处于真实收益的高位端」</b>，且无第三方复现。我们这边可能有现成对照：可观测层在给每次 LLM 调用落延迟——但<b>具体哪几条判断链路真的被覆盖，[待核]</b>，别当成基线已经有了。</p>
+    </div>
+  </section>
+
+  <!-- 04 落点盘查 -->
+  <section id="fit">
+    <div class="sec-head rv">
+      <span class="idx">04</span>
+      <div><span class="eyebrow">Where It Fits · Code-Level Audit</span>
+      <h2>谁在用大模型做一道选择题</h2></div>
+    </div>
+    <p class="lede rv">口径只有一条：<strong>这次调用的主产物是不是一个枚举、布尔或分数</strong>。主产物是自由文本的（话术、日报、OCR 抄写）一律不算。</p>
+
+    <div class="panelbox rv">
+      <div class="ctitle">判断型 LLM 调用点清单 · 9 处</div>
+      <div class="cunit">按各仓 2026-09-20 代码盘查</div>
+      <div class="tablewrap">
+        <table class="spec">
+          <thead><tr><th>调用点</th><th>现在在判什么</th><th>现在怎么判</th><th>对应题型</th></tr></thead>
+          <tbody>
+            <tr><td>Akke · 评论意向轴</td>
+              <td>给 type / specificity / freshness / category 四个枚举轴</td>
+              <td><b>整批评论一次请求</b>，下游再折成意向分数</td>
+              <td>choice ×4</td></tr>
+            <tr><td>Akke · 装修阶段</td>
+              <td>主页视频归到拆改 / 水电 / … / non_decoration</td>
+              <td>一次调用对一份 state 出一个枚举；定时任务里逐 job 调用</td>
+              <td>choice</td></tr>
+            <tr><td>Akke · 入站真伪</td>
+              <td>「疑似客户回复」是不是真回复</td>
+              <td>输出 <code>{genuine, reason}</code>；每条疑似回复调一次</td>
+              <td>noul</td></tr>
+            <tr><td>Akke · 话术质检</td>
+              <td><code>hasProblem</code> 布尔 + 类别 / 严重度 / 修在哪层三个枚举</td>
+              <td>定时巡检里逐会话调一次</td>
+              <td>noul + choice ×3</td></tr>
+            <tr><td>Akke · opener 闸</td>
+              <td>开场白质量过不过关，不过关就重生</td>
+              <td><span class="t-wait">唯一调用方是一个手动脚本，不在定时任务主干</span></td>
+              <td>noul</td></tr>
+            <tr><td>Akke · 成交信号</td>
+              <td>最近 5 轮有没有成交信号</td>
+              <td><code>{isDecision, confidence}</code> — <span class="t-wait">当前无调用点</span></td>
+              <td>noul</td></tr>
+            <tr><td>Zkki · 知识库命中</td>
+              <td>每条客户消息选中哪条知识库条目 + 置信度 + intent</td>
+              <td><b>回复文本是搭车产物</b>，要先拆</td>
+              <td>choice<span class="t-wait"><br>上限 255，条目数待核</span></td></tr>
+            <tr><td>Workflow · 逐镜红线</td>
+              <td>每个镜头有无误画 / 连续性 / 红线，命中即 FAIL</td>
+              <td>视觉模型并发逐镜。<span class="t-wait">技能脚本，非常驻流水线</span></td>
+              <td class="t-no">需图像输入</td></tr>
+            <tr><td>Workflow · 镜头切题</td>
+              <td><code>on_topic</code> 布尔 + 有无品牌</td>
+              <td>云端视觉模型一路，另有本地小模型一路</td>
+              <td class="t-no">需图像输入</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="note-band rv">
+      <span class="k">Gap</span>
+      <p>两条 <b>需图像输入</b> 的用不了。官方 models 页写得很死：<b>「Text only. String, JSON object, or array of text values. No image, audio, or video input.」</b> 想用它得先让 VL 把画面读成文字、Jev 再判——<b>这条拆分本身没人验证过</b>，而这两处判的恰恰是画面本身有没有画错。</p>
+    </div>
+  </section>
+
+  <!-- 05 先动哪处 -->
+  <section id="first">
+    <div class="sec-head rv">
+      <span class="idx">05</span>
+      <div><span class="eyebrow">Priority &amp; First Move</span>
+      <h2>先动哪一处，怎么验</h2></div>
+    </div>
+    <p class="lede rv">横轴看<strong>调用频次 × 省下的钱</strong>，纵轴看<strong>改起来有多容易</strong>。点的形状标的是<strong>拦路的东西</strong>，不是颜色。</p>
+
+    <div class="panelbox rv">
+      <div class="ctitle">落点优先级定位</div>
+      <div class="cunit">横轴 = 业务价值 · 纵轴 = 工程就绪度 · 2026-09-20</div>
+      <div class="svgwrap">
+        <svg class="wide" viewBox="0 0 640 400" data-quad role="img" aria-label="四象限散点图。立刻做象限：装修阶段、入站真伪、话术质检。先补价值象限：opener 闸、成交信号。攻坚象限：评论意向轴（批量形态要改）、Zkki 知识库命中。先别碰象限：逐镜红线闸、镜头切题，两者都需图像输入。">
+          <rect class="qd-tint" x="330" y="34" width="250" height="150" fill="var(--ok)"/>
+          <rect class="qd-tint" x="80" y="34" width="250" height="150" fill="var(--blue)"/>
+          <rect class="qd-tint" x="330" y="184" width="250" height="150" fill="var(--warn)"/>
+          <rect class="qd-tint" x="80" y="184" width="250" height="150" fill="var(--ser-8)"/>
+          <line class="qd-axis" x1="80" y1="184" x2="580" y2="184"/>
+          <line class="qd-axis" x1="330" y1="34" x2="330" y2="334"/>
+          <text class="qd-qn" x="572" y="50" text-anchor="end" fill="var(--ok)">立刻做</text>
+          <text class="qd-qn" x="88" y="50" fill="var(--blue)">先补价值</text>
+          <text class="qd-qn" x="572" y="326" text-anchor="end" fill="var(--warn)">攻坚</text>
+          <text class="qd-qn" x="88" y="326" fill="var(--ser-8)">先别碰</text>
+          <text class="ax-txt lit" x="580" y="358" text-anchor="end">业务价值 →</text>
+          <text class="ax-txt lit" x="80" y="26">↑ 工程就绪度</text>
+          <g class="qd-pts">
+            <circle class="qd-pt" cx="500" cy="64" r="7" fill="var(--ser-1)"/>
+            <text class="pt-lbl" x="488" y="68" text-anchor="end">装修阶段分类</text>
+            <circle class="qd-pt" cx="446" cy="104" r="7" fill="var(--ser-1)"/>
+            <text class="pt-lbl" x="434" y="108" text-anchor="end">入站真伪</text>
+            <circle class="qd-pt" cx="394" cy="144" r="7" fill="var(--ser-1)"/>
+            <text class="pt-lbl" x="382" y="148" text-anchor="end">话术质检</text>
+            <circle class="qd-pt" cx="300" cy="64" r="7" fill="var(--ser-1)"/>
+            <text class="pt-lbl" x="288" y="68" text-anchor="end">opener 闸（不在主干）</text>
+            <circle class="qd-pt" cx="250" cy="112" r="6.5" fill="none" style="stroke:var(--ser-4);stroke-width:2.4"/>
+            <text class="pt-lbl" x="238" y="116" text-anchor="end">成交信号</text>
+            <polygon class="qd-pt" points="500,233 508,247 492,247" fill="var(--ser-2)"/>
+            <text class="pt-lbl" x="486" y="245" text-anchor="end">评论意向轴</text>
+            <rect class="qd-pt" x="424" y="290" width="12" height="12" fill="var(--ser-3)"/>
+            <text class="pt-lbl" x="444" y="300">Zkki 知识库命中</text>
+            <polygon class="qd-pt" points="246,254 253,261 246,268 239,261" fill="var(--ser-8)"/>
+            <text class="pt-lbl" x="262" y="265">逐镜红线闸</text>
+            <polygon class="qd-pt" points="190,300 197,307 190,314 183,307" fill="var(--ser-8)"/>
+            <text class="pt-lbl" x="206" y="311">镜头切题</text>
+          </g>
+        </svg>
+      </div>
+      <div class="legend">
+        <span style="color:var(--ser-1)">● 无形态障碍，1:1 可换（4 处）</span>
+        <span style="color:var(--ser-2)">▲ 形态要改：批量 → 逐条（1 处）</span>
+        <span style="color:var(--ser-3)">■ 判断与生成混在一起，要先拆（1 处）</span>
+        <span style="color:var(--ser-4)">○ 空心＝代码在、当前无调用点（1 处）</span>
+        <span style="color:var(--ser-8)">◆ 需图像输入，Jev 吃不下（2 处）</span>
+      </div>
+      <p class="chart-note">// 4 + 1 + 1 + 1 + 2 = 9，与 §04 清单一一对应<br>
+      // 形状编码的是<b>拦路的东西</b>，不是分类——灰度打印也读得出</p>
+    </div>
+
+    <div class="band rv">
+      <span class="k">First Move</span>
+      <p>从 <b>Akke 装修阶段分类</b> 开刀。它现在<b>就是一次调用对一份 state 出一个枚举</b>——温度 0、输出很短、定时任务里逐 job 调用，和 Jev 的 <code>choice</code> 是 1:1 的，形态一点不用动。</p>
+    </div>
+
+    <div class="note-band rv">
+      <span class="k">Why Not 意向轴</span>
+      <p>评论意向轴看着更诱人（四个枚举轴、主干、量大），但它是<b>整批评论一次请求</b>。Jev 的一次调用只对<b>一份 state</b> 出一组答案——换过去，一批 N 条评论会<b>裂成 N 次请求</b>。请求数涨几倍、一批评论塞不塞得进 <b>state+题 ≤32K</b>，这两个问题不回答，它就不该打头阵。</p>
+    </div>
+
+    <div class="note-band risk rv">
+      <span class="k">Price</span>
+      <p><b>不是改一个 model 字段。</b>OpenRouter 上 Jev 走独立的 <code>POST /api/alpha/decisions</code>（注意没有 <code>/v1</code>），把它丢给 <code>chat/completions</code> 会直接被拒：<b>「is a decisions model and cannot be used with the chat/completions endpoint」</b>。改造量是<b>重写调用层与响应解析</b>，请求体从 messages 换成 <code>state + questions</code>。估工时按这个算。</p>
+    </div>
+
+    <div class="panelbox rv" style="margin-top:18px">
+      <div class="ctitle">验证路径</div>
+      <div class="cunit">影子模式并跑，不切流量 · 工时估出来之后再排期</div>
+      <div class="pipe">
+        <div class="flowdot"></div>
+        <div class="pstep" style="--who:var(--blue)">
+          <span class="who">01<br>写适配</span>
+          <span class="txt">先写 Decisions API 的请求构造与响应解析——<b>这是本次唯一的真实工作量</b>，别按「换个模型」估</span>
+        </div>
+        <div class="pstep" style="--who:var(--teal)">
+          <span class="who">02<br>对口径</span>
+          <span class="txt">装修阶段的枚举翻成 <code>choice</code> 题，<b>档位用代码里现有的枚举值逐字抄</b>，不要重新分类</span>
+        </div>
+        <div class="pstep" style="--who:var(--violet)">
+          <span class="who">03<br>补分母</span>
+          <span class="txt">先<b>复核 analysis 槽的现价</b>——内部两条记录打架（$0.14 / $0.09）且都已过 30 天；再确认可观测层的延迟记录覆不覆盖这条链路。<b>这两个不补，第 05 步算不出来</b></span>
+        </div>
+        <div class="pstep" style="--who:var(--amber)">
+          <span class="who">04<br>并跑</span>
+          <span class="txt">在装修阶段分类的定时任务里加一路<b>影子调用</b>，只记录不生效；<b>不一致的那批要人工看</b>，别默认现模型是对的</span>
+        </div>
+        <div class="pstep" style="--who:var(--teal)">
+          <span class="who">05<br>比三个数</span>
+          <span class="txt">一致率、延迟、成本三个数都拿到，且适配层工时已知，再决定切不切</span>
+        </div>
+      </div>
+      <p class="pipe-note">// 验收判据：三个数没齐之前，<b>不切生产流量</b><br>
+      // 坑：Langfuse 的 analyze trace 默认只采 <b>10%</b>——比一致率别读 trace，直接读调用溯源记录</p>
+    </div>
+  </section>
+
+  <!-- 06 边界 -->
+  <section id="limit">
+    <div class="sec-head rv">
+      <span class="idx">06</span>
+      <div><span class="eyebrow">Limits &amp; Open Questions</span>
+      <h2>它不写字，也就替不了写字的</h2></div>
+    </div>
+    <p class="lede rv">这一栏存在的意义是防止它被当成「更便宜的大模型」——<strong>它只是把判断那一半拆了出来</strong>。</p>
+
+    <div class="cols3 stagger">
+      <div class="colbox ok">
+        <h4><span class="st">CAN</span>能换的</h4>
+        <ul>
+          <li>主产物是<b>枚举 / 布尔 / 分数</b>的一次性判断</li>
+          <li>同<b>一份 state</b> 上现在被拆成多次问的那些轴</li>
+          <li>跑在<b>高频循环</b>里：每条消息、每个 job、每个镜头</li>
+          <li>需要<b>概率而不只是答案</b>的闸门（能设阈值）</li>
+        </ul>
+      </div>
+      <div class="colbox no">
+        <h4><span class="st">CANNOT</span>换不了的</h4>
+        <ul>
+          <li>话术起草、开场白、改写</li>
+          <li>日报、诊断、摘要 <span class="loc">Softie 日报</span></li>
+          <li>从昵称推称呼这类<b>短文本生成</b></li>
+          <li>任何<b>需要看图</b>的判定——官方原文「No image, audio, or video input」</li>
+          <li>逐字 OCR 抄写</li>
+        </ul>
+      </div>
+      <div class="colbox wait">
+        <h4><span class="st">UNKNOWN</span>还没核的</h4>
+        <ul>
+          <li><b>准确率</b>：官方只给速度与价格，没给判断质量对比</li>
+          <li><b>state + 最长一题 ≤32K</b> 够不够塞我们的会话历史</li>
+          <li>OpenRouter 那条是 <b>alpha 端点</b>，路径与稳定性可能变</li>
+          <li>beta 期的<b>限流与 SLA</b>，以及国内网络可达性</li>
+          <li>Zkki 知识库条目数有没有<b>超过 255</b> 的 choice 上限</li>
+          <li>数据出境合规：state 里会带客户原话</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="note-band rv">
+      <span class="k">Shape</span>
+      <p>它落在我们既有的那条契约上：<b>模型管分类、起草、摘要、抽取；代码管路由、重试、状态码</b>。Jev 想接管的正是中间那条缝——<b>有确定答案集合、但判据是模糊的</b>那一类，过去只能丢给大模型。</p>
+    </div>
+
+    <div class="quote rv">
+      <b>一句话总括：</b>Jev 不是更便宜的大模型，是把「选择题」从大模型手里单独拆出来的一层。我们库里有 <b>9 处</b>主产物是枚举 / 布尔 / 分数的调用点：<b>4 处</b>形态上 1:1 可换（全在 Akke，其中 opener 闸不在定时任务主干）、<b>1 处</b>要从批量改成逐条、<b>1 处</b>要先把判断和生成拆开、<b>1 处</b>代码在但没人调、<b>2 处</b>因为要看图吃不下。先拿 <b>装修阶段分类</b> 影子并跑——但得先写完 OpenRouter Decisions API 的适配层，<b>这不是改个 model 字段的活</b>。在一致率、延迟、成本三个数拿到之前，官方那 <b>193.6× 快 / 444.6× 便宜</b> 只是厂商在自家 workflow 上的数。
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="fl">
+    <span class="brand">Jev <span style="color:var(--teal)">/</span> 决策层评估</span>
+    <span class="meta">事实面：typesafe.ai 官博 · docs.typesafe.ai/api · OpenRouter<br>
+      代码面：13 个仓库盘查 · 口径日期 <b>2026-09-20</b><br>价格对比图中 Claude / qwen 三条为 <b>2026-08 价，本轮未复核</b></span>
+  </div>
+</footer>
+
+<script>
+  if(new URLSearchParams(location.search).get('anim') === 'off')
+    document.documentElement.dataset.anim = 'off';
+  if(new URLSearchParams(location.search).get('shot') === '1')
+    document.documentElement.dataset.shot = '1';
+  const ANIM_OFF = document.documentElement.dataset.anim === 'off'
+    || matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(ANIM_OFF) addEventListener('load', () =>
+    document.querySelectorAll('svg').forEach(s => s.pauseAnimations && s.pauseAnimations()));
+
+  const prog = document.getElementById('progress');
+  const onScroll = () => {
+    if(!prog) return;
+    const h = document.documentElement;
+    prog.style.width = (h.scrollTop / (h.scrollHeight - h.clientHeight) * 100) + '%';
+  };
+  document.addEventListener('scroll', onScroll, {passive:true}); onScroll();
+
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); }
+  }), {threshold:.16, rootMargin:'0px 0px -8% 0px'});
+  if(ANIM_OFF) document.querySelectorAll('.rv,.stagger').forEach(el => el.classList.add('in'));
+  else document.querySelectorAll('.rv,.stagger').forEach(el => io.observe(el));
+
+  const revealPast = () => {
+    document.querySelectorAll('.rv:not(.in),.stagger:not(.in)').forEach(el => {
+      if(el.getBoundingClientRect().top < innerHeight * .9){ el.classList.add('in'); io.unobserve(el); }
+    });
+  };
+  document.addEventListener('scroll', revealPast, {passive:true});
+  revealPast(); addEventListener('load', revealPast);
+  addEventListener('load', () => document.querySelectorAll('#hero .rv')
+    .forEach((el,i) => setTimeout(() => el.classList.add('in'), 120 + i*110)));
+
+  const PENDING = [];
+  function onEnter(sel, fn, threshold){
+    const o = new IntersectionObserver(es => es.forEach(e => {
+      if(e.isIntersecting) fire(e.target);
+    }), {threshold: threshold || .25});
+    document.querySelectorAll(sel).forEach(el => {
+      if(ANIM_OFF){ fn(el, true); return; }
+      PENDING.push([el, fn, o]); o.observe(el);
+    });
+  }
+  function fire(el){
+    const i = PENDING.findIndex(x => x[0] === el);
+    if(i < 0) return;
+    const rec = PENDING.splice(i, 1)[0];
+    rec[2].unobserve(el); rec[1](el, false);
+  }
+  const settle = () => {
+    for(const rec of [...PENDING])
+      if(rec[0].getBoundingClientRect().top < innerHeight * .9) fire(rec[0]);
+  };
+  addEventListener('scroll', settle, {passive:true});
+  addEventListener('load', settle);
+
+  onEnter('.cnum', (el, instant) => {
+    const target = +el.dataset.v, dec = +(el.dataset.dec || 0), dur = 1300;
+    const put = v => el.textContent = v.toLocaleString('en-US',
+      {minimumFractionDigits:dec, maximumFractionDigits:dec});
+    if(instant){ put(target); return; }
+    const t0 = performance.now();
+    const tick = t => {
+      const p = Math.min((t - t0) / dur, 1);
+      put(target * (1 - Math.pow(1 - p, 3)));
+      if(p < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    setTimeout(() => put(target), dur + 500);
+  }, .5);
+
+  onEnter('[data-hbar]', (el, instant) => {
+    const run = () => el.querySelectorAll('.fill').forEach(f => f.style.width = f.dataset.w + '%');
+    if(instant){ run(); return; }
+    requestAnimationFrame(run); setTimeout(run, 1700);
+  }, .25);
+
+  onEnter('[data-quad]', (el, instant) => {
+    el.querySelectorAll('.qd-pt').forEach((p, i) => {
+      const set = () => p.classList.add('on');
+      if(instant){ set(); return; }
+      setTimeout(set, 90 + i * 80);
+    });
+    setTimeout(() => el.querySelectorAll('.qd-pt').forEach(p => p.classList.add('on')), 1600);
+  }, .2);
+
+  const rail = [...document.querySelectorAll('.rail a')];
+  if(rail.length){
+    const secObs = new IntersectionObserver(es => es.forEach(e => {
+      if(e.isIntersecting) rail.forEach(a => a.classList.toggle('on', a.dataset.s === e.target.id));
+    }), {rootMargin:'-45% 0px -50% 0px'});
+    document.querySelectorAll('main section').forEach(s => secObs.observe(s));
+  }
+</script>
+
+</body></html>

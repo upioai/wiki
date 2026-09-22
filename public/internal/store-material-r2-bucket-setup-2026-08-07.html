@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="upio:date" content="2026-08-07">
+<meta name="upio:source" content="downloads">
+<meta name="upio:category" content="internal">
+<meta name="robots" content="noindex,nofollow">
+<title>开通门店素材私有 R2 存储桶 · 操作交办（2026-08-07）</title>
+<meta name="description" content="门店素材私有 R2 桶开通与最小权限 token 的操作交办：私有桶、CORS、分片上传清理规则、钥匙安全回传（内部）。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+:root {
+  --bg: #0a0d14; --bg-elevated: #131720; --bg-deep: #1a1f2b;
+  --border: #232936; --border-strong: #2f3646;
+  --text: #e8eaef; --text-dim: #9ba3b4; --text-muted: #6b7384;
+  --accent:   #8b5cf6; --accent-soft:   rgba(139, 92, 246, 0.15);
+  --accent-2: #60a5fa; --accent-2-soft: rgba(96, 165, 250, 0.13);
+  --accent-3: #34d399; --accent-3-soft: rgba(52, 211, 153, 0.14);
+  --warning:  #fbbf24; --warning-soft:  rgba(251, 191, 36, 0.14);
+  --danger:   #f87171; --danger-soft:   rgba(248, 113, 113, 0.14);
+  --font-display: 'Instrument Serif', 'Source Han Serif SC', 'Songti SC', Georgia, serif;
+  --font-ui:      'Inter Tight', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; padding: 0;
+  background: var(--bg); color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 15.5px; line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+.crumb-bar {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(10, 13, 20, 0.82);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border-bottom: 1px solid var(--border);
+}
+.crumb-inner {
+  max-width: 920px; margin: 0 auto; padding: 11px 24px;
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--text-muted); letter-spacing: 0.04em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.crumb-inner a { color: var(--text-dim); text-decoration: none; }
+.crumb-inner a:hover { color: var(--accent); }
+.crumb-inner .sep { margin: 0 8px; color: var(--border-strong); }
+.container { max-width: 860px; margin: 0 auto; padding: 52px 24px 100px; }
+header.hero { padding: 4px 0 30px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+.tag {
+  display: inline-block; padding: 4px 12px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent);
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 18px;
+}
+h1 {
+  font-family: var(--font-display); font-weight: 700;
+  font-size: 38px; margin: 0 0 16px; letter-spacing: -0.01em; line-height: 1.22;
+  background: linear-gradient(135deg, #f4f5f8 30%, var(--accent) 78%, var(--accent-2) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.subtitle { font-size: 16px; color: var(--text-dim); margin: 0 0 20px; max-width: 720px; line-height: 1.65; }
+.hero-meta { display: flex; gap: 10px 22px; flex-wrap: wrap; font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); }
+.hero-meta strong { color: var(--text-dim); font-weight: 500; }
+.priv {
+  display: flex; gap: 10px; align-items: flex-start;
+  font-size: 13px; color: var(--text-dim); line-height: 1.6;
+  background: var(--warning-soft); border: 1px solid rgba(251,191,36,.25);
+  border-radius: 10px; padding: 11px 15px; margin-top: 20px;
+}
+.priv b { color: var(--warning); font-family: var(--font-mono); font-size: 11px; letter-spacing: .1em; white-space: nowrap; padding-top: 2px; }
+.doc h1 { display: none; }
+.doc h2 {
+  font-family: var(--font-ui); font-size: 22px; font-weight: 700; color: var(--text);
+  margin: 46px 0 14px; padding-top: 24px; border-top: 1px solid var(--border); letter-spacing: -0.01em;
+}
+.doc h3 { font-size: 17px; font-weight: 600; color: var(--text); margin: 30px 0 10px; }
+.doc h4 { font-size: 15px; font-weight: 600; color: var(--text-dim); margin: 22px 0 8px; }
+.doc p { margin: 12px 0; color: var(--text-dim); }
+.doc strong { color: var(--text); font-weight: 600; }
+.doc ul, .doc ol { color: var(--text-dim); padding-left: 22px; margin: 10px 0; }
+.doc li { margin: 5px 0; }
+.doc li::marker { color: var(--text-muted); }
+.doc li.task { list-style: none; margin-left: -22px; display: flex; gap: 10px; align-items: flex-start; }
+.doc li.task .box { flex: 0 0 14px; height: 14px; margin-top: 5px; border: 1.5px solid var(--border-strong); border-radius: 3px; }
+.doc li.task.done .box { background: var(--accent-3); border-color: var(--accent-3); }
+.doc code { background: var(--bg-deep); padding: 1px 6px; border-radius: 4px; font-size: 0.86em; color: #c4b5fd; font-family: var(--font-mono); word-break: break-word; }
+.doc a { color: var(--accent-2); text-decoration: none; }
+.doc a:hover { color: var(--accent); }
+.doc hr { border: none; border-top: 1px solid var(--border); margin: 34px 0; }
+.doc blockquote {
+  margin: 16px 0; padding: 12px 18px; border-left: 3px solid var(--accent-2);
+  background: var(--accent-2-soft); border-radius: 0 10px 10px 0; color: var(--text-dim);
+}
+.doc blockquote p { margin: 6px 0; }
+.snip { background: var(--bg-deep); border: 1px solid var(--border); border-radius: 10px; margin: 16px 0; overflow: hidden; }
+.snip-bar { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); letter-spacing: 0.06em; padding: 7px 14px; border-bottom: 1px solid var(--border); background: var(--bg-elevated); }
+.snip pre { margin: 0; padding: 14px 16px; overflow-x: auto; }
+.snip code { background: none; padding: 0; color: var(--text-dim); font-size: 12.5px; line-height: 1.65; white-space: pre; word-break: normal; }
+.dtable-wrap { overflow-x: auto; margin: 18px 0; border: 1px solid var(--border); border-radius: 12px; }
+.dtable { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 520px; }
+.dtable th, .dtable td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.dtable tr:last-child td { border-bottom: none; }
+.dtable th { font-family: var(--font-mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); font-weight: 700; background: var(--bg-deep); white-space: nowrap; }
+.dtable td { color: var(--text-dim); line-height: 1.55; }
+.dtable td:first-child { color: var(--text); font-weight: 600; }
+.dtable tbody tr:hover td { background: var(--bg-elevated); }
+footer.page-foot { margin-top: 56px; padding-top: 22px; border-top: 1px solid var(--border); font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted); letter-spacing: 0.04em; line-height: 1.8; }
+@media (max-width: 560px) {
+  .container { padding: 36px 16px 80px; }
+  h1 { font-size: 29px; }
+  .doc h2 { font-size: 19px; }
+}
+</style>
+</head>
+<body>
+<nav class="crumb-bar">
+  <div class="crumb-inner"><a href="/">upio.ai</a><span class="sep">/</span><span>internal</span><span class="sep">/</span><span class="cur">门店素材 R2 桶开通 · 2026-08-07</span></div>
+</nav>
+<div class="container">
+  <header class="hero">
+    <span class="tag">INTERNAL · 操作交办 · 存储</span>
+    <h1>开通门店素材私有 R2 存储桶 · 操作交办（2026-08-07）</h1>
+    <p class="subtitle">给门店工作台的素材上传准备一个私有对象存储桶：桶必须私有、钥匙只授权这一个桶、分片碎片自动清理、钥匙不经明文渠道回传。全程网页后台操作，约 10 分钟。</p>
+    <div class="hero-meta"><span><strong>日期</strong> 2026-08-07</span><span><strong>平台</strong> Cloudflare R2</span><span><strong>分区</strong> 内部资料</span></div>
+    <div class="priv"><b>内部资料</b><span>已脱敏：桶名、token 名、应用名与域名均换成占位符；原文中与本次操作无关的旧凭据处置段落已删去。</span></div>
+  </header>
+  <article class="doc">
+<h2>一句话</h2>
+<p>在 Cloudflare 上建一个<strong>私有</strong>的 R2 桶，叫 <code>&lt;门店素材桶&gt;</code>，再生成一把只能读写这个桶的钥匙。
+全程在网页后台点，大约 10 分钟。</p>
+<hr />
+<h2>这是干什么用的</h2>
+<p>我们做了一个给门店店长用的工作台。店长要往上传素材——门店实拍视频、出镜人的形象照、
+录的语音样本。这些文件得有地方放，就是这个桶。</p>
+<p>现在的状态是：功能写完了，桶还没有，所以线上点上传会提示「存储服务暂不可用」。
+桶一开通就能用。</p>
+<hr />
+<h2>最关键的一条：桶必须是私有的</h2>
+<p>这条如果搞错，后面全白做，所以单独讲。</p>
+<p>把桶想成一个仓库。我们的设计是：<strong>仓库大门锁死，谁也不能直接进</strong>。店长要看一段视频时，
+我们的服务器当场开一张通行证给他，写明「只能取这一个箱子、10 分钟内有效」，过期作废。</p>
+<p>如果桶设成了公开的，等于大门敞开——任何人只要拿到文件地址就能下载，<strong>而且永久有效</strong>，
+没有过期这回事。文件地址会出现在浏览器历史、网页源码、服务器日志里，流出去太容易了。</p>
+<p><strong>而桶里装的是客户的人脸照片和录音。</strong></p>
+<p>所以：建桶时公开访问那几个开关一个都不能开（默认就是关的，别去点开它）。</p>
+<blockquote>
+<p>注：我们账号下已有的 <code>&lt;已有公开桶&gt;</code> 是<strong>公开桶</strong>，不能拿来用。必须新建一个。</p>
+</blockquote>
+<hr />
+<h2>操作步骤</h2>
+<h3>第一步：建桶</h3>
+<ol>
+<li>进 Cloudflare 后台 → 左侧菜单 <strong>R2</strong> → <strong>Create bucket</strong></li>
+<li>桶名填：<code>&lt;门店素材桶&gt;</code></li>
+<li>Location 选 <strong>Asia-Pacific (APAC)</strong> —— 用户都在国内，就近</li>
+<li>建好后进这个桶的 <strong>Settings</strong>，确认下面三项（应该本来就是这样，核对一遍）：
+<ul>
+<li><strong>Public access</strong> = Disabled</li>
+<li><strong>Custom domains</strong> = 空的</li>
+<li><strong>R2.dev subdomain</strong> = Disabled</li>
+</ul>
+</li>
+</ol>
+<h3>第二步：配跨域（CORS）</h3>
+<p>还在这个桶的 <strong>Settings</strong> 里，找到 <strong>CORS Policy</strong>，粘贴这段：</p>
+<div class="snip"><div class="snip-bar">JSON</div><pre><code>[
+  {
+    &quot;AllowedOrigins&quot;: [&quot;https://&lt;门店工作台域名&gt;&quot;],
+    &quot;AllowedMethods&quot;: [&quot;PUT&quot;, &quot;GET&quot;, &quot;HEAD&quot;],
+    &quot;AllowedHeaders&quot;: [&quot;content-type&quot;, &quot;content-length&quot;],
+    &quot;ExposeHeaders&quot;: [&quot;etag&quot;],
+    &quot;MaxAgeSeconds&quot;: 3600
+  }
+]
+</code></pre></div>
+<p>（浏览器直接往桶里传文件需要这个，不配的话上传会被浏览器自己拦下来。）</p>
+<h3>第三步：加一条清理规则（建议做）</h3>
+<p>同样在 Settings 里 → <strong>Object lifecycle rules</strong> → 新建一条：
+前缀留空，勾 <strong>Abort incomplete multipart uploads after 1 day</strong>。</p>
+<p>原因：大视频是切成小块传的。传一半用户把页面关了，就会留下一堆碎片——
+<strong>列表里看不见，但照样按容量计费</strong>。没这条规则，这些碎片会一直躺着，谁也发现不了。</p>
+<h3>第四步：生成钥匙</h3>
+<p>R2 页面 → <strong>Manage R2 API Tokens</strong> → <strong>Create API token</strong></p>
+<div class="dtable-wrap"><table class="dtable">
+<thead>
+<tr>
+<th>填什么</th>
+<th>值</th>
+<th>为什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Token name</td>
+<td><code>&lt;素材桶专用 token&gt;</code></td>
+<td>将来要换或要停时，一眼认得出是哪把</td>
+</tr>
+<tr>
+<td>Permissions</td>
+<td><strong>Object Read &amp; Write</strong></td>
+<td>别给 Admin。Admin 能建桶删桶，而这把钥匙要放在公网服务器上</td>
+</tr>
+<tr>
+<td>Specify bucket</td>
+<td><strong>Apply to specific buckets</strong> → 只勾 <code>&lt;门店素材桶&gt;</code></td>
+<td>万一泄漏，波及面到此为止，碰不到别的桶</td>
+</tr>
+<tr>
+<td>TTL</td>
+<td>Forever</td>
+<td>我们这边没有自动换钥匙的机制，设了期限就是埋一个「某天突然全挂」</td>
+</tr>
+</tbody>
+</table></div>
+<p>创建完页面会给三样东西，<strong>只显示这一次，关掉就再也看不到</strong>：</p>
+<ul>
+<li>Access Key ID</li>
+<li>Secret Access Key</li>
+<li>S3 API endpoint（长这样：<code>https://&lt;一串账号ID&gt;.r2.cloudflarestorage.com</code>）</li>
+</ul>
+<hr />
+<h2>做完之后</h2>
+<h3>要发回来的东西</h3>
+<p>上面那三样。<strong>但别用微信或邮件直接发明文。</strong></p>
+<p>按方便程度选一个：</p>
+<ol>
+<li>
+<p><strong>最好</strong>：如果你有这个项目部署平台的权限，直接你自己设，钥匙不用经任何人的手：</p>
+<div class="snip"><div class="snip-bar">BASH</div><pre><code>fly secrets set --app &lt;应用名&gt; \
+  R2_ENDPOINT=&quot;https://&lt;账号ID&gt;.r2.cloudflarestorage.com&quot; \
+  R2_ACCESS_KEY_ID=&quot;&lt;Access Key ID&gt;&quot; \
+  R2_SECRET_ACCESS_KEY=&quot;&lt;Secret Access Key&gt;&quot; \
+  R2_MEDIA_BUCKET=&quot;&lt;门店素材桶&gt;&quot;
+</code></pre></div>
+<p>设完命令会自动重启服务，等它起来就行。然后告诉我一声「设好了」即可。</p>
+</li>
+<li>
+<p>没有 Fly 权限的话：用 1Password / Bitwarden Send 这类<strong>一次性分享链接</strong>发过来，
+或者当面 / 语音念。</p>
+</li>
+</ol>
+<hr />
+<h2>怎么知道成功了</h2>
+<p>四个值配上去之后，服务会自己重启。然后：</p>
+<ul>
+<li>打开门店工作台的「素材上传」页，选个文件传一下</li>
+<li>传完刷新页面，卡片还在、点开能预览 → 成了</li>
+</ul>
+<p>如果还是提示「存储服务暂不可用」，多半是四个值里有一个粘错或粘漏了半截，
+让我这边看一眼服务器日志就能定位到是哪一个。</p>
+<hr />
+<h2>有个已知的不确定项</h2>
+<p>R2 走的是 Cloudflare 的网络。我们<strong>还没在国内实测过</strong>浏览器能不能直接连上它传文件。</p>
+<p>这个项目在这件事上吃过亏：整站原来部署在 Vercel，本地测一切正常，国内打不开，
+最后整体搬到了东京的服务器。所以「没实测过就都不算数」是我们的默认态度。</p>
+<p>万一实测下来国内连不上 R2，我们代码里已经准备了<strong>备用通道</strong>（文件先经我们服务器中转再进桶），
+切换只需改配置，不用你再动 Cloudflare。所以这条不影响你现在的操作，先按上面做就行。</p>
+
+  </article>
+  <footer class="page-foot">内部操作交办 · 2026-08-07 · 来源：本机下载目录（已脱敏）<br>upio.ai · internal</footer>
+</div>
+</body>
+</html>
