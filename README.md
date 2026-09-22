@@ -13,7 +13,8 @@
 |---|---|---|
 | `/` 首页 | 模板写在 `scripts/build-index.js` 里 | 构建时生成，项目卡片与精选指南分别在 `PROJECTS`、`GUIDES` 数组里手动维护 |
 | `/akke` Akke 子站 | `public/akke/` | 构建时由 `scripts/build-akke-map.js` 扫描目录自动生成 |
-| `/learn` 知识分享 | `public/learn/` | 构建时由 `scripts/build-learn.js` 按 `CATEGORIES` 清单生成 |
+| `/learn` 知识分享 | `public/learn/` | 构建时由 `scripts/build-learn.js` 按 `CATEGORIES` 清单生成，每个分类内按 `date` 新→旧 |
+| `/timeline` 知识时间线 | 无（汇总页） | 构建时由 `scripts/build-timeline.js` 生成：只收已被首页、`/learn`、`/akke`、`/workflow`、`/softie`、`/vivi` 索引链接的页面，按月分组、默认新→旧 |
 | `/vivi` | `public/vivi/` | 手写；`/vivi/characters/*` 由 `scripts/build-characters.js` 生成 |
 | `/softie` | `public/softie/` | 手写 |
 | `/workflow` | `public/workflow/` | 手写，新页面要自己在 `index.html` 里加卡片 |
@@ -29,18 +30,18 @@
 public/            站点根目录，所有页面和静态资源（Vercel outputDirectory）
 scripts/           构建脚本 + Akke 索引的配置（akke-map.json / .dates.json / .shell.html）
 data/              vivi-characters.json：Vivi 角色页的数据源，由 Vivi 仓导出，只含 SFW 字段
-tools/             quote-guard 引语核验闸及其台账；gen-cases-manifest.mjs（一次性回填脚本）
+tools/             quote-guard 引语核验闸及其台账；privacy-guard 隐私闸及其白名单；gen-cases-manifest.mjs（一次性回填脚本）
 docs/              设计文档、spec 存档
-.github/workflows/ quote-guard CI
+.github/workflows/ quote-guard、privacy-guard CI
 ```
 
 ## 新增页面
 
-页面统一写成**自包含的单文件 HTML**（CSS/JS 内联，图片等资源放同目录）。按放的位置不同，还要多做一步：
+页面统一写成**自包含的单文件 HTML**（CSS/JS 内联，图片等资源放同目录）。`<head>` 里建议加一行 `<meta name="upio:date" content="YYYY-MM-DD">` 写明内容本身的日期，`/timeline` 优先用它排序；不写就退回到日期缓存（`scripts/timeline.dates.json`、`scripts/akke-map.dates.json`）。按放的位置不同，还要多做一步：
 
 | 放在哪 | 除了放文件，还要 |
 |---|---|
-| `public/learn/<slug>.html` | 在 `scripts/build-learn.js` 的 `CATEGORIES` 对应分类里加一条 `{ slug, title, desc }`。没登记的页面线上能打开，但不会出现在 `/learn` 列表 |
+| `public/learn/<slug>.html` | 在 `scripts/build-learn.js` 的 `CATEGORIES` 对应分类里加一条 `{ slug, date, title, desc }`（`date` 为 `YYYY-MM-DD`，不写会排到分类末尾）。没登记的页面线上能打开，但不会出现在 `/learn` 和 `/timeline` |
 | `public/akke/<name>.html` | 多半要登记分类和日期，见下方 [Akke 页面](#akke-页面) |
 | `public/<name>.html`（通用指南） | 想上首页就在 `scripts/build-index.js` 的 `GUIDES` 数组里登记 |
 | `public/workflow/<slug>.html` | 在 `public/workflow/index.html` 里手动加一张卡片 |
@@ -71,7 +72,7 @@ docs/              设计文档、spec 存档
 
 **构建产物**，每次部署都会重新生成：
 
-- `public/index.html`、`public/akke/index.html`、`public/learn/index.html`（已在 `.gitignore`）
+- `public/index.html`、`public/akke/index.html`、`public/learn/index.html`、`public/timeline/`（已在 `.gitignore`）
 - `public/vivi/characters/*`、`public/sitemap.xml`、`public/robots.txt`（由 `build-characters.js` 生成，但提交在仓里）
 
 **从 Akke 仓自动同步的文件**，提交者是 `akke-bot`。源头在 Akke 仓，要改就去那边改，在这里改会被下一次同步覆盖：
@@ -96,7 +97,7 @@ git log -1 --format=%an -- <文件路径>   # 输出 akke-bot 就别在这里改
 不需要 `npm install`，装了 Node.js 就能跑。构建命令和 Vercel 上的 `buildCommand` 相同：
 
 ```bash
-node scripts/build-index.js && node scripts/build-characters.js && node scripts/build-akke-map.js && node scripts/build-learn.js
+node scripts/build-index.js && node scripts/build-characters.js && node scripts/build-akke-map.js && node scripts/build-learn.js && node scripts/build-timeline.js
 npx serve public          # 支持无后缀 URL；python -m http.server 不支持，会 404
 ```
 
@@ -142,3 +143,32 @@ vercel --prod
      ```
 
   2. 其实是自己的归纳：去掉 `「」`，改用加粗或者换个说法。
+
+## CI：隐私闸（privacy-guard）
+
+`.github/workflows/privacy-guard.yml` 在 push 到 main 或提 PR、且改动涉及 `public/**` 时运行，只查改动过的文件。和引语核验闸一样，**push 到 main 时是事后标红**，不会阻断发布。
+
+- **检查什么**：`public/` 下改动过的 html/json/js/md/txt/csv，抽出文本后找四类终端客户信息：
+  - 完整的大陆手机号，包括 `139-1234-5678`、`139 1234 5678` 这种分段写法
+  - 车牌式客户编码，如 `闽D12345`
+  - 门牌级住址：`X号楼1502`、`X栋X室`、`X单元X室/号`（`5号楼162现代简约`、`16号楼130平` 这类户型面积不算）
+  - 微信号 `wxid_…`
+
+  改动文件的路径本身也查，截图文件名里带客户编码同样算泄露。中间四位是 `0000` 的示例号、紧挨着 `*` 的已打码样本自动放行。
+- **输出已打码**：Actions 日志和仓库一样公开，所以命中时只打印「文件:行:列 类型 打码样本」，不打印原文，要看原文就在本地打开文件。
+- **push 不会漏查**：和推送前的 main 比，一次推多个提交也都查得到；每次推送的检查互不取消，不会被紧接着推送的 `akke-bot` 顶掉。
+- **推之前先在本地跑**，有命中时退出码为 1：
+
+  ```bash
+  node tools/privacy-guard.mjs                           # 相对 origin/main 的改动，含未提交、未跟踪的文件
+  node tools/privacy-guard.mjs --check public/akke/<页面>  # 指定文件
+  node tools/privacy-guard.mjs --all                     # 全量扫 public/
+  ```
+
+- **命中了**，先改原文，打码口径：
+  - 手机号保留前 3 位和后 2 位：`139******78`
+  - 住址写到小区为止，楼栋、门牌去掉
+  - 客户编码改成 `闽X******`
+  - 客户姓名改成角色（客户、业主、老板娘）
+- **确实不是客户信息的**，比如商家对外公开的售后热线、商家在公开视频里自留的联系电话、形似手机号的 ID、户型面积，加进 `tools/privacy-guard.allow.json`：写 `value`（一组共用理由的写 `values`）和 `why`；能限定页面就写 `files`（路径前缀）；`2号楼901` 这类短串再加 `near`（同一行必须出现的字），免得把别处真实的住址一起放过去。白名单本身也是公开的，终端客户的信息不能放进去。
+- **已经推上 main 的**，改原文只能让站点不再显示，原文还留在 git 历史里。

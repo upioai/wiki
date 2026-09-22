@@ -1,0 +1,51 @@
+name: privacy-guard
+
+# 本仓是公开仓库：终端客户的手机号、住址、客户编码、微信号一旦进 main，任何人都能在
+# git 历史里翻到。和 quote-guard 一样 push 与 pull_request 都挂（本仓惯例是直推 main）；
+# push 侧是事后拦截（标红 + 提示修复），不阻断发布。命中样本脚本里已打码，日志可公开。
+on:
+  push:
+    branches: [main]
+    paths: ['public/**']
+  pull_request:
+    paths: ['public/**']
+
+# PR：每次都和 base 比、查的是整个 PR，新的运行顶掉旧的没关系；
+# push：每次只查这一次推送的改动，被 akke-bot 紧接着的推送顶掉就等于漏查，所以按提交分组、互不取消
+concurrency:
+  group: privacy-guard-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2   # 只要能 diff 出本次改了哪些文件
+
+      - name: 定对比基准
+        id: base
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            git fetch --no-tags --depth=1 origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
+            base="origin/$BASE_REF"
+          elif [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
+               && git fetch --no-tags --depth=1 origin "$BEFORE"; then
+            # 一次推多个提交时 HEAD^ 只覆盖最后一个；和推送前的 main 比，才是这次推送的全部改动
+            base="$BEFORE"
+          else
+            base="HEAD^"   # 新分支 / force-push 后旧提交取不到时退回
+          fi
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "对比基准: $base"
+
+      - name: 隐私闸
+        env:
+          BASE: ${{ steps.base.outputs.base }}
+        run: node tools/privacy-guard.mjs --base "$BASE"
