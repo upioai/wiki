@@ -88,7 +88,7 @@ const EXCLUDE = [
   /^\/akke\/reports\/daily-/,   // 个人日报,akke-bot 每日同步
   /^\/akke\/model-watch-/,       // 模型监控日报,akke-bot 每日同步
   /-[0-9a-f]{8}\/?$/,             // hash 后缀的分享页
-  /^\/vivi\/characters\//,       // 角色卡
+  /^\/vivi\/characters(\/|$)/,   // 角色卡
 ];
 const SECTION_ROOT = /^\/(timeline|internal|partners|learn|akke|workflow|softie|vivi)(\/|$)/;
 function fileFor(href) {
