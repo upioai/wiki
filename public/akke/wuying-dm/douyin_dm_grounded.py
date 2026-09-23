@@ -123,6 +123,11 @@ C_FIRST = _coord('AKKE_C_FIRST', (219, 103))          # 第一条结果头像(px
 # 所以锁了该分辨率的机器开启只需设 AKKE_SEARCH_SCAN_N=5；分辨率/布局不同的机器跑 measure-row-dy.py
 # 量自己的值 + 设 AKKE_SEARCH_NCOLS 覆盖。
 SEARCH_SCAN_N = int(os.environ.get('AKKE_SEARCH_SCAN_N', '1'))
+# 发送↑坐标闸的边界(屏幕比例)。默认＝旧浮窗形态实测值；聊天面板形态(抖音8.5.1 右侧停靠)
+# 要在该机 .env 里放宽 YMIN/YMAX，否则每条都判假阳性定位。用法见 process() 里那道闸。
+_SEND_GATE_XMIN = float(os.environ.get('AKKE_SEND_GATE_XMIN', '0.85'))
+_SEND_GATE_YMIN = float(os.environ.get('AKKE_SEND_GATE_YMIN', '0.28'))
+_SEND_GATE_YMAX = float(os.environ.get('AKKE_SEND_GATE_YMAX', '0.68'))
 RESULT_ROW_DY = int(os.environ.get('AKKE_C_RESULT_ROW_DY', '116'))  # 下一行头像 Y 间距(2560×1600 实测)
 RESULT_COL_DX = int(os.environ.get('AKKE_C_RESULT_COL_DX', '237'))  # 右列头像 X 间距(2560×1600 实测)
 SEARCH_NCOLS = max(1, int(os.environ.get('AKKE_SEARCH_NCOLS', '2')))  # 结果网格列数
@@ -874,9 +879,14 @@ def process(c):
     # 但落在预期区外(如误点进视频后匹配到视频UI里的红箭头，实测飘到 (1719,344)=x0.67/y0.21)，
     # 这是【假阳性定位】——继续锚定+打字+点发会把消息发到错地方却记 sent(VL 拒绝门测不到)。
     # 命中即判定位失败、不打字不发送、记 cancelled(走 skipped，不计配额、回池可重发)。
-    if sp and not (sp[0] >= 0.85 * _W and 0.28 * _H <= sp[1] <= 0.68 * _H):
+    # 闸的上下界可按机器覆盖(AKKE_SEND_GATE_XMIN/YMIN/YMAX, 0~1 比例)：抖音 PC 8.5.1 把聊天
+    # 改成【停靠主窗右侧的面板】,发送↑落在 y≈0.92H,撞死这道按旧浮窗形态(y≈0.44H)写的闸 →
+    # 每条都判假阳性、全量 cancelled(2026-09-23 深圳机 2560×1452 实测)。默认值保持原样,
+    # 只有显式设了 env 的机器才放宽,别的机器行为不变。
+    if sp and not (sp[0] >= _SEND_GATE_XMIN * _W and _SEND_GATE_YMIN * _H <= sp[1] <= _SEND_GATE_YMAX * _H):
         print('  [跳过] send_arrow 匹配到异常位置 (%d,%d) 不在预期发送区(x≥%.0f, y∈[%.0f,%.0f]) '
-              '→ 判假阳性定位，不发' % (sp[0], sp[1], 0.85 * _W, 0.28 * _H, 0.68 * _H))
+              '→ 判假阳性定位，不发' % (sp[0], sp[1], _SEND_GATE_XMIN * _W,
+                                        _SEND_GATE_YMIN * _H, _SEND_GATE_YMAX * _H))
         close_chat()
         return 'cancelled', conf
     off = _input_offset()
