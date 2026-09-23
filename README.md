@@ -172,3 +172,10 @@ vercel --prod
   - 客户姓名改成角色（客户、业主、老板娘）
 - **确实不是客户信息的**，比如商家对外公开的售后热线、商家在公开视频里自留的联系电话、形似手机号的 ID、户型面积，加进 `tools/privacy-guard.allow.json`：写 `value`（一组共用理由的写 `values`）和 `why`；能限定页面就写 `files`（路径前缀）；`2号楼901` 这类短串再加 `near`（同一行必须出现的字），免得把别处真实的住址一起放过去。白名单本身也是公开的，终端客户的信息不能放进去。
 - **已经推上 main 的**，改原文只能让站点不再显示，原文还留在 git 历史里。
+
+## 仓库协作与自动化
+
+- **分支保护**：`main` 没有分支保护，也没有 required checks，所以可以直接推（见上面「发布」）。
+- **PR 合并方式**：走 PR 时手动合并，未开原生 auto-merge。改动涉及 `public/**` 时 PR 上会跑 privacy-guard（涉及 `public/akke/**.html` 时再加 quote-guard），等它们绿了再 `gh pr merge <n> --squash`；只改 `public/` 以外的文件（如本 README）不会触发任何检查。
+- **合并后分支**：仓库设置开启「合并后自动删除分支」（`delete_branch_on_merge`）。
+- **仓库卫生**：由维护者本机每周执行 repo-hygiene，清理已合并 / 已关闭 PR 的残留分支。
