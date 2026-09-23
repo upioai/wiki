@@ -81,7 +81,10 @@ function check(files) {
   }
   if (!miss.length) { console.log(`✅ 受检 ${files.length} 页，引语全部已核验（台账 ${Object.keys(l.verified).length} 条）`); return 0; }
   console.log(`❌ ${miss.length} 条引语未在核验台账中：\n`);
-  for (const m of miss.slice(0, 40)) console.log(`  ${m.page}\n     「${m.q.slice(0, 90)}」`);
+  // Actions 日志和仓库一样公开：CI 里只打哈希和长度，不打原文（2026-09-23 run 35819161671
+  // 把一条含「客户编码-客户姓名」的未核验引语原样打进了公开日志）。本地跑照常显示原文方便定位。
+  const show = (q) => process.env.CI ? `hash=${hash(q)} len=${q.length}（CI 不显示原文，本地跑本脚本看原文）` : `「${q.slice(0, 90)}」`;
+  for (const m of miss.slice(0, 40)) console.log(`  ${m.page}\n     ${show(m.q)}`);
   if (miss.length > 40) console.log(`  …另有 ${miss.length - 40} 条`);
   console.log(`
 怎么处理（二选一，别留中间态）：

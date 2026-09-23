@@ -415,7 +415,7 @@
     <div class="bug" id="W-12" style="--bc:#fab219">
       <div class="bh"><code class="bid">W-12</code><b>同一个客户裂成两条会话</b><span class="bst wait">⚠️ 没验成</span></div>
       <dl>
-        <dt>现场</dt><dd>2026-09-21，<b>湘A逆风也绽放💋</b> 被建了两条会话：08:41 那条与 11:35 自动回复那条各算各的，防重复闸看不全。<br>更早同族：2026-09-16「闽A605146-海-不确定」在召回发出 <b>38 秒后</b>回了「房子装修好了」、被动腿 AI 也正常接了话，但两件事落在不同会话行 —— 按 <code>conversation_id</code> 查「召回后有没有人回」<b>永远是 0</b>。当时裂开的真客户 <b>9 位</b>。</dd>
+        <dt>现场</dt><dd>2026-09-21，<b>湘A逆风也绽放💋</b> 被建了两条会话：08:41 那条与 11:35 自动回复那条各算各的，防重复闸看不全。<br>更早同族：2026-09-16「闽A******-海-不确定」在召回发出 <b>38 秒后</b>回了「房子装修好了」、被动腿 AI 也正常接了话，但两件事落在不同会话行 —— 按 <code>conversation_id</code> 查「召回后有没有人回」<b>永远是 0</b>。当时裂开的真客户 <b>9 位</b>。</dd>
         <dt>代价</dt><dd><b>统计和记忆一起失真</b>：召回效果查出来恒为 0；画像分家（<code>windows_history</code> 在名字行、客户原话在 hash 行），AI 会反复问已经答过的问题——2026-08-21 同类事故里客户回「我上面都跟你说了」。</dd>
         <dt>根因</dt><dd>三条腿建会话的身份键<b>形态不同</b>：回复腿上送 <code>conversationIdentity</code> → <code>persona:consult:weixin:&lt;hash&gt;</code>；召回腿只有客户名 → <code>persona:&lt;规范名&gt;</code>。</dd>
         <dt>怎么修</dt><dd>2026-09-16 已建 <code>src/lib/wecom/weixin-identity-derive.ts</code>（服务端复现客户端哈希）把<b>召回腿和回复腿</b>收敛到同一条会话。</dd>
@@ -715,7 +715,7 @@
     <div class="bug" id="W-39" style="--bc:#0ca30c">
       <div class="bh"><code class="bid">W-39</code><b>「以上是打招呼的消息」被读成客户说的话，三位新好友一条首触都没发</b><span class="bst done">✅ 已解决</span></div>
       <dl>
-        <dt>现场</dt><dd>2026-09-22 真机三位 —— <code>皖A小万kfm202505</code> / <code>闽D虹得彩…</code> / <code>闽D609017室内装修…</code> —— <b>一条首触都没发出去</b>。<br>销售<b>带招呼语</b>加好友时，微信在我方招呼语和对方那条通过提示之间插一行居中灰字「以上是打招呼的消息」，读屏模型把它报成 <code>side=left</code>：<br><code>customer_spoke → [{side:left, text:"以上是打招呼的消息"}]</code> → 「客户已经说过 1 条，不是新好友」→ <b>拒绝首触</b>。<br>而方向本身<b>判对了</b>（<code>we_added</code>），客户<b>一个字都没说</b>。</dd>
+        <dt>现场</dt><dd>2026-09-22 真机三位 —— <code>皖A小万kfm202505</code> / <code>闽D虹得彩…</code> / <code>闽D******室内装修…</code> —— <b>一条首触都没发出去</b>。<br>销售<b>带招呼语</b>加好友时，微信在我方招呼语和对方那条通过提示之间插一行居中灰字「以上是打招呼的消息」，读屏模型把它报成 <code>side=left</code>：<br><code>customer_spoke → [{side:left, text:"以上是打招呼的消息"}]</code> → 「客户已经说过 1 条，不是新好友」→ <b>拒绝首触</b>。<br>而方向本身<b>判对了</b>（<code>we_added</code>），客户<b>一个字都没说</b>。</dd>
         <dt>代价</dt><dd>这是<b>今天真正拦住那三位新好友的那条</b>。跟 <code>W-08</code> / <code>W-24</code> / <code>W-35</code> 连成一串——新好友这条路上每多一种屏幕形态，就可能整批人收不到招呼。</dd>
         <dt>根因</dt><dd>那行居中灰字<b>不是客户气泡</b>，但读屏把它归到了左侧（客户侧），于是「客户说过话就不首触」这道最贵的闸被它误触发。</dd>
         <dt>怎么修</dt><dd>新增 <code>_GREETING_SEPARATOR_PATTERNS</code>，<b>只喂给 <code>is_friend_notice_bubble</code></b>。<br><span class="ch">⚠️ 刻意<b>与方向词表分开放</b>——这句<b>不含方向信息</b>，混进 <code>_WE_ADDED_PATTERNS</code> 会让它把会话判成某个方向，而<b>方向决定「该不该对他开口」</b>。</span></dd>
@@ -727,7 +727,7 @@
     <div class="bug" id="W-40" style="--bc:#0ca30c">
       <div class="bh"><code class="bid">W-40</code><b>「你已添加了X，以上是打招呼的消息」合成一条时，方向判不出来</b><span class="bst done">✅ 已解决</span></div>
       <dl>
-        <dt>现场</dt><dd>同一批现场的<b>另一种渲染</b>：微信把两句<b>合成一条</b>居中提示。词表只认「现在可以开始聊天了」结尾，于是 <code>闽D609017室内装修…</code> 那位<b>连方向都判不出来</b>。</dd>
+        <dt>现场</dt><dd>同一批现场的<b>另一种渲染</b>：微信把两句<b>合成一条</b>居中提示。词表只认「现在可以开始聊天了」结尾，于是 <code>闽D******室内装修…</code> 那位<b>连方向都判不出来</b>。</dd>
         <dt>代价</dt><dd>与 <code>W-35</code> 同族——<code>W-35</code>（#1529）补的是「整屏只有这一条提示」那种形态，本条补的是「两句合成一条」的渲染。<b>同一个语义，微信有多种画法</b>，每种都要单独喂给词表。</dd>
         <dt>根因</dt><dd>新好友提示的写法按「确切写法」收，而微信的渲染不止一种。</dd>
         <dt>怎么修</dt><dd>照词表上方那条纪律<b>只补这一种确切写法</b>，<b>尾巴不放开</b>——「你已添加了」五个字在客户真话里会出现，<b>误判代价（对已经开过口的人发冷启开场白）远大于漏判</b>。</dd>
