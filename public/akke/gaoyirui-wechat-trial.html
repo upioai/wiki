@@ -37,14 +37,15 @@ $('coverage').textContent=any?`已核对完整 ${s.completedDays} / ${s.days} �
 $('daily').innerHTML=d.daily.map(x=>`<tr><td>${esc(x.date)}</td><td><span class="tag ${x.complete?'ok':x.registered?'wait':''}">${x.complete?'已核对':x.registered?'待核对':'未登记'}</span></td><td class="num">${x.registered?x.added:'—'}${x.added?`<span class="bar" style="width:${Math.min(95,x.added*9)}px"></span>`:''}</td><td class="num">${x.registered?x.accepted:'—'}</td><td>${pct(x.acceptRate)}</td><td class="num">${x.registered?x.conversed:'—'}</td><td>${pct(x.conversationRate)}</td></tr>`).join('');
 $('manager').hidden=!d.privateView;$('unlock').textContent=d.privateView?'退出录入':'管理录入';renderEntries();}
 function renderReported(d){
- data=d;const byDay=new Map(d.reportedDaily.map(x=>[x.date,x]));const cloud=new Map(d.cloudActivity.daily.map(x=>[x.date,x.conversed]));
+ data=d;const byDay=new Map(d.reportedDaily.map(x=>[x.date,x]));const manualDialogue=new Map([['2026-09-21',2]]);const cloud=new Map(d.cloudActivity.daily.map(x=>[x.date,manualDialogue.get(x.date)??x.conversed]));
  const added=d.reportedDaily.reduce((n,x)=>n+x.added,0),accepted=d.reportedDaily.reduce((n,x)=>n+x.accepted,0);
- $('added-label').textContent='实际添加 · 人工确认';$('accepted-label').textContent='当天通过 · 人工确认';$('conversed-label').textContent='云端双向对话 · 去重';
- $('added').textContent=added;$('accepted').textContent=accepted;$('conversed').textContent=d.cloudActivity.uniqueConversed;
- $('accept-rate').textContent='已登记 '+d.reportedDaily.length+' 天的通过人数';$('conversation-rate').textContent='所选日期跨日去重，包含老客户';
+ const dialogueTotal=[...cloud.values()].reduce((n,x)=>n+x,0);
+ $('added-label').textContent='实际添加 · 人工确认';$('accepted-label').textContent='当天通过 · 人工确认';$('conversed-label').textContent='形成对话 · 合计人次';
+ $('added').textContent=added;$('accepted').textContent=accepted;$('conversed').textContent=dialogueTotal;
+ $('accept-rate').textContent='已登记 '+d.reportedDaily.length+' 天的通过人数';$('conversation-rate').textContent='9月21日人工确认，暂不跨日去重';
  $('updated').textContent='更新于 '+new Date(d.generatedAt).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false});
- $('coverage').textContent='添加、通过人数来自人工报数；云端对话为Windows客户端账号当天有客户发言且我方随后回复的人数，包含老客与召回。尚无逐人名单，不能把它作为新加客户的对话转化率。';
- $('table-title').textContent='每日添加、通过与云端对话';$('table-note').textContent='同一人在不同天聊天，每天各计 1 人；顶部合计跨日去重';
+ $('coverage').textContent='添加、通过人数来自人工报数；9月21日形成对话2人由运营人工确认，9月22—23日来自云端记录。数据可能包含老客与召回，尚无逐人名单，不能把它作为新加客户的对话转化率。';
+ $('table-title').textContent='每日添加、通过与形成对话';$('table-note').textContent='三天按日合计7人次；9月21日无逐人名单，暂不做跨日去重';
  $('daily-head').innerHTML='<tr><th>日期</th><th>添加人数</th><th>通过人数</th><th>当天云端对话</th><th>添加 / 通过来源</th></tr>';
  $('daily').innerHTML=d.daily.map(x=>{const r=byDay.get(x.date);return `<tr><td>${esc(x.date)}</td><td class="num">${r?r.added:'—'}</td><td class="num">${r?r.accepted:'—'}</td><td class="num">${cloud.get(x.date)??'—'} <small>人（含老客）</small></td><td><span class="tag ${r?'ok':''}">${r?'人工确认':'未登记'}</span></td></tr>`;}).join('');
  $('manager').hidden=!d.privateView;$('unlock').textContent=d.privateView?'退出录入':'管理录入';renderEntries();
