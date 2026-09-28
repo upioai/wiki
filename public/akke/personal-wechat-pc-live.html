@@ -14,7 +14,7 @@
     --text: #e4e7ed; --text-dim: #9ba3b4; --text-muted: #6b7384;
     --accent: #8b5cf6; --accent-soft: rgba(139,92,246,.15); --accent-ink: #c4b5fd;
     --dm: #60a5fa;
-    /* 三台机器 = 分类色前三位（深色档，已在 #141821 上跑过色弱校验，三两两都过） */
+    /* 两台销售机的固定分类色 */
     --m-xiaoyu: #3987e5; --m-gaoyirui: #d95926; --m-gaopeng: #199e70;
     /* 状态色只表示好坏，永远配图标 + 文字 */
     --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b;
@@ -53,6 +53,8 @@
   .segmented button.active { background:var(--accent-soft); color:var(--accent-ink); }
   .datebox { display:inline-flex; align-items:center; gap:8px; font-size:13px; color:var(--text-muted); }
   .datebox input { background:var(--bg-elevated); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:6px 10px; font:inherit; font-size:14px; color-scheme:dark; }
+  .apply { background:var(--accent); color:white; border:0; border-radius:8px; padding:7px 14px; font:inherit; font-size:13px; font-weight:600; cursor:pointer; }
+  .apply:hover { filter:brightness(1.08); }
   .swatch { display:inline-block; width:10px; height:10px; border-radius:3px; flex:0 0 auto; }
 
   h2 { font-size:12px; font-weight:600; color:var(--text-muted); letter-spacing:.12em; margin:36px 0 14px; display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
@@ -82,7 +84,7 @@
   .pill i { font-style:normal; font-weight:800; }
   .pill.good i { color:var(--good); } .pill.warning i { color:var(--warning); } .pill.critical i { color:var(--critical); } .pill.serious i { color:var(--serious); }
   .mc .hd .pill { margin-left:auto; }
-  .mnums { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-bottom:12px; }
+  .mnums { display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; margin-bottom:12px; }
   .mnums div { background:var(--bg-deep); border-radius:9px; padding:7px 8px; text-align:center; }
   .mnums b { display:block; font-size:19px; font-weight:650; line-height:1.3; }
   .mnums span { font-size:11.5px; color:var(--text-muted); }
@@ -152,6 +154,7 @@
   .bub { padding:9px 14px; border-radius:14px; font-size:14.5px; line-height:1.65; white-space:pre-wrap; word-break:break-word; }
   .bub.c { background:#232a38; color:#dfe3ea; border:1px solid #2c3444; border-top-left-radius:4px; }
   .bub.a { background:#1b3155; color:#f1f6ff; border:1px solid #2b4c80; border-top-right-radius:4px; }
+  .bub.ft { background:#173b34; color:#e8fff8; border:1px solid #236858; border-top-right-radius:4px; }
   .bub.rc { background:#2a2150; color:#f3f0ff; border:1px solid #473a86; border-top-right-radius:4px; }
   .bub .rtag { display:block; font-size:11.5px; font-weight:600; color:var(--accent-ink); margin-bottom:3px; }
   .cap { display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; margin-top:5px; font-size:12px; color:var(--text-muted); font-variant-numeric:tabular-nums; }
@@ -179,6 +182,8 @@
     h1 { font-size: 30px; }
     .subtitle { font-size: 15.5px; }
     .machines, .charts { grid-template-columns: 1fr; }
+    .datebox { width:100%; flex-wrap:wrap; }
+    .mnums { grid-template-columns:repeat(2, 1fr); }
     .cm { max-width:88%; }
     .th { flex-wrap:wrap; }
     .th .last { margin-left:0; text-align:left; }
@@ -191,20 +196,26 @@
   <div class="breadcrumb"><a href="/akke/">Akke 知识库</a><span>›</span><a href="/akke/personal-wechat-group-recall">个人微信</a><span>›</span>电脑端自动化看板</div>
   <header class="hero">
     <span class="tag"><span class="dot idle" id="statusDot"></span><span id="updatedAt">加载中…</span></span>
-    <h1>个人微信 · 电脑端自动化看板</h1>
-    <p class="subtitle">张小鱼、高一瑞、高鹏三台 Windows 电脑上的个人微信，每天自动回了多少客户消息、主动召回发了多少条、有没有卡住。数据直连生产库，看今天时每分钟自动刷新。</p>
+    <h1>高一瑞 × 小鱼 · Windows 实时发送</h1>
+    <p class="subtitle">两台 Windows 个人微信每天成功发出的自动回复、首触和召回。数据直连生产接口，可选单日或最多 31 天区间；查看包含今天的区间时每分钟自动刷新。</p>
     <div class="toolbar">
       <div class="segmented" id="dateSel">
-        <button data-off="0" class="active">今天</button>
+        <button data-range="1" class="active">今天</button>
         <button data-off="1">昨天</button>
-        <button data-off="2">前天</button>
+        <button data-range="7">近 7 天</button>
+        <button data-range="14">近 14 天</button>
+        <button data-range="30">近 30 天</button>
       </div>
-      <label class="datebox">选日期 <input type="date" id="dateInput"></label>
+      <div class="datebox">
+        <label>开始 <input type="date" id="fromInput"></label>
+        <span>至</span>
+        <label>结束 <input type="date" id="toInput"></label>
+        <button class="apply" id="applyRange">查看</button>
+      </div>
       <div class="segmented" id="machineSel">
-        <button data-m="" class="active">三台全部</button>
+        <button data-m="" class="active">两台合计</button>
         <button data-m="xiaoyu"><span class="swatch" style="background:var(--m-xiaoyu)"></span> 张小鱼</button>
         <button data-m="gaoyirui"><span class="swatch" style="background:var(--m-gaoyirui)"></span> 高一瑞</button>
-        <button data-m="gaopeng"><span class="swatch" style="background:var(--m-gaopeng)"></span> 高鹏</button>
       </div>
     </div>
   </header>
@@ -215,10 +226,10 @@
     <h2 id="kpiTitle">当天总览</h2>
     <div class="kpis" id="kpis"></div>
 
-    <h2>三台机器此刻的状态 <span class="hint">上排前两格是所选那天的量，第三格是此刻的数；状态来自电脑端定时上报的心跳，只有此刻，不存历史</span></h2>
+    <h2>两台机器此刻的状态 <span class="hint">上排前三格是所选区间的成功发送量，最后一格是此刻待发；状态来自电脑端心跳，只有此刻，不存历史</span></h2>
     <div class="machines" id="machines"></div>
 
-    <h2>近 7 天每天发了多少 <span class="hint">点某一天的柱子可以切过去看那天的明细</span></h2>
+    <h2>每天成功发了多少 <span class="hint">点某一天的柱子可以切到单日明细</span></h2>
     <div class="legend" id="legend"></div>
     <div class="charts" id="charts"></div>
     <details class="tbl"><summary>看数字表</summary><div class="tw" id="trendTable"></div></details>
@@ -228,6 +239,7 @@
       <div class="segmented" id="typeSel">
         <button data-t="" class="active">全部</button>
         <button data-t="reply">有自动回复的</button>
+        <button data-t="first_touch">有首触的</button>
         <button data-t="recall">有召回的</button>
         <button data-t="unanswered">有没回上的</button>
       </div>
@@ -239,10 +251,12 @@
     <b>数字怎么算的</b>
     <ul>
       <li><b>自动回复</b>：客户在个人微信里发来消息，电脑端自动读到、AI 写好、自动发出去的那一条。客户连着发好几条算<b>一批</b>，只回一次，所以看回上率按批算。</li>
+      <li><b>首触</b>：新好友还没开口时，电脑端主动发出的第一条招呼。接口按服务端写入时的专用指纹精确认出，不拿普通自动回复或召回冒充。</li>
       <li><b>异常记录不在本页</b>：回复前面没记到客户消息的、把微信系统提示（朋友验证、拒收等）当成客户消息的，都挪到了 <a href="/akke/personal-wechat-pc-bugs" style="color:#f0a78a">bug 合集</a>，不进本页的明细、回上率、回复用时和客户消息数；但它们确实发出去了，所以仍算在自动回复发出的条数里（卡片上注明含几条）。</li>
       <li><b>回复用时</b>：从客户这一批的最后一条，到我们那条发出去。明细里每条消息都标了发来 / 发出的时间（精确到秒）。总览给的是完整分布：中位数（一半比它快）、75% 的批在多久以内、最慢的一批，以及一共几批，不挑样本。客户刚发 5 分钟内还没回的记为处理中，不算没回上。</li>
       <li><b>召回</b>：客户一段时间没说话，系统主动发一条。有三种：按节奏（第 1、3、7、15、30 天）、次日跟进（销售回了、客户没再回）、接着上次聊的话题往下说；第二轮召回会带两张图。按实际发出的时间算到哪一天。</li>
-      <li><b>召回待发、正在发</b>：是此刻的数，不随上面选的日期变（虚线框标出）。</li>
+      <li><b>日期区间</b>：开始和结束日期都包含在内，最多一次看 31 天。柱图和数字表按天拆分，总览和机器卡显示整个区间合计。</li>
+      <li><b>召回待发、正在发</b>：是此刻的数，不随上面选的日期区间变（虚线框标出）。</li>
       <li><b>机器状态</b>：电脑端隔一会儿报一次心跳，10 分钟内报过算在线。在线但没在干活（没就绪、已停止）会单独标出来，别只看在不在线。</li>
       <li>张小鱼名下有两个微信身份：<b>小鱼</b>（在用）和<b>小鱼销售</b>（2026-09-20 已停用，是另一个不再用的微信号）。停用的身份仍列在卡片上，因为它名下的历史消息和召回还在，但不再算成没在干活。</li>
     </ul>
@@ -256,13 +270,12 @@ const API_BASE = "https://wecom-chat.vercel.app/api/public/weixin-pc-live";
 const MACHINES = [
   { key: "xiaoyu", label: "张小鱼", color: "var(--m-xiaoyu)" },
   { key: "gaoyirui", label: "高一瑞", color: "var(--m-gaoyirui)" },
-  { key: "gaopeng", label: "高鹏", color: "var(--m-gaopeng)" },
 ];
 const MC = Object.fromEntries(MACHINES.map(m => [m.key, m]));
 const $ = (id) => document.getElementById(id);
 const esc = (s) => (s == null ? "" : String(s)).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 
-let state = { date: null, machine: "", type: "" }; // date=null → 今天
+let state = { from: null, to: null, machine: "", type: "" }; // null → 今天
 let payload = null;
 let showAllEvents = false;
 let timer = null;
@@ -291,29 +304,37 @@ function latClass(sec) { return sec == null ? ["", "?", "—"] : sec <= 60 ? ["g
 function pct(a, b) { return b ? Math.round(a / b * 100) + "%" : "—"; }
 function sw(color) { return `<span class="swatch" style="background:${color}"></span>`; }
 
-function selectedMachines() { return payload.machines.filter(m => !state.machine || m.key === state.machine); }
+function selectedMachines() {
+  return payload.machines.filter(m => MC[m.key] && (!state.machine || m.key === state.machine));
+}
+function payloadFrom() { return payload.fromDate || payload.date; }
+function payloadTo() { return payload.toDate || payload.date; }
+function periodLabel() {
+  const from = payloadFrom(), to = payloadTo();
+  if (from === to) return to === bjtToday() ? "今天" : from;
+  return `${from} 至 ${to}`;
+}
 
 // ── KPI ──
 function renderKpis() {
   const ms = selectedMachines();
   const sum = (f) => ms.reduce((a, m) => a + f(m), 0);
-  const d = (k) => sum(m => m.day[k]);
-  const b = (k) => sum(m => m.backlog[k]);
-  const lat = state.machine ? ms[0].day.latency : payload.totals.latency;
+  const d = (k) => sum(m => Number(m.day[k] || 0));
+  const b = (k) => sum(m => Number(m.backlog[k] || 0));
   const answered = d("answered"), unanswered = d("unanswered"), inProgress = d("inProgress");
-  const scope = state.machine ? MC[state.machine].label : "三台";
-  const anom = (payload.anomalies || []).filter(a => !state.machine || a.machine === state.machine);
+  const scope = state.machine ? MC[state.machine].label : "两台合计";
+  const anom = (payload.anomalies || []).filter(a => MC[a.machine] && (!state.machine || a.machine === state.machine));
   const anomReplies = anom.filter(a => a.reply).length;
-  $("kpiTitle").innerHTML = `${payload.isToday ? "今天" : esc(payload.date)} 总览 <span class="hint">${esc(scope)}</span>`;
+  $("kpiTitle").innerHTML = `${esc(periodLabel())} 总览 <span class="hint">${esc(scope)}</span>`;
   $("kpis").innerHTML = `
     <div class="kpi"><div class="l">自动回复发出</div><div class="v">${d("autoReplies")}<small>条</small></div><div class="s">客户发来 ${d("customerMsgs")} 条消息${anomReplies ? ` · 含 ${anomReplies} 条异常回复` : ""}</div></div>
+    <div class="kpi"><div class="l">首触发出</div><div class="v">${d("firstTouches")}<small>条</small></div><div class="s">新好友主动招呼 · 按专用指纹识别</div></div>
+    <div class="kpi"><div class="l">召回发出</div><div class="v">${d("recallSent")}<small>条</small></div><div class="s">按实际成功发出时间算</div></div>
     <div class="kpi"><div class="l">客户消息回上了</div><div class="v">${answered}<small>/ ${answered + unanswered} 批</small></div><div class="s">回上率 ${pct(answered, answered + unanswered)}${inProgress ? ` · 另有 ${inProgress} 批处理中` : ""}</div></div>
-    <div class="kpi"><div class="l">回复用时（中位数）</div><div class="v">${dur(lat.p50)}</div><div class="s">${lat.n ? `75% 在 ${dur(lat.p75)} 内 · 最慢 ${dur(lat.max)} · 共 ${lat.n} 批` : "当天没有已回的批"}</div></div>
-    <div class="kpi"><div class="l">召回发出</div><div class="v">${d("recallSent")}<small>条</small></div><div class="s">按实际发出时间算</div></div>
     <div class="kpi now"><div class="l">召回待发（此刻）</div><div class="v">${b("due")}<small>条</small></div><div class="s">已到点还没发 · 另有 ${b("queued")} 条没到点${b("inFlight") ? ` · ${b("inFlight")} 条正在发` : ""}</div></div>
-    <a class="kpi bug" href="/akke/personal-wechat-pc-bugs?date=${payload.date}${state.machine ? `&m=${state.machine}` : ""}">
+    <a class="kpi bug" href="/akke/personal-wechat-pc-bugs?date=${payloadTo()}${state.machine ? `&m=${state.machine}` : ""}">
       <div class="l">异常记录（已移出本页）</div><div class="v">${anom.length}<small>条</small></div>
-      <div class="s">${anom.length ? "回复前没记到客户消息、把系统提示当成客户消息等" : "这一天没有"} · <span class="go">看 bug 合集 →</span></div></a>`;
+      <div class="s">${anom.length ? "回复前没记到客户消息、把系统提示当成客户消息等" : "这个区间没有"} · <span class="go">看 bug 合集 →</span></div></a>`;
 }
 
 // ── 机器卡 ──
@@ -348,6 +369,7 @@ function renderMachines() {
       <div class="hd">${sw(MC[m.key].color)}<span class="nm">${esc(m.label)}</span><span class="pill ${cls}"><i>${icon}</i>${txt}</span></div>
       <div class="mnums">
         <div><b>${m.day.autoReplies}</b><span>自动回复</span></div>
+        <div><b>${m.day.firstTouches || 0}</b><span>首触发出</span></div>
         <div><b>${m.day.recallSent}</b><span>召回发出</span></div>
         <div><b>${m.backlog.due}</b><span>召回待发</span></div>
       </div>
@@ -357,7 +379,7 @@ function renderMachines() {
   }).join("");
 }
 
-// ── 7 天趋势：两张堆叠柱图（召回 / 自动回复），同一套颜色跟着机器走 ──
+// ── 每日趋势：三张堆叠柱图（自动回复 / 首触 / 召回），同一套颜色跟着机器走 ──
 function niceMax(v) { if (v <= 4) return 4; const p = Math.pow(10, Math.floor(Math.log10(v))); for (const k of [1, 1.2, 1.6, 2, 3, 4, 5, 6, 8, 10]) if (k * p >= v) return Math.round(k * p); return 10 * p; }
 function chartHtml(field, title, sub) {
   const ms = MACHINES.filter(m => !state.machine || m.key === state.machine);
@@ -374,11 +396,15 @@ function chartHtml(field, title, sub) {
     }).join("");
     const nSeg = ms.filter(m => t.machines[m.key]?.[field]).length;
     const h = totals[i] ? Math.max(totals[i] / max * plotH, nSeg * 4) : 0;
-    const sel = t.date === payload.date ? "sel" : "";
+    const sel = t.date >= payloadFrom() && t.date <= payloadTo() ? "sel" : "";
     return `<div class="col ${sel}" tabindex="0" data-date="${t.date}" data-field="${field}" aria-label="${mdLabel(t.date)} ${esc(title)} ${totals[i]} 条">
       ${totals[i] ? `<span class="tot">${totals[i]}</span>` : ""}<div class="stack" style="height:${h}px">${segs}</div></div>`;
   }).join("");
-  const xl = payload.trend.map(t => `<span class="${t.date === payload.date ? "sel" : ""}">${mdLabel(t.date)}</span>`).join("");
+  const labelStep = payload.trend.length > 14 ? 5 : payload.trend.length > 8 ? 2 : 1;
+  const xl = payload.trend.map((t, i) => {
+    const show = i === 0 || i === payload.trend.length - 1 || i % labelStep === 0;
+    return `<span class="${t.date >= payloadFrom() && t.date <= payloadTo() ? "sel" : ""}">${show ? mdLabel(t.date) : ""}</span>`;
+  }).join("");
   return `<div class="chart"><div class="ct">${esc(title)}</div><div class="cs">${esc(sub)}</div>
     <div class="plot">${grid}<div class="cols">${cols}</div></div><div class="xlab">${xl}</div></div>`;
 }
@@ -386,10 +412,11 @@ function renderTrend() {
   const ms = MACHINES.filter(m => !state.machine || m.key === state.machine);
   $("legend").innerHTML = ms.map(m => `<span>${sw(m.color)}${esc(m.label)}</span>`).join("");
   $("charts").innerHTML =
-    chartHtml("recallSent", "每天召回发出（条）", "系统主动发给不说话客户的") +
-    chartHtml("autoReplies", "每天自动回复发出（条）", "客户来消息后 AI 自动回的");
-  const head = `<tr><th>日期</th>${ms.map(m => `<th>${esc(m.label)} 召回</th><th>${esc(m.label)} 自动回复</th><th>${esc(m.label)} 客户消息</th>`).join("")}</tr>`;
-  const body = payload.trend.map(t => `<tr><td>${t.date}</td>${ms.map(m => { const x = t.machines[m.key] || {}; return `<td>${x.recallSent || 0}</td><td>${x.autoReplies || 0}</td><td>${x.customerMsgs || 0}</td>`; }).join("")}</tr>`).join("");
+    chartHtml("autoReplies", "每天自动回复成功（条）", "客户来消息后 AI 自动回的") +
+    chartHtml("firstTouches", "每天首触成功（条）", "新好友还没开口时主动打招呼") +
+    chartHtml("recallSent", "每天召回成功（条）", "系统主动发给沉默客户的");
+  const head = `<tr><th>日期</th>${ms.map(m => `<th>${esc(m.label)} 自动回复</th><th>${esc(m.label)} 首触</th><th>${esc(m.label)} 召回</th><th>${esc(m.label)} 客户消息</th>`).join("")}</tr>`;
+  const body = payload.trend.map(t => `<tr><td>${t.date}</td>${ms.map(m => { const x = t.machines[m.key] || {}; return `<td>${x.autoReplies || 0}</td><td>${x.firstTouches || 0}</td><td>${x.recallSent || 0}</td><td>${x.customerMsgs || 0}</td>`; }).join("")}</tr>`).join("");
   $("trendTable").innerHTML = `<table>${head}${body}</table>`;
 }
 function showTip(el, x, y) {
@@ -398,7 +425,8 @@ function showTip(el, x, y) {
   const ms = MACHINES.filter(m => !state.machine || m.key === state.machine);
   const tot = ms.reduce((a, m) => a + (t.machines[m.key]?.[f] || 0), 0);
   const tip = $("tip");
-  tip.innerHTML = `<div class="d">${t.date}（${f === "recallSent" ? "召回" : "自动回复"}）</div>` +
+  const fieldLabel = { recallSent: "召回", autoReplies: "自动回复", firstTouches: "首触" }[f] || f;
+  tip.innerHTML = `<div class="d">${t.date}（${fieldLabel}）</div>` +
     ms.map(m => `<div class="r"><i style="background:${m.color}"></i><b>${t.machines[m.key]?.[f] || 0}</b>${esc(m.label)}</div>`).join("") +
     (ms.length > 1 ? `<div class="r" style="margin-top:3px"><i style="background:transparent"></i><b>${tot}</b>合计</div>` : "");
   tip.style.display = "block";
@@ -414,7 +442,9 @@ function hms(iso) { return iso ? new Date(Date.parse(iso) + 8 * 3600e3).toISOStr
 function when(iso) {
   if (!iso) return "—";
   const s = new Date(Date.parse(iso) + 8 * 3600e3).toISOString();
-  return s.slice(0, 10) === payload.date ? s.slice(11, 19) : s.slice(5, 10).replace("-", "/") + " " + s.slice(11, 19);
+  return payloadFrom() === payloadTo() && s.slice(0, 10) === payloadFrom()
+    ? s.slice(11, 19)
+    : s.slice(5, 10).replace("-", "/") + " " + s.slice(11, 19);
 }
 function buildThreads(events) {
   const map = new Map();
@@ -424,20 +454,23 @@ function buildThreads(events) {
     let t = map.get(key);
     if (!t) {
       t = { machine: e.machine, identity: e.identity, customer: e.customer, items: [], types: new Set(),
-            lat: [], replies: 0, recalls: 0, missed: 0, last: 0 };
+            lat: [], replies: 0, firstTouches: 0, recalls: 0, missed: 0, last: 0 };
       map.set(key, t);
     }
     t.types.add(e.type);
     t.last = Math.max(t.last, Date.parse(e.at));
     const times = e.customerTimes || []; // 旧版接口没有逐条时间，就挂在这次动作的时间上
-    if (e.type !== "recall") {
-      e.customerMsgs.forEach((text, k) =>
+    if (e.type === "reply" || e.type === "unanswered") {
+      (e.customerMsgs || []).forEach((text, k) =>
         t.items.push({ kind: "c", at: times[k] || e.customerAt || e.at, text, seq: seq++ }));
     }
     if (e.type === "reply") {
       t.replies++;
       if (e.latencySec != null) t.lat.push(e.latencySec);
       t.items.push({ kind: "a", at: e.at, text: e.reply, latencySec: e.latencySec, orphan: !e.customerMsgs.length, seq: seq++ });
+    } else if (e.type === "first_touch") {
+      t.firstTouches++;
+      t.items.push({ kind: "ft", at: e.at, text: e.message, seq: seq++ });
     } else if (e.type === "unanswered") {
       if (!e.inProgress) t.missed++;
       t.items.push({ kind: "miss", at: e.at, inProgress: e.inProgress, seq: seq++ });
@@ -462,6 +495,9 @@ function itemHtml(it) {
       : `<span class="spd none" title="库里这条回复之前没记到客户消息">算不出用时</span>`;
     return `<div class="cm r"><div class="bub a">${esc(it.text)}</div><div class="cap">${spd}<span class="who2">自动回复</span><span>${when(it.at)}</span></div></div>`;
   }
+  if (it.kind === "ft") {
+    return `<div class="cm r"><div class="bub ft"><span class="rtag">首触 · 新好友招呼</span>${esc(it.text)}</div><div class="cap"><span class="who2">首触发出</span><span>${when(it.at)}</span></div></div>`;
+  }
   if (it.kind === "miss") {
     if (it.inProgress) return `<div class="miss">… 客户刚发的，电脑端还在处理</div>`;
     const waited = payload.isToday ? `，已等 ${dur(Math.round((Date.now() - Date.parse(it.at)) / 1000))}` : "";
@@ -477,6 +513,7 @@ function threadHtml(t) {
   const med = median(t.lat);
   const stats = [
     t.replies ? `<span>自动回复 <b>${t.replies}</b></span>` : "",
+    t.firstTouches ? `<span>首触 <b>${t.firstTouches}</b></span>` : "",
     med != null ? `<span>回复用时中位 <b>${dur(med)}</b></span>` : "",
     t.recalls ? `<span>召回 <b>${t.recalls}</b></span>` : "",
     t.missed ? `<span class="bad">没回上 <b>${t.missed}</b></span>` : "",
@@ -488,11 +525,11 @@ function threadHtml(t) {
     <div class="tb">${t.items.map(itemHtml).join("")}</div></div>`;
 }
 function renderEvents() {
-  const events = payload.events.filter(e => !state.machine || e.machine === state.machine);
+  const events = payload.events.filter(e => MC[e.machine] && (!state.machine || e.machine === state.machine));
   const threads = buildThreads(events).filter(t => !state.type || t.types.has(state.type));
   const n = threads.length;
-  $("evTitle").innerHTML = `${payload.isToday ? "今天" : esc(payload.date)} 明细 <span class="hint">${n} 位客户，最近有动静的在上面；每张卡里按时间从上往下读${payload.eventsTruncated ? "（当天太多，只取最新 300 条动作）" : ""}</span>`;
-  if (!n) { $("events").innerHTML = `<div class="empty-state">${payload.isToday ? "今天" : "这一天"}这个范围里没有自动回复、召回或客户消息。</div>`; return; }
+  $("evTitle").innerHTML = `${esc(periodLabel())} 明细 <span class="hint">${n} 位客户，最近有动静的在上面；每张卡里按时间从上往下读${payload.eventsTruncated ? "（动作太多，只取最新 300 条）" : ""}</span>`;
+  if (!n) { $("events").innerHTML = `<div class="empty-state">这个时间范围里没有自动回复、首触、召回或客户消息。</div>`; return; }
   const cap = 30;
   $("events").innerHTML = threads.slice(0, showAllEvents ? n : cap).map(threadHtml).join("") +
     (n > cap && !showAllEvents ? `<button class="more" id="moreEv">再看剩下 ${n - cap} 位客户</button>` : "");
@@ -503,18 +540,23 @@ function renderAll() { if (!payload) return; renderKpis(); renderMachines(); ren
 // ── 拉数据 ──
 function setStatus(kind, text) { $("statusDot").className = "dot" + (kind === "ok" ? "" : kind === "err" ? " err" : " idle"); $("updatedAt").textContent = text; }
 async function load() {
-  const date = state.date || bjtToday();
+  const from = state.from || bjtToday();
+  const to = state.to || from;
   const seq = ++loadSeq;
   clearTimeout(timer);
   $("main").classList.add("loading");
   try {
-    const res = await fetch(`${API_BASE}?date=${date}`, { cache: "no-store" });
+    const query = from === to ? `date=${from}` : `from=${from}&to=${to}`;
+    const res = await fetch(`${API_BASE}?${query}`, { cache: "no-store" });
     let body = null; try { body = await res.json(); } catch (_) {}
     if (seq !== loadSeq) return; // 用户已经切到别的日期，丢掉这次的结果
     if (!res.ok || !body || body.error) throw new Error((body && body.error) || ("HTTP " + res.status));
+    // 兼容后端先后发布的短窗口：旧接口没有区间字段和首触字段时，单日页仍能正常打开。
+    body.fromDate = body.fromDate || body.date || from;
+    body.toDate = body.toDate || body.date || to;
     payload = body;
     renderAll();
-    setStatus(payload.isToday ? "ok" : "idle", (payload.isToday ? "实时 · 每分钟刷新 · " : "历史日期 · ") + "数据时间 " + bjtHM(payload.generatedAt));
+    setStatus(payloadTo() === bjtToday() ? "ok" : "idle", (payloadTo() === bjtToday() ? "实时 · 每分钟刷新 · " : "历史区间 · ") + "数据时间 " + bjtHM(payload.generatedAt));
     $("errBanner").style.display = "none";
   } catch (e) {
     if (seq !== loadSeq) return;
@@ -526,31 +568,55 @@ async function load() {
     if (seq === loadSeq) $("main").classList.remove("loading");
   }
   if (seq !== loadSeq) return;
-  timer = setTimeout(load, (!state.date || state.date === bjtToday()) ? 60000 : 300000);
+  timer = setTimeout(load, to === bjtToday() ? 60000 : 300000);
 }
 
 function syncUrl() {
   const p = new URLSearchParams();
-  if (state.date && state.date !== bjtToday()) p.set("date", state.date);
+  const from = state.from || bjtToday(), to = state.to || from;
+  if (from === to) {
+    if (from !== bjtToday()) p.set("date", from);
+  } else {
+    p.set("from", from); p.set("to", to);
+  }
   if (state.machine) p.set("m", state.machine);
   history.replaceState(null, "", location.pathname + (p.toString() ? "?" + p : ""));
 }
 function syncDateUi() {
-  const today = bjtToday(), d = state.date || today;
-  $("dateInput").value = d; $("dateInput").max = today;
-  [...$("dateSel").children].forEach(b => b.classList.toggle("active", shiftDate(today, -Number(b.dataset.off)) === d));
+  const today = bjtToday(), from = state.from || today, to = state.to || from;
+  $("fromInput").value = from; $("fromInput").max = today;
+  $("toInput").value = to; $("toInput").max = today;
+  [...$("dateSel").children].forEach(b => {
+    const range = Number(b.dataset.range || 0);
+    const presetFrom = b.dataset.off ? shiftDate(today, -Number(b.dataset.off)) : shiftDate(today, -(range - 1));
+    const presetTo = b.dataset.off ? presetFrom : today;
+    b.classList.toggle("active", presetFrom === from && presetTo === to);
+  });
 }
-function setDate(d) {
+function setRange(from, to) {
   const today = bjtToday();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(d || "") || d > today) d = today;
-  state.date = d === today ? null : d;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from || "") || from > today) from = today;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(to || "") || to > today) to = today;
+  if (from > to) [from, to] = [to, from];
+  if ((Date.parse(to) - Date.parse(from)) / 864e5 >= 31) from = shiftDate(to, -30);
+  state.from = from === today && to === today ? null : from;
+  state.to = from === today && to === today ? null : to;
   showAllEvents = false;
   syncDateUi(); syncUrl(); load();
 }
+function setDate(d) { setRange(d, d); }
 function setActive(id, btn) { [...$(id).children].forEach(b => b.classList.toggle("active", b === btn)); }
 
-$("dateSel").addEventListener("click", e => { const b = e.target.closest("button"); if (b) setDate(shiftDate(bjtToday(), -Number(b.dataset.off))); });
-$("dateInput").addEventListener("change", e => setDate(e.target.value));
+$("dateSel").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  const today = bjtToday();
+  if (b.dataset.off) setDate(shiftDate(today, -Number(b.dataset.off)));
+  else { const days = Number(b.dataset.range || 1); setRange(shiftDate(today, -(days - 1)), today); }
+});
+$("applyRange").addEventListener("click", () => setRange($("fromInput").value, $("toInput").value));
+[$("fromInput"), $("toInput")].forEach(input => input.addEventListener("keydown", e => {
+  if (e.key === "Enter") setRange($("fromInput").value, $("toInput").value);
+}));
 $("machineSel").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; state.machine = b.dataset.m; setActive("machineSel", b); showAllEvents = false; syncUrl(); renderAll(); });
 $("typeSel").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; state.type = b.dataset.t; setActive("typeSel", b); showAllEvents = false; renderEvents(); });
 $("charts").addEventListener("pointermove", e => { const c = e.target.closest(".col"); c ? showTip(c, e.clientX, e.clientY) : hideTip(); });
@@ -564,7 +630,8 @@ $("charts").addEventListener("keydown", e => { const c = e.target.closest(".col"
   const p = new URLSearchParams(location.search);
   const m = p.get("m");
   if (m && MC[m]) { state.machine = m; setActive("machineSel", [...$("machineSel").children].find(b => b.dataset.m === m)); }
-  setDate(p.get("date") || bjtToday());
+  const date = p.get("date");
+  setRange(date || p.get("from") || bjtToday(), date || p.get("to") || p.get("from") || bjtToday());
 })();
 </script>
 </body>
