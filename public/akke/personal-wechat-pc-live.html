@@ -157,6 +157,9 @@
   .bub.ft { background:#173b34; color:#e8fff8; border:1px solid #236858; border-top-right-radius:4px; }
   .bub.rc { background:#2a2150; color:#f3f0ff; border:1px solid #473a86; border-top-right-radius:4px; }
   .bub .rtag { display:block; font-size:11.5px; font-weight:600; color:var(--accent-ink); margin-bottom:3px; }
+  .recall-images { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:8px; margin-top:8px; }
+  .recall-images a { display:block; border-radius:10px; overflow:hidden; border:1px solid #473a86; background:#161324; }
+  .recall-images img { display:block; width:150px; max-width:100%; height:190px; object-fit:contain; }
   .cap { display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; margin-top:5px; font-size:12px; color:var(--text-muted); font-variant-numeric:tabular-nums; }
   .cm.r .cap { justify-content:flex-end; }
   .cap .who2 { color:var(--text-dim); }
@@ -185,6 +188,7 @@
     .datebox { width:100%; flex-wrap:wrap; }
     .mnums { grid-template-columns:repeat(2, 1fr); }
     .cm { max-width:88%; }
+    .recall-images img { width:120px; height:154px; }
     .th { flex-wrap:wrap; }
     .th .last { margin-left:0; text-align:left; }
     .th .last b { display:inline; margin-left:4px; }
@@ -324,9 +328,11 @@ function renderKpis() {
   const scope = state.machine ? MC[state.machine].label : "两台合计";
   const anom = (payload.anomalies || []).filter(a => MC[a.machine] && (!state.machine || a.machine === state.machine));
   const anomReplies = anom.filter(a => a.reply).length;
+  const replyTime = ms.filter(m => m.day.latency?.n).map(m =>
+    `${ms.length > 1 ? MC[m.key].label + " " : ""}回复中位 ${dur(m.day.latency.p50)}`).join(" · ");
   $("kpiTitle").innerHTML = `${esc(periodLabel())} 总览 <span class="hint">${esc(scope)}</span>`;
   $("kpis").innerHTML = `
-    <div class="kpi"><div class="l">自动回复发出</div><div class="v">${d("autoReplies")}<small>条</small></div><div class="s">客户发来 ${d("customerMsgs")} 条消息${anomReplies ? ` · 含 ${anomReplies} 条异常回复` : ""}</div></div>
+    <div class="kpi"><div class="l">自动回复发出</div><div class="v">${d("autoReplies")}<small>条</small></div><div class="s">客户发来 ${d("customerMsgs")} 条消息${replyTime ? ` · ${replyTime}` : ""}${anomReplies ? ` · 含 ${anomReplies} 条异常回复` : ""}</div></div>
     <div class="kpi"><div class="l">首触发出</div><div class="v">${d("firstTouches")}<small>条</small></div><div class="s">新好友主动招呼 · 按专用指纹识别</div></div>
     <div class="kpi"><div class="l">召回发出</div><div class="v">${d("recallSent")}<small>条</small></div><div class="s">按实际成功发出时间算</div></div>
     <div class="kpi"><div class="l">客户消息回上了</div><div class="v">${answered}<small>/ ${answered + unanswered} 批</small></div><div class="s">回上率 ${pct(answered, answered + unanswered)}${inProgress ? ` · 另有 ${inProgress} 批处理中` : ""}</div></div>
@@ -366,7 +372,7 @@ function renderMachines() {
     return `<div class="mc">
       <div class="hd">${sw(MC[m.key].color)}<span class="nm">${esc(m.label)}</span><span class="pill ${cls}"><i>${icon}</i>${txt}</span></div>
       <div class="mnums">
-        <div><b>${m.day.autoReplies}</b><span>自动回复</span></div>
+        <div><b>${m.day.autoReplies}</b><span>自动回复${m.day.latency?.n ? ` · 中位 ${dur(m.day.latency.p50)}` : ""}</span></div>
         <div><b>${m.day.firstTouches || 0}</b><span>首触发出</span></div>
         <div><b>${m.day.recallSent}</b><span>召回发出</span></div>
         <div><b>${m.backlog.due}</b><span>召回待发</span></div>
@@ -474,7 +480,8 @@ function buildThreads(events) {
       t.items.push({ kind: "miss", at: e.at, inProgress: e.inProgress, seq: seq++ });
     } else {
       t.recalls++;
-      t.items.push({ kind: "r", at: e.at, text: e.message, label: e.label, dueAt: e.dueAt, images: e.images, seq: seq++ });
+      t.items.push({ kind: "r", at: e.at, text: e.message, label: e.label, dueAt: e.dueAt,
+        images: e.images, imageUrls: e.imageUrls || [], seq: seq++ });
     }
   }
   const out = [...map.values()];
@@ -502,7 +509,10 @@ function itemHtml(it) {
     return `<div class="miss bad">✕ 上面这几条没回上${waited}</div>`;
   }
   const late = Math.round((Date.parse(it.at) - Date.parse(it.dueAt)) / 1000);
+  const images = (it.imageUrls || []).map((url, i) =>
+    `<a href="${esc(url)}" target="_blank" rel="noopener"><img src="${esc(url)}" loading="lazy" alt="召回配图 ${i + 1}"></a>`).join("");
   return `<div class="cm r"><div class="bub rc"><span class="rtag">召回 · ${esc(it.label)}</span>${esc(it.text)}</div>
+    ${images ? `<div class="recall-images">${images}</div>` : ""}
     <div class="cap">${it.images ? `<span>附图 ${it.images} 张</span>` : ""}<span>应发 ${bjtMDHM(it.dueAt)}${late > 60 ? `，晚 ${dur(late)}` : ""}</span><span class="who2">召回发出</span><span>${when(it.at)}</span></div></div>`;
 }
 function threadHtml(t) {
