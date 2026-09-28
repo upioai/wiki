@@ -26,6 +26,42 @@ const PROJECTS = [
   },
 ];
 
+// 门店系统三大能力：首页主推区，文案取自 /akke/product-overview-2026-08-12 与各专题页
+const STORE_PILLARS = [
+  {
+    no: '01',
+    title: '自动化社媒运营',
+    desc: '店长选题，系统完成改稿、配音、口型、B-roll、字幕和成片检查；抖音评论采集、意向分类与私信自动回复，把触达和回复放回同一条客户旅程。',
+    tags: ['短视频成片', '评论采集', '意向分类', '私信回复'],
+    links: [
+      { text: '一条视频里发生了什么', href: '/workflow/replica-workflow-overview-2026-08' },
+      { text: '抖音私信自动回复', href: '/akke/dm-autoreply-updates-0710-0713' },
+      { text: '内容生产流水线', href: '/workflow/' },
+    ],
+  },
+  {
+    no: '02',
+    title: '个人 / 企业微信自动化回复',
+    desc: '客户一加微信就有人接：设备负责认人、读消息和发送，服务端负责上下文、画像、话术与落库；群聊和身份不明的会话不自动发，发送前再校验一次现场。',
+    tags: ['个人微信 PC / 安卓', '企业微信接待', '沉默客户跟进'],
+    links: [
+      { text: '个人微信 · 功能与案例', href: '/akke/personal-wechat-autoreply-cases-20260916' },
+      { text: '个人微信 · 完整逻辑', href: '/akke/personal-wechat-logic-workflow-complete' },
+      { text: '企业微信 · 从加好友到成交', href: '/akke/reports/wecom-autoreply-topic' },
+    ],
+  },
+  {
+    no: '03',
+    title: '智能数据库 · 企业大脑',
+    desc: '门店资料解析成知识积木，行业参考与门店承诺分开存；冲突由负责人裁决，未确认内容暂停使用，机器说的每句话都能点回原件。',
+    tags: ['资料入箱', '知识积木', '冲突裁决', '版本发布'],
+    links: [
+      { text: '门店知识怎么出话', href: '/akke/enterprise-brain-knowledge-reply' },
+      { text: '资料中心现状', href: '/akke/enterprise-brain-kb-2026-07-31' },
+    ],
+  },
+];
+
 const GUIDES = [
   {
     file: 'anthropic-founder-handbook-zh.html',
@@ -68,6 +104,20 @@ const guideCards = GUIDES.filter(g => fs.existsSync(path.join(publicDir, g.file)
         </a>`;
   })
   .join('\n');
+
+const pillarCards = STORE_PILLARS.map(p => {
+  const tags = p.tags.map(t => `<span class="chip">${t}</span>`).join('');
+  const links = p.links.map(l => `<a href="${l.href}">${l.text} →</a>`).join('\n            ');
+  return `        <article class="pillar">
+          <span class="pillar__no">${p.no}</span>
+          <h3>${p.title}</h3>
+          <p>${p.desc}</p>
+          <div class="chips">${tags}</div>
+          <nav class="pillar__links">
+            ${links}
+          </nav>
+        </article>`;
+}).join('\n');
 
 const projectCards = PROJECTS.map(p => {
   return `        <a class="project-card" href="${p.href}">
@@ -245,11 +295,107 @@ const html = `<!DOCTYPE html>
       font-size: 12.5px;
       text-align: center;
     }
+    .store {
+      position: relative;
+      background: linear-gradient(160deg, rgba(139, 92, 246, 0.12) 0%, var(--bg-elevated) 45%, var(--bg) 100%);
+      border: 1px solid var(--border-strong);
+      border-radius: 16px;
+      padding: 32px 28px 28px;
+    }
+    .store__head h2 { margin-bottom: 10px; color: var(--accent); }
+    .store__title {
+      margin: 0 0 10px;
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      line-height: 1.35;
+    }
+    .store__lede {
+      margin: 0 0 26px;
+      color: var(--text-dim);
+      font-size: 14.5px;
+      max-width: 640px;
+    }
+    .pillars {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    .pillar {
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px 20px 18px;
+      transition: border-color 0.2s ease;
+    }
+    .pillar:hover { border-color: var(--accent); }
+    .pillar__no {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      color: var(--accent-2);
+      margin-bottom: 8px;
+    }
+    .pillar h3 {
+      margin: 0 0 10px;
+      font-size: 18px;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+    .pillar p {
+      margin: 0 0 14px;
+      font-size: 13.5px;
+      color: var(--text-dim);
+      line-height: 1.6;
+    }
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+    .chip {
+      font-size: 11.5px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: #c4b5fd;
+    }
+    .pillar__links {
+      margin-top: auto;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .pillar__links a,
+    .store__more a {
+      color: var(--text);
+      font-size: 13px;
+      text-decoration: none;
+    }
+    .pillar__links a:hover,
+    .store__more a:hover { color: var(--accent); }
+    .store__more {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 20px;
+      margin-top: 20px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .store__more a { color: var(--accent-2); }
     @media (max-width: 720px) {
       .container { padding: 40px 20px 80px; }
       .hero h1 { font-size: 34px; }
       .projects,
-      .guides { grid-template-columns: 1fr; }
+      .guides,
+      .pillars { grid-template-columns: 1fr; }
+      .store { padding: 24px 18px 20px; }
+      .store__title { font-size: 21px; }
     }
   </style>
 </head>
@@ -257,8 +403,24 @@ const html = `<!DOCTYPE html>
   <div class="container">
     <header class="hero">
       <h1>upio.ai</h1>
-      <p>团队知识库 · Team Knowledge Base</p>
+      <p>门店 AI 获客与经营系统 · 团队知识库</p>
     </header>
+
+    <section class="store">
+      <div class="store__head">
+        <h2>门店系统</h2>
+        <p class="store__title">把大模型放进一家门店的获客与接待里，让它每天真的干活。</p>
+        <p class="store__lede">从刷到视频、加上微信，到答疑和约到店：三块能力串成一条增长链，共用一个数据库，出站动作都有闸门把关。</p>
+      </div>
+      <div class="pillars">
+${pillarCards}
+      </div>
+      <div class="store__more">
+        <span>完整介绍：</span>
+        <a href="/akke/product-overview-2026-08-12">产品完整介绍 →</a>
+        <a href="/akke/business-tour">业务导览 · 三条业务线 →</a>
+      </div>
+    </section>
 
     <section>
       <h2>项目知识库</h2>
@@ -298,4 +460,4 @@ ${guideCards}
 </html>`;
 
 fs.writeFileSync(path.join(publicDir, 'index.html'), html);
-console.log(`Built index: ${PROJECTS.length} projects, ${GUIDES.length - missing.length} guides`);
+console.log(`Built index: ${STORE_PILLARS.length} store pillars, ${PROJECTS.length} projects, ${GUIDES.length - missing.length} guides`);
