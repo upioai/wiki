@@ -31,19 +31,20 @@ const STORE_PILLARS = [
   {
     no: '01',
     title: '自动化社媒运营',
-    desc: '店长选题，系统完成改稿、配音、口型、B-roll、字幕和成片检查；抖音评论采集、意向分类与私信自动回复，把触达和回复放回同一条客户旅程。',
-    tags: ['短视频成片', '评论采集', '意向分类', '私信回复'],
+    status: '评论获客已上线 · 短视频内部演示',
+    desc: '店长选题，产线完成改稿、配音、口型、B-roll 和字幕，店长看过再放行；抖音评论采集与意向分类，把触达和回复放回同一条客户旅程。',
+    tags: ['短视频成片', '评论采集', '意向分类'],
     links: [
       { text: '一条视频里发生了什么', href: '/workflow/replica-workflow-overview-2026-08' },
-      { text: '抖音私信自动回复', href: '/akke/dm-autoreply-updates-0710-0713' },
       { text: '内容生产流水线', href: '/workflow/' },
     ],
   },
   {
     no: '02',
     title: '个人 / 企业微信自动化回复',
-    desc: '客户一加微信就有人接：设备负责认人、读消息和发送，服务端负责上下文、画像、话术与落库；群聊和身份不明的会话不自动发，发送前再校验一次现场。',
-    tags: ['个人微信 PC / 安卓', '企业微信接待', '沉默客户跟进'],
+    status: '企微线上在跑 · 个微 2 台设备',
+    desc: '个人微信（Windows）自动回复：设备负责认人、读消息和发送，服务端负责上下文、画像、话术与落库，群聊、系统号和身份不明的会话不自动发；企业微信由 AI 起草、人工逐条检查。',
+    tags: ['个人微信（Windows）', '企业微信接待'],
     links: [
       { text: '个人微信 · 功能与案例', href: '/akke/personal-wechat-autoreply-cases-20260916' },
       { text: '个人微信 · 完整逻辑', href: '/akke/personal-wechat-logic-workflow-complete' },
@@ -53,7 +54,8 @@ const STORE_PILLARS = [
   {
     no: '03',
     title: '智能数据库 · 企业大脑',
-    desc: '门店资料解析成知识积木，行业参考与门店承诺分开存；冲突由负责人裁决，未确认内容暂停使用，机器说的每句话都能点回原件。',
+    status: '行业侧已可用 · 门店侧在建',
+    desc: '资料解析成知识积木，行业参考与门店承诺分开存；冲突由负责人裁决，未确认内容暂停使用。行业资料可追溯到原件，门店专属知识在证据链齐全前保持灰色。',
     tags: ['资料入箱', '知识积木', '冲突裁决', '版本发布'],
     links: [
       { text: '门店知识怎么出话', href: '/akke/enterprise-brain-knowledge-reply' },
@@ -109,7 +111,7 @@ const pillarCards = STORE_PILLARS.map(p => {
   const tags = p.tags.map(t => `<span class="chip">${t}</span>`).join('');
   const links = p.links.map(l => `<a href="${l.href}">${l.text} →</a>`).join('\n            ');
   return `        <article class="pillar">
-          <span class="pillar__no">${p.no}</span>
+          <span class="pillar__no">${p.no}${p.status ? `<span class="pillar__status">${p.status}</span>` : ''}</span>
           <h3>${p.title}</h3>
           <p>${p.desc}</p>
           <div class="chips">${tags}</div>
@@ -338,6 +340,15 @@ const html = `<!DOCTYPE html>
       color: var(--accent-2);
       margin-bottom: 8px;
     }
+    .pillar__status {
+      margin-left: 8px;
+      padding: 1px 7px;
+      border-radius: 999px;
+      border: 1px solid var(--border-strong);
+      color: var(--text-muted);
+      font-weight: 500;
+      letter-spacing: 0.04em;
+    }
     .pillar h3 {
       margin: 0 0 10px;
       font-size: 18px;
@@ -409,8 +420,8 @@ const html = `<!DOCTYPE html>
     <section class="store">
       <div class="store__head">
         <h2>门店系统</h2>
-        <p class="store__title">把大模型放进一家门店的获客与接待里，让它每天真的干活。</p>
-        <p class="store__lede">从刷到视频、加上微信，到答疑和约到店：三块能力串成一条增长链，共用一个数据库，出站动作都有闸门把关。</p>
+        <p class="store__title">把大模型放进一家门店的获客与接待里。</p>
+        <p class="store__lede">从刷到视频、加上微信，到答疑和约到店：三块能力串成一条增长链，共用一个数据库，出站动作都有闸门把关。编号旁标注当前阶段（取自业务导览的真实状态），逐项状态以产品介绍的功能目录为准。</p>
       </div>
       <div class="pillars">
 ${pillarCards}
