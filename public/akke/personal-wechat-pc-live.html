@@ -258,7 +258,6 @@
       <li><b>日期区间</b>：开始和结束日期都包含在内，最多一次看 31 天。柱图和数字表按天拆分，总览和机器卡显示整个区间合计。</li>
       <li><b>召回待发、正在发</b>：是此刻的数，不随上面选的日期区间变（虚线框标出）。</li>
       <li><b>机器状态</b>：电脑端隔一会儿报一次心跳，10 分钟内报过算在线。在线但没在干活（没就绪、已停止）会单独标出来，别只看在不在线。</li>
-      <li>张小鱼名下有两个微信身份：<b>小鱼</b>（在用）和<b>小鱼销售</b>（2026-09-20 已停用，是另一个不再用的微信号）。停用的身份仍列在卡片上，因为它名下的历史消息和召回还在，但不再算成没在干活。</li>
     </ul>
     <div class="privacy">客户名是销售给客户的备注名，和消息一样原样显示（含手机号），方便销售照着对账、加微。本页已设 noindex，请勿把链接贴到公开可被搜索的地方。</div>
   </div>
@@ -333,8 +332,7 @@ function renderKpis() {
     <div class="kpi"><div class="l">客户消息回上了</div><div class="v">${answered}<small>/ ${answered + unanswered} 批</small></div><div class="s">回上率 ${pct(answered, answered + unanswered)}${inProgress ? ` · 另有 ${inProgress} 批处理中` : ""}</div></div>
     <div class="kpi now"><div class="l">召回待发（此刻）</div><div class="v">${b("due")}<small>条</small></div><div class="s">已到点还没发 · 另有 ${b("queued")} 条没到点${b("inFlight") ? ` · ${b("inFlight")} 条正在发` : ""}</div></div>
     <a class="kpi bug" href="/akke/personal-wechat-pc-bugs?date=${payloadTo()}${state.machine ? `&m=${state.machine}` : ""}">
-      <div class="l">异常记录（已移出本页）</div><div class="v">${anom.length}<small>条</small></div>
-      <div class="s">${anom.length ? "回复前没记到客户消息、把系统提示当成客户消息等" : "这个区间没有"} · <span class="go">看 bug 合集 →</span></div></a>`;
+      <div class="l">异常记录</div><div class="s"><span class="go">看 bug 合集 →</span></div></a>`;
 }
 
 // ── 机器卡 ──
@@ -354,10 +352,10 @@ function machineOverall(m) {
 function renderMachines() {
   $("machines").innerHTML = selectedMachines().map(m => {
     const [cls, icon, txt] = machineOverall(m);
-    const ids = m.identities.map(i => {
-      const [c, ic, t] = i.disabled ? ["", "—", "已停用"]
-        : i.online === null ? ["", "?", "没有心跳"] : i.online ? ["good", "✓", "在线"] : ["critical", "✕", "离线"];
-      const multi = m.identities.length > 1;
+    const activeIdentities = m.identities.filter(i => !i.disabled);
+    const ids = activeIdentities.map(i => {
+      const [c, ic, t] = i.online === null ? ["", "?", "没有心跳"] : i.online ? ["good", "✓", "在线"] : ["critical", "✕", "离线"];
+      const multi = activeIdentities.length > 1;
       return `<div class="idn">
         <div class="top">${multi ? `<b>${esc(i.name)}</b>` : ""}<span class="pill ${c}"><i>${ic}</i>${t}</span><span>最后心跳 ${esc(ago(i.lastSeenAt))}</span>${i.version ? `<span class="ver">v${esc(i.version.split("+")[0])}</span>` : ""}</div>
         <div class="row"><em>在干什么</em><span>${esc(i.actionLabel)}</span></div>
@@ -373,8 +371,8 @@ function renderMachines() {
         <div><b>${m.day.recallSent}</b><span>召回发出</span></div>
         <div><b>${m.backlog.due}</b><span>召回待发</span></div>
       </div>
-      ${ids || `<div class="idn">没有匹配到这台机器的微信身份</div>`}
-      ${m.identities.filter(i => !i.disabled).length > 1 ? `<a class="multi" href="/akke/personal-wechat-pc-bugs${state.machine ? `?m=${state.machine}` : ""}">! 一个人登记了 ${m.identities.filter(i => !i.disabled).length} 个在用的微信身份，召回只能由各自那台发 · 看 bug 合集 →</a>` : ""}
+      ${ids || `<div class="idn">没有在用的微信身份</div>`}
+      ${activeIdentities.length > 1 ? `<a class="multi" href="/akke/personal-wechat-pc-bugs${state.machine ? `?m=${state.machine}` : ""}">! 一个人登记了 ${activeIdentities.length} 个在用的微信身份，召回只能由各自那台发 · 看 bug 合集 →</a>` : ""}
     </div>`;
   }).join("");
 }
