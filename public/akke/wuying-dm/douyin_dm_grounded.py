@@ -12,7 +12,8 @@
 定位策略(2026-06-01 改):坐标漂移根治。导航(搜索框/用户tab/私信/发送↑)优先
   OpenCV 模板匹配(在抖音窗口内找参考图，像素级、抗分辨率漂移)；输入框无图标 →
   锚定到发送↑的固定像素偏移；模板缺失/未命中再回退旧 VL/固定坐标。VL 只保留
-  身份核对(ocr_verify)。前提：无影分辨率锁死(关自适应)，模板只需采一次。
+  身份核对(ocr_verify)。文本输入采用剪贴板优先、Unicode SendInput 回退，并在发送前
+  逐字读取校验。前提：无影分辨率锁死(关自适应)，模板只需采一次。
 环境(.env 同目录): ANTHROPIC_API_KEY(放 OpenRouter key) / AKKE_OCR_MODEL(默认 qwen vl) /
                    AKKE_OCR_BASE_URL / AKKE_OCR_MIN_CONFIDENCE
 点赞最新作品(2026-06-03): OCR 核身份通过后、点私信前,主页有作品就点进第一个作品点赞再
@@ -128,6 +129,11 @@ SEARCH_SCAN_N = int(os.environ.get('AKKE_SEARCH_SCAN_N', '1'))
 _SEND_GATE_XMIN = float(os.environ.get('AKKE_SEND_GATE_XMIN', '0.85'))
 _SEND_GATE_YMIN = float(os.environ.get('AKKE_SEND_GATE_YMIN', '0.28'))
 _SEND_GATE_YMAX = float(os.environ.get('AKKE_SEND_GATE_YMAX', '0.68'))
+# 发送↑模板【没找到】时的处理。默认不发(记 cancelled 回池)：没找到＝聊天面板不在预期态，
+# 这时点固定坐标 C_INPUT/C_SEND 会点到会话列表里的别的会话再打字发出。2026-09-29 深圳机实测
+# 2/15 条这样发进了粉丝群(身份门已过、气泡检查只看"有没有我方气泡"不看发给谁 → 记 sent)。
+# 设 AKKE_SEND_FIXED_FALLBACK=1 恢复旧行为(只在确认本机固定坐标可靠时用)。
+_SEND_FIXED_FALLBACK = os.environ.get('AKKE_SEND_FIXED_FALLBACK', '0') == '1'
 RESULT_ROW_DY = int(os.environ.get('AKKE_C_RESULT_ROW_DY', '116'))  # 下一行头像 Y 间距(2560×1600 实测)
 RESULT_COL_DX = int(os.environ.get('AKKE_C_RESULT_COL_DX', '237'))  # 右列头像 X 间距(2560×1600 实测)
 SEARCH_NCOLS = max(1, int(os.environ.get('AKKE_SEARCH_NCOLS', '2')))  # 结果网格列数
@@ -471,17 +477,32 @@ def reset_to_home():
     time.sleep(0.6)
 
 
+def _plan_send_coords(sp, off, allow_fixed=None):
+    """决定输入框/发送↑点哪里。sp=发送↑模板命中点(None=没找到)，off=AKKE_INPUT_OFFSET。
+    返回 (input_xy, send_xy)：input_xy=None 表示点固定 C_INPUT，send_xy=None 表示点固定 C_SEND；
+    整体返回 None＝不发(调用方记 cancelled)。
+    发送↑找到了＝聊天面板在预期态，缺偏移时输入框用固定坐标仍可接受；
+    发送↑没找到＝面板不在预期态，固定坐标会点进别的会话(见 _SEND_FIXED_FALLBACK)，默认不发。"""
+    if allow_fixed is None:
+        allow_fixed = _SEND_FIXED_FALLBACK
+    if sp:
+        return ((sp[0] + off[0], sp[1] + off[1]) if off else None, sp)
+    return (None, None) if allow_fixed else None
+
+
 def click_input(wait=1.0):
-    """点消息输入框：先模板匹配发送↑拿锚点，按 AKKE_INPUT_OFFSET 偏移点输入框；
-    缺锚点/偏移则回退固定 C_INPUT。"""
-    sp = find_match('send_arrow.png')
-    off = _input_offset()
-    if sp and off:
-        x, y = sp[0] + off[0], sp[1] + off[1]
-        print('  input[锚定发送↑] -> (%d,%d)' % (x, y))
-        pyautogui.click(x, y)
+    """点消息输入框：先模板匹配发送↑拿锚点，按 AKKE_INPUT_OFFSET 偏移点输入框。
+    发送↑没找到时默认不点(返回 None)，规则同 _plan_send_coords。"""
+    plan = _plan_send_coords(find_match('send_arrow.png'), _input_offset())
+    if plan is None:
+        print('  [跳过] send_arrow 未找到 → 聊天面板不在预期态，不点输入框')
+        return None
+    ipt = plan[0]
+    if ipt:
+        print('  input[锚定发送↑] -> (%d,%d)' % ipt)
+        pyautogui.click(ipt[0], ipt[1])
         time.sleep(wait)
-        return (x, y)
+        return ipt
     return click_norm(C_INPUT[0], C_INPUT[1], wait=wait, label='消息输入框(固定坐标回退)')
 
 
@@ -541,21 +562,73 @@ def type_unicode(text):
     return sent
 
 
-def type_text(text):
-    """清空输入框后键入 text。优先 SendInput unicode(无影上唯一可靠的中文输入)，
-    非 Windows / SendInput 不可用时回退剪贴板粘贴。调用前需先点击聚焦目标输入框。"""
+def _normalise_input_text(value):
+    """只统一换行符；发送前的完整性校验仍要求正文逐字一致。"""
+    return (value or '').replace('\r\n', '\n').replace('\r', '\n')
+
+
+def _read_input_text():
+    """复制当前控件内容回剪贴板，供发送前完整性校验使用。"""
+    pyautogui.hotkey('ctrl', 'a')
+    time.sleep(0.1)
+    pyautogui.hotkey('ctrl', 'c')
+    time.sleep(0.2)
+    return pyperclip.paste()
+
+
+def _input_matches(expected):
+    try:
+        actual = _normalise_input_text(_read_input_text())
+    except Exception as exc:
+        print('  [warn] 无法读取输入框内容(%s)' % exc)
+        return False
+    matched = actual == _normalise_input_text(expected)
+    if not matched:
+        print('  [校验失败] 输入框内容不完整: expected=%d chars actual=%d chars'
+              % (len(expected), len(actual)))
+    return matched
+
+
+def _clear_input():
     pyautogui.hotkey('ctrl', 'a')
     time.sleep(0.15)
     pyautogui.press('delete')
     time.sleep(0.15)
+
+
+def type_text(text):
+    """输入并校验 text；剪贴板优先，Unicode SendInput 失败或校验失败时回退。
+
+    返回 True 只代表输入框已逐字匹配，调用方仍须在此之后执行发送和气泡校验。
+    """
+    # 先走本机桌面端通常更稳定的一次性粘贴路径。
+    for attempt in range(2):
+        _clear_input()
+        try:
+            pyperclip.copy(text)
+            time.sleep(0.25)
+            pyautogui.hotkey('ctrl', 'v')
+            time.sleep(0.5)
+            if _input_matches(text):
+                print('  [输入校验] 剪贴板粘贴完整')
+                return True
+        except Exception as exc:
+            print('  [warn] 剪贴板粘贴失败(%s)' % exc)
+        if attempt == 0:
+            print('  [重试] 剪贴板内容未完整进入输入框')
+
+    # 无影聊天框可能拦截 Ctrl+V，改用已验证过的 Unicode SendInput。
+    _clear_input()
     try:
         type_unicode(text)
-    except Exception as e:
-        print('  [warn] SendInput 键入失败(%s)，回退剪贴板粘贴' % e)
-        pyperclip.copy(text)
-        time.sleep(0.3)
-        pyautogui.hotkey('ctrl', 'v')
-    time.sleep(0.6)
+        time.sleep(0.5)
+        if _input_matches(text):
+            print('  [输入校验] Unicode SendInput 完整')
+            return True
+    except Exception as exc:
+        print('  [warn] Unicode SendInput 失败(%s)' % exc)
+    print('  [停止] 输入框内容无法完整校验，禁止发送')
+    return False
 
 
 def ocr_verify(expected, expected_number=None):
@@ -587,7 +660,13 @@ def ocr_verify(expected, expected_number=None):
         seen_no = ''
         if expected_number:
             seen_no = str(d.get('actual_number', '')).strip().lstrip('抖音号').lstrip(':：').strip()
-        if expected_number and on_prof and not (matched and conf >= 0.95):
+        if expected_number and on_prof and seen_no and _norm_no(seen_no) != _norm_no(expected_number):
+            # 按号搜时读到了号、且号对不上 = 不是本人，昵称再像也不放行（2026-09-23：此前只要昵称
+            # 对上就直接通过、号只在昵称没对上时兜底，同名的另一个人照样过门）。没读到号(空串)时
+            # 仍按昵称判，不因 VL 漏读误杀。
+            print('  [OCR] 抖音号不一致(看到 %s ≠ 搜的 %s) → 判非本人' % (seen_no, expected_number))
+            matched = False
+        elif expected_number and on_prof and not (matched and conf >= 0.95):
             # 昵称比对没过/置信不足 → 用抖音号精确核身兜底。归一化后再比：去所有空白 + casefold
             #（VL 偶尔混入空格/大小写漂移，exact 比对会把本人误杀成 wrong_user）。
             if seen_no and _norm_no(seen_no) == _norm_no(expected_number):
@@ -821,7 +900,9 @@ def process(c):
             # 位置根治此链。guarded：没量 AKKE_C_HOME 时 no-op，行为不变、零风险。
             goto_home()
             click_norm(C_SEARCH[0], C_SEARCH[1], wait=1.2, label='搜索框')
-            type_text(query)
+            if not type_text(query):
+                print('  [跳过] 搜索词未完整进入输入框，不继续导航')
+                return 'cancelled', conf
             # committed 中文 + Enter 即触发搜索。前置：云电脑切英文输入模式，否则中文 IME 抢首字 → 搜错人。
             pyautogui.press('enter')
             time.sleep(2.5 + attempt * 1.5)   # 重试时加长加载等待，给残留/慢加载落稳
@@ -889,22 +970,30 @@ def process(c):
                                         _SEND_GATE_YMIN * _H, _SEND_GATE_YMAX * _H))
         close_chat()
         return 'cancelled', conf
-    off = _input_offset()
-    if sp and off:
-        ipt = (sp[0] + off[0], sp[1] + off[1])
+    plan = _plan_send_coords(sp, _input_offset())
+    if plan is None:
+        # 2026-09-29 深圳机：发送↑没找到时旧逻辑点固定坐标照发，2/15 条发进了会话列表里的粉丝群。
+        print('  [跳过] send_arrow 未找到 → 聊天面板不在预期态，不打字不发送(设 '
+              'AKKE_SEND_FIXED_FALLBACK=1 可恢复固定坐标回退)')
+        close_chat()
+        return 'cancelled', conf
+    ipt, snd = plan
+    if ipt:
         print('  input[锚定发送↑] -> (%d,%d)' % ipt)
         pyautogui.click(ipt[0], ipt[1]); time.sleep(1.0)
     else:
         click_norm(C_INPUT[0], C_INPUT[1], wait=1.0, label='消息输入框(固定坐标回退)')
-    type_text(msg)
+    if not type_text(msg):
+        close_chat()
+        return 'cancelled', conf
     print('  [待发] %s' % msg[:34])
     # 发送：点打字前定位的发送↑(干净坐标，不 re-match，避免红色激活态误匹配)。
     # 去掉了 VL _has_text/_is_sent 门——本机实测它们【假阴性】会误跳过真发出的条目
     # （文字明明进了框却被判"没进"→记 cancelled 漏发）。发送可靠性已由「OCR 身份门通过 +
     # 输入框锚定到 1.0 匹配的发送↑」保证；实发量以人工核对私信列表为准（skill Step 6）。
-    if sp:
-        print('  click[发送↑] -> (%d,%d)' % (sp[0], sp[1]))
-        pyautogui.click(sp[0], sp[1]); time.sleep(1.5)
+    if snd:
+        print('  click[发送↑] -> (%d,%d)' % (snd[0], snd[1]))
+        pyautogui.click(snd[0], snd[1]); time.sleep(1.5)
     else:
         click_norm(C_SEND[0], C_SEND[1], wait=1.5, label='发送按钮(↑)')
     print('  ✅ 已点发送')
