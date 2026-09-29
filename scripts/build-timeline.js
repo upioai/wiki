@@ -122,7 +122,6 @@ function enumerate() {
     if (href.startsWith('/akke/cases/') && CASE_SLUGS.has(href.slice('/akke/cases/'.length))) continue;
     // Softie / Vivi 的用户案例单页与 Akke 案例同属 kind=case,默认不混进文章流
     const kind = /^\/(vivi|softie)\/cases\/[^/]+$/.test(href) ? 'case' : 'doc';
-    if (!LINKED.has(href) && (NICK_SLUG.test(href) || NICKNAMES.test(read(file)))) { privacySkipped.push(href); continue; }
     seen.set(href, { section, href, file, kind });
   }
   return [...seen.values()];
@@ -364,7 +363,11 @@ ${shell.footer(`全部文章页在每次部署时自动生成，放进 public/ �
 }
 
 // ---- 主流程 ----
-const raw = enumerate().map(resolve);
+const raw = enumerate().map(resolve).filter(p => {
+  if (p.noindex || p.stub || LINKED.has(p.href)) return true; // noindex/stub 下面照常过滤,不计入隐私跳过
+  if (NICK_SLUG.test(p.href) || NICKNAMES.test(p.html)) { privacySkipped.push(p.href); return false; }
+  return true;
+});
 // 同一份报告被发到多个路径时(字节完全相同),只留路径最短的那个,免得「最近更新」里连排三条同名
 const byContent = new Map();
 for (const p of raw.filter(p => !p.noindex && !p.stub)) {
