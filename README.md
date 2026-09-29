@@ -47,6 +47,9 @@ docs/              设计文档、spec 存档
 | `public/workflow/<slug>.html` | 在 `public/workflow/index.html` 里手动加一张卡片 |
 | `public/internal/<name>.html` | `<head>` 里加 `<meta name="robots" content="noindex,nofollow">`，不要在任何索引页里链接它 |
 
+> [!IMPORTANT]
+> `/timeline` 和首页搜索会**扫描 `public/` 下全部页面**，不再只看索引页里登记了什么。只想私下发链接、不想被列出来的页面，要么文件名带 8 位 hash 后缀（如 `-2a94ad7c`），要么在 `<head>` 里加 `noindex`。只是「不在索引里挂链接」已经挡不住了。
+
 ### Akke 页面
 
 `/akke` 索引页只收这几处的页面：`public/akke/*.html`、`cases/index.html`、`prompt-atlas/index.html`、`reports/<目录>/index.html`。放在别的子目录里、或直接放在 `reports/` 下的 html 线上能打开，但不会出现在索引里。
