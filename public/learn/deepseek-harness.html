@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DeepSeek Harness 安装与使用指南</title>
+<meta name="description" content="DeepSeek 开源编程 agent dsh 的安装、配 key、三种用法、第一次上手流程，以及只有 OpenRouter key 时的两处改动与本地垫片。">
+<meta name="upio:date" content="2026-09-28">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<style>
+:root{
+  --bg:#0a0d14;--bg-elevated:#131720;--bg-deep:#1a1f2b;
+  --border:#232936;--border-strong:#2f3646;
+  --text:#e8eaef;--text-dim:#9ba3b4;--text-muted:#6b7384;
+  --accent:#8b5cf6;--accent-soft:rgba(139,92,246,.15);--accent-strong:rgba(139,92,246,.35);
+  --accent-2:#60a5fa;--accent-2-soft:rgba(96,165,250,.13);
+  --accent-3:#34d399;--accent-3-soft:rgba(52,211,153,.14);
+  --warning:#fbbf24;--warning-soft:rgba(251,191,36,.14);
+  --danger:#f87171;--danger-soft:rgba(248,113,113,.14);
+  --font-display:'Instrument Serif','Source Han Serif SC',Georgia,serif;
+  --font-ui:'Inter Tight','Noto Sans SC',-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;
+  --font-mono:'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-ui);font-size:15.5px;line-height:1.75;overflow-x:hidden}
+.wrap{max-width:880px;margin:0 auto;padding:28px 16px 80px}
+.breadcrumb{font-size:12.5px;color:var(--text-muted);margin-bottom:28px;font-family:var(--font-mono)}
+.breadcrumb a{color:var(--text-dim);text-decoration:none}
+.breadcrumb a:hover{color:var(--accent)}
+.eyebrow{font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+h1{font-family:var(--font-display);font-weight:400;font-size:clamp(34px,6vw,52px);line-height:1.15;margin:10px 0 16px;letter-spacing:-.01em}
+h1 em,h2 em{font-style:italic;color:var(--accent)}
+h2{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,4vw,34px);line-height:1.25;margin:0 0 12px}
+h3{font-family:var(--font-ui);font-size:17px;font-weight:600;margin:0 0 8px}
+p{margin:0 0 12px}
+a{color:var(--accent-2)}
+.lede{font-size:17px;color:var(--text-dim);max-width:68ch}
+.meta{font-family:var(--font-mono);font-size:12px;color:var(--text-muted);margin-top:14px}
+section{margin-top:60px}
+.kicker{font-family:var(--font-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent-2);margin-bottom:6px}
+.sec-lede{color:var(--text-dim);max-width:70ch}
+code{font-family:var(--font-mono);font-size:.86em;color:#c4b5fd;background:var(--accent-soft);padding:1px 5px;border-radius:4px;word-break:break-word}
+pre{margin:12px 0;background:var(--bg-deep);border:1px solid var(--border);border-radius:10px;padding:14px 16px;overflow-x:auto;font:13px/1.65 var(--font-mono);color:var(--text)}
+pre code{background:none;padding:0;color:inherit;font-size:inherit;word-break:normal}
+pre .c{color:var(--text-muted)}
+.card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:12px;padding:18px 20px;min-width:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:14px}
+.tbl{overflow-x:auto;margin:12px 0}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{font-family:var(--font-mono);font-weight:500;font-size:11.5px;letter-spacing:.06em;color:var(--text-muted);text-align:left;border-bottom:1px solid var(--border-strong);padding:8px 10px 8px 0}
+td{border-bottom:1px solid var(--border);padding:10px 10px 10px 0;vertical-align:top}
+ul,ol{padding-left:1.3em;margin:0 0 12px}
+li{margin:4px 0}
+.note{border-left:3px solid var(--accent);background:var(--accent-soft);padding:12px 16px;border-radius:0 8px 8px 0;margin:16px 0;color:var(--text)}
+.note.warn{border-left-color:var(--warning);background:var(--warning-soft)}
+.note.info{border-left-color:var(--accent-2);background:var(--accent-2-soft)}
+.muted{color:var(--text-muted);font-size:13px}
+footer{margin-top:64px;padding-top:16px;border-top:1px solid var(--border);font-size:12.5px;color:var(--text-muted)}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:12px;margin-top:26px}
+.stat{background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
+.stat .v{font:700 22px/1.2 var(--font-mono);color:var(--accent-2);font-variant-numeric:tabular-nums}
+.stat .v small{font-size:13px;color:var(--text-muted);font-weight:400}
+.stat .k{font-size:12.5px;color:var(--text-dim);margin-top:4px}
+.routes{display:grid;gap:12px}
+.route{background:var(--bg-elevated);border:1px solid var(--border);border-radius:12px;padding:16px 18px;display:grid;gap:8px}
+.route.a{border-left:3px solid var(--accent-3)}
+.route.b{border-left:3px solid var(--warning)}
+.route .l{font-weight:600}
+.route.a .l{color:var(--accent-3)} .route.b .l{color:var(--warning)}
+.path{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.path code{background:var(--bg-deep);color:var(--text);border:1px solid var(--border-strong)}
+.path i{font-style:normal;color:var(--text-muted)}
+.route .fix{font-size:13.5px;color:var(--text-dim)}
+.steps{list-style:none;padding:0;counter-reset:s;display:grid;gap:10px}
+.steps li{counter-increment:s;display:grid;grid-template-columns:30px minmax(0,1fr);gap:12px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin:0}
+.steps li::before{content:counter(s);font:600 13px/28px var(--font-mono);width:28px;height:28px;text-align:center;border-radius:50%;background:var(--accent-soft);color:var(--accent)}
+.steps .res{display:block;font-size:13px;color:var(--accent-3);margin-top:4px}
+.safe{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px}
+.safe .card{display:grid;gap:4px;font-size:14px;padding:14px 16px}
+.safe .lvl{font:600 10.5px var(--font-mono);letter-spacing:.1em;color:var(--danger)}
+.safe .lvl.mid{color:var(--warning)} .safe .lvl.tip{color:var(--accent-2)}
+.safe span:last-child{color:var(--text-dim)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="breadcrumb"><a href="/">upio.ai</a> / <a href="/learn">知识分享</a> / DeepSeek Harness</nav>
+
+<header>
+  <div class="eyebrow">工具入门 · 2026-09-28 实测</div>
+  <h1>DeepSeek Harness <em>安装与使用指南</em></h1>
+  <p class="lede">DeepSeek Harness（命令 <code>dsh</code>）是 DeepSeek 开源的编程 agent，一条 npm 命令就能装好。有 DeepSeek 官方 key 可直接用；只有 OpenRouter key 时需多做两步。本文基于 <code>0.1.7-rc.2</code> 实测，它仍是开发者预览版。</p>
+  <div class="stats">
+    <div class="stat"><div class="v">0.1.7-rc.2</div><div class="k">实测版本（npm latest 指向候选版）</div></div>
+    <div class="stat"><div class="v">24<small> 秒</small></div><div class="k">Web 里完成「加函数 + 补测试」，单次实测</div></div>
+    <div class="stat"><div class="v">≈$0.004</div><div class="k">两个演示任务合计，OpenRouter 账单读数，单次实测</div></div>
+    <div class="stat"><div class="v">$0.14<small> / $0.28</small></div><div class="k">v4-flash 输入 / 输出，每百万 token（OpenRouter）</div></div>
+  </div>
+</header>
+
+<section>
+  <div class="kicker">先看这张</div>
+  <h2>手里是哪种 key，决定走哪条路</h2>
+  <p class="sec-lede">官方 key 直连；OpenRouter key 要经本地垫片转一道，因为两边格式有两处对不上。</p>
+  <div class="routes">
+    <div class="route a"><span class="l">路线 A · DeepSeek 官方 key，直连</span><div class="path"><code>dsh</code><i>→</i><code>api.deepseek.com</code></div></div>
+    <div class="route b"><span class="l">路线 B · OpenRouter key，两处改动</span><div class="path"><code>dsh</code><i>→</i><code>本地垫片 127.0.0.1:18080</code><i>→</i><code>openrouter.ai</code></div><span class="fix">① 配置里关掉 thinking　② 垫片把 <code>null</code> 改成 <code>0</code></span></div>
+  </div>
+</section>
+
+<section>
+  <div class="kicker">Install</div>
+  <h2>安装</h2>
+  <p>一条 npm 命令即可，前提是本机有 Node.js 和 npm（官方要求 Node <code>^22.19.0</code> 或 <code>&gt;=24</code>，见 GitHub 仓库根目录 package.json 的 engines；我们在 v24.14.1 上验证过）。</p>
+<pre><code>npm install -g @deepseek-ai/dsh@latest
+dsh --version        <span class="c"># 输出 0.1.7-rc.2 即成功</span></code></pre>
+  <ul>
+    <li>npm 上的 <code>latest</code> 标签目前指向候选版 <code>0.1.7-rc.2</code>，不是正式版。</li>
+    <li>配置和数据都放在 <code>~/.dsh/</code>，卸载用 <code>npm rm -g @deepseek-ai/dsh</code>，再删这个目录即可清干净。</li>
+    <li>不想全局安装，也可以临时跑：<code>npx @deepseek-ai/dsh web</code>。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="kicker">API Key</div>
+  <h2>配置 API Key</h2>
+  <p>没有 key 什么都跑不了。DeepSeek 官方 key 在 platform.deepseek.com 的 API Keys 页创建，按用量付费；两种填法任选一种：</p>
+  <ul>
+    <li><b>Web 界面里填</b>：启动 <code>dsh web</code> 后进 Settings → Models，粘贴保存，存进 dsh 自己的凭据库。</li>
+    <li><b>环境变量</b>：dsh 默认读 <code>DEEPSEEK_API_KEY</code>，命令行和脚本用这种更方便。</li>
+  </ul>
+<pre><code>export DEEPSEEK_API_KEY=&lt;你的 DeepSeek API Key&gt;   <span class="c"># 写进 ~/.zshrc 可长期生效</span></code></pre>
+  <div class="note warn">只有 OpenRouter key（<code>sk-or-v1-</code> 开头）的，直接这样填会失败，走路线 B，见下面「用 OpenRouter key 接入」。</div>
+</section>
+
+<section>
+  <div class="kicker">Modes</div>
+  <h2>三种用法</h2>
+  <p>日常用 Web 界面，批量或脚本用 headless。<b>命令行模式以启动时所在目录为工作区，Web 界面在页面上选工作区</b>；用命令行时先 <code>cd</code> 进项目再启动。</p>
+  <div class="tbl"><table>
+    <thead><tr><th>用法</th><th>命令</th><th>适合</th></tr></thead>
+    <tbody>
+      <tr><td>Web 界面</td><td><code>dsh web</code>（可加 <code>--port 8080</code>、<code>--no-open</code>）</td><td>多轮对话、看 diff 和每一步轨迹</td></tr>
+      <tr><td>命令行一次性</td><td><code>dsh headless "任务"</code></td><td>脚本、CI、批量任务</td></tr>
+      <tr><td>程序对接</td><td><code>dsh --profile sdk</code> / <code>dsh --profile acp</code></td><td>嵌进自己的程序或编辑器</td></tr>
+    </tbody>
+  </table></div>
+  <p>headless 的常用写法：</p>
+<pre><code>dsh headless "跑一下测试，总结失败原因"
+echo "审查这段改动：$(git diff)" | dsh headless -   <span class="c"># - 表示从 stdin 读任务，stdin 全文就是任务</span>
+dsh headless --json "跑一下测试"                  <span class="c"># 输出机器可读的事件流</span>
+dsh headless --session-id session-xxxx "接着上次的继续"  <span class="c"># 把 session-xxxx 换成真实会话 id</span></code></pre>
+  <p>会话 id 形如 <code>session-&lt;uuid&gt;</code>，在 <code>--json</code> 事件流开头的 <code>session</code> 事件里。续接时必须在原来的目录下执行，否则会报错退出。</p>
+  <p>答案输出到 stdout，诊断信息到 stderr。其他帮助：<code>dsh --help</code>、<code>dsh web --help</code>、<code>dsh headless --help</code>。</p>
+</section>
+
+<section>
+  <div class="kicker">第一次上手</div>
+  <h2>先命令行验证，再上 Web</h2>
+  <p class="sec-lede">建议先在一个不怕改坏的小项目里试。我们用一个含 3 个失败测试的 Python 小项目跑过下面的流程。</p>
+  <ol class="steps">
+    <li><div>进入项目目录：<code>cd ~/你的项目</code>。</div></li>
+    <li><div>命令行先验证链路通：<code>dsh headless "用一句话介绍这个目录里有哪些文件"</code>。</div></li>
+    <li><div>让它干活：<code>dsh headless "运行 python3 -m pytest -q，修复导致测试失败的 bug，不要改测试文件，修完再跑一遍"</code>。<span class="res">实测它自己跑测试、改代码、复跑，3 条测试全部通过。</span></div></li>
+    <li><div>换 Web 界面：<code>dsh web</code>，关掉「Internal Testing Notice」提示，点「Choose workspace」选项目文件夹。</div></li>
+    <li><div>在输入框用中文说任务，比如「新增 median 函数并补测试」。<span class="res">我们单次实测用了 24 秒、改 2 个文件，5 条测试全部通过。</span></div></li>
+    <li><div>看结果：点「Edited N files」看 diff，点顶部「Trajectory」看它每一步调了什么工具。</div></li>
+  </ol>
+  <p class="muted">单次实测两个任务合计花费约 $0.004（OpenRouter 账单接口读数，模型 <code>deepseek-v4-flash</code>）。</p>
+</section>
+
+<section>
+  <div class="kicker">路线 B</div>
+  <h2>用 OpenRouter key 接入</h2>
+  <p>用 OpenRouter key 要多做两步：写一份配置覆盖文件，再跑一个本地垫片。原因是 dsh 按 DeepSeek 自家的 Anthropic 格式发请求，而 OpenRouter 的 Anthropic 兼容接口有两处对不上：</p>
+  <div class="tbl"><table>
+    <thead><tr><th>问题</th><th>报错</th><th>处理</th></tr></thead>
+    <tbody>
+      <tr><td>dsh 开思考模式时不带 <code>budget_tokens</code>，OpenRouter 校验不过</td><td><code>INVALID_REQUEST: Invalid Anthropic Messages API request</code></td><td>配置里 <code>thinking: disabled</code></td></tr>
+      <tr><td>OpenRouter 流式返回里 <code>cache_read_input_tokens</code> 等字段为 <code>null</code>，dsh 要求是数字</td><td><code>MALFORMED_RESPONSE: ... invalid cache_read_input_tokens</code></td><td>本地垫片把 <code>null</code> 改成 <code>0</code></td></tr>
+    </tbody>
+  </table></div>
+  <div class="note warn">代价：关掉 thinking 后模型不做深度推理，简单任务无影响，复杂任务效果会差一些。有官方 key 就不要走这条路。</div>
+
+  <h3 style="margin-top:28px">第 1 步：写配置覆盖 <code>~/.dsh/cordis.patch.yml</code></h3>
+  <p>对所有 profile 生效，删掉这个文件即恢复默认；没跑过 dsh 的先执行 <code>mkdir -p ~/.dsh</code>。</p>
+<pre><code>- id: llm-deepseek
+  config:
+    baseURL: http://127.0.0.1:18080/api   <span class="c"># 指向本地垫片</span>
+    thinking: disabled
+    models:
+      - id: deepseek/deepseek-v4-flash
+        name: DeepSeek-V4-Flash (OpenRouter)
+        contextWindow: 1048576
+        maxTokens: 131072
+        inputModalities: [text]
+      - id: deepseek/deepseek-v4-pro
+        name: DeepSeek-V4-Pro (OpenRouter)
+        contextWindow: 1024000   <span class="c"># OpenRouter 上 Pro 的上游上限</span>
+        maxTokens: 384000
+        inputModalities: [text]
+- id: agent-default-model
+  config:
+    provider: deepseek-official
+    model: deepseek/deepseek-v4-flash</code></pre>
+
+  <h3 style="margin-top:28px">第 2 步：保存垫片 <code>~/.dsh/openrouter-shim.mjs</code></h3>
+<pre><code>import http from 'node:http';
+
+const PORT = Number(process.argv[2] ?? 18080);
+const UPSTREAM = 'https://openrouter.ai';
+const fixNulls = (s) =&gt; s.replace(/"(cache_creation_input_tokens|cache_read_input_tokens)":null/g, '"$1":0');
+
+http.createServer(async (req, res) =&gt; {
+  try {
+    const chunks = [];
+    for await (const c of req) chunks.push(c);
+    const body = Buffer.concat(chunks);
+    const headers = { ...req.headers };
+    delete headers.host;
+    delete headers['content-length'];
+    delete headers['accept-encoding'];
+    const up = await fetch(UPSTREAM + req.url, { method: req.method, headers, body: body.length ? body : undefined });
+    res.writeHead(up.status, { 'content-type': up.headers.get('content-type') ?? 'application/json' });
+    if (!up.body) return res.end();
+    const decoder = new TextDecoder();
+    let pending = '';
+    for await (const chunk of up.body) {
+      pending += decoder.decode(chunk, { stream: true });
+      const cut = pending.lastIndexOf('\n') + 1; // 只改整行，避免字段被切开
+      if (cut &gt; 0) {
+        res.write(fixNulls(pending.slice(0, cut)));
+        pending = pending.slice(cut);
+      }
+    }
+    res.end(fixNulls(pending + decoder.decode()));
+  } catch (err) {
+    console.error(new Date().toISOString(), req.url, err.message);
+    if (!res.headersSent) res.writeHead(502, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ type: 'error', error: { type: 'api_error', message: `shim: ${err.message}` } }));
+  }
+}).listen(PORT, '127.0.0.1', () =&gt; console.error(`openrouter-shim listening on 127.0.0.1:${PORT}`));</code></pre>
+
+  <h3 style="margin-top:28px">第 3 步：每次使用前启动</h3>
+  <p>重启电脑后垫片要重新开：</p>
+<pre><code>node ~/.dsh/openrouter-shim.mjs &amp;                  <span class="c"># 先起垫片</span>
+export DEEPSEEK_API_KEY=&lt;你的 OpenRouter Key&gt;       <span class="c"># sk-or-v1- 开头</span>
+cd ~/你的项目 &amp;&amp; dsh web                           <span class="c"># 或 dsh headless "任务"</span></code></pre>
+  <p>成功标志：启动后 Web 界面模型栏显示 <code>DeepSeek-V4-Flash (OpenRouter)</code>。OpenRouter 上 <code>deepseek-v4-flash</code> 的标价是输入 $0.14、输出 $0.28 / 百万 token（2026-09-28 从 OpenRouter models 接口读取）。</p>
+</section>
+
+<section>
+  <div class="kicker">FAQ</div>
+  <h2>常见问题</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>现象</th><th>原因</th><th>怎么办</th></tr></thead>
+    <tbody>
+      <tr><td>浏览器打开 <code>127.0.0.1:3080</code> 返回 401</td><td>Web 界面需要访问 token</td><td>用终端打印的完整地址（带 <code>?token=...</code>）打开</td></tr>
+      <tr><td><code>dsh tui</code> 报 <code>profile "tui" does not exist</code></td><td>0.1.7-rc.2 没有随附终端界面，网上教程常写错</td><td>终端里用 <code>dsh headless</code></td></tr>
+      <tr><td>点「Choose workspace」页面没反应</td><td>它弹的是 macOS 系统自带的选文件夹窗口，常被浏览器挡在后面</td><td>切到那个窗口选好再点 Choose；别反复点，每点一次弹一个</td></tr>
+      <tr><td>它改了别的目录里的文件，或找不到项目文件</td><td>命令行模式的工作区就是启动时所在目录</td><td>先 <code>cd</code> 进项目再启动</td></tr>
+      <tr><td>报 <code>no API key for provider route</code></td><td>没配 key</td><td>见「配置 API Key」</td></tr>
+      <tr><td>用 OpenRouter key 报 <code>INVALID_REQUEST</code> 或 <code>MALFORMED_RESPONSE</code></td><td>格式不兼容</td><td>见「用 OpenRouter key 接入」，并确认垫片在跑</td></tr>
+      <tr><td>想接着上次的会话继续</td><td>—</td><td><code>dsh headless --session-id session-xxxx "继续"</code>；id 在 <code>--json</code> 事件流开头的 <code>session</code> 事件里，必须在原目录下执行</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <div class="kicker">安全须知</div>
+  <h2>用之前记住这几条</h2>
+  <div class="safe">
+    <div class="card"><span class="lvl">高</span><b>别随便装第三方插件</b><span>插件跑在 dsh 进程内、不受沙箱约束，能拿到 dsh 持有的凭据，装一个插件就等于执行一个陌生 npm 包。stdio 类 MCP 另起进程、环境变量会先清洗，但仍以你的用户权限读写文件和联网。</span></div>
+    <div class="card"><span class="lvl mid">中</span><b>沙箱只管文件读写</b><span>官方原话是不限制网络、进程、设备和凭据。</span></div>
+    <div class="card"><span class="lvl mid">中</span><b>key 别贴进聊天或文档</b><span>已经贴过的，到对应平台后台轮换或调低额度。</span></div>
+    <div class="card"><span class="lvl tip">提示</span><b>开发者预览版</b><span>官方说明会有破坏性变更。升级前先备份 <code>~/.dsh</code>，升级后本文的命令和配置可能失效。</span></div>
+    <div class="card"><span class="lvl tip">提示</span><b>有遥测</b><span>要关就设 <code>export DSH_TELEMETRY_DISABLED=1</code>。</span></div>
+  </div>
+</section>
+
+<footer>
+  <p>来源：<a href="https://github.com/deepseek-ai/deepseek-harness">deepseek-ai/deepseek-harness（GitHub）</a> · npm 包 <code>@deepseek-ai/dsh@0.1.7-rc.2</code> 自带的 README 与 <code>--help</code> 输出 · <a href="https://openrouter.ai/api/v1/models">OpenRouter models 接口</a>（模型名、上下文长度、定价）</p>
+  <p>兼容问题与演示数据：2026-09-28 在 macOS、Node v24.14.1 上单次实测；版本迭代快，升级后以官方文档为准。</p>
+</footer>
+</div>
+</body>
+</html>
