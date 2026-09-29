@@ -113,6 +113,7 @@ const CATEGORIES = [
       { slug: 'claude-code-new-features', date: '2026-08-11', title: 'Claude Code 新能力速查', desc: 'Claude Code 常被忽略的能力与命令速查（公开版）。' },
       { slug: 'r2-object-storage', date: '2026-08-18', title: '对象存储 R2 讲解：文件放 R2，账留在数据库', desc: '对象存储与数据库分工的通用实操讲解（公开版）。' },
       { slug: 'ci-cd-intro', date: '2026-09-09', title: '先验一遍，再送上线 · CI/CD 入门', desc: '面向非技术读者的 CI/CD 通用科普（公开版）。' },
+      { slug: 'deepseek-harness', date: '2026-09-28', title: 'DeepSeek Harness 安装与使用指南', desc: 'DeepSeek 开源编程 agent dsh 的上手手册：一条 npm 命令装好、配 key、Web / headless / SDK 三种用法和 5 步跑通流程；只有 OpenRouter key 时，照着改两处配置、起本地垫片也能用。' },
     ],
   },
   {
