@@ -29,10 +29,12 @@ env (从同目录的 ../wuying-dm/.env 自动加载, 跟 DM 通道共用 Supabas
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -164,6 +166,49 @@ if not ASSIGNEE:
 
 # ── 执行器 ─────────────────────────────────────────────────────────────────
 CREATOR_PUBLISHER_PY = _THIS_DIR / 'creator_publisher.py'
+
+
+# ── 与同机 DM / route-B 共用的 GUI 串行锁 (wuying-dm/wuying_window_lock.py, AKKE_WINDOW_LOCK=1 才生效) ──
+# creator_publisher 全程 pyautogui 控鼠标键盘; 同机 route-B 三连 / DM 也在控 → 并发会互抢焦点、字打进别的窗口.
+# 发一条视频常超过锁的 STALE_SEC(5min, 上传转码就 5min), 不续期会被对面判「持有者已死」抢走 → 持锁期间每 60s 续一次.
+def _load_window_lock():
+    for d in (Path(os.environ.get('AKKE_WUYING_DM_DIR', '') or '__missing__'), _THIS_DIR.parent / 'wuying-dm',
+              Path('C:/akke-wuying/wuying-dm')):
+        if (d / 'wuying_window_lock.py').exists():
+            sys.path.insert(0, str(d))
+            try:
+                import wuying_window_lock as wl
+                return wl
+            except Exception as e:
+                print(f'⚠ window lock 加载失败 ({e}), 不加锁', file=sys.stderr)
+                return None
+    return None
+
+
+_WL = _load_window_lock()
+
+
+@contextlib.contextmanager
+def gui_turn():
+    if _WL is None or not getattr(_WL, 'ENABLED', False):
+        yield
+        return
+    with _WL.window_turn('dm'):  # 按 DM 同级抢锁: 不等 .dm-want, route-B 会在当前三连结束后让出
+        stop = threading.Event()
+
+        def _keepalive():
+            while not stop.wait(60):
+                try:
+                    _WL._touch(_WL._LOCK)
+                except Exception as e:  # 续期静默停了锁会被 route-B 抢走 → 至少留一行日志
+                    print(f'  !! window lock 续期失败: {type(e).__name__}: {e}', file=sys.stderr)
+
+        t = threading.Thread(target=_keepalive, daemon=True)
+        t.start()
+        try:
+            yield
+        finally:
+            stop.set()
 if not CREATOR_PUBLISHER_PY.exists():
     print(f'❌ creator_publisher.py 不在 {CREATOR_PUBLISHER_PY}', file=sys.stderr)
     sys.exit(2)
@@ -224,13 +269,16 @@ def process_one(row: dict) -> None:
         # 定时时间存 content.video_schedule_at (本地 'YYYY-MM-DD HH:MM'), 与 claim gate 用的
         # publish_at 解耦 —— 入队时 publish_at 置 NULL 让【一次启动脚本】就拉到该人全部视频,
         # 每条各自按 video_schedule_at 设抖音定时, 抖音到点自动放出. 人跑一次即走.
+        content = row.get('content') if isinstance(row.get('content'), dict) else {}
+        # dedup 默认开是给 enqueue-tuwen-video 那条（别人视频的去水印直链）用的；
+        # 自营号视频线 (enqueue-ai-video-cloudpc) 发自己渲染的成片, 入队时写 dedup=false、ai_declaration=true
         manifest: dict = {
             'title': title,
             'body':  body,
             'video_url': media_urls[0],
-            'dedup': True,
+            'dedup': bool((content or {}).get('dedup', True)),
+            'ai_declaration': bool((content or {}).get('ai_declaration')),
         }
-        content = row.get('content') if isinstance(row.get('content'), dict) else {}
         vsa = (content or {}).get('video_schedule_at')
         if not vsa and schedule_at_iso:  # 回退: 没存 content 时用 publish_at
             try:
@@ -264,10 +312,11 @@ def process_one(row: dict) -> None:
         return
 
     print(f'  [tuwen] {disp_id[:8]}  manifest={mf_path.name}  → creator_publisher.py --commit')
-    proc = subprocess.run(
-        [sys.executable, str(CREATOR_PUBLISHER_PY), '--manifest', str(mf_path), '--commit'],
-        cwd=str(_THIS_DIR),
-    )
+    with gui_turn():
+        proc = subprocess.run(
+            [sys.executable, str(CREATOR_PUBLISHER_PY), '--manifest', str(mf_path), '--commit'],
+            cwd=str(_THIS_DIR),
+        )
     rc = proc.returncode
     print(f'  [tuwen] {disp_id[:8]} exit={rc}')
 
@@ -284,6 +333,9 @@ def process_one(row: dict) -> None:
     elif rc == 8:
         status = 'needs_review'
         err = '⚠ 发布按钮已点 + 表单已提交, 但 verify_published 多层信号都没 hit. 大概率已发出, 抽查 creator 后台「作品管理」确认. (creator_publisher exit 8)'
+    elif rc == 66:
+        status = 'failed'
+        err = '自主声明「内容由AI生成」没勾上, 已停在发布前没发 (creator_publisher exit 66). 截图 screenshots/_ai_decl_verify.png'
     elif rc == 10:
         status = 'needs_review'
         err = '⚠ 弹验证码超时无人过 (3min), agent abort 转 needs_review. 之后可手动重发本 slug. (creator_publisher exit 10)'

@@ -34,7 +34,9 @@ echo   3. Default poll = every 5min; set AKKE_TUWEN_POLL_INTERVAL=30 in .env to 
 echo.
 echo Keep this window open. Stop = close window or Ctrl+C.
 echo.
-py wuying_tuwen_agent.py
+REM Store-installed Python (hangzhou box, 2026-09-30) has no py launcher; fall back to python.
+where py >nul 2>&1
+if errorlevel 1 ( python -u wuying_tuwen_agent.py ) else ( py -u wuying_tuwen_agent.py )
 echo.
 echo agent exited. Press any key to close window.
 pause >nul

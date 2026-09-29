@@ -368,6 +368,63 @@ def _verify_schedule_value(at_str: str) -> bool:
         return False
 
 
+def _verify_ai_declaration() -> bool:
+    """整屏 VL 回读「自主声明」那一栏现在显示什么（同 _verify_schedule_value：不裁区，免得位置偏移漏框）。"""
+    try:
+        path, _ = _shot('_ai_decl_verify.png')
+        b64 = base64.b64encode(Path(path).read_bytes()).decode()
+        prompt = (
+            '这是抖音创作服务平台发布视频页的整屏截图. 页面上有「自主声明」一栏 (下拉框, 未选时显示「请选择自主声明」). '
+            '读出这一栏【当前实际显示】的文字, 并判断是否已经选中了「内容由AI生成」. '
+            '如果页面上还开着声明选择弹窗/下拉面板, 以弹窗关掉后框里显示的为准, 没关就算未选中. '
+            '只回严格JSON: {"shown": "框里实际显示的文字", "selected": true 或 false}'
+        )
+        d = _pjson(_vision(b64, prompt))
+        ok = bool(d.get('selected'))
+        print(f'  [ai-decl] 回读: 框显示="{d.get("shown", "")}"  selected={ok}')
+        return ok
+    except Exception as e:
+        print(f'  [ai-decl] 回读异常 ({type(e).__name__}: {e}), 保守当未选中', file=sys.stderr)
+        return False
+
+
+def set_ai_declaration() -> bool:
+    """勾「自主声明 → 内容由AI生成」。自营号视频线的成片是 AI 配音 / AI 画面，平台要求声明（不声明被判违规限流）。
+
+    选项文字与 Workflow client_publisher/worker/browser.py 的 DOM 版一致：
+    点「请选择自主声明」→ 点「内容由AI生成」→ 有「确定」就点。最后整屏回读，没选上返回 False（调用方 fail-closed）。
+    """
+    sw, sh = pyautogui.size()
+    pyautogui.moveTo(sw // 2, int(sh * 0.5))
+    time.sleep(0.2)
+    for _ in range(14):  # 同 set_schedule：自主声明在表单下半段，滚到底再找
+        pyautogui.scroll(-500)
+        time.sleep(0.12)
+    time.sleep(0.6)
+    pt = locate_retry(
+        '抖音 creator 发布视频页里【自主声明】这一栏的下拉选择框 (框里占位文字「请选择自主声明」, 左边标签「自主声明」). '
+        '不要点「发布时间」「谁可以看」等其他栏.',
+    )
+    if pt is None:
+        return False
+    pyautogui.click(pt[0], pt[1])
+    time.sleep(1.0)
+    print(f'  [ai-decl] 已点自主声明框 @ ({pt[0]},{pt[1]})')
+    opt = locate_retry('弹出的自主声明选项列表里的「内容由AI生成」这一项 (文字 + 前面的单选圆点/勾选框).')
+    if opt is None:
+        pyautogui.press('escape')
+        return False
+    pyautogui.click(opt[0], opt[1])
+    time.sleep(0.8)
+    print(f'  [ai-decl] 已点「内容由AI生成」 @ ({opt[0]},{opt[1]})')
+    ok_btn = locate_retry('自主声明弹窗底部的「确定」按钮. 如果没有弹窗 (选项是下拉菜单直接生效的), 回答 NOT FOUND.', tries=1)
+    if ok_btn is not None:
+        pyautogui.click(ok_btn[0], ok_btn[1])
+        time.sleep(0.8)
+        print(f'  [ai-decl] 已点确定 @ ({ok_btn[0]},{ok_btn[1]})')
+    return _verify_ai_declaration()
+
+
 def set_schedule(at_str: str) -> bool:
     """设定时发布:
       1. 滚到「发布设置」段 (发布时间行可见)
@@ -1183,6 +1240,8 @@ def main() -> int:
     p.add_argument('--skip-focus', action='store_true', help='不调 focus_douyin')
     p.add_argument('--schedule', help='定时发布时间 "YYYY-MM-DD HH:MM" (现在 +2h ~ +14天 内). 只挑日期, 小时分钟用 creator 默认 +2h. 不传则立即发布.')
     p.add_argument('--no-music', action='store_true', help='不加音乐 (默认加第一首推荐)')
+    p.add_argument('--ai-declaration', action='store_true',
+                   help='勾「自主声明 → 内容由AI生成」(AI 配音/画面的成片必须勾; 勾不上直接失败, 不带声明发出去)')
     args = p.parse_args()
 
     if args.schedule:
@@ -1222,6 +1281,8 @@ def main() -> int:
             images = m.get('images', [])
         if m.get('dedup'):
             dedup = True
+        if m.get('ai_declaration'):
+            args.ai_declaration = True
         # manifest 内 --schedule 也允许覆盖 CLI (manifest 里写 schedule_at 字段)
         if m.get('schedule_at') and not args.schedule:
             args.schedule = m['schedule_at']
@@ -1345,6 +1406,13 @@ def main() -> int:
             if not add_music():
                 print('  WARN: 加音乐失败 (面板/选项没定位到). 不阻断, 继续下一步.', file=sys.stderr)
                 # 不 return — 音乐对图文非必填, abort 太苛刻
+
+        # 步 5.4 (仅 --ai-declaration): 勾不上就停, 宁可这条失败也不发没声明的 AI 成片
+        if args.ai_declaration:
+            print('[step 5.4] 自主声明 → 内容由AI生成')
+            if not set_ai_declaration():
+                print('  ERROR: 自主声明没勾上 (声明框/选项没定位到, 或回读不是「内容由AI生成」)', file=sys.stderr)
+                return 66
 
         # 步 5.5 (仅 --schedule)
         if args.schedule:
