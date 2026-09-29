@@ -28,24 +28,28 @@ jobs:
         with:
           fetch-depth: 0   # REFRESH_DATES 要用 git log 取每页首次入仓日期
 
+      # PR 上也补(只是不提交),否则新增的无日期页在 PR 上必然标红
       - name: 补齐日期缓存
-        if: github.event_name == 'push'
         run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          node scripts/build-characters.js > /dev/null
           node scripts/build-akke-map.js > /dev/null
           node scripts/build-learn.js > /dev/null
           REFRESH_DATES=1 node scripts/build-akke-map.js > /dev/null
-          REFRESH_DATES=1 node scripts/build-timeline.js | grep -a '^\[timeline\] dates' || true
+          REFRESH_DATES=1 node scripts/build-timeline.js > /dev/null
 
       - name: 提交日期缓存
         if: github.event_name == 'push'
         run: |
+          git checkout -- public/sitemap.xml 2>/dev/null || true   # 构建会改写 sitemap 日期,不提交
           git add scripts/akke-map.dates.json scripts/timeline.dates.json
           if git diff --cached --quiet; then echo "日期缓存无变动"; exit 0; fi
-          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
-            commit -m 'chore: 补齐知识库页面日期缓存'
-          # akke-bot 常在同一时刻推 main:推不上就 rebase 重试
+          git commit -m 'chore: 补齐知识库页面日期缓存'
+          # akke-bot 常在同一时刻推 main:推不上就 rebase 重试;rebase 冲突先 abort,下一轮从干净状态再来
           for i in 1 2 3; do
-            git pull --rebase origin main && git push origin HEAD:main && exit 0
+            if git pull --rebase --autostash origin main && git push origin HEAD:main; then exit 0; fi
+            git rebase --abort 2>/dev/null || true
             sleep $((i * 5))
           done
           echo "::error::日期缓存推送失败(重试 3 次)"; exit 1

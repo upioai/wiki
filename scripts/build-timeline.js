@@ -64,8 +64,8 @@ const gitFirstAdded = (rel) => {
   } catch { return ''; }
 };
 // 标题兜底脱敏:公开页标题里不出现团队成员昵称(源头应在页面 <title> 或 akke-map.json overrides 里改)
-const NICKNAMES = /野荞|饭粒|夏夏|狮蛮|谭伊格|子扬|董津瑄/g;
-const cleanTitle = (t) => t.replace(NICKNAMES, '运营同学');
+const NICKNAMES = /野荞|饭粒|夏夏|狮蛮|谭伊格|子扬|董津瑄/;
+const cleanTitle = (t) => t.replace(new RegExp(NICKNAMES.source, 'g'), '运营同学');
 
 // ---- 枚举:扫描 public/ 下全部公开页(不依赖索引页手工登记,新页面自动进时间线) ----
 const SECTION_DIRS = ['learn', 'akke', 'workflow', 'softie', 'vivi'];
@@ -74,7 +74,7 @@ const EXCLUDE = [
   /^\/(learn|akke|workflow|softie|vivi)\/$/, // 分区首页是导航,不是文章
   /^\/akke\/reports\/daily-/,   // 个人日报,akke-bot 每日同步
   /^\/akke\/model-watch-/,       // 模型监控日报,akke-bot 每日同步
-  /-(?!\d{8}(\/|$))[0-9a-f]{8}(\/|$)/, // hash 后缀的分享页(含其子页);纯 8 位数字是日期后缀(-20260929),不算 hash
+  /-(?!20\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(\/|$))[0-9a-f]{8}(\/|$)/, // hash 后缀的分享页(含其子页);合法的 8 位日期后缀(-20260929)不算 hash
   /^\/vivi\/characters(\/|$)/,   // 角色卡
   /^\/akke\/(xiaoguotu|zhishi|kit)(\/|$)/, // 门店对客物料(效果图/知识卡/素材包),不是团队文章
 ];
@@ -86,8 +86,28 @@ function walk(dir, out) {
   }
   return out;
 }
+const LINKED = linkedHrefs();
+const privacySkipped = [];
 let CASE_SLUGS = new Set();
 try { CASE_SLUGS = new Set(JSON.parse(read(path.join(PUB, 'akke', 'cases', 'manifest.json'))).map(c => c.slug)); } catch {}
+// 隐私:没被任何索引页链接过、正文或路径含团队成员昵称的页,不因为全量扫描被带上首页和时间线
+const NICK_SLUG = /yeqiao|fanli|xiaxia|shiman|ziyang|fanny/i;
+function linkedHrefs() {
+  const out = new Set();
+  for (const f of ['learn/index.html', 'akke/index.html', 'workflow/index.html', 'softie/index.html', 'vivi/index.html',
+    'akke/cases/index.html', 'vivi/cases/index.html', 'softie/cases/index.html']) {
+    const file = path.join(PUB, f);
+    if (!fs.existsSync(file)) continue;
+    const base = '/' + path.posix.dirname(f) + '/';
+    for (const m of read(file).matchAll(/href=["']([^"'#?]+)["']/g)) {
+      let u = m[1].trim();
+      if (/^(https?:|mailto:|data:|javascript:|tel:|\/\/)/i.test(u)) continue;
+      if (!u.startsWith('/')) u = base + u.replace(/^\.\//, '');
+      out.add(u.replace(/\.html$/, '').replace(/\/index$/, '/'));
+    }
+  }
+  return out;
+}
 function enumerate() {
   const seen = new Map(); // href -> {section, href, file, kind}
   for (const file of walk(PUB, [])) {
@@ -102,6 +122,7 @@ function enumerate() {
     if (href.startsWith('/akke/cases/') && CASE_SLUGS.has(href.slice('/akke/cases/'.length))) continue;
     // Softie / Vivi 的用户案例单页与 Akke 案例同属 kind=case,默认不混进文章流
     const kind = /^\/(vivi|softie)\/cases\/[^/]+$/.test(href) ? 'case' : 'doc';
+    if (!LINKED.has(href) && (NICK_SLUG.test(href) || NICKNAMES.test(read(file)))) { privacySkipped.push(href); continue; }
     seen.set(href, { section, href, file, kind });
   }
   return [...seen.values()];
@@ -111,7 +132,10 @@ function enumerateCases() {
   const mf = path.join(PUB, 'akke', 'cases', 'manifest.json');
   let list = [];
   try { list = JSON.parse(read(mf)); } catch { console.warn('[timeline] ⚠️ 读不到 akke/cases/manifest.json'); return []; }
-  return list.filter(c => c.slug && fs.existsSync(path.join(PUB, 'akke', 'cases', c.slug + '.html'))).map(c => ({
+  return list.filter(c => {
+    const f = path.join(PUB, 'akke', 'cases', c.slug + '.html');
+    return c.slug && fs.existsSync(f) && !isNoindex(read(f)) && !isStub(read(f)); // 案例页自己标了 noindex 的不收
+  }).map(c => ({
     section: 'akke', kind: 'case', href: `/akke/cases/${c.slug}`,
     title: cleanTitle([c.name, c.tag].filter(Boolean).join(':')),
     cat: c.collection === 'wechat' ? '个微案例' : c.collection === 'conv' ? '对话案例' : '用户案例',
@@ -387,6 +411,7 @@ for (const p of pages) { bySec[p.section] = (bySec[p.section] || 0) + 1; bySrc[p
 console.log(`[timeline] 生成 timeline/index.html · 文章 ${articles.length} 篇 + 案例 ${cases.length} 个(扫描 ${raw.length},跳过 noindex/stub ${raw.length - docs.length - dupes},内容重复 ${dupes})`);
 console.log('  分区:', JSON.stringify(bySec), ' 日期来源:', JSON.stringify(bySrc));
 const undated = pages.filter(p => !p.date).map(p => p.href);
+if (privacySkipped.length) console.warn(`  ⚠️ 未被索引链接且含成员昵称,不收录 ${privacySkipped.length} 篇:`, privacySkipped.join(', '));
 if (undated.length) console.warn(`  ⚠️ 无日期 ${undated.length} 篇:`, undated.join(', '));
 // 回归防线:入库日期早于文件名自带日期,多半是日期缓存取错了(例如 git --follow 追错文件)
 const early = pages.filter(p => { const n = dateFromName(p.href); return n && p.date && p.date < n && p.dateSrc !== 'meta'; });

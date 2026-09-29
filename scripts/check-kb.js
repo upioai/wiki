@@ -15,7 +15,7 @@ const path = require('path');
 const PUB = path.join(__dirname, '..', 'public');
 const list = JSON.parse(fs.readFileSync(path.join(PUB, 'timeline', 'articles.json'), 'utf8'));
 const hrefs = new Set(list.map(a => a.href));
-const today = new Date().toISOString().slice(0, 10);
+const today = new Date(Date.now() + 24 * 3600e3).toISOString().slice(0, 10); // 放宽一天:CI 是 UTC,北京时间 0–8 点推当天的页不算未来
 const errors = [];
 
 const undated = list.filter(a => !a.date);
@@ -38,7 +38,8 @@ const lost = [];
 for (const f of walk(PUB, [])) {
   const href = '/' + path.relative(PUB, f).split(path.sep).join('/').replace(/\.html$/, '').replace(/\/index$/, '/');
   if (!/-(20\d{6}|20\d{2}-\d{2}(-\d{2})?)\/?$/.test(href)) continue;
-  if (/^\/(internal|partners)\//.test(href) || /^\/akke\/(reports\/daily-|model-watch-)/.test(href)) continue;
+  if (/^\/(internal|partners)\//.test(href) || /^\/akke\/(reports\/daily-|model-watch-|xiaoguotu\/|zhishi\/|kit\/)/.test(href)) continue; // 与 build-timeline.js EXCLUDE 一致
+  if (/yeqiao|fanli|xiaxia|shiman|ziyang|fanny/i.test(href) || /野荞|饭粒|夏夏|狮蛮|谭伊格|子扬|董津瑄/.test(fs.readFileSync(f, 'utf8'))) continue; // 隐私跳过是有意的
   const html = fs.readFileSync(f, 'utf8');
   if (/<meta[^>]+name=["']robots["'][^>]*noindex/i.test(html) || /http-equiv=["']?refresh/i.test(html)) continue;
   if (!hrefs.has(href) && !listedHashes.has(sha(f))) lost.push(href);
@@ -50,7 +51,7 @@ const onboarding = (idx.match(/const ONBOARDING = \[([\s\S]*?)\n\];/) || ['', ''
 const badSteps = [...onboarding.matchAll(/href: '([^']+)'/g)].map(m => m[1]).filter(h => !hrefs.has(h));
 if (badSteps.length) errors.push(`新人路线指向的页面不在清单里:${badSteps.join(', ')}`);
 
-const leaked = list.filter(a => /-(?!\d{8}(\/|$))[0-9a-f]{8}(\/|$)/.test(a.href));
+const leaked = list.filter(a => /-[0-9a-f]{8}(\/|$)/.test(a.href) && !/-20\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(\/|$)/.test(a.href));
 if (leaked.length) errors.push(`hash 分享页混进了清单:${leaked.map(a => a.href).join(', ')}`);
 
 const docs = list.filter(a => a.kind === 'doc').length;

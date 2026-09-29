@@ -95,7 +95,7 @@ const GUIDES = [
 const articlesPath = path.join(publicDir, 'timeline', 'articles.json');
 let ARTICLES = [];
 try { ARTICLES = JSON.parse(fs.readFileSync(articlesPath, 'utf8')); }
-catch { console.warn('[build-index] WARN: 读不到 timeline/articles.json(build-timeline.js 要先跑),首页的最近更新与搜索会是空的'); }
+catch { console.error('[build-index] ERROR: 读不到 timeline/articles.json,build-timeline.js 要排在前面。直接失败,让 Vercel 保留上一版首页'); process.exit(1); }
 const byDateDesc = (a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : (a.title < b.title ? -1 : 1));
 const docs = ARTICLES.filter(a => a.kind === 'doc').sort(byDateDesc);
 const cases = ARTICLES.filter(a => a.kind === 'case');
