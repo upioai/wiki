@@ -11,10 +11,10 @@
 
 | 线上路径 | 源文件 | 索引页怎么来 |
 |---|---|---|
-| `/` 首页 | 模板写在 `scripts/build-index.js` 里 | 构建时生成，项目卡片与精选指南分别在 `PROJECTS`、`GUIDES` 数组里手动维护 |
+| `/` 首页 | 模板写在 `scripts/build-index.js` 里 | 构建时生成。「最近更新」「按项目浏览」和全站搜索读 `/timeline` 产出的 `articles.json`，自动更新；手动维护的只有 `ONBOARDING`（新人路线）、`STORE_PILLARS`（门店系统）、`GUIDES`（常用指南）三个数组 |
 | `/akke` Akke 子站 | `public/akke/` | 构建时由 `scripts/build-akke-map.js` 扫描目录自动生成 |
 | `/learn` 知识分享 | `public/learn/` | 构建时由 `scripts/build-learn.js` 按 `CATEGORIES` 清单生成，每个分类内按 `date` 新→旧 |
-| `/timeline` 知识时间线 | 无（汇总页） | 构建时由 `scripts/build-timeline.js` 生成：只收已被首页、`/learn`、`/akke`、`/workflow`、`/softie`、`/vivi` 索引链接的页面，按月分组、默认新→旧 |
+| `/timeline` 全部文章 | 无（汇总页） | 构建时由 `scripts/build-timeline.js` 生成：**扫描 `public/` 下全部公开页**，不需要登记；按月分组、默认新→旧，文章与客户案例（取自 `akke/cases/manifest.json`）可切换。跳过规则见脚本头注释 |
 | `/vivi` | `public/vivi/` | 手写；`/vivi/characters/*` 由 `scripts/build-characters.js` 生成 |
 | `/softie` | `public/softie/` | 手写 |
 | `/workflow` | `public/workflow/` | 手写，新页面要自己在 `index.html` 里加卡片 |
@@ -37,7 +37,7 @@ docs/              设计文档、spec 存档
 
 ## 新增页面
 
-页面统一写成**自包含的单文件 HTML**（CSS/JS 内联，图片等资源放同目录）。`<head>` 里建议加一行 `<meta name="upio:date" content="YYYY-MM-DD">` 写明内容本身的日期，`/timeline` 优先用它排序；不写就退回到日期缓存（`scripts/timeline.dates.json`、`scripts/akke-map.dates.json`）。按放的位置不同，还要多做一步：
+页面统一写成**自包含的单文件 HTML**（CSS/JS 内联，图片等资源放同目录）。`<head>` 里建议加一行 `<meta name="upio:date" content="YYYY-MM-DD">` 写明内容本身的日期，首页和 `/timeline` 优先用它排序；不写就退回到日期缓存（`scripts/timeline.dates.json`、`scripts/akke-map.dates.json`），push 到 main 后 `kb-index` workflow 会用 git 首次入仓日期自动补齐缓存。页面放进 `public/` 就会自动出现在 `/timeline` 和首页「最近更新」里（`internal/`、`partners/`、noindex 页除外）；想让它同时出现在分区索引里，按放的位置还要多做一步：
 
 | 放在哪 | 除了放文件，还要 |
 |---|---|
@@ -53,10 +53,11 @@ docs/              设计文档、spec 存档
 
 没登记的页面按路径自动归类，按以下顺序匹配：
 
-1. `reports/daily-*` 进存档里的日报条。
+1. `reports/daily-*` 进存档里的日报条；`cases/` 下的页进「用户案例库」。
 2. 路径含 `cloud-pc` / `wuying` / `second-touch` 的进「云电脑」。
 3. 带日期、含 `scrap` / `pricing` / `dialogue` / `topic` 等关键词（完整列表见 `classify()`），或在 `reports/` 下的，进「报告 · 复盘存档」。
-4. 其余全部落进「待归类」，构建日志里会告警。
+4. 路径含 `wecom` / `wechat` / `weixin` 的进「个微 · 企微接待」。
+5. 其余全部落进「待归类」，构建日志里会告警。
 
 所以大多数新页面都要在 `scripts/akke-map.json` 的 `overrides` 里登记一条：键是不带 `.html` 的路径（`reports` 目录页写成 `/akke/reports/<目录>/`，带尾斜杠）；要指定分类就写 `cat`，`title` 不写就取页面 `<title>`：
 
@@ -64,7 +65,7 @@ docs/              设计文档、spec 存档
 "/akke/<name>": { "cat": "tech", "title": "页面标题", "desc": "卡片上的一句话描述", "label": "卡片角标" }
 ```
 
-`cat` 可选值：`foundation`（入门 · 架构）、`tech`（技术方案）、`ops`（触达运营 · SOP）、`cloudpc`（云电脑 · 无影通道）、`multi`（多通道触达 · 调研）、`cases`（用户案例库）、`retro`（项目复盘 · 0→1）、`archive`（报告 · 复盘存档）。
+`cat` 可选值：`foundation`（入门 · 架构）、`tech`（技术方案）、`ops`（触达运营 · SOP）、`wechat`（个微 · 企微接待）、`cloudpc`（云电脑 · 无影通道）、`multi`（多通道触达 · 调研）、`cases`（用户案例库）、`retro`（项目复盘 · 0→1）、`archive`（报告 · 复盘存档）。
 
 文件名不带日期的页面，还要在 `scripts/akke-map.dates.json` 里手动加一行 `"/akke/<name>": "YYYY-MM-DD"`，填页面的创建日期。不加的话，线上每次构建都会把它当成当天新增，一直排在「最近新增」最前面。
 
@@ -72,7 +73,7 @@ docs/              设计文档、spec 存档
 
 **构建产物**，每次部署都会重新生成：
 
-- `public/index.html`、`public/akke/index.html`、`public/learn/index.html`、`public/timeline/`（已在 `.gitignore`）
+- `public/index.html`、`public/akke/index.html`、`public/learn/index.html`、`public/timeline/`（含 `articles.json`，已在 `.gitignore`）。`build-index.js` 依赖 `timeline/articles.json`，所以在 buildCommand 里排最后
 - `public/vivi/characters/*`、`public/sitemap.xml`、`public/robots.txt`（由 `build-characters.js` 生成，但提交在仓里）
 
 **从 Akke 仓自动同步的文件**，提交者是 `akke-bot`。源头在 Akke 仓，要改就去那边改，在这里改会被下一次同步覆盖：
@@ -97,7 +98,8 @@ git log -1 --format=%an -- <文件路径>   # 输出 akke-bot 就别在这里改
 不需要 `npm install`，装了 Node.js 就能跑。构建命令和 Vercel 上的 `buildCommand` 相同：
 
 ```bash
-node scripts/build-index.js && node scripts/build-characters.js && node scripts/build-akke-map.js && node scripts/build-learn.js && node scripts/build-timeline.js
+node scripts/build-characters.js && node scripts/build-akke-map.js && node scripts/build-learn.js && node scripts/build-timeline.js && node scripts/build-index.js
+node scripts/check-kb.js  # 回归检查：无日期 / 未来日期 / 带日期后缀的页被漏收 / 新人路线死链
 npx serve public          # 支持无后缀 URL；python -m http.server 不支持，会 404
 ```
 
@@ -172,6 +174,14 @@ vercel --prod
   - 客户姓名改成角色（客户、业主、老板娘）
 - **确实不是客户信息的**，比如商家对外公开的售后热线、商家在公开视频里自留的联系电话、形似手机号的 ID、户型面积，加进 `tools/privacy-guard.allow.json`：写 `value`（一组共用理由的写 `values`）和 `why`；能限定页面就写 `files`（路径前缀）；`2号楼901` 这类短串再加 `near`（同一行必须出现的字），免得把别处真实的住址一起放过去。白名单本身也是公开的，终端客户的信息不能放进去。
 - **已经推上 main 的**，改原文只能让站点不再显示，原文还留在 git 历史里。
+
+## CI：知识库索引（kb-index）
+
+`.github/workflows/kb-index.yml` 在改动涉及 `public/**` 或 `scripts/**` 时运行。
+
+- **push 到 main**：用完整 git 历史给没有日期的页面补齐日期缓存（只补缺、不覆盖），有变动就以 `github-actions[bot]` 身份提交回 main（这个提交不会再触发 workflow），然后构建并跑 `scripts/check-kb.js`。
+- **PR**：只构建 + 检查。和另外两个闸一样，失败是事后标红，不阻断发布。
+- 检查失败时看日志里的 `✗` 行：多半是页面没日期（加 `upio:date`）、日期写成了未来，或者 `build-timeline.js` 的跳过规则误伤了正常文章。
 
 ## 仓库协作与自动化
 
