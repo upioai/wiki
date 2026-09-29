@@ -50,7 +50,7 @@ os.chdir(WORK_DIR)
 # ── 版本标记 ─────────────────────────────────────────────────────────────────
 # 云电脑不装 git、update.bat 只下载 raw .py，运行时取不到 git SHA。故硬编码版本串，
 # 每次有意义改动手动 bump（日期+特性名），启动横幅打印 → 运营/PM 一眼核对"是不是最新版"。
-AGENT_VERSION = '2026-07-03+reply-priority'
+AGENT_VERSION = '2026-09-29+screen-guard'
 
 try:
     from dotenv import load_dotenv
@@ -1024,8 +1024,36 @@ def process_rc_batch(claimed: list[dict]) -> None:
 
 # ── main ────────────────────────────────────────────────────────────────────
 
+# 分辨率闸（2026-09-29 深圳机）：坐标/模板按某个分辨率校准，无影会跟着连进来的客户端窗口改分辨率
+# (1452→1398 后「用户」tab 点成了「视频」、整批 非主页 跳过)。设了 AKKE_EXPECT_SCREEN=宽x高 时，
+# 实际分辨率对不上就【不领单】——心跳随之停，派单侧判离线不再派，wuying-heartbeat-watch 报警，
+# 而不是在错位的界面上乱点。不设 = 不检查（其他机器行为不变）。
+EXPECT_SCREEN = os.environ.get('AKKE_EXPECT_SCREEN', '').strip().lower()
+
+
+def _screen_size() -> str | None:
+    try:
+        import ctypes
+        u = ctypes.windll.user32
+        try:
+            u.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))  # 物理像素，与 pyautogui/校准口径一致
+        except Exception:
+            pass
+        return f'{u.GetSystemMetrics(0)}x{u.GetSystemMetrics(1)}'
+    except Exception:
+        return None
+
+
+def screen_mismatch() -> str | None:
+    """返回实际分辨率（与 AKKE_EXPECT_SCREEN 不一致时）；一致、未设或取不到 → None。"""
+    if not EXPECT_SCREEN:
+        return None
+    got = _screen_size()
+    return got if got and got != EXPECT_SCREEN else None
+
+
 def main():
-    st_note = (f'  second_touch={"on" if SECOND_TOUCH_ENABLED else "off"}'
+    st_note =(f'  second_touch={"on" if SECOND_TOUCH_ENABLED else "off"}'
                f'  rc={"on" if REVERSE_COMMENT_ENABLED else "off"}')
     print(f'=== wuying_poll_agent  v={AGENT_VERSION}  account={ACCOUNT_ID[:8]}…  every {POLL_INTERVAL}s  claim={CLAIM_LIMIT}{st_note} ===')
     print(f'work_dir={WORK_DIR}')
@@ -1033,10 +1061,25 @@ def main():
     _last_autoreply = 0.0   # 收件箱捕获节流时戳(0=启动后第一轮先扫一次,之后每 DM_AUTOREPLY_INTERVAL 扫)
     _last_bubble = 0.0      # 气泡捕获节流时戳(同上, 每 BUBBLE_CAPTURE_INTERVAL 一次)
     _yield_streak = 0       # 「自动回复优先」连续让位轮数(显式暴露, 防 approved 卡死静默饿死一触)
+    _screen_bad = None      # 分辨率闸上一轮的状态，只在变化时打日志
+    if EXPECT_SCREEN:
+        print(f'screen guard: expect {EXPECT_SCREEN}, now {_screen_size()}')
     while True:
         try:
             t0 = time.time()
             did_work = False
+
+            _bad = screen_mismatch()
+            if _bad != _screen_bad:
+                if _bad:
+                    print(f'!! [{datetime.now():%H:%M:%S}] 分辨率 {_bad} ≠ 校准的 {EXPECT_SCREEN} → 停止领单'
+                          f'（心跳会停、派单侧判离线）。把无影窗口调回该分辨率后自动恢复', file=sys.stderr)
+                else:
+                    print(f'[{datetime.now():%H:%M:%S}] 分辨率恢复 {EXPECT_SCREEN} → 继续领单')
+                _screen_bad = _bad
+            if _bad:
+                time.sleep(POLL_INTERVAL)
+                continue
 
             # 路线 D：DM 自动回复(轮内最优先 — 活跃对话客户在等，优先级 自动回复>一触>二触；PR4)。
             #   ① 进程内排在一触/二触之前先跑；② 接窗口锁置 .dm-want → 跨进程 route-B 让位；
