@@ -34,6 +34,7 @@ const CATS = [
   { id: 'foundation', title: '入门 · 架构',       hint: '常驻 · 新人必读',            accent: '' },
   { id: 'tech',       title: '技术方案',           hint: '工程深潜 · PPT 三件套',       accent: '' },
   { id: 'ops',        title: '触达运营 · SOP',     hint: '一线操作手册',               accent: '' },
+  { id: 'wechat',     title: '个微 · 企微接待',   hint: '自动代回 · 首触 · 红蓝对抗', accent: '' },
   { id: 'cloudpc',    title: '云电脑 · 无影通道',   hint: '阿里无影 + 抖音 PC 自动发',   accent: 'cat-cloud' },
   { id: 'multi',      title: '多通道触达 · 调研',   hint: '企微 / 外呼 / 内容',          accent: '' },
   { id: 'cases',      title: '用户案例库',         hint: '真实客户旅程',               accent: '' },
@@ -46,10 +47,12 @@ const CAT_MAP = Object.fromEntries(CATS.map(c => [c.id, c]));
 // ---- 新页面自动归类规则(override 未命中时) ----
 function classify(href) {
   if (/\/reports\/daily-/.test(href)) return { cat: 'archive', daily: true };
+  if (href.startsWith('/akke/cases/')) return { cat: 'cases' };
   const base = href.replace('/akke/', '').replace(/\/$/, '');
   if (/cloud-pc|wuying|second-touch/.test(base)) return { cat: 'cloudpc' };
   if (/\d{4}-?\d{2}-?\d{2}|intent|scrap|source|acquisition|feigua|video-data|valid-user|d0-baseline|openrouter|icebreak|dialogue|pricing|topic|supply|risk-control|potential-touch|meeting|weekly/.test(base)) return { cat: 'archive' };
   if (href.startsWith('/akke/reports/')) return { cat: 'archive' };
+  if (/wecom|wechat|weixin/.test(base)) return { cat: 'wechat' };
   return { cat: 'uncat' };
 }
 

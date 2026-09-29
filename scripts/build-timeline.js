@@ -2,12 +2,11 @@
 /**
  * build-timeline.js — 构建期生成 public/timeline/index.html(知识时间线,按时间排序)
  *
- * 收录规则:只收「已经被某个公开索引页链接」的页面——首页(通用指南)、/learn、/akke、/workflow、
- *   /softie、/vivi 的 index.html。所以必须排在 vercel.json buildCommand 的最后(那几张索引先生成)。
- *   不在任何索引里的页(隐藏分享页、public/internal/、public/partners/)永远不会被时间线带出来。
- *   另外跳过:按日自动生成的运营/监控报告(reports/daily-*、model-watch-*)、带 8 位 hash 后缀的分享页、
- *   vivi 角色卡、meta robots 含 noindex 的页、meta refresh 重定向 stub。
- *   public/internal/ 按 README 约定不进任何索引,这里也不生成内部索引。
+ * 收录规则:扫描 public/ 下全部 html,不依赖索引页手工登记——放进 public/ 的新页面自动出现。
+ *   跳过:public/internal/、public/partners/、分区首页、按日自动生成的日报(reports/daily-*、model-watch-*)、
+ *   带 8 位 hash 后缀的分享页、vivi 角色卡、门店对客物料(akke/xiaoguotu|zhishi|kit)、meta robots 含 noindex 的页、
+ *   meta refresh 重定向 stub。客户案例单页(akke/cases/<slug>)不走扫描,改由 cases/manifest.json 收录为 kind=case。
+ * 产物:public/timeline/index.html(全部文章页)与 public/timeline/articles.json(首页读取),均不进仓。
  * 日期优先级:meta upio:date > scripts/timeline.dates.json > scripts/akke-map.dates.json
  *            > learn CATEGORIES.date > 文件名里的日期 > 未知(单独成组,排在最后)
  * 分类:learn 取 build-learn.js 的 CATEGORIES;akke 取 akke-map(override 优先,否则 classify);其余取分区名。
@@ -28,15 +27,8 @@ const tdatesPath = path.join(__dirname, 'timeline.dates.json');
 let tdates = {};
 try { tdates = JSON.parse(fs.readFileSync(tdatesPath, 'utf8')); } catch { tdates = {}; }
 
-const SECTIONS = [
-  { id: 'learn',    label: '知识分享' },
-  { id: 'akke',     label: 'Akke' },
-  { id: 'workflow', label: 'Workflow' },
-  { id: 'softie',   label: 'Softie' },
-  { id: 'vivi',     label: 'Vivi' },
-  { id: 'guide',    label: '通用指南' },
-];
-const SECTION_LABEL = Object.fromEntries(SECTIONS.map(s => [s.id, s.label]));
+const shell = require('./kb-shell.js');
+const { SECTIONS, SECTION_LABEL } = shell;
 
 const learnMeta = {};
 for (const c of CATEGORIES) for (const it of c.items) learnMeta[it.slug] = { cat: c.title, date: it.date };
@@ -56,7 +48,7 @@ const decode = (s) => s
   .replace(/&nbsp;/g, ' ').replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(+n)).replace(/&amp;/g, '&');
 const stripTags = (s) => s.replace(/<[^>]*>/g, '');
 const titleOf = (html) => decode(((html.match(/<title>([^<]*)<\/title>/i) || ['', ''])[1]))
-  .replace(/\s*[·|—–-]\s*(Akke|upio\.ai|Softie|Vivi|Workflow)\s*$/i, '').replace(/\s+/g, ' ').trim();
+  .replace(/\s*[·|—–-]\s*(Akke|upio\.ai|Softie|Vivi|Workflow)(\s*知识分享)?\s*$/i, '').replace(/\s+/g, ' ').trim();
 const isDate = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d || '');
 const dateFromName = (href) => {
   const m = href.match(/(20\d{2})-?(\d{2})-?(\d{2})/);
@@ -75,48 +67,56 @@ const gitFirstAdded = (rel) => {
 const NICKNAMES = /野荞|饭粒|夏夏|狮蛮|谭伊格|子扬|董津瑄/g;
 const cleanTitle = (t) => t.replace(NICKNAMES, '运营同学');
 
-// ---- 枚举:从已生成的公开索引页里收站内链接 ----
-const INDEXES = [
-  { section: 'guide',    file: 'index.html',          base: '/' },
-  { section: 'learn',    file: 'learn/index.html',    base: '/learn/' },
-  { section: 'akke',     file: 'akke/index.html',     base: '/akke/' },
-  { section: 'workflow', file: 'workflow/index.html', base: '/workflow/' },
-  { section: 'softie',   file: 'softie/index.html',   base: '/softie/' },
-  { section: 'vivi',     file: 'vivi/index.html',     base: '/vivi/' },
-];
+// ---- 枚举:扫描 public/ 下全部公开页(不依赖索引页手工登记,新页面自动进时间线) ----
+const SECTION_DIRS = ['learn', 'akke', 'workflow', 'softie', 'vivi'];
 const EXCLUDE = [
+  /^\/(internal|partners|timeline)(\/|$)/,   // 内部页、合作方页、时间线自身
+  /^\/(learn|akke|workflow|softie|vivi)\/$/, // 分区首页是导航,不是文章
   /^\/akke\/reports\/daily-/,   // 个人日报,akke-bot 每日同步
   /^\/akke\/model-watch-/,       // 模型监控日报,akke-bot 每日同步
-  /-[0-9a-f]{8}\/?$/,             // hash 后缀的分享页
+  /-(?!\d{8}(\/|$))[0-9a-f]{8}(\/|$)/, // hash 后缀的分享页(含其子页);纯 8 位数字是日期后缀(-20260929),不算 hash
   /^\/vivi\/characters(\/|$)/,   // 角色卡
+  /^\/akke\/(xiaoguotu|zhishi|kit)(\/|$)/, // 门店对客物料(效果图/知识卡/素材包),不是团队文章
 ];
-const SECTION_ROOT = /^\/(timeline|internal|partners|learn|akke|workflow|softie|vivi)(\/|$)/;
-function fileFor(href) {
-  const clean = href.replace(/\/$/, '');
-  const cands = href.endsWith('/') ? [clean + '/index.html'] : [clean + '.html', clean + '/index.html'];
-  for (const c of cands) { const f = path.join(PUB, c); if (fs.existsSync(f)) return f; }
-  return '';
+function walk(dir, out) {
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) walk(p, out);
+    else if (e.name.endsWith('.html')) out.push(p);
+  }
+  return out;
 }
+let CASE_SLUGS = new Set();
+try { CASE_SLUGS = new Set(JSON.parse(read(path.join(PUB, 'akke', 'cases', 'manifest.json'))).map(c => c.slug)); } catch {}
 function enumerate() {
-  const seen = new Map(); // href -> {section, href, file}
-  for (const ix of INDEXES) {
-    const f = path.join(PUB, ix.file);
-    if (!fs.existsSync(f)) { console.warn(`[timeline] ⚠️ 缺索引 ${ix.file}(先跑 buildCommand 里前面的脚本)`); continue; }
-    for (const m of read(f).matchAll(/href=["']([^"'#?]+)["']/g)) {
-      let href = m[1].trim();
-      if (/^(https?:|mailto:|data:|javascript:|tel:|\/\/)/i.test(href)) continue;
-      if (!href.startsWith('/')) href = ix.base + href.replace(/^\.\//, '');
-      href = href.replace(/\.html$/, '').replace(/\/index$/, '/');
-      if (ix.section === 'guide') {
-        if (!/^\/[^/]+$/.test(href) || SECTION_ROOT.test(href)) continue; // 首页只收根目录单页
-      } else if (!href.startsWith(ix.base) || href === ix.base) continue;
-      if (href.startsWith('/internal/') || href.startsWith('/partners/')) continue;
-      if (EXCLUDE.some(re => re.test(href)) || seen.has(href)) continue;
-      const file = fileFor(href);
-      if (file) seen.set(href, { section: ix.section, href, file });
-    }
+  const seen = new Map(); // href -> {section, href, file, kind}
+  for (const file of walk(PUB, [])) {
+    const rel = path.relative(PUB, file).split(path.sep).join('/');
+    let href = '/' + rel.replace(/\.html$/, '');
+    if (href === '/index') continue;
+    href = href.replace(/\/index$/, '/');
+    const top = href.split('/')[1];
+    const section = SECTION_DIRS.includes(top) ? top : (/^\/[^/]+$/.test(href) ? 'guide' : '');
+    if (!section || EXCLUDE.some(re => re.test(href)) || seen.has(href)) continue;
+    // manifest 登记过的客户案例单页改由 enumerateCases() 收录(kind=case);cases/ 下没登记的报告页照常当文章
+    if (href.startsWith('/akke/cases/') && CASE_SLUGS.has(href.slice('/akke/cases/'.length))) continue;
+    // Softie / Vivi 的用户案例单页与 Akke 案例同属 kind=case,默认不混进文章流
+    const kind = /^\/(vivi|softie)\/cases\/[^/]+$/.test(href) ? 'case' : 'doc';
+    seen.set(href, { section, href, file, kind });
   }
   return [...seen.values()];
+}
+// 客户案例:manifest 是案例库的数据源(akke-bot 同步 + 生成流程追加),标题与日期都取自它
+function enumerateCases() {
+  const mf = path.join(PUB, 'akke', 'cases', 'manifest.json');
+  let list = [];
+  try { list = JSON.parse(read(mf)); } catch { console.warn('[timeline] ⚠️ 读不到 akke/cases/manifest.json'); return []; }
+  return list.filter(c => c.slug && fs.existsSync(path.join(PUB, 'akke', 'cases', c.slug + '.html'))).map(c => ({
+    section: 'akke', kind: 'case', href: `/akke/cases/${c.slug}`,
+    title: cleanTitle([c.name, c.tag].filter(Boolean).join(':')),
+    cat: c.collection === 'wechat' ? '个微案例' : c.collection === 'conv' ? '对话案例' : '用户案例',
+    date: isDate(c.date) ? c.date : '', dateSrc: isDate(c.date) ? 'manifest' : '',
+  }));
 }
 
 // ---- 取元数据 ----
@@ -136,7 +136,8 @@ function resolve(p) {
 
   let title = titleOf(html), cat = '';
   if (p.section === 'learn') {
-    cat = learnMeta[slug] ? learnMeta[slug].cat : (metaOf(html, 'upio:category') || '未归类');
+    const parent = slug.includes('/') ? learnMeta[slug.split('/')[0]] : null; // 系列子页继承父页分类
+    cat = learnMeta[slug] ? learnMeta[slug].cat : (metaOf(html, 'upio:category') || (parent ? parent.cat : slug.includes('/') ? '专题系列' : '未归类'));
   } else if (p.section === 'akke') {
     const ov = akke.overrides[p.href] || {};
     let id = ov.cat || akke.classify(p.href).cat;
@@ -164,244 +165,173 @@ function refreshDates(pages) { // 只补缺,不覆盖已有键
   console.log(`[timeline] dates cache +${added} (total ${Object.keys(sorted).length})`);
 }
 
-// ---- 渲染(同一份函数在 Node 预渲染,并原样注入页面供前端交互复用) ----
-function renderList(items, order, sectionLabels) {
-  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  const monthLabel = (k) => (k === '0000-00' ? '日期未知' : `${k.slice(0, 4)} 年 ${+k.slice(5, 7)} 月`);
-  const sorted = items.slice().sort((a, b) => {
+// ---- 渲染(renderList 同一份函数在 Node 预渲染,并原样注入页面供前端交互复用) ----
+function renderList(items, order, labels, rowHtml) {
+  var monthLabel = function (k) { return k === '0000-00' ? '日期未知' : k.slice(0, 4) + ' 年 ' + (+k.slice(5, 7)) + ' 月'; };
+  var sorted = items.slice().sort(function (a, b) {
     if (!a.date !== !b.date) return a.date ? -1 : 1; // 未知日期永远垫底
-    const c = a.date < b.date ? -1 : a.date > b.date ? 1 : (a.title < b.title ? -1 : 1);
+    var c = a.date < b.date ? -1 : a.date > b.date ? 1 : (a.title < b.title ? -1 : 1);
     return order === 'asc' ? c : -c;
   });
-  const groups = [];
-  for (const it of sorted) {
-    const k = it.date ? it.date.slice(0, 7) : '0000-00';
-    if (!groups.length || groups[groups.length - 1].k !== k) groups.push({ k, list: [] });
+  var groups = [];
+  sorted.forEach(function (it) {
+    var k = it.date ? it.date.slice(0, 7) : '0000-00';
+    if (!groups.length || groups[groups.length - 1].k !== k) groups.push({ k: k, list: [] });
     groups[groups.length - 1].list.push(it);
-  }
-  if (!groups.length) return '<p class="empty">没有匹配的页面。换个关键词或筛选试试。</p>';
-  return groups.map(g => `<section class="month">
-  <h2 class="month-h"><span>${monthLabel(g.k)}</span><span class="month-n">${g.list.length} 篇</span></h2>
-  <ol class="rows">
-${g.list.map(it => `    <li><a class="row" href="${esc(it.href)}">
-      <time class="row-d" datetime="${esc(it.date)}">${it.date ? it.date.slice(5) : '--'}</time>
-      <span class="row-main"><span class="row-t">${esc(it.title)}</span>${it.section !== 'internal' ? `<span class="row-meta"><span class="sec sec-${esc(it.section)}">${esc(sectionLabels[it.section] || it.section)}</span>${it.cat && it.cat !== sectionLabels[it.section] ? `<span class="cat">${esc(it.cat)}</span>` : ''}</span>` : ''}</span>
-    </a></li>`).join('\n')}
-  </ol>
-</section>`).join('\n');
+  });
+  if (!groups.length) return '<p class="empty">没有匹配的文章。换个关键词，或把上面的筛选切回「全部」。</p>';
+  return groups.map(function (g) {
+    return '<section class="month"><h2 class="month-h">' + monthLabel(g.k) + '<span class="month-n">' + g.list.length + ' 篇</span></h2><ol class="rows">' +
+      g.list.map(function (it) { return rowHtml(it, labels); }).join('') + '</ol></section>';
+  }).join('');
 }
 
-const CSS = `:root {
-  --bg:           #0a0d14;
-  --bg-elevated:  #131720;
-  --bg-deep:      #1a1f2b;
-  --border:        #232936;
-  --border-strong: #2f3646;
-  --text:       #e8eaef;
-  --text-dim:   #9ba3b4;
-  --text-muted: #6b7384;
-  --accent:        #8b5cf6;
-  --accent-soft:   rgba(139, 92, 246, 0.15);
-  --accent-2:      #60a5fa;
-  --accent-3:      #34d399;
-  --font-display: 'Instrument Serif', 'Source Han Serif SC', Georgia, serif;
-  --font-ui:      'Inter Tight', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
-  --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
-}
-* { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
-body {
-  margin: 0; padding: 0;
-  background: var(--bg); color: var(--text);
-  font-family: var(--font-ui);
-  font-size: 15.5px; line-height: 1.7;
-  font-feature-settings: 'cv11', 'ss01', 'tnum';
-  -webkit-font-smoothing: antialiased;
-  min-height: 100vh; overflow-x: hidden;
-}
-.container { max-width: 1080px; margin: 0 auto; padding: 56px 24px 120px; }
-.breadcrumb { font-size: 12.5px; color: var(--text-muted); margin-bottom: 20px; font-family: var(--font-mono); }
-.breadcrumb a { color: var(--text-dim); text-decoration: none; transition: color .2s; }
-.breadcrumb a:hover { color: var(--accent); }
-.breadcrumb span { margin: 0 8px; color: var(--border-strong); }
-header.hero { padding: 8px 0 28px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
-.tag {
-  display: inline-block; padding: 4px 12px; border-radius: 999px;
-  background: var(--accent-soft); color: var(--accent);
-  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
-  letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 18px;
-}
-h1 {
-  font-family: var(--font-display); font-style: italic;
-  font-size: 64px; font-weight: 400;
-  margin: 0 0 18px; letter-spacing: -0.02em; line-height: 1.05;
-  background: linear-gradient(135deg, #f4f5f8 30%, var(--accent) 75%, var(--accent-2) 100%);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-}
-.subtitle { font-size: 17px; color: var(--text-dim); margin: 0; max-width: 760px; line-height: 1.6; }
-.stats { margin-top: 18px; font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); letter-spacing: 0.04em; }
-.stats b { color: var(--text); font-weight: 700; }
-
-/* 控件 */
-.controls { position: sticky; top: 0; z-index: 5; background: rgba(10,13,20,0.92); backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px); padding: 16px 0 12px; border-bottom: 1px solid var(--border); }
-.ctl-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.ctl-row + .ctl-row { margin-top: 10px; }
-.search { flex: 1 1 220px; min-width: 0; background: var(--bg-elevated); border: 1px solid var(--border-strong);
-  border-radius: 10px; color: var(--text); font: inherit; font-size: 14px; padding: 8px 12px; outline: none; }
-.search:focus { border-color: var(--accent); }
-.btn { background: var(--bg-elevated); border: 1px solid var(--border-strong); color: var(--text-dim);
-  border-radius: 10px; font-family: var(--font-mono); font-size: 12px; padding: 9px 12px; cursor: pointer; white-space: nowrap; }
-.btn:hover { border-color: var(--accent); color: var(--text); }
+const CSS = `${shell.BASE_CSS}
+.hero { padding: 64px 0 28px; }
+.hero h1 { font-family: var(--display); font-weight: 400; font-size: 60px; line-height: 1.05; margin: 0 0 14px; letter-spacing: -0.015em; }
+.hero p { margin: 0; color: var(--dim); max-width: 680px; }
+.hero p a { color: var(--blue); text-decoration: none; }
+.controls { position: sticky; top: 56px; z-index: 10; background: rgba(10, 13, 20, 0.94); backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px); padding: 14px 0; border-bottom: 1px solid var(--line); }
+.ctl { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.ctl + .ctl { margin-top: 10px; }
+.search { flex: 1 1 260px; min-width: 0; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 10px;
+  color: var(--text); font: inherit; font-size: 15px; padding: 9px 14px; outline: none; }
+.search:focus { border-color: var(--violet); }
+.seg { display: inline-flex; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 10px; padding: 3px; }
+.seg button { background: none; border: 0; color: var(--dim); font: inherit; font-size: 13.5px; padding: 5px 12px; border-radius: 7px; cursor: pointer; white-space: nowrap; }
+.seg button[aria-pressed="true"] { background: var(--surface-2); color: var(--text); }
+.seg .n { color: var(--muted); font-variant-numeric: tabular-nums; margin-left: 5px; font-size: 12px; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; min-width: 0; }
-.chip { background: transparent; border: 1px solid var(--border); color: var(--text-dim); border-radius: 999px;
-  font: inherit; font-size: 12.5px; padding: 3px 11px; cursor: pointer; }
-.chip:hover { border-color: var(--border-strong); color: var(--text); }
-.chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
-.chip .n { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); margin-left: 4px; }
-.shown { font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted); margin-left: auto; }
+.chip { display: inline-flex; align-items: center; gap: 7px; background: transparent; border: 1px solid var(--line); color: var(--dim);
+  border-radius: 999px; font: inherit; font-size: 13px; padding: 3px 12px; cursor: pointer; }
+.chip:hover { border-color: var(--line-strong); color: var(--text); }
+.chip[aria-pressed="true"] { background: var(--violet-soft); border-color: var(--violet); color: var(--text); }
+.chip .n { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px; }
+.shown { color: var(--muted); font-size: 13px; margin-left: auto; font-variant-numeric: tabular-nums; }
+.month { margin-top: 40px; }
+.month-h { font-family: var(--display); font-weight: 400; font-size: 30px; margin: 0 0 8px; display: flex; align-items: baseline; gap: 12px;
+  padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.month-n { font-family: var(--ui); font-size: 13px; color: var(--muted); }
+.empty { color: var(--muted); margin-top: 48px; }
+noscript p { color: var(--muted); font-size: 13px; }
+@media (max-width: 640px) {
+  .hero { padding-top: 40px; } .hero h1 { font-size: 42px; }
+  .month-h { font-size: 24px; } .shown { margin-left: 0; width: 100%; }
+}`;
 
-/* 月份分组 */
-.month { margin-top: 36px; }
-.month-h { font-family: var(--font-display); font-style: italic; font-weight: 400; font-size: 26px; margin: 0 0 10px;
-  display: flex; align-items: baseline; gap: 12px; }
-.month-h::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
-  box-shadow: 0 0 8px var(--accent); flex-shrink: 0; align-self: center; }
-.month-n { font-family: var(--font-mono); font-style: normal; font-size: 11px; color: var(--text-muted); letter-spacing: 0.08em; }
-.rows { list-style: none; margin: 0; padding: 0; border-left: 1px solid var(--border); margin-left: 2px; }
-.row { display: flex; gap: 14px; align-items: flex-start; padding: 9px 12px 9px 16px; text-decoration: none; color: inherit;
-  border-radius: 0 10px 10px 0; transition: background .15s ease; }
-.row:hover { background: var(--bg-elevated); }
-.row-d { font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); flex: 0 0 42px; padding-top: 2px; }
-.row:hover .row-d { color: var(--accent-2); }
-.row-main { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; min-width: 0; flex: 1 1 auto; }
-.row-t { font-size: 15px; font-weight: 500; color: var(--text); overflow-wrap: anywhere; min-width: 0; }
-.row:hover .row-t { color: #fff; }
-.row-meta { display: inline-flex; gap: 6px; flex-wrap: wrap; }
-.sec, .cat { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.03em; padding: 1px 7px; border-radius: 999px;
-  border: 1px solid var(--border); color: var(--text-muted); white-space: nowrap; }
-.sec-learn { color: var(--accent); border-color: rgba(139,92,246,0.4); }
-.sec-akke { color: var(--accent-2); border-color: rgba(96,165,250,0.4); }
-.sec-workflow { color: var(--accent-3); border-color: rgba(52,211,153,0.4); }
-.sec-softie { color: #f472b6; border-color: rgba(244,114,182,0.4); }
-.sec-vivi { color: #fbbf24; border-color: rgba(251,191,36,0.4); }
-.empty { color: var(--text-muted); margin-top: 40px; }
-footer { text-align: center; margin-top: 64px; padding-top: 28px; border-top: 1px solid var(--border);
-  font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted); letter-spacing: 0.06em; }
-noscript p { color: var(--text-muted); font-size: 13px; }
-@media (max-width: 600px) {
-  .container { padding: 40px 16px 80px; }
-  h1 { font-size: 44px; }
-  .month-h { font-size: 22px; }
-  .row { padding-left: 12px; gap: 10px; }
-  .shown { margin-left: 0; width: 100%; }
-}
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } html { scroll-behavior: auto; } }`;
-
-function page({ title, desc, crumb, tag, h1, subtitle, items, noindex, withFilters, footer }) {
-  const data = items.map(it => ({ href: it.href, title: it.title, date: it.date, section: it.section, cat: it.cat }));
+function page({ items, kindCounts }) {
+  const data = items.map(it => ({ href: it.href, title: it.title, date: it.date, section: it.section, cat: it.cat, kind: it.kind }));
   const json = JSON.stringify(data).replace(/</g, '\\u003c');
-  const initial = renderList(data, 'desc', SECTION_LABEL);
-  const dated = data.filter(d => d.date).map(d => d.date).sort();
-  const range = dated.length ? `${dated[0]} → ${dated[dated.length - 1]}` : '';
+  const initial = renderList(data.filter(d => d.kind === 'doc'), 'desc', SECTION_LABEL, shell.rowHtml);
+  const docs = data.filter(d => d.kind === 'doc');
   const secCounts = {};
-  for (const d of data) secCounts[d.section] = (secCounts[d.section] || 0) + 1;
-  const secChips = withFilters
-    ? [`<button class="chip" data-sec="all" aria-pressed="true">全部<span class="n">${data.length}</span></button>`]
-      .concat(SECTIONS.filter(s => secCounts[s.id]).map(s => `<button class="chip" data-sec="${s.id}" aria-pressed="false">${s.label}<span class="n">${secCounts[s.id]}</span></button>`)).join('')
-    : '';
+  for (const d of docs) secCounts[d.section] = (secCounts[d.section] || 0) + 1;
+  const secChips = [`<button class="chip" data-sec="all" aria-pressed="true">全部分区<span class="n">${docs.length}</span></button>`]
+    .concat(SECTIONS.filter(s => secCounts[s.id]).map(s => `<button class="chip" data-sec="${s.id}" aria-pressed="false"><span class="dot dot-${s.id}"></span>${s.label}<span class="n">${secCounts[s.id]}</span></button>`)).join('');
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-${noindex ? '<meta name="robots" content="noindex, nofollow">\n' : ''}<title>${title}</title>
-<meta name="description" content="${desc}">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700;800&display=swap">
+<title>全部文章 · upio.ai</title>
+<meta name="description" content="upio.ai 团队知识库的全部文章，按发布时间从新到旧排列，可按分区、分类筛选和搜索。">
+${shell.FONTS}
 <style>
 ${CSS}
 </style>
 </head>
 <body>
-  <div class="container">
-    <div class="breadcrumb"><a href="/">upio.ai</a><span>/</span>${crumb}</div>
-    <header class="hero">
-      <span class="tag">${tag}</span>
-      <h1>${h1}</h1>
-      <p class="subtitle">${subtitle}</p>
-      <div class="stats">共 <b>${data.length}</b> 篇${range ? ` · ${range}` : ''}</div>
-    </header>
-
-    <div class="controls">
-      <div class="ctl-row">
-        <input class="search" id="q" type="search" placeholder="搜索标题…" aria-label="搜索标题" autocomplete="off">
-        <button class="btn" id="order" type="button" aria-label="切换排序">新 → 旧</button>
+${shell.topbar('all')}
+<div class="wrap">
+  <header class="hero">
+    <h1>全部文章</h1>
+    <p>知识库里的每一篇文章，按发布时间从新到旧排列。共 ${kindCounts.doc} 篇文章，另有 ${kindCounts.case} 个客户案例。第一次来可以先看<a href="/">首页的新人路线</a>。</p>
+  </header>
+  <div class="controls">
+    <div class="ctl">
+      <input class="search" id="q" type="search" placeholder="搜索标题、分类或路径" aria-label="搜索文章" autocomplete="off">
+      <div class="seg" id="kind" role="group" aria-label="内容类型">
+        <button type="button" data-kind="doc" aria-pressed="true">文章<span class="n">${kindCounts.doc}</span></button>
+        <button type="button" data-kind="case" aria-pressed="false">客户案例<span class="n">${kindCounts.case}</span></button>
+        <button type="button" data-kind="all" aria-pressed="false">全部<span class="n">${kindCounts.doc + kindCounts.case}</span></button>
       </div>
-${withFilters ? `      <div class="ctl-row"><div class="chips" id="secs" role="group" aria-label="按分区筛选">${secChips}</div></div>
-      <div class="ctl-row" id="cat-row" hidden><div class="chips" id="cats" role="group" aria-label="按分类筛选"></div></div>
-` : ''}      <div class="ctl-row"><span class="shown" id="shown">显示 ${data.length} / ${data.length}</span></div>
+      <div class="seg"><button type="button" id="order" aria-pressed="true">新到旧</button></div>
     </div>
-
-    <main id="list">
-${initial}
-    </main>
-    <noscript><p>搜索、筛选与排序需要启用 JavaScript；上面是按时间新 → 旧的完整列表。</p></noscript>
-
-    <footer>${footer}</footer>
+    <div class="ctl"><div class="chips" id="secs" role="group" aria-label="按分区筛选">${secChips}</div></div>
+    <div class="ctl" id="cat-row" hidden><div class="chips" id="cats" role="group" aria-label="按分类筛选"></div></div>
+    <div class="ctl"><span class="shown" id="shown">显示 ${docs.length} 篇</span></div>
   </div>
+  <main id="list">
+${initial}
+  </main>
+  <noscript><p>搜索和筛选需要启用 JavaScript。上面是全部文章，按时间从新到旧排列。</p></noscript>
+</div>
+${shell.footer(`全部文章页在每次部署时自动生成，放进 public/ 的新页面会自动出现在这里`)}
 <script type="application/json" id="tl-data">${json}</script>
 <script>
 (function () {
+  var rowHtml = ${shell.rowHtml.toString()};
   var renderList = ${renderList.toString()};
   var LABELS = ${JSON.stringify(SECTION_LABEL)};
   var DATA = JSON.parse(document.getElementById('tl-data').textContent);
-  var st = { order: 'desc', sec: 'all', cat: 'all', q: '' };
-  var list = document.getElementById('list');
-  var shown = document.getElementById('shown');
-  var orderBtn = document.getElementById('order');
-  var secs = document.getElementById('secs');
-  var cats = document.getElementById('cats');
-  var catRow = document.getElementById('cat-row');
-  function escHtml(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  var st = { order: 'desc', kind: 'doc', sec: 'all', cat: 'all', q: '' };
+  var $ = function (id) { return document.getElementById(id); };
+  var list = $('list'), shown = $('shown'), orderBtn = $('order'), secs = $('secs'), cats = $('cats'), catRow = $('cat-row'), kind = $('kind');
+  function e(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function inKind(d) { return st.kind === 'all' || d.kind === st.kind; }
+  function press(box, attr, val) { Array.prototype.forEach.call(box.querySelectorAll('[' + attr + ']'), function (x) { x.setAttribute('aria-pressed', String(x.getAttribute(attr) === val)); }); }
+  function drawSecs() {
+    var counts = {}, total = 0;
+    DATA.forEach(function (d) { if (inKind(d)) { counts[d.section] = (counts[d.section] || 0) + 1; total++; } });
+    Array.prototype.forEach.call(secs.querySelectorAll('[data-sec]'), function (b) {
+      var id = b.getAttribute('data-sec'), n = id === 'all' ? total : (counts[id] || 0);
+      b.querySelector('.n').textContent = n; b.hidden = id !== 'all' && !n;
+    });
+  }
   function drawCats() {
-    if (!cats) return;
     if (st.sec === 'all') { catRow.hidden = true; cats.innerHTML = ''; return; }
     var counts = {}, order = [];
-    DATA.forEach(function (d) { if (d.section === st.sec && d.cat) { if (!counts[d.cat]) { counts[d.cat] = 0; order.push(d.cat); } counts[d.cat]++; } });
+    DATA.forEach(function (d) { if (inKind(d) && d.section === st.sec && d.cat) { if (!counts[d.cat]) { counts[d.cat] = 0; order.push(d.cat); } counts[d.cat]++; } });
     if (order.length < 2) { catRow.hidden = true; cats.innerHTML = ''; return; }
     var total = order.reduce(function (n, c) { return n + counts[c]; }, 0);
     cats.innerHTML = '<button class="chip" data-cat="all" aria-pressed="' + (st.cat === 'all') + '">全部分类<span class="n">' + total + '</span></button>' +
-      order.map(function (c) { return '<button class="chip" data-cat="' + escHtml(c) + '" aria-pressed="' + (st.cat === c) + '">' + escHtml(c) + '<span class="n">' + counts[c] + '</span></button>'; }).join('');
+      order.map(function (c) { return '<button class="chip" data-cat="' + e(c) + '" aria-pressed="' + (st.cat === c) + '">' + e(c) + '<span class="n">' + counts[c] + '</span></button>'; }).join('');
     catRow.hidden = false;
   }
   function draw() {
     var q = st.q.trim().toLowerCase();
     var items = DATA.filter(function (d) {
+      if (!inKind(d)) return false;
       if (st.sec !== 'all' && d.section !== st.sec) return false;
       if (st.cat !== 'all' && d.cat !== st.cat) return false;
-      if (q && (d.title + ' ' + d.href + ' ' + (d.cat || '')).toLowerCase().indexOf(q) < 0) return false;
+      if (q && (d.title + ' ' + d.href + ' ' + (d.cat || '') + ' ' + (LABELS[d.section] || '')).toLowerCase().indexOf(q) < 0) return false;
       return true;
     });
-    list.innerHTML = renderList(items, st.order, LABELS);
-    shown.textContent = '显示 ' + items.length + ' / ' + DATA.length;
-    orderBtn.textContent = st.order === 'desc' ? '新 → 旧' : '旧 → 新';
+    list.innerHTML = renderList(items, st.order, LABELS, rowHtml);
+    shown.textContent = '显示 ' + items.length + ' 篇';
+    orderBtn.textContent = st.order === 'desc' ? '新到旧' : '旧到新';
   }
-  document.getElementById('q').addEventListener('input', function (e) { st.q = e.target.value; draw(); });
+  $('q').addEventListener('input', function (ev) { st.q = ev.target.value; draw(); });
   orderBtn.addEventListener('click', function () { st.order = st.order === 'desc' ? 'asc' : 'desc'; draw(); });
-  if (secs) secs.addEventListener('click', function (e) {
-    var b = e.target.closest('[data-sec]'); if (!b) return;
-    st.sec = b.getAttribute('data-sec'); st.cat = 'all';
-    Array.prototype.forEach.call(secs.querySelectorAll('[data-sec]'), function (x) { x.setAttribute('aria-pressed', String(x === b)); });
-    drawCats(); draw();
+  kind.addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-kind]'); if (!b) return;
+    st.kind = b.getAttribute('data-kind'); st.sec = 'all'; st.cat = 'all';
+    press(kind, 'data-kind', st.kind); press(secs, 'data-sec', 'all'); drawSecs(); drawCats(); draw();
   });
-  if (cats) cats.addEventListener('click', function (e) {
-    var b = e.target.closest('[data-cat]'); if (!b) return;
-    st.cat = b.getAttribute('data-cat');
-    Array.prototype.forEach.call(cats.querySelectorAll('[data-cat]'), function (x) { x.setAttribute('aria-pressed', String(x === b)); });
-    draw();
+  secs.addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-sec]'); if (!b) return;
+    st.sec = b.getAttribute('data-sec'); st.cat = 'all'; press(secs, 'data-sec', st.sec); drawCats(); draw();
   });
+  cats.addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-cat]'); if (!b) return;
+    st.cat = b.getAttribute('data-cat'); press(cats, 'data-cat', st.cat); draw();
+  });
+  var sp = new URLSearchParams(location.search);
+  if (sp.get('kind') === 'case' || sp.get('kind') === 'all') { var kb = kind.querySelector('[data-kind="' + sp.get('kind') + '"]'); if (kb) kb.click(); }
+  if (sp.get('q')) { $('q').value = sp.get('q'); st.q = sp.get('q'); draw(); }
+  var m = location.hash.match(/^#(learn|akke|workflow|softie|vivi|guide|cases)$/);
+  if (m) { var t = m[1] === 'cases' ? kind.querySelector('[data-kind="case"]') : secs.querySelector('[data-sec="' + m[1] + '"]'); if (t) t.click(); }
 })();
 </script>
 </body>
@@ -411,28 +341,32 @@ ${initial}
 
 // ---- 主流程 ----
 const raw = enumerate().map(resolve);
-const pages = raw.filter(p => !p.noindex && !p.stub);
+// 同一份报告被发到多个路径时(字节完全相同),只留路径最短的那个,免得「最近更新」里连排三条同名
+const byContent = new Map();
+for (const p of raw.filter(p => !p.noindex && !p.stub)) {
+  const k = require('crypto').createHash('sha1').update(p.html).digest('hex');
+  const cur = byContent.get(k);
+  if (!cur || p.href.length < cur.href.length) byContent.set(k, p);
+}
+const docs = [...byContent.values()];
+const dupes = raw.filter(p => !p.noindex && !p.stub).length - docs.length;
 
 if (process.env.REFRESH_DATES) {
-  refreshDates(pages);
-  for (const p of pages) { // 用刷新后的缓存重算没有 meta 日期的页
+  refreshDates(docs);
+  for (const p of docs) { // 用刷新后的缓存重算没有 meta 日期的页
     if (p.dateSrc !== 'meta' && p.dateSrc !== 'cache' && tdates[p.href]) { p.date = tdates[p.href]; p.dateSrc = 'cache'; }
   }
 }
+const cases = docs.filter(p => p.kind === 'case').concat(enumerateCases());
+const articles = docs.filter(p => p.kind === 'doc');
+const pages = articles.concat(cases);
 
 fs.mkdirSync(path.join(PUB, 'timeline'), { recursive: true });
-fs.writeFileSync(path.join(PUB, 'timeline', 'index.html'), page({
-  title: '知识时间线 · upio.ai',
-  desc: 'upio.ai 全站知识页按时间排序：知识分享、Akke、Workflow、Softie、Vivi 与通用指南。',
-  crumb: '知识时间线',
-  tag: 'TIMELINE',
-  h1: '知识时间线',
-  subtitle: '全站知识页按入库时间排列，可按分区与分类筛选、按标题搜索。分区内的分类导览见 <a href="/learn" style="color: var(--accent-2);">知识分享</a> 与 <a href="/akke/" style="color: var(--accent-2);">Akke 项目地图</a>。',
-  items: pages,
-  noindex: false,
-  withFilters: true,
-  footer: `upio.ai · 知识时间线 · 构建时自动生成 · 共 ${pages.length} 篇`,
-}));
+fs.writeFileSync(path.join(PUB, 'timeline', 'index.html'), page({ items: pages, kindCounts: { doc: articles.length, case: cases.length } }));
+// 首页(build-index.js)读这份数据渲染「最近更新」「按项目浏览」与全站搜索;构建产物,不进仓
+fs.writeFileSync(path.join(PUB, 'timeline', 'articles.json'), JSON.stringify(pages.map(p => ({
+  href: p.href, title: p.title, date: p.date, section: p.section, cat: p.cat, kind: p.kind,
+}))));
 
 // ---- sitemap:public/sitemap.xml 由 build-characters.js 每次重写(只含 vivi),这里只补 /timeline 入口 ----
 {
@@ -450,7 +384,7 @@ fs.writeFileSync(path.join(PUB, 'timeline', 'index.html'), page({
 // ---- 报告 ----
 const bySec = {}, bySrc = {};
 for (const p of pages) { bySec[p.section] = (bySec[p.section] || 0) + 1; bySrc[p.dateSrc || 'none'] = (bySrc[p.dateSrc || 'none'] || 0) + 1; }
-console.log(`[timeline] 生成 timeline/index.html · ${pages.length} 篇(扫描 ${raw.length},跳过 noindex/stub ${raw.length - pages.length})`);
+console.log(`[timeline] 生成 timeline/index.html · 文章 ${articles.length} 篇 + 案例 ${cases.length} 个(扫描 ${raw.length},跳过 noindex/stub ${raw.length - docs.length - dupes},内容重复 ${dupes})`);
 console.log('  分区:', JSON.stringify(bySec), ' 日期来源:', JSON.stringify(bySrc));
 const undated = pages.filter(p => !p.date).map(p => p.href);
 if (undated.length) console.warn(`  ⚠️ 无日期 ${undated.length} 篇:`, undated.join(', '));
