@@ -290,11 +290,22 @@ def process_one(row: dict) -> None:
         }
         vsa = (content or {}).get('video_schedule_at')
         if (content or {}).get('publish_on_claim'):
-            # 入队时 --on-claim: publish_at 已经闸住了领单时刻 → 领到就立即发, 不设抖音定时
-            # (深圳机 PC 客户端的定时浮层点不稳, 见 enqueue-ai-video-cloudpc.ts)
+            # 入队时 --on-claim: 到目标时刻立即发, 不设抖音定时 (深圳机 PC 客户端的定时浮层点不稳, 见 enqueue-ai-video-cloudpc.ts).
+            # 不能指望 claim_tuwen_job 的 publish_at<=now() 闸: 生产上它不生效 (2026-09-30 实测 publish_at=+1h 的行当场被领走,
+            # 同 feedback_tuwen_creator_publish_cloudpc_fixes). 所以领到后在这里等到目标时刻 (本机是 CST, target 是 BJT).
+            # 等待期间不持窗口锁 (锁在下面 gui_turn 里才取), DM 照常发; 单子卡 claimed >30min 会被别人的 claim 回收成 approved,
+            # 到点后照样按 id 回写, 不会重发.
             vsa = None
             schedule_at_iso = None
-            print(f'  [tuwen] {disp_id[:8]} 到点领单, 立即发 (目标 {(content or {}).get("target_publish_at")})')
+            tgt = (content or {}).get('target_publish_at')
+            try:
+                wait = (datetime.strptime(tgt, '%Y-%m-%d %H:%M') - datetime.now()).total_seconds() if tgt else 0
+            except ValueError:
+                wait = 0
+            if wait > 0:
+                print(f'  [tuwen] {disp_id[:8]} 目标 {tgt}, 先等 {wait / 3600:.1f}h 再发', flush=True)
+                time.sleep(wait)
+            print(f'  [tuwen] {disp_id[:8]} 到点, 立即发 (目标 {tgt})')
         if not vsa and schedule_at_iso:  # 回退: 没存 content 时用 publish_at
             try:
                 vsa = datetime.fromisoformat(schedule_at_iso.replace('Z', '+00:00')).astimezone().strftime('%Y-%m-%d %H:%M')
