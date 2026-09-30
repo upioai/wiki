@@ -50,7 +50,7 @@ os.chdir(WORK_DIR)
 # ── 版本标记 ─────────────────────────────────────────────────────────────────
 # 云电脑不装 git、update.bat 只下载 raw .py，运行时取不到 git SHA。故硬编码版本串，
 # 每次有意义改动手动 bump（日期+特性名），启动横幅打印 → 运营/PM 一眼核对"是不是最新版"。
-AGENT_VERSION = '2026-09-30+screen-profiles'
+AGENT_VERSION = '2026-09-30+screen-tolerance'
 
 try:
     from dotenv import load_dotenv
@@ -1037,17 +1037,41 @@ def process_rc_batch(claimed: list[dict]) -> None:
 # 2026-09-30：放行的分辨率 = AKKE_EXPECT_SCREEN（可逗号分隔多个）∪ 工作目录里有 `.env.<宽x高>` 校准档的
 # 分辨率（douyin_dm_grounded 按当前分辨率叠这层坐标）。之前只认一个值，白天有人用 Mac 客户端连一下
 # （全屏 2560x1456）agent 就整天不领单，当天 08:21 起停到下午。
+# 2026-09-30 下午（杭州机）：再放行「就近档」——宽、高各差 ≤ AKKE_SCREEN_TOL_PX（默认 12）的分辨率
+# 按最近的校准档跑（douyin_dm_grounded.nearest_screen 同一口径）。杭州机一天在 1456/1462 之间来回漂，
+# 每漂一次就停单等人补 .env.<宽x高>；差得多的（1394 这种）仍然停。
 EXPECT_SCREEN = os.environ.get('AKKE_EXPECT_SCREEN', '').strip().lower()
+SCREEN_TOL_PX = int(os.environ.get('AKKE_SCREEN_TOL_PX', '12'))
+
+
+def _parse_wh(s: str | None) -> tuple[int, int] | None:
+    a, _, b = (s or '').strip().lower().partition('x')
+    return (int(a), int(b)) if a.isdigit() and b.isdigit() else None
 
 
 def allowed_screens() -> set[str]:
-    allowed = {s.strip() for s in EXPECT_SCREEN.split(',') if s.strip()}
+    allowed = {s.strip() for s in EXPECT_SCREEN.split(',') if _parse_wh(s)}
     for p in Path(WORK_DIR).glob('.env.*x*'):
         wh = p.name[len('.env.'):].lower()
-        a, _, b = wh.partition('x')
-        if a.isdigit() and b.isdigit():
+        if _parse_wh(wh):
             allowed.add(wh)
     return allowed
+
+
+def nearest_screen(got: str | None, calibrated: set[str], tol: int) -> str | None:
+    """与 douyin_dm_grounded.nearest_screen 相同：精确命中返回自身，否则取宽高各差 ≤ tol 的最近档。"""
+    g = _parse_wh(got)
+    if not g:
+        return None
+    best = None
+    for c in calibrated:
+        p = _parse_wh(c)
+        if not p:
+            continue
+        dw, dh = abs(p[0] - g[0]), abs(p[1] - g[1])
+        if dw <= tol and dh <= tol and (best is None or (dw + dh, c) < best):
+            best = (dw + dh, c)
+    return best[1] if best else None
 
 
 def _screen_size() -> str | None:
@@ -1064,11 +1088,11 @@ def _screen_size() -> str | None:
 
 
 def screen_mismatch() -> str | None:
-    """返回实际分辨率（不在放行集合里时）；在集合里、未设 AKKE_EXPECT_SCREEN 或取不到 → None。"""
+    """返回实际分辨率（离所有校准档都超出容差时）；在档内/就近档内、未设 AKKE_EXPECT_SCREEN 或取不到 → None。"""
     if not EXPECT_SCREEN:
         return None
     got = _screen_size()
-    return got if got and got not in allowed_screens() else None
+    return got if got and not nearest_screen(got, allowed_screens(), SCREEN_TOL_PX) else None
 
 
 def main():
@@ -1081,21 +1105,25 @@ def main():
     _last_bubble = 0.0      # 气泡捕获节流时戳(同上, 每 BUBBLE_CAPTURE_INTERVAL 一次)
     _yield_streak = 0       # 「自动回复优先」连续让位轮数(显式暴露, 防 approved 卡死静默饿死一触)
     _screen_bad = None      # 分辨率闸上一轮的状态，只在变化时打日志
+    _screen_seen = None     # 上一轮看到的分辨率（容差内漂动也记一行，事后能对上是哪一档在跑）
     if EXPECT_SCREEN:
-        print(f'screen guard: allowed {sorted(allowed_screens())}, now {_screen_size()}')
+        print(f'screen guard: allowed {sorted(allowed_screens())} ±{SCREEN_TOL_PX}px, now {_screen_size()}')
     while True:
         try:
             t0 = time.time()
             did_work = False
 
             _bad = screen_mismatch()
-            if _bad != _screen_bad:
+            _now_wh = _screen_size() if EXPECT_SCREEN else None
+            if _bad != _screen_bad or _now_wh != _screen_seen:
                 if _bad:
-                    print(f'!! [{datetime.now():%H:%M:%S}] 分辨率 {_bad} 不在校准档 {sorted(allowed_screens())} → 停止领单'
+                    print(f'!! [{datetime.now():%H:%M:%S}] 分辨率 {_bad} 离校准档 {sorted(allowed_screens())} 都超过 {SCREEN_TOL_PX}px → 停止领单'
                           f'（心跳会停、派单侧判离线）。把无影窗口调回已校准分辨率、或给它量一份 .env.{_bad} 后自动恢复', file=sys.stderr)
-                else:
-                    print(f'[{datetime.now():%H:%M:%S}] 分辨率 {_screen_size()} 在校准档内 → 继续领单')
-                _screen_bad = _bad
+                elif EXPECT_SCREEN:
+                    _near = nearest_screen(_now_wh, allowed_screens(), SCREEN_TOL_PX)
+                    _how = '在校准档内' if _near == _now_wh else f'按就近校准档 {_near} 跑（容差 {SCREEN_TOL_PX}px）'
+                    print(f'[{datetime.now():%H:%M:%S}] 分辨率 {_now_wh} {_how} → 继续领单')
+                _screen_bad, _screen_seen = _bad, _now_wh
             if _bad:
                 time.sleep(POLL_INTERVAL)
                 continue
