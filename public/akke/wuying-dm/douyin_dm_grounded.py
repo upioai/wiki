@@ -69,13 +69,61 @@ except Exception:
 #   templates-<宽x高>/  有就替代 templates/
 # 没有对应档 = 只用 .env + templates/（旧行为）。wuying_poll_agent 的分辨率闸也认这些档。
 # 本模块被 RC / 二触 / 自动回复 / 发布端 import，所以它们一并按分辨率取坐标。
-SCREEN_WH = '%dx%d' % tuple(pyautogui.size())
+# 就近档（2026-09-30 杭州机）：Mac 客户端全屏/窗口来回切，高度在 1456/1462 这种几像素之间漂，每漂一次
+# 就得人工补一份档、补之前 agent 停单。当前分辨率没有精确档时，取宽、高各差 ≤ AKKE_SCREEN_TOL_PX
+# （默认 12）的最近校准档：坐标是千分比、按当前屏幕换算，差几像素落点只偏几像素；模板匹配本来就是像素级。
+# 杭州机实测 1462 的坐标在 1456 下搜人/核身/关注/点私信全对。差得多（1452→1398 那种）仍然不认。
+SCREEN_TOL_PX = int(os.environ.get('AKKE_SCREEN_TOL_PX', '12'))
+
+
+def _parse_wh(s):
+    a, _, b = (s or '').strip().lower().partition('x')
+    return (int(a), int(b)) if a.isdigit() and b.isdigit() else None
+
+
+def calibrated_screens(work_dir, expect):
+    """校准过的分辨率 = AKKE_EXPECT_SCREEN（逗号分隔）∪ 目录里的 `.env.<宽x高>` 档。
+    wuying_poll_agent.allowed_screens 是同一口径的副本（agent 不能 import 本模块：顶层有 GUI 依赖）。"""
+    out = {x.strip().lower() for x in (expect or '').split(',') if _parse_wh(x)}
+    try:
+        names = os.listdir(work_dir)
+    except OSError:
+        names = []
+    for n in names:
+        if n.startswith('.env.') and _parse_wh(n[len('.env.'):]):
+            out.add(n[len('.env.'):].lower())
+    return out
+
+
+def nearest_screen(got, calibrated, tol):
+    """got 在 calibrated 里 → got；否则宽、高各差 ≤ tol 的最近一档（按 |Δw|+|Δh|，同距取字典序小的）；都不沾 → None。"""
+    g = _parse_wh(got)
+    if not g:
+        return None
+    best = None
+    for c in calibrated:
+        p = _parse_wh(c)
+        if not p:
+            continue
+        dw, dh = abs(p[0] - g[0]), abs(p[1] - g[1])
+        if dw <= tol and dh <= tol and (best is None or (dw + dh, c) < best):
+            best = (dw + dh, c)
+    return best[1] if best else None
+
+
+try:
+    SCREEN_WH = '%dx%d' % tuple(pyautogui.size())
+except Exception:
+    SCREEN_WH = ''
+# 用哪一档：精确档优先，其次就近档；就近到的是 .env 本身校准的分辨率（没有 .env.<宽x高> 文件）就不叠。
+SCREEN_MATCH = nearest_screen(SCREEN_WH, calibrated_screens(WORK_DIR, os.environ.get('AKKE_EXPECT_SCREEN', '')),
+                              SCREEN_TOL_PX) or SCREEN_WH
 SCREEN_PROFILE = None
-_profile_env = os.path.join(WORK_DIR, '.env.%s' % SCREEN_WH)
+_profile_env = os.path.join(WORK_DIR, '.env.%s' % SCREEN_MATCH)
 if os.path.isfile(_profile_env):
     try:
         load_dotenv(_profile_env, override=True)
-        SCREEN_PROFILE = SCREEN_WH
+        SCREEN_PROFILE = SCREEN_MATCH if SCREEN_MATCH == SCREEN_WH else SCREEN_MATCH + '~'
     except Exception:
         pass
 
@@ -189,8 +237,10 @@ def _vision(b64, prompt, mt=300):
 
 
 TEMPLATE_DIR = os.path.join(WORK_DIR, 'templates')
-if os.path.isdir(os.path.join(WORK_DIR, 'templates-%s' % SCREEN_WH)):
-    TEMPLATE_DIR = os.path.join(WORK_DIR, 'templates-%s' % SCREEN_WH)
+for _wh in (SCREEN_WH, SCREEN_MATCH):
+    if _wh and os.path.isdir(os.path.join(WORK_DIR, 'templates-%s' % _wh)):
+        TEMPLATE_DIR = os.path.join(WORK_DIR, 'templates-%s' % _wh)
+        break
 
 
 def _best_douyin_window():
@@ -288,11 +338,38 @@ def find_match(name, confidence=0.82, scales=(1.0, 0.95, 1.05, 0.9, 1.1), region
     锁分辨率后 scale≈1，多尺度只作冗余兜底。返回 (x,y) 屏幕绝对坐标或 None。
     region=(l,t,w,h) 屏幕像素，限定搜索范围(如发送↑只在右侧聊天区找，避开左侧会话列表
     的红色未读点误匹配)。需 opencv-python(confidence 依赖 cv2)；无参考图/缺 cv2 → None。"""
-    tpl = os.path.join(TEMPLATE_DIR, name)
-    if not os.path.exists(tpl):
-        return None
     if region is None:
         region = _win_region()
+    # 当前分辨率那套没找到，再试机上其它模板集（templates/、templates-<宽x高>/）。
+    # 2026-09-30 杭州机：1462 截的 send_arrow 在 1456 下全 NOT FOUND，换成深圳 1452 那套才匹配上——
+    # 借就近档的坐标不等于能借它的模板，同一元素在别的分辨率截的图反而可能对。区域/置信度/坐标闸不变。
+    for d in _template_dirs():
+        pt = _find_match_in(os.path.join(d, name), name, confidence, scales, region)
+        if pt:
+            if d != TEMPLATE_DIR:
+                print('  match[%s] 用的是 %s 那套模板' % (name, os.path.basename(d)))
+            return pt
+    return None
+
+
+def _template_dirs():
+    """TEMPLATE_DIR 排第一，其后是工作目录里其它 templates / templates-<宽x高> 目录（按名字排序）。"""
+    out = [TEMPLATE_DIR]
+    try:
+        names = sorted(os.listdir(WORK_DIR))
+    except OSError:
+        names = []
+    for n in names:
+        p = os.path.join(WORK_DIR, n)
+        if (n == 'templates' or (n.startswith('templates-') and _parse_wh(n[len('templates-'):]))) \
+                and os.path.isdir(p) and p != TEMPLATE_DIR:
+            out.append(p)
+    return out
+
+
+def _find_match_in(tpl, name, confidence, scales, region):
+    if not os.path.exists(tpl):
+        return None
     try:
         from PIL import Image
         base = Image.open(tpl).convert('RGB')
@@ -937,6 +1014,14 @@ def process(c):
             goto_home()
             click_norm(C_SEARCH[0], C_SEARCH[1], wait=1.2, label='搜索框')
             if not type_text(query):
+                # 风控弹窗抢走焦点时，全选+粘贴会落到整页上（2026-09-30 杭州机：搜人时弹选图验证码，
+                # 输入框读回 603 字；此前只记 cancelled，agent 每批照搜、验证码越撞越深，也没人收到告警）。
+                # 这里先查一次弹窗：命中按风控处理（blocked_* → agent 冷却账号 + 红牌），否则照旧 cancelled。
+                _mt, _mtext, _msample = _check_pre_action_modal('_search_modal_%s.png' % nick[:10])
+                if _mt:
+                    c['_modal_text'] = _mtext
+                    c['_captcha_sample'] = _msample
+                    return 'blocked_%s' % _mt, conf
                 print('  [跳过] 搜索词未完整进入输入框，不继续导航')
                 return 'cancelled', conf
             # committed 中文 + Enter 即触发搜索。前置：云电脑切英文输入模式，否则中文 IME 抢首字 → 搜错人。
@@ -1144,7 +1229,8 @@ def _check_pre_action_modal(snap_name='_pre_modal.png'):
         d = _pjson(_vision(base64.b64encode(open(p, 'rb').read()).decode(),
             '这是抖音PC截图。屏幕上是否出现抖音风控验证弹窗？四类:\n'
             'sms 短信验证：含"短信验证/请输入本人持有手机号/输入验证码/接收短信"\n'
-            'slider 滑块拼图：含"请完成下列验证后继续/按住左边按钮拖动/完成上方拼图"\n'
+            'slider 滑块/拖拽类：含"请完成下列验证后继续/按住左边按钮拖动/完成上方拼图"，'
+            '或九宫格选图"请选择所有符合上文描述的图片，并拖拽到下方"\n'
             'face 人脸活检：含"请保持人脸/眨眼/转头/张嘴/扫码用手机完成认证"\n'
             'char 字符图片验证码：含"请输入图中字符/看不清换一张/4-6位字母数字图片验证码"\n'
             '只有明显弹窗才算（半遮罩 + 标题 + 按钮）；底部 banner 不算。\n'
@@ -1261,6 +1347,14 @@ def main(contacts_csv):
                             'sent_at': datetime.now().isoformat(),
                             '_ocr_confidence': '' if ocr_conf is None else '%.3f' % ocr_conf})
                 f.flush()
+                if str(status).startswith('blocked_'):
+                    # 风控弹窗在屏上：本批剩下的不再搜人（每多搜一次风控加深），记 aborted 回池，等人处理。
+                    for c2 in contacts[i:]:
+                        w.writerow({**c2, 'status': 'aborted', 'sent_at': datetime.now().isoformat(),
+                                    '_ocr_confidence': ''})
+                    f.flush()
+                    print('  ⛔ %s → 本批剩余 %d 条记 aborted 回池，停止本批' % (status, len(contacts) - i))
+                    break
                 if i < len(contacts):
                     time.sleep(random.randint(MIN_INTERVAL, MAX_INTERVAL))
     print('\n✅ 完成. 日志: %s' % log)
@@ -1318,7 +1412,9 @@ def capture():
     """模板采集：依次把鼠标悬停到各元素上，自动抓取光标周围裁剪存 templates/。
     前提：抖音PC登录、最大化，并【已手动打开任意一个私信聊天窗口】(能看到发送↑+输入框)。
     锁定无影分辨率后只需采集一次；换分辨率才需重采。比每次实时定位稳得多。"""
-    os.makedirs(TEMPLATE_DIR, exist_ok=True)
+    # 借用就近档时不往那一档里写（会盖掉别的分辨率的参考图），采到 templates/，和没有档时一样。
+    tdir = TEMPLATE_DIR if SCREEN_MATCH == SCREEN_WH else os.path.join(WORK_DIR, 'templates')
+    os.makedirs(tdir, exist_ok=True)
     W, H = pyautogui.size()
     print('=== 模板采集模式  分辨率 %dx%d ===' % (W, H))
     print('抖音已登录最大化。每个元素【先导航到对应界面】，再按回车抓取(不限时)。')
@@ -1337,7 +1433,7 @@ def capture():
         if fname == 'send_arrow.png':
             send_pos = (x, y)
         l, t = max(0, x - cw // 2), max(0, y - ch // 2)
-        pyautogui.screenshot(region=(l, t, cw, ch)).save(os.path.join(TEMPLATE_DIR, fname))
+        pyautogui.screenshot(region=(l, t, cw, ch)).save(os.path.join(tdir, fname))
         print('   ✓ 存 %s（光标@%d,%d 裁 %dx%d）\n' % (fname, x, y, cw, ch))
     # 输入框无图标 → 记录它相对发送↑的像素偏移
     ix, iy = _countdown('【消息输入框中心】(灰色"发送消息"提示处)')
@@ -1347,7 +1443,7 @@ def capture():
         print('   ✓ 输入框@(%d,%d) 相对发送↑偏移=%d,%d → 写入 .env AKKE_INPUT_OFFSET\n' % (ix, iy, dx, dy))
     else:
         print('   ⚠️ 未采到发送↑位置，AKKE_INPUT_OFFSET 未写入，输入框将回退固定坐标\n')
-    print('✅ 采集完成。参考图在 %s' % TEMPLATE_DIR)
+    print('✅ 采集完成。参考图在 %s' % tdir)
     print('   抽查：用图片查看器打开 templates/*.png，确认每张只框住目标元素(没多框背景/文字)。')
     print('   不满意就重跑 --capture。之后直接跑发送，定位自动走模板匹配。')
     return 0
