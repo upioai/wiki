@@ -50,7 +50,7 @@ os.chdir(WORK_DIR)
 # ── 版本标记 ─────────────────────────────────────────────────────────────────
 # 云电脑不装 git、update.bat 只下载 raw .py，运行时取不到 git SHA。故硬编码版本串，
 # 每次有意义改动手动 bump（日期+特性名），启动横幅打印 → 运营/PM 一眼核对"是不是最新版"。
-AGENT_VERSION = '2026-09-29+screen-guard'
+AGENT_VERSION = '2026-09-30+screen-profiles'
 
 try:
     from dotenv import load_dotenv
@@ -1034,7 +1034,20 @@ def process_rc_batch(claimed: list[dict]) -> None:
 # (1452→1398 后「用户」tab 点成了「视频」、整批 非主页 跳过)。设了 AKKE_EXPECT_SCREEN=宽x高 时，
 # 实际分辨率对不上就【不领单】——心跳随之停，派单侧判离线不再派，wuying-heartbeat-watch 报警，
 # 而不是在错位的界面上乱点。不设 = 不检查（其他机器行为不变）。
+# 2026-09-30：放行的分辨率 = AKKE_EXPECT_SCREEN（可逗号分隔多个）∪ 工作目录里有 `.env.<宽x高>` 校准档的
+# 分辨率（douyin_dm_grounded 按当前分辨率叠这层坐标）。之前只认一个值，白天有人用 Mac 客户端连一下
+# （全屏 2560x1456）agent 就整天不领单，当天 08:21 起停到下午。
 EXPECT_SCREEN = os.environ.get('AKKE_EXPECT_SCREEN', '').strip().lower()
+
+
+def allowed_screens() -> set[str]:
+    allowed = {s.strip() for s in EXPECT_SCREEN.split(',') if s.strip()}
+    for p in Path(WORK_DIR).glob('.env.*x*'):
+        wh = p.name[len('.env.'):].lower()
+        a, _, b = wh.partition('x')
+        if a.isdigit() and b.isdigit():
+            allowed.add(wh)
+    return allowed
 
 
 def _screen_size() -> str | None:
@@ -1051,11 +1064,11 @@ def _screen_size() -> str | None:
 
 
 def screen_mismatch() -> str | None:
-    """返回实际分辨率（与 AKKE_EXPECT_SCREEN 不一致时）；一致、未设或取不到 → None。"""
+    """返回实际分辨率（不在放行集合里时）；在集合里、未设 AKKE_EXPECT_SCREEN 或取不到 → None。"""
     if not EXPECT_SCREEN:
         return None
     got = _screen_size()
-    return got if got and got != EXPECT_SCREEN else None
+    return got if got and got not in allowed_screens() else None
 
 
 def main():
@@ -1069,7 +1082,7 @@ def main():
     _yield_streak = 0       # 「自动回复优先」连续让位轮数(显式暴露, 防 approved 卡死静默饿死一触)
     _screen_bad = None      # 分辨率闸上一轮的状态，只在变化时打日志
     if EXPECT_SCREEN:
-        print(f'screen guard: expect {EXPECT_SCREEN}, now {_screen_size()}')
+        print(f'screen guard: allowed {sorted(allowed_screens())}, now {_screen_size()}')
     while True:
         try:
             t0 = time.time()
@@ -1078,10 +1091,10 @@ def main():
             _bad = screen_mismatch()
             if _bad != _screen_bad:
                 if _bad:
-                    print(f'!! [{datetime.now():%H:%M:%S}] 分辨率 {_bad} ≠ 校准的 {EXPECT_SCREEN} → 停止领单'
-                          f'（心跳会停、派单侧判离线）。把无影窗口调回该分辨率后自动恢复', file=sys.stderr)
+                    print(f'!! [{datetime.now():%H:%M:%S}] 分辨率 {_bad} 不在校准档 {sorted(allowed_screens())} → 停止领单'
+                          f'（心跳会停、派单侧判离线）。把无影窗口调回已校准分辨率、或给它量一份 .env.{_bad} 后自动恢复', file=sys.stderr)
                 else:
-                    print(f'[{datetime.now():%H:%M:%S}] 分辨率恢复 {EXPECT_SCREEN} → 继续领单')
+                    print(f'[{datetime.now():%H:%M:%S}] 分辨率 {_screen_size()} 在校准档内 → 继续领单')
                 _screen_bad = _bad
             if _bad:
                 time.sleep(POLL_INTERVAL)

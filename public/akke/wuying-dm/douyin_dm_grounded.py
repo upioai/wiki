@@ -63,6 +63,22 @@ try:
 except Exception:
     pass
 
+# 分辨率档（2026-09-30 深圳机）：无影分辨率跟着最后连进来的客户端窗口走（Mac 全屏 2560x1456、
+# 别的窗口 1398…），坐标/模板只对校准时那个分辨率成立。这里按【当前】分辨率叠一层：
+#   .env.<宽x高>        覆盖 .env 里的坐标类键（AKKE_C_* / AKKE_INPUT_OFFSET / AKKE_SEND_GATE_*）
+#   templates-<宽x高>/  有就替代 templates/
+# 没有对应档 = 只用 .env + templates/（旧行为）。wuying_poll_agent 的分辨率闸也认这些档。
+# 本模块被 RC / 二触 / 自动回复 / 发布端 import，所以它们一并按分辨率取坐标。
+SCREEN_WH = '%dx%d' % tuple(pyautogui.size())
+SCREEN_PROFILE = None
+_profile_env = os.path.join(WORK_DIR, '.env.%s' % SCREEN_WH)
+if os.path.isfile(_profile_env):
+    try:
+        load_dotenv(_profile_env, override=True)
+        SCREEN_PROFILE = SCREEN_WH
+    except Exception:
+        pass
+
 try:
     import wuying_window_lock as _wl  # 单窗口·DM优先串行锁(AKKE_WINDOW_LOCK=1 才生效，否则 no-op)
 except ModuleNotFoundError:
@@ -173,6 +189,8 @@ def _vision(b64, prompt, mt=300):
 
 
 TEMPLATE_DIR = os.path.join(WORK_DIR, 'templates')
+if os.path.isdir(os.path.join(WORK_DIR, 'templates-%s' % SCREEN_WH)):
+    TEMPLATE_DIR = os.path.join(WORK_DIR, 'templates-%s' % SCREEN_WH)
 
 
 def _best_douyin_window():
@@ -1207,7 +1225,8 @@ def main(contacts_csv):
         print('⚠️ 名单 %d > 上限 %d, 截断' % (len(contacts), DAILY_LIMIT))
         contacts = contacts[:DAILY_LIMIT]
 
-    print('=== douyin_dm_grounded  model=%s  conf>=%s ===' % (MODEL, MIN_CONF))
+    print('=== douyin_dm_grounded  model=%s  conf>=%s  screen=%s profile=%s  templates=%s ===' % (
+        MODEL, MIN_CONF, SCREEN_WH, SCREEN_PROFILE or '-', os.path.basename(TEMPLATE_DIR)))
     print('共 %d 条; 前置: ①抖音PC前台+最大化 ②分辨率锁定 ③输入法切【英文模式】' % len(contacts))
     print('   ⚠️ 输入法必须英文模式：中文 IME 会抢搜索词首字 → 搜错人。')
 
