@@ -511,12 +511,18 @@ def main(contacts_csv, auto, result_out=None):
                 with _wl.window_turn('rb'):   # DM 在忙(.dm-want)则先在此等 → DM 优先，发完让位
                     status, ocr_conf, liked, status2 = process(c, auto, times)
             except Exception as e:
-                print('  ❌ 异常: %s' % e)
-                status = 'error:%s' % e
-                try:
-                    pyautogui.press('esc'); time.sleep(0.5)
-                except Exception:
-                    pass
+                if type(e).__name__ == 'GuiLockTimeout':
+                    # 全机 GUI 锁(AKKE_GUI_LOCK=1)等超时：没动 GUI → aborted、也不按 esc
+                    # (没拿到锁时按键 = 打进微信侧正在用的窗口)。
+                    print('  ⏸ %s' % e)
+                    status = 'aborted'
+                else:
+                    print('  ❌ 异常: %s' % e)
+                    status = 'error:%s' % e
+                    try:
+                        pyautogui.press('esc'); time.sleep(0.5)
+                    except Exception:
+                        pass
             row = {**c, 'status': status, 'liked': liked, 'status2': status2,
                    'sent_at': datetime.now().isoformat(),
                    '_ocr_confidence': '' if ocr_conf is None else '%.3f' % ocr_conf,

@@ -1230,8 +1230,14 @@ def main(contacts_csv):
                     with _wl.window_turn('dm'):   # 抢单抖音窗口操作权(DM 直接抢)
                         status, ocr_conf = process(c)
                 except Exception as e:
-                    print('  ❌ 异常: %s' % e)
-                    status = 'error:%s' % e
+                    if type(e).__name__ == 'GuiLockTimeout':
+                        # 全机 GUI 锁(AKKE_GUI_LOCK=1)等超时：一下 GUI 都没动 → aborted
+                        # (回池可重发、不记账号失败)。记成 error:* 会被当发送失败累计 cool 账号。
+                        print('  ⏸ %s' % e)
+                        status = 'aborted'
+                    else:
+                        print('  ❌ 异常: %s' % e)
+                        status = 'error:%s' % e
                 w.writerow({**c, 'status': status,
                             'sent_at': datetime.now().isoformat(),
                             '_ocr_confidence': '' if ocr_conf is None else '%.3f' % ocr_conf})

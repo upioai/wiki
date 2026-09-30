@@ -282,10 +282,11 @@ def main():
             except Exception as e:
                 status = "error:%s" % str(e)[:60]
                 print("  ❌ 异常: %s" % e)
-                try:
-                    pyautogui.press("esc")
-                except Exception:
-                    pass
+                if type(e).__name__ != "GuiLockTimeout":   # 没拿到全机 GUI 锁就别按键
+                    try:
+                        pyautogui.press("esc")
+                    except Exception:
+                        pass
             w.writerow([t["name"], t["sec_uid"], status,
                         "" if conf is None else "%.3f" % conf, datetime.now().isoformat()])
             f.flush()

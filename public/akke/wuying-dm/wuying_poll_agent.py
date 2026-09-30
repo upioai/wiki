@@ -71,6 +71,9 @@ except ModuleNotFoundError:
         @_ctxlib.contextmanager
         def window_turn(self, *a, **k):
             yield
+        @_ctxlib.contextmanager
+        def gui_turn(self, *a, **k):
+            yield
         def dm_keepalive(self):
             pass
     _wl = _WLStub()
@@ -128,6 +131,9 @@ DM_AUTOREPLY_INTERVAL = int(os.environ.get('AKKE_DM_AUTOREPLY_INTERVAL', '180'))
 # 全停（2026-06-25 饭粒凌晨 01:00 卡死 8.5h 的根因）。240s 足够最慢的一次正常捕获，超了
 # 必是挂死 → 杀子进程、跳过本轮捕获、循环继续转（心跳照常跳）。
 DM_AUTOREPLY_TIMEOUT_SEC = int(os.environ.get('AKKE_DM_AUTOREPLY_TIMEOUT_SEC', '240'))
+# 全机 GUI 锁(AKKE_GUI_LOCK=1)在 poll 主循环里等锁的上限。比子进程里 window_turn 的默认
+# 600s 短：主循环卡着不转 = 心跳 last_poll_at 停跳，5 分钟就会被判离线。
+GUI_LOCK_AGENT_WAIT_SEC = float(os.environ.get('AKKE_GUI_LOCK_AGENT_WAIT_SEC', '120'))
 
 # 气泡捕获(第二条捕获腿)。默认关，设 AKKE_DM_BUBBLE_CAPTURE=1 开。
 # 为什么要第二条腿：上面那条(capture_dom)从【会话列表行预览】取文本，而列表预览是渲染给
@@ -1100,9 +1106,12 @@ def main():
                 print(f'[{datetime.now():%H:%M:%S}] 收件箱捕获(每{_iv_h}一次) mode={_ar_mode}{_note}')
                 try:
                     with _wl.dm_batch():   # 置 .dm-want → route-B 让位(autoreply 优先于一触/二触)
-                        # 硬超时：捕获挂死不能拖垮整个 poll 循环（见 DM_AUTOREPLY_TIMEOUT_SEC）。
-                        subprocess.run([sys.executable, str(DOUYIN_AUTOREPLY_PY), _ar_mode],
-                                       cwd=str(WORK_DIR), timeout=DM_AUTOREPLY_TIMEOUT_SEC)
+                        # 全机 GUI 锁(AKKE_GUI_LOCK=1 才生效)：子进程要动抖音窗口，同机企微/个微
+                        # 在用鼠标时先排队；等 GUI_LOCK_AGENT_WAIT_SEC 拿不到就跳过本轮(见 except)。
+                        with _wl.gui_turn('dm-autoreply', GUI_LOCK_AGENT_WAIT_SEC):
+                            # 硬超时：捕获挂死不能拖垮整个 poll 循环（见 DM_AUTOREPLY_TIMEOUT_SEC）。
+                            subprocess.run([sys.executable, str(DOUYIN_AUTOREPLY_PY), _ar_mode],
+                                           cwd=str(WORK_DIR), timeout=DM_AUTOREPLY_TIMEOUT_SEC)
                 except subprocess.TimeoutExpired:
                     print(f'!! dm-autoreply ({_ar_mode}) 超时 {DM_AUTOREPLY_TIMEOUT_SEC}s 已杀子进程，跳过本轮捕获继续转',
                           file=sys.stderr)
@@ -1128,8 +1137,9 @@ def main():
                     _bubble_cmd.append('--commit')
                 try:
                     with _wl.dm_batch():   # 同 D：占窗口锁, route-B/二触让位, 防抢抖音窗口
-                        subprocess.run(_bubble_cmd, cwd=str(WORK_DIR),
-                                       timeout=BUBBLE_CAPTURE_TIMEOUT_SEC)
+                        with _wl.gui_turn('dm-bubble', GUI_LOCK_AGENT_WAIT_SEC):   # 同 D
+                            subprocess.run(_bubble_cmd, cwd=str(WORK_DIR),
+                                           timeout=BUBBLE_CAPTURE_TIMEOUT_SEC)
                 except subprocess.TimeoutExpired:
                     print(f'!! 气泡捕获超时 {BUBBLE_CAPTURE_TIMEOUT_SEC}s 已杀子进程，'
                           f'跳过本轮继续转', file=sys.stderr)
