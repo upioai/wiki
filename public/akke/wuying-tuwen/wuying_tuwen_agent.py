@@ -63,9 +63,10 @@ def _load_dotenv_stdlib(path: Path) -> None:
         print(f'⚠ .env 解析异常 ({path}: {e}), 靠 shell env 兜底', file=sys.stderr)
 
 
-# 多路径 fallback: ①AKKE_WUYING_DM_DIR env ②repo 结构 ../wuying-dm ③云电脑扁平 C:\akke-wuying\wuying-dm
+# 多路径 fallback: ①AKKE_WUYING_DM_DIR env ②同目录(深圳机 C:\akke-wuying 扁平) ③repo 结构 ../wuying-dm ④云电脑扁平 C:\akke-wuying\wuying-dm
 for _cand in [
     Path(os.environ.get('AKKE_WUYING_DM_DIR', '') or '__missing__'),
+    _THIS_DIR,
     _THIS_DIR.parent / 'wuying-dm',
     Path('C:/akke-wuying/wuying-dm'),
 ]:
@@ -165,14 +166,22 @@ if not ASSIGNEE:
     sys.exit(2)
 
 # ── 执行器 ─────────────────────────────────────────────────────────────────
-CREATOR_PUBLISHER_PY = _THIS_DIR / 'creator_publisher.py'
+# AKKE_TUWEN_PUBLISHER=pc_client → 抖音 PC 客户端「投稿」发 (douyin_pc_video_publisher.py, 深圳机自营号视频线,
+# 只发视频); 默认 creator_web → Edge 开 creator.douyin.com 发 (creator_publisher.py). 两者退出码同一套.
+PUBLISHER = os.environ.get('AKKE_TUWEN_PUBLISHER', 'creator_web').strip() or 'creator_web'
+_PC_PUBLISHER_PY = next((p for p in (_THIS_DIR / 'douyin_pc_video_publisher.py',
+                                     _THIS_DIR.parent / 'wuying-dm' / 'douyin_pc_video_publisher.py') if p.exists()),
+                        _THIS_DIR / 'douyin_pc_video_publisher.py')
+CREATOR_PUBLISHER_PY = _PC_PUBLISHER_PY if PUBLISHER == 'pc_client' else _THIS_DIR / 'creator_publisher.py'
+# 下载 + 上传转码 5min + 验证码等人 30min (publisher 默认) + 其余步骤, 留足余量
+PC_PUBLISH_TIMEOUT = int(os.environ.get('AKKE_PC_PUBLISH_TIMEOUT', '3000'))
 
 
 # ── 与同机 DM / route-B 共用的 GUI 串行锁 (wuying-dm/wuying_window_lock.py, AKKE_WINDOW_LOCK=1 才生效) ──
 # creator_publisher 全程 pyautogui 控鼠标键盘; 同机 route-B 三连 / DM 也在控 → 并发会互抢焦点、字打进别的窗口.
 # 发一条视频常超过锁的 STALE_SEC(5min, 上传转码就 5min), 不续期会被对面判「持有者已死」抢走 → 持锁期间每 60s 续一次.
 def _load_window_lock():
-    for d in (Path(os.environ.get('AKKE_WUYING_DM_DIR', '') or '__missing__'), _THIS_DIR.parent / 'wuying-dm',
+    for d in (Path(os.environ.get('AKKE_WUYING_DM_DIR', '') or '__missing__'), _THIS_DIR, _THIS_DIR.parent / 'wuying-dm',
               Path('C:/akke-wuying/wuying-dm')):
         if (d / 'wuying_window_lock.py').exists():
             sys.path.insert(0, str(d))
@@ -280,6 +289,12 @@ def process_one(row: dict) -> None:
             'ai_declaration': bool((content or {}).get('ai_declaration')),
         }
         vsa = (content or {}).get('video_schedule_at')
+        if (content or {}).get('publish_on_claim'):
+            # 入队时 --on-claim: publish_at 已经闸住了领单时刻 → 领到就立即发, 不设抖音定时
+            # (深圳机 PC 客户端的定时浮层点不稳, 见 enqueue-ai-video-cloudpc.ts)
+            vsa = None
+            schedule_at_iso = None
+            print(f'  [tuwen] {disp_id[:8]} 到点领单, 立即发 (目标 {(content or {}).get("target_publish_at")})')
         if not vsa and schedule_at_iso:  # 回退: 没存 content 时用 publish_at
             try:
                 vsa = datetime.fromisoformat(schedule_at_iso.replace('Z', '+00:00')).astimezone().strftime('%Y-%m-%d %H:%M')
@@ -311,13 +326,26 @@ def process_one(row: dict) -> None:
         _safe_complete(disp_id, 'failed', f'manifest write: {e}')
         return
 
-    print(f'  [tuwen] {disp_id[:8]}  manifest={mf_path.name}  → creator_publisher.py --commit')
+    if PUBLISHER == 'pc_client' and not is_video:
+        _safe_complete(disp_id, 'failed', 'AKKE_TUWEN_PUBLISHER=pc_client 只发视频, 这条是图文 (assignee 配错了?)')
+        mf_path.unlink(missing_ok=True)
+        return
+
+    print(f'  [tuwen] {disp_id[:8]}  manifest={mf_path.name}  → {CREATOR_PUBLISHER_PY.name} --commit')
     with gui_turn():
-        proc = subprocess.run(
-            [sys.executable, str(CREATOR_PUBLISHER_PY), '--manifest', str(mf_path), '--commit'],
-            cwd=str(_THIS_DIR),
-        )
-    rc = proc.returncode
+        try:
+            proc = subprocess.run(
+                [sys.executable, str(CREATOR_PUBLISHER_PY), '--manifest', str(mf_path), '--commit'],
+                cwd=str(CREATOR_PUBLISHER_PY.parent),
+                # pc_client 持着和 DM 共用的窗口锁跑, 续期线程会一直续 → 子进程卡死 = DM 永远拿不到锁. 给硬上限.
+                timeout=PC_PUBLISH_TIMEOUT if PUBLISHER == 'pc_client' else None,
+            )
+            rc = proc.returncode
+        except subprocess.TimeoutExpired:
+            rc = 124
+            print(f'  !! {CREATOR_PUBLISHER_PY.name} 超过 {PC_PUBLISH_TIMEOUT}s 已杀, 关残留的创作者中心子窗口', file=sys.stderr)
+            subprocess.run([sys.executable, str(CREATOR_PUBLISHER_PY), '--cleanup'],
+                           cwd=str(CREATOR_PUBLISHER_PY.parent), timeout=120)
     print(f'  [tuwen] {disp_id[:8]} exit={rc}')
 
     # status 映射 (2026-06-25 彻底修 + 06-26 加 exit 10): 区分 3 类:
@@ -339,6 +367,9 @@ def process_one(row: dict) -> None:
     elif rc == 10:
         status = 'needs_review'
         err = '⚠ 弹验证码超时无人过 (3min), agent abort 转 needs_review. 之后可手动重发本 slug. (creator_publisher exit 10)'
+    elif rc == 124:
+        status = 'needs_review'
+        err = f'⚠ 发布脚本超过 {PC_PUBLISH_TIMEOUT}s 被杀, 可能停在任一步 (含已点发布). 先去 PC 客户端「投稿 → 内容管理」核对再决定重发'
     else:
         status = 'failed'
         err = f'creator_publisher exit {rc}'

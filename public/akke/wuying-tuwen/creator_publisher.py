@@ -59,6 +59,7 @@ import pyperclip
 _THIS_DIR = Path(__file__).resolve().parent
 _DM_CANDIDATES = [
     Path(os.environ.get('AKKE_WUYING_DM_DIR', '') or '__missing__'),
+    _THIS_DIR,  # 深圳机 C:\akke-wuying 扁平目录: 与 douyin_dm_grounded 同目录 (PC 客户端投稿复用本文件)
     _THIS_DIR.parent / 'wuying-dm',
     Path('C:/akke-wuying/wuying-dm'),
     Path('/Users') / os.environ.get('USER', '') / 'akke-wuying' / 'wuying-dm',
