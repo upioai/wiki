@@ -299,6 +299,24 @@ def find_match(name, confidence=0.82, scales=(1.0, 0.95, 1.05, 0.9, 1.1), region
     return None
 
 
+def _find_send_arrow(region, tries=3, wait=2.0):
+    """聊天面板里的发送↑。点私信后面板渲染慢时单次匹配会落空 → 整条 cancelled
+    (2026-09-30 深圳 10/33、杭州 2/4 条 cancelled；其中深圳 8 条回池重发都成了，说明面板本身能用)。
+    多等几轮再判；仍没有就留一张截图给下次定位原因，行为照旧是不发。"""
+    for k in range(tries):
+        pt = find_match('send_arrow.png', region=region)
+        if pt:
+            return pt
+        if k < tries - 1:
+            time.sleep(wait)
+    try:
+        path, _ = _shot('send_arrow_miss_%s.png' % datetime.now().strftime('%Y%m%d_%H%M%S'))
+        print('  [send_arrow] %d 次都没找到，截图 %s' % (tries, path))
+    except Exception as e:
+        print('  [send_arrow] 截图失败: %s' % e, file=sys.stderr)
+    return None
+
+
 def _shot(name):
     os.makedirs('screenshots', exist_ok=True)
     path = os.path.join('screenshots', name)
@@ -955,7 +973,7 @@ def process(c):
     # 限定右侧 40% 区域找：聊天输入区永远在右(x≈2486)，避开左侧会话列表红色未读点误匹配
     # (实测某些用户的会话列表红点让 send_arrow 飘到 x≈655 → 锚错 → 不发)。
     _W, _H = pyautogui.size()
-    sp = find_match('send_arrow.png', region=(int(_W * 0.6), 0, _W - int(_W * 0.6), _H))
+    sp = _find_send_arrow(region=(int(_W * 0.6), 0, _W - int(_W * 0.6), _H))
     # 坐标闸：真发送↑恒在聊天面板【右下角】(实测 x≈0.97W, y≈0.44H)。若模板匹配到了
     # 但落在预期区外(如误点进视频后匹配到视频UI里的红箭头，实测飘到 (1719,344)=x0.67/y0.21)，
     # 这是【假阳性定位】——继续锚定+打字+点发会把消息发到错地方却记 sent(VL 拒绝门测不到)。
