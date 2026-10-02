@@ -414,7 +414,11 @@ def claim_batch() -> list[dict]:
 def pending_approved_replies() -> int:
     """本号待发的已审批自动回复条数——「自动回复绝对优先」的闸(2026-07-03)。
     >0 时: 路线 D 不等捕获间隔立即插队跑发送腿, 且本轮跳过一触/二触/RC。
-    查询失败一律当 0——闸失灵宁可照常派单, 别让一次网络抖动饿死一触。"""
+    查询失败一律当 0——闸失灵宁可照常派单, 别让一次网络抖动饿死一触。
+    AKKE_DM_AUTOREPLY_MODE=capture(只读捕获)恒为 0: 否则库里一有 approved 就插队跑 send 腿,
+    「零发送风险」形同虚设; 而且 send 腿不跑、approved 清不掉, 让位闸会每轮跳过一触(2026-09-30)。"""
+    if os.environ.get('AKKE_DM_AUTOREPLY_MODE', 'both') == 'capture':
+        return 0
     try:
         rows = _get(f'dm_reply_drafts?select=id&status=eq.approved&account_id=eq.{ACCOUNT_ID}&limit=5')
         return len(rows or [])
