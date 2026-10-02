@@ -228,10 +228,14 @@ def _get(path_and_query: str):
     return json.loads(body) if body else None
 
 
+CAPTCHA_SAMPLE_URL_TTL_S = 7 * 24 * 3600  # Lark 告警卡里的截图链接有效期
+
+
 def _upload_captcha_sample(rel_path: str, modal_type: str) -> str | None:
     """把 grounded 落在 captcha_samples/ 的验证码截图上传到 Supabase Storage
-    (bucket: captcha-samples, public)，返回 public URL；best-effort，失败回 None
+    (bucket: captcha-samples, 私有)，返回 7 天签名 URL；best-effort，失败回 None
     不拖垮告警链路。stdlib urllib，与 _rpc 同风格、不引 supabase-py。
+    截图是整屏，可能带客户昵称/私信，所以桶不公开（2026-10-02：此前桶根本没建，上传恒 400）。
 
     任务2(简单字符验证码自动填写)卡点①「积累验证截图」的传输段——截图先在云电脑
     grounded 侧落盘，这里上传成可点 URL 进 captcha_alerts.metadata.screenshot_url，
@@ -255,8 +259,19 @@ def _upload_captcha_sample(rel_path: str, modal_type: str) -> str | None:
             method='POST',
         )
         urllib.request.urlopen(req, timeout=30).read()
-        url = f'{SUPABASE_URL}/storage/v1/object/public/captcha-samples/{objname}'
-        print(f'  [验证码样本] 已上传 {url}')
+        sign = urllib.request.Request(
+            f'{SUPABASE_URL}/storage/v1/object/sign/captcha-samples/{objname}',
+            data=json.dumps({'expiresIn': CAPTCHA_SAMPLE_URL_TTL_S}).encode(),
+            headers={
+                'apikey': _APIKEY,
+                'Authorization': f'Bearer {_BEARER}',
+                'Content-Type': 'application/json',
+            },
+            method='POST',
+        )
+        signed = json.loads(urllib.request.urlopen(sign, timeout=30).read().decode())['signedURL']
+        url = f'{SUPABASE_URL}/storage/v1{signed}'
+        print(f'  [验证码样本] 已上传 {objname}')
         return url
     except Exception as e:
         print(f'  [warn] captcha sample upload failed: {e}', file=sys.stderr)
