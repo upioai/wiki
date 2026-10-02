@@ -148,6 +148,8 @@ except ModuleNotFoundError:
 KEY = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('OPENROUTER_API_KEY')
 BASE = os.environ.get('AKKE_OCR_BASE_URL', 'https://openrouter.ai/api/v1')
 MODEL = os.environ.get('AKKE_OCR_MODEL', 'qwen/qwen3-vl-30b-a3b-instruct')
+VISION_TRIES = 3
+VISION_BACKOFF_S = 5
 MIN_CONF = float(os.environ.get('AKKE_OCR_MIN_CONFIDENCE', '0.95'))
 MIN_INTERVAL = int(os.environ.get('AKKE_MIN_INTERVAL', '30'))
 MAX_INTERVAL = int(os.environ.get('AKKE_MAX_INTERVAL', '90'))
@@ -232,8 +234,23 @@ def _vision(b64, prompt, mt=300):
         {'type': 'text', 'text': prompt}]}]}
     req = urllib.request.Request(BASE + '/chat/completions', data=json.dumps(payload).encode(),
         headers={'Authorization': 'Bearer ' + KEY, 'Content-Type': 'application/json'}, method='POST')
-    with urllib.request.urlopen(req, timeout=60) as r:
-        return json.loads(r.read().decode())['choices'][0]['message']['content']
+    # 网络瞬断重试：2026-09-30 杭州机 19:30 那条自营号视频，第一次 locate「投稿」就撞上一次 SSL 握手超时，
+    # 异常一路冒到 publisher exit 1，整条判 failed。429 / 5xx / 超时 / 连接错才重试，4xx 照抛（key 错重试没用）。
+    for k in range(VISION_TRIES):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                return json.loads(r.read().decode())['choices'][0]['message']['content']
+        except urllib.error.HTTPError as e:
+            if e.code != 429 and e.code < 500 or k == VISION_TRIES - 1:
+                raise
+            err = e
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+            if k == VISION_TRIES - 1:
+                raise
+            err = e
+        wait = VISION_BACKOFF_S * (k + 1)
+        print('  [vision] %s，%ds 后重试 (%d/%d)' % (type(err).__name__, wait, k + 1, VISION_TRIES - 1))
+        time.sleep(wait)
 
 
 TEMPLATE_DIR = os.path.join(WORK_DIR, 'templates')
