@@ -22,7 +22,7 @@
 I/O 契约与 douyin_dm.py --auto 一致:
   contacts.csv 列: douyin_id(=昵称搜索词) nickname message has_works _comment_id _sec_uid _dispatch_id
   sent_log_YYYYMMDD.csv 列: 上述 + status follow_status like_status sent_at _ocr_confidence
-          follow_status: followed / already / click_no_effect / not_found / failed / '' (身份门没过没走到关注)
+          follow_status: followed / already / click_no_effect / not_found / failed / skipped(AKKE_SKIP_FOLLOW=1) / '' (身份门没过没走到关注)
           like_status:   liked / no_works / no_coords / click_no_effect / failed / ''
           —— 关注/点赞是 best-effort 不阻断私信，但状态落库便于事后诊断「关没关上」(2026-06-28)
   status: sent / unverified / rejected / wrong_user / cancelled / aborted / error:<msg>
@@ -218,6 +218,9 @@ C_LIKE = _coord('AKKE_C_LIKE', None)                   # 作品播放页点赞�
 # 有坐标走坐标,未采坐标(None)则 follow_user() 用 VL 实时定位关注按钮兜底。坐标稳定时仍建议量准更快更稳。
 # 主页头部「关注」按钮位置稳定→固定坐标。measure_nav.py 一并量,写进 .env: AKKE_C_FOLLOW。
 C_FOLLOW = _coord('AKKE_C_FOLLOW', None)                # 主页头部「关注」按钮中心(可空→VL 兜底)
+# 整段跳过关注(2026-10-04)。发信号关注数顶格(深圳机 shawsnk 关注 9999)时关注必然点不上：
+# 每条白点 2 次 + 3 次 VL 复核(~20-40s)，且 VL 复核有假阳(记 followed 实际没关上)。设 1 → 记 skipped。
+_SKIP_FOLLOW = os.environ.get('AKKE_SKIP_FOLLOW', '0') == '1'
 # 点赞后退回主页用(2026-06-09)。视频页左上角「返回」按钮——Esc 退不出视频层(吃焦点,
 # 二触脚本实测),点返回键才稳。与 douyin_comment_grounded.py 共用同一 .env 的 AKKE_C_BACK;
 # 二触配过就直接复用,没配则 None→VL 实时定位左上角返回键。
@@ -980,6 +983,9 @@ def follow_user():
     仅当 VL 也定位不到 / 点击异常时才放过——best-effort 不抛异常、不阻断私信。
     返回 'followed'/'already'/'click_no_effect'/'not_found'/'failed'。
     注意:已关注的用户再点会【取消关注】——陌生潜客几乎不会已关注,可接受(与点赞同款权衡)。"""
+    if _SKIP_FOLLOW:
+        print('  [关注] AKKE_SKIP_FOLLOW=1 → 跳过')
+        return 'skipped'
     try:
         # 先看是不是已关注(避免再点成取消关注)
         if _is_followed() is True:
