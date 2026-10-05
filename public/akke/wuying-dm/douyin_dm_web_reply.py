@@ -32,7 +32,8 @@ def _on_located_kw(fn, on_located) -> dict:
     """只在被调函数签名认 on_located 时才传（#767 P5 埋点）。
 
     云电脑按 update.bat 的固定清单逐文件拉镜像：douyin_dm_reply_inbox.py /
-    douyin_dm_web_grounded.py 不在清单里，机上可能还是旧签名。硬传 on_located= 会抛
+    douyin_dm_web_grounded.py 2026-10-05 前不在清单里；补进清单后也要等运营换上新 update.bat
+    再跑一次才会拉到，机上可能还是旧签名。硬传 on_located= 会抛
     TypeError，被 send() 的 except 吞成 exc:… → 真实回复判 failed。埋点不能挡发送。
     """
     if on_located is None:

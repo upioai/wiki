@@ -43,13 +43,19 @@ if exist douyin_dm_web_reply.py        copy /Y douyin_dm_web_reply.py        dou
 if exist douyin_dm_web_capture.py      copy /Y douyin_dm_web_capture.py      douyin_dm_web_capture.py.bak      >nul
 if exist douyin_dm_autoreply.py        copy /Y douyin_dm_autoreply.py        douyin_dm_autoreply.py.bak        >nul
 if exist douyin_dm_bubble_capture.py   copy /Y douyin_dm_bubble_capture.py   douyin_dm_bubble_capture.py.bak   >nul
+if exist douyin_dm_web_grounded.py      copy /Y douyin_dm_web_grounded.py      douyin_dm_web_grounded.py.bak      >nul
+if exist douyin_dm_reply_inbox.py       copy /Y douyin_dm_reply_inbox.py       douyin_dm_reply_inbox.py.bak       >nul
+if exist wuying_window_lock.py          copy /Y wuying_window_lock.py          wuying_window_lock.py.bak          >nul
+if exist resolve_douyin_numbers.py      copy /Y resolve_douyin_numbers.py      resolve_douyin_numbers.py.bak      >nul
 echo     done ^(rollback: rename *.py.bak back to *.py^)
 echo.
 
 REM -- [2/3] download ------------------------------------------------------
 echo [2/3] Downloading latest from GitHub public mirror ...
 REM ONE physical line on purpose -- see caret warning in the header block above.
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; $base='https://raw.githubusercontent.com/upioai/wiki/main/public/akke/wuying-dm'; $files=@('wuying_poll_agent.py','douyin_dm_grounded.py','douyin_rc_reply_grounded.py','douyin_comment_grounded.py','douyin_inbox_uia.py','ambig-mute.txt','douyin_dm_web_send_dom.py','douyin_dm_web_capture_dom.py','douyin_dm_web_reply.py','douyin_dm_web_capture.py','douyin_dm_autoreply.py','douyin_dm_bubble_capture.py'); Invoke-WebRequest -Uri \"$base/update.bat\" -OutFile 'update.bat.new' -UseBasicParsing -TimeoutSec 30; foreach ($f in $files) { try { Invoke-WebRequest -Uri \"$base/$f\" -OutFile \".\$f\" -UseBasicParsing -TimeoutSec 30; Write-Host \"     OK   $f\" } catch { Write-Host \"     FAIL $f : $($_.Exception.Message)\"; exit 1 } }"
+REM $files must list every local module the downloaded scripts import (incl. lazy /
+REM try-guarded imports); worker/tests/test_wuying_mirror_manifest.py fails CI otherwise.
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; $base='https://raw.githubusercontent.com/upioai/wiki/main/public/akke/wuying-dm'; $files=@('wuying_poll_agent.py','douyin_dm_grounded.py','douyin_rc_reply_grounded.py','douyin_comment_grounded.py','douyin_inbox_uia.py','ambig-mute.txt','douyin_dm_web_send_dom.py','douyin_dm_web_capture_dom.py','douyin_dm_web_reply.py','douyin_dm_web_capture.py','douyin_dm_autoreply.py','douyin_dm_bubble_capture.py','douyin_dm_web_grounded.py','douyin_dm_reply_inbox.py','wuying_window_lock.py','resolve_douyin_numbers.py'); Invoke-WebRequest -Uri \"$base/update.bat\" -OutFile 'update.bat.new' -UseBasicParsing -TimeoutSec 30; foreach ($f in $files) { try { Invoke-WebRequest -Uri \"$base/$f\" -OutFile \".\$f\" -UseBasicParsing -TimeoutSec 30; Write-Host \"     OK   $f\" } catch { Write-Host \"     FAIL $f : $($_.Exception.Message)\"; exit 1 } }"
 
 if errorlevel 1 (
     echo.
