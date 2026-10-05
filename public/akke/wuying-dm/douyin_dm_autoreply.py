@@ -22,6 +22,7 @@ env(同 inbox_uia/grounded)：AKKE_ACCOUNT_ID + SUPABASE_URL + 鉴权 + ANTHROPI
 """
 from __future__ import annotations
 
+import inspect
 import json
 import os
 import sys
@@ -195,6 +196,25 @@ def capture():
             print(f"[err] record_dm_inbound {name}: {e}")
 
 
+
+def _on_located_kw(fn, on_located) -> dict:
+    """只在被调函数签名认 on_located 时才传（#767 P5 埋点）。
+
+    云电脑按 update.bat 的固定清单逐文件拉镜像：douyin_dm_reply_inbox.py /
+    douyin_dm_web_grounded.py 不在清单里，机上可能还是旧签名。硬传 on_located= 会抛
+    TypeError，被 send() 的 except 吞成 exc:… → 真实回复判 failed。埋点不能挡发送。
+    """
+    if on_located is None:
+        return {}
+    try:
+        params = inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return {}
+    if "on_located" in params or any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()):
+        return {"on_located": on_located}
+    return {}
+
+
 def send():
     try:
         claimed = _rpc("claim_dm_replies", {"p_account_id": ACCOUNT_ID, "p_limit": 5}) or []
@@ -224,11 +244,18 @@ def send():
             print(f"[reply] (跳过) 缺 name/draft: {d['id']}")
             continue
         try:
+            def mark_located():
+                """Best-effort P5 marker; observability must never block a real send."""
+                try:
+                    _rpc("mark_dm_reply_located", {"p_id": d["id"]})
+                except Exception as e:  # noqa: BLE001
+                    print(f"[warn] mark_dm_reply_located {d['id']}: {e}")
+
             if is_web:
                 sec = (d.get("douyin_user_id") or "").strip()
-                res = reply_in_web(nm, sec, draft, confirm=False)  # 自动化：不确认
+                res = reply_in_web(nm, sec, draft, confirm=False, **_on_located_kw(reply_in_web, mark_located))  # 自动化：不确认
             else:
-                res = reply_in_inbox(nm, draft, confirm=False)  # 自动化：不确认
+                res = reply_in_inbox(nm, draft, confirm=False, **_on_located_kw(reply_in_inbox, mark_located))  # 自动化：不确认
         except Exception as e:  # noqa: BLE001
             res = f"exc:{e}"
         ok = res == "sent"

@@ -313,7 +313,8 @@ def _leave_thread(page) -> None:
         pass  # 离开失败不致命：最坏退回原行为（该会话这一轮可能无红点），不影响已发出的消息
 
 
-def send_dom(page, message: str, commit: bool, sec_uid: str = "", nick: str = "", engage: bool = False) -> str:
+def send_dom(page, message: str, commit: bool, sec_uid: str = "", nick: str = "", engage: bool = False,
+             on_located=None) -> str:
     """发 message。sec_uid 优先(通用), 否则 nick 列表兜底。commit=False 只打字不发。
     engage=True(首触批量)则进主页后先关注+点赞再开私信; 回复路径保持 False。
     返回: sent / unverified / dry_ok / no_conversation / no_input / no_send_btn / error:*"""
@@ -334,6 +335,10 @@ def send_dom(page, message: str, commit: bool, sec_uid: str = "", nick: str = ""
     box = _find_input(page)
     if box is None:
         return "no_input"
+
+    # P5 boundary: unique target conversation is open and its input is usable.
+    if on_located:
+        on_located()
 
     # 发送前幂等 pre-check(2026-07-07 大女人👩 案): 会话里最后几条气泡若已含本文案 =
     # 上一轮其实发出去了、只是验证误报(unverified)被 #763 重试送回来 → 直接归位 sent,

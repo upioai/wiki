@@ -252,7 +252,7 @@ def like_first_work_web(nick):
         return 'failed'
 
 
-def process_web(c, confirm=False):
+def process_web(c, confirm=False, on_located=None):
     """单条网页私信流程。返回 (status, ocr_conf_or_None)。"""
     nick = c['nickname']
     sec = (c.get('_sec_uid') or '').strip()
@@ -325,6 +325,10 @@ def process_web(c, confirm=False):
         else:
             print('  [跳过] 私信面板对话对象≠目标 seen=%r → wrong_chat 防发错人, 不发' % hseen)
             return 'wrong_chat', conf
+
+    # P5 boundary: homepage and chat-panel identity gates both passed.
+    if on_located:
+        on_located()
 
     # ④ 发送前人工确认(spike 用 --confirm)
     if confirm:

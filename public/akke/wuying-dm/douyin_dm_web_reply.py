@@ -18,6 +18,7 @@ sec_uid 由 claim_dm_replies 返回(conversations.douyin_user_id 存的就是 se
 """
 from __future__ import annotations
 
+import inspect
 import os
 
 import douyin_dm_web_grounded as _web
@@ -27,12 +28,30 @@ _web.DO_FOLLOW = False
 _web.DO_LIKE = False
 
 
+def _on_located_kw(fn, on_located) -> dict:
+    """只在被调函数签名认 on_located 时才传（#767 P5 埋点）。
+
+    云电脑按 update.bat 的固定清单逐文件拉镜像：douyin_dm_reply_inbox.py /
+    douyin_dm_web_grounded.py 不在清单里，机上可能还是旧签名。硬传 on_located= 会抛
+    TypeError，被 send() 的 except 吞成 exc:… → 真实回复判 failed。埋点不能挡发送。
+    """
+    if on_located is None:
+        return {}
+    try:
+        params = inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return {}
+    if "on_located" in params or any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()):
+        return {"on_located": on_located}
+    return {}
+
+
 def _use_dom() -> bool:
     # 运行时读（不在 import 时定死）：dotenv override 时序坑，同 DO_FOLLOW 注释。
     return os.environ.get("AKKE_WEB_DM_USE_DOM", "").lower() in ("1", "true", "yes")
 
 
-def _reply_via_dom(nick: str, sec: str, draft: str):
+def _reply_via_dom(nick: str, sec: str, draft: str, on_located=None):
     """DOM 版回复（connect_over_cdp + send_dom，engage=False）——比 VL 快、且发完自动离开会话
     （复用 send_dom 的 leave_thread，治多轮无红点漏读）。返回 send_dom 状态串；
     【连不上 Edge / 没 douyin 标签页】返回 None → 调用方回退 VL，绝不丢回复。"""
@@ -52,12 +71,13 @@ def _reply_via_dom(nick: str, sec: str, draft: str):
             if page is None:
                 return None
             # engage=False：回复对象首触时已关注/点赞，不重复
-            return send_dom(page, draft, commit=True, sec_uid=sec, nick=nick, engage=False)
+            return send_dom(page, draft, commit=True, sec_uid=sec, nick=nick, engage=False,
+                            **_on_located_kw(send_dom, on_located))
     except Exception as e:
         return f"error:dom/{e}"
 
 
-def reply_in_web(nick: str, sec_uid: str, draft: str, confirm: bool = False) -> str:
+def reply_in_web(nick: str, sec_uid: str, draft: str, confirm: bool = False, on_located=None) -> str:
     """给 (nick, sec_uid) 发一条 draft 回复。返回 status 字符串（sent / no_secuid /
     wrong_user / dm_panel_failed / wrong_chat / rejected / unverified / error:<msg> /
     no_conversation / no_input …）。只有 'sent' 算成功；调用方据此 complete_dm_reply(sent/failed)。
@@ -68,12 +88,12 @@ def reply_in_web(nick: str, sec_uid: str, draft: str, confirm: bool = False) -> 
     if not sec:
         return "no_secuid"
     if _use_dom():
-        r = _reply_via_dom(nick, sec, draft)
+        r = _reply_via_dom(nick, sec, draft, on_located=on_located)
         if r is not None:
             return r
         print("  [reply] DOM 连不上 CDP → 回退 VL process_web")
     c = {"nickname": nick, "_sec_uid": sec, "message": draft, "douyin_id": ""}
-    status, _conf = _web.process_web(c, confirm=confirm)
+    status, _conf = _web.process_web(c, confirm=confirm, **_on_located_kw(_web.process_web, on_located))
     return status
 
 
