@@ -133,10 +133,19 @@ def capture():
             return capture_dom()
         from douyin_dm_web_capture import capture as web_capture
         return web_capture()
-    _goto_dm_inbox()  # 量了 AKKE_C_DM_INBOX 才点开收件箱；没量=假设已停在列表
+    # PC 8.5.1 的「消息」是开关式侧栏：已打开时再点会把它关掉 → 这一轮只读到 1 行垃圾
+    # （2026-10-05 杭州机实测隔轮读空）。先看私信面板在不在，在就不点。
+    _win0 = find_douyin()
+    if _win0 is None or find_im_panel(_win0) is None:
+        _goto_dm_inbox()  # 量了 AKKE_C_DM_INBOX 才点开收件箱；没量=假设已停在列表
     win = find_douyin()
     if win is None:
         print("[X] 没找到抖音窗口（前台最大化、停在私信列表了吗？）")
+        return
+    # 私信面板不在就不读：回退读全窗口时，搜索结果页/主页列的恰好是我们搜过、发过 DM 的人，
+    # 昵称能 match 上已发记录，简介会被当成「客户回复」写库（2026-10-05 深圳机侧栏点不开时差点踩到）。
+    if find_im_panel(win) is None:
+        print("[skip] 私信面板没打开(imSaasContainerId 不在) → 本轮不读不写，防把非会话列表当回复")
         return
     by_name = load_sent_dms()
     # 红点门控（默认开）：只抓【有未读徽标】的会话行 = 客户真发了新消息。
