@@ -18,12 +18,14 @@
 """
 from __future__ import annotations
 
+import os
 import re
 import sys
 import time
 
 import pyautogui
 
+import douyin_dm_grounded as _g
 from douyin_dm_grounded import (
     focus_douyin,
     type_text,
@@ -51,6 +53,28 @@ def find_row_rect(panel, target: str):
     return None
 
 
+def _scroll_find_row(win, target: str, max_scrolls: int):
+    """私信面板只渲染首屏约 13 行(UIA 也只给已渲染的行)。客户不在首屏 → 滚着找。
+
+    2026-10-06 深圳 B 端机：九牛网络在第 14 行开外，就地回复直接 no_row、已审批回复发不出去。
+    滚轮落点取已渲染会话名的包围盒中心(必在列表区内)；每滚一次重新取面板再找。"""
+    panel = find_im_panel(win) or win
+    rects = [r for ct, _, r in collect_nodes(panel) if ct == "TextControl" and r != (0, 0, 0, 0)]
+    if not rects:
+        return None
+    x = (min(r[0] for r in rects) + max(r[2] for r in rects)) // 2
+    y = (min(r[1] for r in rects) + max(r[3] for r in rects)) // 2
+    pyautogui.moveTo(x, y)
+    for i in range(max_scrolls):
+        pyautogui.scroll(-480)  # Windows 下是滚轮 delta，120=一格
+        time.sleep(0.8)
+        row = find_row_rect(find_im_panel(win) or win, target)
+        if row:
+            print(f"  [滚动找会话] 第 {i + 1} 次滚动后找到「{target}」")
+            return row
+    return None
+
+
 def reply_in_inbox(target: str, message: str, confirm: bool = True, on_located=None) -> str:
     # ① 点收件箱里的会话行开聊天窗(新代码)
     focus_douyin()
@@ -60,6 +84,8 @@ def reply_in_inbox(target: str, message: str, confirm: bool = True, on_located=N
         print("[X] 没找到抖音窗口")
         return "no_window"
     row = find_row_rect(find_im_panel(win) or win, target)
+    if not row:
+        row = _scroll_find_row(win, target, int(os.environ.get("AKKE_REPLY_SCROLL_MAX", "15")))
     if not row:
         print(f"[X] 收件箱列表没找到会话「{target}」(停在会话列表了吗?)")
         return "no_row"
@@ -72,13 +98,22 @@ def reply_in_inbox(target: str, message: str, confirm: bool = True, on_located=N
     focus_douyin()  # 重新置前: 打字前必须确保抖音在前台, 否则 SendInput 漏进控制台
     time.sleep(0.4)
     _W, _H = pyautogui.size()
-    sp = find_match("send_arrow.png", region=(int(_W * 0.6), 0, _W - int(_W * 0.6), _H))
-    # 坐标闸: 真发送↑恒在右下角(x≥0.85W, y∈[0.28H,0.68H]); 落区外=假阳性, 不发。
+    _region = (int(_W * 0.6), 0, _W - int(_W * 0.6), _H)
+    # 找图与坐标闸都跟 grounded(一触) 共用：面板渲染慢要多等几轮(_find_send_arrow)；
+    # 闸的上下界按机器读 AKKE_SEND_GATE_XMIN/YMIN/YMAX。此前这里写死 y∈[0.28H,0.68H]，
+    # 抖音 PC 8.5.1 停靠面板的发送↑在 y≈0.92H(深圳机)，一触早已放宽，这里没跟上 →
+    # 已审批回复必判 send_arrow_bad_pos(2026-10-06)。getattr 兜底：机上 grounded 是旧版也能跑。
+    _find = getattr(_g, "_find_send_arrow", None)
+    sp = _find(region=_region) if _find else find_match("send_arrow.png", region=_region)
     if not sp:
         print("[X] 没匹配到 send_arrow.png —— 该机未校准? 先跑 py douyin_dm_grounded.py --capture")
         return "no_send_arrow"
-    if not (sp[0] >= 0.85 * _W and 0.28 * _H <= sp[1] <= 0.68 * _H):
-        print(f"  [跳过] send_arrow 落异常位置 ({sp[0]},{sp[1]}) → 判假阳性, 不发")
+    xmin = getattr(_g, "_SEND_GATE_XMIN", 0.85)
+    ymin = getattr(_g, "_SEND_GATE_YMIN", 0.28)
+    ymax = getattr(_g, "_SEND_GATE_YMAX", 0.68)
+    if not (sp[0] >= xmin * _W and ymin * _H <= sp[1] <= ymax * _H):
+        print(f"  [跳过] send_arrow 落异常位置 ({sp[0]},{sp[1]}) 不在 x≥{xmin * _W:.0f}, "
+              f"y∈[{ymin * _H:.0f},{ymax * _H:.0f}] → 判假阳性, 不发")
         return "send_arrow_bad_pos"
     off = _input_offset()
     if not off:

@@ -181,6 +181,10 @@ C_SEARCH_BTN = _coord('AKKE_C_SEARCH_BTN', (589, 14)) # 放大镜搜索按钮(px
 # 结果页时,顶部搜索框位置会变(首页在顶 y≈13、结果页挪到中间),固定坐标点搜索框就点空到视频上
 # (2026-06-12「假发送」根因之一)。默认 None=不点(老行为);量了 AKKE_C_HOME 才启用 goto_home。
 C_HOME = _coord('AKKE_C_HOME', None)                  # 左侧栏「推荐」按钮中心(px≈73,134 @2560x1600)
+# 直播间左上角「<」返回(2026-10-06 杭州机)：点搜索结果头像时对方正在直播 → 直接进直播间；直播间里
+# Esc 和左侧「推荐」都不管用、顶部搜索框也不在 → 之后每条「搜索词未完整进入输入框」，卡了 1 小时
+# (10:57→12:14，17 条 cancelled，直播结束才自愈)。只在搜索框打字失败的分支里点，正常流程不碰。
+C_LIVE_BACK = _coord('AKKE_C_LIVE_BACK', (37, 32))    # 直播间左上「<」(px≈94,47 @2560x1462)
 C_USERTAB = _coord('AKKE_C_USERTAB', (287, 45))       # 结果页「用户」tab(px≈735,73)
 C_FIRST = _coord('AKKE_C_FIRST', (219, 103))          # 第一条结果头像(px≈561,167)
 # 身份门多结果扫描(2026-06-14,根治「目标不在第一条→点错人→wrong_user」)：抖音「用户」结果是
@@ -432,6 +436,50 @@ def _find_send_arrow(region, tries=3, wait=2.0):
     return None
 
 
+def _enter_new_conv_from_list(nick, region):
+    """点「私信」后面板停在【会话列表】、没进聊天窗时的兜底：顶行就是目标人 → 点进去再找发送↑。
+
+    2026-10-06 杭州机：身份门过了却 send_arrow NOT FOUND 占 10-06 跳过的大头。miss 截图
+    (10-05 09:27 大'鱼 / 10-06 12:39 / 13:19) 全是同一形态：主页已是「已关注」，点私信后右侧
+    是会话列表、目标人的新会话在【顶行】；同一批人下次重派几乎都发成了(会话已存在时私信直接进聊天窗)。
+    只认【顶行】且昵称精确相等(身份已在主页核过；新建会话必在顶行)——列表里别处同名的旧会话不碰。
+    UIA 不可用 / 面板不在 / 顶行不是本人 → 返回 None，调用方照旧不发。AKKE_DM_LIST_FALLBACK=0 关掉。"""
+    if os.environ.get('AKKE_DM_LIST_FALLBACK', '1').lower() not in ('1', 'true', 'yes'):
+        return None
+    try:
+        from douyin_inbox_uia import find_douyin, find_im_panel, collect_nodes, parse_rows_unread
+    except BaseException as e:  # 缺 uiautomation 时 douyin_inbox_uia 会 sys.exit
+        print('  [列表兜底] UIA 不可用(%r)，不兜底' % e)
+        return None
+    norm = lambda x: ''.join((x or '').split())
+    try:
+        win = find_douyin()
+        panel = find_im_panel(win) if win else None
+        if panel is None:
+            print('  [列表兜底] 没找到私信面板，不兜底')
+            return None
+        nodes = collect_nodes(panel)
+        rows = parse_rows_unread(nodes)
+        top = rows[0][0] if rows else ''
+        if norm(top) != norm(nick):
+            print('  [列表兜底] 顶行是 %r 不是 %r，不兜底' % (top, nick))
+            return None
+        rect = next((r for ct, n, r in nodes
+                     if ct == 'TextControl' and norm(n) == norm(nick) and r != (0, 0, 0, 0)), None)
+    except Exception as e:
+        print('  [列表兜底] UIA 读面板失败(%r)，不兜底' % e)
+        return None
+    if not rect:
+        print('  [列表兜底] 顶行昵称没有坐标，不兜底')
+        return None
+    cx, cy = (rect[0] + rect[2]) // 2, (rect[1] + rect[3]) // 2
+    print('  [列表兜底] 面板停在会话列表、顶行是本人 → 点进会话 (%d,%d)' % (cx, cy))
+    pyautogui.click(cx, cy)
+    time.sleep(1.5)
+    focus_douyin()
+    return _find_send_arrow(region=region)
+
+
 def _shot(name):
     os.makedirs('screenshots', exist_ok=True)
     path = os.path.join('screenshots', name)
@@ -569,17 +617,6 @@ def _input_offset():
     return None
 
 
-def click_match_or_vl(name, vl_desc, wait=1.8, tries=3, region=None):
-    """大元素(搜索框/用户tab)：模板匹配优先(稳)，未命中回退 VL grounding(旧逻辑)。"""
-    pt = find_match(name)
-    if pt:
-        pyautogui.click(pt[0], pt[1])
-        time.sleep(wait)
-        return pt
-    print('  [match→VL] 模板未命中，回退视觉定位: %s' % vl_desc)
-    return click_el(vl_desc, wait=wait, tries=tries, region=region)
-
-
 def click_match_or_norm(name, fx, fy, wait=1.8, label=''):
     """小元素(私信/发送↑)：模板匹配优先，未命中回退实测固定归一化坐标(不回退 VL,
     VL 对这些小密集元素本就不稳)。"""
@@ -595,6 +632,14 @@ def close_chat():
     """关闭右侧私信聊天窗口(点 ×)，让下一条从干净状态开始。不关的话上一条残留的聊天
     窗口会让下一条 send_arrow 误匹配到左侧会话列表(实测飘到 x≈655)→ 输入框锚错→不发。"""
     click_norm(C_CLOSE[0], C_CLOSE[1], wait=1.0, label='关闭聊天窗口×')
+
+
+def escape_live_room():
+    """搜索框打字失败、又不是风控弹窗时的自救：多半被困在直播间(见 C_LIVE_BACK)。
+    点左上「<」+ Esc，让下一条从能搜人的页面开始。不在直播间时点到的是普通页的返回/空处，无害。"""
+    click_norm(C_LIVE_BACK[0], C_LIVE_BACK[1], wait=1.5, label='退出直播间<')
+    for _ in range(2):
+        pyautogui.press('esc'); time.sleep(0.4)
 
 
 def reset_to_home():
@@ -621,22 +666,6 @@ def _plan_send_coords(sp, off, allow_fixed=None):
     if sp:
         return ((sp[0] + off[0], sp[1] + off[1]) if off else None, sp)
     return (None, None) if allow_fixed else None
-
-
-def click_input(wait=1.0):
-    """点消息输入框：先模板匹配发送↑拿锚点，按 AKKE_INPUT_OFFSET 偏移点输入框。
-    发送↑没找到时默认不点(返回 None)，规则同 _plan_send_coords。"""
-    plan = _plan_send_coords(find_match('send_arrow.png'), _input_offset())
-    if plan is None:
-        print('  [跳过] send_arrow 未找到 → 聊天面板不在预期态，不点输入框')
-        return None
-    ipt = plan[0]
-    if ipt:
-        print('  input[锚定发送↑] -> (%d,%d)' % ipt)
-        pyautogui.click(ipt[0], ipt[1])
-        time.sleep(wait)
-        return ipt
-    return click_norm(C_INPUT[0], C_INPUT[1], wait=wait, label='消息输入框(固定坐标回退)')
 
 
 # ── Windows SendInput unicode 键入(绕开剪贴板)──────────────────────────
@@ -1045,6 +1074,7 @@ def process(c):
                     c['_modal_text'] = _mtext
                     c['_captcha_sample'] = _msample
                     return 'blocked_%s' % _mt, conf
+                escape_live_room()
                 print('  [跳过] 搜索词未完整进入输入框，不继续导航')
                 return 'cancelled', conf
             # committed 中文 + Enter 即触发搜索。前置：云电脑切英文输入模式，否则中文 IME 抢首字 → 搜错人。
@@ -1099,7 +1129,10 @@ def process(c):
     # 限定右侧 40% 区域找：聊天输入区永远在右(x≈2486)，避开左侧会话列表红色未读点误匹配
     # (实测某些用户的会话列表红点让 send_arrow 飘到 x≈655 → 锚错 → 不发)。
     _W, _H = pyautogui.size()
-    sp = _find_send_arrow(region=(int(_W * 0.6), 0, _W - int(_W * 0.6), _H))
+    _sa_region = (int(_W * 0.6), 0, _W - int(_W * 0.6), _H)
+    sp = _find_send_arrow(region=_sa_region)
+    if not sp:
+        sp = _enter_new_conv_from_list(nick, _sa_region)
     # 坐标闸：真发送↑恒在聊天面板【右下角】(实测 x≈0.97W, y≈0.44H)。若模板匹配到了
     # 但落在预期区外(如误点进视频后匹配到视频UI里的红箭头，实测飘到 (1719,344)=x0.67/y0.21)，
     # 这是【假阳性定位】——继续锚定+打字+点发会把消息发到错地方却记 sent(VL 拒绝门测不到)。

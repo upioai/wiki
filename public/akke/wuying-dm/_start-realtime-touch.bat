@@ -42,6 +42,8 @@ REM consume -> resolve_douyin_numbers); guarded by worker/tests/test_wuying_mirr
 call :pull douyin_dm_grounded.py
 call :pull wuying_window_lock.py
 call :pull resolve_douyin_numbers.py
+REM dm_grounded lazily imports it for the "stuck on DM list" fallback (needs uiautomation; skipped if absent)
+call :pull douyin_inbox_uia.py
 echo === self-update done ===
 echo.
 
