@@ -92,6 +92,12 @@ def profile_params(sec_uid: str) -> dict:
     }
 
 
+def _real_number(v) -> str:
+    """接口里的 unique_id / short_id 归一：空、纯 0（short_id 未设置时抖音回 "0"/0）都不是抖音号。"""
+    t = str(v or "").strip()
+    return "" if not t or t.strip("0") == "" else t
+
+
 def resolve_one(client: httpx.Client, sec_uid: str, cookie_str: str = "") -> dict:
     """返回 {'ok':bool,'number':str,'nickname':str,'note':str}。"""
     params = profile_params(sec_uid)
@@ -118,7 +124,8 @@ def resolve_one(client: httpx.Client, sec_uid: str, cookie_str: str = "") -> dic
                 "note": f"status_code={data.get('status_code')} {data.get('status_msg','')}"}
     user = data.get("user") or {}
     # 抖音号优先 unique_id；没设过的用户 unique_id 为空 → 退 short_id
-    number = (user.get("unique_id") or "").strip() or str(user.get("short_id") or "").strip()
+    # short_id 没设过时是 "0"（字符串"0"为真值），不能当抖音号：否则后面按号搜人会搜「0」
+    number = _real_number(user.get("unique_id")) or _real_number(user.get("short_id"))
     nickname = (user.get("nickname") or "").strip()
     if not number:
         return {"ok": False, "number": "", "nickname": nickname, "note": "unique_id/short_id 都空"}

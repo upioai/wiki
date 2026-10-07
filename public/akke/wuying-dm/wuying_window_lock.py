@@ -43,6 +43,7 @@ import os
 import time
 import threading
 import contextlib
+import uuid
 
 ENABLED = os.environ.get("AKKE_WINDOW_LOCK") == "1"
 _DIR = os.path.dirname(os.path.abspath(__file__))
@@ -72,6 +73,29 @@ def _try_create(path):
         return False
     except OSError:
         return False
+
+
+def _steal_if_stale(path):
+    """持有者疑似已死 → 抢占。先改名成墓碑再核一次 mtime，而不是直接 remove：
+    两个等待者同时判 stale 时，直接 remove 会让慢的那个把快的刚建好的【新锁】删掉 → 双持锁。
+    返回 True = 旧锁已清、可重新抢；False = 没抢到/抢到的其实是新锁（已还回去）。"""
+    if _fresh(path):
+        return False
+    tomb = "%s.stale-%d-%s" % (path, os.getpid(), uuid.uuid4().hex[:6])
+    try:
+        os.rename(path, tomb)
+    except OSError:
+        return False                       # 已被别人清走/换新，让调用方重新抢
+    if _fresh(tomb):
+        # 改名那一瞬间别人刚好建了新锁：还回去（目标已被占就放弃，宁可让它按 stale 过期）
+        try:
+            if not os.path.exists(path):
+                os.rename(tomb, path)
+                return False
+        except OSError:
+            pass
+    _remove(tomb)
+    return True
 
 
 def _touch(path):
@@ -127,8 +151,7 @@ def window_turn(role):
             continue                       # DM 占着/在等 → route-B 让位
         if _try_create(_LOCK):
             break                          # 抢到
-        if not _fresh(_LOCK):
-            _remove(_LOCK)                 # 持有者已死 → 抢占
+        if _steal_if_stale(_LOCK):         # 持有者已死 → 抢占（墓碑校验，见 _steal_if_stale）
             continue
         time.sleep(_POLL)
     try:

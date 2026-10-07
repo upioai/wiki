@@ -44,13 +44,51 @@ def _center(rect):
     return ((rect[0] + rect[2]) // 2, (rect[1] + rect[3]) // 2)
 
 
-def find_row_rect(panel, target: str):
-    """私信列表里找昵称==target 的会话行,返回名字节点 rect(供点击开会话)。"""
+def find_row_rects(panel, target: str):
+    """私信列表里所有昵称==target 的会话行名字节点 rect（按 y 排序）。
+
+    只算【列表列】：与最靠左的匹配同一列(左边界差 ≤30px)——右侧已开聊天窗的头部昵称不算第二行。"""
     nt = _norm(target)
-    for ct, name, rect in collect_nodes(panel):
-        if ct == "TextControl" and _norm(name) == nt and rect != (0, 0, 0, 0):
-            return rect
-    return None
+    hits = [rect for ct, name, rect in collect_nodes(panel)
+            if ct == "TextControl" and _norm(name) == nt and rect != (0, 0, 0, 0)]
+    if not hits:
+        return []
+    left = min(r[0] for r in hits)
+    return sorted((r for r in hits if r[0] - left <= 30), key=lambda r: r[1])
+
+
+def find_row_rect(panel, target: str):
+    """私信列表里找昵称==target 的会话行,返回名字节点 rect(供点击开会话)。多行同名返回第一行(调用方自行判歧义)。"""
+    rects = find_row_rects(panel, target)
+    return rects[0] if rects else None
+
+
+def _already_replied(message: str) -> bool:
+    """幂等预检：已打开的会话里，对方【最后一条消息之后】是否已有我方气泡含这段文案。
+
+    send_unverified / 进程中断后回池重发时，气泡其实已在 → 再发一遍客户会收到两条。
+    只在【明确说有】时才返回 True；VL 异常/不确定/工具缺失一律 False(照旧发，不因预检漏发)。
+    AKKE_REPLY_PRECHECK=0 关掉。"""
+    if os.environ.get("AKKE_REPLY_PRECHECK", "1").lower() not in ("1", "true", "yes"):
+        return False
+    snippet = (message or "").strip()[:16]
+    shot, vision, pjson = (getattr(_g, n, None) for n in ("_shot", "_vision", "_pjson"))
+    if not snippet or not (shot and vision and pjson):
+        return False
+    try:
+        import base64
+        path, _ = shot("_reply_precheck.png")
+        with open(path, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode()
+        d = pjson(vision(
+            b64,
+            "这是抖音PC私信聊天窗口截图。找到对话区里【左侧、对方发来的最后一条消息】，"
+            "在它【之后】(下方)是否已经有【右侧、我自己发出的气泡】包含这段文字：「%s」?"
+            "只看右侧自己发的气泡。只回严格JSON:{\"already_sent\":true/false}" % snippet))
+        return bool(d.get("already_sent", False))
+    except Exception as e:  # noqa: BLE001
+        print(f"  [预检] 异常(按未发，照旧发): {e}")
+        return False
 
 
 def _scroll_find_row(win, target: str, max_scrolls: int):
@@ -61,18 +99,18 @@ def _scroll_find_row(win, target: str, max_scrolls: int):
     panel = find_im_panel(win) or win
     rects = [r for ct, _, r in collect_nodes(panel) if ct == "TextControl" and r != (0, 0, 0, 0)]
     if not rects:
-        return None
+        return []
     x = (min(r[0] for r in rects) + max(r[2] for r in rects)) // 2
     y = (min(r[1] for r in rects) + max(r[3] for r in rects)) // 2
     pyautogui.moveTo(x, y)
     for i in range(max_scrolls):
         pyautogui.scroll(-480)  # Windows 下是滚轮 delta，120=一格
         time.sleep(0.8)
-        row = find_row_rect(find_im_panel(win) or win, target)
-        if row:
+        found = find_row_rects(find_im_panel(win) or win, target)
+        if found:
             print(f"  [滚动找会话] 第 {i + 1} 次滚动后找到「{target}」")
-            return row
-    return None
+            return found
+    return []
 
 
 def reply_in_inbox(target: str, message: str, confirm: bool = True, on_located=None) -> str:
@@ -83,9 +121,17 @@ def reply_in_inbox(target: str, message: str, confirm: bool = True, on_located=N
     if win is None:
         print("[X] 没找到抖音窗口")
         return "no_window"
-    row = find_row_rect(find_im_panel(win) or win, target)
-    if not row:
-        row = _scroll_find_row(win, target, int(os.environ.get("AKKE_REPLY_SCROLL_MAX", "15")))
+    rows = find_row_rects(find_im_panel(win) or win, target)
+    if len(rows) > 1:
+        # 抖音昵称不唯一：点进去之后没有再核对话对象的手段，宁可不发（回池/人工）也不发给同名的另一个人。
+        print(f"[X] 收件箱列表里有 {len(rows)} 行同昵称「{target}」，无法确认哪行是目标 → 不发")
+        return "ambiguous_nick"
+    if not rows:
+        rows = _scroll_find_row(win, target, int(os.environ.get("AKKE_REPLY_SCROLL_MAX", "15")))
+        if len(rows) > 1:
+            print(f"[X] 滚动后列表里有 {len(rows)} 行同昵称「{target}」，无法确认哪行是目标 → 不发")
+            return "ambiguous_nick"
+    row = rows[0] if rows else None
     if not row:
         print(f"[X] 收件箱列表没找到会话「{target}」(停在会话列表了吗?)")
         return "no_row"
@@ -93,6 +139,11 @@ def reply_in_inbox(target: str, message: str, confirm: bool = True, on_located=N
     print(f"  [点会话] {target} @ ({cx},{cy})")
     pyautogui.click(cx, cy)
     time.sleep(1.5)
+
+    # ①b 幂等预检：气泡已在就别再发一遍（重发场景：send_unverified 回池、进程中断后重派）
+    if _already_replied(message):
+        print("  [预检] 会话里对方最后一条消息之后已有这条回复的气泡 → already_sent，不重复发")
+        return "already_sent"
 
     # ② 输入框/发送↑定位——复用冷启动 proven 机制(模板匹配 send_arrow + 偏移)
     focus_douyin()  # 重新置前: 打字前必须确保抖音在前台, 否则 SendInput 漏进控制台

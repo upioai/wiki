@@ -464,6 +464,15 @@ def _enter_new_conv_from_list(nick, region):
         if norm(top) != norm(nick):
             print('  [列表兜底] 顶行是 %r 不是 %r，不兜底' % (top, nick))
             return None
+        # 抖音昵称不唯一：进会话后没有再核对话对象的手段，所以【可能是别人】的形态一律不点——
+        # ① 顶行带未读徽标：我们刚新建的会话没有对方消息、不会有未读，带未读的多半是同昵称的另一个人刚发来的；
+        # ② 列表里还有别的同昵称行：无法区分哪行是目标。
+        if len(rows[0]) > 2 and rows[0][2]:
+            print('  [列表兜底] 顶行 %r 带未读徽标（疑似同昵称的另一人刚来信），不兜底' % top)
+            return None
+        if sum(1 for r in rows if norm(r[0]) == norm(nick)) > 1:
+            print('  [列表兜底] 会话列表里有多行同昵称 %r，无法确认哪行是目标，不兜底' % nick)
+            return None
         rect = next((r for ct, n, r in nodes
                      if ct == 'TextControl' and norm(n) == norm(nick) and r != (0, 0, 0, 0)), None)
     except Exception as e:

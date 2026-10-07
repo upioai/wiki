@@ -268,7 +268,7 @@ def send():
                 res = reply_in_inbox(nm, draft, confirm=False, **_on_located_kw(reply_in_inbox, mark_located))  # 自动化：不确认
         except Exception as e:  # noqa: BLE001
             res = f"exc:{e}"
-        ok = res == "sent"
+        ok = res in ("sent", "already_sent")  # already_sent：幂等预检见气泡已在，等同已发
         try:
             _rpc("complete_dm_reply", {
                 "p_id": d["id"],
