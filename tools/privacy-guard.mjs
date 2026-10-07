@@ -44,6 +44,8 @@ const RULES = [
   { type: "手机号", re: new RegExp(String.raw`${PHONE_L}1[3-9]\d{9}(?!\d)`, "g") },
   { type: "手机号", re: new RegExp(String.raw`${PHONE_L}1[3-9]\d[- ]\d{4}[- ]\d{4}(?!\d)`, "g") },
   { type: "客户编码", re: new RegExp(`[${PROV}][A-Z]\\d{4,8}`, "g") },
+  // 不带字母的「川605176-姓名」写法（个微备注：省份 + 六位编号 + 连字符），2026-10-07 在公开页漏过一次
+  { type: "客户编码", re: new RegExp(`[${PROV}]\\d{6}(?=[-－—])`, "g") },
   { type: "住址", re: new RegExp(String.raw`\d+号楼\d{3,4}(?=[室号])|\d+号楼${ROOM}|\d+栋\d+室|\d+栋${ROOM}|${UNIT}\d+(?:室|号)|${UNIT}${ROOM}`, "g") },
   { type: "微信号", re: /wxid_[a-z0-9]{6,}/g },
   // 团队成员真名：站点规则「公开页禁止团队成员真名，改成业务角色」（销售 A / 销售 B …）。
