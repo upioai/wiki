@@ -39,12 +39,16 @@ const PHONE_L = String.raw`(?:(?<![\dA-Za-z])|(?<=\+86|(?<![A-Za-z])(?:[Vv][Xx]?
 // 「16号楼130平」），后面跟 平/㎡/方/户型 的也是面积，都不算
 const ROOM = String.raw`(?:\d{4}|\d0[1-9])(?![\d平㎡方m]|[A-Za-z]?户)`;
 const UNIT = String.raw`(?:\d+|[一二三四五六七八九十]+)单元`;
+const TEAM_NAMES = ["高一瑞", "张小鱼", "高鹏"];
 const RULES = [
   { type: "手机号", re: new RegExp(String.raw`${PHONE_L}1[3-9]\d{9}(?!\d)`, "g") },
   { type: "手机号", re: new RegExp(String.raw`${PHONE_L}1[3-9]\d[- ]\d{4}[- ]\d{4}(?!\d)`, "g") },
   { type: "客户编码", re: new RegExp(`[${PROV}][A-Z]\\d{4,8}`, "g") },
   { type: "住址", re: new RegExp(String.raw`\d+号楼\d{3,4}(?=[室号])|\d+号楼${ROOM}|\d+栋\d+室|\d+栋${ROOM}|${UNIT}\d+(?:室|号)|${UNIT}${ROOM}`, "g") },
   { type: "微信号", re: /wxid_[a-z0-9]{6,}/g },
+  // 团队成员真名：站点规则「公开页禁止团队成员真名，改成业务角色」（销售 A / 销售 B …）。
+  // 名单只增不减；新增成员在 TEAM_NAMES 里加一项即可
+  { type: "团队真名", re: new RegExp(TEAM_NAMES.join("|"), "g") },
 ];
 
 const digitsOf = (s) => s.replace(/\D/g, "");
@@ -55,6 +59,7 @@ function mask(type, v) {
   if (type === "客户编码") return v.slice(0, 2) + "*".repeat(v.length - 2);
   if (type === "住址") return v.replace(/\d/g, "*");
   if (type === "微信号") return v.slice(0, 7) + "****";
+  if (type === "团队真名") return v[0] + "*".repeat(v.length - 1);
   return "****";
 }
 
@@ -152,6 +157,7 @@ function report(hits, scanned, allowN) {
   - 住址   → 写到小区为止，楼栋门牌去掉
   - 客户编码（闽D12345 这类）→ 闽X******
   - 客户姓名 → 改成角色（客户 / 业主 / 老板娘）
+  - 团队成员真名 → 改成业务角色（销售 A / 销售 B）
   - 商家对外公开的售后热线、明显的示例号 → 加进 tools/privacy-guard.allow.json 并写明理由
   注意：已经推上 main 的，改原文只能让站点不再显示，原文还留在 git 历史里。`);
   return 1;
