@@ -112,6 +112,20 @@ def _rpc(name: str, payload: dict):
     return json.loads(body) if body else None
 
 
+def _heartbeat(status: str, rows=None, unread=None):
+    """捕获腿心跳（record_dm_capture_heartbeat）：dm-capture-heartbeat-watch 看「最后一次成功读到
+    会话列表」多久了来判捕获停没停，不再靠「多久没收到客户回复」反推（B 端回复率 2–4%，反推必误报）。
+    best-effort：RPC 不存在/网络失败只打 warn，绝不影响捕获本身。"""
+    if not ACCOUNT_ID:
+        return
+    try:
+        _rpc("record_dm_capture_heartbeat", {
+            "p_account_id": ACCOUNT_ID, "p_status": status, "p_rows": rows, "p_unread": unread,
+        })
+    except Exception as e:  # noqa: BLE001
+        print(f"[warn] 捕获心跳上报失败({status}): {e}")
+
+
 def is_spam(text: str) -> bool:
     return any(k in text for k in SPAM_KW) and not any(k in text for k in DECOR_KW)
 
@@ -141,11 +155,13 @@ def capture():
     win = find_douyin()
     if win is None:
         print("[X] 没找到抖音窗口（前台最大化、停在私信列表了吗？）")
+        _heartbeat("no_window")
         return
     # 私信面板不在就不读：回退读全窗口时，搜索结果页/主页列的恰好是我们搜过、发过 DM 的人，
     # 昵称能 match 上已发记录，简介会被当成「客户回复」写库（2026-10-05 深圳机侧栏点不开时差点踩到）。
     if find_im_panel(win) is None:
         print("[skip] 私信面板没打开(imSaasContainerId 不在) → 本轮不读不写，防把非会话列表当回复")
+        _heartbeat("panel_closed")
         return
     by_name = load_sent_dms()
     # 红点门控（默认开）：只抓【有未读徽标】的会话行 = 客户真发了新消息。
@@ -161,9 +177,12 @@ def capture():
         rows3 = parse_rows_unread(nodes)
         rows = [(nm, pv) for (nm, pv, u) in rows3 if u]
         print(f"=== capture[红点门控]: {len(rows3)} 行 / 未读 {len(rows)} / 已发记录 {len(by_name)} 人 ===")
+        # 0 行 = 面板在但没读出任何会话行，不算成功（照样会漏回复），按失败上报。
+        _heartbeat("ok" if rows3 else "empty_list", len(rows3), len(rows))
     else:
         rows = parse_rows(collect_texts(win))
         print(f"=== capture[classify门]: {len(rows)} 行, 已发记录 {len(by_name)} 人 ===")
+        _heartbeat("ok" if rows else "empty_list", len(rows), None)
     for name, preview in rows:
         hit = match_name(name, by_name)
         if not hit:
