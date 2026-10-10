@@ -50,7 +50,7 @@ os.chdir(WORK_DIR)
 # ── 版本标记 ─────────────────────────────────────────────────────────────────
 # 云电脑不装 git、update.bat 只下载 raw .py，运行时取不到 git SHA。故硬编码版本串，
 # 每次有意义改动手动 bump（日期+特性名），启动横幅打印 → 运营/PM 一眼核对"是不是最新版"。
-AGENT_VERSION = '2026-09-30+screen-tolerance'
+AGENT_VERSION = '2026-10-10+capture-under-screen-gate'
 
 try:
     from dotenv import load_dotenv
@@ -636,7 +636,7 @@ def _mark_account_health(raw_status: str, log_row: dict | None = None) -> None:
                 'p_type': f'captcha_{modal_type}',
                 'p_message': (
                     f"⚠️ 账号撞 {modal_type.upper()} 风控弹窗 · 已立即停号"
-                    f" · {'需本人扫码过脸' if modal_type == 'face' else '需本人介入'}"
+                    f" · {'需本人扫码过脸' if modal_type == 'face' else '需号主在抖音 App 里发一条私信完成身份验证' if modal_type == 'verify' else '需本人介入'}"
                 ),
                 'p_metadata': meta,
             })
@@ -1136,7 +1136,7 @@ def main():
             _now_wh = _screen_size() if EXPECT_SCREEN else None
             if _bad != _screen_bad or _now_wh != _screen_seen:
                 if _bad:
-                    print(f'!! [{datetime.now():%H:%M:%S}] 分辨率 {_bad} 离校准档 {sorted(allowed_screens())} 都超过 {SCREEN_TOL_PX}px → 停止领单'
+                    print(f'!! [{datetime.now():%H:%M:%S}] 分辨率 {_bad} 离校准档 {sorted(allowed_screens())} 都超过 {SCREEN_TOL_PX}px → 停止领单（收件箱捕获照跑、只读）'
                           f'（心跳会停、派单侧判离线）。把无影窗口调回已校准分辨率、或给它量一份 .env.{_bad} 后自动恢复', file=sys.stderr)
                 elif EXPECT_SCREEN:
                     _near = nearest_screen(_now_wh, allowed_screens(), SCREEN_TOL_PX)
@@ -1144,6 +1144,22 @@ def main():
                     print(f'[{datetime.now():%H:%M:%S}] 分辨率 {_now_wh} {_how} → 继续领单')
                 _screen_bad, _screen_seen = _bad, _now_wh
             if _bad:
+                # 2026-10-10：闸只停「按坐标点」的腿（一触/二触/RC/发已审批回复）；收件箱捕获照跑、强制只读
+                # capture（读列表走 UIA；面板没开时会按千分比点一下顶栏「消息」，点偏最多 panel_closed，不会发消息）。
+                # 之前整轮 continue，深圳机 10:31 漂到 1470 后
+                # 捕获跟着停了 25 分钟，客户回了也进不了库，心跳卡还把停机前那轮的 panel_closed 当成了病因。
+                if DM_AUTOREPLY_CAPTURE_ENABLED and (time.time() - _last_autoreply) >= DM_AUTOREPLY_INTERVAL:
+                    _last_autoreply = time.time()
+                    print(f'[{datetime.now():%H:%M:%S}] 收件箱捕获(分辨率闸生效中，只读) mode=capture')
+                    try:
+                        with _wl.dm_batch():
+                            with _wl.gui_turn('dm-autoreply', GUI_LOCK_AGENT_WAIT_SEC):
+                                subprocess.run([sys.executable, str(DOUYIN_AUTOREPLY_PY), 'capture'],
+                                               cwd=str(WORK_DIR), timeout=DM_AUTOREPLY_TIMEOUT_SEC)
+                    except subprocess.TimeoutExpired:
+                        print(f'!! dm-autoreply (capture) 超时 {DM_AUTOREPLY_TIMEOUT_SEC}s 已杀子进程', file=sys.stderr)
+                    except Exception as e:
+                        print(f'!! dm-autoreply (capture) error: {e}', file=sys.stderr)
                 time.sleep(POLL_INTERVAL)
                 continue
 

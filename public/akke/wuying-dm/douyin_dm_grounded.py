@@ -38,6 +38,7 @@ import ctypes
 import json
 import os
 import random
+import re
 import sys
 import time
 import urllib.error
@@ -1198,6 +1199,10 @@ def process(c):
         print('  ⚠️  [post-send modal] type=%s → 记 blocked_%s(账号已风控,强制 cooling)'
               % (post_modal_type, post_modal_type))
         return 'blocked_%s' % post_modal_type, conf
+    if rejected and _ACCT_BLOCK_RE.search(_modal_reason or ''):  # 我方号被拦≠对方拒收：回池+cool（10-10 深圳机）
+        c['_modal_text'] = _modal_reason[:60]
+        print('  ⚠️  [账号级拦截] %s → blocked_verify(本条回池,强制 cooling)' % _modal_reason[:60])
+        return 'blocked_verify', conf
     if rejected:
         print('  [拒绝] 检测到对方拒收/无法送达提示 → 记 rejected(不计入成功)')
         return 'rejected', conf
@@ -1239,6 +1244,9 @@ def _save_captcha_sample(modal_type, src_path):
     except Exception as e:
         print('  [warn] 验证码样本保存失败: %s' % e)
         return ''
+
+
+_ACCT_BLOCK_RE = re.compile(r'身份验证|操作太?频繁|使用抖音\s*App')  # 发后提示里属于「我方账号被拦」的，确定性匹配
 
 
 def _check_rejected():
