@@ -211,7 +211,29 @@ def find_im_panel(win):
 
 
 def parse_rows_unread(nodes):
-    """nodes=collect_nodes() → [(name, preview, unread)]。红点门控核心。
+    """nodes=collect_nodes() → [(name, preview, unread)]。红点门控核心（逻辑见 parse_rows_unread_timed）。"""
+    return [(nm, pv, u) for (nm, pv, u, _t) in parse_rows_unread_timed(nodes)]
+
+
+_HHMM_RE = re.compile(r"^\s*(\d{1,2}):(\d{2})\s*$")
+
+
+def read_row_time_ok(time_text, now, window_min=120):
+    """已读行补抓的时间窗（2026-10-11）：会话列表时间必须是【当天 HH:MM】且距 now 不超过 window_min 分钟。
+    昨天 / 星期X / MM-DD / 相对词 / 解析不了 一律拒；HH:MM 落在 now 之后（跨零点把昨天的 23:50 当今天）也拒。"""
+    m = _HHMM_RE.match(time_text or "")
+    if not m:
+        return False
+    h, mi = int(m.group(1)), int(m.group(2))
+    if h > 23 or mi > 59:
+        return False
+    t = now.replace(hour=h, minute=mi, second=0, microsecond=0)
+    delta = (now - t).total_seconds()
+    return 0 <= delta <= window_min * 60
+
+
+def parse_rows_unread_timed(nodes):
+    """同 parse_rows_unread，多带一列会话行的时间文本 → [(name, preview, unread, time_text)]。
     锚定会话行同 parse_rows（name+time+preview 三连）；unread = 该行 y 带内、列表列右缘
     有【纯数字未读徽标】TextControl（非本行 name/time/preview 节点）。
     rect 全不可靠(全0)的机器：badges 取不到 → unread 恒 False，调用方据此回退老门（别静默漏回复）。"""
@@ -221,7 +243,7 @@ def parse_rows_unread(nodes):
         (nm, nr), (mid, mr), (pv, pr) = texts[i], texts[i + 1], texts[i + 2]
         if (_TIME_RE.search(mid) and len(pv) >= 2 and not _TIME_RE.search(nm)
                 and len(nm) <= 20 and not nm.startswith("你好")):
-            rows.append((nm, pv, nr, pr, {nr, mr, pr}))
+            rows.append((nm, pv, nr, pr, {nr, mr, pr}, mid))
             i += 3
         else:
             i += 1
@@ -237,11 +259,11 @@ def parse_rows_unread(nodes):
         and (list_right == 0 or rect[0] < list_right + 40)
     ]
     out = []
-    for k, (nm, pv, nr, _pr, _c) in enumerate(rows):
+    for k, (nm, pv, nr, _pr, _c, tm) in enumerate(rows):
         top = nr[1]
         bottom = rows[k + 1][2][1] if k + 1 < len(rows) else top + 80
         unread = any(top <= ((b[1] + b[3]) // 2) < bottom for b in badges)
-        out.append((nm, pv, unread))
+        out.append((nm, pv, unread, tm))
     return out
 
 

@@ -27,6 +27,7 @@ import json
 import os
 import sys
 import urllib.request
+from datetime import datetime
 
 # 复用列表检测(只读 UIA)；load_sent_dms 已带 conversation_id
 from douyin_inbox_uia import (  # noqa: F401
@@ -41,7 +42,8 @@ from douyin_inbox_uia import (  # noqa: F401
     is_media_preview,
     match_name,
     parse_rows,
-    parse_rows_unread,
+    parse_rows_unread_timed,
+    read_row_time_ok,
 )
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -174,7 +176,8 @@ def capture():
     if reddot and not rects_ok:
         print("[warn] 红点门控: UIA rect 全不可靠(全0) → 回退老 classify 门，防静默漏回复")
     if use_reddot:
-        rows3 = parse_rows_unread(nodes)
+        rows4 = parse_rows_unread_timed(nodes)
+        rows3 = [(nm, pv, u) for (nm, pv, u, _t) in rows4]
         rows = [(nm, pv) for (nm, pv, u) in rows3 if u]
         print(f"=== capture[红点门控]: {len(rows3)} 行 / 未读 {len(rows)} / 已发记录 {len(by_name)} 人 ===")
         # 0 行 = 面板在但没读出任何会话行，不算成功（照样会漏回复），按失败上报。
@@ -222,6 +225,86 @@ def capture():
             print(f"[inbound] {name}: {preview[:30]}")
         except Exception as e:  # noqa: BLE001
             print(f"[err] record_dm_inbound {name}: {e}")
+    if use_reddot:
+        capture_read_rows(rows4, by_name)
+
+
+READ_ROW_CAP = 3          # 一轮已读行候选超过这个数 → 一条都不抓（防 6/21 那种整屏刷库）
+READ_ROW_WINDOW_MIN = 120
+
+
+def _read_row_mode() -> str:
+    m = os.environ.get("AKKE_DM_READ_ROW_CAPTURE", "off").strip().lower()
+    return m if m in ("off", "log", "on") else "off"
+
+
+def _already_has_customer_msg(conv: str, content: str) -> bool:
+    """客户端兜底去重：本会话已有同内容客户消息就不再写。record_dm_inbound 自己只比「最后一条」
+    （migration 20260707174955 第 45-48 行），已读行可能晚于我方回复被读到 → 那道闸挡不住。
+    查询失败按「已有」处理（已读行是补漏路径，宁漏不刷）。"""
+    try:
+        from douyin_inbox_uia import _http
+        got = _http("GET", "messages", {
+            "select": "id", "conversation_id": f"eq.{conv}", "role": "eq.customer",
+            "content": f"eq.{content}", "limit": "1",
+        })
+        return bool(got)
+    except Exception as e:  # noqa: BLE001
+        print(f"[read-row] 去重查询失败，按已有处理: {e}")
+        return True
+
+
+def read_row_candidates(rows4, by_name, now=None):
+    """已读行（无未读徽标）里挑「客户新回复、但红点被人点掉了」的行（2026-10-11 Jade 批，修「已读就漏抓」）。
+    三个条件全满足才算：①昵称对上已发记录且不歧义 ②classify=suspect 并过开场白/贴纸/is_relevant 各闸
+    ③会话列表时间是当天 HH:MM 且在 READ_ROW_WINDOW_MIN 分钟内（昨天/日期/解析不了一律拒，不补历史）。
+    返回 [(name, preview, conversation_id)]。红点行不在这里处理。"""
+    now = now or datetime.now()
+    out = []
+    for name, preview, unread, tm in rows4:
+        if unread or not read_row_time_ok(tm, now, READ_ROW_WINDOW_MIN):
+            continue
+        hit = match_name(name, by_name)
+        if not hit or hit.get("ambiguous") or not hit.get("conversation_id"):
+            continue
+        if classify(preview, hit) != "suspect":
+            continue
+        if preview.startswith("你好") and "刷到你" in preview:
+            continue
+        _p = preview.strip()
+        if _p.startswith("[") and _p.endswith("]") and not is_media_preview(_p):
+            continue
+        if not is_relevant(preview):
+            continue
+        out.append((name, preview, hit["conversation_id"]))
+    return out
+
+
+def capture_read_rows(rows4, by_name, now=None) -> int:
+    """AKKE_DM_READ_ROW_CAPTURE: off(默认，不看已读行) / log(只打印 would-capture，不写库) / on(写库)。
+    返回本轮实际写库条数。"""
+    mode = _read_row_mode()
+    if mode == "off":
+        return 0
+    cands = read_row_candidates(rows4, by_name, now)
+    if len(cands) > READ_ROW_CAP:
+        print(f"[read-row cap] 本轮已读行候选 {len(cands)} > {READ_ROW_CAP} → 一条都不抓: "
+              + " / ".join(n for n, _p, _c in cands[:6]))
+        return 0
+    n = 0
+    for name, preview, conv in cands:
+        if mode == "log":
+            print(f"[read-row would-capture] {name}: {preview[:30]}")
+            continue
+        if _already_has_customer_msg(conv, preview):
+            continue
+        try:
+            _rpc("record_dm_inbound", {"p_conversation_id": conv, "p_content": preview})
+            print(f"[inbound:read-row] {name}: {preview[:30]}")
+            n += 1
+        except Exception as e:  # noqa: BLE001
+            print(f"[err] record_dm_inbound(read-row) {name}: {e}")
+    return n
 
 
 
