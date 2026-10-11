@@ -12,7 +12,7 @@ REM   _realtime_touch_watch_wuying.py   _probe_follow_feed_wuying.py
 REM   _realtime_touch_consume_wuying.py _jit_comment1_wuying.py
 REM   dy_cookie.txt   special-follow.json   realtime-touch-table.json
 REM   douyin_comment_grounded.py    .env (needs OPENROUTER_API_KEY)
-REM   douyin_dm_grounded.py  wuying_window_lock.py  resolve_douyin_numbers.py
+REM   douyin_dm_grounded.py  wuying_window_lock.py  resolve_douyin_numbers.py  follow_ab.py
 REM
 REM Before each boot: Douyin PC logged-in + maximized + foreground;
 REM   resolution 2560x1600; IME = English.
@@ -42,6 +42,7 @@ REM consume -> resolve_douyin_numbers); guarded by worker/tests/test_wuying_mirr
 call :pull douyin_dm_grounded.py
 call :pull wuying_window_lock.py
 call :pull resolve_douyin_numbers.py
+call :pull follow_ab.py
 REM dm_grounded lazily imports it for the "stuck on DM list" fallback (needs uiautomation; skipped if absent)
 call :pull douyin_inbox_uia.py
 echo === self-update done ===

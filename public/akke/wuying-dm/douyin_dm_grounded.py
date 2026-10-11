@@ -1016,13 +1016,13 @@ def _click_follow_btn(label):
     return True
 
 
-def follow_user():
+def follow_user(force=False):
     """OCR 核身份通过后、在个人主页上点「关注」按钮(在 like_latest_work 之前调,此时确定停在主页)。
     关注是首触 DM【必做】步骤(2026-06-24 改硬要求):未采坐标(AKKE_C_FOLLOW)改用 VL 实时定位兜底,不再静默跳过;
     仅当 VL 也定位不到 / 点击异常时才放过——best-effort 不抛异常、不阻断私信。
     返回 'followed'/'already'/'click_no_effect'/'not_found'/'failed'。
     注意:已关注的用户再点会【取消关注】——陌生潜客几乎不会已关注,可接受(与点赞同款权衡)。"""
-    if _SKIP_FOLLOW:
+    if _SKIP_FOLLOW and not force:   # force=对照 B 组(follow_ab.py)
         print('  [关注] AKKE_SKIP_FOLLOW=1 → 跳过')
         return 'skipped'
     try:
@@ -1127,10 +1127,9 @@ def process(c):
 
     # 发私信前先关注用户 + 点赞最新作品(都 best-effort:坐标未采/失败都不阻断私信)
     # 关注/点赞结果落进 c → 写进 sent_log（关注状态此前只 print 到控制台、捞不回，2026-06-28 持久化）
-    c['follow_status'] = follow_user()
-    print('  [关注] %s' % c['follow_status'])
-    c['like_status'] = like_latest_work(nick)
-    print('  [点赞] %s' % c['like_status'])
+    # AKKE_FOLLOW_AB=1 → 一半一半对照(A 组都跳过)，分组与执行见 follow_ab.py；未开时=原行为
+    import follow_ab
+    follow_ab.run(c, follow_user, like_latest_work, nick)
 
     # 私信按钮：模板匹配优先，未命中回退固定坐标 C_DM（已关注态量，打开右侧聊天面板）
     click_match_or_norm('dm_button.png', C_DM[0], C_DM[1], wait=4.0, label='私信按钮')
@@ -1393,7 +1392,7 @@ def main(contacts_csv):
     fields = ['douyin_id', 'nickname', 'message', 'has_works',
               '_comment_id', '_sec_uid', '_dispatch_id',
               'status', 'follow_status', 'like_status',
-              'sent_at', '_ocr_confidence', '_ocr_seen', '_captcha_sample']
+              'sent_at', '_ocr_confidence', '_ocr_seen', '_captcha_sample', 'follow_ab_arm']
     first_write = not os.path.exists(log)
     with open(log, 'a', encoding='utf-8-sig', newline='') as f:
         w = csv.DictWriter(f, fieldnames=fields, extrasaction='ignore')
