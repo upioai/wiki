@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta name="upio:date" content="2026-10-10">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>回复链路重构方案</title>
+<meta name="description" content="wecom-chat 回复大脑重构方案图解：为什么「全包」修了两次没修住，五层链路怎么改，按什么顺序迁移。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06080C; --bg2:#0A0E15; --panel:#0D1119; --panel2:#11161F;
+  --line:rgba(255,255,255,.07); --line2:rgba(255,255,255,.12);
+  --head:#F2F6FB; --ink:#DBE3EC; --muted:#7C8798; --dim:#525C6B;
+  --teal:#3FE0C5; --amber:#F6B352; --blue:#6FA8FF; --violet:#B48CFF; --rose:#FF7D97; --teal-d:#1C9D8B;
+  --ser-8:#8C9BB0;
+  --ok:#3FE0C5; --warn:#F6B352; --risk:#F2555A; --neutral:#8C9BB0;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --serif:"Noto Serif SC","Songti SC","STSong","SimSun",serif;
+  --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:var(--sans);background:var(--bg);color:var(--ink);line-height:1.7;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
+}
+html[data-anim="off"] *,html[data-anim="off"] *::before,html[data-anim="off"] *::after{animation:none!important;transition:none!important}
+html[data-shot="1"] .hero{min-height:auto;padding:80px 0 72px}
+
+/* ── 背景 ── */
+.bg{position:fixed;inset:0;z-index:0;pointer-events:none}
+.bg .grid{position:absolute;inset:-2px;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:64px 64px;-webkit-mask-image:radial-gradient(circle at 50% 32%,#000 0%,transparent 78%);
+  mask-image:radial-gradient(circle at 50% 32%,#000 0%,transparent 78%);opacity:.5}
+.bg .glow{position:absolute;border-radius:50%;filter:blur(120px);opacity:.5}
+.bg .g1{width:640px;height:640px;top:-260px;left:50%;transform:translateX(-50%);
+  background:radial-gradient(circle,rgba(63,224,197,.28),transparent 68%);animation:drift 22s ease-in-out infinite}
+.bg .g2{width:520px;height:520px;top:38%;left:-160px;background:radial-gradient(circle,rgba(111,168,255,.16),transparent 70%);animation:drift 28s ease-in-out infinite reverse}
+.bg .g3{width:480px;height:480px;bottom:-120px;right:-120px;background:radial-gradient(circle,rgba(242,85,90,.12),transparent 70%);animation:drift 26s ease-in-out infinite}
+@keyframes drift{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,40px)}}
+.bg .noise{position:absolute;inset:0;opacity:.035;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+.progress{position:fixed;top:0;left:0;height:2px;width:0;z-index:60;background:linear-gradient(90deg,var(--teal),var(--blue));box-shadow:0 0 12px var(--teal)}
+
+/* ── rail ── */
+.rail{position:fixed;top:50%;left:26px;transform:translateY(-50%);z-index:50;display:flex;flex-direction:column;gap:13px}
+.rail a{display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--dim);font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;transition:color .3s}
+.rail a .tick{display:block;width:22px;height:2px;background:currentColor;transition:width .3s}
+.rail a .lbl{opacity:0;transform:translateX(-6px);transition:.3s}
+.rail a:hover .lbl,.rail a.on .lbl{opacity:1;transform:none}
+.rail a.on{color:var(--teal)}
+.rail a.on .tick{width:38px;box-shadow:0 0 10px var(--teal)}
+@media(max-width:1240px){.rail{display:none}}
+
+main{position:relative;z-index:2;max-width:1120px;margin:0 auto;padding:0 40px}
+section{padding:110px 0}
+
+.rv{opacity:0;transform:translateY(26px);transition:opacity .8s cubic-bezier(.16,1,.3,1),transform .8s cubic-bezier(.16,1,.3,1)}
+.rv.in{opacity:1;transform:none}
+.stagger>*{opacity:0;transform:translateY(22px);transition:opacity .7s cubic-bezier(.16,1,.3,1),transform .7s cubic-bezier(.16,1,.3,1)}
+.stagger.in>*{opacity:1;transform:none}
+.stagger.in>*:nth-child(2){transition-delay:.08s}.stagger.in>*:nth-child(3){transition-delay:.16s}
+.stagger.in>*:nth-child(4){transition-delay:.24s}.stagger.in>*:nth-child(5){transition-delay:.32s}
+.stagger.in>*:nth-child(6){transition-delay:.40s}.stagger.in>*:nth-child(7){transition-delay:.48s}
+.stagger.in>*:nth-child(8){transition-delay:.56s}
+
+.sec-head{display:flex;align-items:baseline;gap:20px;margin-bottom:42px}
+.sec-head .idx{font-family:var(--mono);font-size:13px;color:var(--teal);font-weight:500;padding-top:6px;position:relative}
+.sec-head .idx::before{content:"";position:absolute;left:-14px;top:11px;width:8px;height:8px;border-radius:50%;background:var(--teal);box-shadow:0 0 10px var(--teal)}
+.eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:8px}
+.sec-head h2{font-family:var(--serif);font-weight:700;font-size:clamp(27px,4vw,42px);line-height:1.18;color:var(--head)}
+.lede{font-size:16px;color:var(--muted);max-width:700px;margin:-24px 0 36px;line-height:1.8}
+.lede b{color:var(--ink);font-weight:600}
+code{font-family:var(--mono);font-size:.84em;background:rgba(63,224,197,.09);color:#8ff0e0;border:1px solid rgba(63,224,197,.16);border-radius:5px;padding:1px 6px;word-break:break-all}
+.mono{font-family:var(--mono)}
+.note{font-family:var(--mono);font-size:11.5px;color:var(--muted);letter-spacing:.03em;margin-top:14px;line-height:1.7}
+.note b{color:var(--teal);font-weight:500}
+.tv{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.08em;padding:0 6px;border-radius:4px;
+  color:var(--amber);border:1px solid rgba(246,179,82,.35);background:rgba(246,179,82,.08);vertical-align:1px;white-space:nowrap}
+.ctitle{font-size:15px;color:var(--head);font-weight:600;margin-bottom:2px}
+.cunit{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:16px}
+
+/* ── HERO ── */
+.hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:100px 0 72px;position:relative}
+.hero .tag{font-family:var(--mono);font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--teal);display:inline-flex;align-items:center;gap:10px;margin-bottom:26px}
+.hero .tag .pulse{display:block;width:9px;height:9px;border-radius:50%;background:var(--teal);animation:pulse 2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(63,224,197,.55)}70%{box-shadow:0 0 0 12px rgba(63,224,197,0)}100%{box-shadow:0 0 0 0 rgba(63,224,197,0)}}
+.hero h1{font-family:var(--serif);font-weight:900;font-size:clamp(46px,9vw,104px);line-height:1.04;color:var(--head);margin-bottom:8px}
+.hero h1 .accent{background:linear-gradient(115deg,var(--teal),var(--blue) 70%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero h1 .cursor{display:inline-block;width:.06em;height:.9em;background:var(--teal);vertical-align:-6px;margin-left:6px;animation:blink 1.1s steps(1) infinite;box-shadow:0 0 14px var(--teal)}
+@keyframes blink{50%{opacity:0}}
+.hero .desc{font-size:clamp(17px,2.2vw,21px);color:var(--ink);max-width:720px;margin:24px 0 12px;line-height:1.65}
+.hero .desc b{color:var(--teal);font-weight:600}
+.hero .desc .r{color:var(--risk)}
+.hero .role{font-family:var(--mono);font-size:12.5px;color:var(--muted);margin-bottom:30px}
+.ticker{display:flex;gap:10px;flex-wrap:wrap}
+.chip{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;color:var(--ink);border:1px solid var(--line2);border-radius:100px;padding:6px 14px;background:rgba(255,255,255,.02);display:inline-flex;align-items:center;gap:8px}
+.chip .d{display:block;width:6px;height:6px;border-radius:50%;background:var(--teal)}
+.chip .d.r{background:var(--risk)}.chip .d.a{background:var(--amber)}.chip .d.b{background:var(--blue)}
+.statband{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:30px}
+.stat{background:linear-gradient(165deg,var(--panel2),var(--bg2));border:1px solid var(--line);border-radius:14px;padding:17px 18px 15px;transition:.35s}
+.stat:hover{border-color:rgba(242,85,90,.35);transform:translateY(-3px)}
+.stat .v{font-family:var(--mono);font-size:30px;font-weight:600;color:var(--risk);line-height:1.1;text-shadow:0 0 24px rgba(242,85,90,.35)}
+.stat .v .suf{font-size:15px;color:var(--muted);margin-left:2px}
+.stat .l{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.5}
+.stat .s{display:block;font-family:var(--mono);font-size:10.5px;color:var(--dim);margin-top:8px}
+.stat.a .v{color:var(--amber);text-shadow:0 0 24px rgba(246,179,82,.3)}
+.stat.b .v{color:var(--blue);text-shadow:0 0 24px rgba(111,168,255,.3)}
+.scrollcue{position:absolute;bottom:30px;left:0;font-family:var(--mono);font-size:11px;letter-spacing:.2em;color:var(--dim);display:flex;align-items:center;gap:10px}
+.scrollcue .bar{display:block;width:1px;height:34px;background:linear-gradient(var(--teal),transparent);animation:cue 1.8s ease-in-out infinite}
+@keyframes cue{0%,100%{opacity:.3;transform:scaleY(.6)}50%{opacity:1;transform:scaleY(1)}}
+
+/* ── 卡片 ── */
+.grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.cell{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;transition:.35s;position:relative}
+.cell:hover{border-color:var(--line2);background:var(--panel2);transform:translateY(-3px)}
+.cell h3{font-size:16px;color:var(--head);margin-bottom:7px;font-weight:600;line-height:1.45}
+.cell h3 .m{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:.1em;display:block;margin-bottom:4px;font-weight:500}
+.cell p{font-size:13.5px;color:var(--muted);line-height:1.7}
+.cell p b{color:var(--ink);font-weight:600}
+.ico{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;margin-bottom:14px;
+  border:1px solid rgba(63,224,197,.28);color:var(--teal);background:linear-gradient(150deg,rgba(63,224,197,.13),rgba(63,224,197,.02))}
+.ico svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.ico.r{border-color:rgba(242,85,90,.32);color:var(--risk);background:linear-gradient(150deg,rgba(242,85,90,.14),rgba(242,85,90,.02))}
+.ico.a{border-color:rgba(246,179,82,.3);color:var(--amber);background:linear-gradient(150deg,rgba(246,179,82,.13),rgba(246,179,82,.02))}
+.ico.b{border-color:rgba(111,168,255,.3);color:var(--blue);background:linear-gradient(150deg,rgba(111,168,255,.13),rgba(111,168,255,.02))}
+.ico.v{border-color:rgba(180,140,255,.3);color:var(--violet);background:linear-gradient(150deg,rgba(180,140,255,.13),rgba(180,140,255,.02))}
+.cell .num{position:absolute;top:18px;right:20px;font-family:var(--mono);font-size:30px;font-weight:600;color:rgba(255,255,255,.06)}
+.band{margin-top:22px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--teal);border-radius:12px;padding:20px 24px}
+.band .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--teal);text-transform:uppercase;margin-bottom:8px;display:block}
+.band p{font-size:15px;color:var(--ink)}
+.band p b{color:var(--head)}
+.lay{display:inline-block;font-family:var(--mono);font-size:11px;padding:1px 8px;border-radius:5px;margin:0 2px;color:var(--teal);border:1px solid rgba(63,224,197,.3);background:rgba(63,224,197,.08)}
+
+/* ── 02 链路图 ── */
+.switch{display:inline-flex;border:1px solid var(--line2);border-radius:10px;overflow:hidden;margin-bottom:18px;background:var(--panel)}
+.switch button{font-family:var(--mono);font-size:12px;letter-spacing:.08em;padding:9px 18px;background:transparent;color:var(--muted);border:0;cursor:pointer;transition:.3s}
+.switch button[aria-pressed="true"]{background:linear-gradient(120deg,rgba(63,224,197,.2),rgba(111,168,255,.12));color:var(--head)}
+.switch button[aria-pressed="true"].now{background:linear-gradient(120deg,rgba(242,85,90,.22),rgba(246,179,82,.08))}
+.switch button:focus-visible{outline:2px solid var(--teal);outline-offset:-2px}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-family:var(--mono);font-size:11px;color:var(--muted);margin:0 0 14px}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{display:block;width:12px;height:12px;border-radius:3px;border:2px solid var(--c)}
+.legend i.dash{border:0;height:0;width:18px;border-top:2px dashed var(--c);border-radius:0}
+.stage{position:relative;background:linear-gradient(170deg,rgba(13,17,25,.85),rgba(10,14,21,.6));border:1px solid var(--line);border-radius:18px;padding:18px 14px 8px}
+.svgwrap{width:100%;overflow-x:auto}
+.svgwrap svg{display:block;width:100%;height:auto}
+@media(max-width:820px){.svgwrap svg.wide{min-width:760px}}
+.fv{transition:opacity .5s}
+.fv.fade{opacity:0}
+.fnode{cursor:pointer}
+.fnode rect.box{fill:#0D1119;stroke-width:1.6;transition:fill .3s,stroke-width .3s}
+.fnode:hover rect.box,.fnode.sel rect.box{fill:#141b27;stroke-width:2.6}
+.fnode.sel rect.box{filter:url(#glow)}
+.fnode:focus{outline:none}
+.fnode:focus-visible rect.box{stroke-width:3}
+.f-n{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em}
+.f-t{font-family:var(--sans);font-size:14px;font-weight:600;fill:var(--head)}
+.f-s{font-family:var(--mono);font-size:10px;fill:var(--muted)}
+.f-badge rect{fill:rgba(242,85,90,.16);stroke:var(--risk);stroke-width:1}
+.f-badge text{font-family:var(--mono);font-size:10px;font-weight:600;fill:#ff8a8e;text-anchor:middle}
+.f-fix rect{fill:rgba(63,224,197,.12);stroke:var(--teal);stroke-width:1}
+.f-fix text{font-family:var(--mono);font-size:10px;font-weight:600;fill:var(--teal);text-anchor:middle}
+.f-edge{fill:none;stroke:var(--line2);stroke-width:2}
+.f-by{fill:none;stroke:var(--risk);stroke-width:1.6;stroke-dasharray:6 5;opacity:.85}
+.f-loop{fill:none;stroke:var(--amber);stroke-width:1.6;stroke-dasharray:6 5}
+.f-lab{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em}
+.pulse-ring{fill:none;stroke:var(--risk);stroke-width:1.5;opacity:0;transform-box:fill-box;transform-origin:center;animation:ring 2.4s ease-out infinite}
+@keyframes ring{0%{opacity:.8;transform:scale(1)}100%{opacity:0;transform:scale(1.6)}}
+.detail{margin-top:16px;display:grid;grid-template-columns:260px 1fr;gap:16px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px 22px;min-height:180px}
+.detail .dh .k{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--c,var(--teal))}
+.detail .dh h4{font-family:var(--serif);font-size:22px;color:var(--head);margin:6px 0 8px;line-height:1.3}
+.detail .dh .loc{font-family:var(--mono);font-size:11px;color:var(--muted);word-break:break-all;line-height:1.6}
+.detail .dh .hint{font-size:12.5px;color:var(--dim);margin-top:12px}
+.dpins{display:grid;gap:10px;min-width:0}
+.pin{border-radius:12px;padding:12px 14px;border:1px solid var(--line);background:rgba(255,255,255,.015);animation:pinIn .45s cubic-bezier(.16,1,.3,1) both}
+.pin:nth-child(2){animation-delay:.06s}.pin:nth-child(3){animation-delay:.12s}.pin:nth-child(4){animation-delay:.18s}
+@keyframes pinIn{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}
+.pin.bad{border-color:rgba(242,85,90,.38);background:linear-gradient(120deg,rgba(242,85,90,.1),rgba(242,85,90,.02))}
+.pin.fix{border-color:rgba(63,224,197,.35);background:linear-gradient(120deg,rgba(63,224,197,.09),rgba(63,224,197,.015))}
+.pin.risk{border-color:rgba(246,179,82,.38);background:linear-gradient(120deg,rgba(246,179,82,.09),rgba(246,179,82,.015))}
+.pin .h{font-weight:600;font-size:14px;color:var(--head);display:flex;gap:10px;align-items:baseline}
+.pin .id{font-family:var(--mono);font-size:11px;font-weight:600;color:#ff8a8e;flex:none}
+.pin.fix .id{color:var(--teal)}.pin.risk .id{color:var(--amber)}
+.pin .b{font-size:13px;color:var(--muted);margin-top:4px;line-height:1.7}
+.pin .b b{color:var(--ink)}
+.empty{font-size:13px;color:var(--dim);padding:8px 0}
+.supports{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:14px}
+
+/* ── 03 案例回放 ── */
+.replay{display:grid;grid-template-columns:150px repeat(3,1fr);gap:0;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--panel)}
+.replay .hd{padding:16px 14px;border-bottom:1px solid var(--line2);background:var(--panel2);position:relative}
+.replay .hd .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--c,var(--muted))}
+.replay .hd .t{display:block;font-family:var(--serif);font-size:18px;color:var(--head);font-weight:700;margin-top:3px}
+.replay .hd.sent{box-shadow:inset 0 -2px 0 var(--risk)}
+.replay .rl{padding:12px 14px;border-bottom:1px solid var(--line);font-size:13px;color:var(--ink);display:flex;align-items:center}
+.replay .c{padding:10px 12px;border-bottom:1px solid var(--line);border-left:1px solid var(--line);display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);
+  opacity:0;transform:scale(.96);transition:opacity .5s,transform .5s}
+.replay.in .c{opacity:1;transform:none}
+.replay.in .c.col2{transition-delay:.9s}.replay.in .c.col3{transition-delay:1.8s}
+.replay .c:last-child,.replay .rl:nth-last-child(4){border-bottom:0}
+.st{display:inline-block;font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.08em;padding:2px 7px;border-radius:5px;flex:none}
+.st.ok{color:var(--teal);background:rgba(63,224,197,.1);border:1px solid rgba(63,224,197,.3)}
+.st.err{color:#ff8a8e;background:rgba(242,85,90,.12);border:1px solid rgba(242,85,90,.4)}
+.st.lost{color:var(--amber);background:rgba(246,179,82,.1);border:1px solid rgba(246,179,82,.35)}
+.st.na{color:var(--dim);border:1px dashed var(--line2)}
+.c.err{background:rgba(242,85,90,.05)}
+.gates{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:18px}
+.gate{border:1px solid rgba(242,85,90,.3);border-radius:12px;padding:14px 16px;background:linear-gradient(140deg,rgba(242,85,90,.08),transparent);position:relative;overflow:hidden}
+.gate .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;color:#ff8a8e;text-transform:uppercase}
+.gate .t{display:block;font-size:14px;color:var(--head);font-weight:600;margin:4px 0}
+.gate p{font-size:12.5px;color:var(--muted);line-height:1.65}
+.gate::after{content:"";position:absolute;left:-40%;top:0;bottom:0;width:40%;background:linear-gradient(90deg,transparent,rgba(242,85,90,.12),transparent);animation:sweep 3.6s ease-in-out infinite}
+.gate:nth-child(2)::after{animation-delay:1.2s}.gate:nth-child(3)::after{animation-delay:2.4s}
+@keyframes sweep{0%{left:-40%}60%,100%{left:110%}}
+
+/* ── 04 时间线 ── */
+.tl-txt{font-family:var(--sans);font-size:12.5px;fill:var(--ink)}
+.tl-d{font-family:var(--mono);font-size:10.5px;fill:var(--muted);letter-spacing:.06em}
+.tl-pr{font-family:var(--mono);font-size:12px;font-weight:600}
+.modes{display:grid;gap:10px;margin-top:8px}
+.mode{display:grid;grid-template-columns:1fr 60px 1fr;align-items:center;gap:0}
+.mode .a,.mode .z{border-radius:12px;padding:12px 16px;font-size:13.5px;line-height:1.55}
+.mode .a{border:1px solid rgba(242,85,90,.3);background:rgba(242,85,90,.06);color:var(--ink)}
+.mode .a small,.mode .z small{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+.mode .z{border:1px solid rgba(63,224,197,.3);background:rgba(63,224,197,.06);color:var(--ink)}
+.mode .arr{position:relative;height:2px;background:linear-gradient(90deg,rgba(242,85,90,.6),rgba(63,224,197,.6));margin:0 6px}
+.mode .arr::after{content:"";position:absolute;right:-2px;top:-4px;border:5px solid transparent;border-left:7px solid var(--teal)}
+.mode .arr i{position:absolute;top:-3px;width:8px;height:8px;border-radius:50%;background:#fff;box-shadow:0 0 10px var(--teal);animation:mv 2.4s linear infinite}
+@keyframes mv{0%{left:0;opacity:0}15%{opacity:1}85%{opacity:1}100%{left:calc(100% - 8px);opacity:0}}
+
+/* ── hbar ── */
+.hbar .row{display:grid;grid-template-columns:190px 1fr 64px;gap:14px;align-items:center;padding:8px 0}
+.hbar .lab{font-size:13.5px;color:var(--ink);text-align:right;line-height:1.35}
+.hbar .lab small{display:block;font-family:var(--mono);font-size:10px;color:var(--dim)}
+.hbar .track{display:block;height:18px;background:rgba(255,255,255,.04);border-radius:5px;overflow:hidden}
+.hbar .fill{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,#8E2A2E,var(--risk));box-shadow:0 0 14px -2px var(--risk);width:0;transition:width 1.1s cubic-bezier(.16,1,.3,1)}
+.hbar .fill.dim{background:linear-gradient(90deg,#2A3644,#46586C);box-shadow:none}
+.hbar .val{font-family:var(--mono);font-size:13px;color:var(--head)}
+.fam{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:30px}
+.fam .cell .cause{font-size:12.5px;color:#ff9a9d;line-height:1.65}
+.fam .cell .cure{font-size:12.5px;color:var(--teal);line-height:1.65;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line2)}
+.fam .cell .cause::before{content:"病根 ";font-family:var(--mono);font-size:10px;letter-spacing:.1em;opacity:.8}
+.fam .cell .cure::before{content:"治法 ";font-family:var(--mono);font-size:10px;letter-spacing:.1em;opacity:.8}
+
+/* ── 06 iso-stack ── */
+.isostack{display:grid;grid-template-columns:1fr 420px;gap:28px;align-items:center}
+.iso-scene{perspective:1500px;height:520px;margin-top:40px;display:flex;align-items:center;justify-content:center}
+.iso-inner{transform-style:preserve-3d;transform:rotateX(58deg) rotateZ(-42deg);width:290px;height:290px;position:relative}
+.iso-layer{position:absolute;inset:0;border-radius:16px;border:1px solid;transition:transform .55s cubic-bezier(.16,1,.3,1),box-shadow .45s,border-color .45s;
+  transform:translateZ(var(--z));
+  background-image:linear-gradient(color-mix(in srgb,var(--c) 10%,transparent),color-mix(in srgb,var(--c) 2%,transparent)),
+    linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);
+  background-size:100% 100%,29px 29px,29px 29px;border-color:color-mix(in srgb,var(--c) 42%,transparent);box-shadow:0 0 34px -14px var(--c)}
+.iso-layer .tag{position:absolute;top:12px;left:16px;font-family:var(--mono);font-size:12px;letter-spacing:.14em;color:var(--c)}
+.iso-layer.lit{border-color:var(--c);box-shadow:0 0 54px -10px var(--c);transform:translateZ(calc(var(--z) + 40px))}
+.iso-layer.llm::after{content:"";position:absolute;right:18px;bottom:18px;width:14px;height:14px;border-radius:50%;background:var(--amber);box-shadow:0 0 18px var(--amber);animation:pulse2 1.8s ease-in-out infinite}
+@keyframes pulse2{50%{opacity:.35}}
+.iso-legend{display:flex;flex-direction:column}
+.iso-legend .r{display:grid;grid-template-columns:12px 1fr;gap:12px;align-items:start;padding:11px 8px;border-bottom:1px solid var(--line);cursor:default;transition:.25s;border-radius:8px}
+.iso-legend .r:last-child{border-bottom:0}
+.iso-legend .r:hover,.iso-legend .r.on{background:rgba(255,255,255,.03)}
+.iso-legend i{display:block;width:12px;height:12px;border-radius:4px;margin-top:5px;background:var(--c);box-shadow:0 0 12px -2px var(--c)}
+.iso-legend .n{display:block;font-size:14px;color:var(--head);font-weight:600}
+.iso-legend .n .llmt{font-family:var(--mono);font-size:10px;color:var(--amber);border:1px solid rgba(246,179,82,.4);border-radius:4px;padding:0 5px;margin-left:6px;vertical-align:2px}
+.iso-legend .m{display:block;font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.6}
+.iso-legend .m code{font-size:11px}
+.principle{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:26px}
+.principle div{border-top:2px solid var(--teal);padding:12px 4px 0;font-size:13.5px;color:var(--ink);line-height:1.6}
+.principle div span{display:block;font-family:var(--mono);font-size:10.5px;color:var(--teal);letter-spacing:.12em;margin-bottom:4px}
+
+/* ── spec 表 ── */
+.spec{width:100%;border-collapse:collapse;font-size:13px}
+.spec thead th{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);text-align:left;padding:11px 12px;border-bottom:1px solid var(--line2);white-space:nowrap}
+.spec td{padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top;color:var(--muted);line-height:1.6}
+.spec td:first-child{color:var(--head);font-weight:600}
+.spec tbody tr{transition:.25s}
+.spec tbody tr:hover{background:rgba(63,224,197,.03)}
+.spec .cat{font-family:var(--mono);font-size:10.5px;white-space:nowrap;padding:2px 7px;border-radius:5px;border:1px solid var(--c);color:var(--c)}
+details.more{margin-top:18px;border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:4px 18px}
+details.more summary{cursor:pointer;font-family:var(--mono);font-size:12px;letter-spacing:.1em;color:var(--teal);padding:12px 0}
+details.more[open] summary{border-bottom:1px solid var(--line);margin-bottom:6px}
+.tblwrap{overflow-x:auto}
+
+/* ── 07 pipe ── */
+.pipe{position:relative;padding-left:40px}
+.pipe::before{content:"";position:absolute;left:11px;top:8px;bottom:8px;width:2px;background:linear-gradient(var(--risk),var(--amber),var(--teal))}
+.pipe .flowdot{position:absolute;left:6px;width:12px;height:12px;border-radius:50%;background:var(--teal);box-shadow:0 0 16px 3px var(--teal);animation:flow 5s cubic-bezier(.5,0,.5,1) infinite}
+@keyframes flow{0%{top:2px;opacity:0}8%{opacity:1}92%{opacity:1}100%{top:calc(100% - 14px);opacity:0}}
+.pstep{position:relative;padding:14px 0;display:grid;grid-template-columns:150px 1fr;gap:18px;align-items:start}
+.pstep+.pstep{border-top:1px dashed var(--line)}
+.pstep::before{content:"";position:absolute;left:-34px;top:21px;width:10px;height:10px;border-radius:50%;background:var(--bg);border:2px solid var(--who,var(--teal));box-shadow:0 0 0 4px var(--bg)}
+.pstep .who{font-family:var(--mono);font-size:11px;padding:6px 9px;border-radius:7px;line-height:1.4;
+  background:color-mix(in srgb,var(--who) 13%,transparent);color:var(--who);border:1px solid color-mix(in srgb,var(--who) 30%,transparent)}
+.pstep .who b{display:block;font-size:15px}
+.pstep .txt{font-size:14px;color:var(--ink);line-height:1.7}
+.pstep .txt b{color:var(--head)}
+.pstep .txt small{display:block;font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:3px;word-break:break-all}
+
+/* ── 08 路线 ── */
+.road{position:relative;display:grid;grid-template-columns:repeat(4,1fr);gap:34px 16px;padding-top:6px}
+.road .ph{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 16px 14px;transition:.35s}
+.road .ph:hover{transform:translateY(-4px);border-color:var(--c)}
+.road .ph::before{content:"";position:absolute;top:0;left:14px;right:14px;height:2px;background:var(--c);box-shadow:0 0 14px var(--c)}
+.road .ph .k{display:flex;justify-content:space-between;align-items:baseline;font-family:var(--mono)}
+.road .ph .k b{font-size:24px;color:var(--c);font-weight:600}
+.road .ph .k span{font-size:10px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase}
+.road .ph .t{display:block;font-size:14px;font-weight:600;color:var(--head);margin:6px 0 4px;line-height:1.45}
+.road .ph p{font-size:12.5px;color:var(--muted);line-height:1.65}
+.road .ph .ck{display:block;margin-top:8px;font-family:var(--mono);font-size:10.5px;color:var(--c);line-height:1.6}
+.road-line{position:relative;height:30px;margin:4px 0 16px}
+.road-line .ln{position:absolute;left:0;right:0;top:14px;height:2px;background:linear-gradient(90deg,var(--risk),var(--amber) 30%,var(--blue) 60%,var(--teal))}
+.road-line .tk{position:absolute;top:8px;width:14px;height:14px;border-radius:50%;background:var(--bg);border:2px solid var(--c);transform:translateX(-50%)}
+.road-line .tk span{position:absolute;top:18px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:10px;color:var(--muted)}
+.road-line .car{position:absolute;top:10px;width:10px;height:10px;border-radius:50%;background:#fff;box-shadow:0 0 14px 3px var(--teal);animation:car 7s cubic-bezier(.45,0,.55,1) infinite}
+@keyframes car{0%{left:0;opacity:0}6%{opacity:1}94%{opacity:1}100%{left:calc(100% - 10px);opacity:0}}
+.kv{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:26px}
+.kv .cell ul{list-style:none;margin-top:4px}
+.kv .cell li{font-size:12.5px;color:var(--muted);padding:4px 0 4px 16px;position:relative;line-height:1.55}
+.kv .cell li::before{content:"";position:absolute;left:0;top:11px;width:6px;height:6px;border-radius:2px;background:var(--c,var(--teal))}
+
+/* ── 09 flow-h ── */
+.flowh{position:relative;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;padding:14px 0 6px}
+.flowh .fs{position:relative;padding:0 12px;text-align:center}
+.flowh .fs .dot{display:block;width:15px;height:15px;border-radius:50%;background:var(--bg);margin:0 auto 16px;border:2px solid var(--c,var(--teal));box-shadow:0 0 14px -2px var(--c,var(--teal));position:relative;z-index:2}
+.flowh .fs .k{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--c,var(--teal));display:block;margin-bottom:5px}
+.flowh .fs .t{display:block;font-size:13.5px;color:var(--head);font-weight:600;line-height:1.5}
+.flowh .fs .d{display:block;font-size:12px;color:var(--muted);margin-top:6px;line-height:1.6}
+.flowh .fs::before{content:"";position:absolute;top:7px;left:0;right:50%;height:2px;background:linear-gradient(90deg,transparent,var(--line2))}
+.flowh .fs::after{content:"";position:absolute;top:7px;left:50%;right:0;height:2px;background:linear-gradient(90deg,var(--line2),transparent)}
+.flowh .fs:first-child::before,.flowh .fs:last-child::after{display:none}
+.flowh .runner{position:absolute;top:3px;left:0;display:block;width:9px;height:9px;border-radius:50%;background:var(--teal);box-shadow:0 0 14px 3px var(--teal);animation:runh 5s cubic-bezier(.45,0,.55,1) infinite;z-index:1}
+@keyframes runh{0%{left:6%;opacity:0}8%{opacity:1}92%{opacity:1}100%{left:94%;opacity:0}}
+.gatebox{margin-top:20px;display:flex;align-items:center;gap:16px;justify-content:center;flex-wrap:wrap;font-family:var(--mono);font-size:12px;color:var(--muted)}
+.gatebox .p{border:1px solid var(--line2);border-radius:100px;padding:6px 14px}
+.gatebox .p.g{border-color:var(--teal);color:var(--teal)}
+.gatebox .p.x{border-color:var(--risk);color:#ff8a8e}
+
+/* ── 10 甘特 ── */
+.gantt{display:grid;grid-template-columns:270px repeat(8,1fr);border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--panel);min-width:760px}
+.gantt>div{border-bottom:1px solid var(--line);padding:9px 10px;font-size:12.5px;position:relative;min-height:40px;display:flex;align-items:center}
+.gantt .gh{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.1em;justify-content:center;background:var(--panel2)}
+.gantt .gh:first-child{justify-content:flex-start}
+.gantt .gf{font-family:var(--mono);font-size:11.5px;color:var(--ink);flex-direction:column;align-items:flex-start;justify-content:center;gap:1px}
+.gantt .gf small{font-family:var(--sans);font-size:11px;color:var(--muted)}
+.gantt .gf.new{color:var(--teal)}
+.gantt .gc{justify-content:center;border-left:1px dashed var(--line)}
+.gantt .gc .dt{display:block;width:12px;height:12px;border-radius:50%;background:var(--c,var(--teal));box-shadow:0 0 12px var(--c,var(--teal));transform:scale(0);transition:transform .5s cubic-bezier(.34,1.56,.64,1)}
+.gantt .gc .br{display:block;position:absolute;left:0;right:0;top:50%;height:6px;margin-top:-3px;background:color-mix(in srgb,var(--c,var(--teal)) 45%,transparent);transform:scaleX(0);transform-origin:left;transition:transform .7s cubic-bezier(.16,1,.3,1)}
+.gantt.in .gc .dt{transform:scale(1)}
+.gantt.in .gc .br{transform:scaleX(1)}
+
+/* ── 11/12 ── */
+.risk-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.decide{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+.dcard{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px 22px;position:relative;overflow:hidden}
+.dcard .who{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;color:var(--amber);text-transform:uppercase}
+.dcard h3{font-size:15.5px;color:var(--head);margin:6px 0 12px;line-height:1.55;font-weight:600}
+.dcard .def{border-top:1px dashed var(--line2);padding-top:10px;font-size:13px;color:var(--ink);line-height:1.65}
+.dcard .def span{display:block;font-family:var(--mono);font-size:10px;color:var(--teal);letter-spacing:.14em;margin-bottom:3px}
+.dcard .no{position:absolute;right:16px;top:10px;font-family:var(--mono);font-size:40px;font-weight:600;color:rgba(246,179,82,.08)}
+
+footer{position:relative;z-index:2;max-width:1120px;margin:0 auto;padding:56px 40px 80px;border-top:1px solid var(--line);margin-top:30px}
+footer .fl{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:18px}
+footer .brand{font-family:var(--serif);font-weight:700;font-size:20px;color:var(--head)}
+footer .meta{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.06em;text-align:right;line-height:1.9}
+
+::selection{background:rgba(63,224,197,.28);color:#fff}
+
+@media(max-width:980px){
+  .isostack{grid-template-columns:1fr}
+  .grid4,.principle{grid-template-columns:repeat(2,1fr)}
+  .road{grid-template-columns:repeat(2,1fr)}
+  .road-line{display:none}
+  .fam,.risk-grid,.kv{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:820px){
+  main{padding:0 18px}
+  footer{padding:48px 18px 70px}
+  section{padding:76px 0}
+  .grid2,.grid3,.decide,.supports,.gates{grid-template-columns:1fr}
+  .statband{grid-template-columns:repeat(2,1fr)}
+  .sec-head{gap:14px;margin-bottom:32px}
+  .lede{margin-top:-16px}
+  .detail{grid-template-columns:1fr}
+  .replay{grid-template-columns:96px repeat(3,minmax(0,1fr))}
+  .replay .hd{padding:12px 8px}.replay .hd .t{font-size:14px}
+  .replay .rl{padding:10px 8px;font-size:12px}
+  .replay .c{padding:8px 6px;flex-direction:column;align-items:flex-start;gap:4px;font-size:11.5px}
+  .mode{grid-template-columns:1fr;gap:6px}
+  .mode .arr{height:18px;width:2px;margin:0 auto;background:linear-gradient(rgba(242,85,90,.6),rgba(63,224,197,.6))}
+  .mode .arr::after{right:auto;left:-4px;top:auto;bottom:-6px;border:5px solid transparent;border-top:7px solid var(--teal)}
+  .mode .arr i{display:none}
+  .hbar .row{grid-template-columns:118px 1fr 44px;gap:10px}
+  .hbar .lab{font-size:12px}
+  .iso-scene{height:330px;overflow:hidden}
+  .iso-inner{transform:rotateX(58deg) rotateZ(-42deg) scale(.66)}
+  .iso-layer.lit{transform:translateZ(var(--z))}
+  .pstep{grid-template-columns:1fr;gap:8px}
+  .pstep .who{justify-self:start}
+  .flowh{grid-auto-flow:row;gap:22px}
+  .flowh .fs{text-align:left;padding:0 0 0 34px}
+  .flowh .fs .dot{position:absolute;left:0;top:2px;margin:0}
+  .flowh .fs::before,.flowh .fs::after,.flowh .runner{display:none}
+}
+@media(max-width:560px){
+  .statband,.grid4,.principle,.road,.fam,.risk-grid,.kv{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<nav class="rp-nav" style="font:13px/1.6 system-ui,-apple-system,'PingFang SC','Noto Sans SC',sans-serif;padding:8px 16px;border-bottom:1px solid rgba(127,127,127,.28);display:flex;flex-wrap:wrap;gap:4px 10px;opacity:.85"><a href="/akke" style="color:inherit">Akke</a><span>/ 回复链路重构：</span><span><b>方案图解</b> · <a href="/akke/wecom-reply-split-map" style="color:inherit">拆分前后流程图</a> · <a href="/akke/wecom-reply-river" style="color:inherit">回复链路河流图</a></span></nav>
+
+
+<div class="bg"><div class="grid"></div><div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div><div class="noise"></div></div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><filter id="glow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs></svg>
+<div class="progress" id="progress"></div>
+
+<nav class="rail" id="rail">
+  <a href="#hero" data-s="hero"><span class="tick"></span><span class="lbl">概览</span></a>
+  <a href="#s1" data-s="s1"><span class="tick"></span><span class="lbl">结论</span></a>
+  <a href="#s2" data-s="s2"><span class="tick"></span><span class="lbl">链路图</span></a>
+  <a href="#s3" data-s="s3"><span class="tick"></span><span class="lbl">案例回放</span></a>
+  <a href="#s4" data-s="s4"><span class="tick"></span><span class="lbl">两次没修住</span></a>
+  <a href="#s5" data-s="s5"><span class="tick"></span><span class="lbl">结构病根</span></a>
+  <a href="#s6" data-s="s6"><span class="tick"></span><span class="lbl">目标架构</span></a>
+  <a href="#s7" data-s="s7"><span class="tick"></span><span class="lbl">Phase 0</span></a>
+  <a href="#s8" data-s="s8"><span class="tick"></span><span class="lbl">迁移路线</span></a>
+  <a href="#s9" data-s="s9"><span class="tick"></span><span class="lbl">新规则准入</span></a>
+  <a href="#s10" data-s="s10"><span class="tick"></span><span class="lbl">改动地图</span></a>
+  <a href="#s11" data-s="s11"><span class="tick"></span><span class="lbl">风险</span></a>
+  <a href="#s12" data-s="s12"><span class="tick"></span><span class="lbl">待拍板</span></a>
+</nav>
+
+<main>
+
+<!-- HERO -->
+<section class="hero" id="hero">
+  <span class="tag rv"><span class="pulse"></span>wecom-chat · 回复大脑 · 重构方案 v1</span>
+  <h1 class="rv">回复链路<br><span class="accent">重构方案</span><span class="cursor"></span></h1>
+  <p class="desc rv">「全包」修了两次还在发。病根不在某条规则，而在<b>链路结构</b>：一次生成，再<span class="r">层层补救</span>。</p>
+  <p class="role rv">// 给默默，抄送野荞、Gus · 代码基线 origin/main 61d2216c（2026-10-10）· 标 <span class="tv">待验证</span> 的是推断或没实跑的</p>
+  <div class="ticker rv">
+    <span class="chip"><span class="d r"></span>14 个问题点 F1–F14</span>
+    <span class="chip"><span class="d"></span>五层 L1–L5</span>
+    <span class="chip"><span class="d a"></span>P0 → P7 每步一个 PR</span>
+    <span class="chip"><span class="d b"></span>KV 开关 · 秒级回滚</span>
+  </div>
+  <div class="statband rv">
+    <div class="stat"><div class="v"><span class="cnum" data-v="92">0</span></div>
+      <div class="l">行 src 非测试代码含「全包」<span class="s">共 106 次 · 多数正当，问题在提示词和模板</span></div></div>
+    <div class="stat a"><div class="v"><span class="cnum" data-v="9">0</span><span class="suf">+</span></div>
+      <div class="l">处问价判定，语义没登记<span class="s">个微判据另有 7 处以上</span></div></div>
+    <div class="stat"><div class="v"><span class="cnum" data-v="2">0</span></div>
+      <div class="l">次修复没修住<span class="s">#2043 · #2055 之后仍发出</span></div></div>
+    <div class="stat b"><div class="v"><span class="cnum" data-v="100">0</span></div>
+      <div class="l">条近一月回复大脑 fix 提交<span class="s">09-10 起 · 全仓同期 399 条</span></div></div>
+  </div>
+  <div class="scrollcue"><span class="bar"></span>SCROLL / 向下滚动</div>
+</section>
+
+<!-- 01 结论 -->
+<section id="s1">
+  <div class="sec-head rv"><span class="idx">01</span><div><span class="eyebrow">Diagnosis</span><h2>四个结构性病根</h2></div></div>
+  <p class="lede rv">同类问题反复出现，是因为链路<b>先让模型自由生成，再靠一层层规则去补</b>。补救层越多，新错越多。</p>
+  <div class="grid2 stagger">
+    <div class="cell"><span class="num">01</span>
+      <span class="ico r"><svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.4"/><circle cx="18" cy="6" r="2.4"/><circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="18" r="2.4"/><circle cx="12" cy="12" r="2.4"/></svg></span>
+      <h3><span class="m">NO SINGLE SOURCE</span>事实没有单一来源</h3>
+      <p>提示词和输出模板<b>一边示范「全包」，一边禁止「全包」</b>。问价判定散在至少 9 处，「是不是个微」的判据 7 处以上，没有一处说清该用哪一份。</p></div>
+    <div class="cell"><span class="num">02</span>
+      <span class="ico a"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2.5"/><path d="M8.5 7.5h7M8.5 12h1.5M12 12h1.5M15.5 12h0M8.5 16h1.5M12 16h1.5"/></svg></span>
+      <h3><span class="m">LLM DOES THE MATH</span>数字交给模型自己算</h3>
+      <p>报价、面积换算写在提示词里让模型算，事后正则兜底。原稿的「4.5 万」就是算错的：<b>89÷2×568 ≈ 2.5 万</b>。</p></div>
+    <div class="cell"><span class="num">03</span>
+      <span class="ico r"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 8.7"/><path d="M20 4v4.7h-4.7"/><path d="M20 12a8 8 0 0 1-13.7 5.6L4 15.3"/><path d="M4 20v-4.7h4.7"/></svg></span>
+      <h3><span class="m">PATCHES MAKE NEW BUGS</span>补救层会制造新错</h3>
+      <p>违规后同一个模型盲重写，看不到原稿；个微重写温度从 0.35 升到 0.7。发出版<b>868、300 两个锚点没了</b>，冒出没有依据的「选中能享补贴价」，疑与闸的升级词有关 <span class="tv">推断</span>。</p></div>
+    <div class="cell"><span class="num">04</span>
+      <span class="ico v"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.3 8-8 9-4.7-1-8-4.5-8-9V6l8-3z"/><path d="M9 9l6 6M15 9l-6 6"/></svg></span>
+      <h3><span class="m">NO FINAL CHECK</span>没有统一的用词检查</h3>
+      <p>全包替换只在 <code>chatReply</code> 内部做。route 追加的话、确定性快答、投递闸兜底句、已审话术直发，<b>都不再查用词</b>。</p></div>
+  </div>
+  <div class="band rv"><span class="k">方案一句话</span>
+    <p><b>不换框架、不改成 agent。</b>在现有 TS 里拆成五层：<span class="lay">L1 理解</span><span class="lay">L2 事实</span><span class="lay">L3 写话</span><span class="lay">L4 统一出口</span><span class="lay">L5 决定</span>，再配<b>单一口径源 policy</b> 和<b>回归语料网</b>。「全包」作为第一个样本走 Phase 0，每一步都有 KV 开关，可影子运行，出问题秒级回滚。</p></div>
+</section>
+
+<!-- 02 链路图 -->
+<section id="s2">
+  <div class="sec-head rv"><span class="idx">02</span><div><span class="eyebrow">Reply Pipeline · Interactive</span><h2>一条消息怎么变成回复</h2></div></div>
+  <p class="lede rv">光点就是一条客户消息。<b>点任意节点</b>，下面会展开这一步出了什么问题、怎么修。切到「改后」看五层链路。</p>
+  <div class="rv">
+    <div class="switch" role="group" aria-label="视图切换">
+      <button id="v-now" class="now" aria-pressed="true">现状 · 61d2216c</button>
+      <button id="v-new" aria-pressed="false">改后 · 五层</button>
+    </div>
+    <div class="legend" id="lg-now">
+      <span><i style="--c:var(--blue)"></i>代码（确定性）</span>
+      <span><i style="--c:var(--violet)"></i>LLM 调用</span>
+      <span><i style="--c:var(--risk)"></i>问题高发步骤</span>
+      <span><i class="dash" style="--c:var(--risk)"></i>旁路：绕过终审</span>
+    </div>
+    <div class="legend" id="lg-new" hidden>
+      <span><i style="--c:var(--teal)"></i>新建的层</span>
+      <span><i style="--c:var(--violet)"></i>LLM 调用（只剩两处）</span>
+      <span><i style="--c:var(--ser-8)"></i>保留不动</span>
+      <span><i class="dash" style="--c:var(--amber)"></i>reask：至多 1 次</span>
+    </div>
+    <div class="stage">
+      <div class="svgwrap fv" id="fv-now">
+        <svg class="wide" viewBox="0 0 1000 470" role="img" aria-label="现状回复链路：十个步骤蛇形排列，两条红色虚线旁路绕过终审">
+          <defs>
+                        <path id="p-now" d="M100,120 H900 C985,120 985,350 900,350 H100"/>
+            <path id="p-byA" d="M490,166 C470,220 470,250 490,304"/>
+            <path id="p-byB" d="M700,166 C660,230 580,270 520,304"/>
+          </defs>
+          <use class="f-edge" href="#p-now"/>
+          <use class="f-by" href="#p-byA"/>
+          <use class="f-by" href="#p-byB"/>
+          <text class="f-lab" x="372" y="232" fill="#ff8a8e">旁路 A · 分流回复</text>
+          <text class="f-lab" x="372" y="248" fill="var(--muted)">不经 finalize</text>
+          <text class="f-lab" x="716" y="214" fill="#ff8a8e">旁路 B · 已审直发</text>
+          <text class="f-lab" x="716" y="230" fill="var(--muted)">直接 return</text>
+          <circle r="5" fill="var(--teal)" filter="url(#glow)"><animateMotion dur="9s" repeatCount="indefinite" rotate="auto"><mpath href="#p-now"/></animateMotion></circle>
+          <circle r="5" fill="var(--teal)" filter="url(#glow)"><animateMotion dur="9s" begin="-4.5s" repeatCount="indefinite"><mpath href="#p-now"/></animateMotion></circle>
+          <circle r="4" fill="var(--risk)" filter="url(#glow)"><animateMotion dur="2.6s" repeatCount="indefinite"><mpath href="#p-byA"/></animateMotion></circle>
+          <circle r="4" fill="var(--risk)" filter="url(#glow)"><animateMotion dur="3.1s" begin="-1s" repeatCount="indefinite"><mpath href="#p-byB"/></animateMotion></circle>
+          <g id="nodes-now"></g>
+        </svg>
+      </div>
+      <div class="svgwrap fv" id="fv-new" hidden>
+        <svg class="wide" viewBox="0 0 1000 470" role="img" aria-label="改后回复链路：入站后经过 L1 理解、L2 事实、L3 写话、出门闸、L4 统一出口、L5 决定后发出，L5 可 reask 回到 L3 一次">
+          <defs>
+            <path id="p-new" d="M100,120 H900 C985,120 985,350 900,350 H500"/>
+            <path id="p-loop" d="M686,304 C650,250 650,220 686,166"/>
+            <path id="p-human" d="M700,396 C700,436 660,440 610,440 H340"/>
+          </defs>
+          <use class="f-edge" href="#p-new" style="stroke:rgba(63,224,197,.35)"/>
+          <use class="f-loop" href="#p-loop"/>
+          <use class="f-by" href="#p-human" style="stroke:var(--amber);opacity:.6"/>
+          <text class="f-lab" x="560" y="230" fill="var(--amber)">reask ×1</text>
+          <text class="f-lab" x="560" y="246" fill="var(--muted)">带原稿 · 不升温</text>
+          <text class="f-lab" x="200" y="444" fill="var(--amber)">仍不过 → 转人工</text>
+          <circle r="5" fill="var(--teal)" filter="url(#glow)"><animateMotion dur="8s" repeatCount="indefinite"><mpath href="#p-new"/></animateMotion></circle>
+          <circle r="5" fill="var(--teal)" filter="url(#glow)"><animateMotion dur="8s" begin="-4s" repeatCount="indefinite"><mpath href="#p-new"/></animateMotion></circle>
+          <circle r="4" fill="var(--amber)" filter="url(#glow)"><animateMotion dur="2.8s" repeatCount="indefinite"><mpath href="#p-loop"/></animateMotion></circle>
+          <g id="nodes-new"></g>
+        </svg>
+      </div>
+    </div>
+    <div class="detail" id="detail" aria-live="polite"></div>
+    <div class="supports" id="supports" hidden>
+      <div class="cell"><span class="ico"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg></span>
+        <h3><span class="m">SUPPORT A</span>单一口径源 policy.ts</h3>
+        <p>口径只写一次。提示词、价目块、重写纠正词、出口检查、测试断言<b>全部从它派生</b>。Langfuse 只存语气和策略，不再存事实口径。</p></div>
+      <div class="cell"><span class="ico b"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/><path d="M17 16l2 2 3-4"/></svg></span>
+        <h3><span class="m">SUPPORT B</span>回归语料网</h3>
+        <p>每修一个事故，加一行「事故句 → 期望输出」。补上<b>渠道 × 人设矩阵（含 wx_* 托管人设）</b>。改前改后各跑一次，只许更好、不许更差。</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 03 案例回放 -->
+<section id="s3">
+  <div class="sec-head rv"><span class="idx">03</span><div><span class="eyebrow">Case Replay · 2026-10-10 14:34</span><h2>一条回复，三个版本</h2></div></div>
+  <p class="lede rv">同一轮里模型写了三版（Langfuse trace <code>14ae62b4…</code>）。<b>本该只纠正一个数字</b>：编面积闸连续两次触发重写，终审又漏掉个微，最后发出了第三版。</p>
+  <div class="tblwrap rv">
+    <div class="replay" id="replay">
+      <div class="hd"><span class="k">要素</span></div>
+      <div class="hd" style="--c:var(--violet)"><span class="k">V1 · 主生成</span><span class="t">原稿</span></div>
+      <div class="hd" style="--c:var(--risk)"><span class="k">V2 · 盲重写</span><span class="t">重写 1</span></div>
+      <div class="hd sent" style="--c:var(--risk)"><span class="k">V3 · 升级词 · 实际发出</span><span class="t">重写 2</span></div>
+
+      <div class="rl">「全包」</div>
+      <div class="c"><span class="st ok">无</span>没写</div>
+      <div class="c col2 err"><span class="st err">出现</span>「设计安装全包」</div>
+      <div class="c col3 err"><span class="st err">出现</span>终审跳过个微，原样发出</div>
+
+      <div class="rl">单价 568</div>
+      <div class="c"><span class="st ok">对</span></div>
+      <div class="c col2"><span class="st ok">有</span>「现在 568」</div>
+      <div class="c col3"><span class="st ok">有</span>只剩它</div>
+
+      <div class="rl">锚点 868</div>
+      <div class="c"><span class="st na">未记录</span></div>
+      <div class="c col2"><span class="st ok">有</span>「原价 868」</div>
+      <div class="c col3"><span class="st lost">丢失</span></div>
+
+      <div class="rl">锚点 300</div>
+      <div class="c"><span class="st ok">对</span></div>
+      <div class="c col2"><span class="st na">未记录</span></div>
+      <div class="c col3"><span class="st lost">丢失</span></div>
+
+      <div class="rl">总价</div>
+      <div class="c err"><span class="st err">算错</span>「4.5 万起」应 ≈ 2.5 万</div>
+      <div class="c col2"><span class="st ok">对</span>「2.5 万」</div>
+      <div class="c col3"><span class="st na">未记录</span>升级词禁 X万</div>
+
+      <div class="rl">补贴说法</div>
+      <div class="c"><span class="st na">未记录</span></div>
+      <div class="c col2"><span class="st na">未记录</span></div>
+      <div class="c col3 err"><span class="st err">新增</span>「选中能享补贴价」</div>
+    </div>
+  </div>
+  <div class="gates stagger">
+    <div class="gate"><span class="k">闸 ① · V1 → V2</span><span class="t">编面积闸误判（F1）</span>
+      <p>图片占位被改写后闸认不出，带面积的原稿被当成「编造面积」，触发盲重写。纠正方向从一开始就偏了。</p></div>
+    <div class="gate"><span class="k">闸 ② · V2 → V3</span><span class="t">升级词冲突（F7）<span class="tv">命中哪道闸据上一轮 trace</span></span>
+      <p>「2.5 万」再次命中编面积闸，第二次重写带上<b>只许留 568 这种单价</b>，868 和 300 被删。<span class="tv">推断</span></p></div>
+    <div class="gate"><span class="k">闸 ③ · V3 → 发出</span><span class="t">终审跳过个微（F9）</span>
+      <p>终审替换的判据只认企微，个微请求三项全假，函数直接 return，「全包」原样发出。</p></div>
+  </div>
+  <p class="note rv">// 「设计安装全包」这串字在 src 里一处都没有。它来自提示词示范，还是门店资料 c83ee422（正文有「设计安装售后全包」）<span class="tv">待验证</span></p>
+</section>
+
+<!-- 04 为什么修了两次没修住 -->
+<section id="s4">
+  <div class="sec-head rv"><span class="idx">04</span><div><span class="eyebrow">Fix History · 2064 PRs Scanned</span><h2>为什么修了两次还在</h2></div></div>
+  <p class="lede rv">「全包」是一步步被写进代码、被测试保护起来的。两次修复都只<b>修了症状，没删源头</b>。</p>
+  <div class="stage rv">
+    <div class="svgwrap">
+      <svg class="wide" viewBox="0 0 1000 300" role="img" aria-label="时间线：07-29 写进代码，08-17 被测试钉住，09-24 再扩散，10-09 和 10-10 两次修复，10-10 14:34 仍然发出">
+        <defs><linearGradient id="tlg" x1="0" x2="1"><stop offset="0" stop-color="#525C6B"/><stop offset=".55" stop-color="#F6B352"/><stop offset="1" stop-color="#F2555A"/></linearGradient></defs>
+        <line x1="40" y1="150" x2="960" y2="150" stroke="url(#tlg)" stroke-width="2.5"/>
+        <circle r="6" fill="#fff" filter="url(#glow)"><animateMotion dur="7s" repeatCount="indefinite" path="M40,150 H960"/></circle>
+        <g data-tl>
+          <circle cx="90" cy="150" r="8" fill="var(--bg)" stroke="var(--ser-8)" stroke-width="2"/>
+          <text class="tl-d" x="90" y="104" text-anchor="middle">07-29</text>
+          <text class="tl-pr" x="90" y="86" text-anchor="middle" fill="var(--ser-8)">#90</text>
+          <text class="tl-txt" x="90" y="186" text-anchor="middle">报价明细写成</text>
+          <text class="tl-txt" x="90" y="204" text-anchor="middle">「…安装全包」</text>
+
+          <circle cx="250" cy="150" r="8" fill="var(--bg)" stroke="var(--ser-8)" stroke-width="2"/>
+          <text class="tl-d" x="250" y="104" text-anchor="middle">08-17</text>
+          <text class="tl-pr" x="250" y="86" text-anchor="middle" fill="var(--ser-8)">#581</text>
+          <text class="tl-txt" x="250" y="186" text-anchor="middle">测试用 toContain</text>
+          <text class="tl-txt" x="250" y="204" text-anchor="middle">把错误口径钉成期望</text>
+
+          <circle cx="410" cy="150" r="8" fill="var(--bg)" stroke="var(--amber)" stroke-width="2"/>
+          <text class="tl-d" x="410" y="104" text-anchor="middle">09-24</text>
+          <text class="tl-pr" x="410" y="86" text-anchor="middle" fill="var(--amber)">#1624 · #1656</text>
+          <text class="tl-txt" x="410" y="186" text-anchor="middle">又新增两处</text>
+          <text class="tl-txt" x="410" y="204" text-anchor="middle">带全包的代码句</text>
+
+          <circle cx="590" cy="150" r="10" fill="var(--bg)" stroke="var(--risk)" stroke-width="2.5"/>
+          <circle class="pulse-ring" cx="590" cy="150" r="10"/>
+          <text class="tl-d" x="590" y="104" text-anchor="middle">10-09 21:08</text>
+          <text class="tl-pr" x="590" y="86" text-anchor="middle" fill="var(--risk)">修复 ① #2043</text>
+          <text class="tl-txt" x="590" y="186" text-anchor="middle">加硬规 + finalize 替换</text>
+          <text class="tl-txt" x="590" y="204" text-anchor="middle" fill="#ff8a8e" style="fill:#ff8a8e">留下 4 个洞</text>
+
+          <circle cx="760" cy="150" r="10" fill="var(--bg)" stroke="var(--risk)" stroke-width="2.5"/>
+          <circle class="pulse-ring" cx="760" cy="150" r="10" style="animation-delay:.8s"/>
+          <text class="tl-d" x="760" y="104" text-anchor="middle">10-10 10:08</text>
+          <text class="tl-pr" x="760" y="86" text-anchor="middle" fill="var(--risk)">修复 ② #2055</text>
+          <text class="tl-txt" x="760" y="186" text-anchor="middle">只改了 3 处代码模板</text>
+          <text class="tl-txt" x="760" y="204" text-anchor="middle">①②③ 三个洞没动</text>
+
+          <circle cx="920" cy="150" r="12" fill="var(--risk)" filter="url(#glow)"/>
+          <text class="tl-d" x="920" y="104" text-anchor="middle">10-10 14:34</text>
+          <text class="tl-pr" x="920" y="86" text-anchor="middle" fill="var(--risk)">仍然发出</text>
+          <text class="tl-txt" x="920" y="186" text-anchor="middle">「设计安装全包」</text>
+          <text class="tl-txt" x="920" y="204" text-anchor="middle">+「选中能享补贴价」</text>
+        </g>
+        <g font-family="IBM Plex Mono,monospace" font-size="11">
+          <rect x="470" y="232" width="350" height="54" rx="8" fill="rgba(242,85,90,.07)" stroke="rgba(242,85,90,.35)"/>
+          <text x="484" y="254" fill="#ff8a8e">#2043 的 4 个洞</text>
+          <text x="484" y="274" fill="var(--muted)">① 判据漏个微 ② 旁路绕开 ③ 源头没删 ④ 检测器没接</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+  <p class="note rv">// 口径：GitHub 全量 2064 个 PR，按标题和正文匹配<b>全包 / W-85 / W-86</b>，加 <b>git log -G'全包'</b> 的 83 个提交，逐个读 diff</p>
+
+  <div class="ctitle rv" style="margin-top:46px">六种失败模式 → 重构后在哪挡住</div>
+  <div class="cunit rv">左：这次的表现 · 右：拦截位置</div>
+  <div class="modes stagger">
+    <div class="mode"><div class="a">同一规则多个出口，判据各写各的<small>替换只覆盖 chatReply，判据只认企微</small></div><div class="arr"><i></i></div><div class="z">L4 统一出口<small>登记表加 textPolicy 列</small></div></div>
+    <div class="mode"><div class="a">修症状，不删源头<small>llm.ts:1449、pricing.ts:734/770 仍在示范</small></div><div class="arr"><i style="animation-delay:.4s"></i></div><div class="z">policy 单一源<small>+ 源码守卫测试</small></div></div>
+    <div class="mode"><div class="a">测试把错误口径钉成期望<small>#581 的 toContain「全包」</small></div><div class="arr"><i style="animation-delay:.8s"></i></div><div class="z">断言由 policy 生成<small>不手写</small></div></div>
+    <div class="mode"><div class="a">检测器不接线，PR 却写已接<small>hasWecomFullPackageWording 零调用</small></div><div class="arr"><i style="animation-delay:1.2s"></i></div><div class="z">登记表 AST 扫描<small>规则不接线，CI 变红</small></div></div>
+    <div class="mode"><div class="a">测试停在纯函数层<small>没有<b>wx_* 人设 + 模型输出全包</b>端到端用例</small></div><div class="arr"><i style="animation-delay:1.6s"></i></div><div class="z">渠道 × 人设矩阵用例<small>eval 放开 wx_* 人设</small></div></div>
+    <div class="mode"><div class="a">验收看版本，不看行为<small>只核了 commit 和 Langfuse 版本号</small></div><div class="arr"><i style="animation-delay:2s"></i></div><div class="z">provenance 信号 + 真实回复回读<small>验收以行为为准</small></div></div>
+  </div>
+</section>
+
+<!-- 05 结构病根 -->
+<section id="s5">
+  <div class="sec-head rv"><span class="idx">05</span><div><span class="eyebrow">Root Causes · Beyond 全包</span><h2>不只是「全包」</h2></div></div>
+  <p class="lede rv">近一个月改到回复大脑的 fix 提交有 <b>100 条</b>。按标题关键词粗分，同一套结构问题在各个口径上反复出现。</p>
+  <div class="rv">
+    <div class="ctitle">回复大脑 fix 提交 · 按问题类别</div>
+    <div class="cunit">条 · 2026-09-10 起非合并提交 · 一条可落多类，不能相加</div>
+    <div class="hbar" data-hbar>
+      <div class="row"><span class="lab">渠道 / 人设 / 提示词<small>更宽的关键词</small></span><span class="track"><span class="fill" data-w="100"></span></span><span class="val">33</span></div>
+      <div class="row"><span class="lab">重写 / 删句 / 兜底 / 护栏</span><span class="track"><span class="fill" data-w="94"></span></span><span class="val">31</span></div>
+      <div class="row"><span class="lab">门店 / 地址 / 城市</span><span class="track"><span class="fill" data-w="76"></span></span><span class="val">25</span></div>
+      <div class="row"><span class="lab">报价 / 面积 / 补贴口径</span><span class="track"><span class="fill" data-w="52"></span></span><span class="val">17</span></div>
+      <div class="row"><span class="lab">什么都不命中<small>多为端上 / 统计</small></span><span class="track"><span class="fill dim" data-w="33"></span></span><span class="val">11</span></div>
+    </div>
+    <p class="note">// 「渠道/人设/提示词」33 条是前三类都不命中的 44 条里，再用更宽关键词命中的部分。换一组近义词，各类会浮动几条</p>
+  </div>
+  <div class="fam stagger">
+    <div class="cell"><span class="ico r"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h10M4 17h7"/><path d="M16 15l5 5M21 15l-5 5"/></svg></span><h3>口径 / 用词</h3>
+      <p class="cause">口径散在提示词、价目块、模板、门店资料、测试期望里</p><p class="cure">policy.ts 单一源 + 源码守卫，L4 用同一份做终审</p></div>
+    <div class="cell"><span class="ico a"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2.5"/><path d="M8.5 7.5h7M8.5 12h7M8.5 16h4"/></svg></span><h3>价格 / 面积 / 总价</h3>
+      <p class="cause">模型在文本里自己算，确定性报价只在一个分支生效</p><p class="cure">L2 FactPack 由代码算好，L3 用占位符回填</p></div>
+    <div class="cell"><span class="ico b"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l5 5"/><path d="M8.5 11h5"/></svg></span><h3>意图判定</h3>
+      <p class="cause">问价 9+ 处、城市解析器 8 个 <span class="tv">只做了 grep</span>、个微判据 7+ 处</p><p class="cure">L1 TurnFacts 具名字段，全仓只判一次，双跑对账后下线旧的</p></div>
+    <div class="cell"><span class="ico v"><svg viewBox="0 0 24 24"><path d="M5 5h5v5H5zM14 14h5v5h-5z"/><path d="M10 7.5h4.5V14"/></svg></span><h3>渠道分支漏接</h3>
+      <p class="cause"><code>channel === "weixin"</code> 有 45 处；一个 weixin 同时代表 Winds、安卓、macOS 三端</p><p class="cure">渠道和人设进 TurnFacts，渠道策略默认从严</p></div>
+    <div class="cell"><span class="ico r"><svg viewBox="0 0 24 24"><path d="M5 12h4M15 12h4"/><path d="M9 8l-2 8M17 8l-2 8"/></svg></span><h3>护栏改坏句子</h3>
+      <p class="cause">盲重写 + 升级词 + 多层删句，最后没有一致性复核</p><p class="cure">L5 只 reask 1 次否则转人工，L4 检查残句</p></div>
+    <div class="cell"><span class="ico"><svg viewBox="0 0 24 24"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg></span><h3>门店事实</h3>
+      <p class="cause">已部分收敛：门店删句 09-30 起只在一处拼，登记表 10-07 落地</p><p class="cure">门店资料进 FactPack，登记表补 textPolicy 列，不重复做</p></div>
+  </div>
+</section>
+
+<!-- 06 目标架构 -->
+<section id="s6">
+  <div class="sec-head rv"><span class="idx">06</span><div><span class="eyebrow">Target Architecture</span><h2>五层 + 两个支撑</h2></div></div>
+  <p class="lede rv">步骤固定，模型<b>只出现在「写话」和「reask」两处</b>。这是 workflow 的写法，不是 agent。<b>把鼠标移到右侧图例上</b>，对应的层会浮起。</p>
+  <div class="isostack rv">
+    <div class="iso-scene">
+      <div class="iso-inner">
+        <div class="iso-layer" data-layer="1" style="--c:var(--blue);--z:0px"><span class="tag">L1 理解</span></div>
+        <div class="iso-layer" data-layer="2" style="--c:var(--teal);--z:58px"><span class="tag">L2 事实</span></div>
+        <div class="iso-layer llm" data-layer="3" style="--c:var(--violet);--z:116px"><span class="tag">L3 写话</span></div>
+        <div class="iso-layer" data-layer="4" style="--c:var(--amber);--z:174px"><span class="tag">L4 统一出口</span></div>
+        <div class="iso-layer llm" data-layer="5" style="--c:var(--rose);--z:232px"><span class="tag">L5 决定</span></div>
+      </div>
+    </div>
+    <div class="iso-legend">
+      <div class="r" data-lit="5" style="--c:var(--rose)"><i></i><div><span class="n">L5 · 决定<span class="llmt">≤1 次 LLM</span></span><span class="m">发出 / reask 1 次 / 转人工。reask 带原稿，温度取 min(主生成, 0.7)。</span></div></div>
+      <div class="r" data-lit="4" style="--c:var(--amber)"><i></i><div><span class="n">L4 · 统一出口 final-check</span><span class="m">所有改写、追加、兜底之后跑一次：policy 违规、数字没出处、残句。</span></div></div>
+      <div class="r" data-lit="3" style="--c:var(--violet)"><i></i><div><span class="n">L3 · 写话<span class="llmt">1 次 LLM</span></span><span class="m">把 FactPack 写成人话。口径段由 policy 生成，数字用 <code>{{unit_price}}</code> 占位回填。</span></div></div>
+      <div class="r" data-lit="2" style="--c:var(--teal)"><i></i><div><span class="n">L2 · 事实 FactPack</span><span class="m">纯代码：算 868 / 300 / 568 和总价区间，查门店、异地费。每条带出处。</span></div></div>
+      <div class="r" data-lit="1" style="--c:var(--blue)"><i></i><div><span class="n">L1 · 理解 TurnFacts</span><span class="m">只判定、不写话。问价、面积、渠道、是否发图，每轮只判一次，下游一律读它。</span></div></div>
+    </div>
+  </div>
+  <div class="principle stagger">
+    <div><span>原则 01</span>能用代码确定的，不交给模型</div>
+    <div><span>原则 02</span>每个事实只有一个来源</div>
+    <div><span>原则 03</span>每个出口都过同一道终审</div>
+    <div><span>原则 04</span>补救只做一次，且不比原稿更随机</div>
+  </div>
+  <details class="more rv">
+    <summary>每个机制的出处（展开）</summary>
+    <div class="tblwrap">
+    <table class="spec">
+      <thead><tr><th>机制</th><th>类别</th><th>出处</th><th>适用边界</th></tr></thead>
+      <tbody>
+        <tr><td>理解 → 事实 → 生成 分层</td><td><span class="cat" style="--c:var(--blue)">经典架构·类比</span></td><td>Gao 等《Neural Approaches to Conversational AI》§1.2；Jurafsky &amp; Martin 附录 K</td><td>经典架构的策略在生成前；本方案 L5 在写话后，是事后校验</td></tr>
+        <tr><td>LLM 只出判定，回复用模板</td><td><span class="cat" style="--c:var(--violet)">开源项目</span></td><td>Rasa CALM：LLM 只建议下一步，回复默认是预定义模板</td><td><b>Flow Policy 是确定性状态机</b>只在搜索摘要里看到</td></tr>
+        <tr><td>reask：带原稿和原因重生成</td><td><span class="cat" style="--c:var(--violet)">开源项目</span></td><td>Guardrails AI on_fail=REASK，源码把原输出作为 previous_response 传入</td><td>带原稿这点要看源码确认</td></tr>
+        <tr><td>最终输出统一校验</td><td><span class="cat" style="--c:var(--violet)">开源 / 厂商文档</span></td><td>OpenAI Agents SDK output guardrail；NVIDIA NeMo output rails</td><td>NeMo 允许改写，本方案选择不盲改写</td></tr>
+        <tr><td>不盲改写，给外部反馈重来一次</td><td><span class="cat" style="--c:var(--teal)">论文·单篇</span></td><td>Huang 等，ICLR 2024（arXiv 2310.01798）</td><td>测的是推理基准；现状重写已带违规原因，论文不能直接证明现状错</td></tr>
+        <tr><td>数字由代码算</td><td><span class="cat" style="--c:var(--teal)">论文</span></td><td>PAL（arXiv 2211.10435）；Toolformer（arXiv 2302.04761）</td><td>只核了 arXiv 摘要页</td></tr>
+        <tr><td>单一口径源</td><td><span class="cat" style="--c:var(--teal)">行业标准</span></td><td>《The Pragmatic Programmer》DRY</td><td>—</td></tr>
+        <tr><td>CI 强制架构约束</td><td><span class="cat" style="--c:var(--teal)">行业标准</span></td><td>ThoughtWorks fitness function；ArchUnit / Import Linter</td><td>原书未打开，以 Radar 为准</td></tr>
+        <tr><td>新规则对每个出口表态</td><td><span class="cat" style="--c:var(--amber)">本方案组合</span></td><td>穷尽性检查 + fitness function + DRY 的组合</td><td>没找到现成先例，按组合创新对待</td></tr>
+        <tr><td>影子运行 + KV 开关</td><td><span class="cat" style="--c:var(--teal)">行业标准 · 仓内已有</span></td><td>Fowler Strangler Fig；Istio 流量镜像；Feature Toggles；仓内 android-planner-shadow.ts</td><td>Strangler Fig 用在提示词流水线上是类比</td></tr>
+        <tr><td>回归语料进 CI</td><td><span class="cat" style="--c:var(--violet)">开源 · 仓内已有</span></td><td>promptfoo、OpenAI Evals；仓内 eval-fixtures</td><td>沿用仓内 harness，不引入 promptfoo</td></tr>
+      </tbody>
+    </table></div>
+  </details>
+</section>
+
+<!-- 07 Phase 0 -->
+<section id="s7">
+  <div class="sec-head rv"><span class="idx">07</span><div><span class="eyebrow">Phase 0 · Stop The Bleeding</span><h2>「全包」先止血</h2></div></div>
+  <p class="lede rv">覆盖 10-10 那条消息走的<b>主回复出口</b>。召回、opener、kf 不经过出门闸，要到 P2/P3 才补齐，这里不说成「全部修死」。净增约 40 行 <span class="tv">估计</span>。</p>
+  <div class="pipe rv">
+    <div class="flowdot"></div>
+    <div class="pstep" style="--who:var(--risk)"><span class="who"><b>0</b>先写红灯测试</span><span class="txt">把第 8 步的单测和 eval <b>挪到最前面</b>，先在 main 上跑红，再动代码。eval 有随机性，多次采样至少命中一次才算红。</span></div>
+    <div class="pstep" style="--who:var(--blue)"><span class="who"><b>1</b>终审覆盖个微</span><span class="txt">判据加 <code>|| channel === "weixin"</code>，保留 isSalesPersona。只改用词，不改报价数字。<small>src/lib/llm.ts:3539-3543</small></span></div>
+    <div class="pstep" style="--who:var(--blue)"><span class="who"><b>2</b>替换前看语境</span><span class="txt">同一句有<b>装修 / 硬装 / 软装 / 整装</b>就<b>不替换</b>，只记 signal，避免造出新承诺。<small>src/lib/llm/signals.ts:1350-1356</small></span></div>
+    <div class="pstep" style="--who:var(--blue)"><span class="who"><b>3</b>出口兜底</span><span class="txt">出门闸 return 前两个渠道都接替换，动作写进 sanitizerActions。命中查不到 provenance，只能看响应体和日志。<small>reply-outbound-guards.ts:266</small></span></div>
+    <div class="pstep" style="--who:var(--amber)"><span class="who"><b>4</b>删源头示范</span><span class="txt">只改<b>柜体语境</b>的句子，改成<b>包含板材、柜门、基础五金和安装</b>。装修语境和识别客户输入的判据不动，signals.ts 逐句判断。<small>llm.ts:1449 · org-generic-rules.ts:179 · pricing.ts:734/770</small></span></div>
+    <div class="pstep" style="--who:var(--amber)"><span class="who"><b>5</b>decision 也加禁令</span><span class="txt">Langfuse 先 dry-run 看漂移，再 --apply，再拉快照附进 PR。约 30 秒生效。<small>wecom.decision.rules + llm.ts:1693</small></span></div>
+    <div class="pstep" style="--who:var(--violet)"><span class="who"><b>6</b>重录 golden</span><span class="txt">ydyx 和 org-profile 分开重录，PR 里写明理由。</span></div>
+    <div class="pstep" style="--who:var(--violet)"><span class="who"><b>7</b>门店资料</span><span class="txt">先只读确认 c83ee422 确实含「全包」。改正文，还是渲染时替换，<b>要运营同意</b>。</span></div>
+    <div class="pstep" style="--who:var(--teal)"><span class="who"><b>8</b>回归防线</span><span class="txt">chatReply 单测（wx_phone_* + weixin）、装修语境负例、提示词禁用词一致性、eval 放开 wx_* 人设、quality-watch 加违禁词标记。</span></div>
+    <div class="pstep" style="--who:var(--teal)"><span class="who"><b>9</b>验收</span><span class="txt">近 24 小时主回复出口的 ai 回复里，<b>柜体语境「全包」为 0</b>，全量分页。排除销售手打、召回、opener、kf 和合法的装修语境。</span></div>
+  </div>
+</section>
+
+<!-- 08 迁移路线 -->
+<section id="s8">
+  <div class="sec-head rv"><span class="idx">08</span><div><span class="eyebrow">Migration Roadmap</span><h2>每步一个 PR，可开关</h2></div></div>
+  <p class="lede rv">P0 要等第 12 章第 1、4 件拍板，放行当天可上线。沿用 10-06 审计结论：<b>随修随拆</b>，不单独开一轮重构。开关放 system_settings KV，缺键即 shadow，<code>{"mode":"off"}</code> 立即停用。</p>
+  <div class="road-line rv">
+    <span class="ln"></span><span class="car"></span>
+    <span class="tk" style="left:6%;--c:var(--risk)"><span>P0</span></span><span class="tk" style="left:19%;--c:var(--amber)"><span>P1</span></span>
+    <span class="tk" style="left:31%;--c:var(--amber)"><span>P2</span></span><span class="tk" style="left:44%;--c:var(--amber)"><span>P3</span></span>
+    <span class="tk" style="left:56%;--c:var(--blue)"><span>P4</span></span><span class="tk" style="left:69%;--c:var(--blue)"><span>P5</span></span>
+    <span class="tk" style="left:81%;--c:var(--teal)"><span>P6</span></span><span class="tk" style="left:94%;--c:var(--teal)"><span>P7</span></span>
+  </div>
+  <div class="road stagger">
+    <div class="ph" style="--c:var(--risk)"><div class="k"><b>P0</b><span>止血</span></div><span class="t">全包在回复出口止血</span><p>第 07 章那 10 步。</p><span class="ck">验收：测试先红；线上 24h 柜体「全包」= 0</span></div>
+    <div class="ph" style="--c:var(--amber)"><div class="k"><b>P1</b><span>单一源</span></div><span class="t">policy.ts + 源码守卫</span><p>全包、全国统一价、补贴口径收进来，提示词由它生成。</p><span class="ck">验收：守卫测试先在旧代码跑红</span></div>
+    <div class="ph" style="--c:var(--amber)"><div class="k"><b>P2</b><span>shadow</span></div><span class="t">L4 final-check 影子运行</span><p>登记表加 textPolicy 列，所有出口只观察不拦截。</p><span class="ck">验收：违规率 · 每个出口有表态</span></div>
+    <div class="ph" style="--c:var(--amber)"><div class="k"><b>P3</b><span>enforce</span></div><span class="t">L4 切成拦截</span><p>顺序：全包 → 门店 → 价格。</p><span class="ck">回滚：KV 开关秒级关闭</span></div>
+    <div class="ph" style="--c:var(--blue)"><div class="k"><b>P4</b><span>双跑</span></div><span class="t">L1 TurnFacts 双跑</span><p>旧判定照用，分歧写 turnFactsDiff，为 0 后逐个切换。</p><span class="ck">切换条件：分歧为 0</span></div>
+    <div class="ph" style="--c:var(--blue)"><div class="k"><b>P5</b><span>事实</span></div><span class="t">L2 FactPack</span><p>先接个微问价这一条路径。</p><span class="ck">约束：ydyx golden 逐字不变</span></div>
+    <div class="ph" style="--c:var(--teal)"><div class="k"><b>P6</b><span>决定</span></div><span class="t">L5 reask 替换盲重写</span><p>北极星：实发 ≠ 原稿的比例下降。</p><span class="ck">盯：modelDraftChanged · 转人工率</span></div>
+    <div class="ph" style="--c:var(--teal)"><div class="k"><b>P7</b><span>最敏感</span></div><span class="t">L3 占位符回填</span><p>放最后：改一句措辞，曾 4 次采样回归连伤两轮。</p><span class="ck">配 eval 双跑</span></div>
+  </div>
+  <div class="kv stagger">
+    <div class="cell" style="--c:var(--teal)"><h3><span class="m">METRICS</span>现成的验收指标</h3><ul>
+      <li>output_signals：全包替换、reroll 修复/未修复、modelDraftChanged</li><li>latency_ms、cfg / host</li><li>weixin_reply_withheld、gate_replaced_reply</li><li>quality-watch：红线 20%，黄线 10%</li></ul></div>
+    <div class="cell" style="--c:var(--amber)"><h3><span class="m">ROLLBACK</span>四种回滚</h3><ul>
+      <li>KV 开关：秒级</li><li>代码：revert 后手动触发 vercel-deploy</li><li>Langfuse：production label 移回旧版</li><li>配置：wecom-config-at.ts --rollback</li></ul></div>
+    <div class="cell" style="--c:var(--blue)"><h3><span class="m">SHADOW</span>影子运行</h3><ul>
+      <li>结果写入 llm_call_provenance，stage="shadow"</li><li>不新建表，不改 production env</li><li>必须放在 after() 里，否则成本翻倍</li></ul></div>
+  </div>
+</section>
+
+<!-- 09 新规则准入 -->
+<section id="s9">
+  <div class="sec-head rv"><span class="idx">09</span><div><span class="eyebrow">Admission Gate</span><h2>让同类问题进不来</h2></div></div>
+  <p class="lede rv">以后加任何一条<b>不许说 X / 必须说 Y</b>，都要<b>同时满足这五条</b>。能交给 CI 的交给 CI，不靠人记。</p>
+  <div class="rv">
+    <div class="flowh">
+      <span class="runner"></span>
+      <div class="fs" style="--c:var(--teal)"><span class="dot"></span><span class="k">Gate 1</span><span class="t">只定义在 policy.ts</span><span class="d">源码守卫：禁用词出现在别处就红</span></div>
+      <div class="fs" style="--c:var(--teal)"><span class="dot"></span><span class="k">Gate 2</span><span class="t">提示词由 policy 生成</span><span class="d">prompt-price-consistency 扩展版</span></div>
+      <div class="fs" style="--c:var(--blue)"><span class="dot"></span><span class="k">Gate 3</span><span class="t">19 个出口逐行表态</span><span class="d">exit-registry.test（AST 扫描，CI 常驻）</span></div>
+      <div class="fs" style="--c:var(--amber)"><span class="dot"></span><span class="k">Gate 4</span><span class="t">至少一条事故语料</span><span class="d">覆盖渠道 × 人设，改前改后各跑</span></div>
+      <div class="fs" style="--c:var(--violet)"><span class="dot"></span><span class="k">Gate 5</span><span class="t">验收看行为</span><span class="d">PR 模板必填 provenance + 真实回复回读</span></div>
+    </div>
+    <div class="gatebox"><span class="p">新规则</span><span>→</span><span class="p g">五条全满足 → 合入</span><span>/</span><span class="p x">前四条 CI 检查 · 第五条 PR 模板必填</span></div>
+  </div>
+</section>
+
+<!-- 10 改动地图 -->
+<section id="s10">
+  <div class="sec-head rv"><span class="idx">10</span><div><span class="eyebrow">Change Map · File × Phase</span><h2>哪个文件，哪一步动</h2></div></div>
+  <p class="lede rv">绿色是<b>新建文件</b>，圆点是在该阶段改动，横条表示跨多个阶段持续改。</p>
+  <div class="tblwrap rv">
+    <div class="gantt" id="gantt"></div>
+  </div>
+  <p class="note rv">// llm.ts 现 5627 行、signals.ts 3100 行、route.ts 6686 行。行数下降后两道尺寸闸都要收紧（check-file-size / check-size-ratchet）</p>
+</section>
+
+<!-- 11 风险 -->
+<section id="s11">
+  <div class="sec-head rv"><span class="idx">11</span><div><span class="eyebrow">Risks &amp; Repo Rules</span><h2>风险与仓内规范</h2></div></div>
+  <div class="risk-grid stagger">
+    <div class="cell"><span class="ico a"><svg viewBox="0 0 24 24"><path d="M12 3.5l9 16H3z"/><path d="M12 10v4.5M12 17.3v.2"/></svg></span><h3>企微也受影响</h3><p>模板、报价块、reroll 两个渠道共用；kf 只传 persona 也走同一套。企微 reask 温度 0.7，与现在持平。</p></div>
+    <div class="cell"><span class="ico a"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="7.5"/><path d="M12 9v4l2.8 1.8M9.6 3h4.8"/></svg></span><h3>延迟与转人工</h3><p>预算 75s、路由上限 95s。重写从 2 次减到 1 次，最坏延迟缩短，但<b>转人工可能变多</b>，要看影子数据。</p></div>
+    <div class="cell"><span class="ico a"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/><path d="M15 4v6"/></svg></span><h3>措辞敏感</h3><p>L3 改一句话就可能伤回归，所以放最后，并配 eval 双跑。</p></div>
+    <div class="cell"><span class="ico b"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 9h8M8 13h5"/></svg></span><h3>非有大有小机构</h3><p>quoteProfile 分支的报价必须逐字不变，只有 P0 的用词替换例外。</p></div>
+    <div class="cell"><span class="ico b"><svg viewBox="0 0 24 24"><rect x="6" y="2.5" width="12" height="19" rx="2.6"/><path d="M10.6 5.4h2.8"/></svg></span><h3>端上旁路</h3><p>Python local_fastpath 和 macOS sanitize 在服务端闸之外，登记表只能标 exempt 或 gap。</p></div>
+    <div class="cell"><span class="ico"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.3 8-8 9-4.7-1-8-4.5-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/></svg></span><h3>仓规</h3><p>改 fallback 必同步 Langfuse；高危路径以 high-risk-paths.regex 为准；评测用 EVAL key；样本不带真手机号或 wxid。</p></div>
+  </div>
+</section>
+
+<!-- 12 待拍板 -->
+<section id="s12">
+  <div class="sec-head rv"><span class="idx">12</span><div><span class="eyebrow">Decisions Needed</span><h2>需要拍板的四件事</h2></div></div>
+  <p class="lede rv">每件都写了默认做法：<b>不回复就按默认执行</b>。第 1、4 件决定 P0 能否开工。</p>
+  <div class="decide stagger">
+    <div class="dcard"><span class="no">1</span><span class="who">默默 × 野荞</span><h3>野荞 10-10 上午说 W-86 的全包残留「先不要修」，和 P0 冲突</h3><div class="def"><span>DEFAULT</span>不动代码，只把结论写进 W-86 台账</div></div>
+    <div class="dcard"><span class="no">2</span><span class="who">运营</span><h3>门店资料 c83ee422 的「设计安装售后全包」：改正文，还是渲染时替换</h3><div class="def"><span>DEFAULT</span>渲染时替换，不动数据</div></div>
+    <div class="dcard"><span class="no">3</span><span class="who">运营 / 夏夏</span><h3>补贴适用条件的正式口径：无条件「补贴后」，还是「入选才有」</h3><div class="def"><span>DEFAULT</span>P1 先按现行价目块写进 policy，标「待运营确认」</div></div>
+    <div class="dcard"><span class="no">4</span><span class="who">默默 / Gus</span><h3>是否按 P0 → P7 推进，每步一个 PR</h3><div class="def"><span>DEFAULT</span>放行后从 P0 开始，每一步合入前更新进度</div></div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="fl">
+    <span class="brand">wecom-chat <span style="color:var(--teal)">/</span> 回复链路重构方案</span>
+    <span class="meta">证据：origin/main 61d2216c 逐行阅读 · GitHub PR 全量 2064 个 · Langfuse trace 14ae62b4…<br>docs/audit-20261006 · CLAUDE.md · .claude/rules/llm-layer.md · 2026-10-10</span>
+  </div>
+</footer>
+
+<script>
+if(new URLSearchParams(location.search).get('anim')==='off') document.documentElement.dataset.anim='off';
+if(new URLSearchParams(location.search).get('shot')==='1') document.documentElement.dataset.shot='1';
+const ANIM_OFF = document.documentElement.dataset.anim==='off' || matchMedia('(prefers-reduced-motion: reduce)').matches;
+if(ANIM_OFF) addEventListener('load',()=>document.querySelectorAll('svg').forEach(s=>s.pauseAnimations?.()));
+
+/* ══ 链路图数据 ══ */
+const C = {code:'var(--blue)', llm:'var(--violet)', bad:'var(--risk)', neu:'var(--ser-8)', new:'var(--teal)'};
+const NOW = [
+  {id:'01',x:100,y:120,k:'01 · 代码',t:'入站 · 去重 · 纠错',c:'code',loc:'route.ts:1458 POST → handleReplyRequest:1528',f:[],
+   pins:[{cls:'',id:'—',h:'不在本方案范围',b:'读屏与去重是端上物理约束（见 10-06 审计 §4）。'}]},
+  {id:'02',x:300,y:120,k:'02 · 代码',t:'取记忆',c:'code',loc:'messages 最近 40 条 · media-context.ts:184',f:['F1'],
+   pins:[{cls:'bad',id:'F1',h:'图片占位改写后，编面积闸认不出',b:'「[图片]」被改成「[客户发来一张图片]」，但 <b>fabricated-area.ts:38</b> 的 IMAGE_RE 只认「[图片…]」；「89户型」没有「平」字也不算线索。带面积的原稿被判成编造，触发重写。'},
+         {cls:'fix',id:'→ L1',h:'面积、户型、是否发过图收进 TurnFacts',b:'只判定一次。knownSizesFrom 改读 TurnFacts，不再自己扫文本。'}]},
+  {id:'03',x:500,y:120,k:'03 · 代码',t:'确定性分流',c:'code',loc:'报价 route.ts:5460-5486 · 快答 :5515 · 澄清 :5552',f:['F2'],
+   pins:[{cls:'bad',id:'F2',h:'问价判定散在至少 9 处，语义没登记',b:'有的共用同一正则，有的有意区分「聊到价格」和「真在问价」，但差别<b>没有登记在任何地方</b>。用错就出事：不该报价时注入报价块，或整条被出门闸换成兜底句。后者记过 09-16、09-18、09-22 三次。'},
+         {cls:'bad',id:'旁路 A',h:'分流回复不经过 finalize',b:'命中确定性分流的回复，不走 chatReply 里的终审替换。'},
+         {cls:'fix',id:'→ L1',h:'每种语义一个具名字段',b:'例如 <b>priceMentioned</b>（聊到价格）和 <b>quoteRequested</b>（真在问价）分开。旧判定先双跑，分歧为 0 再下线。'}]},
+  {id:'04',x:700,y:120,k:'04 · 代码 + Langfuse',t:'拼 system prompt',c:'code',loc:'getSystemPrompt llm.ts:2360 · 约 3 万字符',f:['F3','F4'],
+   pins:[{cls:'bad',id:'F3',h:'提示词一边教「全包」，一边禁「全包」',b:'个微「节奏·最高优先级」规则 <b>llm.ts:1449</b> 要求说「板材五金柜门安装全包」；价目块 pricing.ts:734/770 也带。禁令只在 nurture 有一条，排在示范后面；decision、opener 是 0 条。'},
+         {cls:'bad',id:'F4',h:'三份真相源',b:'Langfuse 线上版、代码 FALLBACK、docs 快照。PM 后台改话术不产生 commit；CI 比对的是快照，不是线上。'},
+         {cls:'fix',id:'→ policy',h:'口径只写在一处，提示词从它生成',b:'新建 policy.ts，提示词、价目块、纠正词都引用它；守卫测试规定禁用词字面量只许出现在 policy.ts。'}]},
+  {id:'05',x:900,y:120,k:'05 · LLM',t:'主生成 qwen3-235b',c:'llm',loc:'llm.ts:3969 · 个微温度 0.35',f:['F5'],
+   pins:[{cls:'bad',id:'F5',h:'数字由 LLM 自算',b:'只有 detectQuoteRequest 命中才走确定性报价，其余靠事后乘法白名单兜底。fabricated-area.ts 头注释自己写着「提示词写明也压不住」。'},
+         {cls:'fix',id:'→ L2+L3',h:'代码先算 FactPack，模型只写话',b:'复用 buildBudgetQuote、cabinetPriceFor；route.ts 里写死的 568、「两万八」并入 FactPack，数字用占位符回填。'}]},
+  {id:'06',x:900,y:350,k:'06 · 规则 + LLM',t:'reroll → 盲重写×2',c:'bad',loc:'nurtureRerollCheck signals.ts:1871（36 条 reason）',f:['F6','F7','F8'],
+   pins:[{cls:'bad',id:'F6',h:'重写看不到原稿，个微更随机',b:'纠正词只引用命中的片段。重写温度写死 <b>0.7</b>：个微主生成 0.35，重写翻倍。'},
+         {cls:'bad',id:'F7',h:'闸的升级词和价目块指令冲突',b:'编面积闸升级词「不许出现 X平、X万…568 一平这种单价除外」，与「按 868→300→568 顺序说」相冲，发出版只剩 568。<span class="tv">推断</span>'},
+         {cls:'bad',id:'F8',h:'检测器写了，没接线',b:'hasWecomFullPackageWording 生产代码零调用，只有测试引用；#2043 PR 正文却写「reroll 已接」。'},
+         {cls:'fix',id:'→ L5',h:'盲重写改成 reask 1 次，还不过转人工',b:'把原稿和违规原因一起交还模型；温度 min(主生成, 0.7)。删掉各闸升级词和双次重写。'}]},
+  {id:'07',x:700,y:350,k:'07 · 代码',t:'finalize 终审替换',c:'code',loc:'llm.ts:4222 → rewriteCustomerFacingWecomResult :3534',f:['F9','F10'],
+   pins:[{cls:'bad',id:'F9',h:'判据漏掉个微',b:'条件是 isSalesPersona || channel ∈ {wecom, wecom_chat}。个微是 channel="weixin" + wx_* 托管人设，<b>三项全假，直接 return</b>。同一个 finalize 里 4224 行的 isPrivateOneToOneChannel 本来就覆盖 weixin。'},
+         {cls:'bad',id:'F10',h:'替换本身会改坏句子',b:'本机跑正则：「装修全包大概588起」会被改成「装修包含板材、柜门、基础五金和安装大概588起」，凭空造出承诺。'},
+         {cls:'bad',id:'旁路 B',h:'已审话术直发不经过这里',b:'llm.ts:3747-3804 直接 return。'},
+         {cls:'fix',id:'→ L4',h:'用词替换移到统一出口',b:'渠道判据统一成一个函数；同一句有装修语境就不替换，转去 reask。'}]},
+  {id:'08',x:500,y:350,k:'08 · 代码',t:'route 后处理',c:'code',loc:'route.ts:5839-6538 · 配图引导语 :6315/6327',f:['F11'],
+   pins:[{cls:'bad',id:'F11',h:'后处理改过的文字不再查用词',b:'reroll 检查只在 chatReply 内部跑。route 层追加的话之后仍过事实闸、投递闸、门店闸，但这些闸<b>都不查用词口径</b>。'},
+         {cls:'fix',id:'→ L4',h:'追加的文字也进 final-check',b:'所有改写、追加之后统一再查一遍。'}]},
+  {id:'09',x:300,y:350,k:'09 · 代码',t:'出门闸',c:'code',loc:'reply-outbound-guards.ts:84-266 · 投递闸约 27 种动作',f:['F12','F13'],
+   pins:[{cls:'bad',id:'F12',h:'出口登记表没有「用词口径」这一列',b:'exit-registry 登记 19 个出口 × 4 道闸，用词不在其中。新加口径规则时，没有机制要求它对每个出口表态。'},
+         {cls:'bad',id:'F13',h:'删句会造出残句',b:'「基础价17,040元」曾被切成「基础价17,」；10-08 漳州那例又补了一次。每出一种新切法补一次。'},
+         {cls:'fix',id:'→ L4',h:'final-check：所有出口过同一套检查',b:'接在出门闸 return 之前，再接 opener、召回、kf、已审直发；登记表加 textPolicy，19 个出口逐个表态。'}]},
+  {id:'10',x:100,y:350,k:'10 · 代码',t:'发送 · 落库',c:'code',loc:'route.ts:6658 · after() 抽画像、滚动摘要',f:['F14'],
+   pins:[{cls:'bad',id:'F14',h:'验收看版本号，不看行为',b:'#2043 只核了 /api/status 的 commit 和 Langfuse v33，<b>没用一条个微请求回读实际回复</b>。'},
+         {cls:'fix',id:'→ 回归网',h:'验收以 provenance 和真实回复为准',b:'查 output_signals，再全量分页查近 24 小时 ai 回复是否含禁用词。'}]},
+];
+const NEW = [
+  {id:'A',x:100,y:120,k:'01–02 · 代码',t:'入站 · 取记忆',c:'neu',loc:'route.ts 原逻辑',fix:[],
+   pins:[{cls:'',id:'不变',h:'保持不动',b:'记忆部分只把媒体占位、面积线索交给 L1。'}]},
+  {id:'L1',x:300,y:120,k:'L1 · 代码',t:'理解 TurnFacts',c:'new',loc:'新建 src/lib/wecom/reply/turn-facts.ts',fix:['F1','F2','F9'],
+   pins:[{cls:'fix',id:'L1',h:'每轮只判定一次',b:'问价、面积、户型、品类、城市、渠道、是否私聊、是否发图、流失信号、待答问题。复用现有确定性判据，<b>下游一律读 facts</b>。首轮不加 LLM 调用。'}]},
+  {id:'L2',x:500,y:120,k:'L2 · 代码',t:'事实 FactPack',c:'new',loc:'新建 src/lib/wecom/reply/fact-pack.ts',fix:['F5','F7'],
+   pins:[{cls:'fix',id:'L2',h:'价格、补贴、门店都由代码给出',b:'按价目表算 868 / 300 / 568 和总价区间，写明补贴适用条件（口径要运营定），查门店、算异地费。<b>每条事实带出处</b>。'}]},
+  {id:'L3',x:700,y:120,k:'L3 · LLM（一次）',t:'写话',c:'llm',loc:'getSystemPrompt 改造 · 新建 policy.ts、placeholders.ts',fix:['F3','F4'],
+   pins:[{cls:'fix',id:'L3',h:'口径同源，数字占位',b:'口径段由 renderPolicyForPrompt() 生成，不再手写示范句。数字写成 {{unit_price}} 这类占位符，由代码回填。'}]},
+  {id:'G',x:900,y:120,k:'— · 代码',t:'后处理 · 出门闸',c:'neu',loc:'配图引导 · 删句 · 投递闸',fix:[],
+   pins:[{cls:'',id:'保留',h:'现有行为不变',b:'但它们产出的文字都要进 L4 再检查一遍。'}]},
+  {id:'L4',x:900,y:350,k:'L4 · 代码',t:'统一出口 final-check',c:'new',loc:'新建 src/lib/wecom/reply/final-check.ts',fix:['F8','F10','F11','F12','F13'],
+   pins:[{cls:'fix',id:'L4',h:'所有出口过同一道检查，判据与 L3 同源',b:'在所有改写、追加、兜底之后运行，查三类：policy 违规、数字出处不在 FactPack、残句。每个出口在登记表里逐行表态。'}]},
+  {id:'L5',x:700,y:350,k:'L5 · 代码 + ≤1 次 LLM',t:'决定',c:'new',loc:'新建 src/lib/wecom/reply/decide.ts · 复用 respondWithheld',fix:['F6','F7'],
+   pins:[{cls:'fix',id:'L5',h:'发出 / reask 1 次 / 转人工',b:'违规时把原稿和原因交还原模型，只重来一次；还不过就 needs_human 转人工。防复读、空回复重试、模型切换等重试<b>保留不动</b>。'},
+         {cls:'risk',id:'代价',h:'转人工可能变多',b:'「客户什么都没收到」被记为重伤，P6 要盯转人工率和 weixin_reply_withheld。<span class="tv">待验证</span>'}]},
+  {id:'OUT',x:500,y:350,k:'发出',t:'发送 · 落库',c:'neu',loc:'验收接回归网',fix:['F14'],
+   pins:[{cls:'fix',id:'回归网',h:'每修一个事故，就加一行语料',b:'渠道 × 人设矩阵（含 wx_* 托管人设）纳入端到端用例；验收看 provenance 和真实回复，不看版本号。'}]},
+];
+
+const NS='http://www.w3.org/2000/svg';
+function el(tag,attrs,parent){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e}
+function drawNodes(gid,data,mode){
+  const g=document.getElementById(gid);
+  data.forEach((n,i)=>{
+    const col=C[n.c];
+    const ng=el('g',{class:'fnode','data-i':i,'data-mode':mode,tabindex:0,role:'button','aria-label':n.t},g);
+    el('rect',{class:'box',x:n.x-88,y:n.y-46,width:176,height:92,rx:12,stroke:col},ng);
+    const k=el('text',{class:'f-n',x:n.x-74,y:n.y-20,fill:col},ng);k.textContent=n.k;
+    const t=el('text',{class:'f-t',x:n.x-74,y:n.y+4},ng);t.textContent=n.t;
+    const s=el('text',{class:'f-s',x:n.x-74,y:n.y+26},ng);s.textContent=(n.loc.length>23?n.loc.slice(0,22)+'…':n.loc);
+    const tags=mode==='now'?n.f:n.fix, cls=mode==='now'?'f-badge':'f-fix';
+    let bx=n.x+88-4;
+    for(let j=tags.length-1;j>=0;j--){
+      const w=tags[j].length*7+12; bx-=w;
+      const b=el('g',{class:cls},ng);
+      el('rect',{x:bx,y:n.y-60,width:w,height:18,rx:9},b);
+      const tt=el('text',{x:bx+w/2,y:n.y-47},b);tt.textContent=tags[j];
+      bx-=4;
+    }
+    if(mode==='now'&&n.c==='bad') el('rect',{class:'pulse-ring',x:n.x-88,y:n.y-46,width:176,height:92,rx:12},ng);
+  });
+}
+drawNodes('nodes-now',NOW,'now');
+drawNodes('nodes-new',NEW,'new');
+
+const detail=document.getElementById('detail');
+function show(mode,i){
+  const n=(mode==='now'?NOW:NEW)[i];
+  document.querySelectorAll('.fnode').forEach(x=>x.classList.toggle('sel',x.dataset.mode===mode&&+x.dataset.i===i));
+  const tags=(mode==='now'?n.f:n.fix);
+  detail.style.setProperty('--c',C[n.c]);
+  detail.innerHTML=`<div class="dh"><span class="k">${n.k}</span><h4>${n.t}</h4><div class="loc">${n.loc}</div>
+    <div class="hint">${mode==='now'?(tags.length?'这一步有 '+tags.length+' 个问题点':'这一步没有问题点'):(tags.length?'消掉 '+tags.join('、'):'不新增逻辑')}</div></div>
+    <div class="dpins">${n.pins.map(p=>`<div class="pin ${p.cls}"><div class="h"><span class="id">${p.id}</span>${p.h}</div><div class="b">${p.b}</div></div>`).join('')}</div>`;
+}
+document.querySelectorAll('.fnode').forEach(n=>{
+  const go=()=>{show(n.dataset.mode,+n.dataset.i);stopAuto()};
+  n.addEventListener('click',go);
+  n.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}});
+});
+let curMode='now', auto=null, autoI=0;
+function stopAuto(){if(auto){clearInterval(auto);auto=null}}
+function startAuto(){
+  stopAuto(); if(ANIM_OFF) return;
+  const order=curMode==='now'?[5,6,3,8,1,2,4,9,7,0]:[1,2,3,5,6,7,0,4];
+  autoI=0;
+  auto=setInterval(()=>{autoI=(autoI+1)%order.length;show(curMode,order[autoI])},5200);
+}
+const bNow=document.getElementById('v-now'), bNew=document.getElementById('v-new');
+function setView(m){
+  curMode=m;
+  bNow.setAttribute('aria-pressed',m==='now');bNew.setAttribute('aria-pressed',m==='new');
+  const a=document.getElementById('fv-now'), b=document.getElementById('fv-new');
+  const on=m==='now'?a:b, off=m==='now'?b:a;
+  off.hidden=true; on.hidden=false; on.classList.add('fade');
+  requestAnimationFrame(()=>requestAnimationFrame(()=>on.classList.remove('fade')));
+  setTimeout(()=>on.classList.remove('fade'),400);
+  document.getElementById('lg-now').hidden=m!=='now';
+  document.getElementById('lg-new').hidden=m!=='new';
+  document.getElementById('supports').hidden=m!=='new';
+  show(m,m==='now'?5:1);
+  startAuto();
+}
+bNow.addEventListener('click',()=>setView('now'));
+bNew.addEventListener('click',()=>setView('new'));
+show('now',5);
+
+/* ══ 甘特：文件 × 阶段 ══ */
+const G=[
+  ['policy.ts','口径单一源',1,[[1]],'var(--amber)'],
+  ['turn-facts.ts','每轮一次的 TurnFacts',1,[[4]],'var(--blue)'],
+  ['fact-pack.ts','带出处的 FactPack',1,[[5]],'var(--blue)'],
+  ['final-check.ts','统一出口校验',1,[[2,3]],'var(--amber)'],
+  ['decide.ts','reask 1 次 / 转人工',1,[[6]],'var(--teal)'],
+  ['placeholders.ts','单价、总价占位回填',1,[[7]],'var(--teal)'],
+  ['llm.ts','示范删 → 终审移 L4 → 盲重写下线',0,[[0,6]],'var(--risk)'],
+  ['llm/signals.ts','口径迁 policy · reroll 改 ctx',0,[[0,6]],'var(--risk)'],
+  ['llm/pricing.ts','口径引用 policy · 数字由 FactPack',0,[[0],[5]],'var(--violet)'],
+  ['llm/fabricated-area.ts','改读 TurnFacts',0,[[4]],'var(--violet)'],
+  ['chat/reply/route.ts','分流读 facts · 算价交 FactPack',0,[[2,5]],'var(--violet)'],
+  ['reply-outbound-guards.ts','接 final-check · 白名单读 FactPack',0,[[0],[3],[5]],'var(--violet)'],
+  ['outbound/exit-registry.ts','加 textPolicy 列',0,[[2]],'var(--violet)'],
+  ['weixin-client-context.ts','判据读 TurnFacts · 兜底过 final-check',0,[[3,4]],'var(--violet)'],
+  ['budget-quote 等 3 个','成为 FactPack 计算内核',0,[[5]],'var(--violet)'],
+  ['Langfuse nurture / decision','只留语气和策略',0,[[0],[1]],'var(--violet)'],
+  ['eval-fixtures · eval 脚本','事故语料 + 渠道×人设矩阵',0,[[0,7]],'var(--teal)'],
+];
+(function(){
+  const g=document.getElementById('gantt'); let h='<div class="gh">文件</div>';
+  for(let p=0;p<8;p++) h+=`<div class="gh">P${p}</div>`;
+  G.forEach(([f,d,isNew,spans,c],ri)=>{
+    h+=`<div class="gf${isNew?' new':''}">${isNew?'＋ ':''}${f}<small>${d}</small></div>`;
+    for(let p=0;p<8;p++){
+      let inner='';
+      for(const s of spans){
+        if(s.length===1&&s[0]===p) inner=`<span class="dt" style="transition-delay:${(ri*.05+p*.04).toFixed(2)}s"></span>`;
+        if(s.length===2&&p>=s[0]&&p<=s[1]){
+          const st=p===s[0]?'left:50%;':'', en=p===s[1]?'right:50%;':'';
+          inner=`<span class="br" style="${st}${en}transition-delay:${(ri*.05+p*.06).toFixed(2)}s"></span>`+(p===s[0]||p===s[1]?`<span class="dt" style="transition-delay:${(ri*.05+p*.06).toFixed(2)}s"></span>`:'');
+        }
+      }
+      h+=`<div class="gc" style="--c:${c}">${inner}</div>`;
+    }
+  });
+  g.innerHTML=h;
+})();
+
+/* ══ iso-stack hover ══ */
+document.querySelectorAll('.iso-legend .r').forEach(row=>{
+  const layer=document.querySelector(`.iso-layer[data-layer="${row.dataset.lit}"]`);
+  if(!layer) return;
+  row.addEventListener('mouseenter',()=>{layer.classList.add('lit');row.classList.add('on')});
+  row.addEventListener('mouseleave',()=>{layer.classList.remove('lit');row.classList.remove('on')});
+});
+
+/* ══ 进度条 ══ */
+const prog=document.getElementById('progress');
+const onScroll=()=>{const h=document.documentElement;if(!prog)return;prog.style.width=(h.scrollTop/(h.scrollHeight-h.clientHeight)*100)+'%'};
+document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+
+/* ══ reveal ══ */
+const RVSEL='.rv,.stagger,.replay,.gantt';
+const rvIO=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');rvIO.unobserve(e.target)}}),{threshold:.16,rootMargin:'0px 0px -8% 0px'});
+if(ANIM_OFF) document.querySelectorAll(RVSEL).forEach(x=>x.classList.add('in'));
+else document.querySelectorAll(RVSEL).forEach(x=>rvIO.observe(x));
+const revealPast=()=>{document.querySelectorAll('.rv:not(.in),.stagger:not(.in),.replay:not(.in),.gantt:not(.in)').forEach(x=>{if(x.getBoundingClientRect().top<innerHeight*.9){x.classList.add('in');rvIO.unobserve(x)}})};
+document.addEventListener('scroll',revealPast,{passive:true});
+revealPast();addEventListener('load',revealPast);
+addEventListener('load',()=>document.querySelectorAll('#hero .rv').forEach((x,i)=>setTimeout(()=>x.classList.add('in'),120+i*110)));
+
+const PENDING=[];
+function onEnter(sel,fn,threshold=.25){
+  const o=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting)fire(e.target)}),{threshold});
+  document.querySelectorAll(sel).forEach(x=>{if(ANIM_OFF){fn(x,true);return}PENDING.push([x,fn,o]);o.observe(x)});
+}
+function fire(x){const i=PENDING.findIndex(p=>p[0]===x);if(i<0)return;const [,fn,o]=PENDING.splice(i,1)[0];o.unobserve(x);fn(x,false)}
+const settle=()=>{for(const [x] of [...PENDING]) if(x.getBoundingClientRect().top<innerHeight*.9) fire(x)};
+addEventListener('scroll',settle,{passive:true});addEventListener('load',settle);
+const rvPoll=setInterval(()=>{revealPast();settle();if(!document.querySelector('.rv:not(.in),.stagger:not(.in),.replay:not(.in),.gantt:not(.in)')&&!PENDING.length)clearInterval(rvPoll)},300);
+
+onEnter('.cnum',(x,instant)=>{
+  const target=+x.dataset.v,dur=1300,put=v=>x.textContent=Math.round(v).toLocaleString('en-US');
+  if(instant){put(target);return}
+  const t0=performance.now();
+  const tick=t=>{const p=Math.min((t-t0)/dur,1);put(target*(1-Math.pow(1-p,3)));if(p<1)requestAnimationFrame(tick)};
+  requestAnimationFrame(tick);setTimeout(()=>put(target),dur+500);
+},.5);
+onEnter('[data-hbar]',(x,instant)=>{
+  const run=()=>x.querySelectorAll('.fill').forEach(f=>f.style.width=f.dataset.w+'%');
+  if(instant){run();return}requestAnimationFrame(run);setTimeout(run,1700);
+},.25);
+onEnter('#s2 .stage',(x,instant)=>{if(!instant)startAuto()},.3);
+
+/* ══ rail ══ */
+const rail=[...document.querySelectorAll('.rail a')];
+if(rail.length){
+  const secObs=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting)rail.forEach(a=>a.classList.toggle('on',a.dataset.s===e.target.id))}),{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('main section').forEach(s=>secObs.observe(s));
+}
+</script>
+</body>
+</html>
