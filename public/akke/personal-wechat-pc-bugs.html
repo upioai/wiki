@@ -185,7 +185,7 @@
             padding:3px 10px; white-space:nowrap; flex:none; background:var(--accent-soft);
             color:var(--accent-ink); border:1px solid rgba(139,92,246,.3); }
   .daycnt.zero { background:var(--bg-deep); color:var(--text-muted); border-color:var(--border); }
-  /* 阅读层：先看结论，场景与原始技术台账按需展开。 */
+  /* 阅读层：先看结论；有证据的场景直接展示，技术台账按需展开。 */
   .bug-intro { color:var(--text-dim); font-size:15px; margin:0 0 14px; }
   #bugLedgerTitle { color:var(--text); font-size:22px; letter-spacing:0; margin:30px 0 8px; }
   #bugLedgerTitle .hint { font-size:12px; }
@@ -216,7 +216,7 @@
   .bug-detail .bug-related { margin-top:10px; }
   .bug-detail .scene-missing { margin:10px 0 0; }
   .scene-set { margin:13px 0 0; border:1px solid var(--border-strong); border-radius:11px; padding:12px; }
-  .scene-set summary { cursor:pointer; font-weight:650; font-size:13.5px; color:var(--text); }
+  .scene-set h4 { margin:0; font-weight:650; font-size:13.5px; color:var(--text); }
   .scene-source { color:var(--text-muted); font-size:12px; margin:9px 0 10px; }
   .scene-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr)); gap:12px; }
   .wechat-frame { background:#ededed; color:#191919; border:1px solid #d9d9d9; border-radius:10px; overflow:hidden; min-width:0; }
@@ -238,7 +238,7 @@
   .scene-missing { color:var(--text-muted); font-size:12px; margin:9px 0 0; }
   .bug-related { margin:9px 0 0; font-size:12px; color:var(--text-muted); }
   .bug-related a { color:var(--dm); margin-right:7px; }
-  .bug-search:focus-visible,.bug-category:focus-visible,.bug-view button:focus-visible,.bug-detail summary:focus-visible,.scene-set summary:focus-visible { outline:2px solid #e8ff4f; outline-offset:2px; }
+  .bug-search:focus-visible,.bug-category:focus-visible,.bug-view button:focus-visible,.bug-detail summary:focus-visible { outline:2px solid #e8ff4f; outline-offset:2px; }
   @media (max-width:560px) { .bug dl { grid-template-columns:1fr; gap:1px 0; } .bug dt { margin-top:8px; } }
   .err-banner { display:none; background:rgba(208,59,59,.12); border:1px solid rgba(208,59,59,.35); color:#fca5a5; border-radius:10px; padding:12px 16px; font-size:14px; margin-bottom:20px; }
   @media (max-width: 640px) {
@@ -1533,7 +1533,7 @@
 </div>
 <div id="tip" role="tooltip"></div>
 
-<script src="/akke/personal-wechat-pc-bug-guide.js?v=04f4912a"></script>
+<script src="/akke/personal-wechat-pc-bug-guide.js?v=scenes-visible-20261013"></script>
 <script>
 const API_BASE = "https://wecom-chat.vercel.app/api/public/weixin-pc-live";
 const MACHINES = [
@@ -1611,21 +1611,23 @@ function renderBugGuide() {
     cause.className = 'plain-cause' + (tentative ? ' tentative' : '');
     cause.innerHTML = `<strong>${tentative ? '待核实的线索' : '关键原因'}</strong>${tentative ? esc(why) : markedCause(why, guide.highlights?.[card.id])}`;
     badge.after(cause);
-    const detail = document.createElement('details');
-    detail.className = 'bug-detail';
-    detail.innerHTML = `<summary>${guide.scenes[card.id] ? '查看微信场景与完整记录' : '查看完整记录'}</summary><p class="status-original">原记录状态：${esc(originalStatus)}</p>`;
     const scene = guide.scenes[card.id];
     if (scene) {
-      const panel = document.createElement('details');
+      const panel = document.createElement('section');
       panel.className = 'scene-set';
-      panel.innerHTML = '<summary>看依据证据重建的微信场景</summary>';
+      const sceneLabel = scene.kind === 'log' ? '日志还原的微信列表' : '微信场景还原';
+      panel.setAttribute('aria-label', sceneLabel);
       const frames = scene.frames.map(frame => `<article class="wechat-frame" aria-label="${esc(frame.title)}">
-        <div class="wechat-title">微信 · ${esc(frame.title)} · 客户身份已脱敏</div>
+        <div class="wechat-title">${scene.kind === 'log' ? '日志还原' : '微信场景'} · ${esc(frame.title)} · 客户身份已脱敏</div>
         <div class="wechat-body">${frame.listRows ? frame.listRows.map(row => `<div class="wechat-list-row">${esc(row)}</div>`).join('') : frame.bubbles.map(([side, message]) => `<div class="wechat-line ${side}">${side === 'center' ? '' : `<span class="wechat-avatar" aria-hidden="true">${side === 'left' ? '客' : '我'}</span>`}<span class="wechat-bubble">${esc(message)}</span></div>`).join('')}</div>
         <div class="wechat-note">${esc(frame.note)}</div></article>`).join('');
-      panel.innerHTML += `<p class="scene-source">${esc(scene.source)}</p><div class="scene-grid">${frames}</div>`;
-      detail.append(panel);
-    } else {
+      panel.innerHTML = `<h4>${sceneLabel}</h4><p class="scene-source">${esc(scene.source)}</p><div class="scene-grid">${frames}</div>`;
+      card.append(panel);
+    }
+    const detail = document.createElement('details');
+    detail.className = 'bug-detail';
+    detail.innerHTML = `<summary>查看完整记录</summary><p class="status-original">原记录状态：${esc(originalStatus)}</p>`;
+    if (!scene) {
       const note = document.createElement('p');
       note.className = 'scene-missing';
       note.textContent = '没有足够的画面证据可还原微信场景；下方保留原始记录。';
