@@ -40,8 +40,9 @@ function checkScenes(pageHtml, data) {
 }
 
 if (process.argv.includes('--self-test')) {
-  const newCard = `${html}\n<div class="bug" id="W-98"></div>`;
-  const sample = structuredClone(guide);
+  const newCard = '<div class="bug" id="W-98"></div>';
+  // Keep fixtures independent of the live ledger: W-98 is now a real entry.
+  const sample = { entries: {}, scenes: {} };
   sample.entries['W-98'] = ['vision', '示例原因'];
   assert(checkScenes(newCard, sample).some(error => error.includes('缺少微信场景还原')));
   sample.scenes['W-98'] = { kind: 'log', source: '', frames: [] };
