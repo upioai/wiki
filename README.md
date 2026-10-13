@@ -24,6 +24,8 @@
 
 `vercel.json` 开了 `cleanUrls`：`public/learn/kv-cache.html` 对应线上 `/learn/kv-cache`，站内链接一律写不带 `.html` 的路径。
 
+个人微信电脑端 Bug 集新增编号须附证据支持的微信场景还原；写法和发布检查见 [Bug 集新增记录规范](docs/runbooks/pc-bug-ledger.md)。
+
 ## 目录
 
 ```
