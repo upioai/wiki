@@ -316,7 +316,7 @@
   <p class="subtitle">重点：首触/召回漏发或错认、重复配图、假红点与扫描卡住、人工待核对误报、客户已成交后仍触达、黑名单截图外发风险、昵称手机号身份对不上。</p>
   <p class="subtitle">W-17 / W-33 为已移出的安卓问题，空号保留。实时异常列表随日期筛选；台账是人工维护的编号快照。</p>
 
-  <p class="subtitle">10-12 新增：<a href="#W-89">R1 → W-89</a> · <a href="#W-90">R2 → W-90</a> · <a href="#W-91">R3 → W-91</a> · <a href="#W-92">R4 → W-92</a> · <a href="#W-93">R5 → W-93</a>。这五项均保留具体放行原因与验收缺口。另增 <a href="#W-94">W-94：表情差异导致会话分裂，厦门报价串成泉州</a>；10-13 登记 <a href="#W-95">W-95：巡检切旧会话误触发回复</a>、<a href="#W-96">W-96：已签客户收到历史消息的自动回复</a>及 <a href="#W-97">W-97：置顶会话占满首屏，新消息一小时没人回</a>；<a href="#W-98">W-98：40方投影未被识别，正常计算的报价被拦</a>。</p>
+  <p class="subtitle">10-12 新增：<a href="#W-89">R1 → W-89</a> · <a href="#W-90">R2 → W-90</a> · <a href="#W-91">R3 → W-91</a> · <a href="#W-92">R4 → W-92</a> · <a href="#W-93">R5 → W-93</a>。这五项均保留具体放行原因与验收缺口。另增 <a href="#W-94">W-94：表情差异导致会话分裂，厦门报价串成泉州</a>；10-13 登记 <a href="#W-95">W-95：巡检切旧会话误触发回复</a>、<a href="#W-96">W-96：已签客户收到历史消息的自动回复</a>及 <a href="#W-97">W-97：置顶会话占满首屏，新消息一小时没人回</a>；<a href="#W-98">W-98：40方投影未被识别，正常计算的报价被拦</a>；10-14 登记 <a href="#W-99">W-99：底部灰字让两个读屏模型对不上，召回整天被拦</a>。</p>
   </details>
   <div class="bugs">
     <div class="bug" id="W-01" style="--bc:#0ca30c">
@@ -1525,6 +1525,19 @@
         <dt>登记进度</dt><dd>2026-10-13 已核对数据库、模型调用记录和源码并完成纯函数复现。<b>仅登记问题与需求，尚未修改回复逻辑、未补发、未完成修复验收。</b></dd>
       </dl>
     </div>
+    <div class="bug" id="W-99" style="--bc:#fab219">
+      <div class="bh"><code class="bid">W-99</code><b>聊天底部两行「暂不支持该内容」灰字，两个读屏模型说法对不上，一台电脑的召回整天被拦</b><span class="bst wait">召回已修并装机 · 普通代回未修</span></div>
+      <dl>
+        <dt>现场</dt><dd>2026-10-13，一台销售电脑（客户端 <code>1.25.4+9abb756</code>）发召回前读屏核对，北京时间 13:36 至 17:14 共报 22 次「当前窗口状态未核实」（<code>recall_live_view_unverified</code>）；装新版前当天只发出 1 条召回。同期另两台（<code>1.25.2</code>、<code>1.24.26</code>）照常发。该机客户聊天的最底下，几乎都是两行微信灰字 <code>暂不支持该内容，请在手机上查看</code>，不是消息气泡。客户身份、设备标识与聊天原文不在公开页展示。</dd>
+        <dt>用的模型</dt><dd>读屏主模型 <code>qwen/qwen3.8-flash</code>（日常读聊天、发前核对聊天记录都用它）；复核模型 <code>qwen/qwen3-vl-235b-a22b-instruct</code>，只在主模型判「不在底部」时再看同一张图。</dd>
+        <dt>重放结果</dt><dd>拿该机当天 11 张截图逐张重放：<b>flash</b> 11 张里 10 张判「不在底部」——真实消息读对了，但最底下是灰字不是气泡，它就认为没滚到最新。<b>235b</b> 这 10 张全判「在底部」，这一点是对的；但它没遵守「灰字不算消息」：2 张把灰字当成「最新一条」标成系统消息，2 张把灰字当成客户发的消息，6 张把灰字塞进「最近几条」、挤掉真实消息，顺序和 flash 对不上。</dd>
+        <dt>根因</dt><dd><code>1.25.4</code> 新加的规矩（<code>cloudpc/windows-weixin/vision.py</code> 的 <code>_bottom_recheck_mismatch</code>）：两个模型对「最新一条 / 最近几条」说法不一致，就当不在底部、不发。于是这 10 张全被拦。<code>1.25.2</code> 和 <code>1.24.26</code> 没有这道闸，235b 一说在底部就放行，所以另两台能发。</dd>
+        <dt>更正</dt><dd>此前说的「发前核对聊天记录读不准」不是卡点：这一步读不准时，程序会退一步用服务端的通用话术继续发；当天 9 次最后都倒在上面的「不在底部」。</dd>
+        <dt>怎么修</dt><dd><a href="https://github.com/Akke-AI/wecom-chat/pull/2119">#2119</a>（2026-10-13 合并，<code>1.25.6</code>）：<b>只对召回</b>，强模型说在底部就放行，两边不一致只记 <code>bottom_recheck_mismatch_waived</code>；召回内容仍有最后一句比对、像素不变核对和服务端闸。普通代回读屏不变，保留 1.25.4 防老消息误回的规矩。</dd>
+        <dt>真机上</dt><dd>该机 10-13 17:23 开始装 <code>1.25.6+55aabbd</code>，17:49 装好启动；之后到 21:28 发出 9 条召回，10-14 09:04 又发 1 条。</dd>
+        <dt>还没解决</dt><dd>灰字本身仍会让 flash 判「不在底部」、让 235b 把灰字当消息。<b>普通代回</b>仍走 1.25.4 的不一致即拦，同样的底部灰字可能让这台电脑的自动回复也被拦，本次未查、未修。</dd>
+      </dl>
+    </div>
   </div>
 
   <hr style="border:0;border-top:1px solid var(--border);margin:44px 0 0">
@@ -1555,7 +1568,7 @@
 </div>
 <div id="tip" role="tooltip"></div>
 
-<script src="/akke/personal-wechat-pc-bug-guide.js?v=area-unit-w98-20261013"></script>
+<script src="/akke/personal-wechat-pc-bug-guide.js?v=gray-bottom-w99-20261014"></script>
 <script>
 const API_BASE = "https://wecom-chat.vercel.app/api/public/weixin-pc-live";
 const MACHINES = [
