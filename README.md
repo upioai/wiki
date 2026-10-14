@@ -151,6 +151,21 @@ vercel --prod
 
   2. 其实是自己的归纳：去掉 `「」`，改用加粗或者换个说法。
 
+### 个微客户原句案例：不写进 HTML，用 `wx-quote.js` 实时取
+
+客户聊天原句不能写进本仓（公开仓，进了 git 历史删不掉），也过不了 quote-guard。要在页面里放原句案例，只写会话 id 和北京时间窗，打开页面时由 `public/akke/wx-quote.js` 从 wecom-chat 的 `/api/public/weixin-quotes` 取那一段原句（服务端已打码：手机号、客户编码与备注称呼、住址、微信号、团队真名；不返回客户名）：
+
+```html
+<figure class="wx-quote" data-c="<会话UUID>" data-from="2026-10-14 13:32" data-to="2026-10-14 13:34" data-title="客户要求重新算一遍"></figure>
+<script src="/akke/wx-quote.js?v=1" defer></script>   <!-- 每页放一次，放在 </body> 前 -->
+```
+
+- 会话 UUID：在团队会话页 `https://wecom-chat.vercel.app/team/weixin/<UUID>` 的地址栏里复制；时间照那一页上显示的分钟写，闭区间。
+- 上限：`to` 那一分钟的 59 秒减 `from` 不超过 3 天（例：10-01 00:00 → 10-03 23:59 可以，→ 10-04 00:00 会 400）、最多 30 条；只认个人微信会话。取不到时框里会显示原因，不会空白。
+- 原句按消息库的角色显示，个别消息的角色可能入库就错了（例如销售回复被记成客户），挑时间窗时先在团队会话页看一眼、避开这类消息。
+- 改 `wx-quote.js` 后把各页引用的 `?v=` 加 1（`*.js` 是一年 immutable 缓存）。
+- 用法示例：`personal-wechat-new-customer-review-20261014.html`、`personal-wechat-history-recall-review-20261014.html`。
+
 ## CI：隐私闸（privacy-guard）
 
 `.github/workflows/privacy-guard.yml` 在 push 到 main 或提 PR、且改动涉及 `public/**` 时运行，只查改动过的文件。和引语核验闸一样，**push 到 main 时是事后标红**，不会阻断发布。
