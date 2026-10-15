@@ -83,7 +83,7 @@ const pages = []; // {href, file}
 for (const f of fs.readdirSync(AKKE)) {
   if (f.endsWith('.html')) pages.push({ href: '/akke/' + f.replace(/\.html$/, ''), file: path.join(AKKE, f) });
 }
-for (const sub of ['cases', 'prompt-atlas']) {
+for (const sub of ['cases', 'prompt-atlas', 'code-map']) {
   const p = path.join(AKKE, sub, 'index.html');
   if (fs.existsSync(p)) pages.push({ href: `/akke/${sub}/`, file: p });
 }
