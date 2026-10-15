@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="upio:date" content="2026-10-15">
+<title>B 端首触去模板化</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;900&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: one reading column; conclusions → city baseline → playbook table → sample cards grouped by playbook → what to do for our stores → method */
+:root{
+  --bg:#f3f4f1; --paper:#ffffff; --fg:#1d2420; --muted:#5f6a63; --line:#dde2dc;
+  --accent:#2f6b57; --accent-soft:#e3efe9; --oak:#a8692c; --oak-soft:#f6ebdf;
+  --hi:#c2462f; --mid:#d39a2c; --lo:#a7b0aa;
+  --f-display:"Noto Serif SC","Songti SC","STSong",serif;
+  --f-body:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#141816; --paper:#1b201d; --fg:#e5ebe7; --muted:#9aa59e; --line:#2d3530;
+  --accent:#7cc4a8; --accent-soft:#1d3029; --oak:#e0a46a; --oak-soft:#36281a; --hi:#ec7a63; --mid:#e6b65a; --lo:#5d6862; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141816; --paper:#1b201d; --fg:#e5ebe7; --muted:#9aa59e; --line:#2d3530;
+  --accent:#7cc4a8; --accent-soft:#1d3029; --oak:#e0a46a; --oak-soft:#36281a; --hi:#ec7a63; --mid:#e6b65a; --lo:#5d6862; color-scheme:dark}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15.5px;line-height:1.75;padding-inline:16px;padding-block:36px 72px}
+.wrap{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:44px}
+h1,h2,h3{font-family:var(--f-display);margin:0;line-height:1.3;text-wrap:balance}
+h1{font-size:clamp(26px,5vw,36px);font-weight:900}
+h2{font-size:22px;font-weight:900}
+h3{font-size:18px;font-weight:600}
+p{margin:0}
+a{color:var(--accent)}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.12em;color:var(--muted)}
+.lead{color:var(--muted)}
+section{display:flex;flex-direction:column;gap:14px;min-width:0}
+.note{font-size:13.5px;color:var(--muted)}
+.find{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.find li{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:12px 16px}
+.find b{color:var(--accent)}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:6px;background:var(--paper)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--f-mono);font-weight:500;font-size:12px;color:var(--muted);white-space:nowrap}
+td.n{font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+td.tt{min-width:14em}
+tr:last-child td{border-bottom:0}
+tr.fj td{background:var(--oak-soft)}
+.wide table{min-width:760px}
+.grp{gap:12px}
+.gdesc{color:var(--muted);font-size:14.5px}
+details.item{background:var(--paper);border:1px solid var(--line);border-radius:8px}
+details.item summary{list-style:none;cursor:pointer;display:flex;gap:10px;align-items:baseline;padding:12px 16px;flex-wrap:wrap}
+details.item summary::-webkit-details-marker{display:none}
+details.item summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.city{font-family:var(--f-mono);font-size:12.5px;color:var(--oak);border:1px solid var(--oak);border-radius:3px;padding:0 6px;white-space:nowrap}
+.t{font-weight:600;flex:1 1 16em;min-width:0}
+.who{font-size:13px;color:var(--muted)}
+.chev{width:9px;height:9px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);transition:transform .15s;margin-left:auto}
+details[open] .chev{transform:rotate(-135deg)}
+.ibody{display:grid;grid-template-columns:220px minmax(0,1fr);gap:18px;padding:0 16px 16px}
+.media{display:flex;flex-direction:column;gap:6px}
+.media video{width:100%;aspect-ratio:9/16;background:#000;border-radius:6px;max-width:100%;object-fit:contain}
+.out{font-size:13px}
+.info{display:flex;flex-direction:column;gap:10px;min-width:0}
+.stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin:0}
+.stats div{background:var(--accent-soft);border-radius:4px;padding:6px 8px}
+.stats dt{font-size:11.5px;color:var(--muted)}
+.stats dd{margin:0;font-family:var(--f-mono);font-size:16px;font-variant-numeric:tabular-nums}
+.meta{font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.tag{font-size:12px;background:var(--oak-soft);color:var(--oak);border-radius:3px;padding:0 6px}
+.kv{display:grid;grid-template-columns:5.5em minmax(0,1fr);gap:6px 12px;margin:0;font-size:14.5px}
+.kv dt{color:var(--muted);font-size:13px;padding-top:2px}
+.kv dd{margin:0;min-width:0}
+.ibar{display:flex;height:8px;border-radius:4px;overflow:hidden;gap:2px;max-width:320px}
+.ib.hi{background:var(--hi)}.ib.mid{background:var(--mid)}.ib.lo{background:var(--lo)}
+.legend{font-size:13px;color:var(--muted)}
+.q{margin:4px 0 0;padding-left:1.1em;font-size:13.5px}
+.plan{display:flex;flex-direction:column;gap:10px;list-style:none;margin:0;padding:0}
+.plan li{background:var(--paper);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:4px;padding:12px 16px}
+.fill{border:1px dashed var(--line);border-radius:3px;padding:0 6px;color:var(--muted);font-family:var(--f-mono);font-size:13px}
+.skip{margin:0;padding-left:1.1em;display:flex;flex-direction:column;gap:6px;font-size:14.5px}
+footer{font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:14px;display:flex;flex-direction:column;gap:4px}
+@media (max-width:640px){.ibody{grid-template-columns:1fr}.media video{max-height:70vh}.stats{grid-template-columns:repeat(3,minmax(0,1fr))}.kv{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.chev{transition:none}}
+/* ===== v2 visual layer: charts + aligned media ===== */
+:root{--c1:#3b6fd4;--c2:#d9822b;--c3:#2f9a6d;--real:#2f6b57;--ai:#c2462f;--pic:#d39a2c;--card:#8a8f8c}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--c1:#4f7fdc;--c2:#c47524;--c3:#2f9a6d;--real:#5fae8f;--ai:#e0705a;--pic:#d8a646;--card:#7d8580}}
+:root[data-theme="dark"]{--c1:#4f7fdc;--c2:#c47524;--c3:#2f9a6d;--real:#5fae8f;--ai:#e0705a;--pic:#d8a646;--card:#7d8580}
+section{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:22px 22px 24px}
+section:first-of-type{background:transparent;border:0;padding:0}
+.find li{border-left:3px solid var(--accent)}
+.fig{display:flex;flex-direction:column;gap:10px;border:1px solid var(--line);border-radius:8px;padding:14px 16px;background:var(--bg)}
+.fig-t{font-size:13px;font-weight:600;color:var(--fg)}
+.fig-s{font-size:12.5px;color:var(--muted)}
+.lg{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--muted)}
+.lg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+/* horizontal bars */
+.hb{display:grid;grid-template-columns:minmax(0,11em) minmax(0,1fr) 4.2em;gap:6px 10px;align-items:center;font-size:13px}
+.hb .lab{color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hb .lab small{color:var(--muted)}
+.hb .trk{position:relative;height:16px}
+.hb .bar{height:100%;border-radius:0 4px 4px 0;min-width:3px}
+.hb .val{font-family:var(--f-mono);font-size:12.5px;font-variant-numeric:tabular-nums;text-align:right;color:var(--fg)}
+.hb .thr{position:absolute;top:-4px;bottom:-4px;border-left:2px dashed var(--muted);opacity:.7}
+.hb .axis{grid-column:2;position:relative;height:16px;font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+.hb .axis span{position:absolute;transform:translateX(-50%)}
+/* stacked */
+.stk{display:flex;gap:2px;height:30px;border-radius:4px;overflow:hidden}
+.stk div{display:flex;align-items:center;justify-content:center;font-family:var(--f-mono);font-size:12px;color:#fff;white-space:nowrap;overflow:hidden;min-width:0}
+.stkrow{display:grid;grid-template-columns:5em minmax(0,1fr);gap:10px;align-items:center;font-size:13px}
+/* timeline */
+.tl{display:flex;gap:2px;height:52px}
+.tl div.pic,.stk div.pk{color:#1d2420}
+.tl div{border-radius:3px;display:flex;flex-direction:column;justify-content:center;padding:0 6px;color:#fff;font-size:11.5px;line-height:1.25;overflow:hidden;min-width:0}
+.tl div b{font-family:var(--f-mono);font-weight:500;font-size:11px;opacity:.9;white-space:nowrap}.tl div.n{padding:0 3px;align-items:center}
+.tlx{display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+/* donut + quotes */
+.dq{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.donut{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:12px;color:var(--muted)}
+.bub{display:flex;flex-direction:column;gap:6px;flex:1 1 14em;min-width:0}
+.bub span{align-self:flex-start;background:var(--accent-soft);border-radius:12px 12px 12px 3px;padding:4px 12px;font-size:13.5px}
+/* media cards */
+.vrow{display:grid;gap:14px;align-items:stretch}
+.vrow.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.vrow.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.vcard{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg);min-width:0}
+.vbox{height:440px;background:#000;display:flex;align-items:center;justify-content:center}
+.vbox video{width:100%;height:100%;object-fit:contain;display:block;background:#000;aspect-ratio:auto!important;border-radius:0}
+.vcap{padding:10px 12px;display:flex;flex-direction:column;gap:8px;font-size:13px;flex:1}
+.vcap .vt{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.vcap .vt b{font-family:var(--f-display);font-size:16px}
+.vcap .vt span{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.chain{display:flex;flex-wrap:wrap;gap:4px 0;align-items:center;font-size:12.5px}
+.chain span{background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:1px 7px}
+.chain span.h{background:var(--oak-soft);border-color:var(--oak)}
+.chain .cs{display:inline-flex;align-items:center;font-weight:400;max-width:100%}.chain .cs span{min-width:0}
+.chain i{font-style:normal;color:var(--muted);padding:0 4px}
+/* shoot groups */
+.grid65{display:flex;flex-wrap:wrap;gap:3px}
+.grid65 i{width:14px;height:14px;border-radius:3px;display:block}
+tr.gh td{background:var(--accent-soft);font-weight:600;font-size:13px;color:var(--accent)}
+.cards10{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;list-style:none;margin:0;padding:0}
+.cards10 li{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 14px;display:flex;flex-direction:column;gap:6px;font-size:14px}
+.who2{display:flex;gap:6px;flex-wrap:wrap}
+.who2 em{font-style:normal;font-size:12px;border-radius:3px;padding:0 6px}
+.who2 em.f{background:var(--oak-soft);color:var(--oak)}
+.who2 em.s{background:var(--accent-soft);color:var(--accent)}
+.who2 em.tm{border:1px solid var(--line);color:var(--muted)}
+/* flow + timeline + scale */
+.flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
+.flow .st{flex:1 1 0;min-width:96px;border-radius:6px;padding:8px 10px;font-size:13px;display:flex;flex-direction:column;gap:2px}
+.flow .st small{font-family:var(--f-mono);font-size:11px;opacity:.8}
+.flow .st.ai{background:var(--accent-soft);color:var(--fg)}
+.flow .st.hu{background:var(--oak-soft);color:var(--fg)}
+.flow .ar{display:flex;align-items:center;padding:0 4px;color:var(--muted)}
+.wk{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px;font-size:12.5px}
+.wk div{padding:8px 10px;border-radius:4px;background:var(--accent-soft)}
+.wk div.d{background:var(--oak-soft)}
+.wk b{display:block;font-family:var(--f-mono);font-weight:500;font-size:11.5px;color:var(--muted)}
+.scale{position:relative;height:54px;margin:0 8px}
+.scale .band{position:absolute;top:14px;height:12px;border-radius:2px}
+.scale .tick{position:absolute;top:8px;height:24px;border-left:2px solid var(--fg)}
+.scale .tl2{position:absolute;top:34px;transform:translateX(-50%);font-family:var(--f-mono);font-size:11.5px;color:var(--muted);white-space:nowrap}
+.scale .bl{position:absolute;top:-6px;font-size:12px;color:var(--fg);white-space:nowrap}
+.tbl.wide td:first-child{white-space:nowrap}
+.tlv{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--muted)}
+.tlv li{display:flex;align-items:center;gap:6px}
+.tlv i{width:10px;height:10px;border-radius:2px;flex:0 0 auto}
+.tlv b{font-family:var(--f-mono);font-weight:500;font-size:12px;color:var(--fg)}
+.nums{display:flex;flex-direction:column;gap:2px;font-size:12.5px;color:var(--muted)}
+.nums b{color:var(--fg);font-weight:600}
+table.check td:nth-child(5),table.check td:nth-child(7){min-width:8em}
+@media (max-width:640px){
+ section{padding:16px 14px 18px}
+ .vrow.two,.vrow.three{grid-template-columns:1fr}
+ .vbox{height:min(70vh,520px)}
+ .hb{grid-template-columns:minmax(0,7.5em) minmax(0,1fr) 3.6em;font-size:12px}
+ .cards10{grid-template-columns:1fr}
+ .stk div{font-size:10px}.stkrow{grid-template-columns:3em minmax(0,1fr)}
+ .flow{flex-direction:column}.flow .ar{transform:rotate(90deg);justify-content:center;padding:2px 0}
+ .wk{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .tl,.tlx{display:none}
+ .tlv{flex-direction:column;gap:6px;font-size:13px}.tlv i{width:14px;height:14px}
+ .hb{grid-template-columns:minmax(0,1fr) 3.6em;gap:2px 8px}
+ .hb .lab{grid-column:1/-1;white-space:normal;margin-top:6px}
+ .hb .sp{display:none}.hb .axis{grid-column:1}
+ .stk div{font-size:0!important}
+ .sm-cards table{min-width:0!important}
+ .sm-cards thead{display:none}
+ .sm-cards tr{display:block;border-bottom:1px solid var(--line);padding:10px 12px}
+ .sm-cards tr:last-child{border-bottom:0}
+ .sm-cards td{display:grid;grid-template-columns:5.5em minmax(0,1fr);gap:8px;border:0;padding:2px 0;text-align:left!important;white-space:normal!important}
+ .sm-cards td::before{content:attr(data-l);color:var(--muted);font-size:12px}
+}
+@media print{section{border:0;padding:0}.vrow,.vcard{display:none}}
+
+section:first-of-type{background:var(--paper);border:1px solid var(--line);padding:22px 22px 24px}
+.ba{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:10px}
+.ba figure{margin:0;display:flex;flex-direction:column;gap:4px;min-width:0}
+.ba img{width:100%;height:auto;border-radius:4px;display:block}
+.ba figcaption{font-size:12.5px;color:var(--muted)}
+.ba h4{grid-column:1/-1;margin:0;font-size:15px}
+.cf{background:#fff3c4;color:#5a4300;border-radius:3px;padding:0 4px}
+:root[data-theme="dark"] .cf{background:#4a3c10;color:#ffe9a8}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .cf{background:#4a3c10;color:#ffe9a8}}
+.tbl table{min-width:620px}
+.cfn{display:block;font-size:12.5px;color:var(--hi)}
+.warn{background:var(--oak-soft,#f6ebdf);border:2px solid var(--hi,#c2462f);border-radius:8px;padding:12px 16px;font-size:15px;line-height:1.7}
+.warn b{color:var(--hi,#c2462f)}
+.fill{border:1px dashed var(--line);border-radius:3px;padding:0 6px;color:var(--muted);font-size:13px}
+@media (max-width:640px){.ba{grid-template-columns:1fr}.ibody2{grid-template-columns:1fr!important}}
+
+/* topic1 v2 */
+.ba{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:12px}
+.ba figure{border-radius:6px;overflow:hidden;background:var(--bg);border:1px solid var(--line)}
+.ba .ph{aspect-ratio:4/3;background:#111;position:relative;overflow:hidden}
+.ba .ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;border-radius:0}
+.ba figcaption{padding:6px 8px;border-top:4px solid var(--lo)}
+.ba figure.k-raw figcaption{border-top-color:var(--mid)}
+.ba figure.k-tone figcaption{border-top-color:var(--accent)}
+.ba figure.k-ai figcaption{border-top-color:var(--hi)}
+.ba h4{font-family:var(--f-display)}
+.road .st{min-width:80px}
+.flow.seg .st.ok{background:var(--accent-soft);border:1px solid var(--accent)}
+.flow.seg .st.part{background:var(--oak-soft);border:1px solid var(--oak)}
+.flow .st{font-weight:600}.flow .st small{font-weight:400}
+.ratio{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:center}
+.ratio>div{display:flex;flex-direction:column;gap:6px}
+.sq{display:flex;gap:4px}.sq i{width:26px;height:26px;border-radius:4px;background:var(--accent-soft);border:1px solid var(--accent)}
+.sq i.h{background:var(--oak);border-color:var(--oak)}
+.big{font-family:var(--f-mono);font-size:30px;line-height:1.1;color:var(--fg)}.big small{font-size:13px;color:var(--muted);font-family:var(--f-body)}
+.wf{display:grid;grid-template-columns:minmax(0,15em) minmax(0,1fr) 5.2em;gap:8px 10px;align-items:center;font-size:13px}
+.wf .trk{position:relative;height:18px;background:var(--paper);border-radius:3px}
+.wf .bar{position:absolute;top:0;bottom:0;border-radius:3px;min-width:3px}
+.wf .val{font-family:var(--f-mono);font-size:12.5px;text-align:right;font-variant-numeric:tabular-nums}
+.planrow{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:16px;align-items:start}
+.planrow img{width:100%;border:1px solid var(--line);border-radius:6px;display:block}
+.hb .lab small{margin-left:4px}
+.cards10 li.wn{border-color:var(--hi);background:var(--oak-soft)}
+.cards10 li{display:block}
+.vf{background:var(--accent-soft);border-radius:3px;padding:0 4px}.vfn{display:block;font-size:12.5px;color:var(--accent)}
+.sq6{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.sq6 span{border-radius:6px;padding:8px 10px;font-size:13.5px;font-weight:600;display:flex;flex-direction:column;gap:2px}.sq6 small{font-weight:400;font-size:12px;color:var(--muted)}.sq6 .ok{background:var(--accent-soft);border-left:4px solid var(--accent)}.sq6 .need{background:var(--oak-soft);border-left:4px solid var(--oak)}
+.hb.pp{grid-template-columns:minmax(0,15em) minmax(0,1fr) 3em}.hb.ww{grid-template-columns:minmax(0,11em) minmax(0,1fr) 3.4em}.hb.pp .lab,.hb.ww .lab{white-space:normal}
+.steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.steps li{display:flex;gap:10px;border-radius:8px;padding:10px 12px;border:1px solid var(--line);font-size:13.5px}
+.steps li.hu{background:var(--oak-soft);border-color:var(--oak)}
+.steps li.ai{background:var(--accent-soft);border-color:var(--accent)}
+.steps .sn{flex:0 0 22px;height:22px;border-radius:50%;background:var(--fg);color:var(--bg);font-family:var(--f-mono);font-size:12px;display:flex;align-items:center;justify-content:center}
+.steps b{display:block}.steps em{font-style:normal;font-size:12px;color:var(--muted)}.steps p{margin:2px 0 0}
+#script{counter-reset:none;padding-left:2em}
+#script li{padding:4px 8px;border-radius:4px}
+#script li:nth-child(odd){background:var(--bg)}
+.vbox{height:460px}
+@media (max-width:640px){
+ .ba{grid-template-columns:repeat(2,minmax(0,1fr))}
+ section:first-of-type{padding:16px 14px 18px}
+ .ratio,.planrow{grid-template-columns:1fr}
+ .planrow img{max-width:320px}
+ .wf{grid-template-columns:minmax(0,1fr) 5em;gap:2px 8px}
+ .wf .lab{grid-column:1/-1;margin-top:6px}
+ .road{flex-direction:row!important;flex-wrap:wrap;gap:6px}.road .ar{display:none}.road .st{flex:1 1 40%}
+ .fn .lab{grid-column:1/-1}
+ .hb.pp,.hb.ww{grid-template-columns:minmax(0,1fr) 3.6em}
+ .sq6{grid-template-columns:1fr}
+}
+nav.series{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13.5px;color:var(--muted);padding:10px 0 14px;border-bottom:1px solid var(--line);margin-bottom:6px}nav.series a{color:var(--accent);text-decoration:none;border-bottom:1px solid var(--line)}nav.series b{color:var(--fg)}
+.core{background:var(--accent-soft);border-left:4px solid var(--accent);border-radius:6px;padding:12px 16px;font-size:15.5px;line-height:1.7;margin:0}
+.core b{color:var(--accent)}
+.cards10 li a{color:inherit}
+.cards10 li>span{display:block;margin-top:4px}
+.cost td.n{font-family:var(--f-mono);white-space:nowrap;text-align:right}
+</style></head><body>
+<div class="wrap">
+
+<header style="display:flex;flex-direction:column;gap:10px">
+  <span class="eyebrow">话术改版 · 抖音 B 端首触 · 去模板化 · 2026-10-15</span>
+  <h1>B 端首触：让客户愿意回，而不是把服务介绍完</h1>
+  <p class="lead">按你的要求改了生成规则，不只是换几条示例：先判断客户最关心哪件事，「我们也在做 X 相关服务」只说一次，不解释服务价值，最后问一个好回答的问题，问法也不固定。用上一版同一批 18 条真实线索重新生成，和当前版逐条对照。<b>还没合并、没上线</b>，等你验收。</p>
+  <div class="flow road">
+    <div class="st ai"><small>01</small>问题出在哪</div><div class="ar">→</div>
+    <div class="st ai"><small>02</small>改了哪些规则</div><div class="ar">→</div>
+    <div class="st ai"><small>03</small>新旧对照</div><div class="ar">→</div>
+    <div class="st ai"><small>04</small>审核器误拦检查</div><div class="ar">→</div>
+    <div class="st hu"><small>05</small>还要你看的</div>
+  </div>
+</header>
+
+<section id="s1">
+  <span class="eyebrow">01 · 问题出在哪</span>
+  <h2>模板感是提示词写死的，不是模型自己发挥的</h2>
+  <p class="core"><b>核心观点：</b>当前版的提示词要求每条都按「① 接住 → ② 我们也在做 X 服务 + 半句价值 → ③ 你是想了解 A，还是 B？」三步写，给的 6 条范例也全是这个结构。模型照着做，条条都一样长、一样收尾。</p>
+  <dl class="stats"><div><dt>当前版平均字数</dt><dd>106</dd></div><div><dt>超过 80 字</dt><dd>14/15</dd></div><div><dt>带价值说明</dt><dd>14/15</dd></div><div><dt>「你是想…还是…」收尾</dt><dd>13/15</dd></div></dl>
+  <ol class="find">
+    <li><b>结构写死。</b>提示词第 2 条写着「整条按这个顺序写」，第 ③ 步写着「问题里给两个具体选项，用『你是想了解 A，还是 B？』」。</li>
+    <li><b>要求解释价值。</b>第 ② 步写着「再用半句话说价值：帮企业在豆包、DeepSeek 这类 AI 搜索里更容易被看到、被推荐」，获客线索是「帮企业从抖音评论区找到已经在问的潜在客户，再私信跟进」。</li>
+    <li><b>长度放得太宽。</b>正文 45-95 字，审核上限 150 字。加上开头「你好～我是 Akke 的阿肯。」，15 条里 14 条超过 80 字，最长 135 字。</li>
+    <li><b>兜底句也是同一个模板。</b>模型三次写不好时用的兜底句，同样是「价值说明 + 你是想了解…还是…」。</li>
+  </ol>
+</section>
+
+<section id="s2">
+  <span class="eyebrow">02 · 改了哪些规则</span>
+  <h2>四个代码文件加测试，同一条 PR（#1866，第 21 版）</h2>
+  <dl class="kv">
+    <dt>提示词<br><small>b2b-opener-jade.ts</small></dt><dd>删掉写死的三步结构。改成先判断客户最关心哪件事（行业适不适合、效果、怎么做、合作 / 试用、费用、自己做还是找人做、要资料），按那件事回。「我们也在做 GEO / AI 获客相关服务」只说一次，<b>明确不写价值说明和宣传语</b>。正文 30-65 字（整条 45-80 字左右）。范例换成你给的家居基准 + 几条问法各不相同的短句，并注明「只学简洁程度，句式不要照抄」。</dd>
+    <dt>问法轮换<br><small>b2b-opener-jade.ts</small></dt><dd>第一轮试跑只写「问法不固定」，9 条 GEO 还有 8 条收在「你是想…还是…」。所以每条线索按客户昵称加评论固定分到三种问法之一：开放问、是非问、两个选项。同一个人每次分到同一种，回复进来后可以按问法分组算回复率。</dd>
+    <dt>审核器<br><small>b2b-opener.ts</small></dt><dd>长度上限从 150 字降到 100 字。新拦：价值说明 / 宣传语（「提升曝光」「更容易被推荐」「帮企业…」「持续增长」「评论区找到…」），以及「…还是…吗？」这种病句。新放行：「这套外贸 CRM」里的「外贸」是视频主题，不再当成替客户安了行业。</dd>
+    <dt>兜底句与拦截<br><small>b2b-video-context.ts</small></dt><dd>兜底句去掉价值说明，按问题类型给短问题，比如「你现在做到哪一步了？」。<b>新增一条拦截</b>：看不出视频讲什么，评论又是在问实物怎么下单 / 在哪买，就不发。这是卡车热水器那条「在哪里下单」。</dd>
+    <dt>没动的</dt><dd>GEO 线索说 GEO、其余说 AI 获客的分流；不相关评论不发的判断；不报价、不承诺效果、不留联系方式、不冒充视频那家、不说「不是同一家」、整条只能一个问号。开头「你好～我是 Akke 的阿肯」的两种位置继续 A/B 测试，没改。</dd>
+  </dl>
+</section>
+
+<section id="s3">
+  <span class="eyebrow">03 · 新旧对照</span>
+  <h2>18 条真实线索：当前版 vs 新版</h2>
+  <dl class="stats"><div><dt>能发</dt><dd>15 → 15</dd></div><div><dt>平均字数</dt><dd>106 → 62</dd></div><div><dt>最长</dt><dd>135 → 81</dd></div><div><dt>带价值说明</dt><dd>14 → 0</dd></div><div><dt>「你是想…还是…」</dt><dd>13 → 4</dd></div></dl>
+  <ol class="find">
+    <li><b>服务类型都对。</b>18 条里 GEO 线索 9 条、获客线索 9 条。新版能发的里，GEO 线索 9 条都说了我们也在做 GEO 服务（8 条直接写「在做 GEO」，其余 1 条是前面已经点名 GEO，后面写「也在做相关服务」）；获客线索 6 条里 6 条说了「在做 AI 获客」，混进 GEO 说法的 0 条。</li>
+    <li><b>句式还有重复，但少多了。</b>新版带「还是」的有 8 条（当前版 14 条）。其中「你是想…还是…」只剩 4 条，其余是「你是打算自己做，还是…」这类。</li>
+    <li><b>不发的 3 条，当前版也都没发：</b>「在哪里下单」是卡车热水器视频，库里没有标题，现在由新加的那条拦截挡住（这个视频 #1873 也已经从源头停掉）；「求分享主包」模型判断是个人要资料，看不出是在为企业找客户；「好厉害啊 可以买吗」模型三次都写了「这类工具」这种含糊说法，被审核拦下。</li>
+    <li><b>有 1 条用了兜底句</b>（「芯片行业，申请一下公」）。模型三次都没提他说的行业「芯片」，被审核拦下，换成兜底句发。兜底句同样过了审核。</li>
+    <li><b>改规则的过程中，同一批线索一共跑了四轮</b>，每轮之间规则都有调整，能发的分别是 14、16、17、15 条；模型每次写法也会有出入。这里放的是最后一轮，也就是所有改动都加上之后的结果。</li>
+  </ol>
+  <h3 style="margin-top:18px">你点名的三种问法：按问题变化，不只是换行业名</h3>
+  <ol class="find"><li><b>「现在家居行业好做GEO吗」</b>他问「适不适合」：先回一句、给两个选项，结构和你给的基准一致，去掉了价值说明。<br><span style="color:var(--muted)">当前版：</span>你好～看到你在了解GEO优化在家居行业的适用性。我们也在做GEO相关的企业服务，帮助企业在AI搜索中提升被发现和推荐的机会。我是 Akke 的阿肯，你是想了解GEO的优化方法，还是先看看这类服务怎么配合你的业务做？<br><span style="color:var(--muted)">新版：</span>你好～看到你在了解家居行业做GEO的可行性，我们也在做GEO相关服务。我是 Akke 的阿肯，你是想先看这类优化在本地商家怎么落地，还是先了解具体能带来什么影响？</li><li><b>「我是餐饮店的，想了解一下怎么做geo呢」</b>他问「怎么做」：不在第一条里讲方法，先说可以做，再问他之前有没有试过。<br><span style="color:var(--muted)">当前版：</span>你好～看到你在了解餐饮店怎么做 GEO 优化。我们也在做 GEO 相关的企业服务，帮助餐饮商家在 AI 搜索中更容易被潜在顾客发现。我是 Akke 的阿肯，你是想了解优化方法，还是自己的业务怎么落地？<br><span style="color:var(--muted)">新版：</span>你好～餐饮店是可以做 GEO 优化的，我们也在做相关服务。我是 Akke 的阿肯，你目前有尝试过什么方法吗？</li><li><b>「有没有做美业的姐妹做过？出来说说真实效果，我也想试试」</b>他问「真实效果」：不承诺、不编案例，说效果因店而异，再问他要不要看看怎么配合门店做。<br><span style="color:var(--muted)">当前版：</span>你好～看到你在了解美业做GEO优化的实际效果。我们也在做GEO相关的企业服务，帮助美业门店在AI搜索时更容易被有需求的用户发现。我是 Akke 的阿肯，你是做美容、美甲，还是其他类型的美业项目？<br><span style="color:var(--muted)">新版：</span>你好～效果确实因店而异，我们也在做GEO相关服务。我是 Akke 的阿肯，你是想先看看这类服务怎么配合美业门店做的吗？</li></ol>
+  <h3 style="margin-top:18px">全部 18 条</h3>
+  <p>「当前版」是上一版验收页用的第 20 版生成结果，「新版」是这次改好的第 21 版，用同一批线索、线上同款模型重新生成，<b>都没有发出去</b>。</p>
+  <div class="tbl sm-cards"><table><thead><tr><th style="width:18%">评论</th><th style="width:14%">视频讲什么</th><th>当前版（v20）</th><th>新版（v21）</th></tr></thead><tbody>
+  <tr><td data-l="评论">「我就想知道做这个贵不贵，小本生意真怕承担不起😂」<br><span class="tag">GEO 线索</span></td><td data-l="视频">什么是geo优化.实体商家企业获客.geo优化怎么操作？为什…</td><td data-l="当前版（v20）">你好～看到你在了解做 GEO 优化的投入门槛。我是 Akke 的阿肯，我们也在做 GEO 相关的企业服务，帮实体商家在 AI 搜索中提升被发现的机会。我是阿肯，你是想了解 GEO 服务的合作方式，还是视频里这类产品的价格？<br><small style="color:var(--muted)">111 字</small></td><td data-l="新版（v21）">你好～理解，投入肯定要先心里有数。我是 Akke 的阿肯，我们也在做GEO相关服务，费用跟要做的范围有关，你现在是一家店吗？<br><small style="color:var(--muted)">62 字</small></td></tr><tr><td data-l="评论">「小个体户没团队，自己一个人能搞定吗？还是得找服务商？」<br><span class="tag">GEO 线索</span></td><td data-l="视频">什么是geo优化.实体商家企业获客.geo优化怎么操作？为什…</td><td data-l="当前版（v20）">你好～看到你在了解实体商家做GEO优化的事，小个体户也可以做，关键是怎么落地。我们也在做GEO相关的企业服务，帮商家在AI搜索里更容易被推荐。我是 Akke 的阿肯，你是想了解自己的业务适不适合做，还是先看看这类服务怎么合作？<br><small style="color:var(--muted)">113 字</small></td><td data-l="新版（v21）">你好～我是 Akke 的阿肯。我们也在做GEO相关服务，看你更倾向自己摸索，还是找人帮你一起做？<br><small style="color:var(--muted)">48 字</small></td></tr><tr><td data-l="评论">「做教育培训的适合吗？都是本地家长找机构，靠AI推荐应该很精准」<br><span class="tag">GEO 线索</span></td><td data-l="视频">什么是geo优化.实体商家企业获客.geo优化怎么操作？为什…</td><td data-l="当前版（v20）">你好～我是 Akke 的阿肯。看到你在了解教育机构做 GEO 优化的效果，尤其是家长通过 AI 搜索找本地机构的场景。我们也在做 GEO 相关的企业服务，帮教培机构提升在 AI 搜索里的曝光和推荐机会。你是想了解 GEO 优化方法，还是自己的业务怎么落地？<br><small style="color:var(--muted)">128 字</small></td><td data-l="新版（v21）">你好～我是 Akke 的阿肯。看到你问教育培训做GEO的效果，我们也在做GEO相关服务。你现在是已经尝试过优化，还是刚开始了解？<br><small style="color:var(--muted)">64 字</small></td></tr><tr><td data-l="评论">「我是餐饮店的，想了解一下怎么做geo呢」<br><span class="tag">GEO 线索</span></td><td data-l="视频">什么是geo优化.实体商家企业获客.geo优化怎么操作？为什…</td><td data-l="当前版（v20）">你好～看到你在了解餐饮店怎么做 GEO 优化。我们也在做 GEO 相关的企业服务，帮助餐饮商家在 AI 搜索中更容易被潜在顾客发现。我是 Akke 的阿肯，你是想了解优化方法，还是自己的业务怎么落地？<br><small style="color:var(--muted)">100 字</small></td><td data-l="新版（v21）">你好～餐饮店是可以做 GEO 优化的，我们也在做相关服务。我是 Akke 的阿肯，你目前有尝试过什么方法吗？<br><small style="color:var(--muted)">54 字</small></td></tr><tr><td data-l="评论">「现在家居行业好做GEO吗」<br><span class="tag">GEO 线索</span></td><td data-l="视频">什么是geo优化.实体商家企业获客.geo优化怎么操作？为什…</td><td data-l="当前版（v20）">你好～看到你在了解GEO优化在家居行业的适用性。我们也在做GEO相关的企业服务，帮助企业在AI搜索中提升被发现和推荐的机会。我是 Akke 的阿肯，你是想了解GEO的优化方法，还是先看看这类服务怎么配合你的业务做？<br><small style="color:var(--muted)">107 字</small></td><td data-l="新版（v21）">你好～看到你在了解家居行业做GEO的可行性，我们也在做GEO相关服务。我是 Akke 的阿肯，你是想先看这类优化在本地商家怎么落地，还是先了解具体能带来什么影响？<br><small style="color:var(--muted)">81 字</small></td></tr><tr><td data-l="评论">「做建材批发的，客户都是周边工程队，这个能精准触达吗？」<br><span class="tag">GEO 线索</span></td><td data-l="视频">什么是geo优化.实体商家企业获客.geo优化怎么操作？为什…</td><td data-l="当前版（v20）">你好～我是 Akke 的阿肯。看到你在了解GEO优化能不能精准触达工程队客户。我们也在做GEO相关的企业服务，帮建材这类本地供应链在AI搜索中提升被发现的机会。你是想了解GEO的优化方法，还是自己的业务怎么落地？<br><small style="color:var(--muted)">106 字</small></td><td data-l="新版（v21）">你好～我是 Akke 的阿肯。看到你在了解GEO优化对建材批发的适用性，我们也在做GEO相关服务。你现在是打算自己尝试优化，还是想先了解别人怎么做？<br><small style="color:var(--muted)">74 字</small></td></tr><tr><td data-l="评论">「有没有做美业的姐妹做过？出来说说真实效果，我也想试试」<br><span class="tag">GEO 线索</span></td><td data-l="视频">什么是geo优化.实体商家企业获客.geo优化怎么操作？为什…</td><td data-l="当前版（v20）">你好～看到你在了解美业做GEO优化的实际效果。我们也在做GEO相关的企业服务，帮助美业门店在AI搜索时更容易被有需求的用户发现。我是 Akke 的阿肯，你是做美容、美甲，还是其他类型的美业项目？<br><small style="color:var(--muted)">97 字</small></td><td data-l="新版（v21）">你好～效果确实因店而异，我们也在做GEO相关服务。我是 Akke 的阿肯，你是想先看看这类服务怎么配合美业门店做的吗？<br><small style="color:var(--muted)">59 字</small></td></tr><tr><td data-l="评论">「做餐饮的适合搞这个吗？求老板指点一下🙏」<br><span class="tag">GEO 线索</span></td><td data-l="视频">什么是geo优化.实体商家企业获客.geo优化怎么操作？为什…</td><td data-l="当前版（v20）">你好～餐饮其实可以关注 GEO 优化，尤其是用户会通过 AI 搜索附近餐厅、特色菜品、聚餐推荐等信息时。我们也在做 GEO 相关的企业服务，帮餐饮商家提升在 AI 搜索中的可见度。我是 Akke 的阿肯，你是想了解 GEO 优化的具体操作，还是先看看适合自己门店的方案？<br><small style="color:var(--muted)">135 字</small></td><td data-l="新版（v21）">你好～餐饮店是可以做GEO的，我们也在做GEO相关服务。我是 Akke 的阿肯，你是想先了解大致怎么做吗？<br><small style="color:var(--muted)">53 字</small></td></tr><tr><td data-l="评论">「机械行业怎么做，费用多少」<br><span class="tag">GEO 线索</span></td><td data-l="视频">什么是geo优化.实体商家企业获客.geo优化怎么操作？为什…</td><td data-l="当前版（v20）">你好～看到你在了解机械行业做 GEO 优化的事。我们也在做 GEO 相关的企业服务，主要帮企业在 AI 搜索里更容易被看到和推荐。我是 Akke 的阿肯，你是想了解 GEO 优化的合作方式，还是视频里那类内容的具体操作？<br><small style="color:var(--muted)">110 字</small></td><td data-l="新版（v21）">你好～机械行业是可以做的，费用跟具体范围有关。我是 Akke 的阿肯，我们也在做GEO相关服务，你是想先了解适配性，还是具体投入方式？<br><small style="color:var(--muted)">67 字</small></td></tr><tr><td data-l="评论">「合作」<br><span class="tag" style="background:var(--accent-soft);color:var(--accent)">获客线索</span></td><td data-l="视频">分享一下我的4个&quot;AI员工&quot;，每位分工明确，有电脑就能用</td><td data-l="当前版（v20）">你好～我是 Akke 的阿肯。看到你在了解AI员工这类自动化获客的方式。我们也在做AI获客相关服务，帮企业从抖音评论区找到已经在问的潜在客户，再自动私信跟进。你是想了解我们怎么合作，还是先看看能带来什么效果？<br><small style="color:var(--muted)">104 字</small></td><td data-l="新版（v21）">你好～我是 Akke 的阿肯。看到你在关注 AI 员工，我们也在做 AI 获客相关服务。你是想先了解这块的合作方式吗？<br><small style="color:var(--muted)">59 字</small></td></tr><tr><td data-l="评论">「可以试用吗」<br><span class="tag" style="background:var(--accent-soft);color:var(--accent)">获客线索</span></td><td data-l="视频">无偿开源外贸获客管理CRM——跨版本更新！ 智能功能全方位让…</td><td data-l="当前版（v20）">你好～我是 Akke 的阿肯。看到你在关注外贸相关的内容。我们也在做 AI 获客相关服务，帮企业从抖音评论区找到已经在问的潜在客户，再私信跟进。你是想了解获客怎么做，还是先看看自己的业务适不适合？<br><small style="color:var(--muted)">98 字</small></td><td data-l="新版（v21）">你好～我是 Akke 的阿肯。看到你对这套外贸CRM感兴趣，我们也在做AI获客相关服务。你现在评论区的客户是怎么跟进的？<br><small style="color:var(--muted)">60 字</small></td></tr><tr><td data-l="评论">「芯片行业，申请一下公测[举手]」<br><span class="tag" style="background:var(--accent-soft);color:var(--accent)">获客线索</span></td><td data-l="视频">无偿开源外贸获客管理CRM——跨版本更新！ 智能功能全方位让…</td><td data-l="当前版（v20）">你好～看到你在关注AI获客管理CRM这类智能工具的应用。我们也在做AI获客相关服务，帮芯片行业从抖音评论区找到主动咨询的潜在客户，并自动跟进。我是 Akke 的阿肯，你是想了解我们怎么合作，还是先看这类方式能带来什么效果？<br><small style="color:var(--muted)">111 字</small></td><td data-l="新版（v21）">你好～看到你在关注外贸相关的内容，芯片这行可以聊聊，我们也在做 AI 获客相关服务。我是 Akke 的阿肯，你现在找客户主要卡在哪一步？<br><small style="color:var(--muted)">68 字</small></td></tr><tr><td data-l="评论">「好厉害啊 可以买吗」<br><span class="tag" style="background:var(--accent-soft);color:var(--accent)">获客线索</span></td><td data-l="视频">开源外贸获客管理系统CRM——祝大家中秋国庆快乐 继续开源啦…</td><td data-l="当前版（v20）"><b style="color:var(--hi)">不发</b></td><td data-l="新版（v21）"><b style="color:var(--hi)">不发</b></td></tr><tr><td data-l="评论">「已经三连[鼓掌]申请公测」<br><span class="tag" style="background:var(--accent-soft);color:var(--accent)">获客线索</span></td><td data-l="视频">无偿开源外贸获客管理CRM——跨版本更新！ 智能功能全方位让…</td><td data-l="当前版（v20）">你好～我是 Akke 的阿肯。看到你在关注这类智能获客的公测，你们现在客户主要从哪些渠道来的？<br><small style="color:var(--muted)">47 字</small></td><td data-l="新版（v21）">你好～看到你对这套外贸CRM感兴趣，我们也在做AI获客相关服务。我是 Akke 的阿肯，你现在是打算自己上手做，还是先看看别人怎么用的？<br><small style="color:var(--muted)">68 字</small></td></tr><tr><td data-l="评论">「求分享主包[感谢]」<br><span class="tag" style="background:var(--accent-soft);color:var(--accent)">获客线索</span></td><td data-l="视频">（库里没有标题，看不出讲什么）</td><td data-l="当前版（v20）"><b style="color:var(--hi)">不发</b></td><td data-l="新版（v21）"><b style="color:var(--hi)">不发</b></td></tr><tr><td data-l="评论">「多少钱\一套」<br><span class="tag" style="background:var(--accent-soft);color:var(--accent)">获客线索</span></td><td data-l="视频">#实体店 #餐饮 #餐饮人 #餐饮创业</td><td data-l="当前版（v20）">你好～看到你在了解这类AI获客工具的采购方式。我们也在做AI获客相关服务，主要帮企业从抖音评论区找到已经在问的潜在客户，再私信跟进。我是 Akke 的阿肯，你是想了解我们获客服务怎么合作，还是视频里这类拓客工具的价格？<br><small style="color:var(--muted)">109 字</small></td><td data-l="新版（v21）">你好～我是 Akke 的阿肯。我们也在做AI获客相关服务，你是想了解我们这块的能力，还是在问视频里那个拓客机的具体投入？<br><small style="color:var(--muted)">60 字</small></td></tr><tr><td data-l="评论">「怎么卖的」<br><span class="tag" style="background:var(--accent-soft);color:var(--accent)">获客线索</span></td><td data-l="视频">（库里没有标题，看不出讲什么）</td><td data-l="当前版（v20）">你好～我是 Akke 的阿肯。看到你在关注怎么卖、怎么合作这类问题。我们也在做 AI 获客相关服务，帮企业从抖音评论区找到已经在问的潜在客户，再自动跟进。你是想了解我们获客服务怎么合作，还是先知道这类方式能带来什么效果？<br><small style="color:var(--muted)">110 字</small></td><td data-l="新版（v21）">你好～我是 Akke 的阿肯。我们也在做AI获客相关服务，你是想了解我们这块怎么合作，还是在问视频里那个产品怎么卖？<br><small style="color:var(--muted)">58 字</small></td></tr><tr><td data-l="评论">「在哪里下单」<br><span class="tag" style="background:var(--accent-soft);color:var(--accent)">获客线索</span></td><td data-l="视频">（库里没有标题，看不出讲什么）</td><td data-l="当前版（v20）"><b style="color:var(--hi)">不发</b></td><td data-l="新版（v21）"><b style="color:var(--hi)">不发</b></td></tr>
+  </tbody></table></div>
+</section>
+
+<section id="s4">
+  <span class="eyebrow">04 · 审核器会不会误拦短句</span>
+  <h2>短而自然的写法能过，泛化宣传会被拦</h2>
+  <ol class="find">
+    <li><b>你给的家居基准原话能过审。</b>已写成自动测试，以后改审核器时如果误拦它，测试会失败。</li>
+    <li><b>短句能过。</b>几条 50-70 字、只有开放问或是非问、不带二选一的写法都能过，比如「餐饮店做 GEO 可以聊聊，我们也在做 GEO 相关服务。你现在是自己在弄吗？」，同样写成了测试。新版范例和每一类兜底句也都过审，而且不超过 90 字。</li>
+    <li><b>该拦的拦住了。</b>当前版的家居那条原样喂进去，会因为超长和「提升被发现和推荐的机会」被拦。</li>
+    <li><b>试跑中查出一处误拦，已修。</b>前面已经说了 GEO，后面写「我们也在做相关服务」或「我们也在做这块」，原来会被判成「没说在做 GEO 服务」。这两种省略说法现在都放行，也加了测试。</li>
+    <li><b>最后一轮模型共写了 26 稿</b>，被拦的 11 稿里：8 稿用了「这类工具」这类含糊说法，3 稿没提客户自己说的行业（芯片、家居）。没有一稿是因为太短、或者因为说法太简单被拦。</li>
+  </ol>
+</section>
+
+<section id="todo">
+  <span class="eyebrow">05 · 还要你看的</span>
+  <h2>一条结果不稳定，一处旧写法还留着</h2>
+  <ol class="plan">
+    <li><b>「求分享主包」两轮结果不一样。</b>这条的视频库里只有数字标题。最后一轮模型判不发；上一轮却发了，还写成「看到你在找主包资源」（「主包」其实是指发视频的博主）。我打算加一条固定规则：看不出视频讲什么、评论只是「求分享」这类，一律不发。<b>默认这样改</b>，你回「发」就不加。</li>
+    <li><b>旧写法兜底还在。</b>看不出在问什么的获客线索，如果新写法三次都过不了审，会退回最早的写法，问「你们现在的客户主要从哪些渠道来的？」。这正是你说要避免的问法。这次 18 条里没有触发。<b>默认保持</b>，你回「拦」就改成不发。</li>
+    <li><b>你验收第 03 节。</b>哪条说法不对，直接告诉我是哪条、应该怎么说，我改完再跑一遍对照。你说「上线」我再合并 PR #1866，线上第一批首触出来后抽几条真实发出的给你看。</li>
+  </ol>
+</section>
+
+<footer>
+  <span>样本：上一版验收页同一批 18 条 B 端真实线索（10-14/15 派过，同一句评论只留一条）。当前版和新版都用线上同款模型、评测专用额度生成，没有发出去。</span>
+  <span>代码：Akke PR #1866（话术第 21 版）。自动测试全部通过。</span>
+</footer>
+</div>
+</body></html>
