@@ -237,7 +237,7 @@
     <h2 id="kpiTitle">当天总览</h2>
     <div class="kpis" id="kpis"></div>
 
-    <h2>四台设备此刻的状态 <span class="hint">上排前三格是所选区间的成功发送量，最后一格是此刻待发；状态来自客户端心跳，只有此刻，不存历史</span></h2>
+    <h2>四台设备此刻的状态 <span class="hint">上排前三格是所选区间的成功发送量，最后一格是此刻待发；心跳是实时上报，人工运行确认有时限，不代表一直在线</span></h2>
     <div class="machines" id="machines"></div>
 
     <h2>每天成功发了多少 <span class="hint">点某一天的柱子可以切到单日明细</span></h2>
@@ -270,7 +270,7 @@
       <li><b>召回</b>：客户一段时间没说话，系统主动发一条。有三种：按节奏（第 1、3、7、15、30 天）、次日跟进（销售回了、客户没再回）、接着上次聊的话题往下说；第二轮召回会带两张图。按实际发出的时间算到哪一天。</li>
       <li><b>日期区间</b>：开始和结束日期都包含在内，最多一次看 31 天。柱图和数字表按天拆分，总览和机器卡显示整个区间合计。</li>
       <li><b>召回待发、正在发</b>：是此刻的数，不随上面选的日期区间变（虚线框标出）。</li>
-      <li><b>设备状态</b>：Windows 客户端和 APK 隔一会儿报一次心跳，10 分钟内报过算在线。在线但没在干活（没就绪、已停止）会单独标出来，别只看在不在线。</li>
+      <li><b>设备状态</b>：Windows 客户端和 APK 隔一会儿向后台报心跳。10 分钟内收到心跳，只能确认上报正常；超过 10 分钟显示“心跳超时”，<b>不代表电脑关机或客户端停止运行</b>。此时“在干什么”只显示上次上报状态，需另查机器和上报链路。</li>
     </ul>
     <div class="privacy">客户名是销售给客户的备注名，和消息一样原样显示（含手机号），方便销售照着对账、加微。本页已设 noindex，请勿把链接贴到公开可被搜索的地方。</div>
   </div>
@@ -296,6 +296,12 @@ const MACHINES = [
   { key: "xiaxia_apk", label: "定制小夏 · APK", color: "var(--m-xiaxia-apk)" },
 ];
 const MC = Object.fromEntries(MACHINES.map(m => [m.key, m]));
+// 10/15 16:43 北京时间人工核实三台 Windows 机器仍在运行。仅短时展示，不将这次核实永久当作实时信号。
+const MANUAL_RUNNING = {
+  checkedAt: "2026-10-15T16:43:00+08:00",
+  validUntil: "2026-10-15T18:43:00+08:00",
+  keys: ["xiaoyu", "gaoyirui", "gaopeng"],
+};
 const $ = (id) => document.getElementById(id);
 const esc = (s) => (s == null ? "" : String(s)).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 
@@ -399,33 +405,51 @@ function renderKpis() {
 // ── 机器卡 ──
 const NOT_WORKING = ["not_ready", "stopped", "crash-stop", "failed"];
 function isWorking(i) { return i.online === true && !NOT_WORKING.includes(i.action); }
-function machineOverall(m) {
-  // 取最差的那个身份说话；已停用的身份不参与判断（它本来就不该干活）
+function manualRunning(m, now = Date.now()) {
+  return MANUAL_RUNNING.keys.includes(m.key) && now >= Date.parse(MANUAL_RUNNING.checkedAt) && now < Date.parse(MANUAL_RUNNING.validUntil);
+}
+function machineOverall(m, now = Date.now()) {
+  // 心跳只证明上报链路，不证明机器进程存活；已停用身份不参与判断。
   const ids = m.identities.filter(i => !i.disabled);
   if (!ids.length) return ["", "?", m.identities.length ? "身份已全部停用" : "没有微信身份"];
-  if (!ids.length || ids.every(i => i.online === null)) return ["", "?", "没有心跳记录"];
+  if (ids.every(i => i.online === null)) return ["", "?", "没有心跳记录"];
+  const stale = ids.filter(i => i.online === false).length;
+  if (stale) {
+    if (manualRunning(m, now)) return ["warning", "!", "人工确认运行 · 心跳超时"];
+    return ["warning", "!", stale === ids.length ? "心跳超时 · 运行待核实" : `${stale} 个身份心跳超时`];
+  }
+  const unknown = ids.filter(i => i.online === null).length;
+  if (unknown) return ["warning", "!", `${unknown} 个身份无心跳记录`];
   const n = ids.filter(isWorking).length;
-  if (n === ids.length) return ["good", "✓", "在线运行中"];
+  if (n === ids.length) return ["good", "✓", "心跳正常 · 上次状态运行中"];
   if (n > 0) return ["warning", "!", `${ids.length - n} 个身份没在干活`];
-  if (ids.some(i => i.online)) return ["warning", "!", "在线，但没在干活"];
-  return ["critical", "✕", "离线"];
+  return ["warning", "!", "心跳正常，但未在干活"];
+}
+function identityHeartbeatStatus(i) {
+  if (i.online === null) return ["", "?", "没有心跳记录"];
+  if (i.online === false) return ["warning", "!", "心跳超时"];
+  return ["good", "✓", "心跳正常"];
 }
 function renderMachines() {
   $("machines").innerHTML = selectedMachines().map(m => {
-    const [cls, icon, txt] = machineOverall(m);
+    const now = Date.now();
+    const [cls, icon, txt] = machineOverall(m, now);
     const activeIdentities = m.identities.filter(i => !i.disabled);
+    const confirmedRunning = activeIdentities.some(i => i.online === false) && manualRunning(m, now);
     const ids = activeIdentities.map(i => {
-      const [c, ic, t] = i.online === null ? ["", "?", "没有心跳"] : i.online ? ["good", "✓", "在线"] : ["critical", "✕", "离线"];
+      const [c, ic, t] = identityHeartbeatStatus(i);
       const multi = activeIdentities.length > 1;
       return `<div class="idn">
         <div class="top">${multi ? `<b>${esc(i.name)}</b>` : ""}<span class="pill ${c}"><i>${ic}</i>${t}</span><span>最后心跳 ${esc(ago(i.lastSeenAt))}</span>${i.version ? `<span class="ver">v${esc(i.version.split("+")[0])}</span>` : ""}</div>
-        <div class="row"><em>在干什么</em><span>${esc(i.actionLabel)}</span></div>
-        ${i.recallLabel ? `<div class="row"><em>召回准备</em><span>${esc(i.recallLabel)}</span></div>` : ""}
+        <div class="row"><em>${i.online === true ? "在干什么" : "上次上报状态"}</em><span>${esc(i.actionLabel)}</span></div>
+        ${i.recallLabel ? `<div class="row"><em>${i.online === true ? "召回准备" : "上次召回状态"}</em><span>${esc(i.recallLabel)}</span></div>` : ""}
+        ${i.online === false ? `<div class="row"><em>${confirmedRunning ? "心跳链路待查" : "需核实"}</em><span>${confirmedRunning ? "人工已确认机器运行，后台仍未收到新心跳" : "后台未收到新心跳；机器是否运行待核实"}</span></div>` : ""}
         ${i.flags.length ? `<div>${i.flags.map(f => `<span class="flag">${esc(f)}</span>`).join("")}</div>` : ""}
       </div>`;
     }).join("");
     return `<div class="mc">
       <div class="hd">${sw(MC[m.key].color)}<span class="nm">${esc(m.label)}</span><span class="pill ${cls}"><i>${icon}</i>${txt}</span></div>
+      ${confirmedRunning ? `<div class="idn">运行状态：人工确认仍在运行（10/15 16:43）；后台心跳超时。确认只保留到 18:43，之后需重新核实。</div>` : ""}
       <div class="mnums">
         <div><b>${m.day.autoReplies}</b><span>自动回复${m.day.latency?.n ? ` · 中位 ${dur(m.day.latency.p50)}` : ""}</span></div>
         <div><b>${m.day.firstTouches || 0}</b><span>首触发出</span></div>
