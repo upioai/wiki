@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="upio:date" content="2026-10-16">
+<title>个微回复与召回 · 业务梳理</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;900&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: one reading column; conclusions → city baseline → playbook table → sample cards grouped by playbook → what to do for our stores → method */
+:root{
+  --bg:#f3f4f1; --paper:#ffffff; --fg:#1d2420; --muted:#5f6a63; --line:#dde2dc;
+  --accent:#2f6b57; --accent-soft:#e3efe9; --oak:#a8692c; --oak-soft:#f6ebdf;
+  --hi:#c2462f; --mid:#d39a2c; --lo:#a7b0aa;
+  --f-display:"Noto Serif SC","Songti SC","STSong",serif;
+  --f-body:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#141816; --paper:#1b201d; --fg:#e5ebe7; --muted:#9aa59e; --line:#2d3530;
+  --accent:#7cc4a8; --accent-soft:#1d3029; --oak:#e0a46a; --oak-soft:#36281a; --hi:#ec7a63; --mid:#e6b65a; --lo:#5d6862; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141816; --paper:#1b201d; --fg:#e5ebe7; --muted:#9aa59e; --line:#2d3530;
+  --accent:#7cc4a8; --accent-soft:#1d3029; --oak:#e0a46a; --oak-soft:#36281a; --hi:#ec7a63; --mid:#e6b65a; --lo:#5d6862; color-scheme:dark}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15.5px;line-height:1.75;padding-inline:16px;padding-block:36px 72px}
+.wrap{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:44px}
+h1,h2,h3{font-family:var(--f-display);margin:0;line-height:1.3;text-wrap:balance}
+h1{font-size:clamp(26px,5vw,36px);font-weight:900}
+h2{font-size:22px;font-weight:900}
+h3{font-size:18px;font-weight:600}
+p{margin:0}
+a{color:var(--accent)}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.12em;color:var(--muted)}
+.lead{color:var(--muted)}
+section{display:flex;flex-direction:column;gap:14px;min-width:0}
+.note{font-size:13.5px;color:var(--muted)}
+.find{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.find li{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:12px 16px}
+.find b{color:var(--accent)}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:6px;background:var(--paper)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--f-mono);font-weight:500;font-size:12px;color:var(--muted);white-space:nowrap}
+td.n{font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+td.tt{min-width:14em}
+tr:last-child td{border-bottom:0}
+tr.fj td{background:var(--oak-soft)}
+.wide table{min-width:760px}
+.grp{gap:12px}
+.gdesc{color:var(--muted);font-size:14.5px}
+details.item{background:var(--paper);border:1px solid var(--line);border-radius:8px}
+details.item summary{list-style:none;cursor:pointer;display:flex;gap:10px;align-items:baseline;padding:12px 16px;flex-wrap:wrap}
+details.item summary::-webkit-details-marker{display:none}
+details.item summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.city{font-family:var(--f-mono);font-size:12.5px;color:var(--oak);border:1px solid var(--oak);border-radius:3px;padding:0 6px;white-space:nowrap}
+.t{font-weight:600;flex:1 1 16em;min-width:0}
+.who{font-size:13px;color:var(--muted)}
+.chev{width:9px;height:9px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);transition:transform .15s;margin-left:auto}
+details[open] .chev{transform:rotate(-135deg)}
+.ibody{display:grid;grid-template-columns:220px minmax(0,1fr);gap:18px;padding:0 16px 16px}
+.media{display:flex;flex-direction:column;gap:6px}
+.media video{width:100%;aspect-ratio:9/16;background:#000;border-radius:6px;max-width:100%;object-fit:contain}
+.out{font-size:13px}
+.info{display:flex;flex-direction:column;gap:10px;min-width:0}
+.stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin:0}
+.stats div{background:var(--accent-soft);border-radius:4px;padding:6px 8px}
+.stats dt{font-size:11.5px;color:var(--muted)}
+.stats dd{margin:0;font-family:var(--f-mono);font-size:16px;font-variant-numeric:tabular-nums}
+.meta{font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.tag{font-size:12px;background:var(--oak-soft);color:var(--oak);border-radius:3px;padding:0 6px}
+.kv{display:grid;grid-template-columns:5.5em minmax(0,1fr);gap:6px 12px;margin:0;font-size:14.5px}
+.kv dt{color:var(--muted);font-size:13px;padding-top:2px}
+.kv dd{margin:0;min-width:0}
+.ibar{display:flex;height:8px;border-radius:4px;overflow:hidden;gap:2px;max-width:320px}
+.ib.hi{background:var(--hi)}.ib.mid{background:var(--mid)}.ib.lo{background:var(--lo)}
+.legend{font-size:13px;color:var(--muted)}
+.q{margin:4px 0 0;padding-left:1.1em;font-size:13.5px}
+.plan{display:flex;flex-direction:column;gap:10px;list-style:none;margin:0;padding:0}
+.plan li{background:var(--paper);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:4px;padding:12px 16px}
+.fill{border:1px dashed var(--line);border-radius:3px;padding:0 6px;color:var(--muted);font-family:var(--f-mono);font-size:13px}
+.skip{margin:0;padding-left:1.1em;display:flex;flex-direction:column;gap:6px;font-size:14.5px}
+footer{font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:14px;display:flex;flex-direction:column;gap:4px}
+@media (max-width:640px){.ibody{grid-template-columns:1fr}.media video{max-height:70vh}.stats{grid-template-columns:repeat(3,minmax(0,1fr))}.kv{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.chev{transition:none}}
+/* ===== v2 visual layer: charts + aligned media ===== */
+:root{--c1:#3b6fd4;--c2:#d9822b;--c3:#2f9a6d;--real:#2f6b57;--ai:#c2462f;--pic:#d39a2c;--card:#8a8f8c}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--c1:#4f7fdc;--c2:#c47524;--c3:#2f9a6d;--real:#5fae8f;--ai:#e0705a;--pic:#d8a646;--card:#7d8580}}
+:root[data-theme="dark"]{--c1:#4f7fdc;--c2:#c47524;--c3:#2f9a6d;--real:#5fae8f;--ai:#e0705a;--pic:#d8a646;--card:#7d8580}
+section{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:22px 22px 24px}
+section:first-of-type{background:transparent;border:0;padding:0}
+.find li{border-left:3px solid var(--accent)}
+.fig{display:flex;flex-direction:column;gap:10px;border:1px solid var(--line);border-radius:8px;padding:14px 16px;background:var(--bg)}
+.fig-t{font-size:13px;font-weight:600;color:var(--fg)}
+.fig-s{font-size:12.5px;color:var(--muted)}
+.lg{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--muted)}
+.lg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+/* horizontal bars */
+.hb{display:grid;grid-template-columns:minmax(0,11em) minmax(0,1fr) 4.2em;gap:6px 10px;align-items:center;font-size:13px}
+.hb .lab{color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hb .lab small{color:var(--muted)}
+.hb .trk{position:relative;height:16px}
+.hb .bar{height:100%;border-radius:0 4px 4px 0;min-width:3px}
+.hb .val{font-family:var(--f-mono);font-size:12.5px;font-variant-numeric:tabular-nums;text-align:right;color:var(--fg)}
+.hb .thr{position:absolute;top:-4px;bottom:-4px;border-left:2px dashed var(--muted);opacity:.7}
+.hb .axis{grid-column:2;position:relative;height:16px;font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+.hb .axis span{position:absolute;transform:translateX(-50%)}
+/* stacked */
+.stk{display:flex;gap:2px;height:30px;border-radius:4px;overflow:hidden}
+.stk div{display:flex;align-items:center;justify-content:center;font-family:var(--f-mono);font-size:12px;color:#fff;white-space:nowrap;overflow:hidden;min-width:0}
+.stkrow{display:grid;grid-template-columns:5em minmax(0,1fr);gap:10px;align-items:center;font-size:13px}
+/* timeline */
+.tl{display:flex;gap:2px;height:52px}
+.tl div.pic,.stk div.pk{color:#1d2420}
+.tl div{border-radius:3px;display:flex;flex-direction:column;justify-content:center;padding:0 6px;color:#fff;font-size:11.5px;line-height:1.25;overflow:hidden;min-width:0}
+.tl div b{font-family:var(--f-mono);font-weight:500;font-size:11px;opacity:.9;white-space:nowrap}.tl div.n{padding:0 3px;align-items:center}
+.tlx{display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+/* donut + quotes */
+.dq{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.donut{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:12px;color:var(--muted)}
+.bub{display:flex;flex-direction:column;gap:6px;flex:1 1 14em;min-width:0}
+.bub span{align-self:flex-start;background:var(--accent-soft);border-radius:12px 12px 12px 3px;padding:4px 12px;font-size:13.5px}
+/* media cards */
+.vrow{display:grid;gap:14px;align-items:stretch}
+.vrow.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.vrow.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.vcard{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg);min-width:0}
+.vbox{height:440px;background:#000;display:flex;align-items:center;justify-content:center}
+.vbox video{width:100%;height:100%;object-fit:contain;display:block;background:#000;aspect-ratio:auto!important;border-radius:0}
+.vcap{padding:10px 12px;display:flex;flex-direction:column;gap:8px;font-size:13px;flex:1}
+.vcap .vt{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.vcap .vt b{font-family:var(--f-display);font-size:16px}
+.vcap .vt span{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.chain{display:flex;flex-wrap:wrap;gap:4px 0;align-items:center;font-size:12.5px}
+.chain span{background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:1px 7px}
+.chain span.h{background:var(--oak-soft);border-color:var(--oak)}
+.chain .cs{display:inline-flex;align-items:center;font-weight:400;max-width:100%}.chain .cs span{min-width:0}
+.chain i{font-style:normal;color:var(--muted);padding:0 4px}
+/* shoot groups */
+.grid65{display:flex;flex-wrap:wrap;gap:3px}
+.grid65 i{width:14px;height:14px;border-radius:3px;display:block}
+tr.gh td{background:var(--accent-soft);font-weight:600;font-size:13px;color:var(--accent)}
+.cards10{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;list-style:none;margin:0;padding:0}
+.cards10 li{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 14px;display:flex;flex-direction:column;gap:6px;font-size:14px}
+.who2{display:flex;gap:6px;flex-wrap:wrap}
+.who2 em{font-style:normal;font-size:12px;border-radius:3px;padding:0 6px}
+.who2 em.f{background:var(--oak-soft);color:var(--oak)}
+.who2 em.s{background:var(--accent-soft);color:var(--accent)}
+.who2 em.tm{border:1px solid var(--line);color:var(--muted)}
+/* flow + timeline + scale */
+.flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
+.flow .st{flex:1 1 0;min-width:96px;border-radius:6px;padding:8px 10px;font-size:13px;display:flex;flex-direction:column;gap:2px}
+.flow .st small{font-family:var(--f-mono);font-size:11px;opacity:.8}
+.flow .st.ai{background:var(--accent-soft);color:var(--fg)}
+.flow .st.hu{background:var(--oak-soft);color:var(--fg)}
+.flow .ar{display:flex;align-items:center;padding:0 4px;color:var(--muted)}
+.wk{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px;font-size:12.5px}
+.wk div{padding:8px 10px;border-radius:4px;background:var(--accent-soft)}
+.wk div.d{background:var(--oak-soft)}
+.wk b{display:block;font-family:var(--f-mono);font-weight:500;font-size:11.5px;color:var(--muted)}
+.scale{position:relative;height:54px;margin:0 8px}
+.scale .band{position:absolute;top:14px;height:12px;border-radius:2px}
+.scale .tick{position:absolute;top:8px;height:24px;border-left:2px solid var(--fg)}
+.scale .tl2{position:absolute;top:34px;transform:translateX(-50%);font-family:var(--f-mono);font-size:11.5px;color:var(--muted);white-space:nowrap}
+.scale .bl{position:absolute;top:-6px;font-size:12px;color:var(--fg);white-space:nowrap}
+.tbl.wide td:first-child{white-space:nowrap}
+.tlv{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--muted)}
+.tlv li{display:flex;align-items:center;gap:6px}
+.tlv i{width:10px;height:10px;border-radius:2px;flex:0 0 auto}
+.tlv b{font-family:var(--f-mono);font-weight:500;font-size:12px;color:var(--fg)}
+.nums{display:flex;flex-direction:column;gap:2px;font-size:12.5px;color:var(--muted)}
+.nums b{color:var(--fg);font-weight:600}
+table.check td:nth-child(5),table.check td:nth-child(7){min-width:8em}
+@media (max-width:640px){
+ section{padding:16px 14px 18px}
+ .vrow.two,.vrow.three{grid-template-columns:1fr}
+ .vbox{height:min(70vh,520px)}
+ .hb{grid-template-columns:minmax(0,7.5em) minmax(0,1fr) 3.6em;font-size:12px}
+ .cards10{grid-template-columns:1fr}
+ .stk div{font-size:10px}.stkrow{grid-template-columns:3em minmax(0,1fr)}
+ .flow{flex-direction:column}.flow .ar{transform:rotate(90deg);justify-content:center;padding:2px 0}
+ .wk{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .tl,.tlx{display:none}
+ .tlv{flex-direction:column;gap:6px;font-size:13px}.tlv i{width:14px;height:14px}
+ .hb{grid-template-columns:minmax(0,1fr) 3.6em;gap:2px 8px}
+ .hb .lab{grid-column:1/-1;white-space:normal;margin-top:6px}
+ .hb .sp{display:none}.hb .axis{grid-column:1}
+ .stk div{font-size:0!important}
+ .sm-cards table{min-width:0!important}
+ .sm-cards thead{display:none}
+ .sm-cards tr{display:block;border-bottom:1px solid var(--line);padding:10px 12px}
+ .sm-cards tr:last-child{border-bottom:0}
+ .sm-cards td{display:grid;grid-template-columns:5.5em minmax(0,1fr);gap:8px;border:0;padding:2px 0;text-align:left!important;white-space:normal!important}
+ .sm-cards td::before{content:attr(data-l);color:var(--muted);font-size:12px}
+}
+@media print{section{border:0;padding:0}.vrow,.vcard{display:none}}
+
+section:first-of-type{background:var(--paper);border:1px solid var(--line);padding:22px 22px 24px}
+.ba{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:10px}
+.ba figure{margin:0;display:flex;flex-direction:column;gap:4px;min-width:0}
+.ba img{width:100%;height:auto;border-radius:4px;display:block}
+.ba figcaption{font-size:12.5px;color:var(--muted)}
+.ba h4{grid-column:1/-1;margin:0;font-size:15px}
+.cf{background:#fff3c4;color:#5a4300;border-radius:3px;padding:0 4px}
+:root[data-theme="dark"] .cf{background:#4a3c10;color:#ffe9a8}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .cf{background:#4a3c10;color:#ffe9a8}}
+.tbl table{min-width:620px}
+.cfn{display:block;font-size:12.5px;color:var(--hi)}
+.warn{background:var(--oak-soft,#f6ebdf);border:2px solid var(--hi,#c2462f);border-radius:8px;padding:12px 16px;font-size:15px;line-height:1.7}
+.warn b{color:var(--hi,#c2462f)}
+.fill{border:1px dashed var(--line);border-radius:3px;padding:0 6px;color:var(--muted);font-size:13px}
+@media (max-width:640px){.ba{grid-template-columns:1fr}.ibody2{grid-template-columns:1fr!important}}
+
+/* topic1 v2 */
+.ba{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:12px}
+.ba figure{border-radius:6px;overflow:hidden;background:var(--bg);border:1px solid var(--line)}
+.ba .ph{aspect-ratio:4/3;background:#111;position:relative;overflow:hidden}
+.ba .ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;border-radius:0}
+.ba figcaption{padding:6px 8px;border-top:4px solid var(--lo)}
+.ba figure.k-raw figcaption{border-top-color:var(--mid)}
+.ba figure.k-tone figcaption{border-top-color:var(--accent)}
+.ba figure.k-ai figcaption{border-top-color:var(--hi)}
+.ba h4{font-family:var(--f-display)}
+.road .st{min-width:80px}
+.flow.seg .st.ok{background:var(--accent-soft);border:1px solid var(--accent)}
+.flow.seg .st.part{background:var(--oak-soft);border:1px solid var(--oak)}
+.flow .st{font-weight:600}.flow .st small{font-weight:400}
+.ratio{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:center}
+.ratio>div{display:flex;flex-direction:column;gap:6px}
+.sq{display:flex;gap:4px}.sq i{width:26px;height:26px;border-radius:4px;background:var(--accent-soft);border:1px solid var(--accent)}
+.sq i.h{background:var(--oak);border-color:var(--oak)}
+.big{font-family:var(--f-mono);font-size:30px;line-height:1.1;color:var(--fg)}.big small{font-size:13px;color:var(--muted);font-family:var(--f-body)}
+.wf{display:grid;grid-template-columns:minmax(0,15em) minmax(0,1fr) 5.2em;gap:8px 10px;align-items:center;font-size:13px}
+.wf .trk{position:relative;height:18px;background:var(--paper);border-radius:3px}
+.wf .bar{position:absolute;top:0;bottom:0;border-radius:3px;min-width:3px}
+.wf .val{font-family:var(--f-mono);font-size:12.5px;text-align:right;font-variant-numeric:tabular-nums}
+.planrow{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:16px;align-items:start}
+.planrow img{width:100%;border:1px solid var(--line);border-radius:6px;display:block}
+.hb .lab small{margin-left:4px}
+.cards10 li.wn{border-color:var(--hi);background:var(--oak-soft)}
+.cards10 li{display:block}
+.vf{background:var(--accent-soft);border-radius:3px;padding:0 4px}.vfn{display:block;font-size:12.5px;color:var(--accent)}
+.sq6{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.sq6 span{border-radius:6px;padding:8px 10px;font-size:13.5px;font-weight:600;display:flex;flex-direction:column;gap:2px}.sq6 small{font-weight:400;font-size:12px;color:var(--muted)}.sq6 .ok{background:var(--accent-soft);border-left:4px solid var(--accent)}.sq6 .need{background:var(--oak-soft);border-left:4px solid var(--oak)}
+.hb.pp{grid-template-columns:minmax(0,15em) minmax(0,1fr) 3em}.hb.ww{grid-template-columns:minmax(0,11em) minmax(0,1fr) 3.4em}.hb.pp .lab,.hb.ww .lab{white-space:normal}
+.steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.steps li{display:flex;gap:10px;border-radius:8px;padding:10px 12px;border:1px solid var(--line);font-size:13.5px}
+.steps li.hu{background:var(--oak-soft);border-color:var(--oak)}
+.steps li.ai{background:var(--accent-soft);border-color:var(--accent)}
+.steps .sn{flex:0 0 22px;height:22px;border-radius:50%;background:var(--fg);color:var(--bg);font-family:var(--f-mono);font-size:12px;display:flex;align-items:center;justify-content:center}
+.steps b{display:block}.steps em{font-style:normal;font-size:12px;color:var(--muted)}.steps p{margin:2px 0 0}
+#script{counter-reset:none;padding-left:2em}
+#script li{padding:4px 8px;border-radius:4px}
+#script li:nth-child(odd){background:var(--bg)}
+.vbox{height:460px}
+@media (max-width:640px){
+ .ba{grid-template-columns:repeat(2,minmax(0,1fr))}
+ section:first-of-type{padding:16px 14px 18px}
+ .ratio,.planrow{grid-template-columns:1fr}
+ .planrow img{max-width:320px}
+ .wf{grid-template-columns:minmax(0,1fr) 5em;gap:2px 8px}
+ .wf .lab{grid-column:1/-1;margin-top:6px}
+ .road{flex-direction:row!important;flex-wrap:wrap;gap:6px}.road .ar{display:none}.road .st{flex:1 1 40%}
+ .fn .lab{grid-column:1/-1}
+ .hb.pp,.hb.ww{grid-template-columns:minmax(0,1fr) 3.6em}
+ .sq6{grid-template-columns:1fr}
+}
+nav.series{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13.5px;color:var(--muted);padding:10px 0 14px;border-bottom:1px solid var(--line);margin-bottom:6px}nav.series a{color:var(--accent);text-decoration:none;border-bottom:1px solid var(--line)}nav.series b{color:var(--fg)}
+.core{background:var(--accent-soft);border-left:4px solid var(--accent);border-radius:6px;padding:12px 16px;font-size:15.5px;line-height:1.7;margin:0}
+.core b{color:var(--accent)}
+.cards10 li a{color:inherit}
+.cards10 li>span{display:block;margin-top:4px}
+.cost td.n{font-family:var(--f-mono);white-space:nowrap;text-align:right}
+</style></head><body>
+<div class="wrap">
+
+<header style="display:flex;flex-direction:column;gap:10px">
+  <span class="eyebrow">业务梳理 · 个人微信自动回复与召回 · 2026-10-16</span>
+  <h1>个微回复与召回：现在怎么跑、看什么、出事找谁</h1>
+  <p class="lead">给新接手的运营负责人：一页看懂现在有几台设备在跑、一条客户消息怎么被 AI 回出去、召回按什么规则发、最近 7 天的量，以及每天该盯的东西。数据取自生产库，取数时间 10 月 16 日下午 14:20–14:35。</p>
+  <div class="flow road">
+    <div class="st ai"><small>01</small>设备现状</div><div class="ar">→</div>
+    <div class="st ai"><small>02</small>自动回复</div><div class="ar">→</div>
+    <div class="st ai"><small>03</small>召回</div><div class="ar">→</div>
+    <div class="st ai"><small>04</small>最近 7 天</div><div class="ar">→</div>
+    <div class="st hu"><small>05</small>告警怎么处理</div><div class="ar">→</div>
+    <div class="st hu"><small>06</small>发版与 Bug</div><div class="ar">→</div>
+    <div class="st hu"><small>07</small>风险与每日清单</div>
+  </div>
+</header>
+
+<section id="s1">
+  <span class="eyebrow">01 · 设备现状</span>
+  <h2>在工作的是 3 台销售电脑 + 1 台安卓手机，全部是真发</h2>
+  <p class="core"><b>核心：</b>个微的自动回复和召回都跑在销售自己的设备上：程序截屏读微信、交给云端大脑写回复，再模拟粘贴发送。设备不开机、微信没登录，这台就不工作。</p>
+  <dl class="stats"><div><dt>Windows 电脑</dt><dd>3</dd></div><div><dt>安卓手机</dt><dd>1</dd></div><div><dt>macOS</dt><dd>0</dd></div><div><dt>模式</dt><dd>全部真发</dd></div></dl>
+  <div class="tbl sm-cards"><table><thead><tr><th>设备</th><th>版本</th><th>此刻状态</th><th>说明</th></tr></thead><tbody>
+    <tr><td data-l="设备">电脑 A</td><td data-l="版本">1.25.9</td><td data-l="状态">在线</td><td data-l="说明">电脑里召回发得最多的一台</td></tr>
+    <tr><td data-l="设备">电脑 B</td><td data-l="版本">1.25.9</td><td data-l="状态">在线</td><td data-l="说明">自动回复量最大、回上率最高</td></tr>
+    <tr><td data-l="设备">电脑 C</td><td data-l="版本">1.25.9 → 1.25.10 试点中</td><td data-l="状态">在线，待自动重启装新版</td><td data-l="说明">10-16 13:31 报「有未读找不到人」，新版修这个（见 06 节）</td></tr>
+    <tr><td data-l="设备">安卓手机 1</td><td data-l="版本">0.26.3</td><td data-l="状态">在线</td><td data-l="说明">主要在发召回；自动通过好友开着</td></tr>
+  </tbody></table></div>
+  <ul class="find">
+    <li><b>其他设备不用管：</b>库里还有几台旧电脑和测试手机，已停用或很久没上报。其中 1 台电脑这 7 天里停用前还发过 5 条召回（见 04 节），现在不再工作。</li>
+    <li><b>macOS：</b>代码里有这条通道，但生产上没有任何设备在跑。</li>
+    <li><b>新设备上线要登记：</b>哪些电脑被监控是代码里的名单，现在是 3 台。新电脑不登记就没有告警。</li>
+  </ul>
+</section>
+
+<section id="s2">
+  <span class="eyebrow">02 · 自动回复</span>
+  <h2>一条消息的路：发现 → 读屏 → 过闸 → 写回复 → 发出 → 确认</h2>
+  <ol class="steps">
+    <li class="ai"><span class="sn">1</span><div><b>发现新消息</b><em>设备</em><p>电脑看会话列表上的红点，红点被人点掉了就靠定时巡检列表兜底；安卓看通知和列表。</p></div></li>
+    <li class="ai"><span class="sn">2</span><div><b>读屏</b><em>设备</em><p>截下聊天窗口，认出谁说了什么。电脑用云端视觉模型读；安卓用手机本地文字识别。</p></div></li>
+    <li class="ai"><span class="sn">3</span><div><b>过闸</b><em>云端大脑</em><p>先判这条该不该回（见下面的列表），不该回就停在这里。</p></div></li>
+    <li class="ai"><span class="sn">4</span><div><b>写回复</b><em>云端大脑</em><p>结合客户备注、聊天记录、知识库（报价、环保、流程等）和这台的人设话术，由大模型写。写完再过话术护栏（价格、承诺、事实），不合格就扣下，推卡请人工回。</p></div></li>
+    <li class="ai"><span class="sn">5</span><div><b>发出</b><em>设备</em><p>粘贴进输入框发送；有配图的一起发。</p></div></li>
+    <li class="ai"><span class="sn">6</span><div><b>确认送达</b><em>设备 → 云端</em><p>发完再读一次屏，确认真的发出去了，云端才记下这条回复。没有这一步，就等于没发。</p></div></li>
+  </ol>
+  <h3>这些情况 AI 不回（按设计）</h3>
+  <ul class="cards10">
+    <li><b>不是业主：</b>备注里写了同行、装修公司、工长等。</li>
+    <li><b>已经定了：</b>备注里写了已定、已签之类，连自动回复也停。</li>
+    <li><b>销售自己在聊：</b>销售在微信里亲手回了，AI 先让开；默认销售最后一次开口满 10 分钟后，客户再说话 AI 才接回。</li>
+    <li><b>已转人工：</b>到店、投诉、答不准等转给人，这个会话默认暂停 24 小时；只是答不准的，只扣下这一轮。</li>
+    <li><b>客户说别再发：</b>停止营销。</li>
+    <li><b>群聊、服务号、公众号：</b>直接跳过。</li>
+    <li><b>读屏没把握：</b>认不准是哪位客户，或者分不清哪句是客户说的、哪句是我们说的，宁可不回。</li>
+    <li><b>客户只是说谢谢、好的：</b>收尾类不回。</li>
+  </ul>
+</section>
+
+<section id="s3">
+  <span class="eyebrow">03 · 召回</span>
+  <h2>召回：每位客户最多 7 次、每次换话题，有一条不对就不发</h2>
+  <dl class="kv">
+    <dt>召回谁</dt><dd>设备按顺序扫聊天列表，云端对看到的每位客户判「发不发、发什么」。没有预先圈好的名单，顺序大致按列表位置，不按沉默了多久。</dd>
+    <dt>几次</dt><dd>电脑上每位客户最多召回 7 次，同一位客户两次之间至少隔 2 天。安卓也是最多 7 次。</dd>
+    <dt>什么时段、发多少</dt><dd>电脑：北京时间 9:00–22:00，每台每天最多 50 条，两条至少隔 60 秒。安卓：8:00–23:00，每天最多 40 条，两条约隔 10 分钟。</dd>
+    <dt>说什么</dt><dd>每次换一个没讲过的话题：质保承诺、服务流程、限时活动、样板房福利、产品配置、品牌对比。6 个话题讲完后，第 7 次回到讲过的话题，但要换一版确认过的新说法，没有就不发（避免同样的话反复发）。每周一评审话题效果，连续没人回的话题会自动停用，卡片里有一键恢复。</dd>
+    <dt>哪些不发</dt><dd>备注写了已定、不需要、已到店、成交、勿扰、同行等；群、服务号；客户最后一句在等我们回答；客户说过别联系；已被删好友或拉黑。</dd>
+    <dt>客户回了以后</dt><dd>分界线是「有没有约成到店」。没约成的，客户沉默满 48 小时后接着走下一轮。</dd>
+  </dl>
+</section>
+
+<section id="s4">
+  <span class="eyebrow">04 · 最近 7 天（10-09 14:30 起，至 10-16 下午取数时）</span>
+  <h2>召回发了 515 条；满 48 小时的 377 条里，48 小时内客户开口的只有 10 条</h2>
+  <dl class="stats"><div><dt>召回发出</dt><dd>515</dd></div><div><dt>已发满 48 小时的</dt><dd>377</dd></div><div><dt>其中客户回话</dt><dd>10</dd></div><div><dt>AI 回复（全部会话，含首次招呼）</dt><dd>169</dd></div><div><dt>销售亲手回（全部会话）</dt><dd>25</dd></div></dl>
+  <div class="fig">
+    <span class="fig-t">召回发出条数（7 天）</span>
+    <div class="hb">
+      <span class="lab">电脑 A</span><div class="trk"><div class="bar" style="width:100%;background:var(--accent)"></div></div><span class="val">194</span>
+      <span class="lab">安卓手机 1</span><div class="trk"><div class="bar" style="width:100%;background:var(--accent)"></div></div><span class="val">194</span>
+      <span class="lab">电脑 B</span><div class="trk"><div class="bar" style="width:49%;background:var(--accent)"></div></div><span class="val">95</span>
+      <span class="lab">电脑 C</span><div class="trk"><div class="bar" style="width:13.9%;background:var(--accent)"></div></div><span class="val">27</span>
+      <span class="lab">已停用电脑</span><div class="trk"><div class="bar" style="width:2.6%;background:var(--lo)"></div></div><span class="val">5</span>
+    </div>
+  </div>
+  <div class="tbl sm-cards"><table><thead><tr><th>设备</th><th>召回发出</th><th>满 48 小时</th><th>48 小时内客户回话</th><th>AI 回复</th><th>销售亲手回</th><th>客户来信</th></tr></thead><tbody>
+    <tr><td data-l="设备">电脑 A</td><td data-l="召回">194</td><td data-l="满48h">123</td><td data-l="回话">4</td><td data-l="AI">39</td><td data-l="销售">8</td><td data-l="来信">74</td></tr>
+    <tr><td data-l="设备">电脑 B</td><td data-l="召回">95</td><td data-l="满48h">74</td><td data-l="回话">3</td><td data-l="AI">76</td><td data-l="销售">16</td><td data-l="来信">163</td></tr>
+    <tr><td data-l="设备">电脑 C</td><td data-l="召回">27</td><td data-l="满48h">15</td><td data-l="回话">0</td><td data-l="AI">47</td><td data-l="销售">1</td><td data-l="来信">43</td></tr>
+    <tr><td data-l="设备">安卓手机 1</td><td data-l="召回">194</td><td data-l="满48h">160</td><td data-l="回话">3</td><td data-l="AI">7</td><td data-l="销售">0</td><td data-l="来信">22</td></tr>
+    <tr><td data-l="设备">已停用电脑</td><td data-l="召回">5</td><td data-l="满48h">5</td><td data-l="回话">0</td><td data-l="AI">0</td><td data-l="销售">0</td><td data-l="来信">0</td></tr>
+  </tbody></table></div>
+  <p class="note"><b>口径：</b>「召回发出」是确认送达的召回消息条数；「客户回话」是召回发出后 48 小时内，同一会话里客户又发了消息，只证明客户之后开口了，不证明是在回这条召回；分母按召回条数算、不是客户数，只算发出已满 48 小时的 377 条。「客户来信」是这 7 天客户发来的全部消息，大部分是自动回复对话里的来往，不是回召回。这里的「已发满 48 小时」指召回发出后已过 48 小时，和 03 节「客户沉默满 48 小时」不是一回事。「AI 回复」不含召回和销售亲手回，含加好友后的首次招呼。实时看板按自然日统计、窗口不同，数字会和这里略有出入。看板的「回上率」= 客户来消息（连发几条算一批）里，我们回上了的比例，按批算，不等于 AI 回复数 ÷ 来信数（AI 回复还含加好友后的首次招呼，所以可以比来信多）：10-10 至 10-16 是 87.7%，电脑 C 是 75.6%、安卓是 66.7%，偏低。</p>
+</section>
+
+<section id="s5">
+  <span class="eyebrow">05 · 告警怎么处理</span>
+  <h2>告警卡主要进「企微回复监控群」，需要人动手的 @ 运营负责人</h2>
+  <p class="note">10 月 16 日 13:43 起，个微相关告警（电脑、安卓、召回监控）需要人动手的统一 @ 运营负责人；成功回执、恢复类的卡仍然不 @ 人。</p>
+  <div class="tbl sm-cards"><table><thead><tr><th>卡片</th><th>意思</th><th>你要做</th></tr></thead><tbody>
+    <tr><td data-l="卡片">微信没登录 / 被踢下线</td><td data-l="意思">这台不回复</td><td data-l="你要做">让持机的销售扫码重新登录；一天反复出现就转发给 Claude 助手</td></tr>
+    <tr><td data-l="卡片">锁屏 / 失联 / 心跳停了</td><td data-l="意思">设备没在工作</td><td data-l="你要做">确认电脑或手机开着、没锁屏；刚升级完的先等，装包期间会暂停一阵（以往 30–90 分钟）</td></tr>
+    <tr><td data-l="卡片">回复写好了没发出去 / 客户问了没人回</td><td data-l="意思">有客户在等</td><td data-l="你要做">先让对应销售人工回一句，再把卡转发到你和 Claude 助手的飞书私聊，让它查原因</td></tr>
+    <tr><td data-l="卡片">转人工交接</td><td data-l="意思">到店、投诉、答不准</td><td data-l="你要做">进微信看这位客户，人工接</td></tr>
+    <tr><td data-l="卡片">召回需人工核对</td><td data-l="意思">不确定这条召回发没发出去</td><td data-l="你要做">在微信里看一眼，在飞书私聊里告诉 Claude 助手是已发出、没发出，还是不发了</td></tr>
+    <tr><td data-l="卡片">有未读找不到人</td><td data-l="意思">左侧图标亮着未读，程序翻遍列表找不到是哪位</td><td data-l="你要做">请销售看一眼微信有没有客户在等；把卡转发给 Claude 助手</td></tr>
+    <tr><td data-l="卡片">窗口太小</td><td data-l="意思">程序看不清界面，多数自己恢复</td><td data-l="你要做">把微信窗口拉大或最大化（黄牌，不 @ 人）</td></tr>
+    <tr><td data-l="卡片">话题自动停用（每周一）</td><td data-l="意思">某个召回话题连续没人回</td><td data-l="你要做">看是否同意，不同意点卡里的恢复</td></tr>
+  </tbody></table></div>
+</section>
+
+<section id="s6">
+  <span class="eyebrow">06 · 发版与 Bug</span>
+  <h2>新版本先装一台试点，跑稳 2 小时自动铺开；Bug 先登记再修</h2>
+  <ol class="steps">
+    <li class="ai"><span class="sn">1</span><div><b>出包</b><em>技术 / Claude</em><p>代码合并不等于出包，出包是单独一步。</p></div></li>
+    <li class="ai"><span class="sn">2</span><div><b>试点</b><em>自动</em><p>先下发给一台。电脑在北京时间 8:30–21:30、这台 15 分钟没有客户新消息时自动重启装包；装包期间这台暂停工作（以往实测 30–90 分钟，个别更久）。</p></div></li>
+    <li class="ai"><span class="sn">3</span><div><b>铺开</b><em>自动</em><p>试点健康跑满 2 小时，其余电脑自动跟上同一版本。</p></div></li>
+    <li class="hu"><span class="sn">4</span><div><b>你看一眼</b><em>运营</em><p>出新版后 1–2 天，在实时看板看各台版本是否一致，告警群里留意「升级后失联」。安卓手机可能要人点通知装新版。</p></div></li>
+  </ol>
+  <p class="note"><b>正在进行：</b>电脑 C 今天下午那条「有未读找不到人」，原因：列表最上面那一行亮着未读，多数时候程序认出它是服务号（按规则不回）；但有几分钟连这个红点都没认出来，「找不到」计时到了 5 分钟就报了警。修的是「红点认不出」（Bug 编号 W-101）。修复版 1.25.10 已于 14:23 下发给电脑 C 试点，等它空闲时自动装上；装上并核对后，其余电脑约 2 小时后自动跟进。日志里没看到有客户在等回复。</p>
+  <h3>Bug 流程</h3>
+  <ol class="steps">
+    <li class="hu"><span class="sn">1</span><div><b>登记</b><em>运营</em><p>在飞书多维表格「个微回复 Bug 登记」里填一条（手机上用表单也行）：哪台、几点、哪个客户、哪里不对、截图。</p></div></li>
+    <li class="ai"><span class="sn">2</span><div><b>核实</b><em>Claude</em><p>翻日志和截图确认。证据够、确认是 Bug 的，脱敏后登记到公开 Bug 台账，给一个 W 编号（台账里的问题编号），再把编号回填到表里。</p></div></li>
+    <li class="ai"><span class="sn">3</span><div><b>修复</b><em>Claude</em><p>改代码、出包、装机。</p></div></li>
+    <li class="ai"><span class="sn">4</span><div><b>独立检验</b><em>另一个 agent</em><p>由另一个没参与修复的 AI 助手复核，分四档：通过 / 只修了代码、还没在真机验收 / 失败 / 证据不足。只有「通过」才能写「已修复并验收」。</p></div></li>
+  </ol>
+</section>
+
+<section id="s7">
+  <span class="eyebrow">07 · 风险与每日清单</span>
+  <h2>最该盯的五件事，和每天看的四个地方</h2>
+  <ol class="find">
+    <li><b>召回之后客户很少开口。</b>7 天满 48 小时的 377 条召回里，48 小时内客户开口的只有 10 条（按条数算约 2.7%）。值得重新想话题和召回对象。</li>
+    <li><b>自动回复还有漏接。</b>看板 7 天回上率 87.7%，电脑 C 和安卓偏低；还有「写好了没发出去」的情况，会推卡。</li>
+    <li><b>公开台账里有 6 条修复还没真机验收：</b>1 条判定失败（W-95：好友关系不明时不停发），5 条代码已修但没在真机上验收。</li>
+    <li><b>安卓只剩 1 台在工作</b>，而且这台的「自动装新版」权限没打开，升级可能要人点。</li>
+    <li><b>告警现在只 @ 运营负责人一个人</b>；另有几个已知不报的情况，比如被冻结的会话里客户又来消息，要 24 小时后才报。</li>
+  </ol>
+  <h3>该盯的四个地方</h3>
+  <ul class="cards10">
+    <li><b>实时看板：</b><a href="/akke/personal-wechat-pc-live">upio.ai/akke/personal-wechat-pc-live</a>，各台此刻状态、每天回复数、召回数、回上率。</li>
+    <li><b>企微回复监控群（飞书）：</b>告警卡主要在这里（召回类可能进单独的召回监控群），@ 你的要当天处理。</li>
+    <li><b>Bug 登记表（飞书多维表格）和公开台账：</b><a href="/akke/personal-wechat-pc-bugs">upio.ai/akke/personal-wechat-pc-bugs</a>。</li>
+    <li><b>熟悉业务时翻：</b><a href="/akke/personal-wechat-logic-workflow-complete">逻辑总图</a>、<a href="/akke/personal-wechat-client-sync-2-recall-20261014">召回进度同步（10-14）</a>。</li>
+  </ul>
+</section>
+
+<footer>
+  <span>资料：生产库（设备心跳、会话与消息、召回任务、告警记录），10 月 16 日 14:20–14:35 取数；代码与配置为 10 月 16 日主干版本。最近 7 天的召回与回复数用同一份数据快照算了两遍，结果一致。</span>
+  <span>页面不写客户姓名、销售姓名与设备编号；设备 A/B/C 对应哪位销售，运营负责人可以向 Claude 助手要对照表。「Claude 助手」指在飞书私聊里帮运营查问题、改代码的 AI。</span>
+</footer>
+</div>
+
+</body></html>
