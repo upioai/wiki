@@ -316,7 +316,7 @@
   <p class="subtitle">重点：首触/召回漏发或错认、重复配图、假红点与扫描卡住、人工待核对误报、客户已成交后仍触达、黑名单截图外发风险、昵称手机号身份对不上。</p>
   <p class="subtitle">W-17 / W-33 为已移出的安卓问题，空号保留。实时异常列表随日期筛选；台账是人工维护的编号快照。</p>
 
-  <p class="subtitle">10-12 新增：<a href="#W-89">R1 → W-89</a> · <a href="#W-90">R2 → W-90</a> · <a href="#W-91">R3 → W-91</a> · <a href="#W-92">R4 → W-92</a> · <a href="#W-93">R5 → W-93</a>。这五项均保留具体放行原因与验收缺口。另增 <a href="#W-94">W-94：表情差异导致会话分裂，厦门报价串成泉州</a>；10-13 登记 <a href="#W-95">W-95：巡检切旧会话误触发回复</a>、<a href="#W-96">W-96：已签客户收到历史消息的自动回复</a>及 <a href="#W-97">W-97：置顶会话占满首屏，新消息一小时没人回</a>；<a href="#W-98">W-98：40方投影未被识别，正常计算的报价被拦</a>；10-14 登记 <a href="#W-99">W-99：底部灰字让两个读屏模型对不上，召回整天被拦</a>。</p>
+  <p class="subtitle">10-12 新增：<a href="#W-89">R1 → W-89</a> · <a href="#W-90">R2 → W-90</a> · <a href="#W-91">R3 → W-91</a> · <a href="#W-92">R4 → W-92</a> · <a href="#W-93">R5 → W-93</a>。这五项均保留具体放行原因与验收缺口。另增 <a href="#W-94">W-94：表情差异导致会话分裂，厦门报价串成泉州</a>；10-13 登记 <a href="#W-95">W-95：巡检切旧会话误触发回复</a>、<a href="#W-96">W-96：已签客户收到历史消息的自动回复</a>及 <a href="#W-97">W-97：置顶会话占满首屏，新消息一小时没人回</a>；<a href="#W-98">W-98：40方投影未被识别，正常计算的报价被拦</a>；10-14 登记 <a href="#W-99">W-99：底部灰字让两个读屏模型对不上，召回整天被拦</a>；10-16 登记 <a href="#W-100">W-100：召回逐字打字被输入法打乱，客户收到重复标点、缺字的乱码</a>。</p>
   </details>
   <div class="bugs">
     <div class="bug" id="W-01" style="--bc:#0ca30c">
@@ -1543,6 +1543,17 @@
         <dt>还没解决</dt><dd>灰字本身仍会让 flash 判「不在底部」、让 235b 把灰字当消息。<b>普通代回</b>仍走 1.25.4 的不一致即拦，同样的底部灰字可能让这台电脑的自动回复也被拦，本次未查、未修。</dd>
       </dl>
     </div>
+    <div class="bug" id="W-100" style="--bc:#fab219">
+      <div class="bh"><code class="bid">W-100</code><b>召回正文逐字模拟打字，被电脑的中文输入法打乱：标点重复、紧跟的字被吃掉，客户收到乱码</b><span class="bst wait">已修并装机 · 待独立检验</span></div>
+      <dl>
+        <dt>现场</dt><dd>一台销售电脑的召回。库里存的召回话术完整，乱在电脑往微信输入框打字这一步：每个标点打成两个（<code>，，</code>、<code>【【</code>、<code>；；</code>），标点后面紧跟的那个字被吃掉，<code>✅</code> 全部丢失。普通代回走复制粘贴，同一台电脑上一直完整。客户身份、设备标识与聊天原文不在公开页展示。</dd>
+        <dt>影响</dt><dd>按电脑端「发后读屏」日志统计（登记时口径）：10-13 全天召回完整；10-14 13:23 出现第一条乱码，当天 2 条召回都乱；10-15 11:51 之后几乎每条都乱；截至 10-15 14:26 共 29 条乱码召回，发给 29 位客户。客户端当时把它记成「已发送」，只留了一行 <code>WARN recall_receipt_visual_fallback</code>，没有告警。</dd>
+        <dt>根因</dt><dd>召回正文走 <code>Runner._recall_type_text</code> → <code>human_type_text</code> 逐字模拟按键（<code>cloudpc/windows-weixin/runner.py</code>），按键仍会经过这台电脑的中文输入法；普通代回走 <code>_paste_text</code> 粘贴，不经过输入法，所以同一台电脑上只有召回乱。触发时机：10-14 上午 09:28–09:33 这台电脑被连续重启 3 次，当天 13:23 出现第一条乱码，时间先后对得上；输入法具体哪项状态变了没有查明（推断，非观测）。</dd>
+        <dt>怎么修</dt><dd><a href="https://github.com/Akke-AI/wecom-chat/pull/2154">#2154</a>（<code>1.25.9+a46be34</code>）：召回正文改用 <code>human_paste_text</code>，和普通代回一样粘贴，不再经过输入法；新增 <code>guards.recall_text_garbled</code>，发后读屏看到原文里没有的「同一标点连着两个」，就打 <code>ALERT recall_text_garbled</code>，不再静默记成「已发送」。</dd>
+        <dt>真机上</dt><dd>该机 10-15 15:52 装好 <code>1.25.9+a46be34</code>。抽查装机后 10-15 晚 3 条、10-16 09:04–09:25 4 条召回的发后读屏，均未出现重复标点，也没有 <code>recall_text_garbled</code> 告警。</dd>
+        <dt>还没解决</dt><dd>已收到乱码的 29 位客户是否人工补发完整话术，待运营决定。输入法为何在重启后改变行为没有查明。修复尚未经独立检验 agent 复核。</dd>
+      </dl>
+    </div>
   </div>
 
   <hr style="border:0;border-top:1px solid var(--border);margin:44px 0 0">
@@ -1573,7 +1584,7 @@
 </div>
 <div id="tip" role="tooltip"></div>
 
-<script src="/akke/personal-wechat-pc-bug-guide.js?v=w98-fixed-20261014"></script>
+<script src="/akke/personal-wechat-pc-bug-guide.js?v=recall-garbled-w100-20261016"></script>
 <script>
 const API_BASE = "https://wecom-chat.vercel.app/api/public/weixin-pc-live";
 const MACHINES = [
