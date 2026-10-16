@@ -316,7 +316,7 @@
   <p class="subtitle">重点：首触/召回漏发或错认、重复配图、假红点与扫描卡住、人工待核对误报、客户已成交后仍触达、黑名单截图外发风险、昵称手机号身份对不上。</p>
   <p class="subtitle">W-17 / W-33 为已移出的安卓问题，空号保留。实时异常列表随日期筛选；台账是人工维护的编号快照。</p>
 
-  <p class="subtitle">10-12 新增：<a href="#W-89">R1 → W-89</a> · <a href="#W-90">R2 → W-90</a> · <a href="#W-91">R3 → W-91</a> · <a href="#W-92">R4 → W-92</a> · <a href="#W-93">R5 → W-93</a>。这五项均保留具体放行原因与验收缺口。另增 <a href="#W-94">W-94：表情差异导致会话分裂，厦门报价串成泉州</a>；10-13 登记 <a href="#W-95">W-95：巡检切旧会话误触发回复</a>、<a href="#W-96">W-96：已签客户收到历史消息的自动回复</a>及 <a href="#W-97">W-97：置顶会话占满首屏，新消息一小时没人回</a>；<a href="#W-98">W-98：40方投影未被识别，正常计算的报价被拦</a>；10-14 登记 <a href="#W-99">W-99：底部灰字让两个读屏模型对不上，召回整天被拦</a>；10-16 登记 <a href="#W-100">W-100：召回逐字打字被输入法打乱，客户收到重复标点、缺字的乱码</a>。</p>
+  <p class="subtitle">10-12 新增：<a href="#W-89">R1 → W-89</a> · <a href="#W-90">R2 → W-90</a> · <a href="#W-91">R3 → W-91</a> · <a href="#W-92">R4 → W-92</a> · <a href="#W-93">R5 → W-93</a>。这五项均保留具体放行原因与验收缺口。另增 <a href="#W-94">W-94：表情差异导致会话分裂，厦门报价串成泉州</a>；10-13 登记 <a href="#W-95">W-95：巡检切旧会话误触发回复</a>、<a href="#W-96">W-96：已签客户收到历史消息的自动回复</a>及 <a href="#W-97">W-97：置顶会话占满首屏，新消息一小时没人回</a>；<a href="#W-98">W-98：40方投影未被识别，正常计算的报价被拦</a>；10-14 登记 <a href="#W-99">W-99：底部灰字让两个读屏模型对不上，召回整天被拦</a>；10-16 登记 <a href="#W-100">W-100：召回逐字打字被输入法打乱，客户收到重复标点、缺字的乱码</a>、<a href="#W-102">W-102：读屏把客户备注名拼进消息，误推「没进代回」漏回卡</a>。</p>
   </details>
   <div class="bugs">
     <div class="bug" id="W-01" style="--bc:#0ca30c">
@@ -1554,6 +1554,17 @@
         <dt>还没解决</dt><dd>已收到乱码的 29 位客户是否人工补发完整话术，待运营决定。输入法为何在重启后改变行为没有查明。修复尚未经独立检验 agent 复核。</dd>
       </dl>
     </div>
+    <div class="bug" id="W-102" style="--bc:#fab219">
+      <div class="bh"><code class="bid">W-102</code><b>读屏把客户备注名拼进消息，本轮刚处理的那句被当成「端上读到了、当时没进代回」：补存一条假的客户消息，并误推漏回卡</b><span class="bst wait">服务端已修上线 · 独立检验 CODE_ONLY</span></div>
+      <dl>
+        <dt>现场</dt><dd>10-16 16:20，一台销售电脑。客户回了一句「不用了,我定好了」，系统正常收到了，却又把同一句当成「之前漏掉没回的消息」：多存了一条重复的客户消息，还给负责人发了一张错误的提醒「⏸️ 企微本轮未发 · 客户这 1 句端上读到了、当时没进代回」。<br>原因出在电脑读屏：交给服务端的「最近几条消息」里，这一句前面多了客户的备注名（形如 <code>备注名: 不用了,我定好了</code>），而本轮最新消息是干净的原话，两者没被认成同一句。几秒内（16:20:31）会话因「客户连续 2 次拒绝」转了人工，AI 之后没再发消息。客户身份、备注名与聊天原文不在公开页展示。</dd>
+        <dt>影响</dt><dd><b>误报，不是漏回</b>：运营被叫去看一条已经处理过的消息，卡上写的「下一轮 AI 会照常自动回」对这位已转人工的客户也不成立。库里同一句客户原话多出一条带备注名的重复记录。按库里「客户端补存」的记录统计（登记时口径）：09-26 起共补存 80 条，其中 2 条以所在会话客户的备注名加冒号开头（10-10、10-16 各一条，分属两个会话），两条都在不到 1 秒内另有一条同句的正常存库，都属这一类。</dd>
+        <dt>根因</dt><dd><code>src/lib/wecom/client-seen-lines.ts</code> 的 <code>unpersistedClientCustomerLines</code> 把客户端看到的每一行和库里最近的消息、本轮消息逐行比（折全角、去空白）。它已经能认出「老消息的半截」（<a href="https://github.com/Akke-AI/wecom-chat/pull/1822">#1822</a>）和广告行（<a href="https://github.com/Akke-AI/wecom-chat/pull/1830">#1830</a>），但认不出「前面多了备注名和冒号」的同一句，于是走进 <code>src/app/api/wecom/chat/reply/route.ts</code> 的补存与漏回告警。读屏为什么会把备注名拼进这一项没有查明（推断是把气泡上方的名字当成了文字，非观测）。</dd>
+        <dt>怎么修</dt><dd><a href="https://github.com/Akke-AI/wecom-chat/pull/2175">#2175</a>：新增 <code>isSpeakerPrefixedKnown</code>：一行如果是「不超过 40 字的前缀 + 冒号 + 一句已知的客户原话（库里有的或本轮的）」，就按已知处理，不补存、不报。冒号后面是没说过的话照常补存，真漏回仍会报。新增 4 条测试（全角/半角冒号、库里老话、冒号后是新话照落、前缀超长不认），不改源码时其中 2 条失败，改后全过。</dd>
+        <dt>上线</dt><dd>服务端改动，合并后全量生效。10-16 合并（<code>e91572f</code>）；合并后的首次部署和 main 上的检查都因为 GitHub 机器卡住没跑起来，重跑后都已成功，线上 <code>/api/status</code> 已是 <code>e91572f</code>。上线后还没遇到同类读屏，真实场景未抽查。</dd>
+        <dt>还没解决</dt><dd>客户端读屏仍可能把备注名拼进最近消息，这次只在服务端兜住，客户端未改。10-10、10-16 两条带备注名的重复客户消息仍在库里，没有删。独立检验结论 <code>CODE_ONLY</code>（<a href="https://github.com/upioai/wiki/blob/main/docs/runbooks/pc-bug-verification-20261016.md">检验记录</a>）：代码、测试、部署和库里计数都已核对，等下一次同形态读屏确认线上真的不再误报。</dd>
+      </dl>
+    </div>
   </div>
 
   <hr style="border:0;border-top:1px solid var(--border);margin:44px 0 0">
@@ -1584,7 +1595,7 @@
 </div>
 <div id="tip" role="tooltip"></div>
 
-<script src="/akke/personal-wechat-pc-bug-guide.js?v=recall-garbled-w100-20261016"></script>
+<script src="/akke/personal-wechat-pc-bug-guide.js?v=seen-prefix-w102-20261016"></script>
 <script>
 const API_BASE = "https://wecom-chat.vercel.app/api/public/weixin-pc-live";
 const MACHINES = [
