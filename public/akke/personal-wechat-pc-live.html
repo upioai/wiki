@@ -374,6 +374,7 @@ function renderKpis() {
   const d = (k) => sum(m => Number(m.day[k] || 0));
   const b = (k) => sum(m => Number(m.backlog[k] || 0));
   const answered = d("answered"), manualReplies = d("manualReplies"), unanswered = d("unanswered"), inProgress = d("inProgress");
+  const awaitingHuman = d("awaitingHuman"), unconfirmedFirstTouches = d("unconfirmedFirstTouches");
   const scope = state.machine ? MC[state.machine].label : "全部设备";
   const anom = (payload.anomalies || []).filter(a => MC[a.machine] && (!state.machine || a.machine === state.machine));
   const anomReplies = anom.filter(a => a.reply).length;
@@ -396,7 +397,7 @@ function renderKpis() {
     <div class="kpi"><div class="l">自动回复发出</div><div class="v">${d("autoReplies")}<small>条</small></div><div class="s">客户发来 ${d("customerMsgs")} 条消息${replyTime ? ` · ${replyTime}` : ""}${anomReplies ? ` · 含 ${anomReplies} 条异常回复` : ""}</div></div>
     ${newcomerKpi}
     <div class="kpi"><div class="l">召回发出</div><div class="v">${d("recallSent")}<small>条</small></div><div class="s">按实际成功发出时间算</div></div>
-    <div class="kpi"><div class="l">客户消息回复情况</div><div class="v">${answered}<small>/ ${answered + unanswered} 批</small></div><div class="s">已回复 ${pct(answered, answered + unanswered)} · 自动 ${d("autoReplies")} 条 · 人工补发 ${manualReplies} 批${inProgress ? ` · 另有 ${inProgress} 批处理中` : ""}</div></div>
+    <div class="kpi"><div class="l">客户消息回复情况</div><div class="v">${answered}<small>/ ${answered + unanswered} 批</small></div><div class="s">已回复 ${pct(answered, answered + unanswered)} · 自动 ${d("autoReplies")} 条 · 人工回复 ${manualReplies} 批${inProgress ? ` · 另有 ${inProgress} 批处理中` : ""}</div>${awaitingHuman ? `<div class="s">另有 ${awaitingHuman} 批已转人工、等销售接（不算 AI 漏回，不进回复率）</div>` : ""}${unconfirmedFirstTouches ? `<div class="s">⚠ ${unconfirmedFirstTouches} 条首触没收到电脑端送达回执，未计入首触</div>` : ""}</div>
     <div class="kpi now"><div class="l">召回待发（此刻）</div><div class="v">${b("due")}<small>条</small></div><div class="s">已到点还没发 · 另有 ${b("queued")} 条没到点${b("inFlight") ? ` · ${b("inFlight")} 条正在发` : ""}</div></div>
     <a class="kpi bug" href="/akke/personal-wechat-pc-bugs?date=${payloadTo()}${state.machine ? `&m=${state.machine}` : ""}">
       <div class="l">异常记录</div><div class="s"><span class="go">看 bug 合集 →</span></div></a>`;
@@ -555,8 +556,8 @@ function buildThreads(events) {
       t.firstTouches++;
       t.items.push({ kind: "ft", at: e.at, text: e.message, seq: seq++ });
     } else if (e.type === "unanswered") {
-      if (!e.inProgress) t.missed++;
-      t.items.push({ kind: "miss", at: e.at, inProgress: e.inProgress, seq: seq++ });
+      if (!e.inProgress && !e.awaitingHuman) t.missed++;
+      t.items.push({ kind: "miss", at: e.at, inProgress: e.inProgress, awaitingHuman: !!e.awaitingHuman, seq: seq++ });
     } else if (e.type === "manual_reply") {
       t.manualReplies++;
       t.items.push({ kind: "manual", at: e.at, seq: seq++ });
@@ -587,10 +588,11 @@ function itemHtml(it) {
   }
   if (it.kind === "miss") {
     if (it.inProgress) return `<div class="miss">… 客户刚发的，客户端还在处理</div>`;
+    if (it.awaitingHuman) return `<div class="miss">→ 已转人工，等销售接（AI 按规则不回；销售在微信里回了没有，系统看不到）</div>`;
     const waited = payload.isToday ? `，已等 ${dur(Math.round((Date.now() - Date.parse(it.at)) / 1000))}` : "";
     return `<div class="miss bad">✕ 上面这几条未回复${waited}</div>`;
   }
-  if (it.kind === "manual") return `<div class="miss ok">✓ 已人工补发</div>`;
+  if (it.kind === "manual") return `<div class="miss ok">✓ 销售已人工回复</div>`;
   const late = Math.round((Date.parse(it.at) - Date.parse(it.dueAt)) / 1000);
   const images = (it.imageUrls || []).map((url, i) =>
     `<a href="${esc(url)}" target="_blank" rel="noopener"><img src="${esc(url)}" loading="lazy" alt="召回配图 ${i + 1}"></a>`).join("");
