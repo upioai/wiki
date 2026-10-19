@@ -183,7 +183,7 @@ h4{font-family:var(--f-display);font-size:16px;line-height:1.4;margin:0;color:va
 </tr>
 <tr>
 <td>2(2) 首触记录缺失</td>
-<td>系统里 17 个会话没有送达的首触，Jade 截图核对：15 个不是新好友（9 个根本不是好友、6 个几个月前的老联系人），2 个是同一位真新好友、他先开口；<b>发给真新好友而漏发 0 个</b>；发了没记录 0 个</td>
+<td>系统里 17 个会话没有送达的首触，Jade 截图核对：15 个不是新好友（9 个根本不是好友、6 个几个月前的老联系人），2 个是同一位真新好友、他先开口；<b>这 17 个里</b>发给真新好友而漏发 0 个、发了没记录 0 个（只覆盖系统里已有会话的这 17 个；库里完全没有痕迹的新好友查不到，附录 F4 的 10 位也还没核）</td>
 <td>原因已验证；修复部分已上线、部分待装 1.25.18</td>
 </tr>
 <tr>
@@ -504,7 +504,7 @@ h4{font-family:var(--f-display);font-size:16px;line-height:1.4;margin:0;color:va
 </tr>
 </tbody></table></div>
 <p>证据：</p>
-<ul><li>库：9 个会话 stage=nurture、messages 0 条、weixin_friend_lifecycle 无行；任务 campaign=list_topic_one_title_v1、attempts=0、claimed_at 空，<b>今早（09:15 回读）9 个任务全部 status=cancelled，reason=not_friend_verified_by_ops_20261019</b>。</li><li>日志（C，10-15 14:42–15:43，每个会话同形态；以 C·6c3d38 为例）：<code>14:42:28 read_system_notices bubbles=0 notices=0</code> → <code>first_touch_notice_only … verdict=最新一条不是「刚加上好友」的系统提示</code> → <code>first_touch_skip</code> → 同一拍 <code>list_walk_customer queued=True</code>；<code>14:42:55 read_chat reason=vl_no_bubbles</code>；<code>14:43:27 recall_presend_new_friend direction=empty_chat 首触那种：不发召回，交给首触</code>；事件 14:43:30 <code>recall_presend_read_failed</code>（detail.reason=invalid_bubble_count）。</li><li>截图（Jade）：9 位都不是好友。系统给不存在的好友建了会话和任务。<b>为什么会建</b>：待核实（猜测是列表里的占位或搜索残留行被当成客户，缺少证据）。</li><li>缺口环节（已验证）：端上「召回」和「首触」两条路互相把对方当责任人。召回判「空聊天＝新好友，交首触」（runner.py:5328-5330）；首触要求有「刚加上好友」灰字，没有就判非新好友并 30 天不再探测（idle_history.py:2031-2035、first_touch.py:755-758）。任务停在 awaiting_first_touch#1，没有人领、没有告警。</li></ul>
+<ul><li>库：9 个会话 stage=nurture、messages 0 条、weixin_friend_lifecycle 无行；任务 campaign=list_topic_one_title_v1、attempts=0、claimed_at 空，<b>今早（09:15 回读）9 个任务全部 status=cancelled，reason=not_friend_verified_by_ops_20261019</b>。</li><li>日志（C，10-15 14:42–15:43，每个会话同形态；以 C·6c3d38 为例）：<code>14:42:28 read_system_notices bubbles=0 notices=0</code> → <code>first_touch_notice_only … verdict=最新一条不是「刚加上好友」的系统提示</code> → <code>first_touch_skip</code> → 同一拍 <code>list_walk_customer queued=True</code>；<code>14:42:55 read_chat reason=vl_no_bubbles</code>；<code>14:43:27 recall_presend_new_friend direction=empty_chat 首触那种：不发召回，交给首触</code>；事件 14:43:30 <code>recall_presend_read_failed</code>（detail.reason=invalid_bubble_count）。</li><li>截图（Jade）：9 位都不是好友。系统给不存在的好友建了会话和任务。<b>为什么会建</b>：待核实（猜测是列表里的占位或搜索残留行被当成客户，缺少证据）。</li><li>缺口环节（已验证）：端上「召回」和「首触」两条路互相把对方当责任人。召回判「空聊天＝新好友，交首触」（runner.py:5328-5330）；首触要求有「刚加上好友」灰字，没有就判非新好友并 30 天不再探测（first_touch.py:568 NOT_NEW_TTL_SEC）。任务停在 awaiting_first_touch#1，没有人领、没有告警。</li></ul>
 <p><b>B 组：6 位老联系人（C）</b> —— 见 2(5) 的逐位表：5 个「首触已发但红叹号」（系统记成已发），1 个首触自动撤回。</p>
 <p><b>C 组：1 位真新好友（B，两个会话）</b></p>
 <div class="tbl"><table>
@@ -687,8 +687,8 @@ h4{font-family:var(--f-display);font-size:16px;line-height:1.4;margin:0;color:va
 </tbody></table></div>
 <p>变化说明（已验证）：C 少 9 条＝上面 2(2) 的 9 个空会话任务今早被运营改成 cancelled；B 多 1 条＝10-18 晚新建的会话（会话 78137759）今早 09:00:11 生成了新任务（list_target_not_open）；A 没变。C 剩的 8 条是老链路 next_day_unanswered_v1 任务（reason 为空，从未被领；三台现在都走标题链，老链路任务没人领也没人作废，其中 1 条备注含「已签」，是僵尸）。<b>今天开窗以来没有任何一条积压任务发出</b>（发出的召回里，第一条是 B 当天新生成的任务，不是积压；回执见 2(1) 反向核表）。到期天数：A &lt;1天 1、1–3天 3、3–7天 4、7–14天 9、≥14天 2；B &lt;1天 1、3–7天 30、7–14天 3、≥14天 22；C 3–7天 8。</p>
 <h4>(3)-2 「该发没发」按规则算多少</h4>
-<p>规则（三台相同，已验证）：每位客户最多 7 轮，两轮之间至少隔 2 个北京自然日，客户回复后等 48 小时，发送时段 09:00–22:00，每台每天最多 50 条、两条之间至少 60 秒；三台都要等巡检在聊天列表里<b>翻到这位客户并认准</b>才会发，服务端不能主动指定客户（windows-title-recall.ts:445-449）。</p>
-<ul><li>07:40 取证：按规则现在该发没发的客户 <b>168 位</b>（A 59 / B 75 / C 34；有的客户系统里根本没建任务，所以比任务数 91 多）；候选 218 位里去掉了“今天 09:00 起才到期、属正常节奏”的约 50 位（A 8、B 41 或 42：两份底稿差 1 位，没追）。分类和名单是 07:40 的快照，没重算（今天到现在没有积压任务发出，唯一变化是 C 的 9 位被作废）。</li><li>三天人次：148（A 74 / B 66 / C 8，见第 1 节），每天 A 只发出应发的 12%–21%、B 55%–67%、C 76%–87%。</li><li>反方向：10-09 起没有出现两条召回间隔小于 2 天的过密触达（规则闸有效）。</li></ul>
+<p>规则（三台相同，已验证）：每位客户最多 7 轮，两轮之间至少隔 2 个北京自然日，客户回复后等 48 小时，发送时段 09:00–22:00，每台每天最多 50 条、两条之间至少 60 秒；三台都要等巡检在聊天列表里<b>翻到这位客户并认准</b>才会发，服务端不能主动指定客户。</p>
+<ul><li>07:40 取证：按规则现在该发没发的客户 <b>168 位</b>（A 59 / B 75 / C 34；有的客户系统里根本没建任务，所以比任务数 91 多）；候选 218 位里去掉了“今天 09:00 起才到期、属正常节奏”的约 50 位（A 8、B 41 或 42：两份底稿差 1 位，没追）。分类和名单是 07:40 的快照，没重算（今天到现在没有积压任务发出，唯一变化是 C 的 9 位被作废）。</li><li>三天人次：148（A 74 / B 66 / C 8，见第 1 节），按第 1 节「当天已发／应召回」：A 每天 10%–21%（3/29～7/33）、B 46%–67%（22/48～43/64）、C 10-16 与 10-18 为 87% 与 76%，10-17 为 0/2。</li><li>反方向：10-09 起没有出现两条召回间隔小于 2 天的过密触达（规则闸有效）。</li></ul>
 <h4>(3)-3 按 Jade 的分类：条数与证据（168 位，07:40 快照）</h4>
 <div class="tbl"><table>
 <thead><tr>
@@ -773,15 +773,15 @@ h4{font-family:var(--f-display);font-size:16px;line-height:1.4;margin:0;color:va
 <td></td>
 </tr>
 </tbody></table></div>
-<p>名单与07:40 数的差异（待核实）：附录名单按补发清单（07:50 生成）归类，B 在 ⑥ 是 5 位（上表 6）、⑦ 是 17 位（上表 15），B 名单合计 76 位、上表 75 位，差在同一位客户的归类上，没逐位追到；其余 A、C 两台名单与上表逐类一致。</p>
+<p>名单与上表对不齐（待核实）：上表是 07:40 按「为什么没发」分的类（⑥ 31、⑦ 34，合计 168）；附录 R6/R7 名单是 07:50 按补发清单重新归的类（⑥ 30、⑦ 36，五类合计 169）。差异集中在 B（⑥ 5 对 6、⑦ 17 对 15）和一位同时被取消又被服务端拦的客户，没有逐位追到。<b>条数以上表为准，附录名单用于找人</b>。</p>
 <p><b>证据案例（每类，已验证；日志行为 A/B/C 运行日志原文，北京时间）</b></p>
 <p>① <b>A·c1a912（第 6 轮）</b>：任务表该客户 5 条 sent，最后一次召回 10-15 09:13；规则 10-17 起可发第 6 轮，现在没有任何 pending 行在等他（09:15 查）。日志 A 10-15 09:11:04 <code>recall_title_verified … poll_now=True</code>（最后一次被巡检点开），10-16 00:00 之后 A 全部日志里 0 次再被认准。→ 逾期 2 个自然日，系统里没有任何一行在等他。</p>
 <p>② <b>B·0f5411（第 1 轮）</b>：任务 88b4d81c pending，reason=read_failed#1，attempts=0，due 09-23 12:48（已逾期 26 天，09:15 回读仍 pending）。B 10-15～10-18 日志全量里 0 命中该客户；巡检三天点开 2488 次，1245 次用在 56 位「今天才到期」的人身上、540 次用在已满 7 轮的人身上，第 1 轮待发的 49 位里只点开了 4 位。</p>
 <p>③ <b>A·40b28b（第 1 轮）</b>：任务 35253c1e 09-23 创建，reason=live_view_unverified，<b>attempts=36</b>（09:15 回读，due 10-18 21:51）。A 日志 10-16 09:44、10:22、11:17 … 10-18 20:41、21:21 共 10 次 <code>DEFERRED 当前窗口状态未核实 … reason=recall_live_view_unverified</code>；事件表 10-18 18:05–21:21 另有 7 条同码 blocked。服务端对该码走通用失败分支：退避 15/45/120 秒后每 30 分钟重试，<b>无上限</b>（windows-recall-policy.ts:169-173）。→ 一位客户占着 A 的发送机会循环失败 36 次，从未发出。</p>
-<p>④ <b>C·37d605（第 1 轮）</b>：10-16 18:22 领取，18:24:20 <code>ALERT send_uncertain … score=2/3 failed_marker=True</code>，18:24:33 <code>customer_unreachable kind=blocked_by_customer</code>，任务 1666ac1e → cancelled(recall_send_failed_marker)；之后 18:40、19:35、19:40、19:57 巡检 <code>list_walk_customer_unreachable … 不登记召回、不首触</code>。→ 客户已拉黑/删除我方，<b>不该补发</b>。另 B 的 6 条 needs_review（recall_send_uncertain 5、enter_rejected 1，最老 09-20 创建，已 10–30 天）无人处理，且超过 48 小时不再提醒（needs-review-reminder.ts:44），同时把对应客户永久挡在召回之外（windows-title-recall.ts:396）。</p>
+<p>④ <b>C·37d605（第 1 轮）</b>：10-16 18:22 领取，18:24:20 <code>ALERT send_uncertain … score=2/3 failed_marker=True</code>，18:24:33 <code>customer_unreachable kind=blocked_by_customer</code>，任务 1666ac1e → cancelled(recall_send_failed_marker)；之后 18:40、19:35、19:40、19:57 巡检 <code>list_walk_customer_unreachable … 不登记召回、不首触</code>。→ 客户已拉黑/删除我方，<b>不该补发</b>。另 B 的 6 条 needs_review（recall_send_uncertain 5、enter_rejected 1，最老 09-20 创建，已 10–30 天）无人处理，且超过 48 小时不再提醒（needs-review-reminder.ts:44），同时把对应客户永久挡在召回之外（windows-title-recall.ts:400）。</p>
 <p>⑤ <b>A·fb934d（第 6 轮，任务 83bb45d3）</b>：10-17 10:15:18 巡检认准 → 10:16:14 <code>brain_reply_ready</code> → 10:17:22 <code>ALERT send_uncertain score=1/3 receipt_exact=None receipt_visual=None failed_marker=False</code>，任务进 needs_review；Jade 截图核对后 10:43 经 review 路由标 sent。结果：任务表 sent_at=10-17 10:17，messages 无回执（review 路由从不写回执，review/route.ts:32 注释原文 <code>it never inserts a messages receipt</code>）；<b>样板房协议海报也没发出</b>（正文发出、图片没跟上）。同类：B·d18885（任务 b2c075cd，10-16 15:22，正文重复两遍、海报未见）、A·59296a（任务 f8339c02，10-18 17:35）。这 3 条正是回执表（150 条）比 sent 任务（153 条）少的 3 条。</p>
 <p>⑥ <b>A·a34e11（第 1 轮）</b>：第 1 轮槽位（会话×anchor×day=1）上有一条 cancelled（manual_cancel_20260927_not_new_friend，任务 dbf0963f，due 09-28 19:53）；10-18 巡检把他点开 7 次，服务端每次回 <code>round_slot_closed</code>（windows-title-recall.ts:409-413），因为领取 RPC 的 ON CONFLICT 只更新 pending 行（supabase/wecom-ddl/20260918165118_windows_title_daily_rounds.sql:75-78）。31 位同族，其中 10 条是 09-27 人工决定取消，不少当时合理，现在要人工逐位判断，不能自动复活。</p>
-<p>⑦ <b>A·04d90a / A·f9165c（同一位客户的两个会话）</b>：f9165c 已发第 1 轮（10-12 18:30，任务 9be42e5b），04d90a 没发过、没有任务。巡检点开他时，服务端按「同一人所有会话的已送达」算出该发第 2 轮（windows-title-recall.ts:162、393），却用被点开的那个会话 id 去调领取 RPC，而 RPC 要求“该会话名下已送达数 = 轮次−1”（…daily_rounds.sql:52-53），于是恒返回空；日志 <code>waiting_for_claim</code> 10-16～18 共 60 次。「一人多会话」目前 5 位（A2/B2/C1）。另：C 的 30 位第 1 轮客户 10-16～18 点开过 17 位，服务端回 customer_title_invalid 5、customer_owner_unverified 2（备注编号位数不对或没有「地区+六位编号」）。</p>
+<p>⑦ <b>A·04d90a / A·f9165c（同一位客户的两个会话）</b>：f9165c 已发第 1 轮（10-12 18:30，任务 9be42e5b），04d90a 没发过、没有任务。巡检点开他时，服务端按「同一人所有会话的已送达」算出该发第 2 轮（windows-title-recall.ts），却用被点开的那个会话 id 去调领取 RPC，而 RPC 要求“该会话名下已送达数 = 轮次−1”（…daily_rounds.sql:52-53），于是恒返回空；日志 <code>waiting_for_claim</code> 10-16～18 共 60 次。「一人多会话」目前 5 位（A2/B2/C1）。另：C 的 30 位第 1 轮客户 10-16～18 点开过 17 位，服务端回 customer_title_invalid 5、customer_owner_unverified 2（备注编号位数不对或没有「地区+六位编号」）。</p>
 <p><b>每类具体客户（每台电脑逾期最久的前 4 位，共 12 位左右；表里的 # 是附录完整名单里的序号）</b></p>
 <h4>① 任务没建（22 位）</h4>
 <div class="tbl"><table>
@@ -1496,9 +1496,9 @@ h4{font-family:var(--f-display);font-size:16px;line-height:1.4;margin:0;color:va
 <p>完整 37 位名单见附录 R9（最久的是 B 五位 09-15/16 发完第 1 轮至今 33–34 天没有第 2 轮）。过去 3 天没有「过密」风险，风险在于补发时一次性把积压放出去。另有 A 62 位 / C 22 位「看起来可召回」的客户属于<b>已退役的旧微信号</b>，当前电脑用另一个号，不在补发范围；他们是否已在新号里重新加好友，<b>缺少证据，待核实</b>。</p>
 <p>为什么没补上（日志证据，三天点开次数）：A 点开 1667 次（第 1 轮待发 408 次/19 人、已满 7 轮 322 次/19 人、不在名单 281 次、超期补发只有 141 次/8 人）；B 点开 2488 次（「今天才到期」1245 次/56 人、已满 7 轮 540 次/42 人、超期补发 57 次/3 人、第 1 轮 27 次/4 人）；C 点开 2346 次（其中 1914 次落在 227 个不在召回名单的标题上）。巡检的点开配额大量花在「没任务可领」的人身上，该发的人排不进视野。</p>
 <h4>(3)-5 补发方案：122 位的状态</h4>
-<ul><li><b>状态：未执行，等 Jade 回「补」。</b> 09:15 回读：三台任务表今天发出的召回里没有任何一条属于这 122 位的补发（今天只有正常新到期的任务发出）。</li><li>清单：122 位＝A 38（超期 23 + 昨日到期 2 + 第 1 轮 13）、B 68（超期 10 + 昨日到期 14 + 第 1 轮 44）、C 16（超期 1 + 昨日到期 2 + 第 1 轮 13）；完整见附录 R10（含建议发送时刻）。另 49 位今天起正常到期（A 8、B 41），不额外补发，由正常节奏发。</li><li>已排除：已转人工、已签/勿扰、48 小时内有过对话、被拒收或删好友的客户。<b>不补发、单列</b>：以前被取消过轮次的 30 位、被服务端拦下的 17 位（C 13 位，多为备注编号不合规）、该作废的 4 条、B 的 6 条「不确定是否发出」——这些要先看聊天记录再定。</li><li>节奏：与日常召回共用每台每天 50 条上限，补发每台每天另限 A 20 / B 12 / C 20、每小时 ≤4 条，09:40–21:20 均匀铺开、三台错开 5 分钟；先补逾期最久的，第 1 轮最后补；发前再查 48 小时内有没有新对话，有就跳过。A 约 2 天、C 1 天、B 约 6 天补完。</li><li>还缺什么：服务端现在没法主动指定「先发这位」，只能等巡检翻到。两种做法：① 销售按名单在微信里<b>点开</b>这位客户的聊天（不用打字），程序认出来后自动按规则发，所有闸门照常生效，但占人力；② 做一个「按名单优先翻到」的功能（建议，工作量小）。默认：Jade 不回就不补发；回「补」就先走 ① 的 C（1 天可清完），② 同步开发。</li></ul>
+<ul><li><b>状态：未执行，等 Jade 回「补」。</b> 09:15 回读：三台任务表今天发出的召回里没有任何一条属于这 122 位的补发（今天只有正常新到期的任务发出）。</li><li>清单：122 位＝A 38（超期 23 + 昨日到期 2 + 第 1 轮 13）、B 68（超期 10 + 昨日到期 14 + 第 1 轮 44）、C 16（超期 1 + 昨日到期 2 + 第 1 轮 13）；完整见附录 R10（含建议发送时刻）。另 49 位今天起正常到期（A 8、B 41），不额外补发，由正常节奏发。</li><li>已排除：已转人工、已签/勿扰、48 小时内有过对话、被拒收或删好友的客户。<b>不补发、单列</b>：以前被取消过轮次的 30 位、被服务端拦下的 17 位（C 13 位，多为备注编号不合规；这是补发筛选时的口径，只算本来可补发、但会被服务端拦的客户，和上表 ⑦ 不是同一集合）、该作废的 4 条、B 的 6 条「不确定是否发出」——这些要先看聊天记录再定。</li><li>节奏：与日常召回共用每台每天 50 条上限，补发每台每天另限 A 20 / B 12 / C 20、每小时 ≤4 条，09:40–21:20 均匀铺开、三台错开 5 分钟；先补逾期最久的，第 1 轮最后补；发前再查 48 小时内有没有新对话，有就跳过。A 约 2 天、C 1 天、B 约 6 天补完。</li><li>还缺什么：服务端现在没法主动指定「先发这位」，只能等巡检翻到。两种做法：① 销售按名单在微信里<b>点开</b>这位客户的聊天（不用打字），程序认出来后自动按规则发，所有闸门照常生效，但占人力；② 做一个「按名单优先翻到」的功能（建议，工作量小）。默认：Jade 不回就不补发；回「补」就先走 ① 的 C（1 天可清完），② 同步开发。</li></ul>
 <h3 id="s2-4">(4) 自动升级后无法自启动</h3>
-<p><b>现象</b>：三天里 client-auto-update 共发 11 次 restart_client（wecom_fleet_commands，created_by=client-auto-update，全部 status=delivered、无 acked_at——端上自杀，设计上不回执），只有 1 次在预期的 10–15 分钟附近回来。</p>
+<p><b>现象</b>：三天里 client-auto-update 共发 11 次 restart_client（wecom_fleet_commands，created_by=client-auto-update，10 次 status=delivered、无 acked_at——端上自杀，设计上不回执；C 10-17 16:20 那次（#6）是 done、有 acked_at），只有 1 次在预期的 10–15 分钟附近回来。</p>
 <div class="tbl"><table>
 <thead><tr>
 <th>#</th>
@@ -1633,7 +1633,7 @@ h4{font-family:var(--f-display);font-size:16px;line-height:1.4;margin:0;color:va
 </tbody></table></div>
 <ul><li><b>A 的版本在 07:3x 之后变了</b>：事件表 07:53:50 <code>update_installed 1.25.14+8d72b4b</code>（随后 <code>autostart_audit</code>），同时间窗里 wecom_fleet_commands 没有对 A 的 restart_client，所以是<b>有人在现场启动了程序</b>（推测，没有现场证据；日志首行有没有 takeover 痕迹未查）。这也说明“每天到岗双击 start.bat 会顺带装最新版”是目前唯一可靠的升级路径。</li><li>三台都没装 1.25.16（记录拉起过程）、1.25.18（首触修复，尚未出包）；生产里 <code>restart_launcher_trace</code> 事件全表 0 条。</li></ul>
 <p><b>根因</b></p>
-<ul><li>已验证：① 重启指令发出去就算成功，没有任何环节确认新程序起来了（main.py:1183-1229：写 restart_done.json → 起隐藏 PowerShell 延 15 秒 <code>Start-Process start.bat</code> → 本进程 8 秒后 os._exit）；② 1.25.15 及以前，start.bat 之后的接力（run.ps1 → startup_update.py → install.ps1 → 新进程）一律不写文件日志；③ install.ps1 失败路径会弹 MessageBox 等人点（:16-18，无人值守就停在那里）；④ 安装本身不慢（C 10-18 08:26:39→08:27:08，约 28 秒）；⑤ 监控盖不到这条链（wecom-heartbeat/route.ts:1147 只盯 kind=update，不盯 restart_client）。</li><li>推测、未证实：隐藏 PowerShell 没起来或被拦；启动锁冲突后静默退出；安装器停在弹窗；startup_update.py 超时（上限 240 秒）。成功与失败的分布看不出规律。</li><li>现场说法核对：B「18 号上午微信未登录」与日志吻合（04:31 被踢回登录框）；C「17 号上午微信未登录」日志对不上（日志里的登录框是 10-16 上午；10-17 上午程序没在写日志，既不能证实也不能否定）。</li></ul>
+<ul><li>已验证：① 重启指令发出去就算成功，没有任何环节确认新程序起来了（main.py:1183-1229：写 restart_done.json → 起隐藏 PowerShell 延 15 秒 <code>Start-Process start.bat</code> → 本进程 8 秒后 os._exit）；② 1.25.15 及以前，start.bat 之后的接力（run.ps1 → startup_update.py → install.ps1 → 新进程）一律不写文件日志；③ install.ps1 失败路径会弹 MessageBox 等人点（:16-18，无人值守就停在那里）；④ 安装本身不慢（C 10-18 08:26:39→08:27:08，约 28 秒）；⑤ 监控盖不到这条链（wecom-heartbeat/route.ts:1148 只盯 kind=update，不盯 restart_client）。</li><li>推测、未证实：隐藏 PowerShell 没起来或被拦；启动锁冲突后静默退出；安装器停在弹窗；startup_update.py 超时（上限 240 秒）。成功与失败的分布看不出规律。</li><li>现场说法核对：B「18 号上午微信未登录」与日志吻合（04:31 被踢回登录框）；C「17 号上午微信未登录」日志对不上（日志里的登录框是 10-16 上午；10-17 上午程序没在写日志，既不能证实也不能否定）。</li></ul>
 <p><b>进度</b></p>
 <ul><li>已做：#2216（1.25.16）拉起每步写 <code>state/restart_launcher.log</code>、下次启动上报 <code>restart_launcher_trace</code>，<b>已出包，三台都没装</b>；A、B（10-18 17:2x）和 C（10-19 早）都加入 WECOM_AUTO_UPDATE_EXCLUDE_HOSTS，10-18 11:03 之后 A、B 再没收到 restart_client，C 10-18 21:30 那次是排除前最后一次。</li><li>没做：根因没落到日志行（1.25.16 没在现场跑过）；restart_client 送达后无心跳不告警；24 小时同标题节流吞掉第二次掉线告警（待核实）；开机自启三台都没证实（C 远程开了两次都被拦：计划任务 Unspecified error、启动文件夹 UnauthorizedAccessException，疑似安全软件；A、B 没试过）。</li><li>下一步（<b>需要现场</b>）：① 选一台有人在的电脑（默认 C）手动装 1.25.16，再远程重启一次，读 trace 定位卡在哪一步——注意 trace 只写到 start.bat 退出码，安装器那段要 1.25.18 补日志；② 修好后再恢复自动升级，并给“重启后 20 分钟没心跳”加告警；③ C 请销售确认启动文件夹快捷方式放了没有、截图安全软件拦截记录；④ 微信被踢回登录框时程序显示在线但不干活，看板单独标红。</li></ul>
 <h3 id="s2-5">(5) 把老客户当成新好友发送首触</h3>
@@ -1738,9 +1738,9 @@ h4{font-family:var(--f-display);font-size:16px;line-height:1.4;margin:0;color:va
 </tr>
 </tbody></table></div>
 <p>第 6 位（C·624c62）：<code>10-14 18:09:44 first_touch_candidate direction=we_added</code> → <code>18:09:58 first_touch_not_sent result=deferred tag=identity_unreachable…identity_unreadable</code> → <code>18:10:02 first_touch_undelivered … retracted=True</code>（15 分钟后重试的结果日志没下，待核实）。</p>
-<p><b>为什么记成已发（已验证到代码）</b>：idle_history.py:2153-2156 <code>elif unknown or maybe_delivered:</code> 把「看不清有没有送达」一律按「可能已送达」记已发且不撤账；服务端 route.ts:3471 <code>recordOpenerSent</code>（交话术时先记 sent）只在 route.ts:3497 <code>opener_undelivered</code> 才撤；同一拍里 <code>customer_unreachable</code>（红叹号/需验证＝确定没送达）已判出，首触路径没用它改判（idle_history.py:2160-2165 只做 halt_today）。副作用：看板「首触」多计。</p>
+<p><b>为什么记成已发（已验证到代码）</b>：idle_history.py:2153-2156 <code>elif unknown or maybe_delivered:</code> 把「看不清有没有送达」一律按「可能已送达」记已发且不撤账；服务端 chat/reply/route.ts:3472 <code>recordOpenerSent</code>（交话术时先记 sent）只在端上回报 <code>opener_undelivered</code>（同文件 3484–3497 那段）才撤；同一拍里 <code>customer_unreachable</code>（红叹号/需验证＝确定没送达）已判出，首触路径没用它改判（idle_history.py:2160-2165 只做 halt_today）。副作用：看板「首触」多计。</p>
 <p><b>修复（#2226，10-19 08:29 合并；电脑端版本 1.25.18（#2226 当时记的是 1.25.17，未出包，已并入 1.25.18）；尚未出包）</b> —— 下面第 2、3 点电脑端代码<b>要装 1.25.18 才对电脑生效</b></p>
-<ol class="work"><li>添加提示旁的日期分隔条必须读得到且距今 ≤ 3 天（first_touch.py:325 <code>NOTICE_MAX_AGE_SEC = 3 * 86400</code>；超过 → <code>notice_stale</code>；读不到 → <code>notice_date_unverified</code>，skip 且不落 30 天封禁）。</li><li>同一屏出现“开启了朋友验证 / 你还不是他朋友 / 被对方拒收”直接判 unreachable，不发（first_touch.py:331 <code>unreachable_notice</code>、:354-356）。</li><li>send_uncertain 同拍读到 customer_unreachable → 走 <code>first_touch_undelivered</code> 撤账，不记已发（idle_history.py:2143、2159）。</li><li>空窗口读不出内容时不再判新好友交首触，按“读屏失败、24 小时后再试”处理，不兜底发、不进 awaiting_first_touch（windows-recall-service.ts 的 EMPTY_CHAT_UNVERIFIED，<b>服务端部分已随部署上线</b>）；「等首触」超 6 小时没人领进心跳主卡黄牌（已上线）。</li><li>首触只在北京 9:00–22:00 发，窗外照常探测并记候选，开窗后第一拍先首触再召回（first_touch_window.py，随 1.25.18）。</li></ol>
+<ol class="work"><li>添加提示旁的日期分隔条必须读得到且距今 ≤ 3 天（first_touch.py:325 <code>NOTICE_MAX_AGE_SEC = 3 * 86400</code>；超过 → <code>notice_stale</code>；读不到 → <code>notice_date_unverified</code>，skip 且不落 30 天封禁）。</li><li>同一屏出现“开启了朋友验证 / 你还不是他朋友 / 被对方拒收”直接判 unreachable，不发（first_touch.py:331 <code>unreachable_notice</code>、:354-356）。</li><li>send_uncertain 同拍读到 customer_unreachable → 走 <code>first_touch_undelivered</code> 撤账，不记已发（idle_history.py:2143、2159）。</li><li>空窗口读不出内容时不再判新好友交首触，按“读屏失败、24 小时后再试”处理，不兜底发、不进 awaiting_first_touch（windows-recall-service.ts 的 EMPTY_CHAT_UNVERIFIED，<b>服务端部分已随部署上线</b>）；「等首触」超 6 小时没人领进心跳主卡黄牌（已上线）。</li><li>~~首触只在北京 9:00–22:00 发~~（#2226 原方案，已被推翻）：Jade 10-19 定首触不限时段，凌晨通过也当场发，#2229 已合并把这个时段闸关掉，随 1.25.18 生效。</li></ol>
 <p><b>验收</b>：C 的 6 位回放必须全部不发（第 2 点覆盖 5 位有「开启了朋友验证」的；第 1 点覆盖 e54fd2、c19786 这类只有「你已添加了…」但日期是 5 月 / 8 月的）；认出拒收后记录被撤；夜里首触 0 条。</p>
 <p><b>状态</b>：代码已合并；电脑端 <b>1.25.18 未出包，三台都没装</b>（A/B 1.25.14、C 1.25.15）；装之前这类问题<b>仍可能再发生</b>。历史上 5 条红叹号首触记录未撤（见 (2)-3）。</p>
   </div>
@@ -1774,7 +1774,7 @@ h4{font-family:var(--f-display);font-size:16px;line-height:1.4;margin:0;color:va
 <td>—</td>
 </tr>
 <tr>
-<td><span class="chip part">已改（待出包）</span></td>
+<td>已合并（待出包）</td>
 <td>#2229 首触不限时段：Jade 10-19 定「凌晨通过也要当场发首触」，#2226 里的 9–22 点首触窗改为关闭（召回仍 9–22 点）；随 1.25.18 生效</td>
 <td>装好后看夜里通过的好友是否当场收到首触</td>
 </tr>
