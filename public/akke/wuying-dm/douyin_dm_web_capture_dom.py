@@ -25,6 +25,8 @@ connect_over_cdp 接管【调试版 Edge】直接读 DOM:
 """
 from __future__ import annotations
 
+from douyin_dom_browser import find_douyin_page
+
 import sys
 
 try:
@@ -194,9 +196,7 @@ def _parse_item(d: dict) -> tuple[str, str, bool]:
 
 
 def _find_page(browser):
-    pages = [pg for c in browser.contexts for pg in c.pages]
-    dy = [pg for pg in pages if "douyin.com" in (pg.url or "")]
-    return dy[0] if dy else None
+    return find_douyin_page(browser)
 
 
 def _ensure_panel(page) -> int:
@@ -205,13 +205,25 @@ def _ensure_panel(page) -> int:
     if n == 0:
         try:
             entry = page.locator('[data-e2e="im-entry"]')
-            if entry.count():
-                entry.first.click(timeout=3000)
-                page.wait_for_timeout(2500)
-                n = page.locator('[data-e2e="conversation-item"]').count()
+            entry.first.wait_for(state="visible", timeout=10000)
+            entry.first.click(timeout=3000)
+            page.locator('[data-e2e="conversation-item"]').first.wait_for(state="attached", timeout=10000)
+            n = page.locator('[data-e2e="conversation-item"]').count()
         except Exception as e:
             print(f"  [warn] 尝试开私信浮层失败: {e}")
     return n
+
+
+def _heartbeat(status, rows=None, unread=None):
+    if not COMMIT or not _os.environ.get("AKKE_ACCOUNT_ID"):
+        return
+    try:
+        _rpc("record_dm_capture_heartbeat", {
+            "p_account_id": _os.environ["AKKE_ACCOUNT_ID"],
+            "p_status": status, "p_rows": rows, "p_unread": unread,
+        })
+    except Exception as exc:
+        print(f"[warn] DOM capture heartbeat: {type(exc).__name__}")
 
 
 def capture_dom():
@@ -226,16 +238,19 @@ def capture_dom():
         try:
             browser = p.chromium.connect_over_cdp(CDP)
         except Exception as e:
+            _heartbeat("no_window")
             print(f"  ❌ 连不上调试版 Edge {CDP}: {e} —— 弃权(不当全员没回复)")
             return
         page = _find_page(browser)
         if not page:
+            _heartbeat("no_window")
             print("  ❌ 没找到 douyin.com 标签页 —— 弃权")
             return
 
         n = _ensure_panel(page)
         # 安全闸: 读不到会话项 → 弃权 + 告警, 绝不静默当"全员没回复"。
         if n == 0:
+            _heartbeat("panel_closed")
             print("  ❌ conversation-item=0(面板没开/DOM 变了) —— 弃权 + 告警, 不写任何库")
             return
         print(f"  conversation-item {n} 个")
@@ -364,6 +379,7 @@ def capture_dom():
                     print(f"  [err] record_dm_inbound {nick}: {e}")
             else:
                 inbound += 1
+        _heartbeat("ok", rows=n, unread=unread_total)
         if fullscan and COMMIT:
             _fullscan_stamp()
         print(f"=== 完成: {'(DRY)' if not COMMIT else ''} 命中客户回复 {inbound} 条 / "

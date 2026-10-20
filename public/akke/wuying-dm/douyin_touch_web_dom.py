@@ -27,6 +27,8 @@
 """
 from __future__ import annotations
 
+from douyin_dom_browser import find_douyin_page
+
 import csv
 import json
 import os
@@ -122,12 +124,7 @@ def _now() -> str:
 
 def _connect(p):
     browser = p.chromium.connect_over_cdp(CDP)
-    page = next((pg for ctx in browser.contexts for pg in ctx.pages
-                 if "douyin.com" in (pg.url or "")), None)
-    if page is None:
-        pages = [pg for ctx in browser.contexts for pg in ctx.pages]
-        page = pages[0] if pages else None
-    return page
+    return find_douyin_page(browser)
 
 
 def _first_visible(page, selector):

@@ -30,6 +30,8 @@
 """
 from __future__ import annotations
 
+from douyin_dom_browser import find_douyin_page
+
 import os
 import re
 import sys
@@ -419,8 +421,8 @@ def run_batch(csv_path: str) -> int:
     import random
     import time
     from datetime import datetime
-    min_iv = int(os.environ.get("AKKE_WEB_DM_MIN_INTERVAL", "20"))
-    max_iv = int(os.environ.get("AKKE_WEB_DM_MAX_INTERVAL", "45"))
+    min_iv = int(os.environ.get("AKKE_WEB_DM_MIN_INTERVAL", os.environ.get("AKKE_MIN_INTERVAL", "20")))
+    max_iv = int(os.environ.get("AKKE_WEB_DM_MAX_INTERVAL", os.environ.get("AKKE_MAX_INTERVAL", "45")))
     with open(csv_path, encoding="utf-8-sig") as f:
         rows = list(_csv.DictReader(f))
     print(f"=== DOM 批量发送: {len(rows)} 条 (间隔 {min_iv}-{max_iv}s) ===")
@@ -432,12 +434,10 @@ def run_batch(csv_path: str) -> int:
         except Exception as e:
             print(f"✗ 连不上隐形 Edge {CDP}: {e} —— 全批不发(不写 sent_log, poll agent 下轮重试)")
             return 1
-        pages = [pg for c in browser.contexts for pg in c.pages]
-        dy = [pg for pg in pages if "douyin.com" in (pg.url or "")]
-        if not dy:
+        page = find_douyin_page(browser)
+        if page is None:
             print("✗ 没找到 douyin.com 页(隐形 Edge 开着吗?) —— 全批不发")
             return 1
-        page = dy[0]
         # 逐条 flush 落盘(不再批末一次性写): 中途若 Edge 崩/坏会话/进程被杀, 已处理行仍留档,
         # poll agent 只对真没跑到的行记 "no entry", 不会把整批误判 failed。
         # 覆盖模式('w'): 每次子进程只跑本批, poll agent 紧接 read_sent_log 读本批, 覆盖历史无害
@@ -507,11 +507,10 @@ def main():
     print(f"  目标: {('sec='+sec[:24]+'…') if sec else ('nick='+nick)}\n  内容: {msg!r}")
     with sync_playwright() as p:
         browser = p.chromium.connect_over_cdp(CDP)
-        pages = [pg for c in browser.contexts for pg in c.pages]
-        dy = [pg for pg in pages if "douyin.com" in (pg.url or "")]
-        if not dy:
+        page = find_douyin_page(browser)
+        if page is None:
             sys.exit("✗ 没找到 douyin.com 页(调试版 Edge 开着吗?)")
-        status = send_dom(dy[0], msg, commit, sec_uid=sec, nick=nick, engage=engage)
+        status = send_dom(page, msg, commit, sec_uid=sec, nick=nick, engage=engage)
     print(f"\n→ 结果: {status}")
     if status.startswith("dry_ok"):
         print("  ✅ 开会话+打字+发送键定位都成(没发)。加 --send 真发。")
