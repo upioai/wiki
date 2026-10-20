@@ -1766,6 +1766,20 @@
       </dl>
     </div>
 
+    <div class="bug" id="W-119" style="--bc:#d03b3b">
+      <div class="bh"><code class="bid">W-119</code><b>「每天新话题」模式下，到期的召回任务只等巡检碰巧翻到这位客户，翻不到就一直挂着，没有作废，也没有按逾期天数的告警</b><span class="bst open">待修复 · 方案待运营核对</span></div>
+      <dl>
+        <dt>现场</dt><dd>电脑 B，10-20 晚 21:4x 直接查库（表 <code>windows_recall_tasks</code>）：状态是待领、到期时间已过的召回任务共 40 条（精确计数）。任务上记的原因：<code>list_target_not_open</code> 35 条、<code>preempted_by_unread</code> 2 条、<code>read_failed</code> 2 条、<code>recall_tail_unverified</code> 1 条。最早一条 9-22 到期，多数在 10-04 和 10-14 到期。当晚运营取消了 1 条（一位 10-20 新加的好友，首触已由销售手发），剩 39 条。这 39 位是不是改了备注、删了好友、还需不需要召回，运营正在逐个核对，结论还没有。</dd>
+        <dt>影响</dt><dd>这些客户的召回过了到期日也没发，有的已经压了近一个月；任务不会过期。服务端日报里有“逾期待发 N”的计数，但设备在线且客户端开关是 live 时，不会出文字告警，也不按逾期天数或原因提示；这 40 条是 10-20 晚有人直接查库才看到的。</dd>
+        <dt>根因</dt><dd>「每天新话题」只发列表里刚认准、会话就开在眼前的客户。服务端不替它挑人：<code>src/lib/wecom/windows-title-recall.ts</code> 的 <code>pollTitleRecall</code> 在 <code>serverNext &amp;&amp; !customerName &amp;&amp; daily</code> 时只回 <code>waiting_for_title_scan</code>，注释写明“不扫表、不派单”。任务要等列表巡检翻到并点开这位客户、客户端来要任务才会被领走。点开时目标不在眼前，客户端按 <code>cloudpc/windows-weixin/runner.py</code> 的 <code>_recall_yield</code>（定义约 4666 行；<code>list_target_not_open</code> 交还处约 4888 行）交还任务，注释写明“不去搜索框找人”（代码注释称搜索找人是第二次召回 0/42 的卡点），任务回到待领。所以巡检永远翻不到的客户（备注改了、藏得太深、被前面几类问题挡住），任务就一直待领。我在 <code>src/lib/wecom</code> 和 <code>cloudpc</code> 里没找到给到期任务设过期、按逾期天数告警（安卓侧有类似的逾期超 1 天告警，Windows 侧没有），或在巡检够不着时换一条路联系这位客户的代码；已有的只有日报“逾期待发 N”计数和心跳日志“到期未领 N 条”，没有做全仓穷尽搜索。</dd>
+        <dt>怎么修</dt><dd>方案还没定，运营在核对 39 条备注。候选（待运营定）：① 不再需要召回的取消；② 还需要召回的，先看是不是翻得太深，必要时请销售打开该会话；③ 长期：到期未发要有提醒。③ 里已经答应的默认做法是：当天翻到底仍没见到这位客户就告警；另外每天上午发一张卡，列出到期 2 天以上还没发的任务。以上都未开发。</dd>
+        <dt>验证</dt><dd>表里的计数和原因分布来自 10-20 晚的直接查库；机制来自 <code>Akke-AI/wecom-chat</code> 主干（<code>origin/main</code>）上的上述两处调用链，只读了这两处，未做全仓搜索。没有修复，没有独立检验。</dd>
+        <dt>还没解决</dt><dd>整条都没解决。这 40 条逐条为什么翻不到没有查；只有 <code>list_target_not_open</code> 的 35 条直接对应上面的机制，其余 5 条（被未读抢占 2、读屏失败 2、尾巴未核实 1）触发条件不同，但同样经 <code>_recall_yield</code> 交还，是否也由这条机制拖着没核。只查了电脑 B，电脑 A、C 有没有同样的积压没查。</dd>
+        <dt>相关</dt><dd>翻不到这一行的各类原因：<a href="#W-120">W-120</a>（翻页接缝）、<a href="#W-118">W-118</a>（被销售滚过）、<a href="#W-107">W-107</a>、<a href="#W-72">W-72</a>、<a href="#W-73">W-73</a>、<a href="#W-43">W-43</a>、<a href="#W-37">W-37</a>；同样是“卡住了没人提醒”的 <a href="#W-108">W-108</a>。</dd>
+        <dt>怎么验收</dt><dd>运营核完 39 条并取消不需要的之后，电脑 B 上待领且到期的召回任务只剩确实要发的；新增告警上线后，在现有日报计数之外，第二天上午的卡里能列出到期 2 天以上未发的任务，当天翻到底仍没见到客户时有告警一条。</dd>
+      </dl>
+    </div>
+
     <div class="bug" id="W-120" style="--bc:#d03b3b">
       <div class="bh"><code class="bid">W-120</code><b>列表翻页的接缝处的行，整天都点不到（新好友漏首触）</b><span class="bst wait">已出包 1.25.33 · 待装机 · 未验收</span></div>
       <dl>
