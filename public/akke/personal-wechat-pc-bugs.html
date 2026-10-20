@@ -170,6 +170,7 @@
   .bh h3:focus-visible { outline:2px solid var(--accent-ink); outline-offset:3px; border-radius:3px; }
   .bst { font-size:11.5px; font-family:ui-monospace,"SF Mono",Menlo,monospace; border-radius:999px;
          padding:3px 10px; white-space:nowrap; flex:none; }
+  @media (max-width:600px){ .bst { white-space:normal; max-width:100%; flex:0 1 auto; } }
   .bst.open { background:rgba(208,59,59,.14); color:#f08d8d; border:1px solid rgba(208,59,59,.35); }
   .bst.wait { background:rgba(250,178,25,.13); color:#f5c563; border:1px solid rgba(250,178,25,.32); }
   .bst.done { background:rgba(250,178,25,.13); color:#f5c563; border:1px solid rgba(250,178,25,.32); }
@@ -1659,10 +1660,10 @@
       </dl>
     </div>
     <div class="bug" id="W-110" style="--bc:#d03b3b">
-      <div class="bh"><code class="bid">W-110</code><b>安卓手机核对聊天底部读到「被拒收 / 朋友验证」（对方已删我们）却不报服务端，同一批人被反复重开，召回日发从 32 掉到 4</b><span class="bst wait">已合并 · 待出包 APK 0.26.5 · 待装机 · 未验收</span></div>
+      <div class="bh"><code class="bid">W-110</code><b>安卓手机核对聊天底部读到「被拒收 / 朋友验证」（多半是对方已删我们或拒收）却不报服务端，同一批人被反复重开，召回日发从 32 掉到 4</b><span class="bst wait">已合并 · 已出包 APK 0.26.5 · 待装机 · 未验收</span></div>
       <dl>
         <dt>现场</dt><dd>定制小夏（安卓手机执行器）。据运行记录：核对聊天底部时读到「被拒收」或「朋友验证」提示，说明对方已经删了我们。执行器只在本机跳过，不告诉服务端，所以服务端仍把这些人排在召回名单里，下一轮又重开。漏斗里 <code>bottom.fail.blocked</code> 从 131 升到 306，日发从 32 掉到 4（数字据运行记录，本次未重新取数）。</dd>
-        <dt>影响</dt><dd>召回名额被已经删了我们的人占满，能发的客户发不出去，小夏的召回事实上停摆。</dd>
+        <dt>影响</dt><dd>召回名额被已经删了我们的人占满，能发的客户发不出去，小夏的召回几乎停摆。</dd>
         <dt>根因</dt><dd>一句话：执行器知道对方已删我们，服务端不知道。<br>细节：<code>RecallPolicy.recallBlocker</code> 读到这两类系统提示时只在本机判失败，没有上报；服务端没有标记这个人联系不上、该停营销的出口，名单里的人一直有效。</dd>
         <dt>怎么修</dt><dd><a href="https://github.com/Akke-AI/wecom-chat/pull/2244">wecom-chat #2244</a>（APK 0.26.5，服务端同一个 PR）。读到这两类提示就上报新 action <code>android_recall_unreachable</code>，服务端给该客户打上停营销标记，之后召回见到标记直接跳过；同一人 6 小时内不重复上报。10-20 又补了一处：新 action 漏登记进 <code>ANDROID_RECALL_ACTIONS</code> 白名单，不补的话新包一上线调用就被拒。</dd>
         <dt>验证</dt><dd>新增服务端测试 3 个：认出唯一客户后写标记；重复上报不重写；重名、种类无效、没带客户名都不写。独立复核在隔离目录跑相关测试 21 个全部通过；白名单与按 action 路由、鉴权的位置（<code>route.ts</code>、<code>reply-key-scope.ts</code>）都引用同一个数组。<b>没有真机证据</b>，Kotlin 端测试当时依赖 CI 的 gradle 任务，复核时还没出结果。</dd>
@@ -1672,12 +1673,12 @@
       </dl>
     </div>
     <div class="bug" id="W-111" style="--bc:#d03b3b">
-      <div class="bh"><code class="bid">W-111</code><b>销售手动发过消息、程序判「销售在打字」让位后，客户新来的消息一直没人回，也没有到点把客户接回来的机制</b><span class="bst wait">已合并 · 服务端已上线 · 电脑端 1.25.22 未单独出包 · 待装机 · 未验收</span></div>
+      <div class="bh"><code class="bid">W-111</code><b>销售手动发过消息、程序判「销售在打字」让位后，客户新来的消息一直没人回，也没有到点把客户接回来的机制</b><span class="bst wait">已合并 · 随 1.25.23 出包 · 待装机 · 未验收</span></div>
       <dl>
-        <dt>现场</dt><dd>10-19，电脑 C，一位客户（会话 c1b17ce9）。据运行记录：15:34 销售手动给他发过消息；19:38:57 程序判「销售在打字」让位（<code>stage=handed_off reason=sales_typed</code>）；19:39:30 客户回复，约周四、周五上门测量；到 22:49 仍没有人回。</dd>
+        <dt>现场</dt><dd>10-19，电脑 C，一位客户。据运行记录：15:34 销售手动给他发过消息；19:38:57 程序判「销售在打字」让位（<code>stage=handed_off reason=sales_typed</code>）；19:39:30 客户回复，约周四、周五上门测量；到 22:49 仍没有人回。</dd>
         <dt>影响</dt><dd>让位本意是销售在聊，程序不抢话。但销售后面没接上，客户的约时间消息就一直晾着。库里电脑端因 <code>sales_typed</code> 让位的会话共 6 个，其中 3 个最后一条是客户说的（据运行记录，本次未重新取数）。</dd>
         <dt>根因</dt><dd>让位之后程序只会等销售来接，没有到点还没人回就由 AI 接回这一步。</dd>
-        <dt>怎么修</dt><dd><a href="https://github.com/Akke-AI/wecom-chat/pull/2246">wecom-chat #2246</a>，已合并（0dfba42e，10-19 15:04Z），服务端 10-19 已上线。① 销售让位后到点没人回，就由 AI 接回：服务端算出接回时间点和「客户是否欠一句回复」，端上 <code>takeback.py</code> 到点点开该会话，当天核对过的也照样点开，补回放行一次。② 提醒卡里电脑端因销售手打让位的文案，改成：销售没接，AI 稍后接回。电脑端 1.25.22 包没有单独出，将和 1.25.23 一起出。</dd>
+        <dt>怎么修</dt><dd><a href="https://github.com/Akke-AI/wecom-chat/pull/2246">wecom-chat #2246</a>，已合并（0dfba42e，10-19 15:04Z），服务端 10-19 已上线。① 销售让位后到点没人回，就由 AI 接回：服务端算出接回时间点和「客户是否欠一句回复」，端上 <code>takeback.py</code> 到点点开该会话，当天核对过的也照样点开，补回放行一次。② 提醒卡里电脑端因销售手打让位的文案，改成：销售没接，AI 稍后接回。电脑端 1.25.22 没有单独出包，随 1.25.23 一起出包。</dd>
         <dt>验证</dt><dd>独立复核跑了 4 组测试：<code>test_takeback.py</code> 8 个、服务端 handoff 相关 146 个、相邻电脑端用例 275 个、发版脚本测试 11 个，全部通过。反例也有用例：销售在客户之后回过话不接回；刚认出销售手打的冷静期内不抢话；客户要真人或发火的转人工不排接回；超过 1 小时作废。<b>没有真机证据</b>，没看到生产日志里的 <code>takeback_scheduled</code> 一行。</dd>
         <dt>还没解决</dt><dd>① 这位客户已经过了 1 小时，不会自动接回，已请销售手动回。② 端上要在 1 小时内巡检到该会话，轮不到就作废；时钟容差只有 30 秒。③ 只做了电脑端，安卓和 macOS 没有同类接回。④ 电脑端 1.25.22 没出包也没装机。</dd>
         <dt>相关</dt><dd>暂无直接同类编号。</dd>
@@ -1687,9 +1688,9 @@
     <div class="bug" id="W-112" style="--bc:#d03b3b">
       <div class="bh"><code class="bid">W-112</code><b>新好友「已添加」提示被聊天顶出屏外，程序只看当前屏，没记下「通过」，当天新加好友漏统计</b><span class="bst wait">修复中 · 未合并 · 未验收</span></div>
       <dl>
-        <dt>现场</dt><dd>10-19，电脑 C，一位客户（会话 bb4c4c1d，就是 <a href="#W-109">W-109</a> 那位）。据运行记录：16:42 列表巡检第一次点开这个会话时，「你已添加了…」灰字已经被后来的聊天顶出了屏幕。C 当天 <code>friend_accepted</code> 日志 0 条，<code>weixin_friend_lifecycle</code> 表里 C 10-19 0 行（据运行记录，本次未重新取数）。</dd>
+        <dt>现场</dt><dd>10-19，电脑 C，一位当天新加的客户。据运行记录：16:42 列表巡检第一次点开这个会话时，「你已添加了…」灰字已经被后来的聊天顶出了屏幕。C 当天 <code>friend_accepted</code> 日志 0 条，<code>weixin_friend_lifecycle</code> 表里 C 10-19 0 行（据运行记录，本次未重新取数）。</dd>
         <dt>影响</dt><dd>当天新加的好友没被统计；运营看到的「通过数」比实际少。客户自己先开口说话的，同样没记。</dd>
-        <dt>根因</dt><dd><code>_note_friend_accepted</code>（<code>cloudpc/windows-weixin/idle_history.py</code> 两处调用）只看当前这一屏。通过提示一旦被顶出屏，就找不到了。</dd>
+        <dt>根因</dt><dd><code>_note_friend_accepted</code>（<code>cloudpc/windows-weixin/idle_history.py</code> 两处调用）疑似只看当前这一屏（未做代码复核）：通过提示一旦被顶出屏，就找不到了。</dd>
         <dt>怎么修</dt><dd>运营要求：往上翻找通过提示，找到就按提示带的当天日期入库；客户先开口说话的也要统计，<b>只计数，不补发首触</b>。修复在 wecom-chat 分支 <code>fix-friend-accept-scrollup</code> 里实现，尚未开 PR。</dd>
         <dt>验证</dt><dd>还没有 PR，没有可检验的代码，没有独立检验结论（<b>UNVERIFIED</b>）。</dd>
         <dt>还没解决</dt><dd>整条修复未合并、未出包、未装机。往上翻会多读几屏，会不会拖慢巡检、翻多远停下，等 PR 出来再看。</dd>
@@ -1698,40 +1699,40 @@
       </dl>
     </div>
     <div class="bug" id="W-113" style="--bc:#d03b3b">
-      <div class="bh"><code class="bid">W-113</code><b>会话列表第 6 行已经是绿底选中、右边却没打开它：程序读不出标题就跳过，下一轮又选它，在原地打转一整夜</b><span class="bst wait">已合并 · 待出包 1.25.23 · 待装机 · 未验收</span></div>
+      <div class="bh"><code class="bid">W-113</code><b>会话列表第 6 行已经是绿底选中、右边却没打开它：程序读不出标题就跳过，下一轮又选它，在原地打转一整夜</b><span class="bst wait">已合并 · 已出包 1.25.23 · 待装机 · 未验收</span></div>
       <dl>
         <dt>现场</dt><dd>运营要求登记。10-19 晚到 10-20 早，电脑 A。客户端日志（北京时间）：20:24:25 到 07:24:22，<code>selection_current_reused owner=reply row=6 click=False</code> 共 1007 条，意思是程序判定第 6 行已经是选中状态，没有去点。同一段时间 <code>SKIPPED … reason=identity_unverified</code> 共 3038 行（20:14:47 到 07:26:15，其中第 6 行占多少没有分开数）。07:25:47 起日志里才换成第 10 行。抽一个时间点看：22:09:49 复用第 6 行不点，随后标题条连续 4 次读出空白，22:10:10 <code>ALERT identity_unverified</code>，跳过。整机这段时间没有回复、没有召回（据运行记录，日志侧没有逐条核）。电脑 B 10-19 20:16 到 20:29 同形态：<code>ALERT identity_unverified</code> 25 次（B 只核了这个次数，没核是否也是「复用不点」）。</dd>
         <dt>影响</dt><dd>第 6 行的客户若有未读消息，红点一直在，没人回；程序全程忙在这一行，别的客户和召回疑似也轮不到（日志只能看到整机反复处理同一行，没有逐个核别的客户）。</dd>
         <dt>根因</dt><dd>一句话：程序以为「绿底就是已经打开」，其实右边没打开，又没有别的出口。<br>细节：<code>cloudpc/windows-weixin/runner.py</code> 的 <code>_handle_row</code>（修复前约 6041 行）里，这一行已经是绿底选中就不点（<code>selection_current_reused</code> / <code>reuse_current</code>）；但右边没打开这个会话，标题条读不出，走 <code>ALERT identity_unverified</code> 跳过；红点还在，下一轮又选中同一行，仍然不点。</dd>
         <dt>怎么修</dt><dd><a href="https://github.com/Akke-AI/wecom-chat/pull/2248">wecom-chat #2248</a>（电脑端 1.25.23），10-20 07:55 已合并（35cc9dd9）。上一轮绿底没点、标题又读不出的那一行，下一轮<b>强制真点一下</b>（日志 <code>INFO selection_reuse_overridden row=N</code>），认人成功就清掉记录。逻辑在 <code>conversation_selection.py</code> 的 <code>reuse_blocked_by_blank</code> / <code>next_blank_row</code>。</dd>
         <dt>验证</dt><dd>新增测试 <code>test_selected_row_with_unreadable_title_is_clicked_next_round</code>。独立复核把代码换回修复前，这条用例的两个参数都失败（下一轮仍不点）；既有反例（绿底且标题读得出时照旧复用不点）通过；该文件 7 个用例通过。<b>没有真机证据</b>。</dd>
-        <dt>还没解决</dt><dd>① 强制点击后标题仍然读不出，会不会反复点同一行，测试没覆盖。② 只记一行，几行交替出问题时的表现没测。③ 测试只模拟「标题读不出」，没模拟「右边确实没打开」。④ 1.25.23 还没出包，没装机。⑤ 第 6 行是哪位客户没有查（日志里没有标题）。</dd>
+        <dt>还没解决</dt><dd>① 强制点击后标题仍然读不出，会不会反复点同一行，测试没覆盖。② 只记一行，几行交替出问题时的表现没测。③ 测试只模拟「标题读不出」，没模拟「右边确实没打开」。④ 1.25.23 已出包，还没装机。⑤ 第 6 行是哪位客户没有查（日志里没有标题）。</dd>
         <dt>相关</dt><dd><a href="#W-108">W-108</a>（被退回后无上限重派）、<a href="#W-107">W-107</a>（认不出就不点开）。</dd>
         <dt>怎么验收</dt><dd>装 1.25.23 后，日志出现 <code>selection_reuse_overridden</code>，且不再有同一行长时间反复 <code>identity_unverified</code>。</dd>
       </dl>
     </div>
     <div class="bug" id="W-114" style="--bc:#d03b3b">
-      <div class="bh"><code class="bid">W-114</code><b>召回的图片贴进输入框后回车被拒，图没发出去，输入框留下「[草稿] [图片]」，第 2 张没发，任务却仍记成已发</b><span class="bst wait">代码已改 · 待合并出包（CI 未过）· 待装机 · 未验收</span></div>
+      <div class="bh"><code class="bid">W-114</code><b>召回的图片贴进输入框后回车被拒，图没发出去，输入框留下「[草稿] [图片]」，第 2 张没发，任务却仍记成已发</b><span class="bst wait">代码已改 · 待合并出包 · 待装机 · 未验收</span></div>
       <dl>
         <dt>现场</dt><dd>10-19 12:08，电脑 B。一条召回是文字加 2 张图，文字发出去了。日志：第 1 张图回车被拒（<code>ALERT poster_enter_rejected index=1</code>），清空输入框没清掉，输入框里留成「[草稿] [图片]」；12:08:23 <code>ALERT recall_images_missing posters=0/2</code>，写着 <code>文字已送达、图没发全，按已发回执</code>。第 2 张没发。任务仍记成已发，也没有提醒。</dd>
         <dt>影响</dt><dd>客户只收到文字，没收到图；输入框里的草稿残留，下一条消息可能带上它。运营看任务状态是「已发」，发现不了。近 7 天带图召回 208 条，图没发全 11 条（电脑 B 5、电脑 C 5、电脑 A 1；口径：<code>wecom_client_events</code> 里 <code>code=recall_images_missing</code>，<code>occurred_at</code> 不早于 10-12T16:00Z；数字据运行记录，本次未重新取数）。</dd>
         <dt>根因</dt><dd>发图失败的几条路径里，清空输入框之后没有再看一眼是否真清空了；服务端收到的回执也只有「已发」，不带图发了几张。</dd>
-        <dt>怎么修</dt><dd><a href="https://github.com/Akke-AI/wecom-chat/pull/2250">wecom-chat #2250</a>（电脑端 1.25.24）。① 失败路径清空输入框后抓图核对，没清成就报 <code>ALERT poster_draft_left</code> 并发提醒。② 回执带 <code>imagesSent</code> / <code>imagesRequested</code>，服务端把任务原因追加为 <code>images_incomplete:S/R</code>。没有做自动补发（需要新的任务类型）。</dd>
+        <dt>怎么修</dt><dd><a href="https://github.com/Akke-AI/wecom-chat/pull/2250">wecom-chat #2250</a>（电脑端 1.25.25）。① 失败路径清空输入框后抓图核对，没清成就报 <code>ALERT poster_draft_left</code> 并发提醒。② 回执带 <code>imagesSent</code> / <code>imagesRequested</code>，服务端把任务原因追加为 <code>images_incomplete:S/R</code>。没有做自动补发（需要新的任务类型）。</dd>
         <dt>验证</dt><dd>独立复核：电脑端新增测试 5 个通过，服务端相关测试 188 个通过，电脑端 poster / recall / image 相关 226 个通过；图全发成功时不改 reason。<b>PR 当前必选检查 <code>tsc + lint + test</code> 是红的</b>，原因是 <code>handleWindowsRecall</code> 函数行数超过棘轮上限（1015 行，上限 1013），不是逻辑错误；没合并。没有真机证据。</dd>
         <dt>还没解决</dt><dd>① 粘贴后抓不到图（<code>poster_unverifiable</code>）那条路径仍是直接清空，没有核对，也不报 <code>poster_draft_left</code>，同类草稿在那里仍然静默。② 重贴第二次的清空同样没核对。③ 缺图只能从任务原因后缀看出，没有结构化的列。④ 没有自动补发。⑤ 合并、服务端部署、出包、装机都还没有。</dd>
         <dt>相关</dt><dd><a href="#W-100">W-100</a>（召回正文发送）、<a href="#W-105">W-105</a>（发送回执）。</dd>
-        <dt>怎么验收</dt><dd>1.25.24 装上后，再遇到贴图失败，日志出现 <code>poster_draft_left</code> 并有提醒，库里该任务原因带 <code>images_incomplete:S/R</code>；图全发成功的任务不受影响。</dd>
+        <dt>怎么验收</dt><dd>1.25.25 装上后，再遇到贴图失败，日志出现 <code>poster_draft_left</code> 并有提醒，库里该任务原因带 <code>images_incomplete:S/R</code>；图全发成功的任务不受影响。</dd>
       </dl>
     </div>
     <div class="bug" id="W-115" style="--bc:#d03b3b">
-      <div class="bh"><code class="bid">W-115</code><b>等召回发送名额时，程序把找新好友、首触一起停了，一位半夜通过的客户完全没被看到</b><span class="bst wait">修复中 · 未合并 · 未验收</span></div>
+      <div class="bh"><code class="bid">W-115</code><b>等召回发送名额时，程序把找新好友、首触一起停了，一位半夜通过的客户完全没被看到</b><span class="bst wait">代码已改 · 待合并出包 · 待装机 · 未验收</span></div>
       <dl>
         <dt>现场</dt><dd>电脑 B，10-19 晚。日志：22:06:12 最后一次列表巡检；22:06:20 <code>topic_one_assessed reason=waiting_for_send_slot</code>；此后到次日 07 点多，只剩每分钟一条 <code>history_gate status=waiting_send_slot</code>。一位客户 23:39 通过了好友，程序完全没看到，首触没有发出（后两句据运行记录，本次只核了 22:05 到 22:08 这一段日志）。</dd>
         <dt>影响</dt><dd>只要有召回在等发送名额，整台机器就不再巡检会话列表，找新好友和首触都停下，这次一停就是一整夜。</dd>
         <dt>根因</dt><dd><code>cloudpc/windows-weixin/idle_history.py</code> 约 2265 行：<code>if getattr(self.client, "send_slot_waiting", False) is True:</code> 之后直接返回，在列表巡检之前就提前退出了。</dd>
-        <dt>怎么修</dt><dd>修复在 wecom-chat 分支 <code>fix-slot-wait-keeps-first-touch</code> 里进行，PR 号待定。</dd>
-        <dt>验证</dt><dd>还没有 PR，没有可检验的代码，没有独立检验结论（<b>UNVERIFIED</b>）。</dd>
-        <dt>还没解决</dt><dd>整条修复未合并、未出包、未装机。那位 23:39 通过的客户的首触需要另行处理。</dd>
+        <dt>怎么修</dt><dd><a href="https://github.com/Akke-AI/wecom-chat/pull/2252">wecom-chat #2252</a>（电脑端 1.25.24），待合并。等召回名额时列表巡检照走（只扫顶部页、整行没变的行跳过，步长放慢到 30 秒，不烧当天点开额度），新好友发现与首触不再被冻结；召回在等名额期间仍暂停，名额到了恢复原样。首触关着时仍整拍冻结。</dd>
+        <dt>验证</dt><dd>修复 PR #2252 已开、未合并，必选检查当时为红（版本号闸，已改正重跑），尚未做代码复核（<b>UNVERIFIED</b>）。</dd>
+        <dt>还没解决</dt><dd>修复未合并、未出包、未装机。那位 23:39 通过的客户，要等名额放开后程序重新翻列表才会看到；如果迟迟没被看到，需要人工补。等名额期间巡检可能把正在等的召回对象点走，任务回来时走现有的让位路径，这块没有专门测试。</dd>
         <dt>相关</dt><dd><a href="#W-104">W-104</a>（首触判断）、<a href="#W-112">W-112</a>（新好友漏统计）。</dd>
         <dt>怎么验收</dt><dd>修复装机后，召回在等名额期间，日志里仍有列表巡检，新通过的好友当晚就被看到并发首触。</dd>
       </dl>
