@@ -1752,6 +1752,19 @@
         <dt>怎么验收</dt><dd>上线后看板每日汇总选 10-19，A/B/C 三台的系统记分别是 2、1、1，与报数一致、不标黄；装 1.25.28 后出现一位隔天才被点开的新好友时，日志里出现 <code>friend_accepted reported=True</code>（出现这行就算记上了），看板按提示上的日期计数。</dd>
       </dl>
     </div>
+    <div class="bug" id="W-118" style="--bc:#d03b3b">
+      <div class="bh"><code class="bid">W-118</code><b>销售用过电脑后，列表巡检按旧行号接着点，被滚过的一段客户整段跳过（新好友漏首触）</b><span class="bst wait">已合并 · 已出包 1.25.30 · 1.25.31 待合并 · 待装机 · 未验收</span></div>
+      <dl>
+        <dt>现场</dt><dd>电脑 C（1.25.26）。10-20 一位新好友（贵A61**88）11:36 通过。C 10:11 远程升级重启，11:51 才起来（和 <a href="#W-103">W-103</a> 同源：远程升级重启后迟迟没起来）。11:52 回到列表顶部后先核了展开的置顶区第 0–8 行；11:54–11:57 销售在用这台电脑，巡检让路（日志 <code>recall_topic_one_yield_to_reply</code> / <code>waiting_desktop_idle</code>，<code>idle_ms</code> 显示约 11:55:27、11:56:12 有真人输入）。11:57:18 恢复时程序按记下的第 9 行去点，但列表已被销售滚过，屏幕上第 9 行的位置换成了另一位客户（置顶区往下第 6 位）；折叠栏下面的 5 位（含这位新好友）被整段跳过，11:57:25 就翻到下一页。运营 12:1x 人工补发了首触。</dd>
+        <dt>影响</dt><dd>电脑一旦被销售用过又让回给程序，被滚过的那一段客户这一轮不会被看到；其中的新好友漏首触，要等下一轮或人工补。</dd>
+        <dt>根因</dt><dd>列表巡检只按上一拍落盘的（页, 行）点下一行，两拍之间不核对列表有没有被人滚过（<code>cloudpc/windows-weixin/idle_history.py</code> 的 <code>walk_tick</code>）。程序自己没动列表，但销售动过。</dd>
+        <dt>怎么修</dt><dd><a href="https://github.com/Akke-AI/wecom-chat/pull/2270">wecom-chat #2270</a>（电脑端 1.25.30，已合并 09b041a，已出包 1.25.30+09b041a，台账已记）：新增 <code>list_walk.resync_after_human</code>。上一拍之后只要有真人键鼠输入（<code>win32.idle_ms</code> 只算真人），就先记下断点、回到列表顶部重新定位，再按页翻回断点处接着巡检。<a href="https://github.com/Akke-AI/wecom-chat/pull/2272">#2272</a>（1.25.31，自动合并中）补上独立检验指出的缺口：刚回顶、还没点第一行时被滚过，也重新回顶。</dd>
+        <dt>验证</dt><dd>独立检验（未参与实现）：<code>CODE_ONLY</code> 通过。新增测试在旧代码上失败、在新代码上通过；检验指出一处缺口，由 #2272 补上。</dd>
+        <dt>还没解决</dt><dd>1.25.31 未合并，两个版本都没装机。没有真人输入的列表重排（新消息把会话顶上来）不在覆盖范围内；兜底档下，深页的断点会从第 0 页重走（既有行为）；销售频繁打断时，回顶次数有上限，会多花一些。</dd>
+        <dt>相关</dt><dd><a href="#W-103">W-103</a>（远程拉起不可靠）、<a href="#W-112">W-112</a>（新好友漏统计）、<a href="#W-115">W-115</a>（巡检被停掉）。</dd>
+        <dt>怎么验收</dt><dd>电脑 C 装上后，日志出现 <code>list_walk_resync_after_human</code>，且之后回顶接上、没有跳行。</dd>
+      </dl>
+    </div>
   </div>
 
   <hr style="border:0;border-top:1px solid var(--border);margin:44px 0 0">
