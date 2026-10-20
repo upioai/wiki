@@ -637,6 +637,7 @@ def _mark_account_health(raw_status: str, log_row: dict | None = None) -> None:
                 'p_message': (
                     f"⚠️ 账号撞 {modal_type.upper()} 风控弹窗 · 已立即停号"
                     f" · {'需本人扫码过脸' if modal_type == 'face' else '需号主在抖音 App 里发一条私信完成身份验证' if modal_type == 'verify' else '需本人介入'}"
+                    " · 处理完到 akke.vercel.app/accounts 点「恢复」（不会到点自动恢复）"
                 ),
                 'p_metadata': meta,
             })
