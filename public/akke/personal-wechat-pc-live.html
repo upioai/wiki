@@ -185,6 +185,24 @@
   .miss { align-self:flex-start; font-size:12.5px; padding:4px 12px; border-radius:999px; border:1px dashed var(--border-strong); color:var(--text-dim); }
   .miss.bad { border-color:rgba(208,59,59,.55); color:#fca5a5; }
   .miss.ok { border-color:rgba(63,185,120,.55); color:#8ee0ae; }
+  .miss.warn { border-color:rgba(250,178,25,.55); color:#fcd34d; }
+  .miss.info { border-color:rgba(96,165,250,.45); color:#93c5fd; }
+  /* 状态标签：颜色只表示好坏，永远配图标 + 文字 */
+  .stg { display:inline-flex; align-items:center; gap:4px; padding:1px 9px; border-radius:999px; border:1px solid var(--border-strong); font-size:12px; font-weight:600; background:var(--bg-deep); color:var(--text-dim); }
+  .stg i { font-style:normal; font-weight:800; }
+  .stg.ok { border-color:rgba(63,185,120,.45); color:#8ee0ae; }
+  .stg.partial { border-color:rgba(250,178,25,.6); color:#fcd34d; }
+  .stg.missing { border-color:rgba(208,59,59,.6); color:#fca5a5; }
+  .stg.handoff { border-color:rgba(96,165,250,.5); color:#93c5fd; }
+  .stg-why { font-size:12px; color:var(--text-muted); }
+  .sbar { display:flex; flex-wrap:wrap; align-items:center; gap:8px 10px; margin:0 0 6px; }
+  .sc { display:inline-flex; align-items:center; gap:7px; padding:6px 14px; border-radius:10px; border:1px solid var(--border); background:var(--bg-elevated); color:var(--text-dim); font:inherit; font-size:14px; }
+  .sc b { font-size:16px; font-variant-numeric:tabular-nums; color:var(--text); }
+  button.sc { cursor:pointer; transition:.18s; }
+  button.sc:hover { border-color:var(--border-strong); color:var(--text); }
+  button.sc.active { background:var(--accent-soft); border-color:var(--accent); color:var(--accent-ink); }
+  .sc.partial b { color:#fcd34d; } .sc.missing b { color:#fca5a5; } .sc.ok b { color:#8ee0ae; } .sc.handoff b { color:#93c5fd; }
+  .sbar-note { font-size:12.5px; color:var(--text-muted); margin:0 0 14px; max-width:900px; }
   .sub { font-size:12px; color:var(--text-muted); margin-top:4px; }
   .more { margin-top:10px; background:var(--bg-elevated); border:1px solid var(--border); color:var(--text-dim); border-radius:9px; padding:8px 14px; font:inherit; font-size:13px; cursor:pointer; }
   .more:hover { color:var(--text); border-color:var(--border-strong); }
@@ -257,6 +275,10 @@
     <details class="tbl"><summary>看数字表</summary><div class="tw" id="trendTable"></div></details>
 
     <h2 id="evTitle">当天明细</h2>
+    <div id="statusWrap" style="display:none">
+      <div class="sbar" id="statusBar"></div>
+      <p class="sbar-note" id="statusNote"></p>
+    </div>
     <div class="toolbar" style="margin-bottom:12px">
       <div class="segmented" id="typeSel">
         <button data-t="" class="active">全部</button>
@@ -290,6 +312,7 @@
       <li><b>异常记录不在本页</b>：回复前面没记到客户消息的、把微信系统提示（朋友验证、拒收等）当成客户消息的，都挪到了 <a href="/akke/personal-wechat-pc-bugs" style="color:#f0a78a">bug 合集</a>，不进本页的明细、回上率、回复用时和客户消息数；但它们确实发出去了，所以仍算在自动回复发出的条数里（卡片上注明含几条）。</li>
       <li><b>回复情况</b>：自动回复和人工补发都算已回复，自动回复条数单独统计；只有两者都没有才显示未回复。回复用时只对自动回复计算，客户刚发 5 分钟内还没回的记为处理中。</li>
       <li><b>召回</b>：客户一段时间没说话，系统主动发一条。有三种：按节奏（第 1、3、7、15、30 天）、次日跟进（销售回了、客户没再回）、接着上次聊的话题往下说；第二轮召回会带两张图。按实际发出的时间算到哪一天。</li>
+      <li><b>状态标签</b>：明细里每条首触、自动回复、召回都标一个状态。<b>正常</b>＝发出且完整；<b>不全</b>＝发了但缺东西，目前能确定的是召回带图没发全（电脑端上报了“图没发全”或“图留成草稿”，或任务记了缺图）；<b>缺失</b>＝该发没发：新好友通过了却没有首触回执，或客户消息没有自动回复；已转人工的会话单标<b>人工接管</b>，不算缺失。顶部三个数按动作条数计（一条回复、一次首触、一次召回各算一条），随上面选的日期和设备变化；点“不全”“缺失”只看这类客户，再点一次取消。“正常”是没有任何缺陷上报，不是逐张核对过图片。<b>程序没看到的新好友（库里没建会话）无从得知，不在此列</b>；召回到期没发只有设备级的待发数，没有逐客户记录，也不在这里。</li>
       <li><b>日期区间</b>：开始和结束日期都包含在内，最多一次看 31 天。柱图和数字表按天拆分，总览和机器卡显示整个区间合计。</li>
       <li><b>销售加友登记</b>：销售手动登记的好友申请，一台电脑同一个微信号只记一条，再登记一次不会重复计数；是否通过由系统按该电脑的好友记录自动回填，不用手填。按登记日期归日；通过率＝已通过 ÷ 登记数（待通过的也算在分母里）。它和上面自动统计的「添加新人」是两套数，互不混算。</li>
       <li><b>召回待发、正在发</b>：是此刻的数，不随上面选的日期区间变（虚线框标出）。</li>
@@ -328,7 +351,7 @@ const MANUAL_RUNNING = {
 const $ = (id) => document.getElementById(id);
 const esc = (s) => (s == null ? "" : String(s)).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 
-let state = { from: null, to: null, machine: "", type: "" }; // null → 今天
+let state = { from: null, to: null, machine: "", type: "", status: "" }; // null → 今天
 let payload = null;
 let showAllEvents = false;
 let timer = null;
@@ -553,6 +576,31 @@ function when(iso) {
     ? s.slice(11, 19)
     : s.slice(5, 10).replace("-", "/") + " " + s.slice(11, 19);
 }
+// ── 状态标签 ──
+const STATUS_META = {
+  ok: { icon: "✓", label: "正常" },
+  partial: { icon: "◐", label: "不全" },
+  missing: { icon: "✕", label: "缺失" },
+  handoff: { icon: "→", label: "人工接管" },
+};
+// 旧接口没有 status / statusGaps：返回 null，页面不显示状态条，也不报错
+function statusCounts(events, gaps, machine) {
+  const counts = { ok: 0, partial: 0, missing: 0, handoff: 0 };
+  let any = false;
+  for (const e of [...(events || []), ...(gaps || [])]) {
+    if (!e || !e.status || !STATUS_META[e.status.kind]) continue;
+    if (machine && e.machine !== machine) continue;
+    counts[e.status.kind]++; any = true;
+  }
+  return { counts, any };
+}
+function stgHtml(status, withWhy) {
+  if (!status || !STATUS_META[status.kind]) return "";
+  const m = STATUS_META[status.kind];
+  const why = status.reason || "";
+  return `<span class="stg ${status.kind}"${why ? ` title="${esc(why)}"` : ""}><i>${m.icon}</i>${m.label}</span>` +
+    (withWhy && why ? `<span class="stg-why">${esc(why)}</span>` : "");
+}
 function buildThreads(events) {
   const map = new Map();
   let seq = 0;
@@ -561,11 +609,13 @@ function buildThreads(events) {
     let t = map.get(key);
     if (!t) {
       t = { machine: e.machine, identity: e.identity, customer: e.customer, items: [], types: new Set(),
-            lat: [], replies: 0, manualReplies: 0, firstTouches: 0, recalls: 0, missed: 0, last: 0 };
+            lat: [], replies: 0, manualReplies: 0, firstTouches: 0, recalls: 0, missed: 0, last: 0,
+            stat: { partial: 0, missing: 0, handoff: 0 } };
       map.set(key, t);
     }
     t.types.add(e.type);
     t.last = Math.max(t.last, Date.parse(e.at));
+    if (e.status && t.stat[e.status.kind] != null) t.stat[e.status.kind]++;
     const times = e.customerTimes || []; // 旧版接口没有逐条时间，就挂在这次动作的时间上
     if (e.type === "reply" || e.type === "unanswered" || e.type === "manual_reply") {
       (e.customerMsgs || []).forEach((text, k) =>
@@ -574,20 +624,22 @@ function buildThreads(events) {
     if (e.type === "reply") {
       t.replies++;
       if (e.latencySec != null) t.lat.push(e.latencySec);
-      t.items.push({ kind: "a", at: e.at, text: e.reply, latencySec: e.latencySec, orphan: !e.customerMsgs.length, seq: seq++ });
+      t.items.push({ kind: "a", at: e.at, text: e.reply, latencySec: e.latencySec, orphan: !e.customerMsgs.length, status: e.status, seq: seq++ });
     } else if (e.type === "first_touch") {
       t.firstTouches++;
-      t.items.push({ kind: "ft", at: e.at, text: e.message, seq: seq++ });
+      t.items.push({ kind: "ft", at: e.at, text: e.message, status: e.status, seq: seq++ });
+    } else if (e.type === "first_touch_missing") {
+      t.items.push({ kind: "ftm", at: e.at, status: e.status, seq: seq++ });
     } else if (e.type === "unanswered") {
       if (!e.inProgress && !e.awaitingHuman) t.missed++;
-      t.items.push({ kind: "miss", at: e.at, inProgress: e.inProgress, awaitingHuman: !!e.awaitingHuman, seq: seq++ });
+      t.items.push({ kind: "miss", at: e.at, inProgress: e.inProgress, awaitingHuman: !!e.awaitingHuman, status: e.status, seq: seq++ });
     } else if (e.type === "manual_reply") {
       t.manualReplies++;
       t.items.push({ kind: "manual", at: e.at, seq: seq++ });
     } else {
       t.recalls++;
       t.items.push({ kind: "r", at: e.at, text: e.message, label: e.label, dueAt: e.dueAt,
-        images: e.images, imageUrls: e.imageUrls || [], seq: seq++ });
+        images: e.images, imageUrls: e.imageUrls || [], status: e.status, seq: seq++ });
     }
   }
   const out = [...map.values()];
@@ -604,16 +656,19 @@ function itemHtml(it) {
     const spd = it.latencySec != null
       ? `<span class="spd ${c}" title="从客户这一批最后一条到这条发出"><i>${ic}</i>${dur(it.latencySec)}后回复 · ${t}</span>`
       : `<span class="spd none" title="库里这条回复之前没记到客户消息">算不出用时</span>`;
-    return `<div class="cm r"><div class="bub a">${esc(it.text)}</div><div class="cap">${spd}<span class="who2">自动回复</span><span>${when(it.at)}</span></div></div>`;
+    return `<div class="cm r"><div class="bub a">${esc(it.text)}</div><div class="cap">${stgHtml(it.status)}${spd}<span class="who2">自动回复</span><span>${when(it.at)}</span></div></div>`;
   }
   if (it.kind === "ft") {
-    return `<div class="cm r"><div class="bub ft"><span class="rtag">首触 · 新好友招呼</span>${esc(it.text)}</div><div class="cap"><span class="who2">首触发出</span><span>${when(it.at)}</span></div></div>`;
+    return `<div class="cm r"><div class="bub ft"><span class="rtag">首触 · 新好友招呼</span>${esc(it.text)}</div><div class="cap">${stgHtml(it.status)}<span class="who2">首触发出</span><span>${when(it.at)}</span></div></div>`;
+  }
+  if (it.kind === "ftm") {
+    return `<div class="miss bad">${stgHtml(it.status)} 首触没发：${esc(it.status && it.status.reason || "没有首触回执")} · ${when(it.at)}</div>`;
   }
   if (it.kind === "miss") {
     if (it.inProgress) return `<div class="miss">… 客户刚发的，客户端还在处理</div>`;
-    if (it.awaitingHuman) return `<div class="miss">→ 已转人工，等销售接（AI 按规则不回；销售在微信里回了没有，系统看不到）</div>`;
+    if (it.awaitingHuman) return `<div class="miss info">${stgHtml(it.status)} 已转人工，等销售接（AI 按规则不回；销售在微信里回了没有，系统看不到）</div>`;
     const waited = payload.isToday ? `，已等 ${dur(Math.round((Date.now() - Date.parse(it.at)) / 1000))}` : "";
-    return `<div class="miss bad">✕ 上面这几条未回复${waited}</div>`;
+    return `<div class="miss bad">${stgHtml(it.status)} 上面这几条未回复${waited}</div>`;
   }
   if (it.kind === "manual") return `<div class="miss ok">✓ 销售已人工回复</div>`;
   const late = Math.round((Date.parse(it.at) - Date.parse(it.dueAt)) / 1000);
@@ -621,7 +676,7 @@ function itemHtml(it) {
     `<a href="${esc(url)}" target="_blank" rel="noopener"><img src="${esc(url)}" loading="lazy" alt="召回配图 ${i + 1}"></a>`).join("");
   return `<div class="cm r"><div class="bub rc"><span class="rtag">召回 · ${esc(it.label)}</span>${esc(it.text)}</div>
     ${images ? `<div class="recall-images">${images}</div>` : ""}
-    <div class="cap">${it.images ? `<span>附图 ${it.images} 张</span>` : ""}<span>应发 ${bjtMDHM(it.dueAt)}${late > 60 ? `，晚 ${dur(late)}` : ""}</span><span class="who2">召回发出</span><span>${when(it.at)}</span></div></div>`;
+    <div class="cap">${stgHtml(it.status)}${it.status && it.status.kind === "partial" && it.status.reason ? `<span class="stg-why">${esc(it.status.reason)}</span>` : ""}${it.images ? `<span>附图 ${it.images} 张</span>` : ""}<span>应发 ${bjtMDHM(it.dueAt)}${late > 60 ? `，晚 ${dur(late)}` : ""}</span><span class="who2">召回发出</span><span>${when(it.at)}</span></div></div>`;
 }
 function threadHtml(t) {
   const m = MC[t.machine];
@@ -634,6 +689,8 @@ function threadHtml(t) {
     med != null ? `<span>回复用时中位 <b>${dur(med)}</b></span>` : "",
     t.recalls ? `<span>召回 <b>${t.recalls}</b></span>` : "",
     t.missed ? `<span class="bad">未回复 <b>${t.missed}</b></span>` : "",
+    t.stat.partial ? `<span class="bad">不全 <b>${t.stat.partial}</b></span>` : "",
+    t.stat.missing ? `<span class="bad">缺失 <b>${t.stat.missing}</b></span>` : "",
   ].join("");
   return `<div class="thread" style="--mc:${m.color}">
     <div class="th"><div><div class="cn">${esc(t.customer)}</div>
@@ -641,12 +698,32 @@ function threadHtml(t) {
       <div class="last">最近一次<b>${when(new Date(t.last).toISOString())}</b></div></div>
     <div class="tb">${t.items.map(itemHtml).join("")}</div></div>`;
 }
+function renderStatusBar() {
+  const wrap = $("statusWrap");
+  const { counts, any } = statusCounts(payload.events, payload.statusGaps, state.machine);
+  // 旧接口没有状态字段：不显示这一行，筛选也不起作用
+  if (!any && !payload.statusSummary) { wrap.style.display = "none"; return; }
+  wrap.style.display = "";
+  const btn = (kind) => `<button type="button" class="sc ${kind}${state.status === kind ? " active" : ""}" data-s="${kind}" aria-pressed="${state.status === kind}">${STATUS_META[kind].icon} ${STATUS_META[kind].label} <b>${counts[kind]}</b></button>`;
+  $("statusBar").innerHTML = `<span class="sc ok">${STATUS_META.ok.icon} 正常 <b>${counts.ok}</b></span>` + btn("partial") + btn("missing") +
+    `<span class="sc handoff" title="会话已转人工，AI 按规则不回，不算缺失">${STATUS_META.handoff.icon} 人工接管 <b>${counts.handoff}</b></span>`;
+  const caveats = (payload.statusSummary && payload.statusSummary.caveats) || [];
+  $("statusNote").textContent = "按动作条数计，随上面的日期和设备变化；点“不全”“缺失”只看这类客户。程序没看到的新好友（库里没建会话）不在此列。" +
+    (caveats.length ? "　注意：" + caveats.join("；") + "。" : "");
+}
 function renderEvents() {
+  renderStatusBar();
+  const gaps = (payload.statusGaps || []).filter(g => MC[g.machine] && (!state.machine || g.machine === state.machine));
   const events = payload.events.filter(e => MC[e.machine] && (!state.machine || e.machine === state.machine));
-  const threads = buildThreads(events).filter(t => !state.type || t.types.has(state.type));
+  const threads = buildThreads([...events, ...gaps])
+    .filter(t => !state.type || t.types.has(state.type))
+    .filter(t => !state.status || t.items.some(it => it.status && it.status.kind === state.status));
   const n = threads.length;
   $("evTitle").innerHTML = `${esc(periodLabel())} 明细 <span class="hint">${n} 位客户，最近有动静的在上面；每张卡里按时间从上往下读${payload.eventsTruncated ? "（动作太多，只取最新 300 条）" : ""}</span>`;
-  if (!n) { $("events").innerHTML = `<div class="empty-state">这个时间范围里没有自动回复、首触、召回或客户消息。</div>`; return; }
+  if (!n) {
+    $("events").innerHTML = `<div class="empty-state">${state.status ? `这个范围里没有标“${STATUS_META[state.status].label}”的客户。` : "这个时间范围里没有自动回复、首触、召回或客户消息。"}</div>`;
+    return;
+  }
   const cap = 30;
   $("events").innerHTML = threads.slice(0, showAllEvents ? n : cap).map(threadHtml).join("") +
     (n > cap && !showAllEvents ? `<button class="more" id="moreEv">再看剩下 ${n - cap} 位客户</button>` : "");
@@ -820,6 +897,11 @@ $("applyRange").addEventListener("click", () => setRange($("fromInput").value, $
   if (e.key === "Enter") setRange($("fromInput").value, $("toInput").value);
 }));
 $("machineSel").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; state.machine = b.dataset.m; setActive("machineSel", b); showAllEvents = false; syncUrl(); renderAll(); renderFriendAdds(); });
+$("statusBar").addEventListener("click", e => {
+  const b = e.target.closest("button[data-s]"); if (!b) return;
+  state.status = state.status === b.dataset.s ? "" : b.dataset.s; // 再点一次取消
+  showAllEvents = false; renderEvents();
+});
 $("typeSel").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; state.type = b.dataset.t; setActive("typeSel", b); showAllEvents = false; renderEvents(); });
 $("charts").addEventListener("pointermove", e => { const c = e.target.closest(".col"); c ? showTip(c, e.clientX, e.clientY) : hideTip(); });
 $("charts").addEventListener("pointerleave", hideTip);

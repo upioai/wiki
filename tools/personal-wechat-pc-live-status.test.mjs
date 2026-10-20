@@ -55,3 +55,35 @@ test("卡片文案将当前运行确认与过期的客户端上报明确区分",
   assert.match(html, /不代表电脑关机或客户端停止运行/);
   assert.doesNotMatch(html.slice(start, html.indexOf("\/\/ ── 每日趋势", end)), /"离线"/);
 });
+
+// ── 明细状态标签（正常 / 不全 / 缺失 / 人工接管）──
+const statusStart = html.indexOf("const STATUS_META =");
+const statusEnd = html.indexOf("function buildThreads(", statusStart);
+const escLine = html.split("\n").find((line) => line.startsWith("const esc = "));
+assert.ok(statusStart >= 0 && statusEnd > statusStart && escLine, "状态标签逻辑仍可从页面提取");
+const { statusCounts, stgHtml } = runInNewContext(
+  `${escLine}\n${html.slice(statusStart, statusEnd)}; ({ statusCounts, stgHtml })`,
+);
+const ev = (machine, kind) => ({ machine, status: kind ? { kind, reason: "" } : undefined });
+
+test("状态计数：按设备筛选，没有状态字段的旧事件不计", () => {
+  const events = [ev("gaoyirui", "ok"), ev("gaoyirui", "partial"), ev("xiaoyu", "ok"), ev("xiaoyu", "handoff"), ev("xiaoyu", null)];
+  const gaps = [ev("xiaoyu", "missing")];
+  assert.deepEqual({ ...statusCounts(events, gaps, "").counts }, { ok: 2, partial: 1, missing: 1, handoff: 1 });
+  assert.deepEqual({ ...statusCounts(events, gaps, "xiaoyu").counts }, { ok: 1, partial: 0, missing: 1, handoff: 1 });
+});
+
+test("旧接口（事件没有 status、没有 statusGaps）不报错，any=false", () => {
+  const r = statusCounts([{ machine: "xiaoyu" }, { machine: "gaoyirui" }], undefined, "");
+  assert.equal(r.any, false);
+  assert.deepEqual({ ...r.counts }, { ok: 0, partial: 0, missing: 0, handoff: 0 });
+  assert.equal(stgHtml(undefined), "");
+});
+
+test("标签带图标 + 文字，原因转义，未知 kind 不渲染", () => {
+  const html1 = stgHtml({ kind: "partial", reason: "文字已发，图只发出 0/2 张<script>" }, true);
+  assert.match(html1, /class="stg partial"/);
+  assert.match(html1, /◐<\/i>不全/);
+  assert.ok(!html1.includes("<script>"));
+  assert.equal(stgHtml({ kind: "weird", reason: "x" }), "");
+});
