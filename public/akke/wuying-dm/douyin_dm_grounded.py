@@ -587,22 +587,6 @@ def locate(desc, region=None):
     return (x, y)
 
 
-def click_el(desc, wait=1.8, tries=3, retry_wait=1.5, region=None):
-    pt = None
-    for k in range(tries):
-        pt = locate(desc, region=region)
-        if pt:
-            break
-        if k < tries - 1:
-            print('  retry locate in %.1fs...' % retry_wait)
-            time.sleep(retry_wait)
-    if not pt:
-        raise RuntimeError('locate failed: ' + desc)
-    pyautogui.click(pt[0], pt[1])
-    time.sleep(wait)
-    return pt
-
-
 def click_norm(fx, fy, wait=1.8, label=''):
     """按固定归一化坐标(0~1000)点击,×当前屏幕宽高。用于 grounding 不稳的小按钮
     (私信/输入框/发送),坐标 2026-05-30 在 2286x1600 校准。"""
@@ -833,11 +817,14 @@ def ocr_verify(expected, expected_number=None):
         if expected_number:
             seen_no = str(d.get('actual_number', '')).strip().lstrip('抖音号').lstrip(':：').strip()
         if expected_number and on_prof and seen_no and _norm_no(seen_no) != _norm_no(expected_number):
-            # 按号搜时读到了号、且号对不上 = 不是本人，昵称再像也不放行（2026-09-23：此前只要昵称
-            # 对上就直接通过、号只在昵称没对上时兜底，同名的另一个人照样过门）。没读到号(空串)时
-            # 仍按昵称判，不因 VL 漏读误杀。
-            print('  [OCR] 抖音号不一致(看到 %s ≠ 搜的 %s) → 判非本人' % (seen_no, expected_number))
-            matched = False
+            if matched and conf >= 0.95 and _number_ocr_near(seen_no, expected_number):
+                # DY-001：昵称高置信一致、号只差在 VL 误读上 → 本人（边界见 douyin_number_match）
+                print('  [OCR] 抖音号近似(看到 %s ≈ 搜的 %s)且昵称一致 → 判定本人' % (seen_no, expected_number))
+            else:
+                # 号对不上 = 不是本人，昵称再像也不放行（2026-09-23：同名的另一个人曾照样过门）。
+                # 没读到号(空串)时仍按昵称判，不因 VL 漏读误杀。
+                print('  [OCR] 抖音号不一致(看到 %s ≠ 搜的 %s) → 判非本人' % (seen_no, expected_number))
+                matched = False
         elif expected_number and on_prof and not (matched and conf >= 0.95):
             # 昵称比对没过/置信不足 → 用抖音号精确核身兜底。归一化后再比：去所有空白 + casefold
             #（VL 偶尔混入空格/大小写漂移，exact 比对会把本人误杀成 wrong_user）。
@@ -853,9 +840,11 @@ def ocr_verify(expected, expected_number=None):
         return False, 0.0, 'ocr_error:%s:%s' % (type(e).__name__, e)
 
 
-def _norm_no(x):
-    """抖音号归一化：去所有空白字符 + casefold（号是 ASCII 唯一串，大小写/空格差异不该判错人）。"""
-    return ''.join(str(x or '').split()).casefold()
+try:  # 号比对(DY-001 OCR 容错)；旧 update.bat 清单还没拉到该文件时退回逐字比对、不容错
+    from douyin_number_match import norm_no as _norm_no, number_ocr_near as _number_ocr_near
+except ImportError:
+    _norm_no = lambda x: ''.join(str(x or '').split()).casefold()  # noqa: E731
+    _number_ocr_near = lambda seen, expected: False  # noqa: E731
 
 
 def _has_works_on_profile():
