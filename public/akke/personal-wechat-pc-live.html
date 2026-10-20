@@ -360,14 +360,19 @@ const NEWCOMER_ACCEPTED_BY_DATE = {
 };
 const NEWCOMER_LIFECYCLE_START = "2026-09-30";
 const MACHINES = [
-  { key: "xiaoyu", label: "销售 A", name: "张小鱼", color: "var(--m-xiaoyu)" },
-  { key: "gaoyirui", label: "销售 B", name: "高一瑞", color: "var(--m-gaoyirui)" },
-  { key: "gaopeng", label: "销售 C", name: "小艳", color: "var(--m-gaopeng)" },
-  { key: "xiaxia_apk", label: "定制小夏 · APK", name: "定制小夏 · APK", color: "var(--m-xiaxia-apk)" },
+  { key: "xiaoyu", label: "销售 A", color: "var(--m-xiaoyu)" },
+  { key: "gaoyirui", label: "销售 B", color: "var(--m-gaoyirui)" },
+  { key: "gaopeng", label: "销售 C", color: "var(--m-gaopeng)" },
+  { key: "xiaxia_apk", label: "定制小夏 · APK", color: "var(--m-xiaxia-apk)" },
 ];
 const MC = Object.fromEntries(MACHINES.map(m => [m.key, m]));
-// 销售加友登记里按账号名称称呼各台电脑（name）；顶部筛选与其他区块仍沿用 label
-const accName = (m) => m.name || m.label;
+// 销售加友登记里按账号名称称呼各台电脑：名字取自接口返回的设备卡标签（machines[].label，与下方设备卡一致），页面源码不写真名；接口还没回来时先用 销售 A/B/C。顶部筛选与其他区块仍沿用 label
+const accName = (m) => (payload && payload.machines.find(x => x.key === m.key)?.label) || m.label;
+function fillFaMachine() {
+  const sel = $("faMachine"), cur = sel.value;
+  sel.innerHTML = `<option value="">选择电脑</option>` + MACHINES.map(m => `<option value="${m.key}">${esc(accName(m))}</option>`).join("");
+  sel.value = cur;
+}
 // 10/15 16:43 北京时间人工核实三台 Windows 机器仍在运行。仅短时展示，不将这次核实永久当作实时信号。
 const MANUAL_RUNNING = {
   checkedAt: "2026-10-15T16:43:00+08:00",
@@ -771,7 +776,7 @@ function renderEvents() {
     (n > cap && !showAllEvents ? `<button class="more" id="moreEv">再看剩下 ${n - cap} 位客户</button>` : "");
   const btn = $("moreEv"); if (btn) btn.onclick = () => { showAllEvents = true; renderEvents(); };
 }
-function renderAll() { if (!payload) return; renderKpis(); renderMachines(); renderTrend(); renderEvents(); }
+function renderAll() { if (!payload) return; renderKpis(); renderMachines(); renderTrend(); renderEvents(); fillFaMachine(); renderFriendAdds(); }
 
 // ── 销售加友登记：独立接口，取数失败只影响这一节 ──
 const FA_API = "https://wecom-chat.vercel.app/api/public/weixin-friend-adds";
@@ -877,7 +882,7 @@ function initDaily() {
 }
 function initFriendAdds() {
   initDaily();
-  $("faMachine").innerHTML = `<option value="">选择电脑</option>` + MACHINES.map(m => `<option value="${m.key}">${esc(accName(m))}</option>`).join("");
+  fillFaMachine();
   $("faDate").value = bjtToday(); $("faDate").max = bjtToday();
   $("faForm").addEventListener("submit", async e => {
     e.preventDefault();
