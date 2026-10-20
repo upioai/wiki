@@ -85,7 +85,18 @@ def _trigger_draft(conversation_id: str) -> None:
 # 这是 VL 版"红点像素检测"的 DOM 等价(更准, 不用截图)。运营确认: 新回复才有红点 → 红点是权威闸。
 _EXTRACT = r"""
 el => {
-  const lines = (el.innerText || '').split('\n').map(s => s.trim()).filter(Boolean);
+  let lines = (el.innerText || '').split('\n').map(s => s.trim()).filter(Boolean);
+  // 行没渲染(私信浮层收起/display:none)时 innerText 退化成 textContent, 昵称+时间+预览
+  // 粘成一行 → 改按叶子节点取, 顺序同 innerText。
+  if (lines.length < 2) {
+    const leaf = [];
+    for (const n of el.querySelectorAll('*')) {
+      if (n.children.length) continue;
+      const t = (n.textContent || '').trim();
+      if (t) leaf.push(t);
+    }
+    if (leaf.length >= 2) lines = leaf;
+  }
   let badge = !!el.querySelector('[class*="badge" i],[class*="unread" i],[class*="dot" i],[data-e2e*="badge" i]');
   let badgeText = '';
   if (!badge) {
@@ -268,6 +279,11 @@ def capture_dom():
                 print(f"  [warn] #{i} 提取失败: {e}")
                 continue
             nick, preview, unread = _parse_item(d)
+            # 叶子兜底后仍只有一行 = 拆不出昵称/预览(整行进了 nick, match_name 子串照样命中,
+            # 预览空 → 兜底支线误报「最新一条不在系统里」)。无红点行直接跳过;
+            # 2026-10-20 20:25 深圳号浮层收起, 一轮误报 10 张, 最后一条全是我方 opener/系统提示。
+            if len(d.get("lines") or []) < 2 and not unread:
+                continue
             preview = _strip_ts(preview)
             if not nick or nick in seen:
                 continue
