@@ -141,6 +141,13 @@
   .fa-del { background:transparent; border:1px solid var(--border-strong); color:var(--text-muted); border-radius:7px; padding:4px 10px; font:inherit; font-size:12.5px; cursor:pointer; }
   .fa-del.armed { border-color:var(--critical); color:#fca5a5; }
   .fa-empty { color:var(--text-muted); font-size:13.5px; padding:14px 0; }
+  .fd-title { font-size:15px; font-weight:650; margin:22px 0 4px; }
+  .fd-title .hint { font-size:12.5px; font-weight:400; color:var(--text-muted); margin-left:6px; }
+  .fd-form input[type=number] { width:92px; max-width:100%; }
+  .fd-form input[type=text] { width:200px; max-width:100%; }
+  .fd-kpis .kpi .v { font-size:22px; }
+  .fd-kpis .kpi .s b { color:var(--text); font-weight:650; }
+  @media (max-width: 640px) { .fd-form label { flex:1 1 42%; } .fd-form input, .fd-form select { width:100% !important; box-sizing:border-box; } .fd-form button { flex:1 1 100%; } }
   details.tbl { margin-top:12px; font-size:13px; color:var(--text-dim); }
   details.tbl summary { cursor:pointer; color:var(--text-muted); }
   .tw { overflow-x:auto; }
@@ -301,6 +308,19 @@
     </form>
     <div class="kpis" id="faKpis"></div>
     <div class="tw"><div id="faTable"></div></div>
+
+    <div class="fd-title" id="fdTitle">每日汇总 <span class="hint">销售每天报四个数：搜索、发出申请、没搜到、通过。同一台电脑同一天再提交会覆盖当天的数。统计跟随上面选的日期区间和设备</span></div>
+    <form class="fa-form fd-form" id="fdForm" autocomplete="off">
+      <label>电脑<select id="fdMachine" required></select></label>
+      <label>日期<input type="date" id="fdDate" required></label>
+      <label>搜索<input type="number" id="fdSearched" min="0" step="1" inputmode="numeric" required></label>
+      <label>发出申请<input type="number" id="fdRequested" min="0" step="1" inputmode="numeric" required></label>
+      <label>没搜到<input type="number" id="fdNotFound" min="0" step="1" inputmode="numeric" required></label>
+      <label>通过<input type="number" id="fdAccepted" min="0" step="1" inputmode="numeric" required></label>
+      <button class="apply" type="submit" id="fdSubmit">保存当天汇总</button>
+      <span class="fa-msg" id="fdMsg"></span>
+    </form>
+    <div class="kpis fd-kpis" id="fdKpis"></div>
   </div>
 
   <div class="notes">
@@ -315,6 +335,7 @@
       <li><b>状态标签</b>：明细里每条首触、自动回复、召回都标一个状态。<b>正常</b>＝发出且完整；<b>不全</b>＝发了但缺东西，目前能确定的是召回带图没发全（电脑端上报了“图没发全”或“图留成草稿”，或任务记了缺图）；<b>缺失</b>＝该发没发：新好友通过了却没有首触回执，或客户消息没有自动回复；已转人工的会话单标<b>人工接管</b>，不算缺失。顶部三个数按动作条数计（一条回复、一次首触、一次召回各算一条），随上面选的日期和设备变化；点“不全”“缺失”只看这类客户，再点一次取消。“正常”是没有任何缺陷上报，不是逐张核对过图片。<b>程序没看到的新好友（库里没建会话）无从得知，不在此列</b>；召回到期没发只有设备级的待发数，没有逐客户记录，也不在这里。</li>
       <li><b>日期区间</b>：开始和结束日期都包含在内，最多一次看 31 天。柱图和数字表按天拆分，总览和机器卡显示整个区间合计。</li>
       <li><b>销售加友登记</b>：销售手动登记的好友申请，一台电脑同一个微信号只记一条，再登记一次不会重复计数；是否通过由系统按该电脑的好友记录自动回填，不用手填。按登记日期归日；通过率＝已通过 ÷ 登记数（待通过的也算在分母里）。它和上面自动统计的「添加新人」是两套数，互不混算。</li>
+      <li><b>每日汇总</b>：销售每天按电脑报的四个数（搜索、发出申请、没搜到、通过），一台电脑一天一行，再提交会覆盖。<b>申请率</b>＝发出申请 ÷ 搜索；<b>通过率</b>＝通过 ÷ 发出申请；分母是 0 时显示“—”。不显示客户名和手机号；它和上面逐条登记是两套数，互不混算。</li>
       <li><b>召回待发、正在发</b>：是此刻的数，不随上面选的日期区间变（虚线框标出）。</li>
       <li><b>设备状态</b>：Windows 客户端和 APK 隔一会儿向后台报心跳。10 分钟内收到心跳，只能确认上报正常；超过 10 分钟显示“心跳超时”，<b>不代表电脑关机或客户端停止运行</b>。此时“在干什么”只显示上次上报状态，需另查机器和上报链路。</li>
     </ul>
@@ -758,8 +779,31 @@ function faCounts(rows) {
   rows.forEach(r => { c.total++; c[r.status]++; });
   return c;
 }
+function faRate(a, b) { return b ? (Math.round(a / b * 1000) / 10).toFixed(1) + "%" : "—"; }
+function fdMsg(text, kind) { const el = $("fdMsg"); el.textContent = text || ""; el.className = "fa-msg" + (kind ? " " + kind : ""); }
+// 每日汇总：接口还没带 daily 字段（旧版）或读失败时只影响这一块
+function renderDaily() {
+  const box = $("fdKpis");
+  if (!faData) { box.innerHTML = ""; return; }
+  if (faData.daily === undefined) { box.innerHTML = `<div class="fa-empty">每日汇总接口升级中，稍后刷新即可看到。</div>`; return; }
+  if (!faData.daily) { box.innerHTML = `<div class="fa-empty">每日汇总暂时没读到，稍后会随页面一起重试。</div>`; return; }
+  const ms = MACHINES.filter(m => !state.machine || m.key === state.machine);
+  const keys = ms.map(m => m.key);
+  const rows = (faData.daily.rows || []).filter(r => keys.includes(r.machine_key));
+  const num = x => Math.max(0, Math.trunc(Number(x)) || 0); // 接口值一律强转成非负整数再拼进 HTML
+  const sum = list => list.reduce((a, r) => ({ s: a.s + num(r.searched), q: a.q + num(r.requested), n: a.n + num(r.not_found), a: a.a + num(r.accepted) }), { s: 0, q: 0, n: 0, a: 0 });
+  const cards = [["", "合计", "var(--accent)"], ...ms.map(m => [m.key, m.label, m.color])];
+  box.innerHTML = cards.map(([key, label, color]) => {
+    const t = sum(key ? rows.filter(r => r.machine_key === key) : rows);
+    const empty = !(key ? rows.filter(r => r.machine_key === key) : rows).length;
+    return `<div class="kpi"><div class="l">${key ? sw(color) : ""}${esc(label)} · 每日汇总</div>`
+      + `<div class="v">${empty ? "—" : esc(t.s)}<small>${empty ? "" : "搜索"}</small></div>`
+      + `<div class="s">${empty ? "所选区间还没有汇总" : `发出申请 ${esc(t.q)} · 没搜到 ${esc(t.n)} · 通过 ${esc(t.a)}<br>申请率 <b>${esc(faRate(t.q, t.s))}</b> · 通过率 <b>${esc(faRate(t.a, t.q))}</b>`}</div></div>`;
+  }).join("");
+}
 function renderFriendAdds() {
   if (!faData) return;
+  renderDaily();
   // 不用 selectedMachines()：它读主接口 payload，登记接口可能先回来
   const keys = MACHINES.filter(m => !state.machine || m.key === state.machine).map(m => m.key);
   const rows = faData.rows.filter(r => keys.includes(r.machine_key));
@@ -781,7 +825,31 @@ async function faPost(body) {
   if (!res.ok || !out || out.error) throw new Error((out && out.error) || ("HTTP " + res.status));
   return out;
 }
+function initDaily() {
+  $("fdMachine").innerHTML = `<option value="">选择电脑</option>` + MACHINES.map(m => `<option value="${m.key}">${esc(m.label)}</option>`).join("");
+  $("fdDate").value = bjtToday(); $("fdDate").max = bjtToday();
+  $("fdForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const machine_key = $("fdMachine").value;
+    if (!machine_key) return fdMsg("请选择电脑", "err");
+    const v = id => $(id).value.trim() === "" ? NaN : Number($(id).value);
+    const body = { action: "daily_upsert", machine_key, day: $("fdDate").value || bjtToday(), searched: v("fdSearched"), requested: v("fdRequested"), not_found: v("fdNotFound"), accepted: v("fdAccepted") };
+    const bad = [["搜索", body.searched], ["发出申请", body.requested], ["没搜到", body.not_found], ["通过", body.accepted]].find(([, n]) => !Number.isInteger(n) || n < 0);
+    if (bad) return fdMsg(bad[0] + "请填 0 以上的整数", "err");
+    if (body.requested > body.searched) return fdMsg("发出申请不能大于搜索", "err");
+    if (body.accepted > body.requested) return fdMsg("通过不能大于发出申请", "err");
+    $("fdSubmit").disabled = true; fdMsg("保存中…");
+    try {
+      await faPost(body);
+      fdMsg(`已保存 ${mdLabel(body.day)}（通过率 ${faRate(body.accepted, body.requested)}）`, "ok");
+      ["fdSearched", "fdRequested", "fdNotFound", "fdAccepted"].forEach(id => { $(id).value = ""; });
+      loadFriendAdds();
+    } catch (err) { fdMsg("没保存成功：" + err.message, "err"); }
+    finally { $("fdSubmit").disabled = false; }
+  });
+}
 function initFriendAdds() {
+  initDaily();
   $("faMachine").innerHTML = `<option value="">选择电脑</option>` + MACHINES.map(m => `<option value="${m.key}">${esc(m.label)}</option>`).join("");
   $("faDate").value = bjtToday(); $("faDate").max = bjtToday();
   $("faForm").addEventListener("submit", async e => {
