@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 
 const page = readFileSync('public/akke/personal-wechat-pc-bugs.html', 'utf8');
@@ -35,13 +36,23 @@ function checkStatus(source) {
   return errors;
 }
 
+// 台账数据脚本带 immutable 一年缓存，只靠 ?v= 换新；v 必须等于脚本内容哈希前 10 位，
+// 否则改了脚本没改 v，已缓存的浏览器拿着旧脚本，新条目就退化成「没有日期、没有分类、全展开」的老样子。
+const guideSource = readFileSync('public/akke/personal-wechat-pc-bug-guide.js');
+const guideVersion = 'h' + createHash('sha256').update(guideSource).digest('hex').slice(0, 10);
+function checkGuideVersion(html) {
+  const found = html.match(/personal-wechat-pc-bug-guide\.js\?v=([\w-]+)/)?.[1];
+  return found === guideVersion ? [] : [`personal-wechat-pc-bugs.html 的 guide.js 缓存版本是 ${found}，应改为 ?v=${guideVersion}（脚本内容变了必须同步）`];
+}
+
 if (process.argv.includes('--self-test')) {
+  assert(checkGuideVersion(page.replace(/(bug-guide\.js\?v=)[\w-]+/, '$1w116-20261020')).length === 1);
   assert(checkStatus({...data, items: {'W-999': {verification:'PASS'}}}).some(error => error.includes('页面里没有')));
   assert(checkStatus({...data, items: {'W-94': {...data.items['W-94'], verification:'PASS', status:'待验收'}}}).some(error => error.includes('不能同时写待验收')));
   console.log('Bug 检验状态规则自测通过');
 }
 
-const errors = checkStatus(data);
+const errors = [...checkStatus(data), ...checkGuideVersion(page)];
 if (errors.length) {
   console.error(errors.join('\n'));
   process.exitCode = 1;
