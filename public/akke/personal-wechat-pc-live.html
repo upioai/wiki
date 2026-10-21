@@ -168,6 +168,9 @@
   .th .meta2 .mw { display:inline-flex; align-items:center; gap:6px; color:var(--text-dim); }
   .th .meta2 b { color:var(--text-dim); font-weight:600; font-variant-numeric:tabular-nums; }
   .th .meta2 .bad b { color:#fca5a5; }
+  .th .meta2 .rr, .th .meta2 .rr b, .cap .rr { color:#8ee0ae; }
+  .th .meta2 .rn, .cap .rn { color:#fca5a5; }
+  .cap .rw { color:var(--text-muted); }
   .th .last { margin-left:auto; text-align:right; font-size:12px; color:var(--text-muted); white-space:nowrap; line-height:1.5; }
   .th .last b { display:block; font-size:14px; color:var(--text-dim); font-weight:600; font-variant-numeric:tabular-nums; }
   .tb { padding:16px 18px 18px; display:flex; flex-direction:column; gap:14px; }
@@ -478,6 +481,7 @@ function renderKpis() {
   const ms = selectedMachines();
   const sum = (f) => ms.reduce((a, m) => a + f(m), 0);
   const d = (k) => sum(m => Number(m.day[k] || 0));
+  const hasRecallReplied = ms.some(m => m.day && m.day.recallReplied != null);
   const b = (k) => sum(m => Number(m.backlog[k] || 0));
   const answered = d("answered"), manualReplies = d("manualReplies"), unanswered = d("unanswered"), inProgress = d("inProgress");
   const awaitingHuman = d("awaitingHuman"), unconfirmedFirstTouches = d("unconfirmedFirstTouches");
@@ -502,7 +506,7 @@ function renderKpis() {
   $("kpis").innerHTML = `
     <div class="kpi"><div class="l">自动回复发出</div><div class="v">${d("autoReplies")}<small>条</small></div><div class="s">客户发来 ${d("customerMsgs")} 条消息${replyTime ? ` · ${replyTime}` : ""}${anomReplies ? ` · 含 ${anomReplies} 条异常回复` : ""}</div></div>
     ${newcomerKpi}
-    <div class="kpi"><div class="l">召回发出</div><div class="v">${d("recallSent")}<small>条</small></div><div class="s">按实际成功发出时间算</div></div>
+    <div class="kpi"><div class="l">召回发出</div><div class="v">${d("recallSent")}<small>条</small></div><div class="s">按实际成功发出时间算${hasRecallReplied ? ` · 客户已回复 ${d("recallReplied")} 条（${pct(d("recallReplied"), d("recallSent"))}）` : ""}</div>${hasRecallReplied ? `<div class="s">回复 = 召回发出后 72 小时内、下一条召回之前客户说过话</div>` : ""}</div>
     <div class="kpi"><div class="l">客户消息回复情况</div><div class="v">${answered}<small>/ ${answered + unanswered} 批</small></div><div class="s">已回复 ${pct(answered, answered + unanswered)} · 自动 ${d("autoReplies")} 条 · 人工回复 ${manualReplies} 批${inProgress ? ` · 另有 ${inProgress} 批处理中` : ""}</div>${awaitingHuman ? `<div class="s">另有 ${awaitingHuman} 批已转人工、等销售接（不算 AI 漏回，不进回复率）</div>` : ""}${unconfirmedFirstTouches ? `<div class="s">⚠ ${unconfirmedFirstTouches} 条首触没收到电脑端送达回执，未计入首触</div>` : ""}</div>
     <div class="kpi now"><div class="l">召回待发（此刻）</div><div class="v">${b("due")}<small>条</small></div><div class="s">已到点还没发 · 另有 ${b("queued")} 条没到点${b("inFlight") ? ` · ${b("inFlight")} 条正在发` : ""}</div></div>
     <a class="kpi bug" href="/akke/personal-wechat-pc-bugs?date=${payloadTo()}${state.machine ? `&m=${state.machine}` : ""}">
@@ -563,7 +567,7 @@ function renderMachines() {
         <div><b>${m.day.autoReplies}</b><span>自动回复${m.day.latency?.n ? ` · 中位 ${dur(m.day.latency.p50)}` : ""}</span></div>
         ${addsTile}
         <div><b>${m.day.firstTouches || 0}</b><span>首触发出</span></div>
-        <div><b>${m.day.recallSent}</b><span>召回发出</span></div>
+        <div><b>${m.day.recallSent}</b><span>召回发出${m.day.recallReplied != null && m.day.recallSent ? ` · 已回复 ${m.day.recallReplied}` : ""}</span></div>
         <div><b>${m.backlog.due}</b><span>召回待发</span></div>
       </div>
       ${ids || `<div class="idn">没有在用的微信身份</div>`}
@@ -672,7 +676,7 @@ function buildThreads(events) {
     let t = map.get(key);
     if (!t) {
       t = { machine: e.machine, identity: e.identity, customer: e.customer, items: [], types: new Set(),
-            lat: [], replies: 0, manualReplies: 0, firstTouches: 0, recalls: 0, missed: 0, last: 0,
+            lat: [], replies: 0, manualReplies: 0, firstTouches: 0, recalls: 0, recallReplied: 0, recallKnown: 0, missed: 0, last: 0,
             stat: { partial: 0, missing: 0, handoff: 0 } };
       map.set(key, t);
     }
@@ -701,18 +705,34 @@ function buildThreads(events) {
       t.items.push({ kind: "manual", at: e.at, seq: seq++ });
     } else {
       t.recalls++;
+      // 旧接口没有 replies：不显示回复情况
+      const replies = Array.isArray(e.replies) ? e.replies : null;
+      if (replies) { t.recallKnown++; if (replies.length) t.recallReplied++; }
       t.items.push({ kind: "r", at: e.at, text: e.message, label: e.label, dueAt: e.dueAt,
-        images: e.images, imageUrls: e.imageUrls || [], status: e.status, seq: seq++ });
+        images: e.images, imageUrls: e.imageUrls || [], status: e.status, seq: seq++,
+        replies, replyWindowOpen: !!e.replyWindowOpen });
+      // 客户对这条召回的回复放进对话里；同一句已由回复批次带进来的，下面去重
+      (replies || []).forEach(r => t.items.push({ kind: "c", at: r.at, text: r.text, afterRecall: true, seq: seq++ }));
     }
   }
   const out = [...map.values()];
+  for (const t of out) {
+    const seen = new Map();
+    for (const it of t.items) {
+      if (it.kind !== "c") continue;
+      const k = it.at + "\u0001" + it.text;
+      const prev = seen.get(k);
+      if (prev) { prev.afterRecall = prev.afterRecall || it.afterRecall; it.dup = true; } else seen.set(k, it);
+    }
+    t.items = t.items.filter(it => !it.dup);
+  }
   for (const t of out) t.items.sort((a, b) => (Date.parse(a.at) - Date.parse(b.at)) || (a.seq - b.seq));
   return out.sort((a, b) => b.last - a.last);
 }
 function median(xs) { if (!xs.length) return null; const v = [...xs].sort((a, b) => a - b); return v[Math.ceil(v.length / 2) - 1]; }
 function itemHtml(it) {
   if (it.kind === "c") {
-    return `<div class="cm l"><div class="bub c">${esc(it.text)}</div><div class="cap"><span class="who2">客户</span><span>${when(it.at)}</span></div></div>`;
+    return `<div class="cm l"><div class="bub c">${esc(it.text)}</div><div class="cap"><span class="who2">${it.afterRecall ? "客户回复召回" : "客户"}</span><span>${when(it.at)}</span></div></div>`;
   }
   if (it.kind === "a") {
     const [c, ic, t] = latClass(it.latencySec);
@@ -735,11 +755,15 @@ function itemHtml(it) {
   }
   if (it.kind === "manual") return `<div class="miss ok">✓ 销售已人工回复</div>`;
   const late = Math.round((Date.parse(it.at) - Date.parse(it.dueAt)) / 1000);
+  const answer = !it.replies ? ""
+    : it.replies.length ? `<span class="rr">✓ 客户已回复 ${it.replies.length} 条</span>`
+    : it.replyWindowOpen ? `<span class="rw">暂未回复</span>`
+    : `<span class="rn">✕ 72 小时内未回复</span>`;
   const images = (it.imageUrls || []).map((url, i) =>
     `<a href="${esc(url)}" target="_blank" rel="noopener"><img src="${esc(url)}" loading="lazy" alt="召回配图 ${i + 1}"></a>`).join("");
   return `<div class="cm r"><div class="bub rc"><span class="rtag">召回 · ${esc(it.label)}</span>${esc(it.text)}</div>
     ${images ? `<div class="recall-images">${images}</div>` : ""}
-    <div class="cap">${stgHtml(it.status)}${it.status && it.status.kind === "partial" && it.status.reason ? `<span class="stg-why">${esc(it.status.reason)}</span>` : ""}${it.images ? `<span>附图 ${it.images} 张</span>` : ""}<span>应发 ${bjtMDHM(it.dueAt)}${late > 60 ? `，晚 ${dur(late)}` : ""}</span><span class="who2">召回发出</span><span>${when(it.at)}</span></div></div>`;
+    <div class="cap">${stgHtml(it.status)}${it.status && it.status.kind === "partial" && it.status.reason ? `<span class="stg-why">${esc(it.status.reason)}</span>` : ""}${answer}${it.images ? `<span>附图 ${it.images} 张</span>` : ""}<span>应发 ${bjtMDHM(it.dueAt)}${late > 60 ? `，晚 ${dur(late)}` : ""}</span><span class="who2">召回发出</span><span>${when(it.at)}</span></div></div>`;
 }
 function threadHtml(t) {
   const m = MC[t.machine];
@@ -751,6 +775,7 @@ function threadHtml(t) {
     t.firstTouches ? `<span>首触 <b>${t.firstTouches}</b></span>` : "",
     med != null ? `<span>回复用时中位 <b>${dur(med)}</b></span>` : "",
     t.recalls ? `<span>召回 <b>${t.recalls}</b></span>` : "",
+    t.recallKnown ? (t.recallReplied ? `<span class="rr">已回复 <b>${t.recallReplied}</b></span>` : `<span class="rn">未回复</span>`) : "",
     t.missed ? `<span class="bad">未回复 <b>${t.missed}</b></span>` : "",
     t.stat.partial ? `<span class="bad">不全 <b>${t.stat.partial}</b></span>` : "",
     t.stat.missing ? `<span class="bad">缺失 <b>${t.stat.missing}</b></span>` : "",
