@@ -170,7 +170,7 @@
   .th .meta2 .bad b { color:#fca5a5; }
   .th .meta2 .rr, .th .meta2 .rr b, .cap .rr { color:#8ee0ae; }
   .th .meta2 .rn, .cap .rn { color:#fca5a5; }
-  .cap .rw { color:var(--text-muted); }
+  .cap .rw, .th .meta2 .rw { color:var(--text-muted); }
   .th .last { margin-left:auto; text-align:right; font-size:12px; color:var(--text-muted); white-space:nowrap; line-height:1.5; }
   .th .last b { display:block; font-size:14px; color:var(--text-dim); font-weight:600; font-variant-numeric:tabular-nums; }
   .tb { padding:16px 18px 18px; display:flex; flex-direction:column; gap:14px; }
@@ -676,7 +676,7 @@ function buildThreads(events) {
     let t = map.get(key);
     if (!t) {
       t = { machine: e.machine, identity: e.identity, customer: e.customer, items: [], types: new Set(),
-            lat: [], replies: 0, manualReplies: 0, firstTouches: 0, recalls: 0, recallReplied: 0, recallKnown: 0, missed: 0, last: 0,
+            lat: [], replies: 0, manualReplies: 0, firstTouches: 0, recalls: 0, recallReplied: 0, recallKnown: 0, recallOpen: 0, missed: 0, last: 0,
             stat: { partial: 0, missing: 0, handoff: 0 } };
       map.set(key, t);
     }
@@ -707,7 +707,7 @@ function buildThreads(events) {
       t.recalls++;
       // 旧接口没有 replies：不显示回复情况
       const replies = Array.isArray(e.replies) ? e.replies : null;
-      if (replies) { t.recallKnown++; if (replies.length) t.recallReplied++; }
+      if (replies) { t.recallKnown++; if (replies.length) t.recallReplied++; else if (e.replyWindowOpen) t.recallOpen++; }
       t.items.push({ kind: "r", at: e.at, text: e.message, label: e.label, dueAt: e.dueAt,
         images: e.images, imageUrls: e.imageUrls || [], status: e.status, seq: seq++,
         replies, replyWindowOpen: !!e.replyWindowOpen });
@@ -775,7 +775,8 @@ function threadHtml(t) {
     t.firstTouches ? `<span>首触 <b>${t.firstTouches}</b></span>` : "",
     med != null ? `<span>回复用时中位 <b>${dur(med)}</b></span>` : "",
     t.recalls ? `<span>召回 <b>${t.recalls}</b></span>` : "",
-    t.recallKnown ? (t.recallReplied ? `<span class="rr">已回复 <b>${t.recallReplied}</b></span>` : `<span class="rn">未回复</span>`) : "",
+    t.recallKnown ? (t.recallReplied ? `<span class="rr">客户回了召回 <b>${t.recallReplied}</b></span>`
+      : t.recallOpen ? `<span class="rw">召回暂未回</span>` : `<span class="rn">召回没回</span>`) : "",
     t.missed ? `<span class="bad">未回复 <b>${t.missed}</b></span>` : "",
     t.stat.partial ? `<span class="bad">不全 <b>${t.stat.partial}</b></span>` : "",
     t.stat.missing ? `<span class="bad">缺失 <b>${t.stat.missing}</b></span>` : "",
