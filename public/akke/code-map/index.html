@@ -6,25 +6,12 @@
     <link rel="icon" type="image/svg+xml" href="/akke/code-map/favicon.svg" />
     <title>wecom-chat 代码地图</title>
     <meta name="robots" content="noindex, nofollow" />
-    <script>try{sessionStorage.setItem("understand-anything-token","wiki")}catch(e){}</script>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="modulepreload" crossorigin href="/akke/code-map/assets/react-vendor-BVoutfaX.js">
-    <link rel="modulepreload" crossorigin href="/akke/code-map/assets/xyflow-CYMCcsWN.js">
-    <link rel="modulepreload" crossorigin href="/akke/code-map/assets/graph-layout-7tFr_anw.js">
-    <link rel="modulepreload" crossorigin href="/akke/code-map/assets/elk-CXeXGyKz.js">
-    <link rel="modulepreload" crossorigin href="/akke/code-map/assets/graphology-BgTy_cc3.js">
-    <link rel="stylesheet" crossorigin href="/akke/code-map/assets/xyflow-BZV40eAE.css">
-    <link rel="stylesheet" crossorigin href="/akke/code-map/assets/index-Zr3-Y2hg.css">
     <style>
       #gate{--g-bg:#ECEFEE;--g-surface:#fff;--g-ink:#16201E;--g-ink-2:#47524F;--g-line:rgba(22,32,30,.18);--g-accent:#0E6656;--g-err:#B53A2A;
         position:fixed;inset:0;display:grid;place-items:center;padding:16px;background:var(--g-bg);color:var(--g-ink);
         font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;z-index:9999}
       @media (prefers-color-scheme:dark){#gate{--g-bg:#111816;--g-surface:#18211F;--g-ink:#E4ECE9;--g-ink-2:#A9B7B3;--g-line:rgba(228,236,233,.2);--g-accent:#4CC2A6;--g-err:#EE7C69}}
+      body{margin:0}
       #gate form{background:var(--g-surface);border:1px solid var(--g-line);border-radius:12px;padding:28px 24px;width:min(100%,380px);display:grid;gap:12px}
       #gate h1{font-size:20px;margin:0}#gate p{margin:0;color:var(--g-ink-2);font-size:14px;line-height:1.6}
       #gate input{font:inherit;padding:10px 12px;border:1px solid var(--g-line);border-radius:8px;background:transparent;color:var(--g-ink)}
@@ -42,16 +29,14 @@
         <div id="gate-e" role="alert"></div>
       </form>
     </div>
-    <div id="root"></div>
     <script>
-      // 图谱数据只以密文发布（tools/code-map-encrypt.mjs 生成 *.enc + keyinfo.json）。
-      // 输对密码后接管 viewer 对这几个 JSON 的请求，在浏览器里解密后交回，再加载 viewer。
+      // 图谱只以密文发布（tools/code-map-encrypt.mjs 生成 graph.html.enc、meta.json.enc + keyinfo.json）。
+      // graph.html 是 graphify 导出的单文件页面（数据内联），输对密码后解密，整页换成它。
       (function () {
         var BASE = "/akke/code-map/", SK = "__codemap_pw__";
         var u = function (s) { return Uint8Array.from(atob(s), function (c) { return c.charCodeAt(0); }); };
-        var fetch0 = window.fetch.bind(window);
         var getJson = function (name) {
-          return fetch0(BASE + name, { cache: "no-store" }).then(function (r) {
+          return fetch(BASE + name, { cache: "no-store" }).then(function (r) {
             if (!r.ok) throw new Error(name + " HTTP " + r.status);
             return r.json();
           });
@@ -61,40 +46,21 @@
           var k0 = await crypto.subtle.importKey("raw", new TextEncoder().encode(pw), "PBKDF2", false, ["deriveKey"]);
           var key = await crypto.subtle.deriveKey({ name: "PBKDF2", salt: u(info.s), iterations: info.n, hash: "SHA-256" },
             k0, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
-          var cache = {};
           var open = function (name) {
-            if (!cache[name]) cache[name] = getJson(name + ".enc").then(function (d) {
+            return getJson(name + ".enc").then(function (d) {
               return crypto.subtle.decrypt({ name: "AES-GCM", iv: u(d.i) }, key, u(d.c));
             }).then(function (b) { return new TextDecoder().decode(b); });
-            return cache[name];
           };
-          await open("meta.json"); // 密码不对在这里就抛错
-          return { files: info.files, open: open };
-        }
-        function start(box) {
-          window.fetch = function (input, init) {
-            var url = new URL(typeof input === "string" || input instanceof URL ? String(input) : input.url, location.href);
-            var name = url.pathname.split("/").pop();
-            if (url.origin === location.origin && /\.json$/.test(name) && name !== "keyinfo.json") {
-              if (box.files.indexOf(name) < 0) return Promise.resolve(new Response("not found", { status: 404 }));
-              return box.open(name).then(function (t) {
-                return new Response(t, { status: 200, headers: { "content-type": "application/json" } });
-              });
-            }
-            return fetch0(input, init);
-          };
-          document.getElementById("gate").remove();
-          var s = document.createElement("script");
-          s.type = "module"; s.crossOrigin = ""; s.src = BASE + "assets/index-4Z7VoV4-.js";
-          document.head.appendChild(s);
+          await open("meta.json"); // 密码不对在这里就抛错，不用先下载整张图
+          return open("graph.html");
         }
         async function go(pw, remember) {
           var b = document.getElementById("gate-b"), e = document.getElementById("gate-e");
-          b.disabled = true; e.textContent = "";
+          b.disabled = true; e.textContent = "解密中…";
           try {
-            var box = await unlock(pw);
+            var html = await unlock(pw);
             try { if (remember) sessionStorage.setItem(SK, pw); } catch (x) {}
-            start(box);
+            document.open(); document.write(html); document.close();
           } catch (x) {
             try { sessionStorage.removeItem(SK); } catch (y) {}
             e.textContent = x && x.name === "OperationError" ? "密码不对，再试一次。" : "打不开：" + (x && x.message || x);
