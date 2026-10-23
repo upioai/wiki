@@ -568,7 +568,7 @@ cd akke-skills &amp;&amp; ./install.sh</code></pre>
 <thead><tr><th>要什么</th><th>干什么用</th></tr></thead>
 <tbody>
 <tr><td><code>python3</code></td><td>判定、建页、发布</td></tr>
-<tr><td><code>node</code> + <code>npm i playwright-core</code></td><td>驱动浏览器抓取</td></tr>
+<tr><td><code>node</code>，然后 <code>cd case-refs &amp;&amp; npm i</code></td><td>驱动浏览器抓取（playwright-core 装在 <code>case-refs/</code> 下，三个平台的脚本都从这里找）</td></tr>
 <tr><td><code>ffmpeg</code></td><td>合成封面海报、视频抽帧</td></tr>
 <tr><td><code>gh</code> CLI（已登录）</td><td>发布到站点</td></tr>
 <tr><td>Google Chrome</td><td>抖音和小红书必须真实浏览器，普通 HTTP 抓不到</td></tr>
@@ -629,6 +629,7 @@ cd akke-skills &amp;&amp; ./install.sh</code></pre>
 <p><strong>一、自动化永远不发布线上。</strong> 工人的产出堆在候选池，入库和发布都要人过一遍。这条是吃过亏定的：上一次整夜自动入库，把三个不该收的号直接挂到了线上，事后用校准过的规则重算才发现，那时页面已经对外挂了一段时间。</p>
 <p><strong>二、改完规则必须做两件事。</strong> 跑回归（<code>scrape/regress.py</code>，准确率掉了就是改坏了），然后<strong>重算全库</strong>（<code>scrape/recompute.py</code>）。第二件最容易漏——只改规则不重算，线上页面展示的还是旧结论，等于页面在撒谎。上一轮改完规则，24 个号里 22 个的命中率变了，最多的从 99% 掉到 0%。</p>
 <p><strong>三、账号级的判断必须人看。</strong> 有三条规则抓不到的检查：这个号是不是用户自己的号、是不是这个品类的商家本身、内容是不是自家交付。工具每次都会把清单打出来提醒你。</p>
+<p><strong>四、没有哪一步可以手工拼；线上有、仓库没有 ＝ 没入库。</strong> 每一步都有脚本（命令表在 <code>case-refs/scrape/README.md</code>），抓不全就重抓，不要截图凑数、不要手写页面推上线。出过一次：一个号只拿到 20/164 条作品，手挑 3 条、手拼页面直接推上线，列表页格式被弄乱，源一个字节都没进仓库——下一个人一重建列表页，这个号就消失了。现在发布脚本会检查：<code>data / rules / posters / raw</code> 没提交推送，它拒绝发布；扫描不足账号声明作品数的 90%，入库脚本拒绝入库。</p>
 
 <h2>遇到问题</h2>
 <div class="tscroll"><table>
@@ -637,6 +638,8 @@ cd akke-skills &amp;&amp; ./install.sh</code></pre>
 <tr><td>抓抖音返回空的</td><td>用了普通 HTTP。必须真实浏览器 + CDP</td></tr>
 <tr><td>小红书字段都在、id 是空的</td><td>没登录。在那个浏览器里扫码登录即可</td></tr>
 <tr><td>只拿到首屏几十条作品</td><td>滚错容器了。抖音用户页真正滚的是 <code>div.route-scroll-container</code>，不是 window</td></tr>
+<tr><td>拿到的作品数比账号页声明的少</td><td>没滚完或加载被打断，不是账号只有这么多。重跑 <code>scrape-account.js</code>，对上为止</td></tr>
+<tr><td><code>publish.py</code> 拒绝发布</td><td>源没提交或没推送。先 <code>git add data rules posters raw && git commit && git push</code></td></tr>
 <tr><td>规则改了页面没变</td><td>没跑 <code>recompute.py</code></td></tr>
 <tr><td>判定结果和文档说的不一致</td><td>以 <code>scrape/digest.py</code> 的输出为准，文档可能比规则旧</td></tr>
 </tbody></table></div>
