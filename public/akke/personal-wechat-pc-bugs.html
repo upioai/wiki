@@ -1821,6 +1821,20 @@
         <dt>怎么验收</dt><dd>电脑 B 装上 1.25.47 后，库里出现 <code>overdue-search:</code> 标记的任务并且状态变成已发；37 条积压逐日减少到 0；运营在微信里能看到这些客户收到召回。</dd>
       </dl>
     </div>
+    <div class="bug" id="W-130" style="--bc:#d03b3b">
+      <div class="bh"><code class="bid">W-130</code><b>安卓手机的微信消息监听被系统断开，程序重连了 4 天都没连上，这 4 天客户消息一条没回、召回全停，提醒卡只在断开那一刻推过一张</b><span class="bst wait">修复 PR 已开 · 未合并 · 未出包 · 未验收</span></div>
+      <dl>
+        <dt>现场</dt><dd>定制小夏（安卓手机，小米 HyperOS）。据心跳和事件记录（10-25 直接查库）：10-21 14:52 起「微信消息监听」断开；手机一直授着「通知访问」，程序也一直在跑，每分钟发一次重连请求。到 10-25 17:36 共记了 1776 次「监听已断开」，系统一次都没重新接上。10-25 17:40 覆盖安装 0.26.6 时进程整个重启，17:44 监听才恢复。</dd>
+        <dt>影响</dt><dd>这 4 天手机收得到微信消息，却不知道来了消息，所以一条都没回，到期召回也全部停住。服务端只在 10-21 14:52 断开那一刻推过一张「监听断开」卡（推送记录显示已送达），之后 4 天故障一直没恢复，也没再提醒过，到 10-25 才有人发现。</dd>
+        <dt>根因</dt><dd>一句话：程序只会请求系统重连，系统不理就一直干等。<br>细节：<code>GuardService.beat()</code> 发现监听没连上时，只调 <code>NotificationListenerService.requestRebind</code>。这个调用只是请求，国产系统不保证会执行，之后也没有更强的办法。服务端那边，同一种故障只在开始时报一次；故障一直不恢复，也不会再提醒。</dd>
+        <dt>怎么修</dt><dd>① 自愈：<a href="https://github.com/Akke-AI/wecom-chat/pull/2407">wecom-chat #2407</a>（APK 0.26.7）。监听连续 5 分钟没连上，之后每 15 分钟一次，把监听组件关掉再打开，逼系统把本程序的监听整个重新接上；不需要新权限，也不动通知访问授权。每次这样做都上报 <code>android.listener.rebind_forced</code>。② 提醒：<a href="https://github.com/Akke-AI/wecom-chat/pull/2406">wecom-chat #2406</a>（10-25 已合并上线）。手机设备级故障超过 60 分钟没恢复，每半天 @ 一次负责人。</dd>
+        <dt>验证</dt><dd>#2407：安卓单测 1271 个，0 失败；其中新增 6 个，覆盖重连节律、连断 4 天期间一直在重试、只在没连上时动作、失败也会把组件开回来。<b>没有真机证据</b>：组件关了再开能不能让这台小米重新接上，要等下次断开时才看得到。#2406 的新提醒卡在生产上还没真正触发过。</dd>
+        <dt>同一天另外两次停顿（不另编号）</dt><dd>① 17:49 无障碍掉线，17:50 进程被重启：没有崩溃记录（0.26.6 起崩溃会上报，这次一条都没有），判断是系统或有人在手机上结束了程序，不是程序自己崩的（推断）。记录显示重启后程序自己修复过一次无障碍。② 18:02 发送结果不确定，程序自己停了：点发送的手势没收到系统回调，程序不确定那句发没发出去，为了不重复发就整机停下。这是按设计做的，18:16 核对后远程恢复，18:20 起正常。</dd>
+        <dt>还没解决</dt><dd>① #2407 未合并、未出包、未装机。② 关了再开在 HyperOS 上管不管用，还没有真机证据。③ 监听为什么在 10-21 14:52 断开，没有手机本机日志，查不到原因。</dd>
+        <dt>相关</dt><dd><a href="#W-110">W-110</a>（同一台手机）。</dd>
+        <dt>怎么验收</dt><dd>0.26.7 装到小夏手机后，下次监听断开时，事件表里先出现 <code>android.listener.rebind_forced</code>，随后 20 分钟内出现 <code>android.recall.listener_disconnected.recovered</code>，而且这期间不用重装、不用人去动手机。</dd>
+      </dl>
+    </div>
   </div>
 
   <hr style="border:0;border-top:1px solid var(--border);margin:44px 0 0">
@@ -1851,7 +1865,7 @@
 </div>
 <div id="tip" role="tooltip"></div>
 
-<script src="/akke/personal-wechat-pc-bug-guide.js?v=hc2a68f62c4"></script>
+<script src="/akke/personal-wechat-pc-bug-guide.js?v=h267c7770a9"></script>
 <script>
 const API_BASE = "https://wecom-chat.vercel.app/api/public/weixin-pc-live";
 const MACHINES = [
