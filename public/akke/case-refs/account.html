@@ -283,7 +283,18 @@
         .catch(function () { document.getElementById('rlCount').textContent = '标注库暂时连不上，重标注会提交失败'; bar.classList.add('on'); });
     })
     .catch(function (e) {
-      CR.fail(app, /404/.test(e.message) ? '没有找到账号「' + slug + '」。它可能已经从样板库摘出，或者地址拼错了。' : '数据文件读取失败（' + e.message + '）。刷新一次试试。');
+      if (/404/.test(e.message)) {
+        // 旧发布流程把完整账号页直接写成 <slug>.html；兼容这类页面，避免新版详情路由误报不存在。
+        var legacy = BASE + encodeURIComponent(slug) + '.html';
+        fetch(legacy, { method: 'HEAD', cache: 'no-cache' }).then(function (r) {
+          if (r.ok) { window.location.replace(legacy); return; }
+          CR.fail(app, '没有找到账号「' + slug + '」。它可能已经从样板库摘出，或者地址拼错了。');
+        }).catch(function () {
+          CR.fail(app, '没有找到账号「' + slug + '」。它可能已经从样板库摘出，或者地址拼错了。');
+        });
+        return;
+      }
+      CR.fail(app, '数据文件读取失败（' + e.message + '）。刷新一次试试。');
     });
 })();
 </script>
