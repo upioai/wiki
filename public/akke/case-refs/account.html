@@ -8,6 +8,12 @@
 <style>
 .rl-msg{font-size:12px;color:var(--bad);min-height:1.2em;margin-top:10px;}
 .vcard.relabeled .vrelabel{white-space:normal;text-align:left;}
+.it-sum{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;}
+.it-ex{display:flex;flex-direction:column;gap:6px;}
+.it-ex span{font-size:13px;line-height:1.5;}
+.it-ex i{font-style:normal;font-size:11px;padding:1px 6px;border-radius:4px;margin-right:6px;background:var(--accent-soft);color:var(--accent);white-space:nowrap;}
+.vtab td.it-n{font-family:'IBM Plex Mono',monospace;font-weight:600;white-space:nowrap;}
+.vcard .itb{background:var(--accent-soft);color:var(--accent);}
 </style>
 </head><body>
 <!-- 固定模板：所有账号共用这一页，?s=<slug> 决定显示哪个号，数据来自 db/<slug>.json。
@@ -62,6 +68,7 @@
       return '<span class="' + b.k + '">' + esc(b.t) + '</span>';
     }).join('');
     var tags = v.tags.length ? '<div class="vtags">' + esc(v.tags.join(' ')) + '</div>' : '';
+    if (v.intent) badges = '<span class="itb" title="评论里判出的购买意向条数">意向 ' + v.intent + '</span>' + badges;
     var td = v.td ? '<a class="vgo" style="display:block;margin:8px 0 2px;padding:6px 10px;border-radius:6px;background:var(--accent-soft);text-align:center" href="' + B + esc(v.td) + '">查看拆解报告 &rarr;</a>' : '';
     return '<div class="vcard" data-id="' + esc(v.id) + '" data-tk="' + esc(v.type) + '" data-tn="' + esc(v.type_name) + '" data-src="' + esc(v.type_src) + '" data-title="' + esc(v.full) + '">'
       + '<a class="vlink" href="' + esc(v.href) + '" target="_blank" rel="noopener" title="判定 ' + v.score + ' 分 · ' + esc(v.why) + '">'
@@ -81,6 +88,29 @@
       + '<div class="tscroll"><table class="vtab"><thead><tr><th>信号</th><th>分</th><th>说明</th></tr></thead><tbody>'
       + r.rows.map(function (x) { return '<tr><td>' + esc(x[0]) + '</td><td class="n">' + esc(x[1]) + '</td><td>' + esc(x[2]) + '</td></tr>'; }).join('')
       + '</tbody></table></div>';
+  }
+
+  // 评论里的购买意向：每条视频取前 200 条评论（平台热度顺序），AI 逐条判。数据见 scrape/intent.py
+  function intent(it) {
+    if (!it) return '';
+    var hit = it.per.filter(function (x) { return x.n > 0; }), zero = it.per.length - hit.length;
+    var scope = '本页 ' + it.shown + ' 条视频里，' + (it.videos < it.shown - it.unavailable ? '已判 ' + it.videos + ' 条（其余还在抓取）' : it.videos + ' 条都判过')
+      + '，每条取平台按热度排的前 ' + it.max_per_video + ' 条评论，共 ' + it.comments + ' 条，由 AI 逐条判断是不是在表达购买意向。作者本人的回复不算。'
+      + (it.unavailable ? it.unavailable + ' 条' + '评论不公开，拿不到。' : '')
+      + (it.judged_at ? '判于 ' + esc(it.judged_at.slice(0, 10)) + '。' : '');
+    var sum = '<div class="it-sum">' + filterTags([['购买意向', it.total + ' 条', ' style="background:var(--accent-soft);color:var(--accent)"']].concat(it.kinds.map(function (k) { return [k[0], k[1] + ' 条']; }))) + '</div>';
+    var rows = hit.map(function (x) {
+      var ex = x.ex.map(function (e) { return '<span><i>' + esc(e.k) + '</i>' + esc(e.t) + '</span>'; }).join('');
+      return '<tr><td><a href="' + esc(x.href) + '" target="_blank" rel="noopener">' + esc(x.title || '（无文案）') + '</a></td>'
+        + '<td class="it-n">' + x.n + ' / ' + x.comments + '</td><td><div class="it-ex">' + ex + '</div></td></tr>';
+    }).join('');
+    var table = hit.length
+      ? '<div class="tscroll" style="margin-top:20px"><table class="vtab"><thead><tr><th>视频</th><th>意向 / 评论</th><th>评论原话（点赞最多的几条）</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+        + (zero ? '<p class="visual-cap" style="margin-top:10px">其余 ' + zero + ' 条视频的评论里没有判出购买意向。</p>' : '')
+      : '<p class="lede" style="margin-top:16px">判过的评论里一条购买意向都没有——评论区在聊内容本身，没人问价、问怎么买。</p>';
+    return '<div class="shead reveal in" style="margin-top:56px"><span class="eyebrow">评论里的购买意向</span>'
+      + '<h2>' + (it.total ? it.total + ' 条评论在问价、问怎么买、想要同款' : '评论里没有判出购买意向') + '</h2>'
+      + '<p class="lede">' + scope + '</p>' + sum + '</div>' + table;
   }
 
   function teardown(t) {
@@ -137,7 +167,7 @@
       + '<p class="visual-cap">判断规则与原始数据都在仓库里（case-refs/），可复跑、可修正。</p>'
       + '<div class="visual-stats mono"><span class="vstat' + (n ? ' on' : '') + '">案例占比 <b>' + Math.round(d.hit_rate) + '%</b></span><span class="vstat">行业 <b>' + esc(d.cat) + '</b></span></div>'
       + '</div></div></div>'
-      + teardown(d.teardown) + grid + ruleBox(d.rule)
+      + intent(d.intent) + teardown(d.teardown) + grid + ruleBox(d.rule)
       + '<div class="shead reveal in" style="margin-top:56px"><span class="eyebrow">对我们意味着什么</span><h2>' + esc(d.takeaway) + '</h2></div>'
       + '<p class="link-copy reveal in">这一页的结论会进<a href="https://upio.ai/akke/website#case">成功案例获客</a>的选题与表达方式参考库，用来指导我们给客户做的案例怎么包装，不会把这个号的案例装到任何客户身上。</p>'
       + '<div class="refnote">' + rej + '</div></div></section>';
