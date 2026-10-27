@@ -1,0 +1,578 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>案例11 产线 8 步拆解</title>
+<style>
+:root{
+  --bg:#f6f5f1; --card:#fff; --ink:#1d1d1f; --ink2:#55565b; --ink3:#8a8b90; --line:#e4e2dc;
+  --prog:#2f6bd8; --prog-bg:#e9f0fd; --ai:#d9482b; --ai-bg:#fdeee9; --hu:#1f9d55; --hu-bg:#e6f6ec;
+  --warn:#b7791f; --warn-bg:#fdf3e1; --gray-bg:#efeee9; --hl:#fff1a8; --r:14px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#141416; --card:#1e1f22; --ink:#ececee; --ink2:#b4b5ba; --ink3:#86878d; --line:#33343a;
+  --prog:#7fa8f5; --prog-bg:#1f2a40; --ai:#f08a70; --ai-bg:#3a2420; --hu:#5fd394; --hu-bg:#1b3527;
+  --warn:#e5b45a; --warn-bg:#3a2f1a; --gray-bg:#2a2b30; --hl:#5a4f14;}}
+:root[data-theme="dark"]{
+  --bg:#141416; --card:#1e1f22; --ink:#ececee; --ink2:#b4b5ba; --ink3:#86878d; --line:#33343a;
+  --prog:#7fa8f5; --prog-bg:#1f2a40; --ai:#f08a70; --ai-bg:#3a2420; --hu:#5fd394; --hu-bg:#1b3527;
+  --warn:#e5b45a; --warn-bg:#3a2f1a; --gray-bg:#2a2b30; --hl:#5a4f14;}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 -apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif}
+img,video{max-width:100%;display:block;border-radius:8px;background:var(--gray-bg)}
+.wrap{max-width:1080px;margin:0 auto;padding:0 16px 60px}
+header{padding:26px 0 6px}
+h1{font-size:25px;line-height:1.3;margin:0 0 6px}
+.lead{color:var(--ink2);margin:0}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+.kpi b{display:block;font-size:24px;line-height:1.2}
+.kpi span{color:var(--ink3);font-size:13px}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:13px;color:var(--ink2);margin:6px 0 0}
+.dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+.d-prog{background:var(--prog)} .d-ai{background:var(--ai)} .d-hu{background:var(--hu)}
+nav{position:sticky;top:0;z-index:9;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);margin:14px -16px 0;padding:8px 16px;display:flex;gap:6px;overflow-x:auto}
+nav a{flex:0 0 auto;text-decoration:none;color:var(--ink2);font-size:13px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:var(--card);white-space:nowrap}
+section{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px;margin:20px 0;scroll-margin-top:56px}
+h2{font-size:20px;margin:0 0 4px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+h2 .no{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--ink);color:var(--bg);font-size:15px;flex:0 0 auto}
+h3{font-size:15px;margin:18px 0 8px;color:var(--ink2)}
+.sub{color:var(--ink2);margin:0 0 12px}
+.muted{color:var(--ink3);font-size:13px}
+.st{font-size:12px;padding:3px 8px;border-radius:999px;font-weight:600}
+.st.ok{background:var(--hu-bg);color:var(--hu)} .st.part{background:var(--warn-bg);color:var(--warn)}
+/* 总览 8 格 */
+.ov{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.ov a{display:block;text-decoration:none;color:inherit;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--card)}
+.ov img{border-radius:0;aspect-ratio:4/3;object-fit:cover;width:100%}
+.ov .t{padding:8px 10px}
+.ov .t b{display:block;font-size:14px}
+.ov .bar{display:flex;height:6px}
+.ov .bar i{display:block}
+/* 输入→处理→产出 三栏 */
+.ipo{display:grid;grid-template-columns:1fr 34px 1.1fr 34px 1fr;align-items:stretch;gap:0;margin:6px 0 4px}
+.ipo .col{border:1px solid var(--line);border-radius:var(--r);padding:10px;background:var(--bg)}
+.ipo .col > b{display:block;font-size:12px;color:var(--ink3);margin-bottom:6px;letter-spacing:.05em}
+.ipo .ar{display:grid;place-items:center;color:var(--ink3);font-size:20px}
+.thumbs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.thumbs img{aspect-ratio:1;object-fit:cover;width:100%;border-radius:6px}
+.chip{display:flex;gap:6px;align-items:flex-start;font-size:13px;padding:6px 8px;border-radius:8px;margin:0 0 5px}
+.chip:last-child{margin:0}
+.chip.prog{background:var(--prog-bg)} .chip.ai{background:var(--ai-bg)} .chip.hu{background:var(--hu-bg)}
+.chip em{font-style:normal;font-weight:700;font-size:11px;flex:0 0 auto;padding-top:1px}
+.chip.prog em{color:var(--prog)} .chip.ai em{color:var(--ai)} .chip.hu em{color:var(--hu)}
+.big{font-size:28px;font-weight:700;line-height:1.1}
+/* 第 2 步矩阵 */
+.mx{overflow-x:auto;margin:0 -4px}
+.mx table{border-collapse:separate;border-spacing:4px;min-width:760px;width:100%}
+.mx th{font-size:12px;color:var(--ink3);font-weight:500;text-align:center;padding:2px}
+.mx th.r{text-align:left;font-size:13px;color:var(--ink);font-weight:600;white-space:nowrap}
+.mx td{vertical-align:top;width:13.5%}
+.cell{position:relative;border-radius:8px;overflow:hidden;aspect-ratio:3/4;background:var(--gray-bg);border:2px solid transparent}
+.cell img,.cell video{width:100%;height:100%;object-fit:cover;border-radius:0}
+.cell .lb{position:absolute;left:0;right:0;bottom:0;font-size:11px;padding:3px 5px;background:rgba(0,0,0,.6);color:#fff;line-height:1.3}
+.cell.src{border-color:var(--line)} .cell.gen{border-color:var(--ai)} .cell.pg{border-color:var(--prog)}
+.cell.todo{border:2px dashed var(--warn);display:grid;place-items:center;text-align:center;font-size:12px;color:var(--warn);padding:6px}
+.cell.no{border:2px dashed var(--line);display:grid;place-items:center;text-align:center;font-size:12px;color:var(--ink3);padding:6px}
+.mlegend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--ink2);margin:8px 0}
+.mlegend span::before{content:"";display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;vertical-align:-2px;border:2px solid}
+.ml-src::before{border-color:var(--line)!important} .ml-gen::before{border-color:var(--ai)!important} .ml-pg::before{border-color:var(--prog)!important}
+.ml-todo::before{border:2px dashed var(--warn)!important} .ml-no::before{border:2px dashed var(--ink3)!important}
+/* 横条图 */
+.bars{display:grid;gap:7px}
+.brow{display:grid;grid-template-columns:150px 1fr 44px;gap:8px;align-items:center;font-size:13px}
+.brow .trk{height:16px;background:var(--gray-bg);border-radius:4px;overflow:hidden}
+.brow .trk i{display:block;height:100%;border-radius:4px}
+.brow .v{text-align:right;color:var(--ink2);font-variant-numeric:tabular-nums}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.list{margin:0;padding:0;list-style:none;font-size:13px}
+.list li{padding:6px 8px;border-bottom:1px solid var(--line);display:flex;gap:6px;align-items:baseline}
+.list li .n{color:var(--ink3);width:20px;flex:0 0 auto}
+.ovl{background:var(--hl);border-radius:4px;padding:0 4px;font-size:12px}
+.pick{font-weight:700;color:var(--hu)}
+/* 时间轴（第 6 步） */
+.tl{display:flex;gap:2px;margin:6px 0 4px;min-width:720px}
+.tlw{overflow-x:auto}
+.tl .sg{position:relative;border-radius:6px;overflow:hidden;height:150px;background:var(--gray-bg)}
+.tl .sg img{width:100%;height:100%;object-fit:cover;border-radius:0}
+.tl .sg .k{position:absolute;top:3px;left:3px;font-size:11px;font-weight:700;background:rgba(0,0,0,.65);color:#fff;border-radius:4px;padding:1px 5px}
+.tl .sg .ty{position:absolute;left:0;right:0;bottom:0;height:5px}
+.tlx{display:flex;gap:2px;min-width:720px;font-size:11px;color:var(--ink3)}
+.tlx div{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+table.t{width:100%;border-collapse:collapse;font-size:13px}
+table.t th,table.t td{border-bottom:1px solid var(--line);padding:7px 6px;text-align:left;vertical-align:top}
+table.t th{color:var(--ink3);font-weight:500}
+.vid{display:grid;grid-template-columns:300px 1fr;gap:16px;align-items:start}
+.note{background:var(--warn-bg);border-left:3px solid var(--warn);padding:9px 12px;border-radius:8px;font-size:13px;margin:10px 0 0}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px} .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.cap{font-size:12px;color:var(--ink3);margin-top:3px}
+.todo-list{margin:0;padding-left:18px;font-size:14px}
+.todo-list li{margin:4px 0}
+@media (max-width:760px){
+  .kpis{grid-template-columns:repeat(2,1fr)} .ov{grid-template-columns:repeat(2,1fr)}
+  .ipo{grid-template-columns:1fr} .ipo .ar{transform:rotate(90deg);height:28px}
+  .two,.vid{grid-template-columns:1fr} .g4{grid-template-columns:repeat(2,1fr)}
+  .brow{grid-template-columns:110px 1fr 40px}
+}
+/* v8 第 2 步：按房间只列用到的素材 */
+.rmx{display:grid;gap:10px}
+.rrow{display:grid;grid-template-columns:96px 1fr;gap:10px;align-items:start;padding:10px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg)}
+.rname{font-weight:600;font-size:14px;padding-top:4px}
+.rname span{display:block;font-weight:400;font-size:12px;color:var(--ink3)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px}
+.tile{margin:0}
+.tile .cell{aspect-ratio:3/4}
+.tile .cell img.contain{object-fit:contain;background:#1d1d1f}
+.tile figcaption{font-size:12px;line-height:1.35;margin-top:4px}
+.tile figcaption b{display:block;font-weight:600}
+.tile figcaption span{color:var(--ink3)}
+/* v8 第 7 步：封面统一 3:4，尾图（9:16）整张放进同样大小的格子 */
+.covers{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.covers img{width:100%;aspect-ratio:3/4;object-fit:cover}
+.covers img.endc{object-fit:contain;background:#f3efe6}
+.lists{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.lists img{width:100%;aspect-ratio:3/4;object-fit:cover}
+/* v8 第 8 步：两个视频并排，数据放下面 */
+.vid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:640px}
+.vid2 video{width:100%;aspect-ratio:9/16;object-fit:contain;background:#000}
+.vstats{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
+.list li .n{width:34px;white-space:nowrap}
+@media (max-width:760px){
+  .rrow{grid-template-columns:1fr}
+  .tiles{grid-template-columns:repeat(3,1fr)}
+  .covers{grid-template-columns:repeat(2,1fr)}
+  .lists{grid-template-columns:repeat(3,1fr)}
+  .vstats{grid-template-columns:1fr}
+}
+/* v8b：第 2 步 6 列矩阵、第 6 步逐段播放 */
+.mx6{min-width:640px!important}
+.mx6 td{width:16%}
+.use{display:block;font-size:11px;color:var(--ink3);margin-top:3px;line-height:1.3}
+.use.on{color:var(--hu);font-weight:600}
+.segs{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.seg{margin:0}
+.seg video{width:100%;aspect-ratio:9/16;object-fit:contain;background:#000}
+.seg figcaption{font-size:12px;margin-top:4px;display:flex;justify-content:space-between;gap:6px}
+.seg figcaption span{color:var(--ink3)}
+@media (max-width:760px){.segs{grid-template-columns:repeat(2,1fr)}}
+
+#user .vid2{grid-template-columns:repeat(2,minmax(0,260px));justify-content:start}
+.cmpwrap{display:grid;gap:8px;margin-top:6px}
+.chead,.crow{display:grid;grid-template-columns:52px 1fr 1fr 1fr;gap:10px;align-items:start}
+.chead{font-size:12px;color:var(--ink3);padding:0 8px}
+.crow{border:1px solid var(--line);border-left:4px solid var(--line);border-radius:10px;padding:8px;background:var(--bg)}
+.crow.warn{border-left-color:var(--warn)} .crow.ai{border-left-color:var(--ai)} .crow.prog{border-left-color:var(--prog)} .crow.hu{border-left-color:var(--hu)}
+.ctag{font-size:12px;font-weight:700;text-align:center;border-radius:6px;padding:2px 0}
+.crow.warn .ctag{background:var(--warn-bg);color:var(--warn)} .crow.ai .ctag{background:var(--ai-bg);color:var(--ai)} .crow.prog .ctag{background:var(--prog-bg);color:var(--prog)} .crow.hu .ctag{background:var(--hu-bg);color:var(--hu)}
+.cside{display:grid;grid-template-columns:72px 1fr;gap:8px;font-size:12.5px}
+.cside p,.cdiff{margin:0;font-size:12.5px;line-height:1.5}
+.cdiff{color:var(--ink2)}
+.cimg{position:relative}
+.cimg img{width:72px;aspect-ratio:9/16;object-fit:cover;border-radius:6px}
+.cimg .dur{position:absolute;left:3px;bottom:3px;font-size:10px;background:rgba(0,0,0,.65);color:#fff;border-radius:3px;padding:0 3px}
+.cimg .none{width:72px;aspect-ratio:9/16;border:2px dashed var(--line);border-radius:6px;display:grid;place-items:center;text-align:center;font-size:11px;color:var(--ink3);padding:4px}
+.ctable td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+@media (max-width:760px){.chead{display:none}.crow{grid-template-columns:1fr}.ctag{justify-self:start;padding:2px 8px}}
+
+/* c05/c07 新增 */
+.bub{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.bub img{max-width:100%;border-radius:6px}
+.gate{border:1px dashed var(--hu);background:var(--hu-bg);border-radius:10px;padding:8px 12px;font-size:13px;margin:12px 0 0}
+.gate b{color:var(--hu)}
+.who{font-size:11px;font-weight:700;border-radius:4px;padding:1px 6px;margin-right:6px}
+.who.prog{background:var(--prog-bg);color:var(--prog)} .who.ai{background:var(--ai-bg);color:var(--ai)} .who.human{background:var(--hu-bg);color:var(--hu)}
+.gt{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:8px}
+.gt .tile .cell{aspect-ratio:9/16}
+.gt .tile figcaption{min-height:3.7em}
+.gt .tile.wide{grid-column:span 2} .gt .tile.wide .cell{aspect-ratio:16/9}
+.gt .tile.sq .cell{aspect-ratio:3/4}
+.cell img.contain{object-fit:contain;background:#1d1d1f}
+.cell.ing{display:grid;place-items:center}
+.cell.ing img{position:absolute;inset:0;filter:grayscale(.6) brightness(.55)}
+.cell.ing span{position:relative;z-index:1;font-size:12px;font-weight:700;color:#fff;background:rgba(183,121,31,.9);padding:2px 8px;border-radius:999px}
+.tbtn{display:flex;gap:4px;margin-top:5px}
+.btn{font:inherit;font-size:12px;border:1px solid var(--line);background:var(--card);color:var(--ink2);border-radius:6px;padding:3px 8px;cursor:pointer}
+.btn:hover{border-color:var(--ink3)}
+.btn.on{background:var(--hu-bg);color:var(--hu);border-color:var(--hu)}
+.btn.adj.on{background:var(--warn-bg);color:var(--warn);border-color:var(--warn)}
+.btn.main{background:var(--ink);color:var(--bg);border-color:var(--ink);padding:6px 14px;font-size:13px}
+.stt{font-size:11px;color:var(--ink3);margin-top:3px;min-height:15px}
+.tl2{display:flex;gap:2px;margin:6px 0 4px;min-width:720px}
+.tl2 .sg{position:relative;border-radius:6px;overflow:hidden;height:120px;background:var(--gray-bg);cursor:pointer}
+.tl2 .sg img{width:100%;height:100%;object-fit:cover;border-radius:0}
+.tl2 .sg .k{position:absolute;top:3px;left:3px;font-size:11px;font-weight:700;background:rgba(0,0,0,.65);color:#fff;border-radius:4px;padding:1px 5px}
+.tl2 .sg .ty{position:absolute;left:0;right:0;bottom:0;height:5px}
+.segc{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-top:8px}
+.sc{border:1px solid var(--line);border-radius:var(--r);padding:10px;background:var(--bg);display:flex;flex-direction:column;gap:6px}
+.sc video,.sc .cell{width:100%;aspect-ratio:9/16;object-fit:contain;background:#000;border-radius:8px}
+.sc .cell{position:relative}
+.sc h4{margin:0;font-size:14px;display:flex;justify-content:space-between;gap:6px;align-items:baseline}
+.sc h4 span{font-weight:400;font-size:12px;color:var(--ink3)}
+.sc .pic{font-size:12px;color:var(--ink3);margin:0}
+.sc .vo{font-size:13px;margin:0;padding:6px 8px;background:var(--card);border-left:3px solid var(--line);border-radius:4px}
+.sc .vo.none{color:var(--ink3);border-left-style:dashed}
+.sc .vo small{display:block;color:var(--ink3);font-size:11px}
+.sc .adj-box{display:none;flex-direction:column;gap:5px}
+.sc.adjusting .adj-box{display:flex}
+.sc textarea{width:100%;min-height:54px;font:inherit;font-size:13px;border:1px solid var(--line);border-radius:6px;padding:5px 7px;background:var(--card);color:var(--ink)}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.chips label{font-size:12px;border:1px solid var(--line);border-radius:999px;padding:1px 8px;cursor:pointer;background:var(--card)}
+.sc.ok{border-color:var(--hu)} .sc.adjusting{border-color:var(--warn)}
+.prog2{font-size:13px;color:var(--ink2);margin:8px 0}
+.cvs{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.cv{border:1px solid var(--line);border-radius:var(--r);padding:10px;background:var(--bg)}
+.cv .pair{display:grid;grid-template-columns:1fr 1.15fr;gap:6px;align-items:end}
+.cv img{width:100%;object-fit:cover;border-radius:6px}
+.cv h4{margin:8px 0 2px;font-size:14px}
+.cv p{margin:0 0 6px;font-size:12px;color:var(--ink2)}
+.cv.pick{border-color:var(--hu);box-shadow:0 0 0 2px var(--hu-bg)}
+.endcard{max-width:220px}
+.vc{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.vc>div{border:1px solid var(--line);border-radius:var(--r);padding:10px;background:var(--bg);font-size:13px}
+.vc audio{width:100%;height:32px;margin-top:6px}
+.vc .big2{font-size:16px;font-weight:700}
+.chk label{display:block;font-size:13px;margin:4px 0}
+.vid3{display:grid;grid-template-columns:repeat(3,minmax(0,240px));gap:14px;justify-content:start}
+.vid3 video,.vid3 .cell{width:100%;aspect-ratio:9/16;background:#000;border-radius:8px}
+.vid3 .cell{position:relative}
+.rules2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.rules2 img{width:100%}
+.wait{background:var(--warn-bg);border-left:3px solid var(--warn);padding:9px 12px;border-radius:8px;font-size:13px;margin:10px 0 0}
+.pend{color:var(--warn);font-weight:600}
+details.grp{margin:10px 0;border:1px solid var(--line);border-radius:var(--r);padding:0 12px;background:var(--bg)}
+details.grp>summary{cursor:pointer;font-weight:700;font-size:15px;padding:10px 0;list-style-position:inside}
+details.grp[open]>summary{border-bottom:1px solid var(--line);margin-bottom:10px}
+details.grp>.gt{padding-bottom:12px}
+.v2n{border-left-color:var(--warn);background:var(--warn-bg)}
+.v2n ul{margin:6px 0 0;padding-left:20px}
+.gl{font-size:12.5px;color:var(--ink3);margin:6px 0 0}
+.kpis{grid-template-columns:repeat(3,1fr)}
+@media (max-width:760px){
+  .cvs,.vc,.rules2{grid-template-columns:1fr} .kpis{grid-template-columns:repeat(2,1fr)}
+  .gt{grid-template-columns:repeat(3,1fr)} .gt .tile.wide{grid-column:span 3}
+  .vid3{grid-template-columns:repeat(2,1fr)}
+}
+
+.vid2{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;max-width:860px}
+.vid2 video{width:100%;background:#000;border-radius:8px}
+.vid2 .v916{aspect-ratio:9/16}
+.fix{border-left:3px solid var(--hu);background:var(--hu-bg);padding:9px 12px;border-radius:8px;font-size:13.5px;margin:12px 0 0}
+.scrs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:12px 0}
+.scr{border:1px solid var(--line);border-radius:var(--r);padding:10px;background:var(--bg);display:flex;flex-direction:column;gap:8px;opacity:.82}
+.scr.cur{border-color:var(--hu);box-shadow:0 0 0 2px var(--hu-bg);opacity:1}
+.scr .sh{display:grid;grid-template-columns:72px 1fr;gap:10px;align-items:start}
+.scr .sh img{width:72px;aspect-ratio:9/16;object-fit:cover;border-radius:6px;background:#000}
+.scr .sno{font-size:12px;font-weight:700;color:var(--ink3)}
+.scr .sno em{font-style:normal;margin-left:6px;background:var(--hu);color:#fff;border-radius:999px;padding:1px 8px;font-size:11px}
+.scr h4{margin:2px 0 4px;font-size:14px}
+.scr .muted{font-size:12px}
+.scr dl{margin:0;display:grid;grid-template-columns:4.2em 1fr;gap:4px 8px;font-size:12.5px}
+.scr dt{color:var(--ink3)} .scr dd{margin:0}
+.scr dd.ok{color:var(--hu);font-weight:600} .scr dd.gap{color:var(--warn)}
+.scr .btn{align-self:flex-start;margin-top:auto}
+.quotes{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.quotes span{font-size:12.5px;border:1px solid var(--line);border-radius:10px;padding:3px 9px;background:var(--card)}
+.quotes span i{font-style:normal;color:var(--ink3);margin-right:4px;font-size:11px}
+.sc .lines{font-size:12.5px;margin:0;padding:6px 8px 6px 22px;background:var(--card);border-left:3px solid var(--line);border-radius:4px}
+.sc .lines li{margin:2px 0}
+.sc .os{font-size:12px;color:var(--ink3);margin:0}
+.sc .nums{font-size:12.5px;margin:0;padding:5px 8px;background:var(--hu-bg);border-radius:4px}
+.uimg{display:flex;gap:4px;flex-wrap:wrap}
+.uimg img{width:38px;aspect-ratio:3/4;object-fit:cover;border-radius:4px}
+.uimg img.w{aspect-ratio:1080/880;width:52px}
+.gt .tile.inst .cell{aspect-ratio:1080/880}
+.gt .tile .cell{aspect-ratio:3/4}
+.gt .tile.inst .cell{aspect-ratio:1080/880}
+.cell.todo{display:grid;place-items:center;border:2px dashed var(--warn);background:var(--warn-bg);aspect-ratio:3/4}
+.cell.todo span{font-size:12px;font-weight:700;color:var(--warn)}
+.cmp8{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.cmp8>div{border:1px solid var(--line);border-radius:var(--r);padding:8px;background:var(--bg)}
+.cmp8 .pr{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.cmp8 figure{margin:0} .cmp8 img,.cmp8 .todo{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:6px;display:block}
+.cmp8 .todo{display:grid;place-items:center;border:2px dashed var(--warn);background:var(--warn-bg);font-size:12px;font-weight:700;color:var(--warn)}
+.cmp8 figcaption{font-size:12px;color:var(--ink3);margin-top:3px}
+.cmp8 h5{margin:0 0 6px;font-size:13px}
+@media (max-width:760px){.vid2{grid-template-columns:1fr 1fr}.scrs{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>案例11（TK03 · 结构六）· 产线 8 步拆解</h1>
+  <p class="lead">一单装修定制柜（厦门商品房，4 个空间，报价合计 18350.56 元，投影面积 19.9㎡）照抖音「好想发财」逐柜讲价的结构，变成一条 99.2 秒、商家口吻配音的短视频：按 8 步写清输入、产出和人工确认点。</p>
+  <div class="kpis">
+    <div class="kpi"><b>8 步</b><span>成片 v6 已出，待人工确认</span></div>
+    <div class="kpi"><b>5 段</b><span>成片总长 99.2 秒；每段可单独调整</span></div>
+    <div class="kpi"><b>约 $6.58</b><span>成片口径（只算最终片里用到的）的模型花费；含试做和重出，记录累计 $16.33，明细见第 8 步</span></div>
+  </div>
+  <div class="legend"><span><i class="dot d-prog"></i>程序</span><span><i class="dot d-ai"></i>AI</span><span><i class="dot d-hu"></i>人工（确认、挑选、写意见）</span></div>
+</header>
+
+<section id="films">
+  <h2>成片（99.2 秒 · 当前按 v6 构建）</h2>
+  <p class="sub">照抖音「好想发财」那条业主讲柜子的爆款（100 秒）复刻：同样 5 段——开头报总价逐个点柜子、接「是不是板子差」的质疑、价格怎么算、送的和要加钱的、最后一个省钱提醒。数字全部来自本单报价表。原片是业主本人第一人称手持实拍；复刻是商家口吻配音，画面是 AI 效果图（图生视频做成镜头走动）+ 2 张安装当天实拍，黄色箭头逐个指柜子。</p>
+  <div class="vid2">
+    <div><video class="v916" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/final/c11_v6.mp4?v=1793108762" poster="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/final/c11_v6.jpg?v=1793108763" controls playsinline preload="none"></video><div class="cap">案例11 成片 v6（待人工确认）</div></div>
+    <div><video class="v916" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/final/orig_hxfc.mp4?v=1793103659" poster="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/script/s6.jpg?v=1793090697" controls playsinline preload="none"></video><div class="cap">参考原片：抖音「好想发财」100.1 秒</div></div>
+    <div><video style="aspect-ratio:1080/1100" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/final/c11_v6_vs_orig.mp4?v=1793108810" poster="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/final/c11_v6_vs_orig.jpg?v=1793108811" controls playsinline preload="none"></video><div class="cap">左原片、右复刻，按 5 段对齐（每段同时开始，短的一边定格等另一边）；声音是复刻的</div></div>
+  </div>
+  <p class="gl">本页播放的是 720p 压缩预览，成片母版 1080×1920。效果图镜头顶部常驻「AI效果图 · 非实拍」，安装照镜头标「安装当天 · 实拍」；底部全程「案例价格仅供参考，具体价格以实际装修方案为准」。</p>
+</section>
+<nav>
+  <a href="#films">成片</a><a href="#ov">总览</a><a href="#s1">1 上传物料</a><a href="#s2">2 选剧本</a><a href="#s3">3 议题</a><a href="#s4">4 图片元素</a><a href="#s5">5 脱敏</a><a href="#s6">6 分段生成</a><a href="#s7">7 封面尾图</a><a href="#s8">8 配音与确认</a><a href="#todo">未核实</a>
+</nav>
+<section id="ov">
+  <h2>总览：8 步 · 每步谁在做</h2>
+  <p class="sub">每格下面的色条是这一步各类节点的个数占比（蓝 = 程序，红 = AI，绿 = 人工）。</p>
+  <div class="ov"><a href="#s1"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/inst/inst_9133.jpg?v=1793090695" alt=""><div class="bar"><i style="flex:2;background:var(--prog)"></i><i style="flex:1;background:var(--hu)"></i></div><div class="t"><b>1 上传物料</b><span class="muted">量尺 12 · 安装 5 · 聊天 4 · 报价表</span></div></a><a href="#s2"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/script/s6.jpg?v=1793090697" alt=""><div class="bar"><i style="flex:1;background:var(--prog)"></i><i style="flex:1;background:var(--ai)"></i><i style="flex:1;background:var(--hu)"></i></div><div class="t"><b>2 选剧本</b><span class="muted">3 种结构，选结构六（好想发财）</span></div></a><a href="#s3"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/zhuwo.jpg?v=1793104255" alt=""><div class="bar"><i style="flex:1;background:var(--prog)"></i><i style="flex:2;background:var(--hu)"></i></div><div class="t"><b>3 议题 + 规则检查</b><span class="muted">原片高意向 32 人（11%）· 规则 4 条</span></div></a><a href="#s4"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/shufang_bed.jpg?v=1793104255" alt=""><div class="bar"><i style="flex:2;background:var(--prog)"></i><i style="flex:2;background:var(--ai)"></i><i style="flex:1;background:var(--hu)"></i></div><div class="t"><b>4 图片元素</b><span class="muted">6 张 v8 效果图 + 3 张安装实拍</span></div></a><a href="#s5"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/inst/inst_9129.jpg?v=1793090695" alt=""><div class="bar"><i style="flex:2;background:var(--prog)"></i><i style="flex:2;background:var(--hu)"></i></div><div class="t"><b>5 脱敏补齐</b><span class="muted">安装照裁水印 · 报价表只取数字</span></div></a><a href="#s6"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/canting.jpg?v=1793104255" alt=""><div class="bar"><i style="flex:2;background:var(--prog)"></i><i style="flex:2;background:var(--ai)"></i><i style="flex:1;background:var(--hu)"></i></div><div class="t"><b>6 分段生成</b><span class="muted">5 段 · 每段可单独改</span></div></a><a href="#s7"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/cover/cover_A_34.jpg?v=1793104209" alt=""><div class="bar"><i style="flex:2;background:var(--prog)"></i><i style="flex:1;background:var(--hu)"></i></div><div class="t"><b>7 封面 + 尾图</b><span class="muted">2 个候选（没做同类调研）</span></div></a><a href="#s8"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/keting.jpg?v=1793104255" alt=""><div class="bar"><i style="flex:1;background:var(--prog)"></i><i style="flex:2;background:var(--ai)"></i><i style="flex:1;background:var(--hu)"></i></div><div class="t"><b>8 配音 + BGM + 确认</b><span class="muted">成片 v6 · 成片口径约 $6.58</span></div></a></div>
+</section>
+
+<section id="s1">
+  <h2><span class="no">1</span>上传物料 <span class="st ok">完成</span></h2>
+  <p class="sub">门店把这一单的原始物料打包传上来：量尺照、安装照、聊天截图、报价表、验收单、设计方案二维码。这一单是案例10（照重庆图文做的那版）用过的同一单，这次换结构六再做一条，编号案例11（TK03 · 结构六）。</p>
+  <div class="ipo">
+    <div class="col"><b>输入</b>
+      <div class="thumbs"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/inst/inst_9133.jpg?v=1793090695" alt=""><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/inst/inst_9129.jpg?v=1793090695" alt=""><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/inst/inst_9131.jpg?v=1793090695" alt=""></div>
+      <div class="cap">安装照（已裁掉水印）· 报价表 · 聊天截图 · 量尺照</div></div>
+    <div class="ar">→</div>
+    <div class="col"><b>处理</b><div class="chip prog"><em>程序</em>按文件夹归类；量尺日期取量尺单号里的日期（2026-07-09），安装日期取安装照水印（2026-08-25）</div><div class="chip prog"><em>程序</em>读报价表：4 个空间的小计、每项单价、赠送、合计</div><div class="chip hu"><em>人工</em>确认这单走结构六：报价表 + 安装实拍进成片，聊天不进</div></div>
+    <div class="ar">→</div>
+    <div class="col"><b>产出：物料清单</b>
+      <div class="bars">
+        <div class="brow"><span>量尺照</span><span class="trk"><i style="width:100%;background:var(--prog)"></i></span><span class="v">12</span></div>
+        <div class="brow"><span>安装照</span><span class="trk"><i style="width:42%;background:var(--prog)"></i></span><span class="v">5</span></div>
+        <div class="brow"><span>聊天截图</span><span class="trk"><i style="width:33%;background:var(--prog)"></i></span><span class="v">4</span></div>
+        <div class="brow"><span>报价表</span><span class="trk"><i style="width:8%;background:var(--prog)"></i></span><span class="v">1</span></div>
+        <div class="brow"><span>验收单</span><span class="trk"><i style="width:8%;background:var(--prog)"></i></span><span class="v">1</span></div>
+        <div class="brow"><span>设计方案二维码</span><span class="trk"><i style="width:8%;background:var(--prog)"></i></span><span class="v">1</span></div>
+      </div></div>
+  </div>
+  <h3>这一单</h3>
+  <table class="t">
+    <tr><th>项目</th><th>内容</th></tr>
+    <tr><td>房子</td><td>厦门，商品房（高层）</td></tr>
+    <tr><td>柜子</td><td>4 个空间：主卧（衣柜 + 床头背景墙 + 地柜）、餐厅飘窗地柜、客厅窄柜、书房（到顶大柜 + 下翻床 + 地柜 + 吊柜）</td></tr>
+    <tr><td>报价</td><td>主卧 5181 元、餐厅飘窗 4533 元、客厅 2083 元、书房 7993 元（含下翻床 2580 元），减赠送 6 个抽屉 1440 元，合计 18350.56 元；投影面积 19.9㎡</td></tr>
+    <tr><td>时间</td><td>7 月 9 日量尺（量尺单号），8 月 25 日安装（安装照水印）</td></tr>
+    <tr><td>成片用到的</td><td>报价表（全部数字）、安装照 2 张（只取上半部分）、AI 效果图。量尺照、聊天截图、验收单、二维码都不进成片</td></tr>
+  </table>
+  <div class="gate"><b>人工确认点：</b>清单数对不对（12 / 5 / 4 / 1 / 1 / 1）；报价表是不是最终版（聊天里提到过实付金额和报价合计不一样，成片按报价表合计写，见「还没核实的事项」）。</div>
+</section>
+
+<section id="s2">
+  <h2><span class="no">2</span>选剧本：本单选结构六（好想发财 · 逐柜讲价） <span class="st ok">完成</span></h2>
+  <p class="sub">复刻总览页里最近收进来的 3 种结构（结构四、五、六），逐个对本单素材。结构六是 10-27 夏夏指定的（原话「这条我看了下是符合要求的爆款视频，评论区高意向也很多，把它作为结构六」「用的是今天那个案例进行复刻」）。</p>
+  <div class="ipo">
+    <div class="col"><b>输入</b><div class="big">3 种结构</div><div class="cap">结构四、五、六 + 本单素材清单（第 1 步）</div></div>
+    <div class="ar">→</div>
+    <div class="col"><b>处理</b><div class="chip prog"><em>程序</em>按剧本每一段要的素材，逐项查本单有没有</div><div class="chip ai"><em>AI</em>拆原片：按口播切成 5 段，记下每段讲什么、报了哪些数</div><div class="chip hu"><em>人工</em>选剧本（10-27 夏夏指定结构六）</div></div>
+    <div class="ar">→</div>
+    <div class="col"><b>产出</b><div class="big">结构六</div><div class="cap">照原片 5 段，有口播、有字幕，约 99 秒</div></div>
+  </div>
+  <div class="scrs"><div class="scr"><div class="sh"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/script/s4.jpg?v=1793098328" alt="" loading="lazy"><div><div class="sno">结构四</div><h4>邯郸 · 真人出镜 + 一镜到底完工走房型</h4><div class="muted">抖音「邯郸聚腾装饰」· 1 分 16 秒 · 563 赞 · 274 评论（10-26 抓取）</div></div></div><dl><dt>结构</dt><dd>真人出镜报小区和面积 → 一镜到底走完全屋 → 两人出镜喊话招揽</dd><dt>要的素材</dt><dd>真人出镜、完工后的一镜到底走房视频</dd><dt>本单</dt><dd class="gap">不适合：本单没有真人出镜素材，也没有完工走房视频（安装照柜门都还贴着保护膜）</dd><dt>做过</dt><dd>还没做过</dd></dl><button class="btn" disabled>未选</button></div><div class="scr"><div class="sh"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/script/s5.jpg?v=1793098328" alt="" loading="lazy"><div><div class="sno">结构五</div><h4>重庆 · 图文 · 完工照 + 城市和总价标题型</h4><div class="muted">抖音「jimlvsxbxu」· 4 张图 · 1515 赞 · 354 评论（10-27 抓取）</div></div></div><dl><dt>结构</dt><dd>标题报城市和总价 → 4 张完工照配乐，每张约 4.75 秒</dd><dt>要的素材</dt><dd>4 张以上完工好看的照片、城市、总价</dd><dt>本单</dt><dd class="ok">已做成案例10：6 张效果图配乐 19 秒</dd><dt>做过</dt><dd>案例10（本单，已做）</dd></dl><button class="btn" disabled>未选</button></div><div class="scr cur"><div class="sh"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/script/s6.jpg?v=1793090697" alt="" loading="lazy"><div><div class="sno">结构六<em>当前选择</em></div><h4>好想发财 · 业主手持逐柜讲 · 总价 + 材料 + 增项 + 省钱技巧</h4><div class="muted">抖音「好想发财」· 1 分 40 秒 · 2961 赞 · 489 评论（10-27 抓取）</div></div></div><dl><dt>结构</dt><dd>报总价逐个点柜子 → 接「板子是不是差」→ 价格怎么算 → 送的 vs 加钱的 → 省钱技巧</dd><dt>要的素材</dt><dd>每个空间的画面、总价、板材和品牌、每项单价、送了什么、哪些加钱</dd><dt>本单</dt><dd class="ok">齐：报价表里总价、单价、板材品牌、赠送、增项都有；画面用 AI 效果图 + 2 张安装实拍</dd><dt>做过</dt><dd>案例11（本单，当前）</dd></dl><button class="btn on" disabled>已选</button></div></div>
+  <h3>结构六的原片</h3>
+  <p>抖音「好想发财」2026-10-11 发的「12万穷装的法式中古风，给你们看一下我家的全屋定制柜子」，100 秒；10-27 抓取时 2961 赞、489 条评论、2923 收藏、2288 转发。作者主页写「110平 法式中古风，记录从毛坯到入住的装修过程」，是业主本人。</p>
+  <h3>原片怎么拍的：手持边走边拍（只在 21.8 秒切过一次），伸缩教鞭点柜子，画面中间一行小字幕</h3>
+  <table class="t"><tr><th>段</th><th>时间</th><th>讲什么</th></tr><tr><td>1</td><td>0:00–0:21</td><td>开头「我家全屋定制一共是花了2万块钱」，教鞭逐个点餐边柜、鞋柜、阳台柜、橱柜、衣帽间、书桌，再报一次总价</td></tr><tr><td>2</td><td>0:21–0:38</td><td>接质疑「这么便宜，是不是给你用的很垃圾的板材」→ 多层板柜体 + 欧松板柜门，报两个板材品牌</td></tr><tr><td>3</td><td>0:38–0:51</td><td>为什么便宜：直接找的工厂店，当时有团购价；骨骼线门 630 元/平，厨房平板门 550 元/平</td></tr><tr><td>4</td><td>0:51–1:12</td><td>没什么增项：拉手、抽屉、灯带都送；加钱的是见光板和长虹玻璃门（一块加 150）</td></tr><tr><td>5</td><td>1:12–1:40</td><td>省钱技巧：嵌入式冰箱位只有两块侧板，一定去谈按见光板展开面积 180 元/平算，别按投影 630 元/平算，能省大几百</td></tr></table>
+  <p class="muted">原片没有配乐：停顿处实测 −51 ~ −54 dB（接近静音），只有业主的说话声（见第 8 步）。</p>
+  <h3>为什么用本单做</h3>
+  <table class="t">
+    <tr><th></th><th>理由</th></tr>
+    <tr><td>1</td><td>原片 5 段全靠数字撑：总价、板材、单价、送的、加钱的。本单报价表这 5 类数字都有，可以一项一项对上。</td></tr>
+    <tr><td>2</td><td>原片评论区问得最多的是「在哪做的 / 求推荐」，商家号接这个话最自然（见第 3 步）。</td></tr>
+    <tr><td>3</td><td>本单 4 个空间、合计 18350 元、投影 19.9㎡，和原片「一共花了 2 万」量级接近。</td></tr>
+  </table>
+  <div class="note">和原片不同的地方：原片是业主自己拍自己家、第一人称「我家」；复刻不冒充业主，改成商家口吻「这家厦门业主做了 4 个空间的柜子」。原片画面是手持实拍；复刻是 AI 效果图 + 安装实拍拼起来。原片的省钱技巧讲的是嵌入式冰箱位，本单没有，换成本单书房到顶侧板（见第 6 步第 5 段）。</div>
+  <div class="gate"><b>人工确认点：</b>接受结构六；接受「商家口吻 + 效果图画面」这个改法。</div>
+</section>
+
+<section id="s3">
+  <h2><span class="no">3</span>议题：原片评论 + 投放规则检查 <span class="st ok">完成</span></h2>
+  <p class="sub">先看原片评论区的人在问什么，决定口播里讲哪些数、片尾怎么引导留言；再对照抖+（抖音的付费推广工具）的规则过一遍。</p>
+  <div class="ipo">
+    <div class="col"><b>输入</b><div class="big">298 条</div><div class="cap">原片一级评论（平台显示评论 489 条，含回复；抓到 298 条一级评论）</div></div>
+    <div class="ar">→</div>
+    <div class="col"><b>处理</b><div class="chip hu"><em>人工</em>逐条读去重后的 298 条一级评论，按问报价、要联系方式 / 求推荐、问接不接、提自家装修需求判高意向，同一个人只算一次</div><div class="chip prog"><em>程序</em>投放规则检查：对照抖+ 规则查口播、字幕和画面</div><div class="chip hu"><em>人工</em>定片尾留言话术；看规则结论</div></div>
+    <div class="ar">→</div>
+    <div class="col"><b>产出</b><div class="big">32 人高意向</div><div class="cap">298 条里的 11%</div></div>
+  </div>
+  <h3>评论区原话（括号前是属地）</h3>
+  <div class="quotes"><span><i>上海</i>好便宜，能推荐吗</span><span><i>山东</i>工厂店推荐一下唄</span><span><i>四川</i>那么多柜子还有骨骼线居然只花2万，可以分享一下吗谢谢，我马上就装了</span><span><i>江西</i>江西哪里找的工厂做的，我上饶的，能推荐一下你的这工厂店吗</span><span><i>山西</i>在哪个厂家定的能告诉我们一下吗下个月我家也这么装</span><span><i>上海</i>请问下哪个品牌的全屋定制呀？单价多少呢</span><span><i>北京</i>在哪定的</span></div>
+  <p>32 人里绝大多数在问「哪家 / 在哪做的 / 求推荐」，也有人问单价。落点：口播把每项单价报清楚（带单位），片尾说「想知道自家柜子大概多少钱，评论区留下你家的投影面积」、字卡写「想算自家柜子多少钱？评论区留下投影面积」，把问价、求推荐的人引到评论区。</p>
+  <p class="muted">比例参考：按同一判法，结构五重庆 27%、结构三西安 22%（复刻总览页），这条 11% 偏低；作者没标城市，本地占比没算。</p>
+  <h3>口吻规则：商家 / 设计师口吻，不冒充业主</h3>
+  <p>原片是业主本人说「我家」。复刻的号是商家号，口播不能装成业主现身说法：原片的「我家」全部改成「这家厦门业主……」，配音是商家口吻。</p>
+  <h3>投放规则检查（括号里是规则编号，备查）</h3>
+  <table class="t">
+    <tr><th>规则</th><th>说什么</th><th>本单怎么做</th></tr>
+    <tr><td>142135 整装家具虚假一口价</td><td>提到价格要有报价单、定制单位、全程提示语</td><td>数字全部出自本单报价表；单价都带单位（元/㎡、元/米、元/根、元/套）；底部全程「案例价格仅供参考，具体价格以实际装修方案为准」</td></tr>
+    <tr><td>206269 整装定制服务内容</td><td>只做柜体时说「全屋 / 全包 / 一站式」要写明仅限柜体</td><td>口播和字幕不说「全屋」「装好」「一站式」，只说「柜子」（当前脚本里「全屋」0 处、「一站」0 处）</td></tr>
+    <tr><td>AI 画面</td><td>AI 生成内容要声明，不能当实拍</td><td>效果图镜头顶部常驻「AI效果图 · 非实拍」；两张安装照镜头标「安装当天 · 实拍」</td></tr>
+    <tr><td>不冒充业主</td><td>商家号不能装成业主本人现身说法</td><td>见上面「口吻规则」</td></tr>
+  </table>
+  <div class="gate"><b>人工确认点：</b>片尾留言话术；规则结论认不认。</div>
+</section>
+
+<section id="s4">
+  <h2><span class="no">4</span>图片元素：6 张 v8 效果图 + 3 张安装实拍 <span class="st ok">完成</span></h2>
+  <p class="sub">效果图在案例10 的 v7 基础上升级成 v8：加软装、换地板、改光线，柜子按安装照锁死位置。成片用 v8 效果图做图生视频镜头；「板子是不是差」那段用安装当天的实拍，让人看到柜门上的板材保护膜。格子下面标了用在第几段、几拍（段号同第 6 步）。</p>
+  <div class="ipo">
+    <div class="col"><b>输入</b><div class="thumbs" style="grid-template-columns:1fr 1fr"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v7/shufang.jpg?v=1793090694" alt=""><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/inst/inst_9133.jpg?v=1793090695" alt=""></div><div class="cap">v7 效果图 + 安装照 + 剧本要求</div></div>
+    <div class="ar">→</div>
+    <div class="col"><b>处理</b><div class="chip ai"><em>AI</em>效果图：以安装照锁死柜子的位置和结构，AI 画成完工效果（nano-banana-pro 改图），v8 加软装</div><div class="chip ai"><em>AI</em>图生视频：效果图 → 镜头走动的小片段（可灵 2.5 turbo pro）</div><div class="chip prog"><em>程序</em>安装照：只取上半部分，去掉水印块</div><div class="chip prog"><em>程序</em>黄色箭头：按每句口播的指向点，箭头跟着柜子走</div><div class="chip hu"><em>人工</em>逐张看：柜子和报价表对得上、画面里没有文字和门牌</div></div>
+    <div class="ar">→</div>
+    <div class="col"><b>产出</b><div class="big">9 张画面</div><div class="cap">6 张 v8 效果图 + 3 张安装实拍；16 拍里 14 拍用效果图、2 拍用安装实拍</div></div>
+  </div>
+  <h3>v8 效果图 · 6 张（AI 生成）</h3>
+  <div class="gt"><figure class="tile"><figcaption style="margin:0 0 4px"><b>书房 · 大柜 + 书桌（下翻床收起）</b><span>成片 第 1、2、5 段 · 3 拍</span></figcaption><div class="cell gen"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/shufang.jpg?v=1793104255" alt="" loading="lazy"></div></figure><figure class="tile"><figcaption style="margin:0 0 4px"><b>书房 · 下翻床放下</b><span>成片 第 1、4 段 · 2 拍</span></figcaption><div class="cell gen"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/shufang_bed.jpg?v=1793104255" alt="" loading="lazy"></div></figure><figure class="tile"><figcaption style="margin:0 0 4px"><b>主卧 · 衣柜</b><span>成片 第 1、3 段 · 2 拍</span></figcaption><div class="cell gen"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/zhuwo.jpg?v=1793104255" alt="" loading="lazy"></div></figure><figure class="tile"><figcaption style="margin:0 0 4px"><b>主卧 · 床头背景墙</b><span>成片 第 1、3 段 · 2 拍</span></figcaption><div class="cell gen"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/zhuwo_bed.jpg?v=1793104255" alt="" loading="lazy"></div></figure><figure class="tile"><figcaption style="margin:0 0 4px"><b>餐厅 · 飘窗地柜</b><span>成片 第 1、4、5 段 · 3 拍</span></figcaption><div class="cell gen"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/canting.jpg?v=1793104255" alt="" loading="lazy"></div></figure><figure class="tile"><figcaption style="margin:0 0 4px"><b>客厅 · 窄柜</b><span>成片 第 1、4 段 · 2 拍</span></figcaption><div class="cell gen"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/keting.jpg?v=1793104255" alt="" loading="lazy"></div></figure></div>
+  <h3>从 v7 到 v8 改了什么</h3>
+  <ul class="fd" style="font-size:13.5px;padding-left:20px">
+    <li><b>加软装：</b>地毯、挂画、绿植、床品、双层窗帘。</li>
+    <li><b>换地板和光线：</b>烟熏橡木人字拼地板；光线改成傍晚暖光。</li>
+    <li><b>柜子按安装照锁死位置：</b>每张效果图同时参考安装实拍，柜子的位置、层数、门数跟着实拍走，不再自由发挥。</li>
+  </ul>
+  <div class="cmp8" style="margin-top:10px"><div><h5>书房 · 大柜 + 书桌（下翻床收起）</h5><div class="pr"><figure><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v7/shufang.jpg?v=1793090694" alt="" loading="lazy"><figcaption>v7（案例10 用）</figcaption></figure><figure><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/shufang.jpg?v=1793104255" alt="" loading="lazy"><figcaption>v8（本片）</figcaption></figure></div></div><div><h5>书房 · 下翻床放下</h5><div class="pr"><figure><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v7/shufang_bed.jpg?v=1793090694" alt="" loading="lazy"><figcaption>v7（案例10 用）</figcaption></figure><figure><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/shufang_bed.jpg?v=1793104255" alt="" loading="lazy"><figcaption>v8（本片）</figcaption></figure></div></div><div><h5>主卧 · 衣柜</h5><div class="pr"><figure><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v7/zhuwo.jpg?v=1793090694" alt="" loading="lazy"><figcaption>v7（案例10 用）</figcaption></figure><figure><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/zhuwo.jpg?v=1793104255" alt="" loading="lazy"><figcaption>v8（本片）</figcaption></figure></div></div><div><h5>主卧 · 床头背景墙</h5><div class="pr"><figure><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v7/zhuwo_bed.jpg?v=1793090694" alt="" loading="lazy"><figcaption>v7（案例10 用）</figcaption></figure><figure><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/zhuwo_bed.jpg?v=1793104255" alt="" loading="lazy"><figcaption>v8（本片）</figcaption></figure></div></div><div><h5>餐厅 · 飘窗地柜</h5><div class="pr"><figure><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v7/canting.jpg?v=1793090694" alt="" loading="lazy"><figcaption>v7（案例10 用）</figcaption></figure><figure><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/canting.jpg?v=1793104255" alt="" loading="lazy"><figcaption>v8（本片）</figcaption></figure></div></div><div><h5>客厅 · 窄柜</h5><div class="pr"><figure><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v7/keting.jpg?v=1793090694" alt="" loading="lazy"><figcaption>v7（案例10 用）</figcaption></figure><figure><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/keting.jpg?v=1793104255" alt="" loading="lazy"><figcaption>v8（本片）</figcaption></figure></div></div></div>
+  <h3>安装照 · 已裁（本片用了其中 2 张）</h3>
+  <div class="gt"><figure class="tile inst" data-item="inst_9133"><figcaption style="margin:0 0 4px"><b>安装当天 · 实拍（书房大柜）</b><span>成片 第 2 段 · 1 拍</span></figcaption><div class="cell gen"><img class="" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/inst/inst_9133.jpg?v=1793090695" alt="" loading="lazy"></div></figure><figure class="tile inst" data-item="inst_9129"><figcaption style="margin:0 0 4px"><b>安装当天 · 实拍（书房）</b><span>成片 第 2 段 · 1 拍</span></figcaption><div class="cell gen"><img class="" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/inst/inst_9129.jpg?v=1793090695" alt="" loading="lazy"></div></figure><figure class="tile inst" data-item="inst_9131"><figcaption style="margin:0 0 4px"><b>安装当天 · 实拍（飘窗）</b><span>成片未用</span></figcaption><div class="cell gen"><img class="" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/inst/inst_9131.jpg?v=1793090695" alt="" loading="lazy"></div></figure></div>
+  <h3>黄色箭头 + 字幕（程序叠加）</h3>
+  <img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/film/ptr_v6.jpg?v=1793108821" alt="" loading="lazy" style="max-width:320px;width:100%;border-radius:8px">
+  <div class="cap">成片 v6 截帧：顶部常驻标签、画面中间小字幕（价格都在字幕里，没有单独的数字卡）、黄色箭头指柜子、底部常驻提示语</div>
+  <div class="gate"><b>人工确认点：</b>效果图里的柜子和报价表一致（下翻床、床头木饰面、飘窗抽屉、灯带）；箭头指的位置对不对。</div>
+</section>
+
+<section id="s5">
+  <h2><span class="no">5</span>其他物料脱敏补齐 <span class="st ok">完成</span></h2>
+  <p class="sub">进成片的只有报价表里的数字、2 张安装照和效果图。缺的物料只标「缺」，不凭空编。</p>
+  <div class="ipo">
+    <div class="col"><b>输入</b><div class="big">5 张安装照 + 报价表</div><div class="cap">安装照下方带打卡水印（时间、经纬度、门牌）；报价表表头有客户名和小区名</div></div>
+    <div class="ar">→</div>
+    <div class="col"><b>处理</b><div class="chip prog"><em>程序</em>安装照：只取上 880 像素，下方「打卡记录」水印块（时间、经纬度、小区门牌）不要，左下角水印一并裁掉</div><div class="chip hu"><em>人工</em>逐张看：9135 那张水印在画面中间，整张不用</div><div class="chip prog"><em>程序</em>报价表：客户姓名、小区名不上页面、不进画面，只用单价和合计</div><div class="chip hu"><em>人工</em>聊天截图（有姓名电话）：不用</div></div>
+    <div class="ar">→</div>
+    <div class="col"><b>产出</b><div class="big">3 张裁后展示</div><div class="cap">安装照裁过后展示 3 张（成片用 2 张）；报价表只取数字</div></div>
+  </div>
+  <h3>安装照裁过以后</h3>
+  <div class="lists" style="grid-template-columns:repeat(3,1fr);max-width:640px"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/inst/inst_9133.jpg?v=1793090695" alt=""><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/inst/inst_9129.jpg?v=1793090695" alt=""><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/inst/inst_9131.jpg?v=1793090695" alt=""></div>
+  <table class="t" style="margin-top:12px">
+    <tr><th>物料</th><th>处理</th></tr>
+    <tr><td>安装照 5 张</td><td>原图 1080×1440，下面约三分之一是打卡水印，只取上面 1080×880；9135 那张水印压在画面中间，不用；9142 本片没用到</td></tr>
+    <tr><td>报价表</td><td>表头的客户名、小区名不上画面，也不写进本页；只用单价、小计、合计</td></tr>
+    <tr><td>聊天截图 4 张</td><td>有姓名和电话，不用，本页也不展示</td></tr>
+    <tr><td>量尺照 12 张</td><td>这条剧本用不上</td></tr>
+    <tr><td>验收单、设计方案二维码</td><td>不用</td></tr>
+  </table>
+  <div class="note"><b>缺，不补：</b>完工后撕了保护膜的实拍、业主评价。</div>
+  <div class="gate"><b>人工确认点：</b>成片逐帧看一遍：没有姓名、电话、小区名、门牌、经纬度、二维码。</div>
+</section>
+
+<section id="s6">
+  <h2><span class="no">6</span>分段生成：5 段，每段可单独改 <span class="st ok">完成</span></h2>
+  <p class="sub">成片按原片的 5 段切开：每段一个小视频、这段用到的画面、这段的数字、字幕原文和原片对应的时间。格子宽度 = 该段在成片里的秒数。</p>
+  <div class="ipo">
+    <div class="col"><b>输入</b><div class="big">16 拍 · 29 句</div><div class="cap">第 2 步剧本 + 第 4 步画面 + 报价表数字</div></div>
+    <div class="ar">→</div>
+    <div class="col"><b>处理</b><div class="chip ai"><em>AI</em>写口播：照原片每段讲的事，换成本单报价表里的数，商家口吻</div><div class="chip prog"><em>程序</em>按每句配音的长短排时间线，一句一拍或几句一拍</div><div class="chip ai"><em>AI</em>图生视频：每拍的效果图做成镜头走动的小片段（可灵 2.5 turbo pro）</div><div class="chip prog"><em>程序</em>逐帧合成：箭头光流跟着柜子走、字幕、常驻标签</div><div class="chip hu"><em>人工</em>每段看一遍，确认或写调整意见</div></div>
+    <div class="ar">→</div>
+    <div class="col"><b>产出</b><div class="big">5 段</div><div class="cap">总长 99.2 秒（原片 100.1 秒）</div></div>
+  </div>
+  <div class="tlw"><div class="tl2"><div class="sg" style="flex:23.57" onclick="document.getElementById('seg1').scrollIntoView({behavior:'smooth',block:'center'})"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/seg/v6_seg1.jpg?v=1793108640" alt=""><span class="k">1</span><i class="ty" style="background:var(--ai)"></i></div><div class="sg" style="flex:17.15" onclick="document.getElementById('seg2').scrollIntoView({behavior:'smooth',block:'center'})"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/seg/v6_seg2.jpg?v=1793108647" alt=""><span class="k">2</span><i class="ty" style="background:var(--ai)"></i></div><div class="sg" style="flex:13.84" onclick="document.getElementById('seg3').scrollIntoView({behavior:'smooth',block:'center'})"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/seg/v6_seg3.jpg?v=1793108655" alt=""><span class="k">3</span><i class="ty" style="background:var(--ai)"></i></div><div class="sg" style="flex:16.56" onclick="document.getElementById('seg4').scrollIntoView({behavior:'smooth',block:'center'})"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/seg/v6_seg4.jpg?v=1793108670" alt=""><span class="k">4</span><i class="ty" style="background:var(--ai)"></i></div><div class="sg" style="flex:28.06" onclick="document.getElementById('seg5').scrollIntoView({behavior:'smooth',block:'center'})"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/seg/v6_seg5.jpg?v=1793108689" alt=""><span class="k">5</span><i class="ty" style="background:var(--ai)"></i></div></div><div class="tlx" style="min-width:720px"><div style="flex:23.57">钩子：总价 + 逐个空间</div><div style="flex:17.15">质疑板材：是不是差板子</div><div style="flex:13.84">价格怎么算</div><div style="flex:16.56">送的 vs 要加钱的</div><div style="flex:28.06">省钱技巧</div></div></div>
+  <div class="prog2" id="segprog">已确认 0 / 5 段</div>
+  <div class="segc"><div class="sc" data-seg="1" id="seg1"><h4>1 钩子：总价 + 逐个空间<span>23.6 秒</span></h4><video src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/seg/v6_seg1.mp4?v=1793108638" poster="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/seg/v6_seg1.jpg?v=1793108640" controls playsinline preload="none"></video>
+      <div class="uimg"><img class="" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/shufang.jpg?v=1793104255" alt=""><img class="" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/shufang_bed.jpg?v=1793104255" alt=""><img class="" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/zhuwo.jpg?v=1793104255" alt=""><img class="" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/zhuwo_bed.jpg?v=1793104255" alt=""><img class="" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/canting.jpg?v=1793104255" alt=""><img class="" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/keting.jpg?v=1793104255" alt=""></div><p class="nums"><b>本段数字：</b>总价 18350 元；书房、下翻床、主卧、餐厅飘窗、客厅逐个过</p><ul class="lines"><li>这家厦门业主做了4个空间的柜子一共花了18350元</li><li>包括书房这一组</li><li>连这张下翻床也算在里面平时收进柜子里放下来就能睡</li><li>主卧的衣柜</li><li>和一面床头背景墙</li><li>餐厅飘窗下面的地柜</li><li>还有客厅这组窄柜</li><li>4个空间加起来投影面积19.9平方</li></ul><p class="os">原片对应 0:00–0:21（21.8 秒）</p>
+      <div class="tbtn"><button class="btn" data-sact="ok">确认这段</button><button class="btn adj" data-sact="adj">调整这段</button></div>
+      <div class="adj-box"><div class="chips"><label><input type="checkbox"> 改口播</label><label><input type="checkbox"> 换画面</label><label><input type="checkbox"> 改字幕</label><label><input type="checkbox"> 改箭头位置</label></div>
+      <textarea placeholder="写调整意见，例如：这一段语速太快"></textarea><button class="btn" data-sact="submit">记下意见（原型，不会真的提交）</button></div><div class="stt"></div></div><div class="sc" data-seg="2" id="seg2"><h4>2 质疑板材：是不是差板子<span>17.1 秒</span></h4><video src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/seg/v6_seg2.mp4?v=1793108646" poster="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/seg/v6_seg2.jpg?v=1793108647" controls playsinline preload="none"></video>
+      <div class="uimg"><img class="w" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/inst/inst_9133.jpg?v=1793090695" alt=""><img class="w" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/inst/inst_9129.jpg?v=1793090695" alt=""><img class="" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/shufang.jpg?v=1793104255" alt=""></div><p class="nums"><b>本段数字：</b>18mm 多层实木柜体 + 18mm 欧松板门（保护膜印兔宝宝）</p><ul class="lines"><li>很多人问这么便宜是不是用了差板子</li><li>柜体用的是18mm多层实木</li><li>门板是18mm欧松板</li><li>安装当天还没撕膜保护膜上印的就是兔宝宝</li><li>柜体颜色选的黑雀羽</li><li>门板是珍珠白肤感</li></ul><p class="os">原片对应 0:21–0:38（16.2 秒）</p>
+      <div class="tbtn"><button class="btn" data-sact="ok">确认这段</button><button class="btn adj" data-sact="adj">调整这段</button></div>
+      <div class="adj-box"><div class="chips"><label><input type="checkbox"> 改口播</label><label><input type="checkbox"> 换画面</label><label><input type="checkbox"> 改字幕</label><label><input type="checkbox"> 改箭头位置</label></div>
+      <textarea placeholder="写调整意见，例如：这一段语速太快"></textarea><button class="btn" data-sact="submit">记下意见（原型，不会真的提交）</button></div><div class="stt"></div></div><div class="sc" data-seg="3" id="seg3"><h4>3 价格怎么算<span>13.8 秒</span></h4><video src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/seg/v6_seg3.mp4?v=1793108654" poster="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/seg/v6_seg3.jpg?v=1793108655" controls playsinline preload="none"></video>
+      <div class="uimg"><img class="" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/zhuwo.jpg?v=1793104255" alt=""><img class="" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/zhuwo_bed.jpg?v=1793104255" alt=""></div><p class="nums"><b>本段数字：</b>568 元/㎡（按投影面积）；门板换肤感欧松板 +30 元/㎡；主卧衣柜加床头 5.5㎡ = 5181 元</p><ul class="lines"><li>价格怎么算柜体按投影面积568元一平</li><li>门板换成同品牌肤感欧松板每平再加30元</li><li>比如主卧衣柜加床头一共5.5平方5181元</li></ul><p class="os">原片对应 0:38–0:51（12.9 秒）</p>
+      <div class="tbtn"><button class="btn" data-sact="ok">确认这段</button><button class="btn adj" data-sact="adj">调整这段</button></div>
+      <div class="adj-box"><div class="chips"><label><input type="checkbox"> 改口播</label><label><input type="checkbox"> 换画面</label><label><input type="checkbox"> 改字幕</label><label><input type="checkbox"> 改箭头位置</label></div>
+      <textarea placeholder="写调整意见，例如：这一段语速太快"></textarea><button class="btn" data-sact="submit">记下意见（原型，不会真的提交）</button></div><div class="stt"></div></div><div class="sc" data-seg="4" id="seg4"><h4>4 送的 vs 要加钱的<span>16.6 秒</span></h4><video src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/seg/v6_seg4.mp4?v=1793108666" poster="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/seg/v6_seg4.jpg?v=1793108670" controls playsinline preload="none"></video>
+      <div class="uimg"><img class="" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/canting.jpg?v=1793104255" alt=""><img class="" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/keting.jpg?v=1793104255" alt=""><img class="" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/shufang_bed.jpg?v=1793104255" alt=""></div><p class="nums"><b>本段数字：</b>送：9 个抽屉不收钱。加钱：台面 830 元/㎡、灯带 80 元/米、门边的隐形拉手 80 元/根、下翻床 2580 元/套（不含床垫）</p><ul class="lines"><li>哪些是送的整单9个抽屉都不另收钱</li><li>要另外加钱的飘窗台面830元一平</li><li>灯带80元一米</li><li>门边的隐形拉手80元一根</li><li>书房的下翻床2580元一套不含床垫</li></ul><p class="os">原片对应 0:51–1:12（21.4 秒）</p>
+      <div class="tbtn"><button class="btn" data-sact="ok">确认这段</button><button class="btn adj" data-sact="adj">调整这段</button></div>
+      <div class="adj-box"><div class="chips"><label><input type="checkbox"> 改口播</label><label><input type="checkbox"> 换画面</label><label><input type="checkbox"> 改字幕</label><label><input type="checkbox"> 改箭头位置</label></div>
+      <textarea placeholder="写调整意见，例如：这一段语速太快"></textarea><button class="btn" data-sact="submit">记下意见（原型，不会真的提交）</button></div><div class="stt"></div></div><div class="sc" data-seg="5" id="seg5"><h4>5 省钱技巧<span>28.1 秒</span></h4><video src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/seg/v6_seg5.mp4?v=1793108687" poster="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/seg/v6_seg5.jpg?v=1793108689" controls playsinline preload="none"></video>
+      <div class="uimg"><img class="" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/shufang.jpg?v=1793104255" alt=""><img class="" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/v8/canting.jpg?v=1793104255" alt=""></div><p class="nums"><b>本段数字：</b>侧板按见光板算：1.49㎡ 298 元（报价表见光板 200 元/㎡）；按投影 568 元/㎡ 要 846 元；矮地柜、吊柜按延米算，下单前问清楚</p><ul class="lines"><li>最后说一个省钱的地方</li><li>柜子侧面露在外面的那块板</li><li>要按见光板算别按柜体投影算</li><li>像书房大柜到顶的这块侧板1.49平方按见光板算是298元</li><li>要是按投影568一平就得846元</li><li>还有矮地柜和吊柜这单是按延米算的下单前一定问清楚</li><li>想知道自家柜子大概多少钱评论区留下你家的投影面积</li></ul><p class="os">原片对应 1:12–1:40（27.7 秒）</p>
+      <div class="tbtn"><button class="btn" data-sact="ok">确认这段</button><button class="btn adj" data-sact="adj">调整这段</button></div>
+      <div class="adj-box"><div class="chips"><label><input type="checkbox"> 改口播</label><label><input type="checkbox"> 换画面</label><label><input type="checkbox"> 改字幕</label><label><input type="checkbox"> 改箭头位置</label></div>
+      <textarea placeholder="写调整意见，例如：这一段语速太快"></textarea><button class="btn" data-sact="submit">记下意见（原型，不会真的提交）</button></div><div class="stt"></div></div></div>
+  <div class="note"><b>第 5 段的省钱提醒怎么来的：</b>原片讲的是嵌入式冰箱位按见光板算。本单没有冰箱位，换成报价表里书房到顶大柜的那块侧板：550×2727 毫米，1.49㎡，按见光板 200 元/㎡ 是 298 元，要是按柜体投影 568 元/㎡ 算就是 846 元。矮地柜和吊柜这单是按延米算的（如主卧地柜 1.25 米 × 568 = 710 元），延米不一定更省，所以只作「下单前问清楚」的提醒，不说成省钱技巧。</div>
+  <div class="note"><b>9 个抽屉为什么「都不另收钱」：</b>报价表里 3 个抽屉单价 0 元、6 个 240 元（共 1440 元），最后「赠送 抽屉 6 个 −1440 元」抵掉，净 0 元。</div>
+  <div class="gate"><b>人工确认点：</b>5 段逐段看：数字和报价表一致；箭头指的是正在讲的那个柜子；要改的写意见，只重做那一段。</div>
+</section>
+
+<section id="s7">
+  <h2><span class="no">7</span>封面 2 个候选 + 尾图 <span class="st ok">完成</span></h2>
+  <p class="sub">这次<b>没有做同类封面调研</b>（原片的封面也没抓到），2 个候选直接从原片头两段的钩子出：一个报总价，一个抛质疑。要按案例08 那样先搜同类爆款封面再出，需要另做。</p>
+  <div class="ipo">
+    <div class="col"><b>输入</b><div class="cap">第 4 步效果图 + 安装照；报价表合计；第 3 步规则结论</div></div>
+    <div class="ar">→</div>
+    <div class="col"><b>处理</b><div class="chip prog"><em>程序</em>本机程序用本单画面合成 2 个候选，每个出 9:16 发布用 + 3:4 主页网格</div><div class="chip hu"><em>人工</em>选一张</div><div class="chip prog"><em>程序</em>尾图取成片最后一帧</div></div>
+    <div class="ar">→</div>
+    <div class="col"><b>产出</b><div class="big">2 + 1</div><div class="cap">封面 2 个候选（各 9:16、3:4 两种比例，共 4 张）+ 尾图 1 张</div></div>
+  </div>
+  <div class="cvs"><div class="cv" data-cv="A"><div class="pair"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/cover/cover_A_916.jpg?v=1793104209" alt="" loading="lazy"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/cover/cover_A_34.jpg?v=1793104209" alt="" loading="lazy"></div><h4>A · 效果图 + 总价</h4><p>书房效果图满屏 +「4个空间的柜子 / 一共花了18350」+ 白底小字「厦门 · 投影19.9㎡ · 板材和价格一项项说」</p><p class="muted">对应原片第一句「一共花了 2 万」：总价当钩子。画面是效果图，顶部带「AI效果图 · 非实拍」</p><button class="btn" data-cvact="1">选这个</button></div><div class="cv" data-cv="B"><div class="pair"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/cover/cover_B_916.jpg?v=1793104209" alt="" loading="lazy"><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/cover/cover_B_34.jpg?v=1793104209" alt="" loading="lazy"></div><h4>B · 安装实拍 + 质疑</h4><p>安装当天实拍（柜门贴着兔宝宝保护膜）+「柜子这么便宜 / 是不是差板子？」+ 白底小字「安装当天实拍 · 18mm多层实木 + 欧松板」</p><p class="muted">对应原片第 2 段的质疑：用问题当钩子；真实照片，不用标效果图，但保护膜看着像没完工</p><button class="btn" data-cvact="1">选这个</button></div></div>
+  <h3>尾图</h3>
+  <img class="endcard" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/s6-pipeline-20261027/media/final/end_card_v6.jpg?v=1793108813" alt="" loading="lazy"><div class="cap">取自成片 v6 最后一帧</div>
+  <p class="muted">两个候选都在本机合成，不调模型。封面上的价格同样带「案例价格仅供参考」提示语，没有「全屋」「一站式」。</p>
+  <div class="gate"><b>人工确认点：</b>选一张封面（页面上点「选这个」只是原型演示）；要不要补做同类封面调研。</div>
+</section>
+
+<section id="s8">
+  <h2><span class="no">8</span>配音 + BGM + 人工确认 <span class="st ok">成片 v6 待人工确认</span></h2>
+  <p class="sub">原片是业主自己说话，<b>没有配乐</b>（停顿处实测 −51 ~ −54 dB，接近静音）。复刻用配音 + 轻钢琴铺底，同时另备一版无 BGM，由人工选用。客户要改，可以退回前面任意一步。</p>
+  <div class="ipo">
+    <div class="col"><b>输入</b><div class="big">29 句口播</div><div class="cap">第 6 步脚本 + 5 段画面</div></div>
+    <div class="ar">→</div>
+    <div class="col"><b>处理</b><div class="chip ai"><em>AI</em>配音：fal 的 MiniMax speech-2.8-hd，团队克隆音色、开心语气，逐句合成（当前脚本 29 句、配音稿 507 个字符（连标点一起算，按这个计费）；改一句只重配这一句）</div><div class="chip ai"><em>AI</em>背景音乐：轻钢琴铺底（cassetteai 生成，约 100 秒），有人声时自动压低；另备一版无 BGM</div><div class="chip prog"><em>程序</em>响度：两趟标准化到 −14 LUFS</div><div class="chip hu"><em>人工</em>成片人工确认后客户才看得到</div></div>
+    <div class="ar">→</div>
+    <div class="col"><b>产出</b><div class="big">成片 v6</div><div class="cap">99.2 秒，1080×1920，实测 -14.1 LUFS（目标 −14）</div></div>
+  </div>
+  <h3>成本：成片口径约 $6.58（含探索累计 $16.33）</h3>
+  <table class="t">
+    <tr><th>项目</th><th>花费</th><th>说明</th></tr>
+    <tr><td>效果图 v8</td><td>$0.90</td><td>nano-banana-pro 改图，进了成片的 6 张 × $0.15（cost.log 逐条相加）</td></tr>
+    <tr><td>图生视频（可灵 2.5 turbo pro）</td><td>$5.60</td><td>花费记录逐条相加：8 段 × 10 秒 × $0.70</td></tr>
+    <tr><td>配音（MiniMax speech-2.8-hd）</td><td>$0.0507</td><td>当前配音稿 507 个字符（连标点一起算），按 $0.0001/字符估算</td></tr>
+    <tr><td>BGM（cassetteai 钢琴，100 秒）</td><td>$0.03</td><td>cost.log 记录 1 次</td></tr>
+    <tr><td>运镜、箭头、字幕、封面、合成</td><td>$0</td><td>都在本机做</td></tr>
+    <tr><td><b>成片口径合计</b></td><td><b>约 $6.58</b></td><td>以上四项相加</td></tr>
+    <tr><td>探索（试做 / 重出，没进成片）</td><td>$9.75</td><td>书房效果图重出没用上的 2 张 $0.30 + v3 阶段图生视频 $9.10（19 次）+ v2 阶段生图 $0.30（2 张）+ 改稿重配 $0.050（配音记录共 57 句次 $0.101，减去上面成片那一遍）</td></tr>
+    <tr><td><b>记录累计（含探索）</b></td><td><b>$16.33</b></td><td>成片口径 + 探索，等于两份花费记录逐行相加</td></tr>
+  </table>
+  <div class="gate chk"><b>人工确认点：</b>
+    <label><input type="checkbox"> 每个数字和报价表一致（18350、19.9㎡、568、+30、5181、9 个抽屉、830、80、80、2580、200、298、846）</label>
+    <label><input type="checkbox"> 口播是商家口吻，没有「我家」</label>
+    <label><input type="checkbox"> 「AI效果图 · 非实拍」标签只挂在效果图镜头上，安装照镜头标「安装当天 · 实拍」</label>
+    <label><input type="checkbox"> 底部「案例价格仅供参考，具体价格以实际装修方案为准」全程常驻</label>
+    <label><input type="checkbox"> 不说「最」（形容词）、「一站」、「全屋」、「装好」（当前脚本：除「最后」外「最」0 处）</label>
+    <label><input type="checkbox"> 价格都带㎡（或 米 / 根 / 套）单位</label>
+    <label><input type="checkbox"> 画面里没有姓名、电话、小区名、门牌、经纬度</label>
+    <label><input type="checkbox"> 配音语速、BGM 音量听一遍；选有 BGM 版还是无 BGM 版</label>
+    <div style="margin-top:8px"><button class="btn main" id="finalok">确认成片，客户可见（原型演示）</button> <span class="stt" id="finalst"></span></div>
+    <div class="muted" style="margin-top:6px">客户要改：退回 <a href="#s4">4 图片元素</a> · <a href="#s6">6 分段</a> · <a href="#s7">7 封面</a> 任意一步，重新生成后再回到这里。</div>
+  </div>
+</section>
+<section id="todo">
+  <h2>还没核实的事项</h2>
+  <ul class="todo-list"><li>另有一版不带 BGM 的：TK03_结构六复刻_v6_无BGM.mp4。</li><li>书房大柜在安装照里是 2 列 4 格，效果图出成了 2 列 5 格，两次重出都没改对，没再继续花钱。</li><li>成片按报价表合计写 18350 元；聊天里提到的实付金额和它不一样（差额可能是抖音买券），用哪个数要门店确认。</li><li>效果图是 AI 照安装照画的完工样子，细节（把手、灯带、摆件）和实物可能有出入；投抖+ 时有被当成「拿效果图冒充实拍」的风险，画面已标「AI效果图 · 非实拍」，文案也要写明。</li><li>封面没做同类爆款封面调研。</li><li>发布文案还没写。</li><li>原片与复刻的逐项对比：<a href="https://upio.ai/workflow/s6-vs-hxfc-b01d1e6a">https://upio.ai/workflow/s6-vs-hxfc-b01d1e6a</a> 。</li></ul>
+  <p class="muted" style="margin-top:12px">页面只写「厦门」，不含姓名、电话、小区、门牌、订单号、二维码。这是原型页：按钮只演示交互，不会真的提交，也不会调用任何模型。</p>
+</section>
+</div>
+<script>(function(){
+  function st(el,t){var s=el.querySelector('.stt');if(s)s.textContent=t}
+  var segs=document.querySelectorAll('.sc[data-seg]');
+  function prog(){var n=document.querySelectorAll('.sc.ok').length;var p=document.getElementById('segprog');if(p)p.textContent='已确认 '+n+' / '+segs.length+' 段'+(n===segs.length?'，可以进入第 7 步':'')}
+  segs.forEach(function(c){c.addEventListener('click',function(e){var b=e.target.closest('button[data-sact]');if(!b)return;var a=b.getAttribute('data-sact');
+    if(a==='ok'){c.classList.add('ok');c.classList.remove('adjusting');st(c,'已确认')}
+    else if(a==='adj'){c.classList.toggle('adjusting');c.classList.remove('ok');st(c,c.classList.contains('adjusting')?'调整中':'')}
+    else if(a==='submit'){c.classList.remove('adjusting');st(c,'已记下意见：只重做这一段（原型，未提交）')}
+    prog()})});
+  document.querySelectorAll('.cv').forEach(function(c){c.addEventListener('click',function(e){if(!e.target.closest('button[data-cvact]'))return;
+    document.querySelectorAll('.cv').forEach(function(x){x.classList.remove('pick');x.querySelector('button').textContent='选这个'});c.classList.add('pick');c.querySelector('button').textContent='已选这个'})});
+  var f=document.getElementById('finalok');if(f)f.addEventListener('click',function(){document.getElementById('finalst').textContent='已确认（原型演示：真实产品里确认后客户界面才可见）'});
+})();</script>
+</body>
+</html>
