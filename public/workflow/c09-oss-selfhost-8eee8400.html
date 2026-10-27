@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>开源自部署实测</title>
+<style>
+:root{
+  --bg:#f6f5f1; --card:#fff; --ink:#1d1d1f; --ink2:#55565b; --ink3:#8a8b90; --line:#e4e2dc;
+  --prog:#2f6bd8; --prog-bg:#e9f0fd; --ai:#d9482b; --ai-bg:#fdeee9; --hu:#1f9d55; --hu-bg:#e6f6ec;
+  --warn:#b7791f; --warn-bg:#fdf3e1; --gray-bg:#efeee9; --r:14px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#141416; --card:#1e1f22; --ink:#ececee; --ink2:#b4b5ba; --ink3:#86878d; --line:#33343a;
+  --prog:#7fa8f5; --prog-bg:#1f2a40; --ai:#f08a70; --ai-bg:#3a2420; --hu:#5fd394; --hu-bg:#1b3527;
+  --warn:#e5b45a; --warn-bg:#3a2f1a; --gray-bg:#2a2b30;}}
+:root[data-theme="dark"]{
+  --bg:#141416; --card:#1e1f22; --ink:#ececee; --ink2:#b4b5ba; --ink3:#86878d; --line:#33343a;
+  --prog:#7fa8f5; --prog-bg:#1f2a40; --ai:#f08a70; --ai-bg:#3a2420; --hu:#5fd394; --hu-bg:#1b3527;
+  --warn:#e5b45a; --warn-bg:#3a2f1a; --gray-bg:#2a2b30;}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.65 -apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif}
+img,video{max-width:100%;display:block;border-radius:8px;background:var(--gray-bg)}
+a{color:var(--prog)}
+.wrap{max-width:1080px;margin:0 auto;padding:0 16px 60px}
+header{padding:26px 0 6px}
+h1{font-size:25px;line-height:1.3;margin:0 0 6px}
+.lead{color:var(--ink2);margin:0}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+.kpi b{display:block;font-size:24px;line-height:1.2;font-variant-numeric:tabular-nums}
+.kpi span{color:var(--ink3);font-size:13px}
+nav{position:sticky;top:0;z-index:9;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);margin:14px -16px 0;padding:8px 16px;display:flex;gap:6px;overflow-x:auto}
+nav a{flex:0 0 auto;text-decoration:none;color:var(--ink2);font-size:13px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:var(--card);white-space:nowrap}
+section{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px;margin:20px 0;scroll-margin-top:56px}
+h2{font-size:20px;margin:0 0 4px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+h2 .no{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--ink);color:var(--bg);font-size:15px;flex:0 0 auto}
+h3{font-size:16px;margin:22px 0 8px}
+.sub{color:var(--ink2);margin:0 0 12px}
+.muted{color:var(--ink3);font-size:13px}
+.concl{background:var(--prog-bg);border-radius:var(--r);padding:12px 14px;margin:0 0 14px}
+.concl b{color:var(--prog)}
+.st{font-size:12px;padding:2px 8px;border-radius:999px;font-weight:600;white-space:nowrap}
+.st.ok{background:var(--hu-bg);color:var(--hu)} .st.part{background:var(--warn-bg);color:var(--warn)} .st.no{background:var(--ai-bg);color:var(--ai)} .st.gray{background:var(--gray-bg);color:var(--ink2)}
+/* 开源技术卡 */
+.cats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.cat{border:1px solid var(--line);border-radius:var(--r);padding:14px;background:var(--bg);display:flex;flex-direction:column;gap:8px}
+.cat .hd{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.cat .hd b{font-size:15px;line-height:1.4}
+.cat .what{font-size:13px;color:var(--ink2)}
+.proj{border-top:1px dashed var(--line);padding-top:8px;font-size:13px}
+.proj b{font-size:14px}
+.proj .tag{display:inline-block;font-size:11px;color:var(--ink3);border:1px solid var(--line);border-radius:6px;padding:0 5px;margin-left:4px}
+.final{border:2px solid var(--hu);background:var(--hu-bg);border-radius:var(--r);padding:14px 16px;margin:14px 0 0}
+.final .hd{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+.final .hd b{font-size:16px}
+.final ol{margin:6px 0 0;padding-left:20px;font-size:14px} .final ol li{margin:4px 0}
+.st.fin{background:var(--hu);color:var(--card)}
+.why{font-size:13px;background:var(--card);border-radius:8px;padding:8px 10px;margin-top:auto}
+/* 模型表 */
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:720px;font-size:14px}
+th{font-size:12px;color:var(--ink3);font-weight:500;text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+td small{display:block;color:var(--ink3);font-size:12px}
+tr.tot td{font-weight:700;border-bottom:none}
+.lic{font-size:11px;padding:1px 6px;border-radius:6px;white-space:nowrap}
+.lic.os{background:var(--hu-bg);color:var(--hu)} .lic.api{background:var(--ai-bg);color:var(--ai)}
+/* 时间线 */
+.tl{position:relative;margin:4px 0 0;padding-left:22px}
+.tl::before{content:"";position:absolute;left:7px;top:6px;bottom:6px;width:2px;background:var(--line)}
+.step{position:relative;margin:0 0 18px}
+.step::before{content:"";position:absolute;left:-20px;top:6px;width:12px;height:12px;border-radius:50%;background:var(--card);border:3px solid var(--ink3)}
+.step.keep::before{border-color:var(--hu)} .step.detour::before{border-color:var(--ai)} .step.pick::before{border-color:var(--warn)}
+.step .t{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.step .t b{font-size:15px}
+.step .t .tm{color:var(--ink3);font-size:12px;font-variant-numeric:tabular-nums}
+.step .t .cost{margin-left:auto;font-weight:700;font-variant-numeric:tabular-nums}
+.step p{margin:4px 0 0;font-size:14px;color:var(--ink2)}
+.step .fb{margin-top:6px;font-size:13px;background:var(--warn-bg);border-radius:8px;padding:6px 10px}
+/* 成本条 */
+.bars{display:flex;flex-direction:column;gap:8px}
+.bar{display:grid;grid-template-columns:200px 1fr 70px;gap:10px;align-items:center;font-size:13px}
+.bar .tr{height:16px;background:var(--gray-bg);border-radius:4px;overflow:hidden}
+.bar .tr i{display:block;height:100%;border-radius:4px}
+.bar .v{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.i-keep{background:var(--hu)} .i-detour{background:var(--ai)} .i-pick{background:var(--warn)}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:13px;color:var(--ink2);margin:10px 0 0}
+.dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+/* 视频 */
+.vids{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.vids video{aspect-ratio:9/16;width:100%;object-fit:cover}
+.vcmp{aspect-ratio:1440/640;width:100%}
+.cap{font-size:12px;color:var(--ink3);margin-top:4px}
+.fut{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.fut div{border:1px solid var(--line);border-radius:var(--r);padding:12px;background:var(--bg)}
+.fut b{display:block;font-size:22px;font-variant-numeric:tabular-nums}
+ul.tight{margin:6px 0 0;padding-left:20px} ul.tight li{margin:3px 0}
+@media (max-width:760px){
+  .kpis{grid-template-columns:repeat(2,1fr)}
+  .cats,.fut{grid-template-columns:1fr}
+  .vids{grid-template-columns:repeat(2,1fr)}
+  .bar{grid-template-columns:110px 1fr 56px}
+  section{padding:16px}
+}
+/* 本页新增 */
+.flow{display:flex;align-items:stretch;gap:0;overflow-x:auto;margin:6px 0 4px}
+.flow .fs{flex:1 0 150px;border:1px solid var(--line);background:var(--bg);border-radius:var(--r);padding:10px 12px;font-size:13px}
+.flow .fs b{display:block;font-size:14px;margin-bottom:2px}
+.flow .fs.gpu{border-color:var(--prog);background:var(--prog-bg)}
+.flow .ar{flex:0 0 22px;display:grid;place-items:center;color:var(--ink3)}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:0;font-size:14px;border-top:1px solid var(--line)}
+.kv div{padding:8px 6px;border-bottom:1px solid var(--line)}
+.kv div:nth-child(odd){color:var(--ink3);font-size:13px}
+.rd{border-left:4px solid var(--line);padding:2px 0 2px 14px;margin:20px 0}
+.rd.ok{border-color:var(--hu)} .rd.no{border-color:var(--ai)} .rd.part{border-color:var(--warn)}
+.rd h3{margin:0 0 6px}
+.v2col{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.vw{width:100%}
+.flaw{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.flaw div{border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;background:var(--bg);font-size:14px}
+.flaw b{display:block;font-size:15px;margin-bottom:4px}
+.flaw .lv{float:right}
+.verdict{border:2px solid var(--ai);background:var(--ai-bg);border-radius:var(--r);padding:14px 16px}
+.verdict .big{font-size:20px;font-weight:700;color:var(--ai);margin:0 0 6px}
+.cmpt td.w{color:var(--hu);font-weight:600}
+@media (max-width:760px){.v2col,.flaw{grid-template-columns:1fr}.kv{grid-template-columns:100px 1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>开源自部署 GPU 能不能替代可灵？一镜到底实测</h1>
+  <p class="lead">10-27 一天的实践记录：案例09 一镜到底的「真实质感」这一步原来用可灵（Kling O3 视频转视频，按秒付费），今天换成开源模型、在租来的 GPU 上自己跑，从 5 秒试片一直做到 85 秒整片，再和可灵版逐帧对比。本页按顺序讲：部署方案 → 生成效果 → 和可灵对比 → 最大的不足 → 评估结论。</p>
+  <div class="kpis">
+    <div class="kpi"><b>$4.50</b><span>开源整片 85 秒的花费（首帧出图 $0.90 + GPU $3.60）</span></div>
+    <div class="kpi"><b>$14–17</b><span>可灵做同样一条：纯生成 $11.90（$0.14/秒 × 85 秒）+ 返工（事前估 $2–3，这次实际 $5.18）</span></div>
+    <div class="kpi"><b>3 处</b><span>开源版画错的地方：2 处衣柜 + 卫生间隔断和窗，其中次卧二整面衣柜没画出来</span></div>
+    <div class="kpi"><b>不采用</b><span>开源版不做成片，成片继续用可灵</span></div>
+  </div>
+  <p class="muted"><b>几个词：</b>白模＝只有形状、没有颜色材质的 3D 草模（Blender 手工搭）；深度图＝每个像素只记「离镜头多远」的黑白图，用来告诉模型房子的结构；视频转视频＝把白模走房视频整段交给模型，结构和镜头不动，只换成真实材质光影；首帧锚定＝先用 AI 出图工具（Nano Banana Pro）把白模第一帧画成一张真实照片，让模型照着这张照片的材质往后画；链＝从一个门洞开始、一段接一段连续往下画的几段视频。</p>
+</header>
+
+<nav>
+  <a href="#deploy">① 部署方案</a><a href="#result">② 生成效果</a><a href="#compare">③ 和可灵对比</a><a href="#flaw">④ 最大的不足</a><a href="#verdict">⑤ 评估结论</a><a href="#cost">今天的花费</a>
+</nav>
+
+<section id="deploy">
+  <h2><span class="no">1</span>调研出来的部署方案</h2>
+  <p class="sub">要做的事：把 Blender 白模走房视频换成真实质感，房子结构和镜头路线不能变。这是「带结构控制的视频转视频」。</p>
+  <div class="concl"><b>选型：</b>10-26 调研过的 7 项开源技术（3D 重建、单图生成走房、首尾帧补画面，见 <a href="https://upio.ai/workflow/c09-oner-process-1a4967f7" target="_blank" rel="noopener">制作过程页</a> 第 1 节）都不是做这件事的。开源里能做的是阿里的 <b>Wan2.1 VACE 14B</b>：可以吃一段控制视频（深度图）决定结构，同时可以指定某几帧必须保留原图（用来做首帧锚定）。fal 上有它的托管版（$0.08/秒，85 秒约 $6.80），今天按要求改成自己租 GPU 部署（整片生成部分实付 $3.60）。</div>
+
+  <h3>部署架构</h3>
+  <div class="flow">
+    <div class="fs"><b>本机 Blender</b>白模沿路线渲出深度图，16 帧/秒，85 秒共 1361 帧</div><div class="ar">→</div>
+    <div class="fs"><b>首帧出图</b>Nano Banana Pro 把白模第 0 帧画成真实照片，$0.15/张</div><div class="ar">→</div>
+    <div class="fs gpu"><b>RunPod GPU</b>Wan2.1 VACE 14B 分段生成，每段 81 帧（约 5 秒）</div><div class="ar">→</div>
+    <div class="fs"><b>本机 ffmpeg</b>取回各段，拼接、调色、补到 24 帧/秒，加字幕和配乐</div>
+  </div>
+
+  <h3>配置清单</h3>
+  <div class="kv">
+    <div>GPU</div><div>RunPod RTX PRO 6000 Blackwell 96GB 显存（安全云，$2.49/小时）。选它是因为实测最高占用 68.8GB 显存（显卡内存），按这个推断 48GB 的卡跑不了 720p（没在 48GB 卡上试）</div>
+    <div>模型</div><div>Wan2.1-VACE-14B（diffusers 格式，约 75GB），每次开机从 Hugging Face 下载，3–8 分钟</div>
+    <div>加速</div><div>加一个加速插件（lightx2v），每段只算 8 步就出结果，原本要 30 步（步＝模型反复修图的次数，越多越慢越贵）。不加速的话估计每段约 30 分钟，比可灵还贵，没跑</div>
+    <div>运行脚本</div><div>自己写的脚本：模型只加载一次，按任务清单一段一段跑（底层用开源的 diffusers 库）</div>
+    <div>分辨率 / 速度</div><div>720×1280，每段 81 帧，生成 255–279 秒；按 $2.49/小时算，<b>每段约 $0.18</b></div>
+    <div>控制方式</div><div>深度图（保结构）+ 首帧锚定（定材质）；每段用上一段最后一帧当第 0 帧，接着往下画</div>
+    <div>本机怎么控制它</div><div>本机开着 VPN，远程登录 GPU 服务器会被断开。改成服务器自己干活：开机时把脚本一起交给它，它自己下载素材、跑完任务，再把结果放在一个网址上，本机从网址取日志和成片。用完删机器，确认每小时花费回到 0</div>
+  </div>
+</section>
+
+<section id="result">
+  <h2><span class="no">2</span>生成效果：三轮</h2>
+  <p class="sub">先拿开头 5 秒试控制方式，再试首帧锚定，最后跑 85 秒整片。</p>
+
+  <div class="rd part">
+    <h3>第一轮 · 5 秒试片：深度图结构准，但材质不听话 <span class="st part">部分可用</span></h3>
+    <p style="margin:0 0 10px;font-size:14px">同一段白模，试了三种控制：深度图 + 参考图、只给深度图、白模线稿 + 参考图。深度图那两版柜子、门洞的位置和形状都对（这一段玄关柜有凹进去放东西的格子和柜体边缘，深度图里看得出来；整面平板柜门就不行，见第 4 节）；但提示词写了「玄关是瓷砖」，照样画成木地板或水泥地，柜子上凹进去的格子也被改了。线稿那版自己编出带把手的玻璃门柜，直接放弃。5 秒开源每版生成费 $0.18–0.19（不含开机下载模型的时间），可灵 $0.70。</p>
+    <div class="v2col">
+      <div><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/c09-oss-20261027/media/ctrl.jpg?v=1793087051" alt="三种控制输入：深度图、线稿、白模" loading="lazy"><div class="cap">喂给模型的控制输入：左 深度图 / 中 白模线稿 / 右 白模原画面</div></div>
+      <div><video class="vw" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/c09-oss-20261027/media/r1.mp4?v=1793087052" poster="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/c09-oss-20261027/media/r1.jpg?v=1793087052" controls playsinline preload="none" style="aspect-ratio:1800/640"></video><div class="cap">从左到右：白模 / 可灵 / 开源 深度+参考图 / 开源 只给深度 / 开源 线稿（编出了玻璃门柜）</div></div>
+    </div>
+  </div>
+
+  <div class="rd ok">
+    <h3>第二轮 · 9 秒：首帧锚定解决了材质 <span class="st ok">有效</span></h3>
+    <p style="margin:0 0 10px;font-size:14px">光在提示词里写「瓷砖」没用。改成先用 Nano Banana Pro 把白模第 0 帧画成一张真实照片，交给模型当第 0 帧（这一帧原样保留），后面的帧仍按深度图生成。这样地面、柜子上凹进去的格子就都对了；第二段用第一段最后一帧接着画，接缝看不出跳。9 秒开源 $0.51（两段生成约 $0.36 + 首帧照片 $0.15，不含开机），可灵 $1.26。剩下的问题：颜色偏灰偏冷，生活感弱。</p>
+    <div class="v2col">
+      <div><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/c09-oss-20261027/media/anchor.jpg?v=1793087051" alt="白模第 0 帧与首帧锚定图" loading="lazy"><div class="cap">左：白模第 0 帧；右：AI 画成的真实照片，作为第 0 帧交给模型</div></div>
+      <div><video class="vw" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/c09-oss-20261027/media/r2.mp4?v=1793087061" poster="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/c09-oss-20261027/media/r2.jpg?v=1793087061" controls playsinline preload="none" style="aspect-ratio:1440/854"></video><div class="cap">白模 / 可灵 / 开源（首帧锚定，两段接起来）</div></div>
+    </div>
+  </div>
+
+  <div class="rd part">
+    <h3>第三轮 · 85 秒整片：能做完，但结构错了 3 处 <span class="st part">能出片 · 有硬伤</span></h3>
+    <p style="margin:0 0 10px;font-size:14px">85 秒切成 4 条链（玄关→厨房 / 过道→次卧二 / 次卧一→卫生间 / 主卧），每条链的开头在门洞处，配一张首帧照片；链内每段接上一段末帧，一共 18 段。两台 GPU 并行，从开机到跑完各用约 38 分钟和 48 分钟（按账单计费时长）。首帧照片常常对不齐白模（把镜头推进房间、把关着的柜门画成没门的格子），C、D 两条链各重出了一次，必须和白模并排看过才能上 GPU。</p>
+    <div class="v2col">
+      <div><img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/c09-oss-20261027/media/anchor_bad.jpg?v=1793087051" alt="首帧没对齐白模的例子" loading="lazy"><div class="cap">C 链首帧：左 白模 / 中 第一次出图（作废） / 右 重出后采用</div></div>
+      <div><video class="vw" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/c09-oss-20261027/media/oss_film.mp4?v=1793087134" poster="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/c09-oss-20261027/media/oss_film.jpg?v=1793087134" controls playsinline preload="none" style="aspect-ratio:9/16;max-height:640px;width:auto;margin:0 auto"></video><div class="cap">开源整片（调色后、85 秒，本页是压缩预览）</div></div>
+    </div>
+  </div>
+</section>
+
+<section id="compare">
+  <h2><span class="no">3</span>和可灵的效果对比</h2>
+  <p class="sub">同一段白模、同一条 85 秒时间轴，两边逐秒对得上（可灵这边用的是 85 秒原片；终版后来剪成两个版本：74 秒去掉了卫生间，82 秒保留卫生间）。下图上排是开源（调色后），下排是可灵，取 6 个时刻。</p>
+  <img src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/c09-oss-20261027/media/grid.jpg?v=1793087051" alt="同一时刻开源与可灵对比" loading="lazy">
+  <div class="cap">注意 45 秒次卧二：可灵画出了整面 4 门衣柜，开源画成了一面墙 + 一扇门；55 秒次卧一：开源衣柜没有上下分缝；67 秒卫生间：开源把窗画成了一个木格子。</div>
+
+  <h3>并排看视频</h3>
+  <div class="v2col">
+    <div><video class="vw" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/c09-oss-20261027/media/sbs1.mp4?v=1793087154" poster="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/c09-oss-20261027/media/sbs1.jpg?v=1793087154" controls playsinline preload="none" style="aspect-ratio:9/8"></video><div class="cap">0–20 秒：玄关、餐厅、厨房（左开源 / 右可灵）</div></div>
+    <div><video class="vw" src="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/c09-oss-20261027/media/sbs2.mp4?v=1793087172" poster="https://pub-667af1183df84306ad1f8d1cec9bd192.r2.dev/replica-production/research/c09-oss-20261027/media/sbs2.jpg?v=1793087172" controls playsinline preload="none" style="aspect-ratio:9/8"></video><div class="cap">50–72 秒：次卧一、卫生间（左开源 / 右可灵）</div></div>
+  </div>
+
+  <h3>逐项对比</h3>
+  <div class="tbl"><table class="cmpt">
+    <thead><tr><th>维度</th><th>开源（Wan2.1 VACE 自部署）</th><th>可灵（Kling O3 视频转视频）</th></tr></thead>
+    <tbody>
+      <tr><td>柜子和结构</td><td>大部分对；3 处错，其中次卧二整面衣柜没画</td><td class="w">5 处柜位都在，没有丢柜子；10-26 版有 2 处小瑕疵：过道多出一排柜子（今天已返修掉）、卫生间洗手台的镜子画成窗（没修，74 秒版直接去掉了卫生间）</td></tr>
+      <tr><td>材质真实感（观感）</td><td>靠首帧照片撑着，链越往后越像效果图</td><td class="w">更像手机实拍</td></tr>
+      <tr><td>亮度（平均，0–255）</td><td>原片 118，调色后 145</td><td class="w">159</td></tr>
+      <tr><td>画面稳定</td><td>墙面、柜门会慢慢「流动」变形</td><td class="w">较稳定，段与段之间偶有跳变（已用过渡镜头修掉）</td></tr>
+      <tr><td>85 秒花费</td><td class="w">$4.50（补错处另加约 $1.5）</td><td>纯生成 $11.90，加返工约 $14–17</td></tr>
+      <tr><td>改一处要重画多少</td><td>同一条链后面的所有段（每段都从上一段最后一张画面接着画）</td><td class="w">只重跑出问题的那一段</td></tr>
+    </tbody>
+  </table></div>
+  <p class="muted">亮度是本页实测：每秒取 2 帧，算画面平均亮度，开源用整片原片 / 调色版，可灵用 85 秒原片。</p>
+</section>
+
+<section id="flaw">
+  <h2><span class="no">4</span>最大的不足：瑕疵和成本</h2>
+  <h3>瑕疵</h3>
+  <div class="flaw">
+    <div><span class="st no lv">致命</span><b>柜子画错 3 处</b>次卧二整面 4 门衣柜画成墙和门；次卧一衣柜丢了上下分缝；卫生间淋浴隔断和窗画成了白板 / 木格子。原因：深度图只记远近，平板柜门、窗户和墙在深度图里一样平，模型看不出这里有柜子，只能猜。可灵吃的是白模画面本身，柜门分缝看得见，所以没有丢柜子。我们卖的就是柜子，柜子画错等于卖点错。</div>
+    <div><span class="st no lv">修不掉</span><b>墙面、柜门慢慢「流动」</b>大概率是为了省钱用的 8 步加速造成的（没跑完整 30 步做对照），后期修不掉。换完整 30 步估计每段约 30 分钟，整片要 $20 以上（估算，没实测），就比可灵还贵了。</div>
+    <div><span class="st part lv">能补</span><b>颜色偏灰、偏冷、偏暗</b>链越往后越灰。整片调色能把平均亮度从 118 拉到 145，可灵是 159。</div>
+    <div><span class="st part lv">费人工</span><b>误差会往后传</b>每段都从上一段最后一张画面接着画，前面错一点后面跟着错；镜头绕开再回来的地方（玄关柜后面的客厅），抱枕、灯带等物件不延续。改一段要连带重画同一条链后面的所有段。</div>
+    <div><span class="st part lv">费人工</span><b>首帧照片对不齐白模</b>AI 出首帧时常把镜头推进房间、把关着的柜门画成没门的格子，每张都要和白模并排看，今天废了 2 张。</div>
+    <div><span class="st gray lv">已处理</span><b>补帧像果冻</b>模型出的是每秒 16 张画面，成片要每秒 24 张。最初用算法补中间画面，运动的地方糊成一团、像果冻在晃（30 秒处厨房柜子），已改成把画面重复一次补齐，代价是轻微顿挫。</div>
+  </div>
+  <h3>成本</h3>
+  <div class="bars">
+    <div class="bar"><span>可灵 85 秒（含返工）</span><span class="tr"><i class="i-detour" style="width:78%"></i></span><span class="v">$14–17</span></div>
+    <div class="bar"><span>开源完整 30 步（估算）</span><span class="tr"><i class="i-pick" style="width:100%"></i></span><span class="v">$20+</span></div>
+    <div class="bar"><span>开源 8 步整片（实测）</span><span class="tr"><i class="i-keep" style="width:22.5%"></i></span><span class="v">$4.50</span></div>
+    <div class="bar"><span>补那 3 处（估算）</span><span class="tr"><i class="i-keep" style="width:7.5%"></i></span><span class="v">约 $1.5</span></div>
+  </div>
+  <p class="muted" style="margin-top:10px">「补那 3 处」：次卧二在 B 链、次卧一和卫生间在 C 链，按改一段要重画同链后面所有段算，最多重画 8 段（B 链 3 段 + C 链 5 段），生成费约 $1.4，加上开机下载约 $1.5；而且深度图看不出柜门，补了也不一定画对，没实测。</p>
+  <ul class="tight">
+    <li><b>绝对金额不大</b>：一条大约省 $8–11（可灵 $14–17，减去开源 $4.50 + 补错 $1.5），但要人盯：出首帧、逐张对白模、开关 GPU、取回拼接、逐帧找错。今天整片这一轮从出首帧（12:2x）到 GPU 跑完出原片（13:2x）约 1 小时，之后还要调色、加字幕，前面两轮试验另花了一上午。</li>
+    <li><b>要先充钱</b>：RunPod 先充值、按小时从余额里扣，机器忘了删会一直扣钱（今天每次都删了，现在每小时花费为 0）。</li>
+  </ul>
+</section>
+
+<section id="verdict">
+  <h2><span class="no">5</span>评估结论</h2>
+  <div class="verdict">
+    <p class="big">不采用：开源自部署不做成片，成片继续用可灵。</p>
+    <ul class="tight" style="font-size:14px">
+      <li><b>硬伤在结构</b>：整面衣柜都能丢，这是深度图控制方式本身的问题，不是多花钱就能修好的。</li>
+      <li><b>真实感和稳定性差一档</b>（观感）：颜色调色能补；「流动」变形在 8 步设置下后期补不了，是不是加速造成的没验证。</li>
+      <li><b>省下的钱不抵人工</b>：一条大约省 $8–11，换来更多返工和盯梢时间。今天可灵版的返修（过道 3 次 + 过渡镜头 4 次）合计 $5.18，已经把可灵版修到能用（74 秒版干净；82 秒版卫生间镜子画成窗没修）。</li>
+    </ul>
+  </div>
+  <h3>什么时候可以再看</h3>
+  <ul class="tight">
+    <li>开源模型能直接吃白模画面（看得见柜门分缝）做控制，而不只是深度图的时候。</li>
+    <li>复测方法已经现成：同一段 9 秒白模 + 同一套首帧锚定 + 和可灵并排对比，一次实付约 $0.6–0.9（含开机下载）加首帧 $0.15，脚本都在。</li>
+  </ul>
+</section>
+
+<section id="cost">
+  <h2><span class="no">·</span>今天开源这条路一共花了多少</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>环节</th><th>内容</th><th style="text-align:right">花费</th></tr></thead>
+    <tbody>
+      <tr><td>第一、二轮试片</td><td>RunPod 3 台次，计费 15 / 16 / 21 分钟</td><td class="n">$2.18</td></tr>
+      <tr><td>第二轮首帧</td><td>Nano Banana Pro 1 张</td><td class="n">$0.15</td></tr>
+      <tr><td>整片首帧</td><td>Nano Banana Pro 6 张（含 2 张对不齐重出）</td><td class="n">$0.90</td></tr>
+      <tr><td>整片生成</td><td>RunPod 2 台并行，计费 38 / 48 分钟</td><td class="n">$3.60</td></tr>
+      <tr class="tot"><td colspan="2">合计</td><td class="n">$6.83</td></tr>
+    </tbody>
+  </table></div>
+  <p class="muted">RunPod 金额取自 RunPod 账单接口（按机器、按天），含计费时长内的磁盘费；Nano Banana Pro 取自本条视频的花费记录。更正：早前口径整片 $4.31 少算了磁盘等费用，以账单为准是 $4.50。</p>
+</section>
+</div>
+</body>
+</html>
