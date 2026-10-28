@@ -37,6 +37,37 @@
 .ia .q i{font-style:normal;color:var(--accent);margin-right:4px;}
 .ia .go{display:inline-block;margin-top:12px;font-size:13px;font-weight:600;color:var(--accent);text-decoration:none;}
 .ia .pend{font-size:12.5px;color:var(--ink-faint);margin-top:10px;}
+.io{margin-top:22px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--paper-raised);box-shadow:var(--shadow);}
+.io table{width:100%;border-collapse:collapse;font-size:14px;}
+.io th{text-align:left;font-size:12px;font-weight:600;color:var(--ink-faint);padding:12px 14px;background:var(--paper-sunken);white-space:nowrap;}
+.io td{padding:14px;border-top:1px solid var(--line);vertical-align:top;line-height:1.55;color:var(--ink-soft);}
+.io td.n{font-weight:700;color:var(--ink);}
+.io td.n small{display:block;font-weight:400;font-size:12px;color:var(--ink-faint);}
+.io td.out b{color:var(--accent);font-size:16px;font-family:"IBM Plex Mono",monospace;}
+.io td.out small{display:block;font-size:12px;color:var(--ink-faint);}
+.io .na{color:var(--ink-faint);}
+.io-sum{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px;}
+.io-sum span{font-size:13.5px;padding:7px 12px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-weight:600;}
+.bv{display:grid;grid-template-columns:96px minmax(0,1fr);gap:12px;align-items:center;margin-top:14px;padding:10px;border-radius:10px;
+  background:var(--paper-sunken);text-decoration:none;color:inherit;}
+.bv:hover{outline:1px solid var(--accent);}
+.bv img{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:8px;display:block;}
+.bv .l{font-size:11.5px;color:var(--ink-faint);}
+.bv .t{font-size:14px;font-weight:600;color:var(--ink);margin:3px 0;line-height:1.45;}
+.bv .num{font-size:13px;color:var(--accent);font-weight:700;}
+.ia details{margin-top:12px;}
+.ia summary{cursor:pointer;font-size:13px;color:var(--ink-soft);}
+.ia .ef{font-size:12.5px;color:var(--ink-soft);margin-top:8px;}
+.ia .ef b{color:var(--ink);font-weight:600;}
+@media (max-width:720px){
+  .io table,.io tbody,.io tr,.io td{display:block;width:100%;}
+  .io thead{display:none;}
+  .io tr{border-top:1px solid var(--line);padding:12px 14px;}
+  .io tr:first-child{border-top:none;}
+  .io td{border:none;padding:3px 0;}
+  .io td[data-k]:before{content:attr(data-k) "：";color:var(--ink-faint);font-size:12.5px;}
+  .bv{grid-template-columns:72px minmax(0,1fr);}
+}
 .cp{display:grid;gap:14px;margin-top:22px;}
 .cp-item{background:var(--paper-raised);border:1px solid var(--line);border-radius:12px;padding:16px 18px;}
 .cp-asp{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:4px;margin-bottom:6px;
@@ -89,23 +120,52 @@
     }).join('');
   }
 
-  // 本行业的号：页面主体。有拆解的号引用拆解原话（industry.py 校验过出处），没拆解的只讲作品和评论
+  // 本行业的号：页面主体。最带客的那条视频放最前；正文两句；拆解原话折叠（industry.py 校验过出处）
+  function bestVideo(a) {
+    var v = a.best;
+    if (!v) return '';
+    return '<a class="bv" href="' + esc(v.href) + '" target="_blank" rel="noopener">'
+      + (v.cover ? '<img src="' + B + esc(v.cover) + '" alt="' + esc(v.title) + '" loading="lazy">' : '<span></span>')
+      + '<div><div class="l">评论里想买的人最多的一条</div><div class="t">' + esc(v.title) + '</div>'
+      + '<div class="num">' + (v.comments ? v.comments + ' 条评论里 ' : '') + v.n + ' 条想买</div>'
+      + '<div class="l" style="margin-top:4px">看原视频 &rarr;</div></div></a>';
+  }
+
   function acctBlock(a, x) {
     x = x || {};
+    var ef = x.effort || {};
     var cites = (x.cites || []).map(function (c) {
       return '<blockquote>「' + esc(c.quote) + '」<cite>拆解报告 · ' + esc(c.from) + '</cite></blockquote>';
     }).join('');
     return '<div class="ia"><a href="' + CR.acctURL(a.slug) + '"><img src="' + B + esc(a.poster.src) + '" alt="' + esc(a.name) + ' 封面合辑" loading="lazy" width="' + a.poster.w + '" height="' + a.poster.h + '"></a>'
       + '<div style="min-width:0"><h3><a href="' + CR.acctURL(a.slug) + '">' + esc(a.name) + '</a></h3>'
-      + '<div class="sub">' + esc([a.city, a.platform].filter(Boolean).join(' · ')) + '</div>'
+      + '<div class="sub">' + esc([a.city, a.platform, a.fans ? '粉丝 ' + a.fans : ''].filter(Boolean).join(' · ')) + '</div>'
       + (a.intent != null ? '<span class="it">评论里想买 ' + a.intent + ' 条</span>' : '')
       + (x.why ? '<p class="why">' + esc(x.why) + '</p>' : '')
       + (x.approach ? '<p class="ap">' + esc(x.approach) + '</p>' : '')
-      + (cites ? '<div class="cites">' + cites + '</div>' : '')
+      + (ef.shoot ? '<p class="ef">投入：<b>' + esc([ef.device, ef.time && '每条 ' + ef.time, ef.ai_cost && 'AI 费用 ' + ef.ai_cost].filter(Boolean).join(' · ')) + '</b></p>' : '')
+      + bestVideo(a)
+      + (cites ? '<details><summary>我们拆解时的原话（' + (x.cites || []).length + ' 条）</summary><div class="cites">' + cites + '</div></details>' : '')
       + (a.quote ? '<p class="q"><i>' + esc(a.quote.k) + '</i>评论原话「' + esc(a.quote.t) + '」</p>' : '')
-      + (a.teardown ? '<a class="go" href="' + CR.acctURL(a.slug) + '">看完整拆解：' + esc(a.teardown) + ' &rarr;</a>'
-         : '<p class="pend">这个号的逐条拆解还在做，先看<a href="' + CR.acctURL(a.slug) + '">它的案例</a>。</p>')
+      + (a.teardown ? '<a class="go" href="' + CR.acctURL(a.slug) + '">看这个号的完整分析 &rarr;</a>'
+         : '<p class="pend">这个号的逐条分析还在做，先看<a href="' + CR.acctURL(a.slug) + '">它的案例</a>。</p>')
       + '</div></div>';
+  }
+
+  // 投入和产出：一号一行，投入出自拆解（industry.py 校验过出处），产出是评论里数出来的
+  function ioTable(d, ac) {
+    var rows = d.accounts.map(function (a) {
+      var ef = (ac[a.slug] || {}).effort || {}, v = a.best;
+      var na = '<span class="na">还在分析</span>';
+      return '<tr><td class="n">' + esc(a.name) + (a.fans ? '<small>粉丝 ' + esc(a.fans) + '</small>' : '') + '</td>'
+        + '<td data-k="怎么拍">' + (ef.shoot ? esc(ef.shoot) : na) + '</td>'
+        + '<td data-k="设备">' + (ef.device ? esc(ef.device) : na) + '</td>'
+        + '<td data-k="每条人工">' + (ef.time ? esc(ef.time) : na) + '</td>'
+        + '<td data-k="每条 AI 费用">' + (ef.ai_cost ? esc(ef.ai_cost) : (ef.shoot ? '—' : na)) + '</td>'
+        + '<td class="out" data-k="最带客的一条">' + (v ? '<b>' + v.n + '</b> 人想买' + (v.comments ? '<small>' + v.comments + ' 条评论里</small>' : '') : '—') + '</td></tr>';
+    }).join('');
+    return '<div class="io"><table><thead><tr><th>账号</th><th>怎么拍</th><th>设备</th><th>每条人工</th><th>每条 AI 费用</th><th>最带客的一条</th></tr></thead><tbody>'
+      + rows + '</tbody></table></div>';
   }
 
   function render(d) {
@@ -125,8 +185,15 @@
           ['评论里想买', t.intent + ' 条', ' style="background:var(--accent-soft);color:var(--accent)"']]) + '</div>' : '')
       + '</div></section><section style="padding-top:0"><div class="wrap">';
 
+    if (n && c && c.accounts.some(function (x) { return x.effort && x.effort.shoot; })) {
+      h += '<div class="shead reveal in" style="margin-top:40px"><span class="eyebrow">投入和产出</span>'
+        + '<h2>同行这样拍，一条要花多少、带来多少想买的人</h2>'
+        + '<p class="lede">投入按我们对每个号的逐条分析估算：照它的拍法做一条，用什么设备、人要花多久、用 AI 整理剪辑大概多少钱。产出是那个号评论里想买的人最多的一条视频。</p></div>'
+        + ioTable(d, ac);
+    }
+
     if (n) {
-      h += '<div class="shead reveal in" style="margin-top:40px"><span class="eyebrow">这一行我们调研了谁</span>'
+      h += '<div class="shead reveal in" style="margin-top:56px"><span class="eyebrow">这一行我们调研了谁</span>'
         + '<h2>' + n + ' 个账号，各自怎么用案例内容获客</h2>'
         + '<p class="lede">按评论里想买的人数排。「评论里想买」是我们读了每条视频前 200 条评论后，数出来在问价、问怎么买、想要同款、问门店、已经下单的条数——比点赞更接近生意。引文出自我们对这个号评论里想买最多的三条视频的逐条拆解。</p></div>'
         + d.accounts.map(function (a) { return acctBlock(a, ac[a.slug]); }).join('');
