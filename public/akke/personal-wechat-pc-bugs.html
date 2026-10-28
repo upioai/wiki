@@ -1799,7 +1799,7 @@
       <dl>
         <dt>现场</dt><dd>10-20 三位新好友的首触是销售在电脑上手发的：电脑 C 的魏*发（贵A61**88），电脑 B 的淡*女、华*装饰。三条首触都没有被程序记进库，是 10-21 运营发截图后人工补记的。</dd>
         <dt>影响</dt><dd>看板「添加好友记录」和首触统计里少了这几条；后续召回、回复率都按“没发过首触”算。</dd>
-        <dt>根因</dt><dd>销售手发消息的补记（<code>Akke-AI/wecom-chat</code> #2254，1.25.26；PR 标题误写成 W-106）只从「屏上最后一条客户气泡之后的我方气泡」里挑要入库的（<code>src/lib/wecom/sales-typed-own-tail.ts</code> 文件头注释，PR 说明的已知局限②）。新好友的首触发在客户回话之前，排在第一条客户气泡前面，永远不在这个范围里。</dd>
+        <dt>根因</dt><dd>销售手发消息的补记（<code>Akke-AI/wecom-chat</code> #2254，1.25.26；PR 标题误写成 W-106）只从屏上最后一条客户气泡之后的我方气泡里挑要入库的（<code>src/lib/wecom/sales-typed-own-tail.ts</code> 文件头注释，PR 说明的已知局限②）。新好友的首触发在客户回话之前，排在第一条客户气泡前面，永远不在这个范围里。</dd>
         <dt>怎么修</dt><dd>默认做法：新好友会话在库里还没有我方消息时，把屏上第一条客户气泡之前的我方气泡也补进来（排除加好友验证语和招呼语），记成首触。未开发。</dd>
         <dt>验证</dt><dd>机制来自主干（<code>origin/main</code>）上的上述文件；三位客户的漏记来自 10-21 运营截图与库里核对。没有修复，没有独立检验。</dd>
         <dt>还没解决</dt><dd>整条都没解决。</dd>
@@ -1811,14 +1811,27 @@
     <div class="bug" id="W-122" style="--bc:#d03b3b">
       <div class="bh"><code class="bid">W-122</code><b>名字没变、搜得到的老客户，到期召回仍一直发不出去：列表巡检翻不到，逾期搜索出口又一条都没跑过</b><span class="bst open">原因已查明 · 搜索出口待装机（1.25.47 已下载）</span></div>
       <dl>
-        <dt>现场</dt><dd>接 <a href="#W-119">W-119</a>：电脑 B 上到期未发的 39 条召回，运营 10-21 在微信里逐个人工核对：<b>37 位名字没变，在微信搜索框都能搜出来</b>；1 位只改了名字里的表情（川A60**91 高*洪，🏠 改成 🏡）；1 位已不是好友（闽C61**08 小*，会话里有「开启了朋友验证，你还不是他（她）朋友」灰字，10-13 那条我方消息带红叹号）。所以 W-119 原来猜的“备注改了 / 删了好友”只占 2 条，绝大多数是程序自己没去找。</dd>
+        <dt>现场</dt><dd>接 <a href="#W-119">W-119</a>：电脑 B 上到期未发的 39 条召回，运营 10-21 在微信里逐个人工核对：<b>37 位名字没变，在微信搜索框都能搜出来</b>；1 位只改了名字里的表情（川A60**91 高*洪，🏠 改成 🏡）；1 位已不是好友（闽C61**08 小*，会话里有开启了朋友验证、你还不是他（她）朋友灰字，10-13 那条我方消息带红叹号）。所以 W-119 原来猜的“备注改了 / 删了好友”只占 2 条，绝大多数是程序自己没去找。</dd>
         <dt>影响</dt><dd>37 位能联系上的客户，召回压了 1 周到 1 个月没发（最早 9-22 到期）。</dd>
-        <dt>原因</dt><dd>① 这些任务几乎从没被领过：10-21 08:1x 查库，电脑 B 这 40 条待领任务里 39 条从未被领取（<code>claimed_at</code> 为空），32 条一次都没尝试过（<code>attempts=0</code>），说明列表巡检始终没有在这些客户的会话开着的时候来要任务。<br>② W-119 加的「逾期 ≥2 天用搜索框找人」出口（1.25.43 起）<b>全公司一次都没跑过</b>：库里带搜索领取标记（<code>dedupe_key</code> 以 <code>overdue-search:</code> 开头）的任务为 0 条。原因是三台销售电脑都还没装上：10-21 08:12 心跳电脑 A 是 1.25.32、电脑 B 和 C 是 1.25.33；电脑 B，1.25.47 已下载好（<code>stage=ready</code>）等销售双击安装。<br>③ 装上后每台每天默认只用搜索框领 3 条（<code>src/lib/wecom/windows-title-recall.ts</code> 的 <code>OVERDUE_SEARCH_DEFAULT_PER_DAY</code>），39 条要 13 天左右才能轮完。<br>改表情那位不受影响：搜索按六位编号搜，打开后认人只比地区 + 编号（<code>cloudpc/windows-weixin/guards.py</code> 的 <code>identity_gate</code>）。已不是好友那位：打开会话后程序能认出「朋友验证」灰字并上报停发（<code>runner.py</code> 的 <code>customer_unreachable_detected</code>），但会话从没被打开，所以一直挂着。</dd>
-        <dt>怎么修</dt><dd>已做：已不是好友那位的召回任务已取消（10-21，原因记 <code>not_friend_verified_by_ops_20261021</code>）。<br>待做：① 电脑 B 装 1.25.47（需要高一瑞双击安装包）；② 装后第一天看搜索出口是否真的领到并发出（日志 <code>recall_overdue_search_opened</code>、库里出现 <code>overdue-search:</code> 标记）；③ 第一天发出正常就把电脑 B 的每日搜索额度调到 10，约 4 天清完积压；④ 巡检为什么一直没碰到这 37 位（深处轮巡是否覆盖到、是否被每日点开额度截住）还没查。</dd>
+        <dt>原因</dt><dd>① 这些任务几乎从没被领过：10-21 08:1x 查库，电脑 B 这 40 条待领任务里 39 条从未被领取（<code>claimed_at</code> 为空），32 条一次都没尝试过（<code>attempts=0</code>），说明列表巡检始终没有在这些客户的会话开着的时候来要任务。<br>② W-119 加的逾期 ≥2 天用搜索框找人出口（1.25.43 起）<b>全公司一次都没跑过</b>：库里带搜索领取标记（<code>dedupe_key</code> 以 <code>overdue-search:</code> 开头）的任务为 0 条。原因是三台销售电脑都还没装上：10-21 08:12 心跳电脑 A 是 1.25.32、电脑 B 和 C 是 1.25.33；电脑 B，1.25.47 已下载好（<code>stage=ready</code>）等销售双击安装。<br>③ 装上后每台每天默认只用搜索框领 3 条（<code>src/lib/wecom/windows-title-recall.ts</code> 的 <code>OVERDUE_SEARCH_DEFAULT_PER_DAY</code>），39 条要 13 天左右才能轮完。<br>改表情那位不受影响：搜索按六位编号搜，打开后认人只比地区 + 编号（<code>cloudpc/windows-weixin/guards.py</code> 的 <code>identity_gate</code>）。已不是好友那位：打开会话后程序能认出「朋友验证」灰字并上报停发（<code>runner.py</code> 的 <code>customer_unreachable_detected</code>），但会话从没被打开，所以一直挂着。</dd>
+        <dt>怎么修</dt><dd>已做：已不是好友那位的召回任务已取消（10-21，原因记 <code>not_friend_verified_by_ops_20261021</code>）。<br>待做：① 电脑 B 装 1.25.47（需要销售 B 双击安装包）；② 装后第一天看搜索出口是否真的领到并发出（日志 <code>recall_overdue_search_opened</code>、库里出现 <code>overdue-search:</code> 标记）；③ 第一天发出正常就把电脑 B 的每日搜索额度调到 10，约 4 天清完积压；④ 巡检为什么一直没碰到这 37 位（深处轮巡是否覆盖到、是否被每日点开额度截住）还没查。</dd>
         <dt>验证</dt><dd>计数来自 10-21 08:1x 直接查库（表 <code>windows_recall_tasks</code>、<code>wecom_loop_heartbeats</code>）；机制来自主干上述文件。没有修复，没有独立检验。</dd>
         <dt>还没解决</dt><dd>37 条仍待发；搜索出口还没在任何一台机器上跑过；巡检翻不到的原因没查（电脑 B 近几天的客户端日志这次没拿到）。电脑 A 另有 15 条到期未发，没核。</dd>
         <dt>相关</dt><dd><a href="#W-119">W-119</a>（到期召回挂着不过期）、<a href="#W-120">W-120</a>（翻页接缝）、<a href="#W-108">W-108</a>。</dd>
         <dt>怎么验收</dt><dd>电脑 B 装上 1.25.47 后，库里出现 <code>overdue-search:</code> 标记的任务并且状态变成已发；37 条积压逐日减少到 0；运营在微信里能看到这些客户收到召回。</dd>
+      </dl>
+    </div>
+    <div class="bug" id="W-124" style="--bc:#d03b3b">
+      <div class="bh"><code class="bid">W-124</code><b>客户发语音，读屏把相邻的图片和语音并读成一个气泡「[图片] [语音]」，程序把这几个占位字当成了语音转写：没去点「转文字」，AI 照着占位字回了客户</b><span class="bst open">已修复 · 1.25.53 已推送待装机</span></div>
+      <dl>
+        <dt>现场</dt><dd>10-21 15:24，电脑 C 上一位客户连发一张图片和一条语音。程序读聊天画面时把这两条读成了一个气泡，文字是「[图片] [语音]」。服务端记录这一轮「语音已转写」（<code>llm_call_provenance</code> 07:24:58Z，<code>voiceTranscribed=true</code>），AI 回复里说语音没转出来。</dd>
+        <dt>影响</dt><dd>客户的语音内容没被读到，AI 按空内容作答；本该触发的「语音没转写就不回」保护也没生效。</dd>
+        <dt>原因</dt><dd><code>cloudpc/windows-weixin/vision.py</code> 的 <code>_resolve_voice_transcript</code> 有三个转写来源，第 3 个（最新一条左侧气泡就是语音那条时，把它的文字当转写）只认逐字等于「[语音]」的气泡为语音；「[图片] [语音]」不逐字相等，于是被当成了客户说的话、成了转写。端上因此以为转过了，不点「转文字」；<code>runner.py</code> 里「没转写不回」那道闸也只认逐字的「[语音]」，同样放行。服务端 <code>src/lib/wecom/voice-transcript.ts</code> 的 <code>parseVoiceTranscript</code> 只核对转写是不是本轮消息的一部分，占位字恰好是，也照收。</dd>
+        <dt>怎么修</dt><dd>已做（wecom-chat #2347，1.25.53）：① 新增 <code>is_placeholder_only</code>（整段只有媒体占位和 / 或语音时长，如「[图片] [语音]」、<code>15"</code>）和 <code>is_voice_like</code>（这类并读气泡也按语音认）；② 三个转写来源都不再接受只有占位的文字，补转写和「没转写不回」闸改用新判定，占位字被清空后照常去点「转文字」；③ 服务端 <code>parseVoiceTranscript</code> 同口径兜底，占位字不算转写。电脑端测试 2473 条通过。<br>待做：三台装上 1.25.53。</dd>
+        <dt>验证</dt><dd>回归测试覆盖「[图片] [语音]」、纯时长、正常转写三种情况；没有独立检验；装机后还没有真实语音样本。</dd>
+        <dt>还没解决</dt><dd>同一会话 15:38 那条回复被删改过（<code>weixin_reply_rewritten</code>），删掉了模型原话里的一句，是否属于程序问题还没查。</dd>
+        <dt>相关</dt><dd><a href="#W-106">W-106</a>（同一电脑上销售手发消息补记）。</dd>
+        <dt>怎么验收</dt><dd>装上 1.25.53 后，客户发语音时日志出现点「转文字」的记录（<code>voice_translate</code>），服务端不再出现转写内容只有占位字的 <code>voiceTranscribed=true</code>。</dd>
       </dl>
     </div>
   </div>
@@ -1851,7 +1864,7 @@
 </div>
 <div id="tip" role="tooltip"></div>
 
-<script src="/akke/personal-wechat-pc-bug-guide.js?v=hc2a68f62c4"></script>
+<script src="/akke/personal-wechat-pc-bug-guide.js?v=h19b9c74cf2"></script>
 <script>
 const API_BASE = "https://wecom-chat.vercel.app/api/public/weixin-pc-live";
 const MACHINES = [
