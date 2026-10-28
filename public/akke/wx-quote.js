@@ -8,8 +8,9 @@
  * 用法（会话 id 从团队会话页 https://wecom-chat.vercel.app/team/weixin/<id> 的地址栏复制，时间照页面上的分钟写）：
  *   <figure class="wx-quote" data-c="<会话UUID>" data-from="2026-10-14 13:32" data-to="2026-10-14 13:34"
  *           data-title="客户要求重新算一遍"></figure>
- *   <script src="/akke/wx-quote.js?v=2" defer></script>
+ *   <script src="/akke/wx-quote.js?v=3" defer></script>
  * 时间窗闭区间、到 to 那一分钟的 59 秒为止，最长 3 天、最多 30 条。
+ * 请求带上本页路径 p：后端只放行本页上真写着的 (会话, from, to)，换个窗口取不到——所以时间窗要写在页面源码里，不能由脚本拼出来。
  * 改本文件要同时把引用处的 ?v= 加 1：*.js 在 vercel.json 里是一年 immutable 缓存。
  * 后端：Akke-AI/wecom-chat src/app/api/public/weixin-quotes。
  */
@@ -62,7 +63,8 @@
       flow.replaceWith(el("p", "wx-msg", "原句暂时取不到（" + why + "）。上面的转述仍然有效；需要逐条核对请到团队会话页查看。"));
     };
     if (!box.dataset.c || !from || !to) return fail("页面里的会话或时间写法不对");
-    var url = API + "?c=" + encodeURIComponent(box.dataset.c) + "&from=" + encodeURIComponent(from) + "&to=" + encodeURIComponent(to);
+    var url = API + "?c=" + encodeURIComponent(box.dataset.c) + "&from=" + encodeURIComponent(from) + "&to=" + encodeURIComponent(to) +
+      "&p=" + encodeURIComponent(location.pathname);
     fetch(url, { cache: "no-store" })
       .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status)); })
       .then(function (data) {
