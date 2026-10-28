@@ -8,12 +8,13 @@
 <style>
 .rl-msg{font-size:12px;color:var(--bad);min-height:1.2em;margin-top:10px;}
 .vcard.relabeled .vrelabel{white-space:normal;text-align:left;}
-.it-sum{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;}
-.it-ex{display:flex;flex-direction:column;gap:6px;}
-.it-ex span{font-size:13px;line-height:1.5;}
-.it-ex i{font-style:normal;font-size:11px;padding:1px 6px;border-radius:4px;margin-right:6px;background:var(--accent-soft);color:var(--accent);white-space:nowrap;}
-.vtab td.it-n{font-family:'IBM Plex Mono',monospace;font-weight:600;white-space:nowrap;}
-.vcard .itb{background:var(--accent-soft);color:var(--accent);}
+.vcard .itb{background:var(--accent-soft);color:var(--accent);font-weight:700;font-size:11.5px;padding:2px 7px;border-radius:4px;font-family:"IBM Plex Mono",monospace;white-space:nowrap;}
+.vstat2{flex-wrap:wrap;}
+.vcard .itb.zero{background:var(--paper-sunken);color:var(--ink-faint);font-weight:500;}
+.vcard .itq{font-size:12px;line-height:1.5;color:var(--ink-soft);margin:6px 0 0;padding-left:8px;border-left:2px solid var(--accent-soft);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.vcard .itq i{font-style:normal;color:var(--accent);margin-right:4px;}
+.hl-item .q{color:var(--ink-soft);}
 </style>
 </head><body>
 <!-- 固定模板：所有账号共用这一页，?s=<slug> 决定显示哪个号，数据来自 db/<slug>.json。
@@ -68,14 +69,17 @@
       return '<span class="' + b.k + '">' + esc(b.t) + '</span>';
     }).join('');
     var tags = v.tags.length ? '<div class="vtags">' + esc(v.tags.join(' ')) + '</div>' : '';
-    if (v.intent) badges = '<span class="itb" title="评论里判出的购买意向条数">意向 ' + v.intent + '</span>' + badges;
+    // 关注点是购买意向：意向数放在最前面，点赞退到后面；判过但 0 条的灰显，没判的不标
+    var ip = v._ip;
+    if (ip) badges = '<span class="itb' + (ip.n ? '' : ' zero') + '" title="这条视频前 ' + ip.comments + ' 条评论里，AI 判为购买意向的条数">意向 ' + ip.n + ' / ' + ip.comments + '</span>' + badges;
+    var quote = ip && ip.ex && ip.ex[0] ? '<p class="itq" title="点赞最多的一条意向评论"><i>' + esc(ip.ex[0].k) + '</i>「' + esc(ip.ex[0].t) + '」</p>' : '';
     var td = v.td ? '<a class="vgo" style="display:block;margin:8px 0 2px;padding:6px 10px;border-radius:6px;background:var(--accent-soft);text-align:center" href="' + B + esc(v.td) + '">查看拆解报告 &rarr;</a>' : '';
     return '<div class="vcard" data-id="' + esc(v.id) + '" data-tk="' + esc(v.type) + '" data-tn="' + esc(v.type_name) + '" data-src="' + esc(v.type_src) + '" data-title="' + esc(v.full) + '">'
       + '<a class="vlink" href="' + esc(v.href) + '" target="_blank" rel="noopener" title="判定 ' + v.score + ' 分 · ' + esc(v.why) + '">'
       + '<div class="vthumb"><img src="' + B + esc(v.cover) + '" alt="' + esc(v.alt) + '" loading="lazy" width="323" height="430" decoding="async"></div>'
       + '<div class="vtitle">' + esc(v.title) + '</div></a>'
-      + '<div class="vmeta"><div class="vstat2"><span class="like">' + esc(v.stat) + '</span>' + badges + '</div>'
-      + tags + td + '<div class="vfoot"><a class="vgo" href="' + esc(v.href) + '" target="_blank" rel="noopener">在' + esc(v.pname) + '打开 &rarr;</a>'
+      + '<div class="vmeta"><div class="vstat2">' + badges + '<span class="like">' + esc(v.stat) + '</span></div>'
+      + quote + tags + td + '<div class="vfoot"><a class="vgo" href="' + esc(v.href) + '" target="_blank" rel="noopener">在' + esc(v.pname) + '打开 &rarr;</a>'
       + '<button class="vrelabel" type="button">重标注</button></div></div></div>';
   }
 
@@ -90,27 +94,33 @@
       + '</tbody></table></div>';
   }
 
-  // 评论里的购买意向：每条视频取前 200 条评论（平台热度顺序），AI 逐条判。数据见 scrape/intent.py
-  function intent(it) {
+  // 评论里的购买意向：不单独成模块，总结写进「这个号值得看的地方」，案例按它排（用户 10-28 定）。
+  // 每条视频取平台按热度排的前 200 条评论，AI 逐条判。数据见 scrape/intent-run.py
+  function intentPoints(it) {
+    if (!it) return [];
+    var judged = it.per.length, hit = it.per.filter(function (x) { return x.n > 0; });
+    var pct = it.comments ? Math.round(it.total * 1000 / it.comments) / 10 : 0;
+    var kinds = it.kinds.map(function (k) { return k[0] + ' ' + k[1]; }).join('、');
+    var out = [['评论里的购买意向', it.total
+      ? '本页 ' + judged + ' 条视频、' + it.comments + ' 条评论里，有 ' + it.total + ' 条在表达购买意向（' + pct + '%）：' + kinds + '。'
+      : '本页 ' + judged + ' 条视频、' + it.comments + ' 条评论里没有判出购买意向——评论区在聊内容本身，没人问价、问怎么买。']];
+    if (hit.length) {
+      var top = hit.slice().sort(function (a, b) { return b.n - a.n; });
+      var t = top[0], q = t.ex && t.ex[0] ? '评论原话「' + t.ex[0].t + '」' : '';
+      out.push(['意向最集中的一条', '「' + (t.title || '无文案') + '」，' + t.comments + ' 条评论里 ' + t.n + ' 条有购买意向' + (q ? '，' + q : '') + '。']);
+      var top3 = top.slice(0, 3).reduce(function (s, x) { return s + x.n; }, 0);
+      out.push(['意向分布', hit.length + ' / ' + judged + ' 条视频的评论里有人想买；前 3 条占了全部意向的 '
+        + Math.round(top3 * 100 / it.total) + '%' + (top3 / it.total > 0.6 ? '——集中在少数几条，值得看这几条做对了什么。' : '——分散在多条视频里，不靠单条爆款。')]);
+    }
+    return out;
+  }
+
+  function intentScope(it) {
     if (!it) return '';
-    var hit = it.per.filter(function (x) { return x.n > 0; }), zero = it.per.length - hit.length;
-    var scope = '本页 ' + it.shown + ' 条视频里，' + (it.videos < it.shown - it.unavailable ? '已判 ' + it.videos + ' 条（其余还在抓取）' : it.videos + ' 条都判过')
-      + '，每条取平台按热度排的前 ' + it.max_per_video + ' 条评论，共 ' + it.comments + ' 条，由 AI 逐条判断是不是在表达购买意向。作者本人的回复不算。'
-      + (it.unavailable ? it.unavailable + ' 条' + '评论不公开，拿不到。' : '')
-      + (it.judged_at ? '判于 ' + esc(it.judged_at.slice(0, 10)) + '。' : '');
-    var sum = '<div class="it-sum">' + filterTags([['购买意向', it.total + ' 条', ' style="background:var(--accent-soft);color:var(--accent)"']].concat(it.kinds.map(function (k) { return [k[0], k[1] + ' 条']; }))) + '</div>';
-    var rows = hit.map(function (x) {
-      var ex = x.ex.map(function (e) { return '<span><i>' + esc(e.k) + '</i>' + esc(e.t) + '</span>'; }).join('');
-      return '<tr><td><a href="' + esc(x.href) + '" target="_blank" rel="noopener">' + esc(x.title || '（无文案）') + '</a></td>'
-        + '<td class="it-n">' + x.n + ' / ' + x.comments + '</td><td><div class="it-ex">' + ex + '</div></td></tr>';
-    }).join('');
-    var table = hit.length
-      ? '<div class="tscroll" style="margin-top:20px"><table class="vtab"><thead><tr><th>视频</th><th>意向 / 评论</th><th>评论原话（点赞最多的几条）</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
-        + (zero ? '<p class="visual-cap" style="margin-top:10px">其余 ' + zero + ' 条视频的评论里没有判出购买意向。</p>' : '')
-      : '<p class="lede" style="margin-top:16px">判过的评论里一条购买意向都没有——评论区在聊内容本身，没人问价、问怎么买。</p>';
-    return '<div class="shead reveal in" style="margin-top:56px"><span class="eyebrow">评论里的购买意向</span>'
-      + '<h2>' + (it.total ? it.total + ' 条评论在问价、问怎么买、想要同款' : '评论里没有判出购买意向') + '</h2>'
-      + '<p class="lede">' + scope + '</p>' + sum + '</div>' + table;
+    return '购买意向：每条视频取平台按热度排的前 ' + it.max_per_video + ' 条评论，由 AI 逐条判断是不是在问价、问怎么买、想要同款、问门店、已下单，作者本人的回复不算'
+      + (it.videos < it.shown - it.unavailable ? '；本页还有 ' + (it.shown - it.unavailable - it.videos) + ' 条视频的评论在抓取' : '')
+      + (it.unavailable ? '；' + it.unavailable + ' 条评论不公开，拿不到' : '')
+      + (it.judged_at ? '。判于 ' + it.judged_at.slice(0, 10) : '') + '。';
   }
 
   function teardown(t) {
@@ -131,7 +141,15 @@
         .filter(function (r) { return r[1] !== '' && r[1] != null; }))
       + filterTags([['判为案例', d.total + ' 条', d.total ? ' style="background:var(--accent-soft);color:var(--accent)"' : ' style="background:var(--bad-soft);color:var(--bad)"'],
                     ['命中率', d.hit_rate + '%']]);
-    var pts = d.points.map(function (p) {
+    // 案例按购买意向从多到少；意向一样（或都没判）再按点赞
+    var per = {};
+    (d.intent ? d.intent.per : []).forEach(function (x) { per[x.id] = x; });
+    cases.forEach(function (c) { c._ip = per[c.id] || null; });
+    cases.sort(function (a, b) {
+      var ia = a._ip ? a._ip.n : -1, ib = b._ip ? b._ip.n : -1;
+      return ib - ia || (b.like || 0) - (a.like || 0);
+    });
+    var pts = intentPoints(d.intent).concat(d.points).map(function (p) {
       return '<div class="hl-item"><span class="sq"></span><span class="txt"><span class="term">' + esc(p[0]) + '</span> — ' + esc(p[1]) + '</span></div>';
     }).join('');
     var grid, stats;
@@ -140,12 +158,14 @@
         ? '　这个号的案例<strong>数据普遍偏低</strong>——全部 ' + d.total + ' 条里没有 ' + d.min_show + ' 条达到 ' + d.floor + ' 赞，所以这里只列它最好的 ' + n + ' 条。内容判定没问题，但传播成绩不代表可以照搬。'
         : '　全量 ' + d.total + ' 条，这里展示其中<strong>达到 ' + d.floor + ' 赞</strong>的前 ' + n + ' 条——样板库要给的是真实案例里数据表现好的，不是全部案例。完整数据在仓库 <code>case-refs/data/</code>。';
       grid = '<div class="shead reveal in" style="margin-top:56px"><span class="eyebrow">真实案例</span>'
-        + '<h2>' + n + ' 条案例，按点赞从高到低</h2>'
-        + '<p class="lede">每张卡片标着判定得分和理由，可以逐条核对。点击打开' + esc(d.platform_name) + '原内容。' + more + '</p></div>'
+        + '<h2>' + n + ' 条案例，按评论里的购买意向从多到少</h2>'
+        + '<p class="lede">卡片上「意向 a / b」是这条视频前 b 条评论里有 a 条在表达购买意向，下面引的是其中点赞最多的一条原话；'
+        + '意向一样的再按点赞排。每张卡片也标着判定得分和理由，可以逐条核对，点击打开' + esc(d.platform_name) + '原内容。' + more + '</p></div>'
         + '<div class="vgrid">' + cases.map(card).join('') + '</div>';
       stats = ['扫描作品 ' + d.scanned + ' 条', '判为真实案例 ' + d.total + ' 条，命中率 ' + d.hit_rate + '%',
                d.low_data ? '本页只列它最好的 ' + n + ' 条（整号数据偏低）' : '本页展示 ≥' + d.floor + ' 赞的 ' + n + ' 条',
-               '最高单条 ' + d.max_like + ' 赞', '封面取自平台原图，卡片直链原内容'];
+               d.intent && d.intent.total ? '评论购买意向 ' + d.intent.total + ' 条（' + d.intent.comments + ' 条评论里）' : '最高单条 ' + d.max_like + ' 赞',
+               '封面取自平台原图，卡片直链原内容'];
     } else {
       grid = '<div class="shead reveal in" style="margin-top:56px"><span class="eyebrow">真实案例</span><h2>一条都没有</h2>'
         + '<p class="lede">' + d.scanned + ' 条作品全部扫过，没有一条能指向一次具体的交付。这不是抓取失败，是这个号的内容本来就不是案例——收录它恰恰因为它是个有价值的反面样本。</p></div>';
@@ -155,20 +175,21 @@
 
     app.innerHTML = '<section class="detail-hero"><div class="wrap">'
       + '<a class="back-link" href="/akke/case-refs">&larr; 返回参考案例集</a>'
-      + '<span class="eyebrow" style="margin-left:16px">' + esc(d.cat) + ' · ' + esc(d.city) + ' · 抖音</span>'
+      + '<span class="eyebrow" style="margin-left:16px">' + esc(d.cat) + ' · ' + esc(d.city) + ' · ' + esc(d.platform_name) + '</span>'
       + '<h1>' + esc(d.name) + '</h1><p class="lede">' + esc(d.lede) + '</p>'
       + '<p class="intro-copy">下面只列<strong>真实案例</strong>——口播、生活日常、泛科普、促销这些不收录，也不做分析。'
       + '判定规则是评分制，满 3 分收录，每条的得分和理由都标在卡片上。数据抓取于 ' + esc(d.captured_at) + '，数值为抓取当时的显示值。</p>'
-      + '<div class="filter-row" style="margin-top:24px">' + head + '</div>'
+      + '<div class="filter-row" style="margin-top:24px">' + (d.intent ? filterTags([['购买意向', d.intent.total + ' 条', ' style="background:var(--accent-soft);color:var(--accent)"']]) : '') + head + '</div>'
       + (d.review === 'pending' ? '<div class="rv-box" id="rvBox"></div>' : '') + '</div></section>'
       + '<section style="padding-top:0"><div class="wrap"><div class="mod reveal in"><div class="mod-main">'
       + '<p class="desc">这个号值得看的地方：</p><div class="hl-list">' + pts + '</div>'
-      + '<div class="edge"><span class="tag">注意</span><span class="et">判定规则是启发式的，不是人工逐条判定。单一账号的样本说明不了全行业，这里看的是呈现形式，不是成效结论。</span></div>'
+      + '<div class="edge"><span class="tag">注意</span><span class="et">判定规则是启发式的，不是人工逐条判定。单一账号的样本说明不了全行业，这里看的是呈现形式，不是成效结论。'
+      + esc(intentScope(d.intent)) + '</span></div>'
       + '</div><div class="mod-side"><div class="mod-visual"><div class="rule-list">' + stats + '</div>'
       + '<p class="visual-cap">判断规则与原始数据都在仓库里（case-refs/），可复跑、可修正。</p>'
-      + '<div class="visual-stats mono"><span class="vstat' + (n ? ' on' : '') + '">案例占比 <b>' + Math.round(d.hit_rate) + '%</b></span><span class="vstat">行业 <b>' + esc(d.cat) + '</b></span></div>'
+      + '<div class="visual-stats mono">' + (d.intent ? '<span class="vstat on">购买意向 <b>' + d.intent.total + '</b></span>' : '') + '<span class="vstat' + (n && !d.intent ? ' on' : '') + '">案例占比 <b>' + Math.round(d.hit_rate) + '%</b></span><span class="vstat">行业 <b>' + esc(d.cat) + '</b></span></div>'
       + '</div></div></div>'
-      + intent(d.intent) + teardown(d.teardown) + grid + ruleBox(d.rule)
+      + teardown(d.teardown) + grid + ruleBox(d.rule)
       + '<div class="shead reveal in" style="margin-top:56px"><span class="eyebrow">对我们意味着什么</span><h2>' + esc(d.takeaway) + '</h2></div>'
       + '<p class="link-copy reveal in">这一页的结论会进<a href="https://upio.ai/akke/website#case">成功案例获客</a>的选题与表达方式参考库，用来指导我们给客户做的案例怎么包装，不会把这个号的案例装到任何客户身上。</p>'
       + '<div class="refnote">' + rej + '</div></div></section>';
