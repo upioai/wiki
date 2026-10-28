@@ -52,6 +52,9 @@ def number_ocr_near(seen, expected):
     只对含字母、长度 ≥6 的自定义号容错：纯数字号（short_id）相邻号段真有不同的人
     （实测同一搜索结果页 58439654234 / 58439654245 / 58439654273 是三个人），一位都不放。
     规则：去末尾 . _ -（VL 常吞掉）→ 易混字符归一 → 编辑距离 ≤ 2（数字换数字不计入可容错的读错）。
+    例外：不含数字且 ≤8 位的纯字母号只放 1 次编辑——6 位里 2 次编辑就是 1/3 字符不同，
+    mikeab / mikecd 这类同昵称的另一个人会被当成本人；生产误读样本里纯字母号都是 1 次编辑
+    （Al→AI、sdjnqi→sdjngi、吞末尾字母）。含数字的号、≥9 位的号维持 2。
     AKKE_NUMBER_OCR_TOLERANCE=0 关闭（回到逐字比对）。
     """
     if os.environ.get('AKKE_NUMBER_OCR_TOLERANCE', '1') != '1':
@@ -59,4 +62,5 @@ def number_ocr_near(seen, expected):
     a, b = norm_no(seen).rstrip('._-'), norm_no(expected).rstrip('._-')
     if len(b) < 6 or not any(ch.isalpha() for ch in b) or not a:
         return False
-    return _edit_distance(a, b) <= 2
+    limit = 1 if (len(b) <= 8 and not any(ch.isdigit() for ch in b)) else 2
+    return _edit_distance(a, b) <= limit

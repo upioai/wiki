@@ -57,7 +57,7 @@ from douyin_dm_grounded import (  # noqa: E402
     KEY, MODEL, MIN_CONF, MIN_INTERVAL, MAX_INTERVAL, DAILY_LIMIT,
     _coord, _vision, _shot, _pjson,
     locate, click_norm, type_text, type_unicode, ocr_verify,
-    _verify_bubble, _check_rejected, focus_douyin, calibrate,
+    _verify_bubble_ex, _classify_bubble_fail, _ACCT_BLOCK_RE, _check_rejected, focus_douyin, calibrate,
     _has_works_on_profile, _is_liked, _is_followed, _countdown, _write_env_kv,
 )
 
@@ -348,11 +348,19 @@ def process_web(c, confirm=False, on_located=None):
     # _check_rejected 返回 4 元组 (rejected, modal_type, reason, sample)——必须拆包，
     # 否则「非空元组恒为真」→ 每条 web 发送都被误判 rejected(PC 路径已拆、web 曾漏拆)。
     rejected, post_modal_type, _modal_reason, _post_sample = _check_rejected()
-    verified = False if (rejected or post_modal_type) else _verify_bubble(msg)
+    verified, fail_text = (False, '') if (rejected or post_modal_type) else _verify_bubble_ex(msg)
+    if fail_text and not rejected and not post_modal_type:  # 气泡红「!」/身份验证提示（同 PC 版）
+        print('  ⚠️  [气泡失败标记] %s' % fail_text[:60])
+        if _classify_bubble_fail(fail_text) == 'unverified':
+            return 'unverified', conf
+        rejected, _modal_reason = True, fail_text
     if post_modal_type:
         print('  ⚠️  [post-send modal] type=%s → blocked_%s(账号已风控)'
               % (post_modal_type, post_modal_type))
         return 'blocked_%s' % post_modal_type, conf
+    if rejected and _ACCT_BLOCK_RE.search(_modal_reason or ''):
+        print('  ⚠️  [账号级拦截] %s → blocked_verify' % _modal_reason[:60])
+        return 'blocked_verify', conf
     if rejected:
         print('  [拒绝] 检测到对方拒收/无法送达 → rejected(不计成功)')
         return 'rejected', conf

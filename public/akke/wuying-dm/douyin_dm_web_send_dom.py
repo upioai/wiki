@@ -154,6 +154,26 @@ def _send_failed_marker(page) -> bool:
         return False
 
 
+# 发后提示里属于「我方账号被拦」的(同 douyin_dm_grounded._ACCT_BLOCK_RE)。2026-10-21 深圳机 20:27
+# 第贰支羽毛: 气泡照常出现、左侧红「!」、下方「操作失败，请使用抖音App发送消息后完成身份验证」——
+# _send_failed_marker 只认整条「发送失败/重新发送」→ 记 sent, 号没 cool, 继续领单往下发。
+_ACCT_BLOCK_RE = re.compile(r"身份验证|操作太?频繁|使用抖音\s*App")
+
+
+def _acct_block_text(page) -> str:
+    """私信浮层里账号级拦截提示的原文, 没有返回 ''。只扫叶子节点、跳过消息正文(msg-item-content),
+    免客户/我方正文里恰好有「身份验证」误伤。命中 → 调用方返回 blocked_verify, poll agent 立即 cool + 红牌。"""
+    try:
+        texts = page.evaluate(
+            "() => { const root = document.querySelector('[data-e2e=\"im-dialog\"]') || document.body;"
+            " return [...root.querySelectorAll('*')].filter(e => e.children.length===0"
+            "   && !e.closest('[class*=\"msg-item-content\"]'))"
+            "  .map(e => (e.innerText||'').trim()).filter(t => t && t.length <= 80); }")
+    except Exception:
+        return ""
+    return next((t for t in texts or [] if _ACCT_BLOCK_RE.search(t)), "")
+
+
 def _follow_profile(page) -> str:
     """主页点「关注」([data-e2e="user-info-follow-btn"], 有隐藏副本, 只点可见那个)。
     文本非「关注/回关」(已关注/互相关注/请求中)一律跳过——再点会变成取关。best-effort 不抛。"""
@@ -319,7 +339,7 @@ def send_dom(page, message: str, commit: bool, sec_uid: str = "", nick: str = ""
              on_located=None) -> str:
     """发 message。sec_uid 优先(通用), 否则 nick 列表兜底。commit=False 只打字不发。
     engage=True(首触批量)则进主页后先关注+点赞再开私信; 回复路径保持 False。
-    返回: sent / unverified / dry_ok / no_conversation / no_input / no_send_btn / error:*"""
+    返回: sent / unverified / blocked_verify / dry_ok / no_conversation / no_input / no_send_btn / error:*"""
     if not message.strip():
         return "error:empty_message"
     opened = False
@@ -347,6 +367,11 @@ def send_dom(page, message: str, commit: bool, sec_uid: str = "", nick: str = ""
     # 别再键入重发。把「任何状态误报 + 重试」的重复轰炸确定性堵死。仅 commit 路径判
     # (dry-run 本就不发); best-effort, 读不到气泡就照常走。
     if commit and _verify_bubble(page, message):
+        block = _acct_block_text(page)
+        if block:  # 上轮那条其实被拦了(气泡带身份验证提示), 别归位 sent
+            print(f"    [幂等·账号级拦截] {block[:60]} → blocked_verify")
+            _leave_thread(page)
+            return "blocked_verify"
         print("    [幂等] 会话里已有本文案气泡(上轮已发出·验证误报) → 归位 sent, 不重发")
         _leave_thread(page)  # 同 sent 路径: 离开会话, 保红点可靠(#776)
         return "sent"
@@ -384,12 +409,21 @@ def send_dom(page, message: str, commit: bool, sec_uid: str = "", nick: str = ""
             seen = True
             break
     if not seen:
+        block = _acct_block_text(page)
         _leave_thread(page)
+        if block:
+            print(f"    [账号级拦截] {block[:60]} → blocked_verify")
+            return "blocked_verify"
         return "unverified"
     # 见气泡 ≠ 真送达: 网页版对被风控/spam 软丢的消息, 会先乐观渲染气泡再撤掉(或标红「发送失败」)。
     #   2026-07-07 文哥号实测: 日志判 sent 但会话窗口里那条根本不在 → 乐观气泡已被移除。
     #   停 ~2.5s 复核: ① 失败标记命中, 或 ② 气泡已消失 → 判 unverified(回池, 别当已发)。
     page.wait_for_timeout(2500)
+    block = _acct_block_text(page)
+    if block:  # 气泡在也不算发出: 账号被要求 App 身份验证, 先停号(见 _ACCT_BLOCK_RE)
+        print(f"    [账号级拦截] {block[:60]} → blocked_verify")
+        _leave_thread(page)
+        return "blocked_verify"
     if _send_failed_marker(page) or not _verify_bubble(page, message):
         _leave_thread(page)
         return "unverified"

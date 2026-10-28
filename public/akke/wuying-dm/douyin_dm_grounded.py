@@ -1179,8 +1179,14 @@ def process(c):
     # 一次 VL call 出两个判断省 50% 调用成本。modal 命中优先级高于 rejected——
     # SMS/滑块/人脸是【账号被风控】信号，必须立即停号；rejected 只是对方拒收。
     rejected, post_modal_type, _modal_reason, _post_sample = _check_rejected()
-    verified = False if (rejected or post_modal_type) else _verify_bubble(msg)
+    verified, fail_text = (False, '') if (rejected or post_modal_type) else _verify_bubble_ex(msg)
     close_chat()
+    if fail_text and not rejected and not post_modal_type:
+        # 气泡红「!」/「操作失败…身份验证」：_check_rejected 漏看（10-21 深圳机旧逻辑记 sent、号照发）
+        print('  ⚠️  [气泡失败标记] %s' % fail_text[:60])
+        if _classify_bubble_fail(fail_text) == 'unverified':
+            return 'unverified', conf
+        rejected, _modal_reason = True, fail_text  # 下面按 _ACCT_BLOCK_RE 分 blocked_verify / rejected
     if post_modal_type:
         c['_modal_text'] = _modal_reason[:60]
         c['_captcha_sample'] = _post_sample
@@ -1306,47 +1312,53 @@ def _check_pre_action_modal(snap_name='_pre_modal.png'):
     return None, '', ''
 
 
+_BUBBLE_FAIL_HINT_RE = re.compile(r'拒收|好友验证|关注对方|无法发送|不接收')  # 对方拒收类；我方被拦走 _ACCT_BLOCK_RE
+
+
+def _classify_bubble_fail(fail_text):
+    """气泡失败标记 → blocked_verify（我方号被拦）/ rejected（对方拒收）/ unverified（只有红叹号，回池重发）。"""
+    if _ACCT_BLOCK_RE.search(fail_text or ''):
+        return 'blocked_verify'
+    if _BUBBLE_FAIL_HINT_RE.search(fail_text or ''):
+        return 'rejected'
+    return 'unverified'
+
+
 def _verify_bubble(msg):
-    """正向送达验证：发送后对话区里【我方(右侧)最新气泡】是否包含刚发的文案。
-    命中 → 有正向依据,记 sent；明确未命中 → 记 unverified(回池可重发,不计成功)。
+    """兼容旧调用方（reply_inbox / web_grounded）：气泡在且没带失败标记才算发出。"""
+    found, fail_text = _verify_bubble_ex(msg)
+    return found and not fail_text
 
-    它挡的是【发送机制失败】——坐标漂/点空/文字没进框 → 根本没气泡(模板 NOT FOUND
-    退固定坐标裸奔时的安全网,正是缺口①)。它【挡不住】抖音 7911 静默限频:那种本地
-    照样显示气泡、只是对方收不到,GUI 路径看不到 status_code,物理上测不了。
 
-    VL 异常/不确定 → 保守按【已发】(返回 True),不重蹈旧 _is_sent 的假阴性漏发
-    (2026-05-31 实测查"输入框空没空"假阴性高;此处查"气泡里有没有我的字"是更强的正向
-    信号,但仍只在【明确说没有】时才判 unverified)。
-
-    2026-06-29：实测气泡渲染/VL 单次调用有时机竞态,同一条干净文案 ~半数被单次核对假阴性
-    （气泡其实已在、第一次截图/读图没赶上）。改为【最多 3 次:miss 后等 1.5s 重新截图再核】,
-    任一次命中即记 sent。retry 只补救"气泡在但没读到",全程无气泡仍判 unverified —— 不放松
-    真失败判定、不增加假阳性漏判。
-
-    2026-07-11（unverified 13/13 假阴根修之一）：问法从「最新一条」放宽到「最近三条里
-    任意一条」——抖音会把长文案自动拆成多段相邻气泡,拆分后【最新一条=后半段】不含
-    文案开头 16 字 → 旧问法必假阴。刚发几秒内最近三条只可能是本次产出,不增假阳面。"""
+def _verify_bubble_ex(msg):
+    """正向送达验证 → (found, fail_text)。found=我方右侧最近三条气泡含文案开头 16 字（抖音会拆长文案）；
+    fail_text 非空=气泡带红色「!」或下方失败提示（10-21 身份验证）。挡不住 7911 静默限频。
+    VL 异常 → 保守按已发 (True, '')；miss 最多重截 3 次（06-29 渲染竞态）才判 unverified。"""
     snippet = (msg or '').strip()[:16]
     if not snippet:
-        return True
+        return True, ''
     for attempt in range(3):
         try:
             p, _ = _shot('_bubble_check.png')
             d = _pjson(_vision(base64.b64encode(open(p, 'rb').read()).decode(),
                 '这是抖音PC私信聊天窗口截图。对话区里【右侧、我自己发出的那一排消息气泡】中,'
-                '最近三条里是否有任意一条包含这段文字：「%s」?只看右侧自己发的气泡,左侧对方发来的不算。'
-                '只回严格JSON:{"bubble_found":true/false}' % snippet))
+                '最近三条里是否有任意一条包含这段文字：「%s」?只看右侧自己发的气泡,左侧对方发来的不算。\n'
+                '另外看这条气泡是否发送失败：气泡左侧有红色圆形感叹号「!」，或气泡下方有灰色系统提示'
+                '（例如「操作失败，请使用抖音App发送消息后完成身份验证」「发送失败」「对方拒收」）。\n'
+                '只回严格JSON:{"bubble_found":true/false,"failed":true/false,"fail_text":"<提示原文,没有提示但有红色感叹号就写 红色感叹号,未失败留空>"}' % snippet))
+            if bool(d.get('failed', False)):
+                return bool(d.get('bubble_found', False)), (d.get('fail_text') or '红色感叹号').strip()
             if bool(d.get('bubble_found', False)):
                 if attempt > 0:
                     print('  [验证] 第%d次核对命中气泡含「%s」→ sent' % (attempt + 1, snippet))
-                return True
+                return True, ''
         except Exception as e:
             print('  [warn] 气泡验证异常(保守按已发,避免假阴性漏发): %s' % e)
-            return True
+            return True, ''
         if attempt < 2:
             time.sleep(1.5)
     print('  [验证] 3次核对均未见我方气泡含「%s」→ 判 unverified(大概率没真发出,回池可重发)' % snippet)
-    return False
+    return False, ''
 
 
 def _is_sent():
