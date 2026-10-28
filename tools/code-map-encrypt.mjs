@@ -20,7 +20,22 @@ import { fileURLToPath } from 'node:url';
 
 // graph.html 是 graphify 导出的单文件页面（数据内联）；meta.json 很小，index.html 先解它来验密码。
 export const FILES = ['graph.html', 'meta.json'];
-export const ITERATIONS = 310000;
+// OWASP 2023 对 PBKDF2-HMAC-SHA256 的下限。解密端读 keyinfo.json 里的 n，所以旧密文（n=310000）照样能解。
+export const ITERATIONS = 600000;
+// 密文、盐、迭代数都公开（公开仓），口令是唯一防线：要求足够长，并拒绝明显的低熵口令。
+// 建议用 openssl rand -base64 24 生成。
+export const MIN_PASSWORD_LENGTH = 20;
+export const MIN_DISTINCT_CHARS = 8;
+
+/** 口令不合格就抛错（错误信息不回显口令）。 */
+export function assertStrongPassword(password) {
+  if (!password || password.length < MIN_PASSWORD_LENGTH) {
+    throw new Error(`CODE_MAP_PASSWORD 没设或太短（至少 ${MIN_PASSWORD_LENGTH} 位，建议 openssl rand -base64 24）`);
+  }
+  if (new Set(password).size < MIN_DISTINCT_CHARS || /^(.+?)\1+$/s.test(password)) {
+    throw new Error('CODE_MAP_PASSWORD 看起来像重复或低熵内容，请换成随机口令（openssl rand -base64 24）');
+  }
+}
 const b64 = (u8) => Buffer.from(u8).toString('base64');
 const unb64 = (s) => new Uint8Array(Buffer.from(s, 'base64'));
 
@@ -42,7 +57,7 @@ function removeStale(dir) {
 }
 
 export async function encryptDir(dir, password) {
-  if (!password || password.length < 10) throw new Error('CODE_MAP_PASSWORD 没设或太短（至少 10 位）');
+  assertStrongPassword(password);
   const present = FILES.filter((f) => fs.existsSync(path.join(dir, f)));
   if (!present.includes('graph.html')) throw new Error(`${dir} 下没有 graph.html`);
   for (const f of present) assertPlain(f, fs.readFileSync(path.join(dir, f), 'utf8'));
@@ -52,7 +67,8 @@ export async function encryptDir(dir, password) {
   const src = hash.digest('hex');
   const infoPath = path.join(dir, 'keyinfo.json');
   const prev = fs.existsSync(infoPath) ? JSON.parse(fs.readFileSync(infoPath, 'utf8')) : null;
-  const sameKey = prev && prev.src === src && present.every((f) => fs.existsSync(path.join(dir, `${f}.enc`)))
+  const sameKey = prev && prev.src === src && prev.n >= ITERATIONS && // 旧的低迭代密文要借机升级
+     present.every((f) => fs.existsSync(path.join(dir, `${f}.enc`)))
     && await decryptFile(dir, present[0], password).then(() => true, () => false); // 换过密码就得重新加密
   if (sameKey) {
     // 数据和上次加密的一样、密码也没换：保留原有密文，删掉刚拷进来的明文。
