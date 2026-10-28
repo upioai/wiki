@@ -18,6 +18,25 @@
   background:var(--accent-soft);color:var(--accent);font-family:"IBM Plex Mono",monospace;}
 .ind-card .q{font-size:12px;line-height:1.5;color:var(--ink-soft);margin:8px 0 0;padding-left:8px;border-left:2px solid var(--accent-soft);}
 .ind-card .q i{font-style:normal;color:var(--accent);margin-right:4px;}
+.ia{display:grid;grid-template-columns:150px minmax(0,1fr);gap:22px;background:var(--paper-raised);border:1px solid var(--line);
+  border-radius:16px;padding:22px;box-shadow:var(--shadow);margin-top:18px;}
+.ia>a img{width:100%;height:auto;border-radius:10px;display:block;background:var(--paper-sunken);}
+.ia h3{margin:0;font-size:20px;line-height:1.35;}
+.ia h3 a{color:inherit;text-decoration:none;}
+.ia h3 a:hover{color:var(--accent);}
+.ia .sub{font-size:12.5px;color:var(--ink-faint);margin-top:2px;}
+.ia .it{display:inline-block;margin-top:10px;font-size:12px;font-weight:700;padding:3px 9px;border-radius:4px;
+  background:var(--accent-soft);color:var(--accent);font-family:"IBM Plex Mono",monospace;}
+.ia .why{font-size:15.5px;font-weight:600;line-height:1.6;margin:12px 0 0;color:var(--ink);}
+.ia .ap{font-size:14.5px;line-height:1.8;color:var(--ink-soft);margin:8px 0 0;}
+.ia .cites{margin:14px 0 0;display:grid;gap:8px;}
+.ia blockquote{margin:0;padding:8px 12px;border-left:3px solid var(--accent);background:var(--paper-sunken);border-radius:0 8px 8px 0;
+  font-size:13.5px;line-height:1.65;color:var(--ink);}
+.ia blockquote cite{display:block;font-style:normal;font-size:11.5px;color:var(--ink-faint);margin-top:3px;}
+.ia .q{font-size:13px;line-height:1.55;color:var(--ink-soft);margin:12px 0 0;}
+.ia .q i{font-style:normal;color:var(--accent);margin-right:4px;}
+.ia .go{display:inline-block;margin-top:12px;font-size:13px;font-weight:600;color:var(--accent);text-decoration:none;}
+.ia .pend{font-size:12.5px;color:var(--ink-faint);margin-top:10px;}
 .cp{display:grid;gap:14px;margin-top:22px;}
 .cp-item{background:var(--paper-raised);border:1px solid var(--line);border-radius:12px;padding:16px 18px;}
 .cp-item h4{margin:0 0 6px;font-size:15.5px;}
@@ -42,6 +61,8 @@
   .xr dl{grid-template-columns:1fr;gap:2px;}
   .xr dt{padding-top:8px;}
   .ind-card{grid-template-columns:80px minmax(0,1fr);}
+  .ia{grid-template-columns:88px minmax(0,1fr);gap:14px;padding:16px;}
+  .ia h3{font-size:17px;}
 }
 </style>
 </head><body>
@@ -66,22 +87,31 @@
     }).join('');
   }
 
-  function acctCard(a, why) {
-    return '<a class="ind-card" href="' + CR.acctURL(a.slug) + '">'
-      + '<img src="' + B + esc(a.poster.src) + '" alt="' + esc(a.name) + ' 封面合辑" loading="lazy" width="' + a.poster.w + '" height="' + a.poster.h + '">'
-      + '<div><h3>' + esc(a.name) + '</h3><div class="sub">' + esc([a.city, a.platform].filter(Boolean).join(' · ')) + '</div>'
+  // 本行业的号：页面主体。有拆解的号引用拆解原话（industry.py 校验过出处），没拆解的只讲作品和评论
+  function acctBlock(a, x) {
+    x = x || {};
+    var cites = (x.cites || []).map(function (c) {
+      return '<blockquote>「' + esc(c.quote) + '」<cite>拆解报告 · ' + esc(c.from) + '</cite></blockquote>';
+    }).join('');
+    return '<div class="ia"><a href="' + CR.acctURL(a.slug) + '"><img src="' + B + esc(a.poster.src) + '" alt="' + esc(a.name) + ' 封面合辑" loading="lazy" width="' + a.poster.w + '" height="' + a.poster.h + '"></a>'
+      + '<div style="min-width:0"><h3><a href="' + CR.acctURL(a.slug) + '">' + esc(a.name) + '</a></h3>'
+      + '<div class="sub">' + esc([a.city, a.platform].filter(Boolean).join(' · ')) + '</div>'
       + (a.intent != null ? '<span class="it">评论里想买 ' + a.intent + ' 条</span>' : '')
-      + (why ? '<p class="why">' + esc(why) + '</p>' : '')
-      + (a.quote ? '<p class="q"><i>' + esc(a.quote.k) + '</i>「' + esc(a.quote.t) + '」</p>' : '')
-      + '</div></a>';
+      + (x.why ? '<p class="why">' + esc(x.why) + '</p>' : '')
+      + (x.approach ? '<p class="ap">' + esc(x.approach) + '</p>' : '')
+      + (cites ? '<div class="cites">' + cites + '</div>' : '')
+      + (a.quote ? '<p class="q"><i>' + esc(a.quote.k) + '</i>评论原话「' + esc(a.quote.t) + '」</p>' : '')
+      + (a.teardown ? '<a class="go" href="' + CR.acctURL(a.slug) + '">看完整拆解：' + esc(a.teardown) + ' &rarr;</a>'
+         : '<p class="pend">这个号的逐条拆解还在做，先看<a href="' + CR.acctURL(a.slug) + '">它的案例</a>。</p>')
+      + '</div></div>';
   }
 
   function render(d) {
     var c = d.content, t = d.totals, n = d.accounts.length;
     document.title = 'AKKE · 行业专题 · ' + d.name;
     document.getElementById('crumbName').textContent = d.name + ' · 行业专题';
-    var why = {};
-    (c ? c.accounts : []).forEach(function (x) { why[x.slug] = x.why; });
+    var ac = {};
+    (c ? c.accounts : []).forEach(function (x) { ac[x.slug] = x; });
 
     var h = '<section class="detail-hero"><div class="wrap">'
       + '<a class="back-link" href="/akke/case-refs">&larr; 返回参考案例集</a>'
@@ -95,9 +125,9 @@
 
     if (n) {
       h += '<div class="shead reveal in" style="margin-top:40px"><span class="eyebrow">这一行我们调研了谁</span>'
-        + '<h2>' + n + ' 个账号，按评论里想买的人数排</h2>'
-        + '<p class="lede">「评论里想买」是我们读了每条视频前 200 条评论后，数出来在问价、问怎么买、想要同款、问门店、已经下单的条数——比点赞更接近生意。点进去看每个号的完整拆解。</p></div>'
-        + '<div class="ind-grid">' + d.accounts.map(function (a) { return acctCard(a, why[a.slug]); }).join('') + '</div>';
+        + '<h2>' + n + ' 个账号，各自怎么用案例内容获客</h2>'
+        + '<p class="lede">按评论里想买的人数排。「评论里想买」是我们读了每条视频前 200 条评论后，数出来在问价、问怎么买、想要同款、问门店、已经下单的条数——比点赞更接近生意。引文出自我们对这个号评论里想买最多的三条视频的逐条拆解。</p></div>'
+        + d.accounts.map(function (a) { return acctBlock(a, ac[a.slug]); }).join('');
     }
 
     if (c && c.common && n) {
@@ -118,7 +148,7 @@
 
     if (c && c.cross && c.cross.length) {
       h += '<div class="shead reveal in" style="margin-top:56px"><span class="eyebrow">别的行业可以借什么</span>'
-        + '<h2>' + c.cross.length + ' 种讲法，来自别的行业里评论最想买的号</h2>'
+        + '<h2>最后，' + c.cross.length + ' 种可以从别的行业借来的讲法</h2>'
         + '<p class="lede">每一条都出自我们对那个号的完整拆解（挑出评论里想买最多的三条视频逐条分析），不是凭感觉推荐。点「看这个号」能看到原视频和拆解报告。</p></div>'
         + c.cross.map(function (x) {
           return '<div class="xr"><a href="' + CR.acctURL(x.slug) + '"><img src="' + B + esc(x.poster.src) + '" alt="' + esc(x.name) + '" loading="lazy" width="' + x.poster.w + '" height="' + x.poster.h + '"></a>'
