@@ -4,7 +4,7 @@
 <meta name="description" content="全网收录正在用案例内容做获客的商户账号，按行业拆解其内容组织与呈现形式。">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=Noto+Serif+SC:wght@700;900&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/akke/case-refs/case-refs.css?v=f5a1c60c75">
+<link rel="stylesheet" href="/akke/case-refs/case-refs.css?v=7159a638b5">
 </head><body>
 <!-- 固定模板：不含任何账号数据。账号、品类、统计全部来自 db/index.json，
      新增账号不改这个文件。由 scrape/export.py 产出数据，scrape/publish.py 上传。 -->
@@ -84,20 +84,30 @@
     }).join('');
     if (d.rejected && d.rejected.length) side += '<a class="side-rej" href="#rejected"><span class="cn">查过但没收录</span>'
       + '<span class="cc">' + d.rejected.length + ' 个号</span></a>';
+    // 行业专题页（给客户看的）：品类标题旁给入口；还没有调研号、只有跨行业推荐的行业单列在后面
+    var inds = {};
+    (d.industries || []).forEach(function (x) { inds[x.ikey] = x; });
+    function indLink(k) {
+      return inds[k] ? ' <a class="ind-link" href="' + B + 'industry/' + encodeURIComponent(k) + '">行业专题 &rarr;</a>' : '';
+    }
+    var more = (d.industries || []).filter(function (x) { return !x.accounts && x.ready; });
     var secs = d.cats.map(function (c, i) {
-      return '<div class="catsec" id="c-' + i + '"><h2 class="cath">' + esc(c.name) + '</h2>'
+      return '<div class="catsec" id="c-' + i + '"><h2 class="cath">' + esc(c.name) + indLink(c.ikey) + '</h2>'
         + c.accounts.map(function (s) { return acct(d.accounts[s]); }).join('') + '</div>';
     }).join('');
     app.innerHTML = '<section class="detail-hero"><div class="wrap">'
       + '<span class="eyebrow">参考案例集 · 行业样板库</span><h1>别人家的案例内容，长什么样</h1>'
       + '<p class="lede">我们在全网找那些真的在用案例内容做获客的商户，把作品整个扫一遍，按规则挑出真实案例，再看它们怎么组织内容。一个行业一份样板。</p>'
-      + '<p class="intro-copy">这里收录的都是公开可见的第三方账号，看的是<strong>呈现形式</strong>。每个号配一张 4×4 封面合辑——账号的内容套路，看这一张图就够了。'
+      + '<p class="intro-copy">这里收录的都是公开可见的第三方账号，看的是<strong>呈现形式</strong>。每个号配一张封面合辑（整张封面罗列，不裁）——账号的内容套路和封面设计统不统一，看这一张图就够了。点品类标题旁的「行业专题」，看这一行的共性和别的行业可以借来用的讲法。'
       + '拆解结论会回到 <a href="https://upio.ai/akke/website#case">成功案例获客</a> 的选题与表达方式参考库，不会把别人的案例装到任何人身上。'
       + '目前 ' + d.totals.cats + ' 个品类、' + d.totals.accounts + ' 个账号，共扫描 ' + d.totals.scanned + ' 条作品。判定规则按行业分层、由人工标注持续校准，规则与原始数据都在仓库里。'
       + (byIntent ? '品类和账号按<strong>评论里的购买意向</strong>排：展示的每条视频取前 200 条评论，由 AI 判断有多少条在问价、问怎么买、想要同款。' : '') + '</p>'
       + '</div></section><section style="padding-top:0"><div class="wrap"><div class="layout">'
       + '<aside class="side"><div class="sidet">行业目录 · ' + (byIntent ? '按评论里的购买意向' : '按获赞') + '</div>' + side + '</aside>'
-      + '<div class="main">' + secs + rejected(d.rejected) + '<div class="refnote">' + d.disclaimer + '</div></div>'
+      + '<div class="main">' + secs
+      + (more.length ? '<div class="catsec"><h2 class="cath">还在调研的行业</h2><p class="note" style="margin:6px 0 14px;color:var(--ink-soft);font-size:13.5px">这些行业还没有收录账号，专题页里先列了别的行业里可以借来用的讲法。</p><div class="chips">'
+          + more.map(function (x) { return '<a class="ch" style="text-decoration:none" href="' + B + 'industry/' + encodeURIComponent(x.ikey) + '"><b>' + esc(x.name) + '</b> 行业专题 &rarr;</a>'; }).join('') + '</div></div>' : '')
+      + rejected(d.rejected) + '<div class="refnote">' + d.disclaimer + '</div></div>'
       + '</div></div></section>';
     if (location.hash) { var t = document.getElementById(location.hash.slice(1)); if (t) t.scrollIntoView(); }
   }
