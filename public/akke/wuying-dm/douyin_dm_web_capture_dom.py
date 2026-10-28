@@ -210,6 +210,11 @@ def _find_page(browser):
     return find_douyin_page(browser)
 
 
+# 私信入口的未登录态文案。标签页是在登录态短暂失效时加载的, 站点 cookie 恢复后
+# 页面上的私信组件不会自己刷新, 点入口永远开不出会话列表(2026-10-28 深圳号捕获停 4.6h)。
+_IM_STALE_LOGIN = "登录后即可查看私信消息"
+
+
 def _ensure_panel(page) -> int:
     """返回 conversation-item 数。为 0 时尝试 DOM 点私信入口开浮层再数一次。"""
     n = page.locator('[data-e2e="conversation-item"]').count()
@@ -217,6 +222,10 @@ def _ensure_panel(page) -> int:
         try:
             entry = page.locator('[data-e2e="im-entry"]')
             entry.first.wait_for(state="visible", timeout=10000)
+            if _IM_STALE_LOGIN in (entry.first.text_content() or ""):
+                print("  [warn] 私信组件停在未登录态 → 刷新标签页重载一次(真掉登录则刷新后仍是这句)")
+                page.reload(wait_until="domcontentloaded", timeout=30000)
+                entry.first.wait_for(state="visible", timeout=20000)
             entry.first.click(timeout=3000)
             page.locator('[data-e2e="conversation-item"]').first.wait_for(state="attached", timeout=10000)
             n = page.locator('[data-e2e="conversation-item"]').count()
