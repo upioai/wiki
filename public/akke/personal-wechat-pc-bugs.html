@@ -1821,6 +1821,20 @@
         <dt>怎么验收</dt><dd>电脑 B 装上 1.25.47 后，库里出现 <code>overdue-search:</code> 标记的任务并且状态变成已发；37 条积压逐日减少到 0；运营在微信里能看到这些客户收到召回。</dd>
       </dl>
     </div>
+
+    <div class="bug" id="W-137" style="--bc:#d03b3b">
+      <div class="bh"><code class="bid">W-137</code><b>停在「&lt; 有大有小」「服务号」这类文件夹子列表里，程序不点左侧「聊天」图标回主列表，在夹子里一圈圈空转</b><span class="bst wait">已修出包 1.26.14 · 三台待装机 · 未验收</span></div>
+      <dl>
+        <dt>现场</dt><dd>10-28 运营截图：微信会话列表停在「&lt; 有大有小」企业微信折叠夹里，列表只剩「可能的同事」一行，左侧「聊天」图标是选中的；程序没有点「聊天」图标回主列表（人手点一下这个图标就能退出来）。运营说电脑 A、B、C 三台都出现过。<br>10-27 客户端日志（每圈一行 <code>list_walk_cycle</code>）：电脑 B 11:40–12:30 约每 84 秒一圈，每圈 <code>opened=0 skipped=1 not_selected=13 pages=0 skip_recent=1</code>，困了约 50 分钟；09:20–09:53 每圈 <code>opened=3 pages=0</code>。电脑 A 11:57–12:41、14:13–14:21、18:03–18:23、18:55–19:30 几段，每圈 <code>opened=1 skipped=1 skip_unread=1 pages=0</code>。电脑 C 10-27 没有日志传上来，这一台没有日志证据。</dd>
+        <dt>影响</dt><dd>停在夹子里的这段时间，巡检只在夹子里那一两行上转、一页都翻不动，主列表里的客户没被核对。这期间有没有客户因此漏回、漏召回，没有逐条核。</dd>
+        <dt>根因</dt><dd>退出文件夹的动作本身是对的（单击「聊天」图标，<code>cloudpc/windows-weixin/idle_history.py</code> 的 <code>_walk_back_to_main_list</code>），问题在程序没认出自己停在夹子里：<br>① 10-27 三台跑的都是 1.26.13 之前的版本，只在「巡检自己刚点进文件夹那一下」认（点完整个列表换了、或标题是「服务号 / 订阅号」等固定名）。人点进去的、回复流程点进去的、名字不固定的企业微信夹子（如「有大有小」）都认不出。<br>② 1.26.10 加了「一圈一页没翻、没碰到一位客户 = 停在夹子里」（<code>walk_coverage.py</code> 的 <code>stuck_in_folder</code>），但它把「这一圈有客户、或有 30 分钟内 / 今天核对过被跳过的行」当成在主列表。电脑 B 11:40 那种（夹子里那一行是半小时内核对过的客户，每圈 <code>skip_recent=1</code>）照样不退。</dd>
+        <dt>怎么修</dt><dd>1.26.14（<code>Akke-AI/wecom-chat</code> #2437，10-28 08:49 合并）：一圈下来真行（点开 + 跳过）不超过 5 行、下面点到的是空白、一页没翻，就当成停在夹子里，单击「聊天」图标回主列表，不再看里面有没有客户。销售电脑主列表都是几百位，不会一屏不满；万一真不满，多点一下也无妨（下一拍本来就回顶）。</dd>
+        <dt>验证</dt><dd>两条新测试（夹子里一位半小时内核对过的客户跑 3 圈，每圈都退；夹子里两位客户第一圈就退）在旧代码上失败、新代码通过；Windows 端全量测试 2559 条通过。按运营截图的画面（只有「可能的同事」一行）在模拟器里跑 4 圈，1.26.13 已经每圈都退，1.26.14 不变。没有独立检验，三台都还没装。</dd>
+        <dt>还没解决</dt><dd>三台装上 1.26.14 之前都没解决（10-28 08:42 三台都还是 1.26.7）。</dd>
+        <dt>相关</dt><dd><a href="#W-107">W-107</a>（置顶折叠栏）、<a href="#W-120">W-120</a>（列表翻页）。</dd>
+        <dt>怎么验收</dt><dd>装上 1.26.14 后，停进夹子时日志出现 <code>WARN list_walk_stuck_in_folder</code>，紧接着 <code>list_walk_back_to_main</code>，下一圈翻页数大于 0；不再出现连续多圈 <code>pages=0</code> 且每圈只有 5 行以内的情况。</dd>
+      </dl>
+    </div>
   </div>
 
   <hr style="border:0;border-top:1px solid var(--border);margin:44px 0 0">
@@ -1851,7 +1865,7 @@
 </div>
 <div id="tip" role="tooltip"></div>
 
-<script src="/akke/personal-wechat-pc-bug-guide.js?v=hc2a68f62c4"></script>
+<script src="/akke/personal-wechat-pc-bug-guide.js?v=hae0be2c8ef"></script>
 <script>
 const API_BASE = "https://wecom-chat.vercel.app/api/public/weixin-pc-live";
 const MACHINES = [
