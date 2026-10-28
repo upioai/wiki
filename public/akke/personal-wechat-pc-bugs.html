@@ -1822,6 +1822,34 @@
       </dl>
     </div>
 
+    <div class="bug" id="W-127" style="--bc:#d03b3b">
+      <div class="bh"><code class="bid">W-127</code><b>销售电脑开着 Clash 全局代理，程序连中转全部 SSLError：电脑 A 失联约 29.5 小时，启动时也下载不了新版，关掉 VPN 才升级成功</b><span class="bst wait">1.26.3 已加自动直连 · 待真机触发验证</span></div>
+      <dl>
+        <dt>现场</dt><dd>电脑 A（张*鱼）。10-21 12 点那一小时日志上传正常；13:30:51 起读屏模型调用 <code>ProxyError</code>，随后读屏、心跳（<code>heartbeat_failed</code>）、召回拉任务（<code>recall_poll_failed</code>）、日志上传（<code>log_upload_failed</code>）全部 <code>SSLError</code>。程序一直开着，只是连不出去。10-22 18:53 销售双击程序，运营当时的截图显示启动时的更新检查失败、异常是 <code>SSLError</code>，新版没下载下来。运营人工排查，发现销售在 Clash 里开着全局模式的 VPN；关掉 VPN 后，18:59 服务端重新收到这台电脑的上报，新版才下载成功。</dd>
+        <dt>影响</dt><dd>10-21 13:30 到 10-22 18:59 约 29.5 小时，电脑 A 不读新消息、不自动回复、不发召回，看板显示离线，到期召回越积越多。关 VPN 后装新版又碰上 <a href="#W-128">W-128</a>（跑进暂存目录、配置回到出厂），召回到 10-23 07:57 才恢复真发。</dd>
+        <dt>根因</dt><dd>客户端连中转用的网络库（Python <code>requests</code>）在 Windows 上会自动读系统代理和 <code>HTTP(S)_PROXY</code> 环境变量。Clash 开着系统代理时，程序连自家中转的每一条请求（读屏、心跳、召回、日志、自动更新）都被送进 VPN 节点；节点对中转握手失败，就全部 <code>SSLError</code>。程序只连自家中转，本不需要翻墙；10-15 三台电脑同一分钟失联 2 小时也是这个机理（当时是 Clash 节点挂了，同机直连中转正常）。10-21 这次 12 点那一小时还通、13:30 起才断，是节点挂了还是那时才切到全局模式，没查明。1.26.3 之前客户端没有任何绕开代理的处理。</dd>
+        <dt>怎么修</dt><dd>已做：<code>Akke-AI/wecom-chat</code> #2377（10-22 合并，1.26.3）给网络层加「代理不通自动改直连」（<code>cloudpc/windows-weixin/proxy_fallback.py</code>）：走了代理、且失败在请求到达对端之前（<code>ProxyError</code> / <code>SSLError</code> / 连接超时）时，直连重发一次；直连成功后 10 分钟内先走直连，直连也失败就退回代理。主程序和双击启动时的更新检查（<code>startup_update.py</code>）都装了这一层，后台下载更新包走的是同一个网络层。请求已发出后的读超时不重发，避免同一条回复发两次。配置里写 <code>AKKE_WEIXIN_PROXY_FALLBACK=0</code> 可关掉。</dd>
+        <dt>验证</dt><dd>日志与上报时间来自电脑 A 10-21 的客户端日志和生产库客户端事件表（10-23 查）；18:53 更新检查失败来自运营当时的截图（启动检查的输出不进客户端日志）；关 VPN 的经过来自运营 10-23 说明。电脑 A 10-23 07:49 升到 1.26.3 后，启动日志有 <code>proxy_fallback=on</code>；到 10-23 09:16 日志里没出现过代理失败，也就是修复还没在真机上被触发过。没有独立检验。</dd>
+        <dt>还没解决</dt><dd>① 「开着 VPN 也能连」还没在真机上验证。② Clash 如果开的是 TUN（虚拟网卡）模式，程序看不到代理，流量在网卡层被接管，自动直连不起作用：这种情况仍要关 VPN，或在 Clash 规则里把中转地址设为直连。③ 电脑 B 10-23 09:48 起心跳已是 1.26.3，三台都已带这层保护。</dd>
+        <dt>相关</dt><dd><a href="#W-103">W-103</a>（升级后程序没自己起来）、<a href="#W-128">W-128</a>。</dd>
+        <dt>怎么验收</dt><dd>销售开着 Clash 时，日志出现 <code>proxy_fallback proxy_failed ... -&gt; direct ok</code>，同一时段心跳不断、召回照常发；看板上不再因为 VPN 出现长时间离线。</dd>
+      </dl>
+    </div>
+
+    <div class="bug" id="W-128" style="--bc:#d03b3b">
+      <div class="bh"><code class="bid">W-128</code><b>程序从「更新暂存目录」里启动：电脑 A 关 VPN 后装新版，跑起来的是暂存目录里那份 1.26.0，配置回到出厂</b><span class="bst open">原因部分查明 · 未修</span></div>
+      <dl>
+        <dt>现场</dt><dd>接 <a href="#W-127">W-127</a>：10-22 关掉 VPN 后，电脑 A 下载到新版，但安装那一步 PowerShell 报 <code>0xc0000142</code> 没装成。19:07 起，启动脚本是从升级用的暂存目录（<code>AkkeWinds.update\…\akke-sidecar.update\09fca21075f6\akke-sidecar</code>）启动的 1.26.0，20:18 起这份在跑。它的配置是出厂的：先提示还没设置身份、拒绝启动，设好身份后是演习模式（不真发），召回只预览。</dd>
+        <dt>影响</dt><dd>销售按运营指引分几次手改配置：设身份、切真发、改召回设置。召回到 10-23 07:57 才恢复真发；期间 29 条已核过的召回只预览不发，07:58 人工改成立即到期补发。</dd>
+        <dt>原因</dt><dd>① 电脑 A 的安装位置本来就不正常：开机自启体检记录的安装目录，9-28 在 Codex 的虚拟化目录里，10-13 起变成 9-28 那次升级的暂存目录（<code>AkkeWinds.update\a5e426f80fba\akke-sidecar</code>），10-22 又变成上面那个暂存目录里的暂存目录。② 启动脚本不认「我在暂存目录里」，不会去找原来的安装、把原配置和本地记录带过来；新解出来的那份就是出厂配置。<br>没查明：是谁、从哪里双击了暂存目录里的启动文件；9-28 的暂存目录为什么没被升级程序清掉；<code>0xc0000142</code> 的成因。</dd>
+        <dt>怎么修</dt><dd>待做：启动脚本发现自己在 <code>*.update\&lt;编号&gt;\</code> 下面时，找到原安装目录并把配置和本地记录合并过去再启动；找不到就弹窗说明应该双击哪个启动文件。根治电脑 A：用正式一键安装包装到普通目录一次。未开发。</dd>
+        <dt>验证</dt><dd>安装目录时间线来自生产库客户端事件表里电脑 A 的开机自启体检和启动链记录（10-23 查）；出厂配置的几项来自 10-22 晚程序提示与心跳。没有修复，没有独立检验。</dd>
+        <dt>还没解决</dt><dd>整条都没解决：10-23 电脑 A 升到 1.26.3 后，仍从同一个暂存目录运行。</dd>
+        <dt>相关</dt><dd><a href="#W-127">W-127</a>、<a href="#W-103">W-103</a>、<a href="#W-01">W-01</a>。</dd>
+        <dt>怎么验收</dt><dd>电脑 A 的开机自启体检里安装目录不再带 <code>.update\</code>；之后每次升级，身份、真发、召回设置都保持原样，不需要人工改配置。</dd>
+      </dl>
+    </div>
+
     <div class="bug" id="W-137" style="--bc:#d03b3b">
       <div class="bh"><code class="bid">W-137</code><b>停在「&lt; 有大有小」这类文件夹子列表里，程序不点左侧「聊天」图标回主列表，在夹子里一圈圈空转</b><span class="bst wait">修复已合并（1.26.14）· 出包中 · 三台待装机 · 未验收</span></div>
       <dl>
@@ -1865,7 +1893,7 @@
 </div>
 <div id="tip" role="tooltip"></div>
 
-<script src="/akke/personal-wechat-pc-bug-guide.js?v=h8b1217352e"></script>
+<script src="/akke/personal-wechat-pc-bug-guide.js?v=h311c2dbf5a"></script>
 <script>
 const API_BASE = "https://wecom-chat.vercel.app/api/public/weixin-pc-live";
 const MACHINES = [
