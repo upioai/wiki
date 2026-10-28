@@ -8,13 +8,14 @@
  * 用法（会话 id 从团队会话页 https://wecom-chat.vercel.app/team/weixin/<id> 的地址栏复制，时间照页面上的分钟写）：
  *   <figure class="wx-quote" data-c="<会话UUID>" data-from="2026-10-14 13:32" data-to="2026-10-14 13:34"
  *           data-title="客户要求重新算一遍"></figure>
- *   <script src="/akke/wx-quote.js?v=1" defer></script>
+ *   <script src="/akke/wx-quote.js?v=2" defer></script>
  * 时间窗闭区间、到 to 那一分钟的 59 秒为止，最长 3 天、最多 30 条。
  * 改本文件要同时把引用处的 ?v= 加 1：*.js 在 vercel.json 里是一年 immutable 缓存。
  * 后端：Akke-AI/wecom-chat src/app/api/public/weixin-quotes。
  */
 (function () {
-  var API = "https://wecom-chat.vercel.app/api/public/weixin-quotes";
+  // 走 upio.ai 同域转发（vercel.json rewrites）：国内网络连不上 *.vercel.app，直连会报 Failed to fetch
+  var API = "/api/weixin-quotes";
   var CSS =
     ".wx-quote{margin:18px 0 6px;border:1px solid var(--line,#dce4df);border-radius:16px;background:#f2f4f1;overflow:hidden}" +
     ".wx-quote figcaption{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 14px;background:white;border-bottom:1px solid var(--line,#dce4df);font-size:13px}" +
