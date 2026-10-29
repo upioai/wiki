@@ -143,7 +143,7 @@
       + (a.intent != null ? '<span class="it">评论里想买 ' + a.intent + ' 条</span>' : '')
       + (x.why ? '<p class="why">' + esc(x.why) + '</p>' : '')
       + (x.approach ? '<p class="ap">' + esc(x.approach) + '</p>' : '')
-      + (ef.shoot ? '<p class="ef">投入：<b>' + esc([ef.device, ef.time && '每条 ' + ef.time, ef.ai_cost && 'AI 费用 ' + ef.ai_cost].filter(Boolean).join(' · ')) + '</b></p>' : '')
+      + (a.cost ? '<p class="ef">照它的拍法做一条：<b>' + esc([a.cost.device, '人工' + a.cost.time.replace('约 ', '约 '), 'AI 算力 ' + a.cost.ai, '合计 ' + a.cost.total].join(' · ')) + '</b></p>' : '')
       + bestVideo(a)
       + (cites ? '<details><summary>我们拆解时的原话（' + (x.cites || []).length + ' 条）</summary><div class="cites">' + cites + '</div></details>' : '')
       + (a.quote ? '<p class="q"><i>' + esc(a.quote.k) + '</i>评论原话「' + esc(a.quote.t) + '」</p>' : '')
@@ -152,19 +152,21 @@
       + '</div></div>';
   }
 
-  // 投入和产出：一号一行，投入出自拆解（industry.py 校验过出处），产出是评论里数出来的
+  // 投入和产出：一号一行。成本出自这个号的拆解（video-teardown/accounts/<slug>/cost.json），
+  // 和单条拆解页顶部的成本框是同一份数；每条合计 = 人工按 55 元/小时折算 + AI 算力 + 设备摊销
   function ioTable(d, ac) {
     var rows = d.accounts.map(function (a) {
-      var ef = (ac[a.slug] || {}).effort || {}, v = a.best;
+      var ef = (ac[a.slug] || {}).effort || {}, k = a.cost, v = a.best;
       var na = '<span class="na">还在分析</span>';
       return '<tr><td class="n">' + esc(a.name) + (a.fans ? '<small>粉丝 ' + esc(a.fans) + '</small>' : '') + '</td>'
-        + '<td data-k="怎么拍">' + (ef.shoot ? esc(ef.shoot) : na) + '</td>'
-        + '<td data-k="设备">' + (ef.device ? esc(ef.device) : na) + '</td>'
-        + '<td data-k="每条人工">' + (ef.time ? esc(ef.time) : na) + '</td>'
-        + '<td data-k="每条 AI 费用">' + (ef.ai_cost ? esc(ef.ai_cost) : (ef.shoot ? '—' : na)) + '</td>'
+        + '<td data-k="怎么拍">' + (ef.shoot ? esc(ef.shoot) : (k ? '—' : na)) + '</td>'
+        + '<td data-k="设备">' + (k ? esc(k.device) : na) + '</td>'
+        + '<td data-k="每条人工">' + (k ? esc(k.time) : na) + '</td>'
+        + '<td data-k="AI 算力">' + (k ? esc(k.ai) : na) + '</td>'
+        + '<td class="out" data-k="每条合计">' + (k ? '<b style="font-size:15px">' + esc(k.total) + '</b><small>人工折 ' + esc(k.labor_cny) + (k.amort ? ' · 设备摊销 ' + esc(k.amort) : '') + '</small>' : na) + '</td>'
         + '<td class="out" data-k="最带客的一条">' + (v ? '<b>' + v.n + '</b> 人想买' + (v.comments ? '<small>' + v.comments + ' 条评论里</small>' : '') : '—') + '</td></tr>';
     }).join('');
-    return '<div class="io"><table><thead><tr><th>账号</th><th>怎么拍</th><th>设备</th><th>每条人工</th><th>每条 AI 费用</th><th>最带客的一条</th></tr></thead><tbody>'
+    return '<div class="io"><table><thead><tr><th>账号</th><th>怎么拍</th><th>设备</th><th>每条人工</th><th>AI 算力</th><th>每条合计</th><th>最带客的一条</th></tr></thead><tbody>'
       + rows + '</tbody></table></div>';
   }
 
@@ -185,10 +187,10 @@
           ['评论里想买', t.intent + ' 条', ' style="background:var(--accent-soft);color:var(--accent)"']]) + '</div>' : '')
       + '</div></section><section style="padding-top:0"><div class="wrap">';
 
-    if (n && c && c.accounts.some(function (x) { return x.effort && x.effort.shoot; })) {
+    if (n && d.accounts.some(function (a) { return a.cost; })) {
       h += '<div class="shead reveal in" style="margin-top:40px"><span class="eyebrow">投入和产出</span>'
         + '<h2>同行这样拍，一条要花多少、带来多少想买的人</h2>'
-        + '<p class="lede">投入按我们对每个号的逐条分析估算：照它的拍法做一条，用什么设备、人要花多久、用 AI 整理剪辑大概多少钱。产出是那个号评论里想买的人最多的一条视频。</p></div>'
+        + '<p class="lede">投入按我们对每个号的逐条分析估算：照它的拍法做一条，用什么设备、人要花多久、AI 整理剪辑的算力费。「每条合计」把人的时间按 55 元/小时折成钱一起算——一条视频真正的成本大头是人。产出是那个号评论里想买的人最多的一条视频。</p></div>'
         + ioTable(d, ac);
     }
 
