@@ -84,6 +84,26 @@
 .watch td.num{white-space:nowrap;font-family:"IBM Plex Mono",monospace;color:var(--accent);font-weight:600;}
 .watch td .q{display:block;font-size:12px;color:var(--ink-faint);margin-top:3px;}
 .watch .tg{display:inline-block;font-size:11px;padding:1px 6px;border-radius:4px;background:var(--paper-sunken);white-space:nowrap;}
+.dp{margin-top:48px;border:1px solid var(--line);border-radius:12px;background:var(--paper-raised);box-shadow:var(--shadow);}
+.dp>summary{cursor:pointer;padding:16px 20px;font-size:15px;font-weight:700;color:var(--ink);list-style:none;}
+.dp>summary::-webkit-details-marker{display:none}
+.dp>summary:before{content:"▸ ";color:var(--accent);}
+.dp[open]>summary:before{content:"▾ ";}
+.dp>summary small{font-weight:400;color:var(--ink-faint);margin-left:6px;font-size:12.5px;}
+.dp .db{padding:0 20px 20px;}
+.dp h4{font-size:15px;margin:22px 0 8px;color:var(--accent);}
+.dp .hl{font-size:16px;font-weight:700;line-height:1.6;margin:4px 0 8px;}
+.dp p{font-size:14px;line-height:1.75;color:var(--ink-soft);margin:6px 0;}
+.dp .it{border-top:1px solid var(--line);padding:12px 0;}
+.dp .it b{display:block;font-size:14.5px;color:var(--ink);margin-bottom:4px;}
+.dp .ev{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.dp .ev span{font-size:12px;padding:3px 9px;border-radius:6px;background:var(--paper-sunken);color:var(--ink-soft);line-height:1.5;}
+.dp .ev span i{font-style:normal;color:var(--ink);font-weight:600;margin-right:4px;}
+.dp .tg{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:4px;margin-right:6px;background:var(--accent-soft);color:var(--accent);}
+.dp .tg.inf{background:var(--paper-sunken);color:var(--ink-faint);}
+.dp .two{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.dp ul{margin:6px 0;padding-left:18px;font-size:14px;line-height:1.75;color:var(--ink-soft);}
+@media (max-width:620px){.dp .two{grid-template-columns:1fr;}}
 .cp{display:grid;gap:14px;margin-top:22px;}
 .cp-item{background:var(--paper-raised);border:1px solid var(--line);border-radius:12px;padding:16px 18px;}
 .cp-asp{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:4px;margin-bottom:6px;
@@ -201,6 +221,44 @@
       + '<div class="wt"><table><thead><tr><th>账号</th><th>内容</th><th>想买 / 判过</th><th>内容判定</th><th>为什么没收</th></tr></thead><tbody>' + rows + '</tbody></table></div></div></details>';
   }
 
+  // 部署方案（试行，默认收起）：案例做出来之后在哪发、什么节奏、用在哪些环节——每条都指到调研的号和数据（scrape/deploy.py）
+  function deployBlock(p) {
+    if (!p) return '';
+    function ev(list) {
+      return list && list.length ? '<div class="ev">' + list.map(function (e) {
+        return '<span><i>' + esc(e.name || e.slug) + '</i>' + esc(e.note) + '</span>';
+      }).join('') + '</div>' : '';
+    }
+    function ul(a) { return a && a.length ? '<ul>' + a.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' : ''; }
+    var h = '<details class="dp"><summary>部署方案：案例内容做出来之后，在哪发、怎么发、用在哪些环节<small>试行 · 依据本页调研的账号结构与评论</small></summary><div class="db">'
+      + '<p class="hl">' + esc(p.headline) + '</p><p>' + esc(p.summary) + '</p>';
+    if (p.channels && p.channels.length) {
+      h += '<h4>在哪发</h4>' + p.channels.map(function (x) {
+        return '<div class="it"><b>' + esc(x.platform) + '</b><p>' + esc(x.role) + '</p>' + ev(x.evidence) + '</div>';
+      }).join('');
+    }
+    if (p.cadence) {
+      h += '<h4>发布节奏</h4><div class="it"><b>' + esc(p.cadence.recommend) + '</b><p>' + esc(p.cadence.detail) + '</p>' + ev(p.cadence.evidence) + '</div>';
+    }
+    if (p.organize && p.organize.length) {
+      h += '<h4>内容怎么组织</h4>' + p.organize.map(function (x) {
+        return '<div class="it"><b>' + esc(x.title) + '</b><p>' + esc(x.detail) + '</p>' + ev(x.evidence) + '</div>';
+      }).join('');
+    }
+    if (p.stages && p.stages.length) {
+      h += '<h4>案例用在哪些环节</h4>' + p.stages.map(function (x) {
+        return '<div class="it"><b><span class="tg">' + esc(x.stage) + '</span><span class="tg' + (x.basis === '从调研推断' ? ' inf' : '') + '">' + esc(x.basis) + '</span></b>'
+          + '<p><strong>做成什么：</strong>' + esc(x.material) + '</p><p><strong>怎么用：</strong>' + esc(x.how) + '</p>' + ev(x.evidence) + '</div>';
+      }).join('');
+    }
+    h += '<div class="two"><div><h4>各行业通用的做法</h4>' + ul(p.common) + '</div><div><h4>这一行特有的</h4>' + ul(p.specific) + '</div></div>'
+      + '<h4>该盯的数</h4>' + ul(p.metrics)
+      + (p.gaps ? '<h4>调研看不到、要用你自己的数据定的</h4><p>' + esc(p.gaps) + '</p>' : '')
+      + '<p class="ai-note">方案由 AI 根据本页调研的账号结构（发布节奏、内容组成、置顶、系列化）、评论里的购买意向和拆解报告整理，整理于 ' + esc((p.generated_at || '').slice(0, 10)) + '。</p>'
+      + '</div></details>';
+    return h;
+  }
+
   function render(d) {
     var c = d.content, t = d.totals, n = d.accounts.length;
     document.title = 'AKKE · 行业专题 · ' + d.name;
@@ -271,6 +329,7 @@
       h += '<div class="edge" style="margin-top:40px"><span class="tag">注意</span><span class="et">' + esc(c.caveats)
         + '</span></div><p class="ai-note">分析由 AI 基于我们的调研数据和拆解报告整理，整理于 ' + esc((c.generated_at || '').slice(0, 10)) + '。</p>';
     }
+    h += deployBlock(d.deploy);
     h += watchBlock(d.watch);
     h += '<div class="refnote">' + (d.disclaimer || '') + '</div></div></section>';
     app.innerHTML = h;
