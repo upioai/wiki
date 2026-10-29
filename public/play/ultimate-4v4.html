@@ -1,0 +1,933 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="upio:date" content="2026-10-29">
+<meta name="theme-color" content="#0e1620">
+<meta name="description" content="4v4 团队飞盘新手入门小游戏：5 关教学学会站位、传盘、开放侧和 10 秒计数，再和电脑打一场先到 3 分的对抗赛。手机电脑都能玩。">
+<title>4v4 飞盘入门</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🥏</text></svg>">
+<style>
+  :root {
+    --bg: #0e1620;
+    --panel: rgba(15, 25, 35, .92);
+    --ink: #e8eef5;
+    --muted: #8fa1b3;
+    --att: #2f81f7;
+    --def: #e5484d;
+    --pass: #ffd33d;
+    --open: #78dcff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%; background: var(--bg); color: var(--ink); overflow: hidden;
+    overscroll-behavior: none; -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  }
+  #game { display: block; width: 100vw; height: 100vh; height: 100dvh; touch-action: none; }
+  .top {
+    position: fixed; left: 0; right: 0; top: 0;
+    padding: calc(env(safe-area-inset-top) + 10px) 16px 0;
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+    pointer-events: none;
+  }
+  .title { min-width: 0; }
+  .title h1 { font-size: 18px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .title p { margin-top: 3px; font-size: 12px; color: var(--muted); line-height: 1.45; }
+  .right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+  .score {
+    background: var(--panel); border-radius: 10px; padding: 4px 10px;
+    font-weight: 800; font-size: 17px; font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  .score .b { color: var(--att); } .score .r { color: var(--def); }
+  .legend { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin: 0 3px 0 6px; vertical-align: 0; }
+  .menu-btn {
+    pointer-events: auto; border: 1px solid rgba(255,255,255,.18); background: var(--panel);
+    color: var(--ink); border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer; font-family: inherit;
+  }
+  .caption {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: calc(env(safe-area-inset-bottom) + 14px);
+    max-width: min(92vw, 640px); background: rgba(0,0,0,.82); color: #fff;
+    padding: 8px 14px; border-radius: 8px; font-size: 14px; line-height: 1.5; text-align: center;
+    pointer-events: none;
+  }
+  .caption:empty { display: none; }
+  .bid {
+    position: fixed; right: 16px; bottom: calc(env(safe-area-inset-bottom) + 64px);
+    width: 76px; height: 76px; border-radius: 50%; border: 0; cursor: pointer;
+    background: var(--att); color: #fff; font-size: 22px; font-weight: 800; font-family: inherit;
+    box-shadow: 0 0 0 4px rgba(47,129,247,.35), 0 4px 0 #1b5fc2;
+  }
+  .bid[hidden] { display: none; }
+  .bid:active { transform: translateY(3px); }
+  .overlay {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    padding: 16px; background: rgba(8, 13, 19, .78); overflow-y: auto;
+  }
+  .overlay[hidden] { display: none; }
+  .card {
+    background: #152230; border: 1px solid rgba(255,255,255,.08); border-radius: 14px;
+    padding: 22px 20px; width: 100%; max-width: 420px; margin: auto;
+  }
+  .card h2 { font-size: 24px; font-weight: 800; }
+  .card h2 small { display: block; font-size: 13px; font-weight: 500; color: var(--muted); margin-top: 4px; }
+  .card p, .card li { font-size: 14px; line-height: 1.65; color: #c5d1dc; }
+  .card p { margin-top: 12px; }
+  .card ul { margin-top: 10px; padding-left: 0; list-style: none; }
+  .card li { padding-left: 14px; position: relative; }
+  .card li::before { content: ""; position: absolute; left: 0; top: .62em; width: 6px; height: 6px; border-radius: 50%; background: var(--pass); }
+  .card .k { color: var(--pass); font-weight: 700; }
+  .btn {
+    display: block; width: 100%; margin-top: 12px; padding: 13px; border: 0; border-radius: 10px;
+    font-size: 16px; font-weight: 800; cursor: pointer; font-family: inherit; color: #fff; background: var(--att);
+  }
+  .btn.alt { background: transparent; border: 1px solid rgba(255,255,255,.22); color: var(--ink); }
+  .seg { display: flex; gap: 8px; margin-top: 14px; }
+  .seg button {
+    flex: 1; padding: 9px 6px; border-radius: 8px; border: 1px solid rgba(255,255,255,.22);
+    background: transparent; color: var(--ink); font-size: 14px; cursor: pointer; font-family: inherit;
+  }
+  .seg button.on { background: var(--pass); color: #10161d; border-color: var(--pass); font-weight: 800; }
+  .seg-label { margin-top: 16px; font-size: 12px; color: var(--muted); }
+  .back { display: inline-block; margin-top: 14px; font-size: 13px; color: var(--muted); }
+  .big { font-size: 44px; font-weight: 800; margin-top: 8px; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div class="top">
+  <div class="title">
+    <h1 id="t-title">4v4 飞盘 · 新手入门</h1>
+    <p id="t-sub">5 人足球场上的 4 对 4 团队飞盘</p>
+  </div>
+  <div class="right">
+    <div class="score"><span class="b">蓝 <span id="s-b">0</span></span> : <span class="r"><span id="s-r">0</span> 红</span></div>
+    <div class="legend"><i style="background:#2f81f7"></i>我方<i style="background:#e5484d"></i>对手（数字＝所盯的人）</div>
+    <button class="menu-btn" id="menu-btn">菜单</button>
+  </div>
+</div>
+<div class="caption" id="caption"></div>
+<button class="bid" id="bid" hidden>扑！</button>
+
+<div class="overlay" id="menu">
+  <div class="card">
+    <h2>4v4 飞盘 · 新手入门<small>5 人足球场 · 40 × 20 米 · 两端各 5 米得分区</small></h2>
+    <p>你指挥蓝队。<span class="k">点队友</span>就把飞盘传给他，<span class="k">点空地</span>就传到那个空位，最近的队友会跑过去接。</p>
+    <ul>
+      <li>拿着飞盘不能跑，只能传</li>
+      <li>盯你的人会数 10 秒，数完还没出手就换攻</li>
+      <li>飞盘落地、被断，都换对方进攻</li>
+      <li>在对面的得分区里接住飞盘，得 1 分</li>
+    </ul>
+    <div class="seg-label">进攻站位（和战术视频一致）</div>
+    <div class="seg" id="seg-form">
+      <button data-f="vert" class="on">竖排</button>
+      <button data-f="horz">横排</button>
+    </div>
+    <button class="btn" id="btn-tut">新手教学（5 关）</button>
+    <button class="btn alt" id="btn-match">直接比赛：先得 3 分获胜</button>
+    <a class="back" href="/play">← 更多小游戏</a>
+  </div>
+</div>
+
+<div class="overlay" id="msg" hidden>
+  <div class="card" style="text-align:center">
+    <h2 id="msg-title"></h2>
+    <div class="big" id="msg-big"></div>
+    <p id="msg-body"></p>
+    <button class="btn" id="msg-ok">继续</button>
+    <button class="btn alt" id="msg-alt" hidden></button>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------- 场地（米），与战术视频同尺寸 ----------
+  const FL = 40, FWD = 20, EZ = 5, AP = 1.5;
+  const STEP = 1 / 60;
+  const STALL_MAX = 10;
+  const WIN_SCORE = 3;
+  const SPD = { cut: 7.4, jog: 4.6, def: 6.0, defFlight: 5.8, mark: 7.5, bid: 10.5, pickup: 5.5 };
+  const CATCH_R = 1.15, BLOCK_R = 0.55;
+  const MARK_CONE = 0.95, MARK_REACH = 2; // marker 封堵扇形：半角（弧度）与有效距离，和画面上的红色扇形一致
+  const C = {
+    bg: '#0e1620', grass1: '#2e7a3a', grass2: '#297034', apron: '#215a2a', ez: '#3a8a47',
+    att: '#2f81f7', def: '#e5484d', pass: '#ffd33d', open: '#78dcff', white: '#ffffff', tag: 'rgba(15,25,35,.86)',
+  };
+  const ROLES = {
+    vert: ['主han', '1 Cut', '2 Cut', 'Deep'],
+    horz: ['主han', '副han', 'Break Cut', 'Open Cut'],
+  };
+
+  // ---------- 教学关卡 ----------
+  const DRILLS = [
+    { title: '第 1 关 · 第一传', sub: '没有防守。点一个蓝色队友，把飞盘传给他。',
+      man: false, mark: false, stall: false, goal: { completions: 1 },
+      tip: '拿着飞盘不能跑，只能传。点任意一个队友试试。' },
+    { title: '第 2 关 · 传进得分区', sub: '还是没有防守。把飞盘传给跑进对面得分区的队友。',
+      man: false, mark: false, stall: false, goal: { scores: 1 },
+      tip: '点对面得分区里的空地，最近的队友会跑过去接。接住就得 1 分。' },
+    { title: '第 3 关 · 甩开再传', sub: '红色防守上场了。等队友甩开防守再传，完成 3 次传盘。',
+      man: true, mark: false, stall: false, goal: { completions: 3 },
+      tip: '队友旁边出现「拉开 x m」时最安全；传给被贴身盯住的人容易被断。' },
+    { title: '第 4 关 · 开放侧', sub: 'marker 站到你身边，封住了一侧。往开放侧传，完成 2 次传盘。',
+      man: true, mark: true, stall: false, goal: { completions: 2 },
+      tip: '红色阴影是封堵侧，传过去会被 marker 拦下。往没有阴影的开放侧传。' },
+    { title: '第 5 关 · 10 秒计数', sub: '完整规则：marker 会数 10 秒。得 1 分就毕业。',
+      man: true, mark: true, stall: true, goal: { scores: 1 },
+      tip: '持盘人头上的数字是计数，数到 10 还没出手就换攻。别急，也别拖。' },
+  ];
+
+  // ---------- 画布与坐标 ----------
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  let W = 0, H = 0, DPR = 1, PPM = 20, OX = 0, OY = 0, PORTRAIT = false;
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    PORTRAIT = H > W * 1.1;
+    const top = PORTRAIT ? 96 : 84, bottom = PORTRAIT ? 84 : 64, side = 16;
+    const availW = W - side * 2, availH = H - top - bottom;
+    const fw = PORTRAIT ? FWD + AP * 2 : FL + AP * 2;
+    const fh = PORTRAIT ? FL + AP * 2 : FWD + AP * 2;
+    PPM = Math.min(availW / fw, availH / fh);
+    OX = (W - fw * PPM) / 2;
+    OY = top + (availH - fh * PPM) / 2;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+  // 竖屏时把场地转 90°：蓝队往上进攻
+  function toS(x, y) {
+    return PORTRAIT
+      ? [OX + (y + AP) * PPM, OY + (FL - x + AP) * PPM]
+      : [OX + (x + AP) * PPM, OY + (y + AP) * PPM];
+  }
+  function toW(px, py) {
+    return PORTRAIT
+      ? [FL + AP - (py - OY) / PPM, (px - OX) / PPM - AP]
+      : [(px - OX) / PPM - AP, (py - OY) / PPM - AP];
+  }
+  const R = (m) => m * PPM;
+
+  // ---------- 小工具 ----------
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const dirOf = (team) => team === 'B' ? 1 : -1;
+  const other = (team) => team === 'B' ? 'R' : 'B';
+  function segDist(p, a, b) {
+    const dx = b.x - a.x, dy = b.y - a.y, l2 = dx * dx + dy * dy;
+    const u = l2 ? clamp(((p.x - a.x) * dx + (p.y - a.y) * dy) / l2, 0, 1) : 0;
+    return Math.hypot(p.x - a.x - u * dx, p.y - a.y - u * dy);
+  }
+  // marker 站在持盘人靠近边线的一侧，逼他往中路（开放侧）传
+  function markSide(h) { return h.y < FWD / 2 ? -1 : 1; }
+  // 传盘方向落在朝 marker 张开的扇形里 = 被封堵
+  function markBlocks(h, mk, P) {
+    if (!mk || dist(h, mk) > MARK_REACH) return false;
+    const a1 = Math.atan2(P.y - h.y, P.x - h.x), a2 = Math.atan2(mk.y - h.y, mk.x - h.x);
+    let da = Math.abs(a1 - a2); if (da > Math.PI) da = 2 * Math.PI - da;
+    return da < MARK_CONE;
+  }
+  function inScoreZone(team, x) { return team === 'B' ? x > FL - EZ : x < EZ; }
+
+  // ---------- 声音 ----------
+  let audio = null;
+  function beep(f, d, type = 'triangle', v = 0.1) {
+    try {
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      const t = audio.currentTime, o = audio.createOscillator(), g = audio.createGain();
+      o.type = type; o.frequency.setValueAtTime(f, t);
+      g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+      o.connect(g).connect(audio.destination); o.start(t); o.stop(t + d);
+    } catch (e) {}
+  }
+
+  // ---------- 状态 ----------
+  const G = {
+    mode: 'menu',         // menu | tutorial | match
+    formation: 'vert',
+    drill: 0, progress: { completions: 0, scores: 0 },
+    rules: { man: true, mark: true, stall: true },
+    players: [],
+    off: 'B',             // 进攻方
+    holder: null,
+    disc: null,           // { state: held|air|loose, x, y, ... }
+    stall: 0, checkT: 0,
+    passN: 0,
+    score: { B: 0, R: 0 },
+    pause: 0, afterPause: null,
+    cutClock: 0,
+    bidUsed: false,
+    flash: [],
+    stats: { passes: 0, turnovers: 0, blocks: 0 },
+    time: 0,
+    log: [],          // 最近的事件，供自动化测试读取
+  };
+
+  function mkPlayer(team, n) {
+    return { team, n, x: 0, y: 0, vx: 0, vy: 0, tx: 0, ty: 0, sp: SPD.jog, state: 'set', slot: null, role: '', wait: 0, bidT: 0 };
+  }
+  function team(t) { return G.players.filter(p => p.team === t); }
+  function guardOf(p) { return G.players.find(q => q.team !== p.team && q.n === p.n); }
+  function defActive() { return G.mode === 'match' || G.rules.man; }
+
+  // ---------- 站位 ----------
+  function slotsFor(t, h) {
+    const d = dirOf(t);
+    const fx = (df) => clamp(h.x + d * df, 1, FL - 1);
+    if (G.formation === 'vert') {
+      // 竖排：其余三人在中路纵向排成一列
+      const base = clamp(h.x + d * 7, 2, FL - 2);
+      return [
+        { x: base, y: FWD / 2, role: 1 },
+        { x: clamp(base + d * 3.5, 1, FL - 1), y: FWD / 2, role: 2 },
+        { x: clamp(base + d * 8, 1, FL - 1), y: FWD / 2, role: 3 },
+      ];
+    }
+    // 横排：副han 在后侧，两名切入手横向拉开、中路留空
+    return [
+      { x: fx(-2.5), y: h.y > FWD / 2 ? h.y - 5.5 : h.y + 5.5, role: 1 },
+      { x: fx(10), y: 4.5, role: 2 },
+      { x: fx(10), y: FWD - 4.5, role: 3 },
+    ];
+  }
+
+  function formUp(t) {
+    const h = G.holder;
+    const names = ROLES[G.formation];
+    h.role = names[0]; h.state = 'hold'; h.slot = null;
+    const slots = slotsFor(t, h);
+    const rest = team(t).filter(p => p !== h);
+    // 贪心：谁离得近谁去
+    const free = rest.slice();
+    for (const s of slots) {
+      free.sort((a, b) => dist(a, s) - dist(b, s));
+      const p = free.shift();
+      p.slot = { x: s.x, y: s.y }; p.role = names[s.role]; p.state = 'set'; p.tx = s.x; p.ty = s.y; p.sp = SPD.jog;
+    }
+    G.cutClock = rand(0.6, 1.2);
+  }
+
+  function resetPoint(receiving) {
+    // 对方得分后（或开局）：接盘方在自己的得分线中点开始进攻
+    G.off = receiving;
+    const d = dirOf(receiving);
+    const lineX = receiving === 'B' ? EZ : FL - EZ;
+    const oppLine = receiving === 'B' ? FL - EZ - 6 : EZ + 6;
+    G.players.forEach(p => { p.vx = p.vy = 0; p.bidT = 0; });
+    const off = team(receiving), dfn = team(other(receiving));
+    off.forEach((p, i) => { p.x = lineX + d * (i === 0 ? 0 : 3 + i * 2); p.y = i === 0 ? FWD / 2 : 4 + (i - 1) * 6; });
+    dfn.forEach((p, i) => { p.x = oppLine; p.y = 4 + i * 4; });
+    G.holder = off[0];
+    G.disc = { state: 'held', x: G.holder.x, y: G.holder.y };
+    formUp(receiving);
+    dfn.forEach(p => { const m = G.players.find(q => q.team === receiving && q.n === p.n); p.x = m.x + d * 2; p.y = m.y; });
+    G.stall = 0; G.checkT = 0.8; G.passN = 0; G.bidUsed = false;
+  }
+
+  function newGame(mode) {
+    G.mode = mode;
+    G.players = [];
+    for (let i = 1; i <= 4; i++) G.players.push(mkPlayer('B', i));
+    for (let i = 1; i <= 4; i++) G.players.push(mkPlayer('R', i));
+    G.score = { B: 0, R: 0 };
+    G.stats = { passes: 0, turnovers: 0, blocks: 0 };
+    G.flash = [];
+    if (mode === 'tutorial') { G.drill = 0; startDrill(); }
+    else { G.rules = { man: true, mark: true, stall: true }; resetPoint('B'); setCaption('点队友传盘，点空地传到空位。对方传盘时按「扑！」去断。'); }
+    updateTop();
+  }
+
+  function startDrill() {
+    const dr = DRILLS[G.drill];
+    G.rules = { man: dr.man, mark: dr.mark, stall: dr.stall };
+    G.progress = { completions: 0, scores: 0 };
+    G.score = { B: 0, R: 0 };
+    resetPoint('B');
+    setCaption(dr.tip);
+    updateTop();
+  }
+
+  // ---------- 传盘 ----------
+  function discSpeed(d) { return 12 + d * 0.18; }
+  function leadPoint(from, r) {
+    let P = { x: r.x, y: r.y };
+    const vx = r.state === 'cut' ? r.vx : r.vx * 0.5, vy = r.state === 'cut' ? r.vy : r.vy * 0.5;
+    for (let k = 0; k < 4; k++) {
+      const T = dist(from, P) / discSpeed(dist(from, P));
+      P = { x: clamp(r.x + vx * T, 0.6, FL - 0.6), y: clamp(r.y + vy * T, 0.6, FWD - 0.6) };
+    }
+    return P;
+  }
+  function markerOf() { return G.holder ? guardOf(G.holder) : null; }
+  function markerActive() { return defActive() && G.rules.mark && G.disc.state === 'held' && G.checkT <= 0; }
+
+  function throwTo(P, receiver) {
+    const h = G.holder;
+    const from = { x: h.x, y: h.y };
+    const d = Math.max(0.5, dist(from, P));
+    // 传空位时飞盘会「挂」得久一点，给接盘人跑到落点的时间（最慢 7 m/s）；挂得越久，防守越有机会截
+    let T = d / discSpeed(d);
+    if (receiver) T = Math.max(T, Math.min(dist(receiver, P) / SPD.cut * 1.05, d / 7));
+    G.disc = { state: 'air', x: from.x, y: from.y, from, to: { x: P.x, y: P.y }, t: 0, T, receiver, thrower: h };
+    G.passN += 1;
+    G.bidUsed = false;
+    h.state = 'set'; h.slot = { x: h.x, y: h.y }; h.tx = h.x; h.ty = h.y;
+    if (receiver) { receiver.state = 'chase'; receiver.tx = P.x; receiver.ty = P.y; receiver.sp = SPD.cut; }
+    G.holder = null;
+    beep(520, 0.12);
+    // marker 封堵：出手瞬间飞盘路线贴着 marker 就会被拦
+    const mk = guardOf(h);
+    if (defActive() && G.rules.mark && G.checkTWas <= 0 && markBlocks(from, mk, P)) {
+      turnover(mk.x, mk.y, 'marker 封堵！', mk); return;
+    }
+  }
+
+  function tryUserPass(wx, wy) {
+    if (G.off !== 'B' || !G.holder || G.disc.state !== 'held' || G.pause > 0) return;
+    const h = G.holder;
+    const tap = { x: clamp(wx, 0.6, FL - 0.6), y: clamp(wy, 0.6, FWD - 0.6) };
+    // 点中队友（手指够粗，判定放宽）
+    const mates = team('B').filter(p => p !== h);
+    let best = null, bd = 2.2 + 18 / PPM;
+    for (const p of mates) { const d = dist(p, tap); if (d < bd) { bd = d; best = p; } }
+    if (best) { throwTo(leadPoint(h, best), best); return; }
+    if (dist(h, tap) < 1.5) return;
+    // 传到空位：谁先到谁接
+    let r = null, rt = Infinity;
+    for (const p of mates) { const t = dist(p, tap) / SPD.cut; if (t < rt) { rt = t; r = p; } }
+    throwTo(tap, r);
+  }
+
+  // ---------- 换攻 / 得分 ----------
+  function turnover(x, y, label, blocker) {
+    G.stats.turnovers += G.off === 'B' ? 1 : 0;
+    if (blocker && blocker.team === 'B') G.stats.blocks += 1;
+    flash(x, y, label, blocker ? (blocker.team === 'B' ? C.att : C.def) : '#fff');
+    beep(200, 0.3, 'sawtooth', 0.06);
+    if (G.mode === 'tutorial') {
+      G.pause = 1.4;
+      G.afterPause = () => { resetPoint('B'); setCaption('被换攻了，再来一次。' + DRILLS[G.drill].tip); };
+      G.disc = { state: 'loose', x, y };
+      return;
+    }
+    const nt = other(G.off);
+    G.off = nt;
+    // 在任何一侧得分区里的换攻，都拿到得分线上开始
+    const px = clamp(x, EZ, FL - EZ), py = clamp(y, 0.5, FWD - 0.5);
+    G.disc = { state: 'loose', x: px, y: py };
+    G.holder = null;
+    const cand = team(nt).slice().sort((a, b) => dist(a, G.disc) - dist(b, G.disc))[0];
+    G.pickup = cand;
+    cand.state = 'pickup'; cand.tx = px; cand.ty = py; cand.sp = SPD.pickup;
+    team(nt).filter(p => p !== cand).forEach(p => { p.state = 'set'; p.tx = p.x; p.ty = p.y; });
+    G.stall = 0; G.passN = 0;
+    if (nt === 'R') setCaption('换对方进攻了。看准他们出手，按「扑！」去断盘。');
+    else setCaption('抢回来了！点队友传盘。');
+  }
+
+  function scored(t, p) {
+    G.score[t] += 1;
+    flash(p.x, p.y, '得分！', C.pass, 1.6);
+    beep(660, 0.12, 'square', 0.07); setTimeout(() => beep(990, 0.2, 'square', 0.07), 110);
+    G.disc = { state: 'held', x: p.x, y: p.y };
+    G.holder = p; p.state = 'hold';
+    updateTop();
+    if (G.mode === 'tutorial') {
+      G.progress.scores += 1; G.progress.completions += 1;
+      G.pause = 1.2;
+      G.afterPause = () => resetPoint('B');
+      checkDrill();
+      return;
+    }
+    G.pause = 1.8;
+    G.afterPause = () => {
+      if (G.score[t] >= WIN_SCORE) { endMatch(); return; }
+      resetPoint(other(t));
+      setCaption(G.off === 'B' ? '我们接盘进攻。' : '对方接盘进攻，守住！');
+    };
+  }
+
+  function caught(p) {
+    G.holder = p;
+    p.vx = p.vy = 0;
+    G.disc = { state: 'held', x: p.x, y: p.y };
+    if (p.team === 'B') G.stats.passes += 1;
+    if (inScoreZone(p.team, p.x)) { scored(p.team, p); return; }
+    beep(780, 0.08, 'square', 0.05);
+    G.stall = 0; G.checkT = 0.6;
+    formUp(p.team);
+    if (G.mode === 'tutorial') { G.progress.completions += 1; checkDrill(); }
+  }
+
+  function checkDrill() {
+    const g = DRILLS[G.drill].goal;
+    const done = Object.keys(g).every(k => G.progress[k] >= g[k]);
+    updateTop();
+    if (!done) return;
+    G.pause = 99; G.afterPause = null;
+    const last = G.drill === DRILLS.length - 1;
+    showMsg(last ? '教学完成！' : `${DRILLS[G.drill].title.split(' · ')[0]} 通过`, last ? '🎓' : '✓',
+      last ? '站位、传盘、开放侧、10 秒计数都会了。去打一场对抗赛吧。' : DRILLS[G.drill + 1].sub,
+      last ? '开始对抗赛' : '下一关',
+      () => { if (last) newGame('match'); else { G.drill += 1; startDrill(); } G.pause = 0; },
+      last ? '再练一遍' : null, () => { newGame('tutorial'); G.pause = 0; });
+  }
+
+  function endMatch() {
+    const win = G.score.B > G.score.R;
+    G.pause = 99;
+    showMsg(win ? '蓝队获胜！' : '红队获胜', `${G.score.B} : ${G.score.R}`,
+      `完成传盘 ${G.stats.passes} 次 · 丢盘 ${G.stats.turnovers} 次 · 断盘 ${G.stats.blocks} 次`,
+      '再来一场', () => { newGame('match'); G.pause = 0; }, '回菜单', () => openMenu());
+  }
+
+  // ---------- AI ----------
+  function stepOffense(t, dt) {
+    const off = team(t);
+    // 切入调度：轮流挑一个站好位的人做一次切入
+    if (G.disc.state === 'held' && G.holder) {
+      G.cutClock -= dt;
+      if (G.cutClock <= 0) {
+        const ready = off.filter(p => p.state === 'set' && p.slot && dist(p, p.slot) < 1.5);
+        if (ready.length) {
+          const p = ready[Math.floor(Math.random() * ready.length)];
+          const d = dirOf(t), h = G.holder;
+          const deep = Math.random() < 0.4;
+          const open = -markSide(h); // 开放侧在 marker 的另一边
+          const tx = deep ? clamp(h.x + d * rand(14, 22), 1, FL - 1) : clamp(h.x + d * rand(4, 9), 1, FL - 1);
+          const ty = deep ? clamp(p.y + rand(-4, 4), 1.5, FWD - 1.5) : clamp(h.y + open * rand(3, 7), 1.5, FWD - 1.5);
+          p.state = 'cut'; p.tx = tx; p.ty = ty; p.sp = SPD.cut; p.wait = 0;
+        }
+        G.cutClock = rand(0.8, 1.4);
+      }
+    }
+    for (const p of off) {
+      if (p.state === 'cut' && Math.hypot(p.tx - p.x, p.ty - p.y) < 0.4) {
+        p.wait += dt;
+        if (p.wait > 0.7) { p.state = 'set'; if (p.slot) { p.tx = p.slot.x; p.ty = p.slot.y; } p.sp = SPD.jog; }
+      }
+      if (p.state === 'pickup' && Math.hypot(p.tx - p.x, p.ty - p.y) < 0.3) {
+        G.holder = p; G.pickup = null;
+        G.disc = { state: 'held', x: p.x, y: p.y };
+        G.stall = 0; G.checkT = 0.9;
+        formUp(t);
+      }
+    }
+  }
+
+  function stepDefense(t, dt) {
+    const dfn = team(t);
+    const d = dirOf(other(t));
+    const disc = G.disc;
+    for (const p of dfn) {
+      const man = G.players.find(q => q.team !== t && q.n === p.n);
+      if (G.mode === 'tutorial' && !G.rules.man) { p.tx = p.x; p.ty = p.y; continue; }
+      if (disc.state === 'air') {
+        // 能在飞盘之前赶到路线上的点，就去截；否则跟住自己的人
+        const reactT = 0.35;
+        let tgt = null;
+        if (disc.t > reactT) {
+          const sp = p.bidT > 0 ? SPD.bid : SPD.defFlight;
+          for (let k = 1; k <= 12; k++) {
+            const u = clamp(disc.t / disc.T + (k / 12) * (1 - disc.t / disc.T), 0, 1);
+            const Q = { x: disc.from.x + (disc.to.x - disc.from.x) * u, y: disc.from.y + (disc.to.y - disc.from.y) * u };
+            const tLeft = (u * disc.T) - disc.t;
+            if (dist(p, Q) / sp <= tLeft) { tgt = Q; break; }
+          }
+        }
+        if (tgt) { p.tx = tgt.x; p.ty = tgt.y; p.sp = p.bidT > 0 ? SPD.bid : SPD.defFlight; }
+        else { p.tx = man.tx !== undefined && man.state === 'chase' ? man.tx : man.x; p.ty = man.state === 'chase' ? man.ty : man.y; p.sp = p.bidT > 0 ? SPD.bid : SPD.defFlight; }
+        continue;
+      }
+      if (man === G.holder && G.rules.mark) {
+        // marker：站在持盘人靠边线一侧（封堵侧），逼他往中路出手
+        p.tx = man.x + d * 0.35; p.ty = man.y + markSide(man) * 1.1; p.sp = SPD.mark;
+      } else if (man === G.holder) {
+        p.tx = man.x + d * 2.5; p.ty = man.y; p.sp = SPD.def;
+      } else {
+        // 盯人：站在对手和他要进攻的得分区之间，稍微偏向持盘人
+        const h = G.holder || G.pickup || man;
+        p.tx = man.x + d * 1.2 + (h.x - man.x) * 0.08;
+        p.ty = man.y + (h.y - man.y) * 0.08;
+        p.sp = SPD.def;
+      }
+    }
+  }
+
+  function redThinks() {
+    if (G.off !== 'R' || !G.holder || G.disc.state !== 'held' || G.checkT > 0) return;
+    if (G.stall < 1.2) return;
+    const h = G.holder, d = dirOf('R');
+    const mk = guardOf(h);
+    let best = null;
+    for (const r of team('R')) {
+      if (r === h) continue;
+      const P = leadPoint(h, r);
+      const L = dist(h, P);
+      if (L < 3) continue;
+      const T = L / discSpeed(L);
+      // marker 封堵侧不传
+      if (markBlocks(h, mk, P)) continue;
+      // 安全余量：最近的蓝方防守赶到路线所需时间 − 飞盘飞到那里的时间
+      let margin = Infinity;
+      for (const b of team('B')) {
+        if (b === mk) continue;
+        for (let k = 1; k <= 10; k++) {
+          const u = k / 10;
+          const Q = { x: h.x + (P.x - h.x) * u, y: h.y + (P.y - h.y) * u };
+          margin = Math.min(margin, (dist(b, Q) - BLOCK_R) / SPD.defFlight - u * T);
+        }
+      }
+      const gain = (P.x - h.x) * d;
+      const score = margin * 2 + gain * 0.1 + (inScoreZone('R', P.x) ? 2.5 : 0);
+      if (!best || score > best.score) best = { r, P, margin, score };
+    }
+    if (!best) return;
+    const urgent = G.stall > 7;
+    if (best.margin > 0.25 || urgent) throwTo(best.P, best.r);
+  }
+
+  // ---------- 主循环 ----------
+  function update(dt) {
+    G.time += dt;
+    for (const f of G.flash) f.t += dt;
+    G.flash = G.flash.filter(f => f.t < f.life);
+    if (G.mode === 'menu') return;
+    if (G.pause > 0) {
+      G.pause -= dt;
+      if (G.pause <= 0 && G.afterPause) { const fn = G.afterPause; G.afterPause = null; fn(); }
+      movePlayers(dt * 0.4);
+      return;
+    }
+    const off = G.off, def = other(off);
+    stepOffense(off, dt);
+    stepDefense(def, dt);
+    movePlayers(dt);
+    G.checkTWas = G.checkT;
+
+    const disc = G.disc;
+    if (disc.state === 'held' && G.holder) {
+      disc.x = G.holder.x; disc.y = G.holder.y;
+      if (G.checkT > 0) G.checkT -= dt;
+      else if (defActive() && G.rules.stall && G.rules.mark) {
+        const prev = Math.floor(G.stall);
+        G.stall += dt;
+        if (Math.floor(G.stall) > prev && G.stall < STALL_MAX) beep(300 + G.stall * 40, 0.05, 'sine', 0.04);
+        if (G.stall >= STALL_MAX) { const h = G.holder; G.holder = null; turnover(h.x, h.y, '10 秒到！', null); }
+      }
+      if (off === 'R') redThinks();
+    } else if (disc.state === 'air') {
+      disc.t += dt;
+      const u = clamp(disc.t / disc.T, 0, 1);
+      disc.x = disc.from.x + (disc.to.x - disc.from.x) * u;
+      disc.y = disc.from.y + (disc.to.y - disc.from.y) * u;
+      // 空中拦截只发生在飞行前 80%；落点附近的争抢交给下面的到点判定
+      if (defActive() && disc.t > 0.15 && u < 0.8) {
+        for (const p of team(def)) {
+          if (G.mode === 'tutorial' && !G.rules.man) break;
+          if (dist(p, disc) < BLOCK_R) { turnover(disc.x, disc.y, p.team === 'B' ? '断盘！' : '被断了', p); return; }
+        }
+      }
+      // 接盘人迎上去也能提前接住
+      if (u > 0.6 && u < 1) {
+        const early = team(off).find(p => p !== disc.thrower && dist(p, disc) < CATCH_R * 0.8);
+        if (early) { caught(early); return; }
+      }
+      if (u >= 1) {
+        // 落点附近谁最近：本方接住，防守更近就是破坏
+        const near = team(off).filter(p => dist(p, disc) < CATCH_R).sort((a, b) => dist(a, disc) - dist(b, disc))[0];
+        const dnear = defActive() ? team(def).filter(p => dist(p, disc) < BLOCK_R + 0.25).sort((a, b) => dist(a, disc) - dist(b, disc))[0] : null;
+        if (near && !(dnear && dist(dnear, disc) + 0.3 < dist(near, disc))) caught(near);
+        else if (dnear) turnover(disc.x, disc.y, dnear.team === 'B' ? '断盘！' : '被断了', dnear);
+        else turnover(disc.x, disc.y, '落地', null);
+      }
+    }
+    for (const p of G.players) if (p.bidT > 0) p.bidT -= dt;
+    document.getElementById('bid').hidden = !(G.mode === 'match' && G.off === 'R' && G.disc.state === 'air' && !G.bidUsed);
+  }
+
+  function movePlayers(dt) {
+    for (const p of G.players) {
+      if (p === G.holder) { p.vx = p.vy = 0; continue; }
+      const dx = p.tx - p.x, dy = p.ty - p.y, d = Math.hypot(dx, dy);
+      const want = d > 0.05 ? Math.min(p.sp, d * 4) : 0;
+      const wx = d > 0.05 ? dx / d * want : 0, wy = d > 0.05 ? dy / d * want : 0;
+      // 防守人变向慢一拍（反应 + 转身），切入手才能甩开
+      const defending = p.team !== G.off && G.disc.state !== 'air';
+      const k = Math.min(1, dt * (defending ? 3.2 : 7));
+      p.vx += (wx - p.vx) * k; p.vy += (wy - p.vy) * k;
+      p.x = clamp(p.x + p.vx * dt, 0.3, FL - 0.3);
+      p.y = clamp(p.y + p.vy * dt, 0.3, FWD - 0.3);
+    }
+    // 简单的身体分离，避免叠在一起
+    for (let i = 0; i < G.players.length; i++) for (let j = i + 1; j < G.players.length; j++) {
+      const a = G.players[i], b = G.players[j];
+      const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
+      if (d > 0 && d < 0.8) {
+        const push = (0.8 - d) / 2, ux = dx / d, uy = dy / d;
+        if (a !== G.holder) { a.x -= ux * push; a.y -= uy * push; }
+        if (b !== G.holder) { b.x += ux * push; b.y += uy * push; }
+      }
+    }
+  }
+
+  // ---------- 输入 ----------
+  canvas.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    const [wx, wy] = toW(e.clientX, e.clientY);
+    tryUserPass(wx, wy);
+  });
+  document.getElementById('bid').addEventListener('pointerdown', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (G.disc.state !== 'air' || G.off !== 'R' || G.bidUsed) return;
+    G.bidUsed = true;
+    // 离飞盘路线最近的蓝方冲刺
+    const disc = G.disc;
+    const b = team('B').slice().sort((p, q) => segDist(p, disc, disc.to) - segDist(q, disc, disc.to))[0];
+    b.bidT = 0.9;
+    beep(440, 0.1, 'square', 0.06);
+  });
+
+  // ---------- 渲染 ----------
+  let last = performance.now(), acc = 0;
+  function frame(now) {
+    acc += Math.min(0.05, (now - last) / 1000); last = now;
+    while (acc >= STEP) { update(STEP); acc -= STEP; }
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  function rectW(x0, y0, x1, y1) {
+    const a = toS(x0, y0), b = toS(x1, y1);
+    return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1])];
+  }
+
+  function render() {
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+    drawField();
+    if (G.mode === 'menu' || !G.players.length) return;
+    drawBreakSide();
+    drawCuts();
+    drawPassLine();
+    const hideDef = G.mode === 'tutorial' && !G.rules.man;
+    for (const p of G.players) if (p.team !== G.off && !hideDef) drawPlayer(p);
+    for (const p of G.players) if (p.team === G.off) drawPlayer(p);
+    drawSeparation();
+    drawDisc();
+    drawStall();
+    drawFlash();
+  }
+
+  function drawField() {
+    ctx.fillStyle = C.apron;
+    ctx.fillRect(...rectW(-AP, -AP, FL + AP, FWD + AP));
+    for (let i = 0; i < FL / 2; i++) {
+      ctx.fillStyle = i % 2 ? C.grass1 : C.grass2;
+      ctx.fillRect(...rectW(i * 2, 0, i * 2 + 2, FWD));
+    }
+    ctx.fillStyle = 'rgba(120,200,110,.18)';
+    ctx.fillRect(...rectW(0, 0, EZ, FWD));
+    ctx.fillRect(...rectW(FL - EZ, 0, FL, FWD));
+    ctx.strokeStyle = C.white; ctx.lineWidth = 2;
+    ctx.strokeRect(...rectW(0, 0, FL, FWD));
+    ctx.beginPath();
+    for (const x of [EZ, FL - EZ]) { const a = toS(x, 0), b = toS(x, FWD); ctx.moveTo(...a); ctx.lineTo(...b); }
+    ctx.stroke();
+    // 得分区文字
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,255,255,.28)';
+    ctx.font = `800 ${Math.max(11, R(1.2))}px -apple-system, "PingFang SC", sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (const [x, txt] of [[FL - EZ / 2, '蓝队得分区'], [EZ / 2, '红队得分区']]) {
+      const [cx, cy] = toS(x, FWD / 2);
+      ctx.save(); ctx.translate(cx, cy);
+      if (!PORTRAIT) ctx.rotate(-Math.PI / 2);
+      ctx.fillText(txt, 0, 0);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  function drawBreakSide() {
+    if (!markerActive() || !G.holder) return;
+    const h = G.holder, mk = guardOf(h);
+    if (!mk || dist(mk, h) > MARK_REACH) return;
+    // 以持盘人为圆心、朝 marker 方向张开的扇形 = 封堵侧
+    const [hx, hy] = toS(h.x, h.y), [mx, my] = toS(mk.x, mk.y);
+    const ang = Math.atan2(my - hy, mx - hx);
+    ctx.fillStyle = 'rgba(229,72,77,.16)';
+    ctx.beginPath(); ctx.moveTo(hx, hy); ctx.arc(hx, hy, R(6), ang - MARK_CONE, ang + MARK_CONE); ctx.closePath(); ctx.fill();
+    if (G.off === 'B') {
+      pill(hx + Math.cos(ang) * R(4.4), hy + Math.sin(ang) * R(4.4), '封堵侧', 'rgba(229,72,77,.9)', '#fff', 11);
+      pill(hx - Math.cos(ang) * R(3.6), hy - Math.sin(ang) * R(3.6), '开放侧', 'rgba(120,220,255,.92)', '#0e1620', 11);
+    }
+  }
+
+  function dashed(a, b, color, w, dash = [8, 6]) {
+    ctx.strokeStyle = color; ctx.lineWidth = w; ctx.setLineDash(dash);
+    ctx.beginPath(); ctx.moveTo(...a); ctx.lineTo(...b); ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  function drawCuts() {
+    for (const p of G.players) {
+      if (p.team !== G.off || (p.state !== 'cut' && p.state !== 'chase')) continue;
+      if (Math.hypot(p.tx - p.x, p.ty - p.y) < 0.6) continue;
+      dashed(toS(p.x, p.y), toS(p.tx, p.ty), 'rgba(120,220,255,.6)', 2);
+    }
+  }
+
+  function drawPassLine() {
+    const d = G.disc;
+    if (d.state !== 'air') return;
+    const a = toS(d.from.x, d.from.y), b = toS(d.to.x, d.to.y);
+    ctx.strokeStyle = C.pass; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(...a); ctx.lineTo(...b); ctx.stroke();
+    pill((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, `传 ${G.passN}`, C.pass, '#10161d', 11);
+  }
+
+  function drawPlayer(p) {
+    const [x, y] = toS(p.x, p.y);
+    const r = Math.max(10, R(0.6));
+    const col = p.team === 'B' ? C.att : C.def;
+    if (p.bidT > 0) { ctx.fillStyle = 'rgba(47,129,247,.35)'; ctx.beginPath(); ctx.arc(x, y, r * 1.8, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = col; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.font = `800 ${Math.round(r * 1.05)}px -apple-system, sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(String(p.n), x, y + 0.5);
+    if (p.team === 'B' && G.off === 'B' && p.role) pill(x, y + r + 10, p.role, C.tag, '#fff', 10);
+  }
+
+  function drawSeparation() {
+    if (G.off !== 'B' || !defActive() || G.disc.state !== 'held' || !G.holder) return;
+    if (G.mode === 'tutorial' && !G.rules.man) return;
+    for (const p of team('B')) {
+      if (p === G.holder) continue;
+      const g = guardOf(p);
+      const sep = dist(p, g);
+      if (sep > 2.4) {
+        const [x, y] = toS(p.x, p.y);
+        const r = Math.max(10, R(0.6));
+        pill(x, y - r - 10, `拉开 ${sep.toFixed(1)} m`, '#fff', '#10161d', 10);
+      }
+    }
+  }
+
+  function drawDisc() {
+    const d = G.disc;
+    let [x, y] = toS(d.x, d.y);
+    const r = Math.max(5, R(0.28));
+    if (d.state === 'held' && G.holder) { x += r * 1.4; y -= r * 0.6; }
+    if (d.state === 'air') { ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(x + 4, y + 6, r, r * 0.6, 0, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = '#fff'; ctx.strokeStyle = '#10161d'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+
+  function drawStall() {
+    if (!G.holder || G.disc.state !== 'held' || !defActive() || !G.rules.stall || !G.rules.mark || G.checkT > 0) return;
+    const [x, y] = toS(G.holder.x, G.holder.y);
+    const n = Math.min(STALL_MAX, Math.floor(G.stall) + 1);
+    const r = Math.max(10, R(0.6));
+    const col = n >= 8 ? C.def : C.pass;
+    ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y - r - 16, 11, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#10161d'; ctx.font = '800 12px -apple-system, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(String(n), x, y - r - 15.5);
+  }
+
+  function pill(cx, cy, txt, bg, fg, size) {
+    ctx.font = `700 ${size}px -apple-system, "PingFang SC", sans-serif`;
+    const w = ctx.measureText(txt).width + 10, h = size + 7;
+    ctx.fillStyle = bg;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(cx - w / 2, cy - h / 2, w, h, h / 2); else ctx.rect(cx - w / 2, cy - h / 2, w, h);
+    ctx.fill();
+    ctx.fillStyle = fg; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(txt, cx, cy + 0.5);
+  }
+
+  function flash(x, y, text, color, life = 1.3) {
+    G.flash.push({ x, y, text, color, t: 0, life });
+    G.log.push(text); if (G.log.length > 50) G.log.shift();
+  }
+  function drawFlash() {
+    for (const f of G.flash) {
+      const [x, y] = toS(f.x, f.y);
+      const k = f.t / f.life;
+      ctx.globalAlpha = 1 - k * k;
+      ctx.font = `800 ${Math.max(18, R(1.4))}px -apple-system, "PingFang SC", sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const tx = clamp(x, 70, W - 70), ty = y - 26 - k * 30;
+      ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(0,0,0,.7)'; ctx.strokeText(f.text, tx, ty);
+      ctx.fillStyle = f.color; ctx.fillText(f.text, tx, ty);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ---------- 界面 ----------
+  function setCaption(t) { document.getElementById('caption').textContent = t; }
+  function updateTop() {
+    document.getElementById('s-b').textContent = G.score.B;
+    document.getElementById('s-r').textContent = G.score.R;
+    const title = document.getElementById('t-title'), sub = document.getElementById('t-sub');
+    const fname = G.formation === 'vert' ? '竖排' : '横排';
+    if (G.mode === 'tutorial') {
+      const dr = DRILLS[G.drill], g = dr.goal;
+      const prog = Object.keys(g).map(k => `${Math.min(G.progress[k], g[k])}/${g[k]}`).join(' ');
+      title.textContent = `${dr.title}  ${prog}`;
+      sub.textContent = dr.sub;
+    } else if (G.mode === 'match') {
+      title.textContent = `对抗赛 · ${fname}`;
+      sub.textContent = `先得 ${WIN_SCORE} 分获胜。点队友传盘，点空地传空位。`;
+    } else {
+      title.textContent = '4v4 飞盘 · 新手入门';
+      sub.textContent = '5 人足球场上的 4 对 4 团队飞盘';
+    }
+  }
+
+  let msgOk = null, msgAlt = null;
+  function showMsg(title, big, body, okText, ok, altText, alt) {
+    document.getElementById('msg-title').textContent = title;
+    document.getElementById('msg-big').textContent = big || '';
+    document.getElementById('msg-body').textContent = body;
+    document.getElementById('msg-ok').textContent = okText;
+    const a = document.getElementById('msg-alt');
+    a.hidden = !altText; a.textContent = altText || '';
+    msgOk = ok; msgAlt = alt;
+    document.getElementById('msg').hidden = false;
+  }
+  document.getElementById('msg-ok').addEventListener('click', () => { document.getElementById('msg').hidden = true; msgOk && msgOk(); });
+  document.getElementById('msg-alt').addEventListener('click', () => { document.getElementById('msg').hidden = true; msgAlt && msgAlt(); });
+
+  function openMenu() {
+    G.mode = 'menu'; G.pause = 0; setCaption('');
+    document.getElementById('bid').hidden = true;
+    document.getElementById('msg').hidden = true;
+    document.getElementById('menu').hidden = false;
+    updateTop();
+  }
+  document.getElementById('menu-btn').addEventListener('click', openMenu);
+  document.querySelectorAll('#seg-form button').forEach(b => b.addEventListener('click', () => {
+    G.formation = b.dataset.f;
+    document.querySelectorAll('#seg-form button').forEach(x => x.classList.toggle('on', x === b));
+  }));
+  document.getElementById('btn-tut').addEventListener('click', () => { document.getElementById('menu').hidden = true; beep(1, 0.01, 'sine', 0.0001); newGame('tutorial'); });
+  document.getElementById('btn-match').addEventListener('click', () => { document.getElementById('menu').hidden = true; beep(1, 0.01, 'sine', 0.0001); newGame('match'); });
+
+  requestAnimationFrame(frame);
+  // 供自动化测试调用
+  window.__u4 = { G, toS, tryUserPass, leadPoint, team, newGame };
+})();
+</script>
+</body>
+</html>

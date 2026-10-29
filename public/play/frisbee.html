@@ -1,0 +1,775 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="upio:date" content="2026-10-29">
+<meta name="theme-color" content="#2f7d3b">
+<meta name="description" content="飞盘狗：滑动扔飞盘，让狗狗接住。扔得越远分越高，接不住就清零。手机电脑都能玩。">
+<title>飞盘狗</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🥏</text></svg>">
+<style>
+  :root {
+    --grass-a: #3f9a4a;
+    --grass-b: #3a9045;
+    --ink: #13261a;
+    --paper: #fffdf6;
+    --accent: #ff6b3d;
+    --gold: #ffcc33;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: #2f7d3b;
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    color: var(--ink);
+  }
+  #game { display: block; width: 100vw; height: 100vh; height: 100dvh; touch-action: none; }
+  .hud {
+    position: fixed; left: 0; right: 0; top: 0;
+    padding: calc(env(safe-area-inset-top) + 10px) 16px 0;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    pointer-events: none; gap: 8px;
+  }
+  .pill {
+    background: rgba(255, 253, 246, .92);
+    border-radius: 14px; padding: 6px 12px;
+    box-shadow: 0 2px 0 rgba(0,0,0,.15);
+    font-weight: 700; font-size: 14px; line-height: 1.3;
+    font-variant-numeric: tabular-nums;
+  }
+  .pill small { display: block; font-size: 11px; font-weight: 500; opacity: .6; }
+  .pill.score { font-size: 22px; text-align: center; min-width: 84px; }
+  .btn-mute {
+    pointer-events: auto; border: 0; cursor: pointer;
+    background: rgba(255,253,246,.92); border-radius: 14px;
+    width: 40px; height: 40px; font-size: 18px;
+    box-shadow: 0 2px 0 rgba(0,0,0,.15);
+  }
+  .overlay {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    padding: 16px; background: rgba(19, 38, 26, .55);
+  }
+  .overlay[hidden] { display: none; }
+  .card {
+    background: var(--paper); border-radius: 22px; padding: 26px 22px 22px;
+    width: 100%; max-width: 360px; text-align: center;
+    box-shadow: 0 6px 0 rgba(0,0,0,.2);
+  }
+  .card h1 { font-size: 34px; letter-spacing: 2px; }
+  .card h2 { font-size: 26px; }
+  .card p { margin-top: 10px; font-size: 15px; line-height: 1.6; color: #3b4a40; }
+  .card ul { text-align: left; margin: 14px 0 0; padding-left: 0; list-style: none; font-size: 14px; line-height: 1.7; color: #3b4a40; }
+  .card li::before { content: "● "; color: var(--accent); }
+  .big { font-size: 48px; font-weight: 800; color: var(--accent); margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .play {
+    margin-top: 20px; width: 100%; border: 0; cursor: pointer;
+    background: var(--accent); color: #fff; font-size: 20px; font-weight: 800;
+    padding: 14px; border-radius: 16px; box-shadow: 0 4px 0 #c94a22;
+    font-family: inherit;
+  }
+  .play:active { transform: translateY(3px); box-shadow: 0 1px 0 #c94a22; }
+  .back { display: inline-block; margin-top: 14px; font-size: 13px; color: #6b7a70; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div class="hud">
+  <div class="pill"><small>飞盘</small><span id="hud-left">10</span></div>
+  <div class="pill score"><small>得分</small><span id="hud-score">0</span></div>
+  <div style="display:flex; gap:8px; align-items:flex-start">
+    <div class="pill"><small>连接</small><span id="hud-streak">0</span></div>
+    <button class="btn-mute" id="mute" aria-label="静音">🔊</button>
+  </div>
+</div>
+
+<div class="overlay" id="start">
+  <div class="card">
+    <h1>🥏 飞盘狗</h1>
+    <p>把飞盘扔到狗狗身边，让它接住。<br>狗狗一盘比一盘站得远，接不住就是 0 分。</p>
+    <ul>
+      <li>向上滑动扔出，滑得越快飞得越远</li>
+      <li>滑一道弧线，飞盘会沿着弧线拐弯</li>
+      <li>看右下角的风向，别打到树</li>
+      <li>狗狗不用挪步就接住：精准 ×1.5</li>
+      <li>狗狗跳起来接住：飞跃 ×2</li>
+    </ul>
+    <button class="play" id="btn-start">开始</button>
+    <a class="back" href="/">← upio.ai</a>
+  </div>
+</div>
+
+<div class="overlay" id="over" hidden>
+  <div class="card">
+    <h2>本局结束</h2>
+    <div class="big" id="final-score">0</div>
+    <p id="final-detail"></p>
+    <button class="play" id="btn-again">再来一局</button>
+    <a class="back" href="/">← upio.ai</a>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------- 常量（单位：米 / 秒） ----------
+  const FIELD_HALF_W = 10;        // 场地半宽，出界算失手
+  const DISCS_PER_GAME = 10;
+  const STEP = 1 / 120;           // 固定物理步长
+  const G = 9.8;
+  const LIFT_MAX = 0.95, LIFT_H = 13; // 升力 = LIFT_MAX·g·h²/(h²+LIFT_H²)，速度越快越接近抵消重力
+  const DRAG = 0.008;             // 空气阻力系数
+  const CURVE_K = 0.38;           // 弧线侧向力系数
+  const LAUNCH_Z = 1.3;
+  const LAUNCH_PITCH = 0.2;       // 出手仰角（弧度）
+  const MIN_SPEED = 9, MAX_SPEED = 30;
+  const DOG_SPEED = 7, DOG_ACCEL = 14, DOG_REACT = 0.3;
+  const DOG_NEAR = 12, DOG_FAR = 52;  // 狗站位距离：第一盘近，最后一盘远
+  const PRECISE_R = 1.5;          // 狗挪动不超过这个距离算「精准」
+  const CATCH_R = 0.95, CATCH_Z = 1.9; // CATCH_Z：狗站着能够到的高度，高过它接住算飞跃
+  const TREE_H = 5.5;
+  const BEST_KEY = 'upio-frisbee-best';
+
+  // ---------- 画布 ----------
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  let W = 0, H = 0, DPR = 1, PPM = 20, SPR = 26; // PPM = 每米像素
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    PPM = Math.min(W / (FIELD_HALF_W * 2 + 2), H / 40); // 纵向至少看得到 40 米
+    SPR = Math.max(PPM, 26); // 精灵图显示尺寸，手机上别太小
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ---------- 存储（隐私模式可能抛错） ----------
+  function loadBest() { try { return Number(localStorage.getItem(BEST_KEY)) || 0; } catch (e) { return 0; } }
+  function saveBest(v) { try { localStorage.setItem(BEST_KEY, String(v)); } catch (e) {} }
+
+  // ---------- 声音 ----------
+  let audio = null, muted = false;
+  function beep(freq, dur, type = 'sine', vol = 0.15, slide = 0) {
+    if (muted) return;
+    try {
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      const t = audio.currentTime;
+      const o = audio.createOscillator(), g = audio.createGain();
+      o.type = type; o.frequency.setValueAtTime(freq, t);
+      if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, freq + slide), t + dur);
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g).connect(audio.destination);
+      o.start(t); o.stop(t + dur);
+    } catch (e) {}
+  }
+  const sfx = {
+    throw: () => beep(520, 0.25, 'triangle', 0.12, 500),
+    catch: () => { beep(660, 0.1, 'square', 0.08); setTimeout(() => beep(990, 0.18, 'square', 0.08), 90); },
+    leap: () => { [660, 880, 1320].forEach((f, i) => setTimeout(() => beep(f, 0.14, 'square', 0.08), i * 80)); },
+    miss: () => beep(300, 0.4, 'sawtooth', 0.08, -200),
+    tree: () => beep(140, 0.2, 'square', 0.12, -60),
+  };
+  document.getElementById('mute').addEventListener('click', (e) => {
+    muted = !muted; e.currentTarget.textContent = muted ? '🔇' : '🔊';
+  });
+
+  // ---------- 随机 ----------
+  const rand = (a, b) => a + Math.random() * (b - a);
+
+  // ---------- 状态 ----------
+  const S = {
+    phase: 'title',   // title | aim | flying | result | over
+    score: 0, left: DISCS_PER_GAME, streak: 0, best: loadBest(),
+    catches: 0, longest: 0, leaps: 0, precise: 0,
+    wind: { x: 0, y: 0 },
+    trees: [],
+    disc: null,
+    dog: null,
+    camY: 0, camTarget: 0,
+    resultTimer: 0,
+    floaters: [],
+    particles: [],
+    trail: [],
+    time: 0,
+  };
+
+  function newDisc() {
+    return { x: 0, y: 0.6, z: LAUNCH_Z, vx: 0, vy: 0, vz: 0, curve: 0, spin: 0, angle: 0, alive: false, grounded: false, hitTree: false };
+  }
+  function newDog() {
+    const round = DISCS_PER_GAME - S.left;
+    const k = round / (DISCS_PER_GAME - 1);
+    const y = DOG_NEAR + (DOG_FAR - DOG_NEAR) * k + rand(-3, 3);
+    const x = rand(-1, 1) * Math.min(FIELD_HALF_W - 3, 3 + y * 0.18);
+    return { x, y, home: { x, y }, vx: 0, vy: 0, z: 0, vz: 0, face: -Math.PI / 2, react: 0, target: null, holding: false, run: 0, happy: 0, sad: 0 };
+  }
+
+  function rollWind() {
+    // 越往后风越大
+    const round = DISCS_PER_GAME - S.left;
+    const strength = rand(0, 1.5 + round * 0.45);
+    const ang = rand(0, Math.PI * 2);
+    S.wind = { x: Math.cos(ang) * strength, y: Math.sin(ang) * strength * 0.6 };
+  }
+
+  function placeTrees() {
+    S.trees = [];
+    const n = 7;
+    for (let i = 0; i < n; i++) {
+      const y = 22 + i * 13 + rand(-4, 4);
+      let x = rand(-FIELD_HALF_W + 2, FIELD_HALF_W - 2);
+      if (i < 2 && Math.abs(x) < 3) x += x < 0 ? -4 : 4; // 前两棵别正挡中路
+      S.trees.push({ x, y, r: rand(1.1, 1.8), sway: rand(0, 6.28) });
+    }
+  }
+
+  function resetGame() {
+    S.score = 0; S.left = DISCS_PER_GAME; S.streak = 0;
+    S.catches = 0; S.longest = 0; S.leaps = 0; S.precise = 0;
+    S.floaters = []; S.particles = [];
+    placeTrees();
+    nextThrow();
+  }
+
+  function nextThrow() {
+    S.disc = newDisc();
+    S.dog = newDog();
+    S.trail = [];
+    S.camTarget = 0;
+    rollWind();
+    S.phase = 'aim';
+    updateHud();
+  }
+
+  // ---------- 飞盘物理 ----------
+  function stepDisc(d, dt) {
+    const rx = d.vx - S.wind.x, ry = d.vy - S.wind.y; // 相对空气速度
+    const h = Math.hypot(rx, ry);
+    const sp = Math.hypot(rx, ry, d.vz);
+    // 阻力
+    let ax = -DRAG * sp * rx, ay = -DRAG * sp * ry, az = -DRAG * sp * d.vz * 4;
+    // 升力（速度越快越飘），抵消部分重力
+    az += LIFT_MAX * G * h * h / (h * h + LIFT_H * LIFT_H) - G;
+    // 侧向弧线：垂直于飞行方向，随旋转衰减
+    if (h > 0.1) {
+      const nx = -ry / h, ny = rx / h;
+      const side = d.curve * d.spin * h * CURVE_K;
+      ax += nx * side; ay += ny * side;
+    }
+    d.vx += ax * dt; d.vy += ay * dt; d.vz += az * dt;
+    d.x += d.vx * dt; d.y += d.vy * dt; d.z += d.vz * dt;
+    d.spin = Math.max(0, d.spin - dt * 0.12);
+    d.angle += dt * 30 * (0.3 + d.spin);
+  }
+
+  // 预测飞盘第一次降到可接高度的位置（给狗用）
+  function predictCatchPoint(d) {
+    const p = { ...d };
+    let t = 0, best = null;
+    for (let i = 0; i < 900; i++) {
+      stepDisc(p, STEP * 2);
+      t += STEP * 2;
+      if (p.hitTree) break;
+      if (p.vz < 0 && p.z < CATCH_Z * 0.85 && !best) { best = { x: p.x, y: p.y, t }; break; }
+      if (p.z <= 0) { best = { x: p.x, y: p.y, t }; break; }
+    }
+    return best || { x: p.x, y: p.y, t };
+  }
+
+  function treeHit(d) {
+    if (d.z > TREE_H) return null;
+    for (const tr of S.trees) {
+      const dx = d.x - tr.x, dy = d.y - tr.y;
+      const rr = tr.r * (d.z > TREE_H * 0.7 ? 0.7 : 1);
+      if (dx * dx + dy * dy < rr * rr) return tr;
+    }
+    return null;
+  }
+
+  // ---------- 输入：滑动扔盘 ----------
+  const swipe = { active: false, pts: [] };
+  function pointerPos(e) { return { x: e.clientX, y: e.clientY, t: performance.now() }; }
+
+  canvas.addEventListener('pointerdown', (e) => {
+    if (S.phase !== 'aim') return;
+    e.preventDefault();
+    canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
+    swipe.active = true;
+    swipe.pts = [pointerPos(e)];
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    if (!swipe.active) return;
+    e.preventDefault();
+    swipe.pts.push(pointerPos(e));
+    if (swipe.pts.length > 80) swipe.pts.shift();
+  });
+  const endSwipe = (e) => {
+    if (!swipe.active) return;
+    swipe.active = false;
+    if (e && e.type === 'pointerup') swipe.pts.push(pointerPos(e));
+    tryThrow(swipe.pts);
+  };
+  canvas.addEventListener('pointerup', endSwipe);
+  canvas.addEventListener('pointercancel', () => { swipe.active = false; });
+
+  function tryThrow(pts) {
+    if (pts.length < 2 || S.phase !== 'aim') return;
+    const last = pts[pts.length - 1];
+    // 取最后 90ms 的位移算出手速度
+    let i = pts.length - 1;
+    while (i > 0 && last.t - pts[i - 1].t < 90) i--;
+    const from = pts[Math.max(0, i - 1)];
+    const dt = Math.max(16, last.t - from.t);
+    const dx = last.x - from.x, dy = last.y - from.y;
+    const pxPerMs = Math.hypot(dx, dy) / dt; // 出手速度看最后一段
+    const speed = Math.min(MAX_SPEED, Math.max(MIN_SPEED, pxPerMs * 14));
+    // 弧度：整段滑动的偏离量（叉积 / 弦长），往右鼓为负
+    const first = pts[0];
+    const cx = last.x - first.x, cy = last.y - first.y;
+    if (cy > -12) return;
+    const chord2 = cx * cx + cy * cy;
+    let curve = 0;
+    if (chord2 > 400) {
+      let maxDev = 0;
+      for (const p of pts) {
+        const dev = ((p.x - first.x) * cy - (p.y - first.y) * cx) / Math.sqrt(chord2);
+        if (Math.abs(dev) > Math.abs(maxDev)) maxDev = dev;
+      }
+      curve = -Math.max(-1, Math.min(1, maxDev / (Math.sqrt(chord2) * 0.22)));
+    }
+    // 方向取整段滑动的弦，再往鼓出的一侧偏，飞行轨迹就和滑出来的形状一致；限制在正前方 ±50°
+    let dir = Math.atan2(cx, -cy) + curve * 0.25;
+    dir = Math.max(-0.87, Math.min(0.87, dir));
+    throwDisc(speed, dir, curve);
+  }
+
+  function throwDisc(speed, dir, curve) {
+    const d = S.disc;
+    d.vx = Math.sin(dir) * speed * Math.cos(LAUNCH_PITCH);
+    d.vy = Math.cos(dir) * speed * Math.cos(LAUNCH_PITCH);
+    d.vz = speed * Math.sin(LAUNCH_PITCH);
+    d.curve = curve;
+    d.spin = 1;
+    d.alive = true;
+    S.dog.react = DOG_REACT;
+    S.phase = 'flying';
+    S.left -= 1;
+    sfx.throw();
+    updateHud();
+  }
+
+  // ---------- 狗 ----------
+  let predictTick = 0;
+  function stepDog(dog, d, dt) {
+    if (dog.holding) {
+      // 叼着飞盘小跑回来
+      const tx = dog.home.x, ty = dog.home.y;
+      const dx = tx - dog.x, dy = ty - dog.y, dist = Math.hypot(dx, dy);
+      if (dist > 0.3) { dog.vx = dx / dist * 5; dog.vy = dy / dist * 5; dog.face = Math.atan2(dy, dx); }
+      else { dog.vx = dog.vy = 0; }
+    } else if (S.phase === 'flying' && d.alive) {
+      if (dog.react > 0) { dog.react -= dt; }
+      else {
+        if (predictTick-- <= 0 || !dog.target) { dog.target = predictCatchPoint(d); predictTick = 8; }
+        const dx = dog.target.x - dog.x, dy = dog.target.y - dog.y;
+        const dist = Math.hypot(dx, dy);
+        const want = dist > 0.2 ? Math.min(DOG_SPEED, dist * 3) : 0;
+        const wx = dist > 0.01 ? dx / dist * want : 0, wy = dist > 0.01 ? dy / dist * want : 0;
+        const ddx = wx - dog.vx, ddy = wy - dog.vy, dd = Math.hypot(ddx, ddy);
+        const maxDv = DOG_ACCEL * dt;
+        if (dd > maxDv) { dog.vx += ddx / dd * maxDv; dog.vy += ddy / dd * maxDv; } else { dog.vx = wx; dog.vy = wy; }
+        if (Math.hypot(dog.vx, dog.vy) > 0.5) dog.face = Math.atan2(dog.vy, dog.vx);
+        // 飞盘在头顶附近就起跳
+        const ddisc = Math.hypot(d.x - dog.x, d.y - dog.y);
+        // 飞盘高过站着能够到的高度、不跳就会从头顶飞过时才起跳
+        if (dog.z === 0 && ddisc < 2.2 && d.z > CATCH_Z && d.z < CATCH_Z + 1.2 && d.vz < 1) dog.vz = Math.min(6.5, Math.sqrt(2 * G * Math.max(0.1, d.z - 0.7)));
+      }
+    } else {
+      dog.vx *= 0.9; dog.vy *= 0.9;
+    }
+    dog.x += dog.vx * dt; dog.y += dog.vy * dt;
+    if (dog.z > 0 || dog.vz > 0) { dog.vz -= G * dt; dog.z = Math.max(0, dog.z + dog.vz * dt); if (dog.z === 0) dog.vz = 0; }
+    dog.run += Math.hypot(dog.vx, dog.vy) * dt * 2.2;
+    if (dog.happy > 0) dog.happy -= dt;
+  }
+
+  // ---------- 结算 ----------
+  function settle(kind, info) {
+    const d = S.disc, dog = S.dog;
+    d.alive = false;
+    S.phase = 'result';
+    S.resultTimer = kind === 'catch' ? 1.8 : 1.6;
+    const dist = Math.max(0, Math.round(d.y));
+    if (kind === 'catch') {
+      const leap = d.z > CATCH_Z;
+      const precise = Math.hypot(dog.x - dog.home.x, dog.y - dog.home.y) < PRECISE_R;
+      S.streak += 1;
+      const base = Math.round(dist * (leap ? 2 : 1) * (precise ? 1.5 : 1));
+      const bonus = (S.streak - 1) * 5;
+      S.score += base + bonus;
+      S.catches += 1; S.longest = Math.max(S.longest, dist);
+      if (leap) S.leaps += 1;
+      dog.holding = true; dog.happy = 1.5;
+      const tag = [precise && '精准', leap && '飞跃接盘'].filter(Boolean).join(' · ');
+      floater(d.x, d.y, tag ? `${tag}！+${base}` : `+${base}`, tag ? '#ffcc33' : '#fff');
+      if (precise) S.precise += 1;
+      if (bonus) floater(d.x, d.y - 2.5, `连接 +${bonus}`, '#ffe9a8', 0.25);
+      burst(d.x, d.y, d.z, leap ? 26 : 14);
+      leap ? sfx.leap() : sfx.catch();
+    } else {
+      S.streak = 0;
+      dog.sad = 1.5;
+      const msg = { ground: '落地了', out: '出界', tree: '打到树了' }[kind] || '没接住';
+      floater(d.x, d.y, msg, '#ffd2c4');
+      kind === 'tree' ? sfx.tree() : sfx.miss();
+    }
+    updateHud();
+  }
+
+  // ---------- 特效 ----------
+  function floater(x, y, text, color, delay = 0) { S.floaters.push({ x, y, text, color, t: -delay, life: 1.6 }); }
+  function burst(x, y, z, n) {
+    const colors = ['#ffcc33', '#ff6b3d', '#ffffff', '#7fd3ff'];
+    for (let i = 0; i < n; i++) {
+      const a = rand(0, Math.PI * 2), s = rand(2, 7);
+      S.particles.push({ x, y, z, vx: Math.cos(a) * s, vy: Math.sin(a) * s, vz: rand(2, 7), life: rand(0.6, 1.1), c: colors[i % 4] });
+    }
+  }
+
+  // ---------- 主循环 ----------
+  let acc = 0, lastT = performance.now();
+  function frame(now) {
+    const dtReal = Math.min(0.05, (now - lastT) / 1000);
+    lastT = now;
+    acc += dtReal;
+    while (acc >= STEP) { update(STEP); acc -= STEP; }
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  function update(dt) {
+    S.time += dt;
+    const d = S.disc, dog = S.dog;
+    if (!d) return;
+    if (S.phase === 'flying' && d.alive) {
+      stepDisc(d, dt);
+      if (S.trail.length === 0 || Math.hypot(S.trail[S.trail.length - 1].x - d.x, S.trail[S.trail.length - 1].y - d.y) > 0.6) {
+        S.trail.push({ x: d.x, y: d.y, z: d.z });
+        if (S.trail.length > 40) S.trail.shift();
+      }
+      const tr = treeHit(d);
+      if (tr && !d.hitTree) {
+        d.hitTree = true; d.vx *= -0.15; d.vy *= -0.15; d.vz = -1; d.spin = 0;
+        tr.shake = 0.5;
+      }
+      // 接盘判定
+      const reach = CATCH_Z + dog.z;
+      if (!d.hitTree && Math.hypot(d.x - dog.x, d.y - dog.y) < CATCH_R && d.z < reach && d.z > 0) settle('catch');
+      else if (Math.abs(d.x) > FIELD_HALF_W + 1) settle('out');
+      else if (d.z <= 0) { d.z = 0; settle(d.hitTree ? 'tree' : 'ground'); }
+    }
+    if (dog) stepDog(dog, d, dt);
+    if (S.phase === 'result') {
+      if (dog.holding) { d.x = dog.x + Math.cos(dog.face) * 0.6; d.y = dog.y + Math.sin(dog.face) * 0.6; d.z = 0.5 + dog.z; }
+      S.resultTimer -= dt;
+      if (S.resultTimer <= 0) {
+        if (S.left <= 0) gameOver(); else nextThrow();
+      }
+    }
+    for (const tr of S.trees) if (tr.shake > 0) tr.shake -= dt;
+    // 镜头跟随飞盘
+    if (S.phase === 'flying') S.camTarget = Math.max(0, Math.max(d.y, dog.y) - viewMeters() * 0.42);
+    else if (S.phase === 'aim') S.camTarget = Math.max(0, dog.y + 4 - viewMeters() * 0.85);
+    S.camY += (S.camTarget - S.camY) * Math.min(1, dt * 4);
+    // 粒子与飘字
+    for (const p of S.particles) { p.vz -= G * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z = Math.max(0, p.z + p.vz * dt); p.life -= dt; }
+    S.particles = S.particles.filter(p => p.life > 0);
+    for (const f of S.floaters) f.t += dt;
+    S.floaters = S.floaters.filter(f => f.t < f.life);
+  }
+
+  function gameOver() {
+    S.phase = 'over';
+    const isBest = S.score > S.best;
+    if (isBest) { S.best = S.score; saveBest(S.best); }
+    document.getElementById('final-score').textContent = S.score;
+    document.getElementById('final-detail').innerHTML =
+      `接住 ${S.catches}/${DISCS_PER_GAME} 次 · 精准 ${S.precise} · 飞跃 ${S.leaps}<br>最远 ${S.longest} 米 · ` +
+      (isBest ? '<b style="color:#ff6b3d">新纪录！</b>' : `最高 ${S.best}`);
+    document.getElementById('over').hidden = false;
+  }
+
+  function updateHud() {
+    document.getElementById('hud-left').textContent = S.left;
+    document.getElementById('hud-score').textContent = S.score;
+    document.getElementById('hud-streak').textContent = S.streak;
+  }
+
+  // ---------- 渲染 ----------
+  function viewMeters() { return H / PPM; }
+  // 世界 → 屏幕：玩家在底部，y 向上
+  const baseY = () => H - Math.max(70, H * 0.12);
+  function sx(x) { return W / 2 + x * PPM; }
+  function sy(y) { return baseY() - (y - S.camY) * PPM; }
+
+  function render() {
+    ctx.clearRect(0, 0, W, H);
+    drawField();
+    const d = S.disc, dog = S.dog;
+    // 阴影层
+    for (const tr of S.trees) drawShadow(tr.x + 0.8, tr.y - 0.5, tr.r * 1.1, 0.22);
+    if (dog) drawShadow(dog.x, dog.y, 0.55, 0.25 - Math.min(0.15, dog.z * 0.06));
+    if (d) drawShadow(d.x + d.z * 0.25, d.y - d.z * 0.15, 0.32, Math.max(0.08, 0.3 - d.z * 0.04));
+    drawPlayer();
+    if (dog && S.phase === 'aim') drawTargetRing(dog);
+    // 按 y 由远到近排序绘制
+    const items = [];
+    for (const tr of S.trees) items.push({ y: tr.y, f: () => drawTree(tr) });
+    if (dog) items.push({ y: dog.y, f: () => drawDog(dog) });
+    items.sort((a, b) => b.y - a.y);
+    for (const it of items) it.f();
+    drawTrail();
+    if (d) drawDisc(d);
+    for (const p of S.particles) {
+      ctx.globalAlpha = Math.max(0, Math.min(1, p.life * 1.5));
+      ctx.fillStyle = p.c;
+      ctx.fillRect(sx(p.x) - 3, sy(p.y) - p.z * PPM * 0.6 - 3, 6, 6);
+    }
+    ctx.globalAlpha = 1;
+    drawFloaters();
+    drawWind();
+    if (S.phase === 'aim') drawAimHint();
+    if (swipe.active && swipe.pts.length > 1) drawSwipe();
+  }
+
+  function drawField() {
+    const top = S.camY + viewMeters() + 5, bottom = S.camY - 6;
+    // 草地条纹（每 5 米）
+    for (let m = Math.floor(bottom / 5) * 5; m < top; m += 5) {
+      ctx.fillStyle = (Math.floor(m / 5) % 2 === 0) ? '#46a352' : '#3f9a4a';
+      ctx.fillRect(0, sy(m + 5), W, 5 * PPM + 1);
+    }
+    // 场外
+    ctx.fillStyle = 'rgba(30, 70, 35, .55)';
+    ctx.fillRect(0, 0, sx(-FIELD_HALF_W), H);
+    ctx.fillRect(sx(FIELD_HALF_W), 0, W - sx(FIELD_HALF_W), H);
+    ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(sx(-FIELD_HALF_W), 0); ctx.lineTo(sx(-FIELD_HALF_W), H);
+    ctx.moveTo(sx(FIELD_HALF_W), 0); ctx.lineTo(sx(FIELD_HALF_W), H);
+    ctx.stroke();
+    // 码线（每 10 米）
+    ctx.font = `700 ${Math.max(12, PPM * 0.7)}px -apple-system, "PingFang SC", sans-serif`;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    for (let m = Math.max(10, Math.floor(bottom / 10) * 10); m < top; m += 10) {
+      const y = sy(m);
+      ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(sx(-FIELD_HALF_W), y); ctx.lineTo(sx(FIELD_HALF_W), y); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,.7)';
+      ctx.fillText(`${m}m`, sx(-FIELD_HALF_W) + 6, y - 10);
+    }
+    // 出手线
+    ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(sx(-FIELD_HALF_W), sy(0)); ctx.lineTo(sx(FIELD_HALF_W), sy(0)); ctx.stroke();
+  }
+
+  function drawShadow(x, y, r, a) {
+    ctx.fillStyle = `rgba(10,30,15,${a})`;
+    ctx.beginPath(); ctx.ellipse(sx(x), sy(y), r * PPM, r * PPM * 0.55, 0, 0, Math.PI * 2); ctx.fill();
+  }
+
+  function drawTargetRing(dog) {
+    const pulse = 1 + Math.sin(S.time * 4) * 0.06;
+    ctx.strokeStyle = 'rgba(255,204,51,.9)'; ctx.lineWidth = 3; ctx.setLineDash([8, 6]);
+    ctx.beginPath(); ctx.ellipse(sx(dog.x), sy(dog.y), PRECISE_R * PPM * pulse, PRECISE_R * PPM * 0.6 * pulse, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = `800 ${Math.max(14, PPM * 0.8)}px -apple-system, "PingFang SC", sans-serif`;
+    ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
+    ctx.fillText(`${Math.round(dog.y)}m`, sx(dog.x), sy(dog.y) + PPM * 1.4);
+  }
+
+  function drawPlayer() {
+    const x = sx(-1.2), y = sy(0.2), s = SPR;
+    ctx.fillStyle = '#2b4c7e';
+    ctx.beginPath(); ctx.ellipse(x, y, s * 0.55, s * 0.4, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#f2c9a0';
+    ctx.beginPath(); ctx.arc(x, y - s * 0.15, s * 0.28, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ff6b3d';
+    ctx.beginPath(); ctx.arc(x, y - s * 0.22, s * 0.28, Math.PI, 0); ctx.fill();
+  }
+
+  function drawTree(tr) {
+    const shake = tr.shake > 0 ? Math.sin(S.time * 60) * tr.shake * 4 : 0;
+    const sway = Math.sin(S.time * 1.5 + tr.sway) * 1.5 + shake;
+    const x = sx(tr.x) + sway, y = sy(tr.y), r = tr.r * PPM;
+    ctx.fillStyle = '#6b4a2b';
+    ctx.fillRect(x - r * 0.12, y - r * 0.6, r * 0.24, r * 0.6);
+    ctx.fillStyle = '#1f6b2c';
+    ctx.beginPath(); ctx.arc(x, y - r * 1.2, r, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#2a8239';
+    ctx.beginPath(); ctx.arc(x - r * 0.25, y - r * 1.45, r * 0.62, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.12)';
+    ctx.beginPath(); ctx.arc(x - r * 0.4, y - r * 1.65, r * 0.25, 0, Math.PI * 2); ctx.fill();
+  }
+
+  function drawDog(dog) {
+    const x = sx(dog.x), y = sy(dog.y) - dog.z * PPM * 0.6, s = SPR * 0.9;
+    const moving = Math.hypot(dog.vx, dog.vy) > 0.5;
+    const leg = moving ? Math.sin(dog.run * 3) * 0.35 : 0;
+    const flip = Math.cos(dog.face) < 0 ? -1 : 1;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(flip, 1);
+    // 腿
+    ctx.strokeStyle = '#8a5a2b'; ctx.lineWidth = s * 0.14; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.35, 0); ctx.lineTo(-s * 0.35 + leg * s, s * 0.35);
+    ctx.moveTo(s * 0.3, 0); ctx.lineTo(s * 0.3 - leg * s, s * 0.35);
+    ctx.stroke();
+    // 尾巴
+    const wag = Math.sin(S.time * (dog.happy > 0 ? 30 : 10)) * 0.4;
+    ctx.beginPath(); ctx.moveTo(-s * 0.55, -s * 0.15);
+    ctx.quadraticCurveTo(-s * 0.85, -s * 0.5 + wag * s * 0.3, -s * 0.75, -s * (0.65 + wag * 0.2)); ctx.stroke();
+    // 身体
+    ctx.fillStyle = '#c98a4b';
+    ctx.beginPath(); ctx.ellipse(0, -s * 0.12, s * 0.62, s * 0.32, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff4e2';
+    ctx.beginPath(); ctx.ellipse(s * 0.15, -s * 0.02, s * 0.3, s * 0.15, 0, 0, Math.PI * 2); ctx.fill();
+    // 头
+    ctx.fillStyle = '#c98a4b';
+    ctx.beginPath(); ctx.arc(s * 0.62, -s * 0.42, s * 0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(s * 0.88, -s * 0.36, s * 0.16, s * 0.12, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#7a4b22';
+    ctx.beginPath(); ctx.ellipse(s * 0.5, -s * 0.62, s * 0.1, s * 0.2, -0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#13261a';
+    ctx.beginPath(); ctx.arc(s * 1.02, -s * 0.38, s * 0.06, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(s * 0.7, -s * 0.48, s * 0.045, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    if (dog.sad > 0) { dog.sad -= 1 / 60; ctx.font = `${s * 0.7}px sans-serif`; ctx.textAlign = 'center'; ctx.fillText('💧', x, y - s * 1.1); }
+    if (dog.happy > 0) { ctx.font = `${s * 0.7}px sans-serif`; ctx.textAlign = 'center'; ctx.fillText('❤️', x, y - s * 1.2 - (1.5 - dog.happy) * 10); }
+  }
+
+  function drawTrail() {
+    if (S.trail.length < 2 || S.phase !== 'flying') return;
+    ctx.lineCap = 'round';
+    for (let i = 1; i < S.trail.length; i++) {
+      const a = S.trail[i - 1], b = S.trail[i];
+      ctx.strokeStyle = `rgba(255,255,255,${(i / S.trail.length) * 0.5})`;
+      ctx.lineWidth = 2 + (i / S.trail.length) * 3;
+      ctx.beginPath();
+      ctx.moveTo(sx(a.x), sy(a.y) - a.z * PPM * 0.6);
+      ctx.lineTo(sx(b.x), sy(b.y) - b.z * PPM * 0.6);
+      ctx.stroke();
+    }
+  }
+
+  function drawDisc(d) {
+    if (S.phase === 'aim') {
+      // 出手前飞盘在玩家手上轻轻浮动
+      d.x = -0.4; d.y = 0.6; d.z = LAUNCH_Z + Math.sin(S.time * 3) * 0.08;
+    }
+    const scale = 1 + d.z * 0.09;
+    const x = sx(d.x), y = sy(d.y) - d.z * PPM * 0.6;
+    const r = 0.38 * SPR * scale;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = '#ff6b3d';
+    ctx.beginPath(); ctx.ellipse(0, 0, r, r * 0.62, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#c94a22'; ctx.lineWidth = Math.max(1.5, r * 0.15);
+    ctx.stroke();
+    ctx.rotate(d.angle);
+    ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = Math.max(1, r * 0.12);
+    ctx.beginPath(); ctx.ellipse(0, 0, r * 0.55, r * 0.34, 0, 0.3, 2.2); ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawFloaters() {
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (const f of S.floaters) {
+      if (f.t < 0) continue;
+      const k = f.t / f.life;
+      ctx.globalAlpha = 1 - k * k;
+      ctx.font = `800 ${Math.max(20, PPM * 1.1)}px -apple-system, "PingFang SC", sans-serif`;
+      const x = Math.max(80, Math.min(W - 80, sx(f.x))), y = sy(f.y) - 40 - k * 50;
+      ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(19,38,26,.7)';
+      ctx.strokeText(f.text, x, y);
+      ctx.fillStyle = f.color; ctx.fillText(f.text, x, y);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawWind() {
+    const w = S.wind, mag = Math.hypot(w.x, w.y);
+    const cx = W - 46, cy = H - 52 - (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sab')) || 0);
+    ctx.fillStyle = 'rgba(255,253,246,.92)';
+    ctx.beginPath(); ctx.arc(cx, cy, 30, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#13261a'; ctx.font = '600 10px -apple-system, "PingFang SC", sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(`风 ${mag.toFixed(1)}`, cx, cy + 18);
+    if (mag > 0.05) {
+      // 屏幕上 y 方向与世界相反
+      const a = Math.atan2(-w.y, w.x);
+      const len = 8 + Math.min(1, mag / 5) * 10;
+      ctx.save(); ctx.translate(cx, cy - 4); ctx.rotate(a);
+      ctx.strokeStyle = '#ff6b3d'; ctx.fillStyle = '#ff6b3d'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(-len, 0); ctx.lineTo(len - 4, 0); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(len + 3, 0); ctx.lineTo(len - 6, -6); ctx.lineTo(len - 6, 6); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  function drawAimHint() {
+    if (swipe.active) return;
+    const t = (S.time % 1.6) / 1.6;
+    const x = W / 2, y0 = H * 0.72, y1 = H * 0.45;
+    ctx.globalAlpha = 0.85 * (1 - t);
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(x + Math.sin(t * Math.PI) * 18, y0 + (y1 - y0) * t, 14, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.font = '700 15px -apple-system, "PingFang SC", sans-serif';
+    ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,.95)';
+    ctx.fillText(S.left === DISCS_PER_GAME ? '向上滑动扔飞盘 · 滑弧线会拐弯' : '向上滑动扔飞盘', x - 20, Math.min(H - 20, sy(0) + 40));
+  }
+
+  function drawSwipe() {
+    const pts = swipe.pts;
+    ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+    for (const p of pts) ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+  }
+
+  // ---------- 开始 / 重开 ----------
+  document.getElementById('btn-start').addEventListener('click', () => {
+    document.getElementById('start').hidden = true;
+    beep(1, 0.01, 'sine', 0.0001); // iOS 需要在手势里解锁音频
+    resetGame();
+  });
+  document.getElementById('btn-again').addEventListener('click', () => {
+    document.getElementById('over').hidden = true;
+    resetGame();
+  });
+
+  // 标题画面也先摆好场地
+  placeTrees();
+  S.disc = newDisc(); S.dog = newDog();
+  requestAnimationFrame(frame);
+
+  // 供自动化测试调用
+  window.__frisbee = { S, throwDisc, stepDisc, predictCatchPoint };
+})();
+</script>
+</body>
+</html>
