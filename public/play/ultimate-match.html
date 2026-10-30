@@ -10,7 +10,9 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='44' fill='%23ffd33d'/><circle cx='50' cy='50' r='26' fill='%23fff3b0'/></svg>">
 <style>
   :root {
-    --u: calc(min(100vh, 46.2vw) / 390);
+    /* --vw/--vh = 游戏画面（横屏逻辑坐标）的 1%，竖屏强制横屏时由 JS 对调 */
+    --vw: 1vw; --vh: 1vh;
+    --u: calc(min(var(--vh) * 100, var(--vw) * 46.2) / 390);
     --bg: #0e1620; --panel: rgba(15, 25, 35, .90); --ink: #e8eef5; --muted: #8fa1b3;
     --att: #2f81f7; --def: #e5484d; --pass: #ffd33d; --open: #78dcff; --card: #152230;
   }
@@ -23,7 +25,9 @@
     font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   }
   button { font-family: inherit; color: inherit; }
-  #game { display: block; position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; touch-action: none; }
+  /* #app 是所有界面的容器；竖屏时整体旋转 90° 当横屏用（飞书 / 微信内置浏览器锁竖屏，转手机页面不转） */
+  #app { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; height: 100dvh; overflow: hidden; transform-origin: 0 0; }
+  #game { display: block; position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
 
   /* ---------- HUD ---------- */
   #hud { position: fixed; left: 0; right: 0; top: 0; padding: calc(env(safe-area-inset-top) + .4rem) .7rem 0; display: none;
@@ -45,7 +49,7 @@
   #title-block b { display: block; font-size: .9rem; }
 
   #caption { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom) + .5rem); z-index: 4;
-    width: min(26rem, 46vw); background: rgba(0,0,0,.66); color: #fff; padding: .35rem .7rem; border-radius: .6rem; font-size: .8rem;
+    width: min(26rem, calc(var(--vw) * 46)); background: rgba(0,0,0,.66); color: #fff; padding: .35rem .7rem; border-radius: .6rem; font-size: .8rem;
     line-height: 1.4; text-align: center; pointer-events: none; }
   #caption:empty { display: none; }
   #countdown { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 6; pointer-events: none;
@@ -62,7 +66,7 @@
   /* ---------- 虚拟按键 ---------- */
   #ctl { display: none; }
   body.playing #ctl { display: block; }
-  #zone { position: fixed; left: 0; top: 4rem; bottom: 0; width: 44vw; z-index: 3; touch-action: none; }
+  #zone { position: fixed; left: 0; top: 4rem; bottom: 0; width: calc(var(--vw) * 44); z-index: 3; touch-action: none; }
   #stick { position: fixed; z-index: 3; width: 8rem; height: 8rem; border-radius: 50%; pointer-events: none;
     background: rgba(255,255,255,.10); border: .15rem solid rgba(255,255,255,.28); opacity: .55; transition: opacity .15s; }
   #stick.on { opacity: .95; }
@@ -121,7 +125,7 @@
   .menu-r .btn:first-child { margin-top: 0; }
 
   /* 选人 */
-  .sel-card { max-width: 98vw; width: 98vw; padding: .7rem .9rem; display: flex; flex-direction: column; }
+  .sel-card { max-width: calc(var(--vw) * 98); width: calc(var(--vw) * 98); padding: .7rem .9rem; display: flex; flex-direction: column; }
   .sel-head { display: flex; align-items: baseline; gap: .8rem; }
   .sel-head h2 { font-size: 1.2rem; }
   .sel-head span { font-size: .75rem; color: var(--muted); }
@@ -156,7 +160,7 @@
   .mini-row .btn { margin-top: .4rem; font-size: .8rem; padding: .35rem; }
 
   /* 规则 */
-  .rules-card { max-width: 42rem; max-height: 94vh; overflow-y: auto; position: relative; padding: .8rem 1.2rem; }
+  .rules-card { max-width: 42rem; max-height: calc(var(--vh) * 94); overflow-y: auto; position: relative; padding: .8rem 1.2rem; }
   .rules-card li { font-size: .78rem; line-height: 1.45; }
   #b-rules-back { position: absolute; right: 1rem; top: .8rem; width: auto; margin: 0; padding: .3rem 1.1rem !important; font-size: .85rem; }
   .rules-cols { display: flex; gap: 1.2rem; }
@@ -180,13 +184,10 @@
   .res-sum { font-size: .75rem; color: var(--muted); margin-top: .1rem; }
 
   /* 竖屏提示 */
-  #rotate { position: fixed; inset: 0; z-index: 99; background: #0e1620; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; text-align: center; padding: 2rem; }
-  #rotate .ph { width: 3.2rem; height: 5.4rem; border: .25rem solid var(--pass); border-radius: .7rem; animation: rot 2.2s ease-in-out infinite; }
-  @keyframes rot { 0%, 20% { transform: rotate(0); } 60%, 100% { transform: rotate(90deg); } }
-  @media (orientation: portrait) { #rotate { display: flex; } }
 </style>
 </head>
 <body>
+<div id="app">
 <canvas id="game"></canvas>
 
 <div id="hud">
@@ -332,7 +333,7 @@
   </div>
 </div>
 
-<div id="rotate"><div class="ph"></div><div style="font-size:1.1rem;font-weight:800">请把手机横过来玩</div><div style="color:#8fa1b3;font-size:.85rem">左手摇杆 · 右手按键，横屏才有完整球场</div></div>
+</div>
 
 <script>
 (() => {
@@ -400,14 +401,23 @@
       tip: '你控制离持盘人最近的蓝队员：贴近他盯防（读秒会跑）；飞盘飞行时按「跳接」封盖；「切人」换防守者。' },
   ];
 
-  // ---------- 画布与坐标（只做横屏） ----------
-  const canvas = $('game');
+  // ---------- 画布与坐标（只做横屏；竖屏时把 #app 旋转 90° 当横屏用） ----------
+  const canvas = $('game'), app = $('app');
+  let ROT = false;
+  // 屏幕坐标 → 游戏画面坐标（旋转时：画面 x = 屏幕 y，画面 y = 屏幕宽 - 屏幕 x）
+  const pt = (e) => ROT ? [e.clientY, window.innerWidth - e.clientX] : [e.clientX, e.clientY];
   const ctx = canvas.getContext('2d');
   let W = 0, H = 0, DPR = 1, PPM = 14, OX = 0, OY = 0;
   let bgCanvas = null;
   function resize() {
     DPR = Math.min(window.devicePixelRatio || 1, 2);
-    W = window.innerWidth; H = window.innerHeight;
+    const sw = window.innerWidth, sh = window.innerHeight;
+    ROT = sh > sw;
+    W = ROT ? sh : sw; H = ROT ? sw : sh;
+    app.style.width = W + 'px'; app.style.height = H + 'px';
+    app.style.transform = ROT ? `translateX(${sw}px) rotate(90deg)` : '';
+    document.documentElement.style.setProperty('--vw', W / 100 + 'px');
+    document.documentElement.style.setProperty('--vh', H / 100 + 'px');
     canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     const top = Math.round(H * 0.165), bottom = Math.round(H * 0.015);
@@ -1738,7 +1748,8 @@
     const base = () => { const s = stick.offsetWidth; stick.style.left = Math.max(8, OX * 0.5 - s / 2 + 4) + 'px'; stick.style.top = (H - s - 14) + 'px'; };
     const place = (x, y) => { const s = stick.offsetWidth; stick.style.left = (x - s / 2) + 'px'; stick.style.top = (y - s / 2) + 'px'; };
     const move = (e) => {
-      const rad = stick.offsetWidth * 0.5, dx = e.clientX - ox, dy = e.clientY - oy, m = Math.hypot(dx, dy) || 1, k = Math.min(1, m / rad);
+      const [ex, ey] = pt(e);
+      const rad = stick.offsetWidth * 0.5, dx = ex - ox, dy = ey - oy, m = Math.hypot(dx, dy) || 1, k = Math.min(1, m / rad);
       const dead = 0.12; const v = k < dead ? 0 : (k - dead) / (1 - dead);
       IN.tx = dx / m * v; IN.ty = dy / m * v;
       knob.style.transform = `translate(${dx / m * Math.min(m, rad) * 0.85}px, ${dy / m * Math.min(m, rad) * 0.85}px)`;
@@ -1746,13 +1757,14 @@
     zone.addEventListener('pointerdown', (e) => {
       if (id !== null) return; e.preventDefault(); initAudio();
       id = e.pointerId; try { zone.setPointerCapture(id); } catch (_) {}
-      ox = clamp(e.clientX, 70, window.innerWidth * 0.44 - 20); oy = clamp(e.clientY, 100, H - 70);
+      const [ex, ey] = pt(e);
+      ox = clamp(ex, 70, W * 0.44 - 20); oy = clamp(ey, 100, H - 70);
       place(ox, oy); stick.classList.add('on'); move(e);
     });
     zone.addEventListener('pointermove', (e) => { if (e.pointerId === id) move(e); });
     const end = (e) => { if (e.pointerId !== id) return; id = null; IN.tx = IN.ty = 0; knob.style.transform = ''; stick.classList.remove('on'); base(); };
     zone.addEventListener('pointerup', end); zone.addEventListener('pointercancel', end);
-    window.addEventListener('resize', base); setTimeout(base, 0);
+    window.addEventListener('resize', () => setTimeout(base, 0)); setTimeout(base, 0);   // 等画布 resize 算完 OX/H 再摆
     window.__stickBase = base;
   })();
 
