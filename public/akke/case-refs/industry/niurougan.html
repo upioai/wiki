@@ -166,6 +166,30 @@
 .xr .ev{font-size:12.5px;color:var(--ink-faint);}
 .xr .go{font-size:12.5px;font-weight:600;color:var(--accent);text-decoration:none;}
 .ai-note{font-size:12px;color:var(--ink-faint);margin-top:10px;}
+.ov-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px;margin-top:22px;}
+.ov-v{display:block;background:var(--paper-raised);border:1px solid var(--line);border-radius:12px;overflow:hidden;text-decoration:none;color:inherit;box-shadow:var(--shadow);}
+.ov-v:hover{border-color:var(--accent);}
+.ov-v img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block;background:var(--paper-sunken);}
+.ov-v .b{padding:10px 12px;}
+.ov-v .rk{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink-faint);}
+.ov-v .pl{font-size:16px;font-weight:700;color:var(--accent);font-family:"IBM Plex Mono",monospace;}
+.ov-v .st{font-size:12px;color:var(--ink-faint);margin-top:2px;}
+.ov-v .hw{font-size:13px;line-height:1.5;color:var(--ink);margin-top:6px;}
+.ov-v .ac{font-size:11.5px;color:var(--ink-faint);margin-top:6px;word-break:break-all;}
+.ov-m{display:grid;gap:14px;margin-top:22px;}
+.ov-mi{background:var(--paper-raised);border:1px solid var(--line);border-radius:14px;padding:18px 20px;box-shadow:var(--shadow);}
+.ov-mi h3{margin:0 0 2px;font-size:17px;}
+.ov-mi .fm{font-size:12.5px;color:var(--ink-faint);}
+.ov-mi ol,.ov-mi ul{margin:8px 0 0;padding-left:20px;font-size:13.5px;line-height:1.75;color:var(--ink-soft);}
+.ov-mi h4{font-size:13px;color:var(--accent);margin:14px 0 0;}
+.ov-mi blockquote{margin:8px 0 0;padding:8px 12px;border-left:3px solid var(--accent);background:var(--paper-sunken);border-radius:0 8px 8px 0;font-size:13.5px;line-height:1.6;color:var(--ink);}
+.ov-mi blockquote cite{display:block;font-style:normal;font-size:12px;color:var(--ink-soft);margin-top:2px;}
+.ov-mi blockquote small{color:var(--ink-faint);}
+.ov-mi .rf{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;}
+.ov-mi .rf a{font-size:12px;padding:3px 9px;border-radius:999px;background:var(--paper-sunken);color:var(--ink-soft);text-decoration:none;}
+.ov-mi .rf a:hover{color:var(--accent);}
+.ov-cv{margin:16px 0 0;padding-left:18px;font-size:12.5px;line-height:1.7;color:var(--ink-faint);}
+@media (max-width:620px){.ov-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}.ov-mi{padding:14px 16px;}}
 @media (max-width:620px){
   .xr{grid-template-columns:84px minmax(0,1fr);gap:12px;padding:14px;}
   .xr dl{grid-template-columns:1fr;gap:2px;}
@@ -314,6 +338,46 @@
       + (x.intro ? '<p>' + esc(x.intro) + '</p>' : '') + btns(x) + '</div>';
   }
 
+  // 海外同行爆款（video-teardown/industries/<ikey>/overseas.json，手工调研整理）：播放最高的几条 + 可照着拍的做法
+  function wan(n) {
+    if (n < 10000) return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    var v = n / 10000;
+    return (v >= 100 ? Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') : v.toFixed(2).replace(/\.?0+$/, '')) + ' 万';
+  }
+  function overseasBlock(o) {
+    if (!o || !o.videos || !o.videos.length) return '';
+    var byId = {};
+    o.videos.forEach(function (v, i) { byId[v.id] = i + 1; });
+    var h = '<div class="shead reveal in" style="margin-top:56px"><span class="eyebrow">海外同行 · ' + esc(o.platform) + ' ' + esc(o.market) + '</span>'
+      + '<h2>' + esc(o.platform) + ' ' + esc(o.market) + '同行：播放最高的 ' + o.videos.length + ' 条，和 ' + (o.methods || []).length + ' 种可以照着拍的做法</h2>'
+      + '<p class="lede">' + esc(o.intro) + '</p></div>';
+    h += '<div class="ov-grid">' + o.videos.map(function (v, i) {
+      return '<a class="ov-v" href="' + esc(v.href) + '" target="_blank" rel="noopener"><img src="' + esc(v.cover) + '" alt="@' + esc(v.account) + '" loading="lazy">'
+        + '<div class="b"><div class="rk">#' + (i + 1) + ' · ' + v.dur + ' 秒</div><div class="pl">' + wan(v.play) + ' 播放</div>'
+        + '<div class="st">赞 ' + wan(v.like) + ' · 评论 ' + wan(v.cmt) + '</div>'
+        + '<div class="hw">' + esc(v.how) + '</div>'
+        + '<div class="ac">@' + esc(v.account) + ' · 粉丝 ' + wan(v.fans) + ' · ' + esc(v.date) + '</div></div></a>';
+    }).join('') + '</div>';
+    if (o.methods && o.methods.length) {
+      h += '<div class="ov-m">' + o.methods.map(function (m) {
+        return '<div class="ov-mi"><h3>' + esc(m.name) + '</h3><div class="fm">' + esc(m.form) + '</div>'
+          + '<h4>原片结构</h4><ol>' + m.steps.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ol>'
+          + '<h4>值得照着做的</h4><ul>' + m.keep.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>'
+          + (m.quotes && m.quotes.length ? '<h4>评论原话</h4>' + m.quotes.map(function (q) {
+              return '<blockquote>「' + esc(q.t) + '」<cite>' + esc(q.zh) + ' <small>· ' + esc(q.meta) + '</small></cite></blockquote>';
+            }).join('') : '')
+          + '<div class="rf">' + m.refs.map(function (id) {
+              var v = o.videos[byId[id] - 1];
+              return v ? '<a href="' + esc(v.href) + '" target="_blank" rel="noopener">看原片 #' + byId[id] + ' @' + esc(v.account) + ' &rarr;</a>' : '';
+            }).join('') + '</div></div>';
+      }).join('') + '</div>';
+    }
+    if (o.caveats && o.caveats.length) {
+      h += '<ul class="ov-cv">' + o.caveats.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>';
+    }
+    return h;
+  }
+
   // 哪些适合 AI 仿造（industry.py 的 ai_fit）：每种讲法 AI 做哪几步、哪几步要门店实拍、我们复刻过没有
   function aiFitBlock(list, names) {
     if (!list || !list.length) return '';
@@ -408,6 +472,8 @@
     }
 
     // 销售顺序（10-29）：同行怎么做 → 共性 → 哪些适合 AI 仿造 → 我们已经复刻的样例 → 怎么部署；参考类的收起放后面
+    // 海外同行（10-30）算「同行怎么做」，放在共性之后
+    h += overseasBlock(d.overseas);
     var nm = {}; d.accounts.forEach(function (a) { nm[a.slug] = a.name; });
     h += aiFitBlock(c && c.ai_fit, nm);
     h += replicasBlock(d.replicas, d.samples);
