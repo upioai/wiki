@@ -4,7 +4,7 @@
 <meta name="description" content="参考案例集账号页：真实案例视频、判定规则与拆解报告。">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=Noto+Serif+SC:wght@700;900&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/akke/case-refs/case-refs.css?v=8925e7c54b">
+<link rel="stylesheet" href="/akke/case-refs/case-refs.css?v=ae395bf37a">
 <style>
 .rl-msg{font-size:12px;color:var(--bad);min-height:1.2em;margin-top:10px;}
 .vcard.relabeled .vrelabel{white-space:normal;text-align:left;}
@@ -54,6 +54,7 @@
   var esc = CR.esc, B = CR.BASE, app = document.getElementById('app');
   var slug = CR.param('s');
   var TYPES = { use: '用户使用案例', process: '产品服务客户过程案例', result: '交付结果案例', log: '商家经营日志案例', other: '其他' };
+  var focus = CR.param('focus') === 'low';   // 去抽样标注：只显示第 1、2 档（6.8）
   var store = {};          // 本账号的线上标注 {视频 id: {is,type,other,note}}
 
   /* ---------- 渲染 ---------- */
@@ -74,7 +75,7 @@
     if (ip) badges = '<span class="itb' + (ip.n ? '' : ' zero') + '" title="这条视频前 ' + ip.comments + ' 条评论里，AI 判为购买意向的条数">意向 ' + ip.n + ' / ' + ip.comments + '</span>' + badges;
     var quote = ip && ip.ex && ip.ex[0] ? '<p class="itq" title="点赞最多的一条意向评论"><i>' + esc(ip.ex[0].k) + '</i>「' + esc(ip.ex[0].t) + '」</p>' : '';
     var td = v.td ? '<a class="vgo" style="display:block;margin:8px 0 2px;padding:6px 10px;border-radius:6px;background:var(--accent-soft);text-align:center" href="' + B + esc(v.td) + '" target="_blank" rel="noopener">查看拆解报告 &rarr;</a>' : '';
-    return '<div class="vcard" data-id="' + esc(v.id) + '" data-tk="' + esc(v.type) + '" data-tn="' + esc(v.type_name) + '" data-src="' + esc(v.type_src) + '" data-title="' + esc(v.full) + '">'
+    return '<div class="vcard" data-conf="' + (v.conf || 0) + '" data-conf0="' + (v.conf || 0) + '" data-id="' + esc(v.id) + '" data-tk="' + esc(v.type) + '" data-tn="' + esc(v.type_name) + '" data-src="' + esc(v.type_src) + '" data-title="' + esc(v.full) + '">'
       + '<a class="vlink" href="' + esc(v.href) + '" target="_blank" rel="noopener" title="判定 ' + v.score + ' 分 · ' + esc(v.why) + '">'
       + '<div class="vthumb"><img src="' + B + esc(v.cover) + '" alt="' + esc(v.alt) + '" loading="lazy" width="323" height="430" decoding="async"></div>'
       + '<div class="vtitle">' + esc(v.title) + '</div></a>'
@@ -178,10 +179,12 @@
     app.innerHTML = '<section class="detail-hero"><div class="wrap">'
       + '<a class="back-link" href="/akke/case-refs">&larr; 返回参考案例集</a>'
       + '<span class="eyebrow" style="margin-left:16px">' + esc(d.cat) + ' · ' + esc(d.city) + ' · ' + esc(d.platform_name) + '</span>'
-      + '<h1>' + esc(d.name) + '</h1><p class="lede">' + esc(d.lede) + '</p>'
+      + '<h1>' + esc(d.name) + (d.review === 'pending' ? ' <span class="rv-pend" id="rvPill" title="按链接直接入库，还没人抽标">未标注</span>' : '') + '</h1><p class="lede">' + esc(d.lede) + '</p>'
       + '<p class="intro-copy">下面只列<strong>真实案例</strong>——口播、生活日常、泛科普、促销这些不收录，也不做分析。'
       + '判定规则是评分制，满 3 分收录，每条的得分和理由都标在卡片上。数据抓取于 ' + esc(d.captured_at) + '，数值为抓取当时的显示值。</p>'
       + '<div class="filter-row" style="margin-top:24px">' + (d.intent ? filterTags([['购买意向', d.intent.total + ' 条', ' style="background:var(--accent-soft);color:var(--accent)"']]) : '') + head + '</div>'
+      + (n ? '<div class="confleg" id="confLeg"></div>' : '')
+      + (focus ? '<p class="focus-note">去抽样标注：只显示第 1、2 档的案例，标完一条它会变成第 5 档。<a href="' + CR.acctURL(slug) + '">显示全部</a></p>' : '')
       + (d.review === 'pending' ? '<div class="rv-box" id="rvBox"></div>' : '') + '</div></section>'
       + '<section style="padding-top:0"><div class="wrap"><div class="mod reveal in"><div class="mod-main">'
       + '<p class="desc">这个号值得看的地方：</p><div class="hl-list">' + pts + '</div>'
@@ -211,15 +214,61 @@
     document.querySelectorAll('.vcard').forEach(function (c) {
       var r = store[c.dataset.id];
       c.classList.toggle('relabeled', !!r);
+      // 第 5 档 = 线上有这条的人工标注（不论是不是案例）；撤销后回到规则算的档（2026-10-31 我定）
+      c.dataset.conf = r ? 5 : c.dataset.conf0;
+      var mk = c.querySelector('.vmark');
+      if (r && r.is === '0') {
+        if (!mk) { mk = document.createElement('div'); mk.className = 'vmark'; mk.textContent = '人工判不是'; c.querySelector('.vmeta').insertBefore(mk, c.querySelector('.vmeta').firstChild); }
+      } else if (mk) mk.remove();
       var b = c.querySelector('.vrelabel');
       if (b) b.textContent = r ? ('已重标 · ' + (r.is === '1' ? (TYPES[r.type] || r.other || '案例') : '不是案例') + ' · 待生效') : '重标注';
       if (r) n++;
     });
+    paintConf(n);
     var legacy = legacyRows();
     document.getElementById('rlCount').textContent = '本账号已重标 ' + n + ' 条，下次入库时生效' + (legacy.length ? '　·　本机还有 ' + legacy.length + ' 条旧标注没提交' : '');
     document.getElementById('rlLegacy').hidden = !legacy.length;
     bar.classList.toggle('on', n > 0 || legacy.length > 0);
   }
+  // 顶部各档条数 + 状态标签：「未标注」/「已抽标 N 条」
+  function paintConf(n) {
+    var cnt = [0, 0, 0, 0, 0, 0], neg = 0;
+    document.querySelectorAll('.vcard').forEach(function (c) {
+      cnt[+c.dataset.conf || 0]++;
+      if (c.querySelector('.vmark')) neg++;
+    });
+    var leg = document.getElementById('confLeg');
+    if (leg) leg.innerHTML = [1, 2, 3, 4, 5].map(function (k) {
+      return '<span><i data-conf="' + k + '"></i>第 ' + k + ' 档 ' + cnt[k] + ' 条' + (k === 5 && neg ? '（其中人工判不是 ' + neg + '）' : '') + '</span>';
+    }).join('');
+    var pill = document.getElementById('rvPill');
+    var total = Object.keys(store).length;   // 线上标注总数，含本页没展示的案例
+    if (pill) pill.textContent = total ? '已抽标 ' + total + ' 条' : '未标注';
+  }
+
+  // ?focus=low：只留第 1、2 档，滚到第一条，页尾给下一个号。只在页面加载时做一次，标完的卡片当场变 5 档但不消失
+  function applyFocus() {
+    if (!focus) return;
+    var first = null;
+    document.querySelectorAll('.vcard').forEach(function (c) {
+      var low = +c.dataset.conf >= 1 && +c.dataset.conf <= 2;
+      c.classList.toggle('focus-hide', !low);
+      if (low && !first) first = c;
+    });
+    if (first) first.scrollIntoView({ block: 'center' });
+    CR.getJSON(B + 'db/ops-label-queue.json').then(function (q) {
+      var i = -1;
+      q.forEach(function (x, k) { if (x.slug === slug) i = k; });
+      var nx = i >= 0 ? q[i + 1] : null;
+      if (!nx) return;
+      var a = document.createElement('a');
+      a.className = 'focus-next'; a.href = CR.acctURL(nx.slug) + '&focus=low';
+      a.textContent = '下一个号 → ' + (nx.name || nx.slug);
+      var rf = document.querySelector('.refnote');
+      rf.parentNode.insertBefore(a, rf);
+    }).catch(function () {});
+  }
+
   function pick(row, v) { row.querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === v); }); }
 
   function open(c) {
@@ -336,7 +385,8 @@
       paint();
       reviewBox();
       return CR.labels.load(slug).then(function (l) { store = l; paint(); })
-        .catch(function () { document.getElementById('rlCount').textContent = '标注库暂时连不上，重标注会提交失败'; bar.classList.add('on'); });
+        .catch(function () { document.getElementById('rlCount').textContent = '标注库暂时连不上，重标注会提交失败'; bar.classList.add('on'); })
+        .then(applyFocus);
     })
     .catch(function (e) {
       CR.fail(app, /404/.test(e.message) ? '没有找到账号「' + slug + '」。它可能已经从样板库摘出，或者地址拼错了。' : '数据文件读取失败（' + e.message + '）。刷新一次试试。');

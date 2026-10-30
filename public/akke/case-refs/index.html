@@ -4,7 +4,7 @@
 <meta name="description" content="全网收录正在用案例内容做获客的商户账号，按行业拆解其内容组织与呈现形式。">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=Noto+Serif+SC:wght@700;900&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/akke/case-refs/case-refs.css?v=8925e7c54b">
+<link rel="stylesheet" href="/akke/case-refs/case-refs.css?v=ae395bf37a">
 </head><body>
 <!-- 固定模板：不含任何账号数据。账号、品类、统计全部来自 db/index.json，
      新增账号不改这个文件。由 scrape/export.py 产出数据，scrape/publish.py 上传。 -->
@@ -21,6 +21,16 @@
     return rows.map(function (r) { return '<span class="ch"><b>' + esc(r[0]) + '</b> ' + esc(r[1]) + '</span>'; }).join('');
   }
 
+  // 各档案例条数的比例条（2026-10-31 用户定：列表页每个号旁一条细色条）。第 5 档是人工标的，要读线上标注，列表页不算
+  function confbar(h) {
+    var sum = (h || []).reduce(function (x, y) { return x + y; }, 0);
+    if (!sum) return '';
+    var tip = '案例置信度各档条数：' + h.map(function (n, i) { return '第' + (i + 1) + '档 ' + n; }).join('、');
+    return '<div class="confbar" title="' + tip + '">' + h.map(function (n, i) {
+      return n ? '<i data-conf="' + (i + 1) + '" style="flex-grow:' + n + '"></i>' : '';
+    }).join('') + '</div>';
+  }
+
   function acct(a) {
     var url = CR.acctURL(a.slug);
     var top = a.top3.map(function (t) {
@@ -31,7 +41,8 @@
     return '<div class="acct">'
       + '<a class="poster" href="' + url + '" target="_blank" rel="noopener"><img src="' + B + esc(a.poster.src) + '" alt="' + esc(a.name) + ' 案例封面合辑" loading="lazy" width="' + a.poster.w + '" height="' + a.poster.h + '" decoding="async"></a>'
       + '<div class="info"><h3><a href="' + url + '" target="_blank" rel="noopener">' + esc(a.name) + '</a>'
-      + (a.review === 'pending' ? ' <span class="rv-pend" title="按链接直接入库，还没人复核">待复核</span>' : '') + '</h3>'
+      + (a.review === 'pending' ? ' <span class="rv-pend" title="按链接直接入库，还没人抽标">未标注</span>' : '') + '</h3>'
+      + confbar(a.conf_hist)
       + '<div class="sub">' + esc(a.cat) + ' · ' + esc(a.city) + ' · ' + esc(a.id_label || '抖音号') + ' ' + esc(a.id_value) + '</div>'
       + '<div class="chips">' + chips(a.chips) + '</div>'
       + '<p class="note">' + esc(a.note) + '</p>'
@@ -39,50 +50,10 @@
       + '<div class="top3"><div class="t3h">' + (a.top3_by === 'intent' ? '购买意向最多的三条' : '流量最好的三条') + '</div><div class="t3row">' + top + '</div></div></div>';
   }
 
-  function rejected(rows) {
-    if (!rows || !rows.length) return '';
-    function card(r) {
-      var meta = chips([['品类', r.cat], ['扫描', r.scanned + ' 条'], ['判为案例', r.ncase + ' 条'],
-                        ['命中率', r.old_rate === r.rate ? r.rate + '%' : r.old_rate + '% → ' + r.rate + '%']]);
-      var hit = r.kind === 'review' ? '<span class="ch"><b>人工结论</b> 不收录</span>'
-        : r.signal
-        ? '<span class="ch"><b>拦下它的信号</b> ' + esc(r.signal) + '，' + r.signal_n + ' 条（' + r.signal_pct + '%）</span>'
-        : '<span class="ch"><b>规则没拦住</b> 判出 ' + r.ncase + ' 条案例，靠账号级准入 ' + esc(r.gate || '') + '</span>';
-      return '<tr><td><strong>' + esc(r.name) + '</strong><div class="chips" style="margin-top:8px">' + meta + hit + '</div>'
-        + '<p style="margin-top:10px">' + esc(r.reason) + '</p></td>'
-        + '<td style="min-width:200px"><strong>' + esc(r.lesson) + '</strong></td></tr>';
-    }
-    function table(list) {
-      return '<div class="tscroll"><table class="vtab"><thead><tr><th>账号与判定结果</th><th>它说明了什么</th></tr></thead><tbody>'
-        + list.map(card).join('') + '</tbody></table></div>';
-    }
-    var byRule = rows.filter(function (r) { return r.kind === 'rule'; });
-    var byGate = rows.filter(function (r) { return r.kind === 'gate'; });
-    var byReview = rows.filter(function (r) { return r.kind === 'review'; });
-    var out = '<a class="rej-back" href="#c-0">&larr; 回到收录的样板</a>'
-      + '<div class="shead reveal in" style="margin-top:0"><span class="eyebrow">反面例子</span>'
-      + '<h2>查过，但不作为样板</h2><p class="lede">这 ' + rows.length + ' 个号都认真扫过全部作品，最后没有收录。'
-      + '把它们摆出来是因为——<strong>说清楚什么不算案例，比说什么算案例更有用</strong>。'
-      + '它们按「怎么被拦下来的」分开放：规则自己拦下的、规则拦不住靠人看的、人工复核或标注后摘掉的。前两类的分界，是这套方法里最该讲清楚的一件事。</p></div>';
-    if (byRule.length) out += '<div class="shead reveal in" style="margin-top:36px"><h3 style="font-size:18px">一、规则自己拦下来的</h3>'
-      + '<p class="lede">命中率算出来就很低。低本身就是结论——说明这个号的内容大部分不是在展示自家做出来的活。</p></div>' + table(byRule);
-    if (byGate.length) out += '<div class="shead reveal in" style="margin-top:44px"><h3 style="font-size:18px">二、规则拦不住，只能靠人看的</h3>'
-      + '<p class="lede">这些号的内容<strong>完全真实</strong>，规则也确实判出了案例，判得并没有错。错在账号性质：主角是<strong>用户本人</strong>，'
-      + '而内容里看不到任何商业方——没提机构、课程、品牌或所购买的服务。没有商业方，它就只是一份个人记录，'
-      + '不能作为「商户如何用案例内容获客」的样板。这类问题正则一条都抓不到，必须收号时人工过一遍。</p></div>' + table(byGate);
-    if (byReview.length) out += '<div class="shead reveal in" style="margin-top:44px"><h3 style="font-size:18px">三、人工看过、不收录的</h3>'
-      + '<p class="lede">入库后在页面上复核没通过，或抽样标注时人看过的几条都不是自家交付。理由是标注的人写的。</p></div>' + table(byReview);
-    // 默认不展示，从左侧目录底部的入口进来（#rejected），纯 CSS 切换，见 .rejview
-    return '<div class="rejview" id="rejected">' + out + '</div>';
-  }
-
   function render(d) {
     // 品类和账号的顺序由 export 按评论里的购买意向总数排好；还没有任何意向数据时侧栏仍显示获赞
     var byIntent = d.cats.some(function (c) { return c.intent; });
 
-    var rejSide = '';
-    if (d.rejected && d.rejected.length) rejSide = '<a class="side-rej" href="#rejected"><span class="cn">查过但没收录</span>'
-      + '<span class="cc">' + d.rejected.length + ' 个号</span></a>';
     // 行业专题页（给客户看的）：品类标题旁给入口；还没有调研号、只有跨行业推荐的行业单列在后面
     var inds = {};
     (d.industries || []).forEach(function (x) { inds[x.ikey] = x; });
@@ -93,7 +64,7 @@
     // 目录里点品类名直接进行业专题；还没有专题页的品类退回页内跳转
     var side = d.cats.map(function (c, i) {
       return '<a href="' + (inds[c.ikey] ? indHref(c.ikey) : '#c-' + i) + '"><span class="cn">' + esc(c.name) + '</span><span class="cc">' + (byIntent ? '意向 ' + (c.intent || 0) : esc(c.best_likes)) + '</span></a>';
-    }).join('') + rejSide;
+    }).join('');
     var more = (d.industries || []).filter(function (x) { return !x.accounts && x.ready; });
     var secs = d.cats.map(function (c, i) {
       return '<div class="catsec" id="c-' + i + '"><h2 class="cath">' + (inds[c.ikey] ? '<a class="cat-name" href="' + indHref(c.ikey) + '">' + esc(c.name) + '</a>' : esc(c.name)) + indLink(c.ikey) + '</h2>'
@@ -111,7 +82,7 @@
       + '<div class="main">' + secs
       + (more.length ? '<div class="catsec"><h2 class="cath">还在调研的行业</h2><p class="note" style="margin:6px 0 14px;color:var(--ink-soft);font-size:13.5px">这些行业还没有收录账号，专题页里先列了别的行业里可以借来用的讲法。</p><div class="chips">'
           + more.map(function (x) { return '<a class="ch" style="text-decoration:none" href="' + B + 'industry/' + encodeURIComponent(x.ikey) + '"><b>' + esc(x.name) + '</b> 行业专题 &rarr;</a>'; }).join('') + '</div></div>' : '')
-      + rejected(d.rejected) + '<div class="refnote">' + d.disclaimer + '</div></div>'
+      + '<div class="refnote">' + d.disclaimer + '</div></div>'
       + '</div></div></section>';
     if (location.hash) { var t = document.getElementById(location.hash.slice(1)); if (t) t.scrollIntoView(); }
   }
