@@ -116,6 +116,10 @@
 .af{display:grid;gap:14px;margin-top:22px;}
 .af-it{background:var(--paper-raised);border:1px solid var(--line);border-radius:14px;padding:18px 20px;box-shadow:var(--shadow);}
 .af-it h3{margin:0 0 4px;font-size:17px;line-height:1.4;}
+.ia-af{margin-top:16px;gap:10px;}
+.ia-af>.l{font-size:12.5px;font-weight:700;color:var(--accent);letter-spacing:.04em;}
+.ia-af .af-it{box-shadow:none;background:var(--paper-sunken);padding:14px 16px;}
+.ia-af .af-two>div{background:var(--paper-raised);}
 .af-it .from{font-size:12.5px;color:var(--ink-faint);}
 .af-it .pv{display:inline-block;margin-left:6px;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:4px;background:var(--accent);color:#fff;}
 .af-two{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;}
@@ -236,6 +240,8 @@
   var ikey = CR.param('i') || ((/\/industry\/([^\/?#.]+)/.exec(location.pathname) || [])[1] || '');
   try { ikey = decodeURIComponent(ikey); } catch (e) {}
 
+  var MERGE_AF = { zhuangxiu: 1 };   // 先在这些行业试合并版（10-31）
+
   function tags(rows) {
     return rows.filter(function (r) { return r[1] !== '' && r[1] != null; }).map(function (r) {
       return '<span class="filter-tag"' + (r[2] || '') + '><b>' + esc(r[0]) + '</b> ' + esc(r[1]) + '</span>';
@@ -253,7 +259,7 @@
       + '<div class="l" style="margin-top:4px">看原视频 &rarr;</div></div></a>';
   }
 
-  function acctBlock(a, x) {
+  function acctBlock(a, x, fits) {
     x = x || {};
     var ef = x.effort || {};
     var cites = (x.cites || []).map(function (c) {
@@ -271,6 +277,7 @@
       + (a.quote ? '<p class="q"><i>' + esc(a.quote.k) + '</i>评论原话「' + esc(a.quote.t) + '」</p>' : '')
       + (a.teardown ? '<a class="go" target=\"_blank\" rel=\"noopener\" href=\"' + CR.acctURL(a.slug) + '">看这个号的完整分析 &rarr;</a>'
          : '<p class="pend">这个号的逐条分析还在做，先看<a target=\"_blank\" rel=\"noopener\" href=\"' + CR.acctURL(a.slug) + '">它的案例</a>。</p>')
+      + (fits && fits.length ? '<div class="af ia-af"><span class="l">这个号的讲法，哪些适合 AI 仿造</span>' + fits.map(function (f) { return aiFitItem(f, {}, false); }).join('') + '</div>' : '')
       + '</div></div>';
   }
 
@@ -347,9 +354,9 @@
   }
 
   // 列表统一：最多 10 条，前 3 条展开，后面的收进「再看 N 个」（10-30 用户定）
-  function top3(list, render, unit) {
+  function top3(list, render, unit, open) {
     list = (list || []).slice(0, 10);
-    var head = list.slice(0, 3).map(render).join(''), rest = list.slice(3);
+    var head = list.slice(0, open || 3).map(render).join(''), rest = list.slice(open || 3);
     return head + (rest.length ? '<details class="more"><summary>再看 ' + rest.length + ' ' + (unit || '个') + ' ▾</summary>' + rest.map(render).join('') + '</details>' : '');
   }
 
@@ -410,19 +417,23 @@
   // 哪些适合 AI 仿造（industry.py 的 ai_fit）：每种讲法 AI 做哪几步、哪几步要门店实拍、我们复刻过没有
   function aiFitBlock(list, names) {
     if (!list || !list.length) return '';
-    function ul(a) { return '<ul>' + (a || []).map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>'; }
     return '<div class="shead reveal in" style="margin-top:56px"><span class="eyebrow">哪些适合 AI 仿造</span>'
-      + '<h2>这几种讲法，哪些交给 AI，哪些得你在现场拍</h2>'
-      + '<p class="lede">出自我们对这些号的逐条拆解，以及我们已经给客户复刻过的样片：AI 负责写稿、标题、按结构剪辑这些重复的活，真实感要靠门店自己的完工画面。</p></div>'
-      + '<div class="af">' + top3(list, function (x) {
-        return '<div class="af-it"><h3>' + esc(x.method) + (x.proven ? '<span class="pv">已复刻 · ' + esc(x.proven) + '</span>' : '') + '</h3>'
-          + '<div class="from">参考 <a target="_blank" rel="noopener" href="' + CR.acctURL(x.slug) + '">' + esc(names[x.slug] || x.slug) + '</a></div>'
-          + '<div class="af-two"><div><b>交给 AI</b>' + ul(x.ai_can) + '</div><div class="real"><b>需要门店实拍 / 提供</b>' + ul(x.real_needed) + '</div></div>'
-          + (x.frames && x.frames.length ? '<a class="frm" href="' + B + esc(x.td) + '" target="_blank" rel="noopener" title="看这条视频的逐条拆解">'
-              + x.frames.map(function (f) { return '<img src="' + B + esc(f) + '" alt="" loading="lazy">'; }).join('') + '</a>'
-              + '<span class="frm-l">视频拆解抽帧，点开看逐条拆解 &rarr;</span>' : '')
-          + (x.evidence ? '<div class="ev">依据：' + esc(x.evidence) + '</div>' : '') + '</div>';
-      }, '种讲法') + '</div>';
+      + '<h2>' + AF_H2 + '</h2>'
+      + '<p class="lede">' + AF_LEDE + '</p></div>'
+      + '<div class="af">' + top3(list, function (x) { return aiFitItem(x, names, true); }, '种讲法') + '</div>';
+  }
+  var AF_H2 = '这几种讲法，哪些交给 AI，哪些得你在现场拍';
+  var AF_LEDE = '出自我们对这些号的逐条拆解，以及我们已经给客户复刻过的样片：AI 负责写稿、标题、按结构剪辑这些重复的活，真实感要靠门店自己的完工画面。';
+  // 一种讲法一张卡；并进账号卡时不再写「参考 某号」（就是这个号）
+  function aiFitItem(x, names, from) {
+    function ul(a) { return '<ul>' + (a || []).map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>'; }
+    return '<div class="af-it"><h3>' + esc(x.method) + (x.proven ? '<span class="pv">已复刻 · ' + esc(x.proven) + '</span>' : '') + '</h3>'
+      + (from ? '<div class="from">参考 <a target="_blank" rel="noopener" href="' + CR.acctURL(x.slug) + '">' + esc(names[x.slug] || x.slug) + '</a></div>' : '')
+      + '<div class="af-two"><div><b>交给 AI</b>' + ul(x.ai_can) + '</div><div class="real"><b>需要门店实拍 / 提供</b>' + ul(x.real_needed) + '</div></div>'
+      + (x.frames && x.frames.length ? '<a class="frm" href="' + B + esc(x.td) + '" target="_blank" rel="noopener" title="看这条视频的逐条拆解">'
+          + x.frames.map(function (f) { return '<img src="' + B + esc(f) + '" alt="" loading="lazy">'; }).join('') + '</a>'
+          + '<span class="frm-l">视频拆解抽帧，点开看逐条拆解 &rarr;</span>' : '')
+      + (x.evidence ? '<div class="ev">依据：' + esc(x.evidence) + '</div>' : '') + '</div>';
   }
 
   // 已经合作的复刻样例（replicas/<行业>/*.json，复刻产线交来就上线）：左边同行原片，右边我们的复刻成片
@@ -495,7 +506,18 @@
         + ioTable(d, ac);
     }
 
-    if (n) {
+    var nm = {}; d.accounts.forEach(function (a) { nm[a.slug] = a.name; });
+    var fits = (c && c.ai_fit) || [], merge = MERGE_AF[ikey] && n && fits.length, byAcct = {}, orphan = [];
+    if (merge) fits.forEach(function (f) { (nm[f.slug] ? (byAcct[f.slug] = byAcct[f.slug] || []) : orphan).push(f); });
+    if (merge) {
+      // 10-31 用户定（先在装修试）：「哪些适合 AI 仿造」并进「这一行我们调研了谁」，每种讲法挂在对应的号下；展开 5 个
+      h += '<div class="shead reveal in" style="margin-top:56px"><span class="eyebrow">这一行我们调研了谁 · 哪些适合 AI 仿造</span>'
+        + '<h2>' + n + ' 个账号，各自怎么用案例内容获客' + (n > 10 ? '（列前 10 个）' : '') + '</h2>'
+        + '<p class="lede">按评论里想买的人数排。「评论里想买」是我们读了每条视频前 200 条评论后，数出来在问价、问怎么买、想要同款、问门店、已经下单的条数——比点赞更接近生意。引文出自我们对这个号评论里想买最多的三条视频的逐条拆解。</p>'
+        + '<p class="lede">每个号下面的「哪些适合 AI 仿造」：' + AF_H2 + '。' + AF_LEDE + '</p></div>'
+        + top3(d.accounts, function (a) { return acctBlock(a, ac[a.slug], byAcct[a.slug]); }, '个号', 5)
+        + (orphan.length ? '<div class="af">' + orphan.map(function (f) { return aiFitItem(f, nm, true); }).join('') + '</div>' : '');
+    } else if (n) {
       h += '<div class="shead reveal in" style="margin-top:56px"><span class="eyebrow">这一行我们调研了谁</span>'
         + '<h2>' + n + ' 个账号，各自怎么用案例内容获客' + (n > 10 ? '（列前 10 个）' : '') + '</h2>'
         + '<p class="lede">按评论里想买的人数排。「评论里想买」是我们读了每条视频前 200 条评论后，数出来在问价、问怎么买、想要同款、问门店、已经下单的条数——比点赞更接近生意。引文出自我们对这个号评论里想买最多的三条视频的逐条拆解。</p></div>'
@@ -507,8 +529,7 @@
     // 销售顺序（10-29）：同行怎么做 → 共性 → 哪些适合 AI 仿造 → 我们已经复刻的样例 → 怎么部署；参考类的收起放后面
     // 海外同行（10-30）算「同行怎么做」，放在共性之后
     h += overseasBlock(d.overseas);
-    var nm = {}; d.accounts.forEach(function (a) { nm[a.slug] = a.name; });
-    h += aiFitBlock(c && c.ai_fit, nm);
+    if (!merge) h += aiFitBlock(c && c.ai_fit, nm);
     h += replicasBlock(d.replicas, d.samples);
     h += deployBlock(d.deploy, false);     // 10-30：默认折叠
 
