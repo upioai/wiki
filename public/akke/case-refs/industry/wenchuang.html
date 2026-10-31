@@ -120,6 +120,17 @@
 .ia-af>.l{font-size:12.5px;font-weight:700;color:var(--accent);letter-spacing:.04em;}
 .ia-af .af-it{box-shadow:none;background:var(--paper-sunken);padding:14px 16px;}
 .ia-af .af-two>div{background:var(--paper-raised);}
+.pf{background:var(--paper-sunken);border-radius:10px;padding:12px 16px;}
+.pf p{margin:0;font-size:14px;line-height:1.7;color:var(--ink);}
+.pfv{display:inline-block;margin-right:8px;font-size:12px;font-weight:700;padding:2px 8px;border-radius:4px;color:#fff;background:var(--ink-faint);}
+.pfv.ok{background:#2f8a57;}.pfv.mid{background:#b7791f;}.pfv.no{background:#9b3b3b;}
+.pf details{margin-top:8px;}
+.pf summary{cursor:pointer;font-size:13px;color:var(--accent);}
+.pf-g{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;margin-top:10px;}
+.pf-g b{display:block;font-size:12.5px;color:var(--ink);margin-bottom:2px;}
+.pf-g ul,.pf-g ol{margin:0;padding-left:18px;font-size:13px;line-height:1.7;color:var(--ink-soft);}
+.pf .ev{margin-top:8px;font-size:12.5px;color:var(--ink-faint);line-height:1.7;}
+@media (max-width:620px){.pf-g{grid-template-columns:1fr;}}
 .ia-af .af-none{margin:0;font-size:13.5px;line-height:1.7;color:var(--ink-soft);background:var(--paper-sunken);border-radius:10px;padding:12px 16px;}
 .frm.frm2{grid-template-columns:repeat(16,minmax(0,1fr));gap:3px;}
 .frm2 a{display:block;min-width:0;}
@@ -263,7 +274,25 @@
       + '<div class="l" style="margin-top:4px">看原视频 &rarr;</div></div></a>';
   }
 
-  function acctBlock(a, x, fits) {
+  // 能不能做成 AI 产线（pipeline_fit.py，10-31 用户定的标准）：借这个号带客内容的剧本，做成「门店输入素材 → 按同一个剧本自动出片」的产线
+  var PF_CLS = { '适合做成产线': 'ok', '部分适合': 'mid', '不适合': 'no' };
+  function pipeBlock(a, fits, pf) {
+    function ul(t, arr, ol) { return arr && arr.length ? '<div><b>' + t + '</b><' + (ol ? 'ol' : 'ul') + '>' + arr.map(function (v) { return '<li>' + esc(v) + '</li>'; }).join('') + '</' + (ol ? 'ol' : 'ul') + '></div>' : ''; }
+    var h = '<div class="af ia-af"><span class="l">能不能做成 AI 产线</span>';
+    if (pf) {
+      h += '<div class="pf"><p><span class="pfv ' + (PF_CLS[pf.verdict] || '') + '">' + esc(pf.verdict) + '</span>' + esc(pf.reason) + '</p>'
+        + '<details><summary>剧本骨架、每次要交的素材、产线自动做什么</summary><div class="pf-g">'
+        + ul('剧本骨架（按播放顺序）', pf.script, true) + ul('每次门店要交的素材', pf.inputs) + ul('产线自动做', pf.auto) + ul('卡在哪 / 必须人来做', pf.blockers)
+        + '</div>' + (pf.evidence && pf.evidence.length ? '<div class="ev">依据（拆解原话）：' + pf.evidence.map(function (e) { return '「' + esc(e) + '」'; }).join(' ') + '</div>' : '')
+        + '</details></div>';
+    } else {
+      h += '<p class="af-none">' + (a.teardown ? '这个号还没有做产线评估。' : '这个号的逐条拆解还没有做完，还评估不了能不能做成 AI 产线；拆解做完后补上。') + '</p>';
+    }
+    if (fits.length) h += '<span class="l" style="margin-top:6px">这个号的讲法，哪些交给 AI、哪些得现场拍</span>' + fits.map(function (f) { return aiFitItem(f, {}, false); }).join('');
+    return h + '</div>';
+  }
+
+  function acctBlock(a, x, fits, pf) {
     x = x || {};
     var ef = x.effort || {};
     var cites = (x.cites || []).map(function (c) {
@@ -281,9 +310,7 @@
       + (a.quote ? '<p class="q"><i>' + esc(a.quote.k) + '</i>评论原话「' + esc(a.quote.t) + '」</p>' : '')
       + (a.teardown ? '<a class="go" target=\"_blank\" rel=\"noopener\" href=\"' + CR.acctURL(a.slug) + '">看这个号的完整分析 &rarr;</a>'
          : '<p class="pend">这个号的逐条分析还在做，先看<a target=\"_blank\" rel=\"noopener\" href=\"' + CR.acctURL(a.slug) + '">它的案例</a>。</p>')
-      + (fits && !fits.length ? '<div class="af ia-af"><span class="l">这个号的讲法，哪些适合 AI 仿造</span><p class="af-none">'
-          + (a.teardown ? '我们拆解这个号时，没有找到能拿门店自己的素材交给 AI 照着做的讲法。' : '这个号的逐条拆解还没有做完，暂时判断不了哪些环节能交给 AI、哪些得在现场拍；拆解做完后补上。') + '</p></div>' : '')
-      + (fits && fits.length ? '<div class="af ia-af"><span class="l">这个号的讲法，哪些适合 AI 仿造</span>' + fits.map(function (f) { return aiFitItem(f, {}, false); }).join('') + '</div>' : '')
+      + (fits ? pipeBlock(a, fits, pf) : '')
       + '</div></div>';
   }
 
@@ -531,8 +558,9 @@
       h += '<div class="shead reveal in" style="margin-top:56px"><span class="eyebrow">这一行我们调研了谁 · 哪些适合 AI 仿造</span>'
         + '<h2>' + n + ' 个账号，各自怎么用案例内容获客' + (n > 10 ? '（列前 10 个）' : '') + '</h2>'
         + '<p class="lede">按评论里想买的人数排。「评论里想买」是我们读了每条视频前 200 条评论后，数出来在问价、问怎么买、想要同款、问门店、已经下单的条数——比点赞更接近生意。引文出自我们对这个号评论里想买最多的三条视频的逐条拆解。</p>'
-        + '<p class="lede">每个号下面的「哪些适合 AI 仿造」：' + AF_H2 + '。' + AF_LEDE + '</p></div>'
-        + top3(d.accounts, function (a) { return acctBlock(a, ac[a.slug], byAcct[a.slug] || []); }, '个号', 5)
+        + '<p class="lede">每个号下面先判断「能不能做成 AI 产线」：借它带来想买的人的那几条视频的剧本，做成一条产线，以后门店只要交素材，就按同一个剧本自动出不同的视频。不是每种拍法都适合——靠真人临场表达、一次性事件，或每条都要专业人士现想的内容，换素材套剧本复制不出效果。</p>'
+        + '<p class="lede">再往下是「哪些适合 AI 仿造」：' + AF_H2 + '。' + AF_LEDE + '</p></div>'
+        + top3(d.accounts, function (a) { return acctBlock(a, ac[a.slug], byAcct[a.slug] || [], (d.pipeline_fit || {})[a.slug]); }, '个号', 5)
         + (orphan.length ? '<div class="af">' + orphan.map(function (f) { return aiFitItem(f, nm, true); }).join('') + '</div>' : '');
     } else if (n) {
       h += '<div class="shead reveal in" style="margin-top:56px"><span class="eyebrow">这一行我们调研了谁</span>'
