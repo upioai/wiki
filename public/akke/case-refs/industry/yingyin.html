@@ -120,6 +120,10 @@
 .ia-af>.l{font-size:12.5px;font-weight:700;color:var(--accent);letter-spacing:.04em;}
 .ia-af .af-it{box-shadow:none;background:var(--paper-sunken);padding:14px 16px;}
 .ia-af .af-two>div{background:var(--paper-raised);}
+.ia-af .af-none{margin:0;font-size:13.5px;line-height:1.7;color:var(--ink-soft);background:var(--paper-sunken);border-radius:10px;padding:12px 16px;}
+.frm.frm2{grid-template-columns:repeat(16,minmax(0,1fr));gap:3px;}
+.frm2 a{display:block;min-width:0;}
+.frm2 a.sep{margin-left:6px;}
 .af-it .from{font-size:12.5px;color:var(--ink-faint);}
 .af-it .pv{display:inline-block;margin-left:6px;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:4px;background:var(--accent);color:#fff;}
 .af-two{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;}
@@ -169,7 +173,7 @@
 .br .sub{font-size:12.5px;color:var(--ink-faint);}
 .br .num{font-size:13px;font-weight:700;color:var(--accent);margin-top:6px;}
 .br .q{font-size:12.5px;color:var(--ink-soft);margin-top:6px;}
-@media (max-width:620px){.frm{grid-template-columns:repeat(4,minmax(0,1fr));}.br{grid-template-columns:76px minmax(0,1fr);}}
+@media (max-width:620px){.frm{grid-template-columns:repeat(4,minmax(0,1fr));}.frm.frm2{grid-template-columns:repeat(8,minmax(0,1fr));}.frm2 a.sep{margin-left:0;}.br{grid-template-columns:76px minmax(0,1fr);}}
 .cp{display:grid;gap:14px;margin-top:22px;}
 .cp-item{background:var(--paper-raised);border:1px solid var(--line);border-radius:12px;padding:16px 18px;}
 .cp-asp{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:4px;margin-bottom:6px;
@@ -277,6 +281,8 @@
       + (a.quote ? '<p class="q"><i>' + esc(a.quote.k) + '</i>评论原话「' + esc(a.quote.t) + '」</p>' : '')
       + (a.teardown ? '<a class="go" target=\"_blank\" rel=\"noopener\" href=\"' + CR.acctURL(a.slug) + '">看这个号的完整分析 &rarr;</a>'
          : '<p class="pend">这个号的逐条分析还在做，先看<a target=\"_blank\" rel=\"noopener\" href=\"' + CR.acctURL(a.slug) + '">它的案例</a>。</p>')
+      + (fits && !fits.length ? '<div class="af ia-af"><span class="l">这个号的讲法，哪些适合 AI 仿造</span><p class="af-none">'
+          + (a.teardown ? '我们拆解这个号时，没有找到能拿门店自己的素材交给 AI 照着做的讲法。' : '这个号的逐条拆解还没有做完，暂时判断不了哪些环节能交给 AI、哪些得在现场拍；拆解做完后补上。') + '</p></div>' : '')
       + (fits && fits.length ? '<div class="af ia-af"><span class="l">这个号的讲法，哪些适合 AI 仿造</span>' + fits.map(function (f) { return aiFitItem(f, {}, false); }).join('') + '</div>' : '')
       + '</div></div>';
   }
@@ -424,13 +430,24 @@
   }
   var AF_H2 = '这几种讲法，哪些交给 AI，哪些得你在现场拍';
   var AF_LEDE = '出自我们对这些号的逐条拆解，以及我们已经给客户复刻过的样片：AI 负责写稿、标题、按结构剪辑这些重复的活，真实感要靠门店自己的完工画面。';
+  // 合并版的抽帧：综合拆解前两条视频各 8 帧排成一行，每张点开对应那条视频的逐条拆解（10-31：缩一半、数量翻倍）
+  function frameRow(x) {
+    var sets = x.frame_sets || (x.frames && x.frames.length ? [{ td: x.td, frames: x.frames }] : []);
+    if (!sets.length) return '';
+    return '<div class="frm frm2">' + sets.map(function (st, i) {
+      return st.frames.map(function (f, j) {
+        return '<a class="' + (i && !j ? 'sep' : '') + '" href="' + B + esc(st.td) + '" target="_blank" rel="noopener" title="看第 ' + (i + 1) + ' 条视频的逐条拆解"><img src="' + B + esc(f) + '" alt="" loading="lazy"></a>';
+      }).join('');
+    }).join('') + '</div><span class="frm-l">视频拆解抽帧' + (sets.length > 1 ? '（' + sets.length + ' 条视频，每条 ' + sets[0].frames.length + ' 张）' : '') + '，点开看逐条拆解 &rarr;</span>';
+  }
   // 一种讲法一张卡；并进账号卡时不再写「参考 某号」（就是这个号）
   function aiFitItem(x, names, from) {
     function ul(a) { return '<ul>' + (a || []).map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>'; }
     return '<div class="af-it"><h3>' + esc(x.method) + (x.proven ? '<span class="pv">已复刻 · ' + esc(x.proven) + '</span>' : '') + '</h3>'
       + (from ? '<div class="from">参考 <a target="_blank" rel="noopener" href="' + CR.acctURL(x.slug) + '">' + esc(names[x.slug] || x.slug) + '</a></div>' : '')
       + '<div class="af-two"><div><b>交给 AI</b>' + ul(x.ai_can) + '</div><div class="real"><b>需要门店实拍 / 提供</b>' + ul(x.real_needed) + '</div></div>'
-      + (x.frames && x.frames.length ? '<a class="frm" href="' + B + esc(x.td) + '" target="_blank" rel="noopener" title="看这条视频的逐条拆解">'
+      + (from ? '' : frameRow(x))
+      + (from && x.frames && x.frames.length ? '<a class="frm" href="' + B + esc(x.td) + '" target="_blank" rel="noopener" title="看这条视频的逐条拆解">'
           + x.frames.map(function (f) { return '<img src="' + B + esc(f) + '" alt="" loading="lazy">'; }).join('') + '</a>'
           + '<span class="frm-l">视频拆解抽帧，点开看逐条拆解 &rarr;</span>' : '')
       + (x.evidence ? '<div class="ev">依据：' + esc(x.evidence) + '</div>' : '') + '</div>';
@@ -515,7 +532,7 @@
         + '<h2>' + n + ' 个账号，各自怎么用案例内容获客' + (n > 10 ? '（列前 10 个）' : '') + '</h2>'
         + '<p class="lede">按评论里想买的人数排。「评论里想买」是我们读了每条视频前 200 条评论后，数出来在问价、问怎么买、想要同款、问门店、已经下单的条数——比点赞更接近生意。引文出自我们对这个号评论里想买最多的三条视频的逐条拆解。</p>'
         + '<p class="lede">每个号下面的「哪些适合 AI 仿造」：' + AF_H2 + '。' + AF_LEDE + '</p></div>'
-        + top3(d.accounts, function (a) { return acctBlock(a, ac[a.slug], byAcct[a.slug]); }, '个号', 5)
+        + top3(d.accounts, function (a) { return acctBlock(a, ac[a.slug], byAcct[a.slug] || []); }, '个号', 5)
         + (orphan.length ? '<div class="af">' + orphan.map(function (f) { return aiFitItem(f, nm, true); }).join('') + '</div>' : '');
     } else if (n) {
       h += '<div class="shead reveal in" style="margin-top:56px"><span class="eyebrow">这一行我们调研了谁</span>'
