@@ -512,16 +512,42 @@
   // 适合做品牌宣传的案例（export 的 brand）：内容是案例、点赞评论都多，但判过的评论里没人想买
   function brandBlock(list) {
     if (!list || !list.length) return '';
-    return '<div class="shead reveal in" style="margin-top:56px"><span class="eyebrow">适合做品牌宣传的案例</span>'
-      + '<h2>传播很广、但评论里没人想买的案例</h2>'
-      + '<p class="lede">这些也是真实的案例内容，点赞和评论都很多，只是我们读过的评论里没有人问价、问怎么买。它们不直接带来生意，但把品牌传播了出去，适合拿来做品牌宣传，也很值得参考。</p></div>'
+    // 10-31 用户定：默认收起，和部署方案、别的行业可以借什么同一种折叠样式
+    return '<details class="dp"><summary>适合做品牌宣传的案例：' + list.length + ' 条<small>传播很广、但评论里没人想买</small></summary><div class="db">'
+      + '<p>这些也是真实的案例内容，点赞和评论都很多，只是我们读过的评论里没有人问价、问怎么买。它们不直接带来生意，但把品牌传播了出去，适合拿来做品牌宣传，也很值得参考。</p>'
       + top3(list, function (b) {
         return '<a class="br" href="' + esc(b.href) + '" target="_blank" rel="noopener">'
           + (b.cover ? '<img src="' + B + esc(b.cover) + '" alt="" loading="lazy">' : '<span></span>')
           + '<div style="min-width:0"><h4>' + esc(b.title || '（无标题）') + '</h4><div class="sub">' + esc(b.name) + (b.type ? ' · ' + esc(b.type) : '') + '</div>'
           + '<div class="num">点赞 ' + b.like.toLocaleString() + (b.comments ? ' · 评论 ' + b.comments : '') + ' · 判过 ' + b.judged + ' 条评论，0 条想买</div>'
           + (b.quote ? '<div class="q">热评「' + esc(b.quote) + '」</div>' : '') + '</div></a>';
-      }, '条');
+      }, '条') + '</div></details>';
+  }
+
+  // 开头导语（10-31 用户定）：按数据生成，重点讲两件事——这一行找到了靠部署案例内容矩阵获客的号；
+  // 拆解后评估了它们的结构，多少适合做成 AI 产线批量低成本出片。末尾保留 AI 写的「最值得记住的一点」
+  function introText(d, c) {
+    var n = d.accounts.length, pl = {}, order = [];
+    d.accounts.forEach(function (a) { var p = a.platform || '其他'; if (!pl[p]) { pl[p] = 0; order.push(p); } pl[p]++; });
+    var pls = order.map(function (p) { return p + ' ' + pl[p] + ' 个'; }).join('、');
+    var t = '我们在' + d.name + '这一行找到了 ' + n + ' 个靠部署案例内容矩阵获客的号（' + pls + '）：' + (n > 1 ? '它们' : '它') + '持续、成批地发自家真实做过的案例，'
+      + (d.totals.intent ? '评论里一共有 ' + d.totals.intent.toLocaleString() + ' 人在问价、问怎么买。' : '评论里的购买意向还在统计。');
+    var pf = d.pipeline_fit || {}, k = 0, cnt = { '适合做成产线': 0, '部分适合': 0, '不适合': 0 };
+    d.accounts.forEach(function (a) { var x = pf[a.slug]; if (x) { k++; cnt[x.verdict] = (cnt[x.verdict] || 0) + 1; } });
+    if (k) {
+      t += (n > 1 ? '我们逐条拆解了其中 ' + k + ' 个号，评估它们的' : '我们逐条拆解了这个号，评估它的') + '内容结构能不能做成 AI 产线：'
+        + [['适合', cnt['适合做成产线']], ['部分适合', cnt['部分适合']], ['不适合', cnt['不适合']]]
+            .filter(function (r) { return r[1]; }).map(function (r) { return r[1] + ' 个' + r[0]; }).join('、') + '。';
+      t += cnt['适合做成产线']
+        ? '适合的号，门店只要交素材，就能按同一个剧本批量、低成本地出片，像' + (k > 1 ? '它们' : '它') + '一样把案例内容铺开。'
+        : cnt['部分适合']
+          ? (k > 1 ? '这些号' : '这个号') + '里能固定下来的那部分剧本可以做成产线，门店交素材就能批量、低成本地出片；其余部分还得真人来做。'
+          : '这一行的带客内容主要靠真人和临场发挥，换素材套剧本复制不出效果。';
+    } else {
+      t += (n > 1 ? '这些号' : '这个号') + '的逐条拆解还在做，做完后会逐个评估能不能做成 AI 产线、批量低成本地出片。';
+    }
+    var m = c && /最值得记住的一点[：:]\s*(.+)$/.exec(c.intro || '');
+    return t + (m ? '最值得记住的一点：' + m[1] : '');
   }
 
   function render(d) {
@@ -535,7 +561,7 @@
       + '<a class="back-link" href="/akke/case-refs">&larr; 返回参考案例集</a>'
       + '<span class="eyebrow" style="margin-left:16px">行业专题 · ' + esc(d.name) + '</span>'
       + '<h1>' + esc(c ? c.headline : d.name + '：别人家的案例内容怎么做') + '</h1>'
-      + '<p class="lede">' + esc(c ? c.intro : (n ? '我们调研了这一行 ' + n + ' 个在用案例内容获客的账号。' : '这一行我们还在调研。')) + '</p>'
+      + '<p class="lede">' + esc(n ? introText(d, c) : (c ? c.intro : '这一行我们还在调研。')) + '</p>'
       + (n ? '<div class="filter-row" style="margin-top:24px">' + tags([
           ['调研账号', n + ' 个'], ['扫描作品', t.scanned + ' 条'], ['真实案例', t.cases + ' 条'],
           ['评论里想买', t.intent + ' 条', ' style="background:var(--accent-soft);color:var(--accent)"']]) + '</div>' : '')
@@ -552,13 +578,13 @@
     var fits = (c && c.ai_fit) || [], merge = !!n, byAcct = {}, orphan = [];
     if (merge) fits.forEach(function (f) { (nm[f.slug] ? (byAcct[f.slug] = byAcct[f.slug] || []) : orphan).push(f); });
     if (merge) {
-      // 10-31 用户定（装修试过后推到全部行业）：「哪些适合 AI 仿造」并进「这一行我们调研了谁」，每种讲法挂在对应的号下；展开 5 个
+      // 10-31 用户定（装修试过后推到全部行业）：「哪些适合 AI 仿造」并进「这一行我们调研了谁」，每种讲法挂在对应的号下；展开 3 个（用户先要 5 个，后改回 3 个）
       h += '<div class="shead reveal in" style="margin-top:56px"><span class="eyebrow">这一行我们调研了谁 · 哪些适合 AI 仿造</span>'
         + '<h2>' + n + ' 个账号，各自怎么用案例内容获客' + (n > 10 ? '（列前 10 个）' : '') + '</h2>'
         + '<p class="lede">按评论里想买的人数排。「评论里想买」是我们读了每条视频前 200 条评论后，数出来在问价、问怎么买、想要同款、问门店、已经下单的条数——比点赞更接近生意。引文出自我们对这个号评论里想买最多的三条视频的逐条拆解。</p>'
         + '<p class="lede">每个号下面先判断「能不能做成 AI 产线」：借它带来想买的人的那几条视频的剧本，做成一条产线，以后门店只要交素材，就按同一个剧本自动出不同的视频。不是每种拍法都适合——靠真人临场表达、一次性事件，或每条都要专业人士现想的内容，换素材套剧本复制不出效果。</p>'
         + '<p class="lede">再往下是「哪些适合 AI 仿造」：' + AF_H2 + '。' + AF_LEDE + '</p></div>'
-        + top3(d.accounts, function (a) { return acctBlock(a, ac[a.slug], byAcct[a.slug] || [], (d.pipeline_fit || {})[a.slug]); }, '个号', 5)
+        + top3(d.accounts, function (a) { return acctBlock(a, ac[a.slug], byAcct[a.slug] || [], (d.pipeline_fit || {})[a.slug]); }, '个号')
         + (orphan.length ? '<div class="af">' + orphan.map(function (f) { return aiFitItem(f, nm, true); }).join('') + '</div>' : '');
     } else if (n) {
       h += '<div class="shead reveal in" style="margin-top:56px"><span class="eyebrow">这一行我们调研了谁</span>'
