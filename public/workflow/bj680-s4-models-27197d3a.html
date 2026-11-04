@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>北京680 结构四一镜到底 · 模型与调用</title>
+<style>
+:root{--bg:#0e1116;--card:#171c24;--line:#2a323f;--tx:#e6eaf0;--mut:#8c97a8;--cy:#4fd1c5;--am:#f6ad55;--rd:#fc8181;--bl:#63b3ed;--gr:#68d391}
+@media (prefers-color-scheme:light){:root{--bg:#f6f7f9;--card:#fff;--line:#dde2ea;--tx:#1b2330;--mut:#5d6b7e;--cy:#0f9d8f;--am:#c76a0a;--rd:#d04040;--bl:#2b6cb0;--gr:#2f9e5b}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.65 -apple-system,"PingFang SC","Hiragino Sans GB",sans-serif}
+.w{max-width:980px;margin:0 auto;padding:28px 16px 60px}
+h1{font-size:26px;margin:0 0 6px}h2{font-size:19px;margin:38px 0 12px;padding-left:10px;border-left:4px solid var(--cy)}h3{font-size:15px;margin:18px 0 6px;color:var(--cy)}
+.sub{color:var(--mut)}.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:12px 0}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0}
+.kpi div{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}.kpi b{display:block;font-size:24px;color:var(--cy)}.kpi span{color:var(--mut);font-size:12.5px}
+table{width:100%;border-collapse:collapse;font-size:13.5px;margin:8px 0}th,td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}th{color:var(--mut);font-weight:600}
+code{background:rgba(127,127,127,.15);padding:1px 5px;border-radius:4px;font-size:12.5px}
+.tag{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12px;border:1px solid var(--line);color:var(--mut)}.ok{color:var(--gr);border-color:var(--gr)}.no{color:var(--rd);border-color:var(--rd)}
+svg{width:100%;height:auto;display:block}svg text{fill:var(--tx);font-family:inherit}svg .m{fill:var(--mut)}
+.note{color:var(--mut);font-size:13px}.warn{border-left:4px solid var(--am)}
+</style></head><body><div class="w">
+<h1>北京680 结构四「一镜到底」· 模型与调用详解</h1>
+<div class="sub">以 11-04 的 v6 成片（89 秒，1072×1928，24fps）为案例。数据来自 cost.log、各段 payload.json、build_k4full_v6.py，已回读核对。</div>
+
+<div class="kpi">
+<div><b>3 个</b><span>用到的 AI 模型：可灵4 · Nano Banana Pro · MiniMax 语音</span></div>
+<div><b>5 段</b><span>可灵4 视频段进了成片（共 72 秒画面）</span></div>
+<div><b>20 笔</b><span>今天可灵4 的提交次数（记账）</span></div>
+<div><b>$39.56</b><span>今天可灵4 记账花费（252 秒 × $0.157）</span></div>
+<div><b>$11.30</b><span>其中真正进成片的部分，约 29%</span></div>
+</div>
+
+<h2>1. 一句话：这条片是怎么做出来的</h2>
+<div class="card">没有用文生视频。做法是<b>图生视频 + 多关键帧首尾接龙</b>：先备好每个空间的完工关键帧图（院子、走廊、客厅、餐厅、楼梯、地下厅、台球区、卧室、阁楼书房），每段给可灵4 一张起始图、一张结束图、中间 0–3 张途经图，让它生成“人持手机走过去”的连续运镜；上一段的结束图就是下一段的起始图，所以段与段首尾相接。最后用 ffmpeg 拼接，加空间名字幕、克隆音配音和配乐。</div>
+
+<h2>2. 流水线</h2>
+<div class="card"><svg viewBox="0 0 940 250" role="img" aria-label="流水线">
+<defs><marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0L8,4L0,8z" fill="#8c97a8"/></marker></defs>
+<g font-size="13">
+<rect x="10" y="20" width="170" height="70" rx="8" fill="none" stroke="#63b3ed"/><text x="95" y="45" text-anchor="middle" font-weight="700">① 关键帧图</text><text x="95" y="64" text-anchor="middle" class="m">a_* 完工空间图 11 张</text><text x="95" y="80" text-anchor="middle" class="m">（现成素材）</text>
+<rect x="10" y="130" width="170" height="70" rx="8" fill="none" stroke="#f6ad55"/><text x="95" y="155" text-anchor="middle" font-weight="700">② 改图修正</text><text x="95" y="174" text-anchor="middle" class="m">Nano Banana Pro edit</text><text x="95" y="190" text-anchor="middle" class="m">3 张 × $0.15</text>
+<rect x="250" y="70" width="190" height="90" rx="8" fill="none" stroke="#4fd1c5" stroke-width="2"/><text x="345" y="98" text-anchor="middle" font-weight="700">③ 可灵4 图生视频</text><text x="345" y="118" text-anchor="middle" class="m">kling/v4/image-to-video</text><text x="345" y="136" text-anchor="middle" class="m">首尾帧 + 中间帧，1080p</text><text x="345" y="152" text-anchor="middle" class="m">$0.157 / 秒</text>
+<rect x="510" y="20" width="170" height="70" rx="8" fill="none" stroke="#68d391"/><text x="595" y="45" text-anchor="middle" font-weight="700">④ 逐段验收</text><text x="595" y="64" text-anchor="middle" class="m">抽帧拼触表 + 帧差找硬切</text><text x="595" y="80" text-anchor="middle" class="m">不过就单段重跑</text>
+<rect x="510" y="130" width="170" height="70" rx="8" fill="none" stroke="#a78bfa"/><text x="595" y="155" text-anchor="middle" font-weight="700">⑤ 配音</text><text x="595" y="174" text-anchor="middle" class="m">MiniMax speech-2.8-hd</text><text x="595" y="190" text-anchor="middle" class="m">克隆音，开头+结尾两句</text>
+<rect x="750" y="70" width="180" height="90" rx="8" fill="none" stroke="#fc8181"/><text x="840" y="98" text-anchor="middle" font-weight="700">⑥ 本地合成</text><text x="840" y="118" text-anchor="middle" class="m">ffmpeg 拼接 + 定格 3.5 秒</text><text x="840" y="136" text-anchor="middle" class="m">Pillow 字幕 · 配乐 · loudnorm</text><text x="840" y="152" text-anchor="middle" class="m">-14 LUFS → 89 秒成片</text>
+</g>
+<g stroke="#8c97a8" stroke-width="1.5" fill="none" marker-end="url(#ar)"><path d="M180 55H215V100H250"/><path d="M180 165H215V130H250"/><path d="M440 110H475V55H510"/><path d="M680 55H715V100H750"/><path d="M680 165H715V130H750"/></g>
+</svg><div class="note">②→③：改图后的新关键帧回到可灵4 当起止帧；④不过的段回到③重跑。</div></div>
+
+<h2>3. 用到的模型清单</h2>
+<div class="card"><table>
+<tr><th>环节</th><th>模型 / 工具</th><th>调用方式</th><th>计费</th><th>今天</th></tr>
+<tr><td>视频生成</td><td><b>可灵4</b><br><code>kling/v4/image-to-video</code>（经 fal）</td><td>图生视频，<b>多关键帧</b>：start + middle[] + end</td><td>$0.157/秒（fal 价目接口核过）</td><td>20 笔 / 252 秒 / $39.56</td></tr>
+<tr><td>关键帧修正</td><td><b>Nano Banana Pro</b><br><code>fal-ai/nano-banana-pro/edit</code></td><td>图编辑：给 1–2 张参考图 + 中文指令，9:16 / 2K</td><td>$0.15/张</td><td>3 张 / $0.45</td></tr>
+<tr><td>配音</td><td><b>MiniMax speech-2.8-hd</b><br><code>fal-ai/minimax/speech-2.8-hd</code></td><td>文字转语音，用克隆音色，语速 0.88，中文，多音字词典</td><td>约 $0.0001/字</td><td>成片用 2 句（沿用已生成的音频）</td></tr>
+<tr><td>配乐</td><td>本地 <code>calm.wav</code></td><td>循环 + 音量 0.17，淡入淡出</td><td>$0</td><td>—</td></tr>
+<tr><td>合成</td><td>ffmpeg · Pillow</td><td>concat、tpad 定格、overlay 字幕、amix、loudnorm</td><td>$0</td><td>—</td></tr>
+</table>
+<div class="note">没有用文生视频，没有用可灵的口型/对口型、运动画笔、视频延长等功能。可灵4 的 prompt 是英文，“持手机稳定器拍摄、水平不歪、无剪辑、无人、无文字、不变形、不凭空多窗户家具”。</div></div>
+
+<h2>4. 可灵4 的调用形态（这次的核心）</h2>
+<div class="card">
+<h3>请求参数（五段成片的实际 payload）</h3>
+<table>
+<tr><th>参数</th><th>值</th><th>作用</th></tr>
+<tr><td><code>start_image_url</code></td><td>起始关键帧</td><td>第一帧锁定为这张图</td></tr>
+<tr><td><code>middle_image_urls</code></td><td>0–3 张途经图（按顺序）</td><td>运镜依次经过这些构图，用来控制路线和空间顺序</td></tr>
+<tr><td><code>end_image_url</code></td><td>结束关键帧</td><td>最后一帧锁定为这张图，也是下一段的起点</td></tr>
+<tr><td><code>duration</code></td><td>5–20 秒（今天用过 5/6/7/8/10/12/15/20）</td><td>段越长越容易漂，越短衔接点越多</td></tr>
+<tr><td><code>resolution</code></td><td>1080p</td><td>出片 1072×1928，24fps，竖屏</td></tr>
+<tr><td><code>prompt</code></td><td>固定前缀 + 本段运镜 + 固定后缀</td><td>英文；写清“从第一帧出发、依次经过关键帧、停在最后一帧”</td></tr>
+</table>
+<h3>和 11-02 用的旧版对比</h3>
+<table>
+<tr><th></th><th>可灵 v2.5-turbo pro（11-02）</th><th>可灵4（今天）</th></tr>
+<tr><td>端点</td><td><code>fal-ai/kling-video/v2.5-turbo/pro/image-to-video</code></td><td><code>kling/v4/image-to-video</code></td></tr>
+<tr><td>关键帧</td><td>只有首帧 + 尾帧（<code>image_url</code> + <code>tail_image_url</code>）</td><td>首帧 + <b>中间帧</b> + 尾帧</td></tr>
+<tr><td>时长</td><td>固定 5 秒</td><td>可到 15–20 秒一段</td></tr>
+<tr><td>其他参数</td><td>负向词 <code>negative_prompt</code>、<code>cfg_scale</code></td><td>今天没传负向词和 cfg，约束全写在 prompt 里</td></tr>
+<tr><td>单价</td><td>$0.35 / 5 秒段（约 $0.07/秒）</td><td>$0.157 / 秒（约 2.2 倍）</td></tr>
+<tr><td>结果</td><td>5 秒一个切点，段多、接缝多</td><td>一段能走完 2–3 个空间，接缝少，运镜更连贯</td></tr>
+</table></div>
+
+<h2>5. 进成片的 5 段</h2>
+<div class="card"><table>
+<tr><th>#</th><th>段名</th><th>时长</th><th>关键帧顺序（起 → 中 → 止）</th><th>走过的空间</th><th>花费</th></tr>
+<tr><td>1</td><td>k5_A</td><td>15 秒</td><td>a_tingyuan2 → a_zoulang2 → a_keting</td><td>院子 → 走廊 → 客厅</td><td>$2.355</td></tr>
+<tr><td>2</td><td>k4_a_keting_b1ting</td><td>15 秒</td><td>a_keting → a_canting → a_louti → a_b1ting</td><td>客厅 → 餐厅 → 楼梯 → 地下厅</td><td>$2.355</td></tr>
+<tr><td>3</td><td>k4_C_b1ting_taiqiu</td><td>15 秒</td><td>a_b1ting → a_xiuxian → a_taiqiu</td><td>地下厅 → 休闲区 → 台球区</td><td>$2.355</td></tr>
+<tr><td>4</td><td>k5_D1</td><td>15 秒</td><td>a_taiqiu2 → a_louti2 → a_woshi</td><td>台球区 → 楼梯 → 卧室</td><td>$2.355</td></tr>
+<tr><td>5</td><td>k5_D2</td><td>12 秒</td><td>a_woshi → a_louti2 → a_shufang</td><td>卧室 → 楼梯 → 阁楼书房</td><td>$1.884</td></tr>
+</table>
+<div class="note">带 “2” 的关键帧（a_tingyuan2、a_zoulang2、a_taiqiu2）是 Nano Banana Pro 改过的图：院子立面改成<b>单扇宽双开门</b>；走廊图配合；台球区楼梯换成<b>白色大理石</b>。a_louti2 是第二个楼梯构图，用来把“上楼”分成两次。</div>
+
+<h3>成片时间线（原始秒数，未含 0.9 倍速调整）</h3>
+<svg viewBox="0 0 940 130" role="img" aria-label="时间线">
+<g font-size="11.5">
+<rect x="10" y="20" width="156" height="34" fill="#4fd1c5" opacity=".85"/><text x="88" y="42" text-anchor="middle" fill="#00110f">k5_A 15s</text>
+<rect x="166" y="20" width="156" height="34" fill="#63b3ed" opacity=".85"/><text x="244" y="42" text-anchor="middle" fill="#00110f">M 15s</text>
+<rect x="322" y="20" width="156" height="34" fill="#4fd1c5" opacity=".85"/><text x="400" y="42" text-anchor="middle" fill="#00110f">C 15s</text>
+<rect x="478" y="20" width="156" height="34" fill="#63b3ed" opacity=".85"/><text x="556" y="42" text-anchor="middle" fill="#00110f">k5_D1 15s</text>
+<rect x="634" y="20" width="125" height="34" fill="#4fd1c5" opacity=".85"/><text x="696" y="42" text-anchor="middle" fill="#00110f">k5_D2 12s</text>
+<rect x="759" y="20" width="171" height="34" fill="#a0aec0" opacity=".6"/><text x="845" y="42" text-anchor="middle" fill="#111">定格 3.5s + 结尾语</text>
+<text x="10" y="82" class="m">院子 · 走廊 · 客厅 · 餐厅 · 楼梯 · 地下厅 · 休闲区 · 台球区 · 楼梯 · 卧室 · 楼梯 · 阁楼书房（12 个字幕标签）</text>
+<text x="10" y="104" class="m">开头配音「从院子走到阁楼」0.4 秒进 · 结尾配音在定格 3.5 秒之后开始，字幕「北京郊区 · 675平 法式独栋」</text></g></svg></div>
+
+<h2>6. 今天可灵4 的 20 次调用：花在哪</h2>
+<div class="card">
+<svg viewBox="0 0 940 280" role="img" aria-label="各轮花费">
+<g font-size="12.5">
+<text x="10" y="18" font-weight="700">按轮次的可灵4 花费（美元）；深色 = 进了 v6 成片，浅色 = 没进</text>
+<g transform="translate(200,34)">
+<text x="-10" y="22" text-anchor="end">第 1 轮 长段方案（12:15–12:58）</text><rect x="0" y="6" width="215" height="24" fill="#63b3ed" opacity=".35"/><rect x="0" y="6" width="86" height="24" fill="#4fd1c5"/><text x="222" y="23" class="m">$11.78（2 段进成片）</text>
+<text x="-10" y="62" text-anchor="end">第 2 轮 门洞过渡帧（13:11）</text><rect x="0" y="46" width="158" height="24" fill="#63b3ed" opacity=".35"/><text x="165" y="63" class="m">$8.64（0 段进成片）</text>
+<text x="-10" y="102" text-anchor="end">第 3 轮 拆成 8 个短段（13:52）</text><rect x="0" y="86" width="196" height="24" fill="#63b3ed" opacity=".35"/><text x="203" y="103" class="m">$10.68（0 段进成片）</text>
+<text x="-10" y="142" text-anchor="end">第 4 轮 只用 a_* 重跑（14:17）</text><rect x="0" y="126" width="156" height="24" fill="#63b3ed" opacity=".35"/><rect x="0" y="126" width="121" height="24" fill="#4fd1c5"/><text x="163" y="143" class="m">$8.48（3 段进成片，含重提 $1.88）</text>
+</g>
+<text x="10" y="226" class="m">合计 $39.56 = 进成片 $11.30 + 没进成片 $28.26。没进成片的主要是被推翻的方案：衔接硬切、两道门、卧室和阁楼同层。</text>
+<text x="10" y="248" class="m">从 20 笔减到成片的 5 段，是反复验收、每次只改有问题的段的结果，不是一次成功。</text></g></svg>
+</div>
+
+<div class="card"><h3>逐笔明细（cost.log 回读，共 20 笔）</h3><table>
+<tr><th>时间</th><th>段</th><th>秒</th><th>美元</th><th>结果</th></tr>
+<tr><td>12:15</td><td>k4_a_keting_b1ting</td><td>15</td><td>2.355</td><td><span class="tag ok">进成片</span></td></tr>
+<tr><td>12:34</td><td>k4_A_tingyuan_keting</td><td>15</td><td>2.355</td><td><span class="tag no">院子前窄后宽的两道门，弃用</span></td></tr>
+<tr><td>12:34</td><td>k4_C_b1ting_taiqiu</td><td>15</td><td>2.355</td><td><span class="tag ok">进成片</span></td></tr>
+<tr><td>12:58</td><td>k4_A2_tingyuan_keting</td><td>15</td><td>2.355</td><td><span class="tag no">弃用</span></td></tr>
+<tr><td>12:58</td><td>k4_D_taiqiu_shufang</td><td>15</td><td>2.355</td><td><span class="tag no">卧室与阁楼同层，弃用</span></td></tr>
+<tr><td>13:11</td><td>k4_A3 / k4_M3 / k4_D3</td><td>15 / 20 / 20</td><td>2.355 / 3.14 / 3.14</td><td><span class="tag no">门洞过渡帧方案，被新方案取代</span></td></tr>
+<tr><td>13:52</td><td>s_A1 A2 A3 M1 M2 M3 Da Db（8 段）</td><td>5–12</td><td>合计 10.676</td><td><span class="tag no">短段拼接版（v5），被取代</span></td></tr>
+<tr><td>14:17</td><td>k5_A / k5_D1</td><td>15 / 15</td><td>2.355 / 2.355</td><td><span class="tag ok">进成片</span></td></tr>
+<tr><td>14:17</td><td>k5_D2（第一次）</td><td>12</td><td>1.884</td><td><span class="tag no">fal 报 downstream service unavailable，未出片</span></td></tr>
+<tr><td>14:47</td><td>k5_D2（重提）</td><td>12</td><td>1.884</td><td><span class="tag ok">进成片</span></td></tr>
+</table>
+<div class="note">k4_E、k4_F（次卧→浴室、厨房→影音室）只写了请求文件，没有提交，没有花钱。</div></div>
+
+<h2>7. 这次踩到的坑</h2>
+<div class="card"><table>
+<tr><th>问题</th><th>原因</th><th>处理</th></tr>
+<tr><td>段内关键帧硬切</td><td>一段塞 4–5 张关键帧，相邻帧位姿差太大，模型直接跳</td><td>每段只放 2–3 张，起止帧用相邻空间的真实最后一帧</td></tr>
+<tr><td>院子到进门有两道门</td><td>首帧里是窄深色门，走近才变宽双开门</td><td>用 Nano Banana Pro 把首帧改成单扇宽双开门（a_tingyuan2）</td></tr>
+<tr><td>卧室和阁楼在同一层</td><td>原段把“卧室→阁楼”直接连</td><td>改成 台球区→楼梯→卧室、卧室→楼梯→阁楼两段，中间都带 a_louti2</td></tr>
+<tr><td>楼梯颜色前后不一</td><td>台球区关键帧里楼梯是米色，餐厅处是白大理石</td><td>改图 a_taiqiu2，楼梯统一白大理石</td></tr>
+<tr><td>结尾太赶</td><td>结尾语和最后画面重叠</td><td>最后一个镜头定格 3.5 秒后再说结尾语</td></tr>
+<tr><td>fal 偶发报错</td><td>downstream_service_unavailable</td><td>单段重提；脚本里已有请求文件的段只取回不重复提交</td></tr>
+</table></div>
+
+<h2>8. 成本口径（未对上，待核）</h2>
+<div class="card warn">我这边的记账是可灵4 共 <b>$39.56</b>（252 秒 × 官方价 $0.157）；后台显示约 $60，差约 $20，我这边<b>对不上</b>。fal key 没有用量接口权限，查不到逐笔。要对账需要 fal 后台 Usage 里 <code>kling/v4/image-to-video</code> 的总秒数和请求数：约 382 秒才对得上 $60，约 252 秒则说明 $60 里有别的东西。</div>
+
+<h2>9. 下次想省钱的话</h2>
+<div class="card">
+<ul style="margin:0;padding-left:20px">
+<li><b>先验证再放长</b>：同一空间先出一段 5–8 秒验首帧、关键帧顺序、门和楼梯，再出 15 秒版。今天 71% 的花费在被推翻的方案上。</li>
+<li><b>先把关键帧修对</b>：改图 $0.15/张，远低于重跑一段（$1.9–$3.1）。门、楼梯、层序在关键帧阶段修。</li>
+<li><b>每段起止帧用上一段真实尾帧</b>：能减少叠化和硬切，也就少一次重跑。</li>
+<li><b>可灵2.5 不适合这条片</b>：便宜（约 $0.07/秒），但只有首尾帧，一镜到底要 5 秒一个接缝，之前版本就是这样被指出不够连贯。</li>
+</ul></div>
+</div></body></html>
