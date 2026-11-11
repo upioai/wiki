@@ -208,6 +208,39 @@ def _rpc(name: str, payload: dict):
     return json.loads(body) if body else None
 
 
+# complete_* 回写的瞬时故障重试（2026-11-04）。
+# 回写失败以前只打一行 stderr：行留在 claimed → claim_dispatch 的 15min 死锁回收把它翻回
+# pending → 下一轮【再发一遍】（DM / 二触评论 / 反评都是真对外动作）。网络抖一下 = 重复触达。
+# 只重试传输层 + 5xx：连不上 / 超时 / 断连 / 502-504。4xx（RAISE EXCEPTION 的业务错，比如
+# 行不存在 / status 非法）重试无用，立即放弃。三个 complete RPC 重放都安全：dispatch_queue
+# 只是 UPDATE 同值；sent 分支的 mark_lead_contacted 按 15min 内同内容消息去重、
+# complete_rc_dispatch 写 outreach_events 前查 EXISTS(status='sent')。
+COMPLETE_RPC_RETRIES = int(os.environ.get('AKKE_COMPLETE_RPC_RETRIES', '3'))
+COMPLETE_RPC_BACKOFF_SEC = float(os.environ.get('AKKE_COMPLETE_RPC_BACKOFF_SEC', '2'))
+
+
+def _is_transient_rpc_error(e: BaseException) -> bool:
+    cause = e.__cause__ if isinstance(e, RuntimeError) else e
+    if isinstance(cause, urllib.error.HTTPError):
+        return cause.code >= 500
+    return isinstance(cause, (urllib.error.URLError, TimeoutError, ConnectionError))
+
+
+def _rpc_complete(name: str, payload: dict):
+    """_rpc + 瞬时故障退避重试（2s, 4s, …）。重试耗尽 / 非瞬时错误原样抛给调用方。"""
+    attempts = max(1, COMPLETE_RPC_RETRIES)
+    for i in range(attempts):
+        try:
+            return _rpc(name, payload)
+        except Exception as e:
+            if i == attempts - 1 or not _is_transient_rpc_error(e):
+                raise
+            delay = COMPLETE_RPC_BACKOFF_SEC * (2 ** i)
+            print(f'  .. {name}({str(payload.get("p_id", ""))[:8]}) transient {type(e).__name__}: {e} '
+                  f'→ retry {i + 2}/{attempts} in {delay:.0f}s', file=sys.stderr)
+            time.sleep(delay)
+
+
 def _get(path_and_query: str):
     """PostgREST 表查询（GET）。失败抛异常，由调用方兜。"""
     req = urllib.request.Request(
@@ -535,7 +568,7 @@ def complete_one(disp_id: str, log_row: dict, resolved_number: str | None = None
     if resolved_number:
         payload['p_douyin_number'] = resolved_number
     try:
-        _rpc('complete_dispatch', payload)
+        _rpc_complete('complete_dispatch', payload)
         print(f'  ✓ completed {disp_id[:8]} → {rpc_status} (ocr={ocr_conf})')
     except Exception as e:
         print(f'  !! complete_dispatch({disp_id[:8]}) failed: {e}', file=sys.stderr)
@@ -729,7 +762,7 @@ def process_batch(claimed: list[dict]) -> None:
         elif sec in definite_none:
             print(f'  ✗ {nick} enrich_failed(确定无抖音号) → skip，不跑 GUI')
             try:
-                _rpc('complete_dispatch', {
+                _rpc_complete('complete_dispatch', {
                     'p_id': r['id'], 'p_status': 'skipped',
                     'p_ocr_confidence': None, 'p_error_message': 'enrich_failed',
                 })
@@ -778,7 +811,7 @@ def process_batch(claimed: list[dict]) -> None:
             if num:
                 payload['p_douyin_number'] = num
             try:
-                _rpc('complete_dispatch', payload)
+                _rpc_complete('complete_dispatch', payload)
             except Exception as e:
                 print(f'  !! complete failed for {r["id"][:8]}: {e}', file=sys.stderr)
             continue
@@ -871,7 +904,7 @@ def complete_second_touch_one(disp_id: str, log_row: dict) -> None:
     ocr_conf = float(ocr_raw) if ocr_raw else None
     err = None if rpc_status == 'sent' else raw_status[:500]
     try:
-        _rpc('complete_second_touch_dispatch', {
+        _rpc_complete('complete_second_touch_dispatch', {
             'p_id': disp_id,
             'p_status': rpc_status,
             'p_ocr_confidence': ocr_conf,
@@ -907,7 +940,7 @@ def process_second_touch_batch(claimed: list[dict]) -> None:
             # 免得它其实已发出公开评论、下轮又重发刷屏（2026-06-13 壹王情深教训）。
             print(f'  ?? 二触 {r["id"][:8]} not in comment_log → 可能已发，defer(冷却1天)不重试')
             try:
-                _rpc('complete_second_touch_dispatch', {
+                _rpc_complete('complete_second_touch_dispatch', {
                     'p_id': r['id'],
                     'p_status': 'skipped',
                     'p_ocr_confidence': None,
@@ -999,7 +1032,7 @@ def complete_rc_one(disp_id: str, log_row: dict) -> None:
     rpc_status = map_rc_status(raw_status)
     err = None if rpc_status == 'sent' else raw_status[:500]
     try:
-        _rpc('complete_rc_dispatch', {
+        _rpc_complete('complete_rc_dispatch', {
             'p_id': disp_id,
             'p_status': rpc_status,
             'p_ocr_confidence': None,
@@ -1036,7 +1069,7 @@ def process_rc_batch(claimed: list[dict]) -> None:
         if not log_row:
             print(f'  ?? RC {r["id"][:8]} not in rc_reply_log → mark failed')
             try:
-                _rpc('complete_rc_dispatch', {
+                _rpc_complete('complete_rc_dispatch', {
                     'p_id': r['id'],
                     'p_status': 'failed',
                     'p_ocr_confidence': None,
