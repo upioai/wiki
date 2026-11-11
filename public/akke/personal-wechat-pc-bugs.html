@@ -1864,6 +1864,76 @@
       </dl>
     </div>
 
+    <div class="bug" id="W-132" style="--bc:#d03b3b">
+      <div class="bh"><code class="bid">W-132</code><b>新好友刚通过，添加提示旁的日期条这一次没读到，程序把「没判成」记成「判过」，24 小时内不再看；日期后来读对了也被挡住，当天没发首触</b><span class="bst wait">修复已发布（1.26.9）· 三台已装（10-29）· 装机后 0 命中 · 未独立检验 · 未验收</span></div>
+      <dl>
+        <dt>现场</dt><dd>电脑 A，10-26 一位当天新加的好友（备注、手机号等客户信息不写）。11:33 客户通过；11:35:20 回复通道把他交给首触，探测日志 <code>first_touch_skip reason=notice_date_unverified 读不到添加提示所在的日期分隔条（label=''）</code>。这一次探测被记成「判过」，24 小时内同一位不再探。15:10 巡检再点开，通过时间这次读对了（按 11:33 记下）；15:16 日志 <code>first_touch_throttled reason=这位 220 分钟前探测过（24h 内不重复）</code>，当天一条首触没发。服务端这位的首触时间是空的，会话里 0 条消息。</dd>
+        <dt>影响</dt><dd>这位新好友 10-26 当天没有收到首触。他 10-27 的后续（收到的第一句是召回）见 <a href="#W-139">W-139</a>。</dd>
+        <dt>根因</dt><dd>日期条读不到是「没判成」，不是「判成了但不合格」，程序却没区分：<code>cloudpc/windows-weixin/idle_history.py</code> 的 <code>probe_first_touch</code> 把 <code>first_touch_verdict</code> 的所有拒绝都记成 <code>skip:</code>，24 小时内不重复探。#2226 已让这一类不再落 30 天封禁，但 24 小时这一层没处理。<br>日期条这一次为什么没读到，两处记录说法不一：#2422 描述写销售截图里同一屏的「11:33」日期条清楚可见，判为识图偶发漏读；W-135 的登记则把同一天的漏发归到提示旁本来就没有自己的日期条（见 <a href="#W-135">W-135</a>）。哪一种对应这一次的日志，未核。</dd>
+        <dt>怎么修</dt><dd><code>Akke-AI/wecom-chat</code> #2422（10-27 11:56 合并，版本号 1.26.8；1.26.8 没有单独出包，第一个含它的发布包是 1.26.9）：新增 <code>first_touch_fast.remember_verdict</code>，日期没读到的前 2 次记成「没判成」（<code>transient:notice_date_unverified</code>，15 分钟后再看），连续第 3 次才记 <code>skip:</code> 压 24 小时；中间任何一次真判决都让连续计数清零。「没判成」时手动消掉召回路径给的新好友标记，否则下一圈会跳过 15 分钟的等待、立刻重读同一张屏；等待的 15 分钟里巡检再路过，回 <code>FIRST_TOUCH_PENDING</code>，不把他登记成召回。日志 <code>first_touch_skip … retry_in=15min dateless=N/3</code>。<br>代价（PR 自述）：读不出日期的会话每位最多多 2 次读屏、2 个探测额度（额度 200/天）；3 天窗口没放宽，不会给老联系人发首触。</dd>
+        <dt>验证</dt><dd>现场回放用例走真的两拍巡检：第一次日期条读成空，不发；16 分钟后同一份记录、日期读对，首触发出 1 次；把非测试改动退回后它会失败（作者本地验证）。另有连续 3 次才压 24 小时、中间真判一次链断开、新好友标记不让重试跳过 15 分钟、等待期不登记召回的用例。Windows 端全量测试在 #2422 最终版是 2539 passed / 2 skipped（含同一 PR 的 <a href="#W-135">W-135</a> 等）。#2422 描述里的「独立检验 S1」是作者自己写的，不算独立检验；这条没有独立检验。</dd>
+        <dt>还没解决</dt><dd>① 三台 10-29 07:29–07:32 已装上 1.26.19（见 <a href="#W-137">W-137</a> 卡的心跳回读，含本修复）；11-11 11:33–11:37 跑生效证据脚本，装机后最近 3 天三台都没有 <code>retry_in=</code> 这一行，也就是还没遇到过这种画面，修复没被真实场景走到过（日志只数最近 3 天，10-29 到 11-07 这次没查）。② 日期条这次为什么没读到，见根因，未核。③ 三次都读不到的会话仍压 24 小时，这是设计内的取舍。</dd>
+        <dt>相关</dt><dd><a href="#W-135">W-135</a>（提示旁没有时间条，同样读不到日期）、<a href="#W-139">W-139</a>（同一位后来的召回）。</dd>
+        <dt>怎么验收</dt><dd>同一位新好友先出现 <code>retry_in=</code> 那行，约 15 分钟后出现 <code>first_touch_candidate</code> 和 <code>SENT first_touch</code>（生效证据登记：只计数、不判）。</dd>
+      </dl>
+    </div>
+
+    <div class="bug" id="W-133" style="--bc:#d03b3b">
+      <div class="bh"><code class="bid">W-133</code><b>巡检第一次点进「服务号」这类文件夹时，被当成「列表被动过」作废这一拍，认文件夹、点「聊天」图标退出的那段轮不到，在子列表里一圈圈空转</b><span class="bst wait">修复已发布（1.26.9）· 三台已装（10-29）· 新分支已在两台触发过 · 未独立检验 · 未验收</span></div>
+      <dl>
+        <dt>现场</dt><dd>电脑 A，10-27。运营截图：微信停在「&lt; 服务号」子列表（只有一行），右边空白。客户端日志：08:09、08:38 第 1 页第 10 行 <code>status=walk_skip_folder</code>（头像指纹认出是文件夹，跳过）；09:12:24 <code>list_walk_abort walk_list_moved row=10 点击前后别的行都换了人，这一拍作废</code>——这一次指纹没对上，点进了「服务号」；之后每圈 <code>list_walk_row_not_selected row=2..12 lit_rows=[1]</code>、<code>list_walk_cycle … pages=0 not_selected=47</code>，一直在文件夹里点空白；09:21:08 碰巧点中表头退出来，紧接着 6 次 <code>recall_topic_one_yield_to_reply 有客户未读</code>；09:25:36 又一次 <code>walk_list_moved row=10</code> 点进去，困到 09:56:52（这段 <code>walk_row_not_selected</code> 497 次）。当天这台是 1.26.7（见 #2427 描述）。</dd>
+        <dt>影响</dt><dd>两次共约 40 分钟（09:12:24–09:21:08 约 9 分钟，09:25:36–09:56:52 约 31 分钟）巡检没在主列表上走。登记说明：第二次困住期间主列表未读没人回；退出后紧接着的 6 次「有客户未读」让位记录也说明主列表未读一直在排队。具体哪几位客户因此晚回，没有逐位核。</dd>
+        <dt>根因</dt><dd><code>cloudpc/windows-weixin/idle_history.py</code> 的 <code>walk_tick</code>：点完一行先过 <code>list_stable</code>（1.25.40 加的，含义是<code>点击前后别的行全换了人＝列表被动过</code>），不过就 <code>_walk_abort</code> 返回；认文件夹并退回主列表的那段（<code>row_selected</code> 不成立分支里的 <code>_entered_folder</code>）排在它后面，轮不到。文件夹子列表里只要有两格以上有内容（现场是「&lt; 服务号」表头 + 一行），<code>list_stable</code> 就判不稳——进文件夹恰好也是「别的行全换了人」。只有一格有内容时可比的格子不足 2 个，当作稳定，才会走到原来那条退出路，所以 1.25.40 之后的回放没暴露。<br>09:12 这一次头像指纹为什么没对上，没查明。</dd>
+        <dt>怎么修</dt><dd><code>Akke-AI/wecom-chat</code> #2424（10-27 12:15 合并，1.26.9）：<code>list_stable</code> 不过时先看 <code>_entered_folder</code>（列表变了、没有选中行）<b>且</b> <code>chat_title_blank</code>（右边标题条空）：是就按文件夹处理——记 <code>walk_folder_row</code>、单击「聊天」图标回主列表、记头像指纹以后不点（日志 <code>INFO list_walk_folder_row … why=list_moved_blank_chat</code>）。右边还开着客户（销售在点击落地前滚了列表）的仍按原样 <code>walk_list_moved</code> 作废，不拉黑被点的那一行。<br>另一道兜底是 #2409（1.26.10）的 <code>walk_coverage.stuck_in_folder</code>：一圈一页没翻、没碰到客户就回主列表，覆盖人或回复流程点进文件夹的情况；#2424 描述估计单靠它也能把 31 分钟缩到一圈（约 3.5 分钟）。</dd>
+        <dt>验证</dt><dd>两条新测试：正例（第一次点进「服务号」，别的行全换了人）在旧代码上失败（<code>巡检走完一圈还停在服务号里</code>），新代码一圈全看到、只进一次文件夹；反例（销售滚了列表、右边还开着客户）照旧作废一次、不点图标、跳过名单为空。模拟器 <code>walk_sim.py</code> 为此加了文件夹行和左侧图标栏点击。全量 pytest 2521 passed / 2 skipped。这条没有独立检验。</dd>
+        <dt>还没解决</dt><dd>① 三台 10-29 已装上 1.26.19（见 <a href="#W-137">W-137</a> 卡的心跳回读，含本修复）。11-11 11:33–11:37 跑生效证据脚本，最近 3 天新分支日志 <code>list_walk_folder_row … why=list_moved_blank_chat</code> 电脑 B 7 次、电脑 C 7 次、电脑 A 0 次，说明新路径在真机上走到过；每次之后是否都顺利退回主列表、没再出现成串 <code>list_walk_row_not_selected</code>，这次没有逐条核（日志只数最近 3 天）。② 判文件夹多要求了「右边空了」，比原来更严，最坏是漏认、回到修之前的行为（PR 自述风险）。</dd>
+        <dt>相关</dt><dd><a href="#W-136">W-136</a>（追未读时停在同一个子列表）、<a href="#W-137">W-137</a>（停在「有大有小」夹子里）、<a href="#W-107">W-107</a>（置顶折叠栏）。</dd>
+        <dt>怎么验收</dt><dd>装上 1.26.9 及以后，日志出现 <code>list_walk_folder_row … why=list_moved_blank_chat</code> 后，同一圈内回到主列表继续翻页；不再出现 <code>list_walk_abort walk_list_moved</code> 后紧跟成串 <code>list_walk_row_not_selected</code> 的形态。该行只在真点进文件夹时出现，装机后久无命中不算失败。</dd>
+      </dl>
+    </div>
+
+    <div class="bug" id="W-134" style="--bc:#d03b3b">
+      <div class="bh"><code class="bid">W-134</code><b>新好友被销售先手发了招呼，程序没认出他是新好友：往上翻找通过提示的扫描一翻就到顶、翻了 0 屏，服务端又没有他的通过记录，当老客户排了召回，发前读屏失败还照发</b><span class="bst open">根因已查明 · 未修 · 修法计划中</span></div>
+      <dl>
+        <dt>现场</dt><dd>电脑 B，10-26 一位当天新加的好友（客户信息不写）。15:36 销售在电脑上手发了一句招呼；17:30 程序判「最新一条不是系统提示」，跳过首触；往上翻找通过提示的扫描因为聊天一屏装得下、一翻就到顶，结果是「到顶、翻了 0 屏」；服务端没有这位的新好友记录，把他当老客户排了召回；发前读屏失败（<code>separator_unknown_or_invalid</code>），服务端按兜底规则 <code>read_status=failed_fallback</code> 放行发送。以上时间和结果来自排查同事的转述，本卡没有直接查库或日志。</dd>
+        <dt>影响</dt><dd>这位新好友没有走首触，被当老客户召回；按转述他收到了这条召回，送达本卡未直接核。同形态（销售先手发招呼、聊天一屏装得下）有多少位，没有统计。</dd>
+        <dt>根因</dt><dd>以下按 Akke-AI/wecom-chat 主干（11-11 取）代码逐段对照：<br>① 要不要往上翻：<code>cloudpc/windows-weixin/friend_accept_scan.py</code> 的 <code>scan_wanted</code> 只在当前屏读不到带日期的通过提示（没认出提示，或提示的日期条没读到）时才翻。<br>② <code>scan()</code>（第 79–104 行）每一轮先 <code>scroll_up()</code> 再 <code>read_view()</code>：第一次往上滚就滚不动（<code>RP.TOP</code>）时直接返回 <code>Scan(TOP, screens=0)</code>；当前这一屏在进扫描前读过一次，扫描里不会再读。聊天一屏装得下的新好友，结果就是 <code>outcome=top screens=0</code>，不记通过。<br>③ 没有通过记录，召回照排：W-139 加的那道闸 <code>newFriendNotTouched</code>（<code>src/lib/wecom/weixin-friend-lifecycle.ts</code>）在库里没有这位的生命周期行时回 false，管不到他。<br>④ 发前读屏失败（<code>status: "failed"</code>）：<code>src/lib/wecom/windows-recall-service.ts</code> 第 888–902 行，客户端回执带了 <code>newFriend</code> 标记会交首触，带了空会话未核实标记或判为暂时性失败会放回队列；这三项都不成立才走 <code>readFailureFallback</code>（第 914 行起）——现场照发，按代码推演就是这三项都不成立：连续读失败未满 3 次、客户资格闸过、当天兜底没封顶、能选出话题，就返回 <code>send: true, read_status: "failed_fallback"</code>。这条兜底是 09-23 运营定的，回过话的客户读不到也兜底（#1586）。</dd>
+        <dt>怎么修</dt><dd>未修。计划两处，都还没开发：① 扫描到顶时，回头再读一遍当前这一屏，不要只返回「到顶」；② 服务端：发前读屏失败、且这个会话库里没有任何历史消息时，不给兜底、不照发。</dd>
+        <dt>验证</dt><dd>代码部分：11-11 对着 <code>origin/main</code> 逐行读过 ①–④；<code>friend_accept_scan.py</code> 自 10-21 的 W-112（#2331，1.25.48）后没有改动，10-27 以来也没有；<code>windows-recall-service.ts</code> 10-27 以来有两次提交（#2452 加了 W-139 那道闸，#2478 整仓审计删了一个没人引用的常量），读屏失败那一段（第 888 行起）与 10-27 之前的版本逐行对过，没有变化。现场部分（时间、<code>screens=0</code>、读屏失败原因）来自转述，没有复现用例，没有独立检验。</dd>
+        <dt>还没解决</dt><dd>全部没解决。另有两点未核：① 计划修法 ① 回头再读当前屏，能不能读出日期条取决于那次识图，没验证；② 计划修法 ② 要求库里没有历史消息，而这一位 15:36 销售手发的招呼是否已进库，没查，进了的话这条规则拦不住他。</dd>
+        <dt>相关</dt><dd><a href="#W-112">W-112</a>（扫描找通过提示的同一份代码）、<a href="#W-139">W-139</a>（新好友没首触、召回发成第一句）、<a href="#W-109">W-109</a>（读不成时服务端兜底发）。</dd>
+        <dt>怎么验收</dt><dd>按计划的修法：同形态（新好友被销售先手发招呼、聊天一屏装得下）日志里 <code>friend_accept_scan … outcome=</code> 不再是 <code>top screens=0</code>，库里有这位的通过记录；或发前读屏失败时不再出现 <code>failed_fallback</code> 发出、改为交首触。</dd>
+      </dl>
+    </div>
+
+    <div class="bug" id="W-135" style="--bc:#d03b3b">
+      <div class="bh"><code class="bid">W-135</code><b>对方几分钟内通过好友时，「你已添加了…」旁边没有自己的时间条，程序只认提示自己的日期条，读到空就不首触</b><span class="bst wait">修复已发布（1.26.9）· 三台已装（10-29）· 装机后 0 命中 · 未独立检验 · 未验收</span></div>
+      <dl>
+        <dt>现场</dt><dd>电脑 A，10-26 的取证图（11:42）：我方好友申请话术的绿泡下面直接是灰字 <code>你已添加了…，现在可以开始聊天了。</code>，灰字旁边没有自己的时间条，最近的时间条（11:30）在申请话术上面。读屏结果 <code>friend_notice_time_label=''</code>，判 <code>notice_date_unverified</code>。登记说明把这一形态算作 <a href="#W-132">W-132</a> 那位新好友当天没首触的另一半成因；屏不变的话，W-132 的「15 分钟后再看」也一样读不到。</dd>
+        <dt>影响</dt><dd>这类新好友的首触发不出去：日期读到空，按「读不到日期」处理，重试读到的还是空，连续 3 次后压 24 小时。有多少位新好友碰到，没有统计。</dd>
+        <dt>根因</dt><dd>判新好友要看添加提示的日期是否在 3 天内（<code>first_touch.py</code> 的 <code>NOTICE_MAX_AGE_SEC</code>），日期只认提示自己的那条日期条。对方在申请发出几分钟内通过时，微信不在提示旁另插时间（#2422 描述的判断），提示自己没有日期条，读到的就是空。</dd>
+        <dt>怎么修</dt><dd><code>Akke-AI/wecom-chat</code> #2422（W-135 一段，10-27 11:56 合并，随 1.26.9 发布）：<code>first_touch_fast.notice_date_reason</code> 先用提示自己的日期；读不到就借正文读法的 <code>time_label</code>（最下面一个气泡之前最近的时间条，也就是我方申请消息的时间），只用来判「3 天内」：申请在 3 天内就首触；早于 3 天仍按没读到处理，不判旧提示、不封 30 天。走到日期这一步之前已确认客户没说过话、通过后我方没说过话，所以最下面的气泡只会是申请话术或对方那条「我通过了…」。灰字补读路径用 <code>with_request_label</code> 带进同一个时间。升级前记下的 <code>skip:notice_date_unverified</code> 判决作废重判（<code>void_dateless</code>）。日志 <code>first_touch_candidate … date_from=notice|request(&lt;时间&gt;)</code>。通过统计口径不变，仍只认提示自己的日期条。<br>风险（PR 自述）：申请时间 ≤ 通过时间，3 天窗口只会偏紧（申请 2.9 天前、刚通过 → 发；3.1 天前、刚通过 → 仍按没读到）。</dd>
+        <dt>验证</dt><dd>5 条新用例在旧代码上失败（PR 自述已验）；仓里另有一条现场回放用例（巡检点开新好友、提示旁没时间，按申请消息时间发首触）。Windows 端全量 2539 passed，行数闸和函数棘轮通过。这条没有独立检验。</dd>
+        <dt>还没解决</dt><dd>① 三台 10-29 已装上 1.26.19（见 <a href="#W-137">W-137</a> 卡的心跳回读，含本修复）；11-11 11:33–11:37 跑生效证据脚本，最近 3 天 <code>date_from=request(</code> 三台 0 命中，也就是没遇到这种画面，未验收（日志只数最近 3 天）。② 申请早于 3 天的仍按没读到处理，这类仍可能漏首触，没有统计。</dd>
+        <dt>相关</dt><dd><a href="#W-132">W-132</a>（日期条没读到压 24 小时）、<a href="#W-139">W-139</a>（首触发不出去时召回发成第一句）。</dd>
+        <dt>怎么验收</dt><dd>日志出现 <code>first_touch_candidate … date_from=request(&lt;时间&gt;)</code>，紧跟着 <code>SENT first_touch</code>（生效证据登记：只计数、不判）。</dd>
+      </dl>
+    </div>
+
+    <div class="bug" id="W-136" style="--bc:#d03b3b">
+      <div class="bh"><code class="bid">W-136</code><b>追屏外未读时列表停在「服务号」子列表里，程序只在子列表里翻，满 5 分钟误报找不到是哪一位</b><span class="bst wait">修复已发布（1.26.12）· 三台已装（10-29）· 装机后已触发 · 独立检验 CODE_ONLY · 未验收</span></div>
+      <dl>
+        <dt>现场</dt><dd>电脑 A，10-27。17:15 推出告警卡<code>左侧聊天图标的未读已亮 5 分钟，翻遍列表仍找不到是哪一位，可能有客户在等回复</code>（<code>unread_unreachable</code>）。17:05:02、17:07:31、17:09:58 三次 <code>sidebar_unread_quiet</code>：回顶 top0 / 翻页 page1–5 / 跳未读 jump1–3 全部 <code>raw=0</code>。17:10:04 上传的留证图（回顶那一帧）是「&lt; 服务号」子列表，只有一行。17:08:45–17:09:32 巡检在子列表里连着点第 4–12 行，全是 <code>list_walk_row_not_selected lit_rows=[]</code>（<a href="#W-133">W-133</a> 的形态；这台当时还是 1.26.7）。17:12:48、17:15:47 回到主列表后 <code>top0:raw=1,grp=1</code>：亮的是群。</dd>
+        <dt>影响</dt><dd>17:15 推出一张错误的告警，说可能有客户在等。库里这台 16:00–17:45 没有客户来消息（下一条是 17:50），实际没有客户在等。</dd>
+        <dt>根因</dt><dd><code>cloudpc/windows-weixin/unread_chase.py</code> 的 <code>chase</code> 在回顶（<code>runner._scroll_list_to_top</code>）、翻页、双击跳未读之前，都不检查列表是不是停在文件夹里。停在「服务号」子列表时这三步都只在子列表里转，<code>seen_raw=0</code>，<code>_badge_lit_since</code> 不清零，满 <code>STUCK_ALERT_SEC</code>（300 秒，第 35 行）就报 error。巡检侧退出文件夹靠单击「聊天」图标（<code>idle_history._walk_back_to_main_list</code>），追未读这条路径没有这一步。</dd>
+        <dt>怎么修</dt><dd><code>Akke-AI/wecom-chat</code> #2427（10-27 22:58 合并，1.26.12）：每次追之前先单击「聊天」图标回到主列表（<code>_back_to_main_list</code>，日志 <code>INFO unread_chase_back_to_main</code>），再回顶；图标中心只量一次（<code>_chat_icon_point</code>），回主列表和跳未读共用这个点；量不到图标、没有列表区就不点。单击后列表整个换了记 <code>changed=1</code>，主列表上那一下记 <code>changed=0</code>。人手点进文件夹、回复流程停在文件夹里的情况，W-133（巡检侧）管不到，这里兜住。<br>代价（PR 自述）：角标亮着时每次追未读多一次单击（追未读本身至少隔 60 秒）；在主列表上多点一下没有影响，紧接着就回顶。</dd>
+        <dt>验证</dt><dd>三条 W-136 用例（停在文件夹里能找到客户未读；本来就在主列表，单击不动列表、记 <code>changed=0</code>；停在文件夹里、主列表只有群的未读，不误报找不到）在旧代码上失败（PR 记录最初两条在 <code>origin/main</code> 的旧版本上 2 failed；独立检验后补到三条）；全量 pytest 2546 passed。独立检验（未参与实现的一方）结论 CODE_ONLY、无阻断项：代码和定向测试可证，包发布、装机、真机场景当时未证。按检验意见补了三处（台账信号改为 <code>changed=1</code>、量图标进 try、没有列表区就不点）；检验提的第 1 项（现场 page / jump 步骤签名）留装机后对日志和留证图复核，第 5、6 项是既有路径，不在本修复范围。</dd>
+        <dt>还没解决</dt><dd>① 三台 10-29 已装上 1.26.19（见 <a href="#W-137">W-137</a> 卡的心跳回读，含本修复）。11-11 11:33–11:37 跑生效证据脚本，最近 3 天信号 <code>unread_chase_back_to_main changed=1</code> 电脑 C 4 次、电脑 A 1 次、电脑 B 0 次，三台 <code>unread_unreachable</code> 事件 0 条（日志只数最近 3 天）。这几次点图标之后追到了谁，没有逐条核。② 电脑 C 装机后到 11-07 共 34 条 <code>unread_unreachable</code>，抽看最后 3 条，步骤都以 <code>main0</code> 开头，也就是停在主列表；其余 31 条没有逐条看，不能说它们都不是文件夹。③ 检验第 1 项还没复核。</dd>
+        <dt>相关</dt><dd><a href="#W-133">W-133</a>（巡检点进同一个子列表）、<a href="#W-137">W-137</a>（停在「有大有小」夹子里）、<a href="#W-107">W-107</a>（置顶折叠栏）。</dd>
+        <dt>怎么验收</dt><dd>同一时段不再有 <code>unread_unreachable</code>，留证图不再是文件夹子列表；停进子列表时日志出现 <code>unread_chase_back_to_main changed=1</code>。失败形态：<code>unread_unreachable</code> 的留证图仍是文件夹子列表。</dd>
+      </dl>
+    </div>
+
     <div class="bug" id="W-137" style="--bc:#d03b3b">
       <div class="bh"><code class="bid">W-137</code><b>停在「&lt; 有大有小」这类文件夹子列表里，程序不点左侧「聊天」图标回主列表，在夹子里一圈圈空转</b><span class="bst wait">三台已装（10-29 装 1.26.19，含 1.26.14 的修复）· 还没在真实流量里触发 · 未验收</span></div>
       <dl>
@@ -1935,7 +2005,7 @@
 </div>
 <div id="tip" role="tooltip"></div>
 
-<script src="/akke/personal-wechat-pc-bug-guide.js?v=hb710200683"></script>
+<script src="/akke/personal-wechat-pc-bug-guide.js?v=h9ed2603de3"></script>
 <script>
 const API_BASE = "https://wecom-chat.vercel.app/api/public/weixin-pc-live";
 const MACHINES = [
