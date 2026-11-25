@@ -142,6 +142,7 @@
   .menu-l .pill { display: inline-block; margin-top: .6rem; font-size: .72rem; padding: .15rem .6rem; border-radius: 1rem; background: rgba(120,220,255,.15); color: var(--open); }
   .menu-r .btn { margin-top: .5rem; padding: .55rem; }
   .menu-r .btn:first-child { margin-top: 0; }
+  .menu-l .btn.tel { display: block; width: auto; margin-top: .5rem; padding: .25rem .7rem; font-size: .7rem; font-weight: 600; opacity: .7; }
 
   /* 选人 */
   .sel-card { max-width: calc(var(--vw) * 98); width: calc(var(--vw) * 98); padding: .7rem .9rem; display: flex; flex-direction: column; }
@@ -242,6 +243,7 @@
       <h1>飞盘 <em>Ultimate</em> 4v4</h1>
       <div class="sub">五夫博约山景球场 · 运动休闲小游戏<br>选 4 人上场，打电脑，一局约 5–10 分钟</div>
       <span class="pill">俯视角 · 手机横屏 / 电脑键盘</span>
+      <button class="btn alt tel" id="b-tel">导出对局数据</button>
     </div>
     <div class="menu-r">
       <button class="btn gold" id="b-quick">快速比赛<small>选人 · 抢 5 / 抢 7 · 对战电脑</small></button>
@@ -263,6 +265,7 @@
           <div><div class="lab">比赛长度</div><div class="seg" id="seg-goal"><button data-v="5" class="on">抢 5</button><button data-v="7">抢 7</button></div></div>
           <div><div class="lab">AI 强度</div><div class="seg" id="seg-diff"><button data-v="0">轻松</button><button data-v="1" class="on">普通</button><button data-v="2">较真</button></div></div>
           <div><div class="lab">战术站位</div><div class="seg" id="seg-form"><button data-v="vert" class="on">竖排</button><button data-v="horz">横排</button></div></div>
+          <div id="opt-buzz"><div class="lab">震动</div><div class="seg"><button data-v="1" class="on">开</button><button data-v="0">关</button></div></div>
         </div>
       </div>
       <div class="sel-side">
@@ -365,9 +368,11 @@
   const FL = 40, FWD = 20, EZ = 5, AP = 1.5;
   const STEP = 1 / 60;
   const STALL_MAX = 10, STALL_RANGE = 3.2;
-  const SPD = { cut: 7.4, jog: 4.6, def: 7.0, defFlight: 6.6, mark: 7.5, pickup: 5.5, run: 6.0, sprint: 8.6 };
+  const SPD = { cut: 7.4, jog: 4.6, def: 6.0, defFlight: 6.6, mark: 7.5, pickup: 5.5, run: 6.0, sprint: 8.6 };
   const CATCH_R = 1.15, BLOCK_R = 0.7;
-  const JUMP_T = 0.55, JUMP_CD = 1.2, JUMP_CATCH = 1.45, JUMP_BLOCK = 2.0;
+  const JUMP_T = 0.55, JUMP_CD = 1.75, JUMP_CATCH = 1.45, JUMP_BLOCK = 2.0;
+  const JUMP_LAND = 0.3, JUMP_LAND_SLOW = 0.7;   // 跳接落地硬直：0.3 秒内不能再跳、移速 ×0.7（策划书 4.6）
+  const CTL_CD = 0.4, CTL_UNDO = 0.4, CTL_HL = 1.0; // 切人：冷却 / 撤销窗口 / 被切到的人高亮时长（策划书 4.7）
   const MARK_CONE = 0.95, MARK_REACH = 2;   // marker 封堵扇形：半角（弧度）与有效距离
   const HAND_AWAY = 0.6, HIGH_CONE = 0.55;  // 绕开手 / 高盘 对扇形的缩小系数
   const HIGH_HOLD = 0.28;                   // 长按超过这个秒数＝高盘
@@ -488,7 +493,7 @@
     return da < coneFor(kind, handAway(hand, a1, a2));
   }
   function inScoreZone(t, x) { return dirOf(t) > 0 ? x > FL - EZ : x < EZ; }
-  const spdF = (p) => (0.9 + p.info.spd * 0.025) * (p.team === 'R' ? AIK() : 1);
+  const spdF = (p) => (0.9 + p.info.spd * 0.025) * (p.team === 'R' ? AIK() : 1) * (p.landT > 0 ? JUMP_LAND_SLOW : 1);
   const catchF = (p) => 0.85 + 0.04 * p.info.catch;
 
   // ---------- 声音：音效 / 背景音乐（WebAudio 合成）/ 倒数语音 ----------
@@ -634,7 +639,7 @@
     side: { B: 1, R: -1 }, pull: null,
     stall: 0, holdT: 0, checkT: 0, checkTWas: 0, patience: 8, risk: 0.1, possN: 0,
     passN: 0, score: { B: 0, R: 0 }, pause: 0, afterPause: null, cutClock: 0,
-    ctl: null, manual: false, manualKey: '',
+    ctl: null, manual: false, manualKey: '', autoKey: '', ctlT: -9, ctlKind: '', ctlPrev: null, ctlTo: null, ctlHL: null,
     cd: 0, cdNum: false, cdLast: 0,
     flash: [], bubbles: [], parts: [], celeb: null,
     ts: null, time: 0, playT: 0,
@@ -648,7 +653,139 @@
     G.events.push(e); if (G.events.length > 4000) G.events.shift();
     G.log.push(e); if (G.log.length > 60) G.log.shift();
     G.lastEv = type; G.lastEvT = G.time;
+    telOn(e);
   }
+
+  // ---------- 数据埋点（仅本地：内存 + localStorage，不发任何网络请求） ----------
+  // 策划书 10.2：对局起止、传盘、切人（ev('ctl',{kind,from,to})）、教学关。存档结构见 telLoad()。
+  const TEL_KEY = 'ult_tel_v1', TEL_V = 1, TEL_KEEP = 50, TEL_EV_MAX = 4000, TEL_SKIP = { voice: 1, call: 1, logo: 1 }, TEL_FIX = 1.0;
+  const TEL = { S: null, store: null, user: false };
+  const telGrp = () => ({ n: 0, ok: 0, block: 0, mblock: 0, oob: 0, ground: 0, drop: 0, lenSum: 0 });
+  const telKd = () => ({ n: 0, ok: 0 });
+  function telLoad() {
+    let s = null;
+    try { s = JSON.parse(localStorage.getItem(TEL_KEY)); } catch (e) { s = null; }
+    if (!s || s.v !== TEL_V || !Array.isArray(s.list)) s = { v: TEL_V, list: [], last: null, open: null };
+    if (s.open && s.open.sum) {   // 上次页面被直接杀掉、没来得及收尾的那一局：记为未完赛
+      s.open.sum.completed = false; s.open.sum.endReason = 'lost';
+      s.list.push(s.open.sum); s.last = s.open;
+      if (s.list.length > TEL_KEEP) s.list.splice(0, s.list.length - TEL_KEEP);
+    }
+    s.open = null; TEL.store = s;
+  }
+  function telSave(withOpen) {
+    const s = TEL.store; if (!s) return;
+    s.open = withOpen && TEL.S ? { sum: telSum(TEL.S, null), events: TEL.S.events } : null;
+    try { localStorage.setItem(TEL_KEY, JSON.stringify(s)); }
+    catch (e) {   // 配额满：丢掉事件流只存汇总
+      try { localStorage.setItem(TEL_KEY, JSON.stringify({ v: s.v, list: s.list, last: s.last && { sum: s.last.sum, events: [] }, open: null })); } catch (e2) {}
+    }
+  }
+  function telGSum(g) { return Object.assign({}, g, { rate: g.n ? +(g.ok / g.n).toFixed(3) : null }); }
+  function telSum(S, reason) {
+    const c = S.ctl, dr = S.drills.map((d) => ({ drill: d.drill, attempt: d.attempt, sec: d.done || d !== S.cur ? d.t : +(G.time - d.t0).toFixed(1), fails: d.fails, done: d.done }));
+    return {
+      v: TEL_V, id: S.id, mode: S.mode, goal: S.goal, diff: S.diff, formation: S.formation, startAt: S.startAt,
+      completed: !!S.completed, endReason: reason || null,
+      score: { b: G.score.B, r: G.score.R }, gameSec: +G.time.toFixed(1), playSec: +G.playT.toFixed(1), wallSec: +((Date.now() - S.w0) / 1000).toFixed(1),
+      pass: { B_human: telGSum(S.grp.B_human), B_ai: telGSum(S.grp.B_ai), R: telGSum(S.grp.R), byKind: S.kinds, unresolved: S.lost + (S.pend ? 1 : 0) },
+      stall: S.stall, turnover: S.turn,
+      ctl: { auto: c.auto, manual: c.manual, undo: c.undo, corrected: c.corrected, undoneAuto: c.undoneAuto, correctRate: c.auto ? +(1 - c.corrected / c.auto).toFixed(3) : null },
+      drills: dr, events: S.events.length, eventsDropped: S.dropped,
+    };
+  }
+  function telPush(S, r) {
+    S.events.push(r);
+    if (S.events.length > TEL_EV_MAX + 1000) { S.events.splice(0, 1000); S.dropped += 1000; }
+  }
+  function telPassDone(S, res, e) {
+    const p = S.pend; if (!p) return; S.pend = null;
+    const g = S.grp[p.team === 'R' ? 'R' : p.human ? 'B_human' : 'B_ai'];
+    g.n += 1; g[res] += 1; g.lenSum = +(g.lenSum + (p.len || 0)).toFixed(1);
+    for (const k of [p.kind, p.hand]) { const kd = S.kinds[k] || (S.kinds[k] = telKd()); kd.n += 1; if (res === 'ok') kd.ok += 1; }
+    telPush(S, { t: p.t, t2: e.t, w: e.w, type: 'pass', team: p.team, human: p.human, who: p.who, to: p.to, kind: p.kind, hand: p.hand, len: p.len, res });
+  }
+  // ev() 的埋点入口：给每个事件打墙钟时间戳，进本局事件流，顺手累计汇总用的计数器
+  function telOn(e) {
+    try {
+      e.w = Date.now();
+      const S = TEL.S; if (!S || TEL_SKIP[e.type]) return;
+      if (e.type === 'throw') {
+        e.human = !!TEL.user && e.team === 'B';
+        if (S.pend) S.lost += 1;
+        S.pend = { t: e.t, team: e.team, human: e.human, who: e.who, to: e.to, kind: e.kind, hand: e.hand, len: e.len };
+      } else if (e.type === 'catch') telPassDone(S, 'ok', e);
+      else if (e.type === 'turnover') {
+        S.turn[e.team] = (S.turn[e.team] || 0) + 1;
+        if (e.why === 'stall') S.stall[e.team] = (S.stall[e.team] || 0) + 1;
+        else telPassDone(S, e.why === 'drop' && e.label !== '掉盘' ? 'ground' : e.why, e);   // block 被断 / mblock marker 封堵 / oob 出界 / ground 落地 / drop 接盘掉落
+        if (S.mode === 'tutorial' && e.team === 'B' && S.cur) S.cur.fails += 1;
+      } else if (e.type === 'score') { if (S.mode === 'tutorial' && e.team === 'R' && S.cur) S.cur.fails += 1; }
+      else if (e.type === 'ctl') {
+        const c = S.ctl;
+        e.gap = c.lastT == null ? null : +(e.t - c.lastT).toFixed(2); c.lastT = e.t;
+        const near = c.aT != null && e.t - c.aT <= TEL_FIX + 1e-6;
+        if (e.kind === 'auto') { c.auto += 1; c.aT = e.t; c.aUsed = false; c.aUndo = false; }
+        else if (e.kind === 'manual') { c.manual += 1; if (near && !c.aUsed) { c.corrected += 1; c.aUsed = true; } }
+        else if (e.kind === 'undo') { c.undo += 1; if (near && !c.aUndo) { c.undoneAuto += 1; c.aUndo = true; } }
+      }
+      telPush(S, e);
+    } catch (err) {}
+  }
+  function telEnd(reason) {
+    const S = TEL.S; if (!S) return null;
+    TEL.S = null;
+    try {
+      if (S.cur && !S.cur.done) S.cur.t = +(G.time - S.cur.t0).toFixed(1);
+      S.completed = reason === 'end' || (S.mode === 'tutorial' && Object.keys(S.doneSet).length >= DRILLS.length);
+      const sum = telSum(S, reason), st = TEL.store;
+      st.list.push(sum); if (st.list.length > TEL_KEEP) st.list.splice(0, st.list.length - TEL_KEEP);
+      st.last = { sum, events: S.events };
+      telSave(false);
+      return sum;
+    } catch (e) { return null; }
+  }
+  function telBegin(mode) {
+    telEnd('restart');
+    try {
+      TEL.S = {
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), mode, goal: SET.goal, diff: SET.diff, formation: SET.formation,
+        startAt: new Date().toISOString(), w0: Date.now(), events: [], dropped: 0, completed: false, pend: null, lost: 0,
+        grp: { B_human: telGrp(), B_ai: telGrp(), R: telGrp() }, kinds: { high: telKd(), low: telKd(), F: telKd(), B: telKd() },
+        stall: { B: 0, R: 0 }, turn: { B: 0, R: 0 }, ctl: { auto: 0, manual: 0, undo: 0, corrected: 0, undoneAuto: 0, lastT: null, aT: null },
+        drills: [], cur: null, doneSet: {},
+      };
+    } catch (e) { TEL.S = null; }
+  }
+  function telDrillStart() {
+    const S = TEL.S; if (!S || S.mode !== 'tutorial') return;
+    try {
+      if (S.cur && !S.cur.done) S.cur.t = +(G.time - S.cur.t0).toFixed(1);   // 中途重来：上一次记为未通过
+      const n = G.drill + 1, d = { drill: n, attempt: S.drills.filter((x) => x.drill === n).length + 1, t0: G.time, t: 0, fails: 0, done: false };
+      S.drills.push(d); S.cur = d;
+      telPush(S, { t: +G.time.toFixed(2), w: Date.now(), type: 'drillStart', drill: n, attempt: d.attempt });
+    } catch (e) {}
+  }
+  function telDrillDone() {
+    const S = TEL.S; if (!S || !S.cur || S.cur.done) return;
+    try {
+      const d = S.cur; d.done = true; d.t = +(G.time - d.t0).toFixed(1); S.doneSet[d.drill] = 1;
+      telPush(S, { t: +G.time.toFixed(2), w: Date.now(), type: 'drillDone', drill: d.drill, attempt: d.attempt, sec: d.t, fails: d.fails });
+      if (G.drill === DRILLS.length - 1) telEnd('done');
+    } catch (e) {}
+  }
+  const telApi = {
+    summary() { const s = TEL.store; return { v: TEL_V, sessions: s.list.slice(), current: TEL.S ? telSum(TEL.S, null) : null }; },
+    export() {
+      const s = TEL.store;
+      return JSON.stringify({ app: 'ultimate-match', v: TEL_V, exportedAt: new Date().toISOString(), settings: { goal: SET.goal, diff: SET.diff, formation: SET.formation },
+        sessions: s.list, last: s.last, current: TEL.S ? { sum: telSum(TEL.S, null), events: TEL.S.events } : null });
+    },
+    clear() { TEL.store = { v: TEL_V, list: [], last: null, open: null }; try { localStorage.removeItem(TEL_KEY); } catch (e) {} return true; },
+  };
+  telLoad();
+  window.addEventListener('pagehide', (e) => { if (e.persisted) telSave(true); else telEnd('unload'); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && TEL.S) telSave(true); });
 
   function mkPlayer(team, n, info) {
     return {
@@ -819,9 +956,10 @@
     G.score = { B: 0, R: 0 }; G.flash = []; G.bubbles = []; G.parts = []; G.celeb = null;
     G.ts = { B: { att: 0, comp: 0, stall: 0, block: 0, mblock: 0, drop: 0, oob: 0 }, R: { att: 0, comp: 0, stall: 0, block: 0, mblock: 0, drop: 0, oob: 0 } };
     G.time = 0; G.playT = 0; G.events = []; G.log = []; G.pause = 0; G.afterPause = null; G.paused = false; G.cd = 0;
-    G.manual = false; G.ctl = null;
+    G.manual = false; G.ctl = null; G.autoKey = ''; G.ctlT = -9; G.ctlKind = ''; G.ctlPrev = G.ctlTo = G.ctlHL = null;
   }
   function newGame(mode) {
+    telBegin(mode);
     G.mode = mode; G.phase = 'play'; G.pull = null;
     if (G.redLineup.length !== 4) pickRed();
     buildPlayers(); resetStats();
@@ -845,6 +983,7 @@
     G.score = { B: 0, R: 0 }; G.pause = 0; G.afterPause = null; G.cd = 0; G.phase = 'play';
     resetPoint(dr.startDef ? 'R' : 'B');
     setCaption(dr.tip, 0);
+    telDrillStart();
     updateTop();
   }
 
@@ -861,7 +1000,7 @@
     return P;
   }
   function startJump(p) {
-    if (p.jumpT > 0 || p.jumpCd > 0) return false;
+    if (p.jumpT > 0 || p.jumpCd > 0 || p.landT > 0) return false;
     p.jumpT = JUMP_T; p.jumpCd = JUMP_T + JUMP_CD; return true;
   }
   // 瞄准：返回 { P, receiver, hand }。控制的不是持盘人时＝「叫盘」，传给被控的那个人
@@ -909,6 +1048,7 @@
     G.holder = null;
     ev('throw', { team: h.team, who: h.name, to: receiver ? receiver.name : null, kind, hand, len: +d.toFixed(1) });
     beep(kind === 'high' ? 420 : 520, 0.12);
+    fx('throw', h, { a: a1 });
     if (defActive() && G.rules.mark && G.checkTWas <= 0 && markBlocks(from, mk, P0, kind, hand)) {
       turnover(mk.x, mk.y, 'marker 封堵！', mk, 'mblock'); return;
     }
@@ -918,7 +1058,7 @@
     if (G.off !== 'B' || !G.holder || G.disc.state !== 'held') return false;
     const t = aimTarget(kind);
     if (!t) return false;
-    throwTo(t.P, t.receiver, kind, IN.hand);
+    TEL.user = true; try { throwTo(t.P, t.receiver, kind, IN.hand); } finally { TEL.user = false; }
     return true;
   }
 
@@ -936,6 +1076,7 @@
     ev('turnover', { team: offT, why: type, who: blocker ? blocker.name : null, label });
     flash(x, y, label, blocker ? (blocker.team === 'B' ? C.att : C.def) : '#fff');
     beep(200, 0.3, 'sawtooth', 0.06);
+    if (type === 'block' || type === 'mblock') fx('block', blocker, { offT, x, y });
     voice('turn');
     showBanner('TURN OVER', G.mode === 'tutorial' ? label : `${label.replace(/！$/, '')} · ${offT === 'B' ? '换对方进攻' : '换我们进攻'}`, 1.3);
     if (blocker && (type === 'block' || type === 'mblock')) callout('D', blocker);
@@ -974,6 +1115,7 @@
     beep(660, 0.12, 'square', 0.07); setTimeout(() => beep(990, 0.2, 'square', 0.07), 110);
     updateTop();
     if (info.len >= 16 || info.jump) callout('wow', p); else callout('catch', p);
+    fx('score', p, info);
     if (G.mode === 'tutorial') {
       if (t === 'B') { G.progress.scores += 1; G.progress.completions += 1; }
       startCelebration(p, 2.0);
@@ -1010,6 +1152,7 @@
     ev('catch', { team: p.team, who: p.name, from: thrower ? thrower.name : null, len: +len.toFixed(1), jump, contested, kind: d.kind });
     if (inScoreZone(p.team, p.x)) { scored(p, thrower, { len, jump, contested }); return; }
     beep(780, 0.08, 'square', 0.05);
+    fx(jump ? 'jumpcatch' : 'catch', p);
     G.stall = 0; G.holdT = 0; G.checkT = 0.6;
     G.patience = rand(5.5, 11); G.risk = rand(-0.5, 0.2); G.minHold = rand(2.0, 3.6);
     formUp(p.team);
@@ -1023,6 +1166,7 @@
     const done = Object.keys(g).every((k) => G.progress[k] >= g[k]);
     updateTop();
     if (!done) return false;
+    telDrillDone();
     G.pause = 99; G.afterPause = null;
     const last = G.drill === DRILLS.length - 1;
     showMsg(last ? '教学完成！' : `${DRILLS[G.drill].title.split(' · ')[0]} 通过`, last ? '🎓' : '✓',
@@ -1043,6 +1187,7 @@
       players: G.players.map((p) => ({ team: p.team, name: p.name, st: Object.assign({}, p.st) })),
     };
     G.matches.push(sum);
+    sum.tel = telEnd('end');
     document.body.classList.remove('playing');
     showResult(win);
   }
@@ -1125,26 +1270,53 @@
     const key = `${G.possN}|${disc.state}|${G.passN}|${G.holder ? G.holder.n : 0}`;
     if (G.manual && key === G.manualKey && G.ctl && G.ctl.team === 'B') return;
     G.manual = false;
+    // 只在局面变化（出手 / 接住 / 换攻 / 捡盘）那一帧重选，避免逐帧在两人间来回跳
+    if (key === G.autoKey && G.ctl && G.ctl.team === 'B') return;
+    G.autoKey = key;
     let want = null;
     if (G.off === 'B') {
       if (disc.state === 'held' && G.holder) want = G.holder;
       else if (disc.state === 'air') want = disc.receiver && disc.receiver.team === 'B' ? disc.receiver : nearestTo(B, disc.to);
       else want = G.pickup && G.pickup.team === 'B' ? G.pickup : nearestTo(B, disc);
     } else {
-      if (disc.state === 'held' && G.holder) want = guardOf(G.holder);
+      if (disc.state === 'held' && G.holder) want = nearestTo(B, G.holder);
       else if (disc.state === 'air') {
         let bt = Infinity;
         for (const p of B) { const t = Math.min(dist(p, disc.to), segDist(p, disc, disc.to) * 1.6) / SPD.sprint; if (t < bt) { bt = t; want = p; } }
       } else want = nearestTo(B, disc);
     }
-    G.ctl = want || G.ctl || B[0];
+    setCtl(want || G.ctl || B[0], 'auto');
+  }
+  // 换操控对象的唯一入口：高亮、旧操控者交还 AI、发 ctl 事件
+  function setCtl(p, kind) {
+    const old = G.ctl;
+    if (!p || p === old) return false;
+    G.ctl = p;
+    G.ctlHL = { p, t: G.time };
+    if (old) handOff(old);
+    ev('ctl', { kind, from: old ? old.n : null, to: p.n });
+    return true;
+  }
+  // 切走的人当帧交给 AI：防守方由 stepDefense 每帧接管；进攻方把被摇杆改掉的目标点重设回去
+  function handOff(p) {
+    if (p.team !== G.off || p === G.holder) return;
+    const d = G.disc;
+    if (p.state === 'chase' && d.state === 'air' && d.receiver === p) { p.tx = d.to.x; p.ty = d.to.y; p.sp = SPD.cut; }
+    else if (p.state === 'set' && p.slot) { p.tx = p.slot.x; p.ty = p.slot.y; p.sp = SPD.jog; }
   }
   function switchCtl() {
     if (G.mode === 'menu' || G.paused || G.pause > 0 || G.cd > 0 || G.pull) return;
-    const B = team('B'), ref = G.holder || G.disc;
-    const order = B.slice().sort((a, b) => dist(a, ref) - dist(b, ref));
-    const i = order.indexOf(G.ctl);
-    G.ctl = order[(i + 1) % order.length];
+    const B = team('B'), ref = G.holder || G.disc, el = G.time - G.ctlT;
+    let kind = 'manual', to;
+    if (G.ctlKind === 'manual' && el >= 0 && el < CTL_UNDO && G.ctl === G.ctlTo && G.ctlPrev && B.includes(G.ctlPrev)) { kind = 'undo'; to = G.ctlPrev; }
+    else if (el >= 0 && el < CTL_CD) return;
+    else {
+      const order = B.slice().sort((a, b) => dist(a, ref) - dist(b, ref));
+      to = order[(order.indexOf(G.ctl) + 1) % order.length];
+    }
+    const from = G.ctl;
+    if (!setCtl(to, kind)) return;
+    G.ctlT = G.time; G.ctlKind = kind; G.ctlPrev = from; G.ctlTo = to;
     G.manual = true;
     G.manualKey = `${G.possN}|${G.disc.state}|${G.passN}|${G.holder ? G.holder.n : 0}`;
     beep(600, 0.05, 'sine', 0.05);
@@ -1289,7 +1461,7 @@
     G.parts = G.parts.filter((q) => q.t < q.life && q.y < H + 20);
     if (G.callCd > 0) G.callCd -= dt;
     if (G.shoutCd > 0) G.shoutCd -= dt;
-    for (const p of G.players) { if (p.jumpT > 0) p.jumpT -= dt; if (p.jumpCd > 0) p.jumpCd -= dt; }
+    for (const p of G.players) { if (p.jumpT > 0) { p.jumpT -= dt; if (p.jumpT <= 0) p.landT = JUMP_LAND; } else if (p.landT > 0) p.landT -= dt; if (p.jumpCd > 0) p.jumpCd -= dt; }
     readInput();
 
     if (G.cd > 0) {
@@ -1331,7 +1503,8 @@
         if (mk && dist(mk, G.holder) <= STALL_RANGE) {
           const prev = Math.floor(G.stall);
           G.stall += dt;
-          if (Math.floor(G.stall) > prev && G.stall > STALL_MAX - 3.2 && G.stall < STALL_MAX) beep(300 + G.stall * 40, 0.05, 'sine', 0.05);
+          fx('stall', null, { dt });
+          if (Math.floor(G.stall) > prev && G.stall > STALL_MAX - 3.2 && G.stall < STALL_FX) beep(300 + G.stall * 40, 0.05, 'sine', 0.05);
           if (G.stall >= STALL_MAX) { const h = G.holder; G.holder = null; turnover(h.x, h.y, '10 秒到！', null, 'stall'); return; }
         }
       } else G.holdT += dt;
@@ -1421,8 +1594,10 @@
       const lim = G.pause > 0 && G.celeb ? 0.6 : 0.8;
       if (dd > 0 && dd < lim) {
         const push = (lim - dd) / 2, ux = dx / dd, uy = dy / dd;
-        if (a !== G.holder) { a.x -= ux * push; a.y -= uy * push; }
-        if (b !== G.holder) { b.x += ux * push; b.y += uy * push; }
+        // 捡盘人有路权：他不被挤开，挡路的人吃下全部位移（否则有人站在散盘旁，捡盘人永远够不到盘）
+        const pa = a === G.pickup, pb = b === G.pickup;
+        if (a !== G.holder && !pa) { const k = pb ? 2 : 1; a.x -= ux * push * k; a.y -= uy * push * k; }
+        if (b !== G.holder && !pb) { const k = pa ? 2 : 1; b.x += ux * push * k; b.y += uy * push * k; }
       }
     }
   }
@@ -1584,6 +1759,13 @@
       ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(x, y0, r * 1.55 * k, 0, 7); ctx.stroke();
       ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(x, y0 - r * 1.75 - 12 - lift); ctx.lineTo(x - 6, y0 - r * 1.75 - 22 - lift); ctx.lineTo(x + 6, y0 - r * 1.75 - 22 - lift); ctx.closePath(); ctx.fill();
     }
+    // 刚被切到的人：1 秒黄色高亮圈 + 头顶编号
+    const hl = G.ctlHL, hk = hl && hl.p === p ? (G.time - hl.t) / CTL_HL : -1;
+    if (hk >= 0 && hk < 1) {
+      ctx.strokeStyle = `rgba(255,211,61,${(1 - hk * 0.7).toFixed(2)})`; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(x, y0, r * (1.9 + 0.5 * hk), 0, 7); ctx.stroke();
+      pill(x, y0 - r * 1.75 - 34 - lift, `${p.n}`, '#ffd33d', '#10161d', 14);
+    }
     ctx.fillStyle = col; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); ctx.stroke();
     // 号码（在背后一侧，头在前侧）
@@ -1714,10 +1896,11 @@
     if (!G.holder || G.disc.state !== 'held' || !defActive() || !G.rules.stall || !G.rules.mark || G.checkT > 0 || G.pause > 0) return;
     const mk = guardOf(G.holder);
     const counting = mk && dist(mk, G.holder) <= STALL_RANGE;
-    const [x, y] = toS(G.holder.x, G.holder.y);
+    let [x, y] = toS(G.holder.x, G.holder.y);
+    const hot = counting && G.stall >= STALL_FX; if (hot) { const j = 1.5 + 2 * (G.stall - STALL_FX); x += rand(-j, j); y += rand(-j, j); }   // 8 秒起：抖动
     const n = clamp(Math.ceil(STALL_MAX - G.stall), 1, STALL_MAX);
     const r = prad(), col = n <= 3 ? C.def : C.pass, by = y - r - 20;
-    ctx.fillStyle = 'rgba(15,25,35,.85)'; ctx.beginPath(); ctx.arc(x, by, 13, 0, 7); ctx.fill();
+    ctx.fillStyle = hot ? 'rgba(120,10,20,.92)' : 'rgba(15,25,35,.85)'; ctx.beginPath(); ctx.arc(x, by, 13, 0, 7); ctx.fill();
     ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, by, 13, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - G.stall / STALL_MAX)); ctx.stroke();
     ctx.fillStyle = counting ? col : '#8fa1b3'; ctx.font = '800 14px -apple-system, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(String(n), x, by + 0.5);
@@ -1779,9 +1962,156 @@
     ctx.globalAlpha = 1;
   }
 
+  // ---------- 反馈层（策划书 7.3）：fx(kind, p, info) 是唯一入口；震动 / 顿帧 / 慢放 / 镜头轻推 / 合成音效 ----------
+  const HAPTIC = { light: 12, mid: 28, strong: [45, 35, 70] };
+  const HITSTOP = 0.08, SLOW_JUMP = 0.15, SLOW_GOAL = 0.3, SLOW_K = 0.35;   // 秒（真实时间）/ 慢放倍率
+  const STALL_FX = 8, PART_MAX = 160, FX_MAX = 24;
+  const FX = { stop: 0, slow: 0, shake: 0, shakeAmp: 0, zoom: 0, zoomDur: 0, zoomAmp: 0, zx: 0, zy: 0, red: 0, items: [], tick: 0, ts: null, firstCatch: false, firstTurn: false, hapticOn: true, lastHap: 0, log: [] };
+  function haptic(level) {
+    const pat = HAPTIC[level]; if (!pat || !FX.hapticOn) return false;
+    try {
+      if (typeof navigator.vibrate !== 'function') return false;
+      if (navigator.userActivation && !navigator.userActivation.hasBeenActive) return false;   // 未交互前浏览器会拦截并打警告
+      const now = performance.now(); if (now - FX.lastHap < 40) return false; FX.lastHap = now;
+      navigator.vibrate(pat); return true;
+    } catch (e) { return false; }
+  }
+  const sfxOK = () => ac && !muted && G.speed <= 1;
+  function sfxNoise(t0, d, f0, f1, v, q) {
+    const s = ac.createBufferSource(), g = ac.createGain(), f = ac.createBiquadFilter();
+    s.buffer = noiseBuf; s.loop = true; f.type = 'bandpass'; f.Q.value = q || 1.2;
+    f.frequency.setValueAtTime(f0, t0); f.frequency.exponentialRampToValueAtTime(f1, t0 + d);
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(v, t0 + d * 0.3); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
+    s.connect(f).connect(g).connect(master); s.start(t0); s.stop(t0 + d + 0.02);
+  }
+  function sfx(kind) {
+    if (!sfxOK() || !noiseBuf) return;
+    const t = ac.currentTime;
+    try {
+      if (kind === 'whoosh') sfxNoise(t, 0.16, 700, 3200, 0.09, 1.4);
+      else if (kind === 'ding') { tone(1568, t, 0.28, 'sine', 0.09); tone(2349, t, 0.16, 'sine', 0.035); sfxNoise(t + 0.02, 0.7, 1100, 900, 0.025, 0.6); }
+      else if (kind === 'rise') [1047, 1319, 1568, 2093].forEach((f, i) => tone(f, t + i * 0.06, 0.16, 'triangle', 0.07));
+      else if (kind === 'thud') {
+        const o = ac.createOscillator(), g = ac.createGain();
+        o.type = 'sine'; o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.25);
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.3, t + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+        o.connect(g).connect(master); o.start(t); o.stop(t + 0.32);
+      }
+      else if (kind === 'tick') tone(FX.tickHi ? 1900 : 1500, t, 0.03, 'square', 0.04);
+      else if (kind === 'goal') {
+        sfxNoise(t, 0.55, 400, 4000, 0.05, 0.9);
+        [523, 659, 784, 1047].forEach((f) => tone(f, t + 0.5, 0.6, 'triangle', 0.035));
+        if (bgm && bgmLive) { const v0 = 0.4; bgm.volume = 0.7; setTimeout(() => { try { bgm.volume = v0; } catch (e) {} }, 2200); }
+      }
+    } catch (e) {}
+  }
+  function fxSparks(sx, sy, col, n, sp) {
+    const r0 = prad() * 1.1;   // 从人身外侧起，不压住盘与人
+    for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2 + rand(-0.2, 0.2), v = sp * rand(0.7, 1.2); G.parts.push({ x: sx + Math.cos(a) * r0, y: sy + Math.sin(a) * r0, vx: Math.cos(a) * v, vy: Math.sin(a) * v, c: col, r: 0, w: 4, life: 0.35, spark: true }); }
+  }
+  function fxItem(o) { o.t = 0; FX.items.push(o); if (FX.items.length > FX_MAX) FX.items.shift(); }
+  function fxPush(x, y, amp, dur) { const [sx, sy] = toS(x, y); FX.zx = sx; FX.zy = sy; FX.zoomAmp = amp; FX.zoom = FX.zoomDur = dur; }
+  function fxShake(amp, dur) { if (amp >= FX.shakeAmp * (FX.shake / 0.3)) { FX.shakeAmp = amp; FX.shake = dur; } }
+  function fxTimeSet(stop, slow) { if (G.speed > 1) return; if (stop) FX.stop = Math.max(FX.stop, stop); if (slow) FX.slow = Math.max(FX.slow, slow); }
+  // kind: throw | catch | jumpcatch | block（被断或断盘）| stall（读秒滴答，每步调用）| score
+  function fx(kind, p, info) {
+    if (G.mode === 'menu') return;
+    if (FX.ts !== G.ts) { FX.ts = G.ts; FX.firstCatch = FX.firstTurn = false; FX.items = []; FX.stop = FX.slow = FX.red = FX.zoom = FX.shake = 0; }
+    if (kind !== 'stall') { FX.log.push({ k: kind, t: +G.time.toFixed(2), team: p ? p.team : null }); if (FX.log.length > 200) FX.log.shift(); }
+    const blue = p && p.team === 'B';
+    if (kind === 'throw') {
+      fxItem({ k: 'arc', x: p.x, y: p.y, a: info.a, life: 0.24 });
+      sfx('whoosh'); if (blue) haptic('light');
+    } else if (kind === 'catch' || kind === 'jumpcatch') {
+      const [sx, sy] = toS(p.x, p.y);
+      fxSparks(sx, sy, blue ? '#ffd33d' : '#ff9aa8', blue ? 9 : 5, blue ? 120 : 80);
+      fxShake(blue ? 2 : 1, 0.15);
+      if (kind === 'jumpcatch') fxItem({ k: 'ring', p, life: 0.7 });
+      if (!blue) return;
+      fxItem({ k: 'pop', p, text: '+1', life: 0.75 });
+      if (kind === 'jumpcatch') { fxTimeSet(0, SLOW_JUMP); sfx('rise'); haptic('strong'); } else { sfx('ding'); haptic('mid'); }
+      if (!FX.firstCatch) { FX.firstCatch = true; flash(p.x, p.y, '第一传成功！', C.pass, 1.5); fxPush(p.x, p.y, 0.05, 0.6); if (kind !== 'jumpcatch') sfx('rise'); }
+    } else if (kind === 'block') {
+      const lost = info && info.offT === 'B';   // 我们被断
+      const [sx, sy] = toS(info.x, info.y);
+      fxTimeSet(HITSTOP, 0); fxShake(5, 0.28);
+      fxSparks(sx, sy, lost ? '#ff4d5e' : '#7cc4ff', 12, 150);
+      if (lost) { FX.red = 0.35; sfx('thud'); haptic('strong'); if (!FX.firstTurn) { FX.firstTurn = true; fxPush(info.x, info.y, 0.05, 0.6); } }
+      else if (p && p.team === 'B') { sfx('thud'); haptic('strong'); }
+    } else if (kind === 'stall') {
+      if (G.stall < STALL_FX) { FX.tick = 0; return; }
+      FX.tick -= info.dt;
+      if (FX.tick <= 0) { FX.tick += 0.5 - 0.35 * clamp((G.stall - STALL_FX) / (STALL_MAX - STALL_FX), 0, 1); FX.tickHi = !FX.tickHi; sfx('tick'); haptic('light'); FX.log.push({ k: 'tick', t: +G.time.toFixed(2), stall: +G.stall.toFixed(2) }); }
+    } else if (kind === 'score') {
+      fxPush(p.x, p.y, 0.08, 0.9); fxTimeSet(0, SLOW_GOAL); fxShake(4, 0.3);
+      if (info && info.jump) fxItem({ k: 'ring', p, life: 0.7 });
+      sfx('goal'); haptic(blue ? 'strong' : 'light');
+      const busy = new Set(G.bubbles.map((b) => b.p));
+      const m = team(p.team).filter((q) => q !== p && !busy.has(q)).sort((a, b) => dist(a, p) - dist(b, p))[0];
+      if (m) say(m, PHRASES.D, true);
+    }
+  }
+  // 每帧（真实时间）推进反馈计时，返回本帧模拟时间倍率：顿帧 0，慢放 SLOW_K；测试倍速下恒为 1
+  function fxTime(wall) {
+    FX.shake = Math.max(0, FX.shake - wall); FX.zoom = Math.max(0, FX.zoom - wall); FX.red = Math.max(0, FX.red - wall);
+    for (const o of FX.items) o.t += wall;
+    FX.items = FX.items.filter((o) => o.t < o.life);
+    if (G.speed > 1 || G.paused) { FX.stop = FX.slow = 0; return 1; }
+    if (FX.stop > 0) { FX.stop -= wall; return 0; }
+    if (FX.slow > 0) { FX.slow -= wall; return SLOW_K; }
+    return 1;
+  }
+  function fxCam() {
+    if (FX.shake > 0) ctx.translate(rand(-1, 1) * FX.shakeAmp * (FX.shake / 0.3), rand(-1, 1) * FX.shakeAmp * (FX.shake / 0.3));
+    if (FX.zoom > 0) { const u = 1 - FX.zoom / FX.zoomDur, z = 1 + FX.zoomAmp * Math.sin(Math.PI * Math.min(1, u * 1.15)); ctx.translate(FX.zx, FX.zy); ctx.scale(z, z); ctx.translate(-FX.zx, -FX.zy); }
+  }
+  // layer 0：画在盘之下（跳接金圈、出手弧线）；layer 1：最上层（+1 飘字、被断红闪），并给粒子封顶
+  function fxDraw(layer) {
+    if (layer === 0) {
+      for (const o of FX.items) {
+        const k = o.t / o.life;
+        if (o.k === 'ring') {
+          const [x, y] = toS(o.p.x, o.p.y), r = prad() * (1.05 + 0.35 * k);
+          ctx.globalAlpha = 1 - k; ctx.strokeStyle = '#ffd33d'; ctx.lineWidth = 4 * (1 - k) + 1.5;
+          ctx.shadowColor = '#ffd33d'; ctx.shadowBlur = 10; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke(); ctx.shadowBlur = 0;
+        } else if (o.k === 'arc') {
+          const [x, y] = toS(o.x, o.y), r = prad() * (1.4 + 0.8 * k);
+          ctx.globalAlpha = 0.95 * (1 - k); ctx.strokeStyle = '#fff6c8'; ctx.lineWidth = 4.5 * (1 - k) + 1.5; ctx.lineCap = 'round';
+          ctx.beginPath(); ctx.arc(x, y, r, o.a - 0.9, o.a + 0.9); ctx.stroke(); ctx.lineCap = 'butt';
+        }
+      }
+      ctx.globalAlpha = 1; return;
+    }
+    if (G.parts.length > PART_MAX) G.parts.splice(0, G.parts.length - PART_MAX);
+    for (const o of FX.items) {
+      if (o.k !== 'pop') continue;
+      const k = o.t / o.life, [x, y] = toS(o.p.x, o.p.y);
+      ctx.globalAlpha = k < 0.7 ? 1 : (1 - k) / 0.3;
+      ctx.font = '800 13px -apple-system, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      const tx = x + prad() + 4, ty = y - prad() * 0.6 - k * 16;
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.strokeText(o.text, tx, ty); ctx.fillStyle = '#ffd33d'; ctx.fillText(o.text, tx, ty);
+    }
+    ctx.globalAlpha = 1;
+    if (FX.red > 0) {   // 只染屏幕四周，中间的盘与连线保持清楚
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.65);
+      g.addColorStop(0, 'rgba(255,40,60,0)'); g.addColorStop(1, `rgba(255,40,60,${(0.6 * FX.red / 0.35).toFixed(3)})`);
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    }
+  }
+  (() => {   // 震动开关：只有支持 navigator.vibrate 的设备才显示
+    const box = document.getElementById('opt-buzz'); if (!box) return;
+    if (typeof navigator.vibrate !== 'function') { box.hidden = true; return; }
+    box.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+      FX.hapticOn = b.dataset.v === '1'; box.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+      if (FX.hapticOn) haptic('mid');
+    }));
+  })();
+
   function render() {
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+    if (G.mode !== 'menu') fxCam();
     if (bgCanvas) ctx.drawImage(bgCanvas, 0, 0, W, H);
     if (G.mode === 'menu' || !G.players.length) { drawMenuScene(); return; }
     drawBreakSide();
@@ -1792,12 +2122,14 @@
     const list = G.players.filter((p) => !(hideDef && p.team !== G.off)).sort((a, b) => a.y - b.y);
     list.forEach((p, i) => drawPlayer(p, i));
     drawSeparation();
+    fxDraw(0);
     drawDisc();
     drawStall();
     drawCelebration();
     drawBubbles();
     drawFlash();
     drawParts();
+    fxDraw(1);
   }
   // 菜单背景：飘着的飞盘
   function drawMenuScene() {
@@ -1866,11 +2198,13 @@
     $('banner').classList.remove('on'); $('logo').classList.remove('on'); showCountdown('');
   }
   function openMenu() {
+    telEnd('menu');
     G.mode = 'menu'; G.phase = 'idle'; G.pause = 0; G.paused = false; G.cd = 0; G.pull = null; G.players = []; G.teams = { B: [], R: [] }; G.ctl = null; G.afterPause = null;
     document.body.classList.remove('playing'); setCaption('', 0);
     hideAll(); $('menu').hidden = false; updateTop();
   }
   function openSelect() {
+    telEnd('select');
     G.mode = 'menu'; G.paused = false; G.players = []; document.body.classList.remove('playing');
     hideAll(); $('select').hidden = false; pickRed(); renderRoster(); renderSlots();
   }
@@ -2016,6 +2350,14 @@
   $('b-tomenu').addEventListener('click', openMenu);
   $('b-quick').addEventListener('click', () => { initAudio(); openSelect(); });
   $('b-tut').addEventListener('click', () => { initAudio(); newGame('tutorial'); });
+  $('b-tel').addEventListener('click', () => {
+    const btn = $('b-tel'), txt = telApi.export(), done = (m) => { btn.textContent = m; setTimeout(() => { btn.textContent = '导出对局数据'; }, 1800); };
+    const dl = () => {
+      try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], { type: 'application/json' })); a.download = 'ultimate-telemetry.json'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 3000); done('已下载文件'); }
+      catch (e) { done('导出失败'); }
+    };
+    try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(() => done('已复制到剪贴板'), dl); else dl(); } catch (e) { dl(); }
+  });
   $('b-rules').addEventListener('click', () => { $('menu').hidden = true; $('rules').hidden = false; });
   $('b-rules-back').addEventListener('click', () => { $('rules').hidden = true; $('menu').hidden = false; });
   $('b-back').addEventListener('click', openMenu);
@@ -2037,7 +2379,7 @@
   let last = performance.now(), acc = 0;
   function frame(now) {
     const wall = Math.min(0.05, (now - last) / 1000); last = now;
-    acc += wall * G.speed;
+    acc += wall * G.speed * fxTime(wall);
     if (IN.passing) IN.passT += wall;   // 按键时长按真实时间算，不随测试倍速变化
     let n = 0;
     while (acc >= STEP && n < 4000) { update(STEP); acc -= STEP; n++; }
@@ -2078,6 +2420,7 @@
     },
     setSpeed(n) { G.speed = n; },
     newGame, openMenu, openSelect, startDrill,
+    telemetry: telApi,
   };
 })();
 </script>
